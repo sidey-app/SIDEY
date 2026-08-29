@@ -22,10 +22,15 @@ mkdir -p "$SIDEY_EXPORT_DIR"
 
 SIDEY_MAIN_EXECUTABLE="$SIDEY_EXPORT_PATH/Contents/MacOS/SIDEY"
 SIDEY_INFO_PLIST="$SIDEY_EXPORT_PATH/Contents/Info.plist"
+SIDEY_ICON="$SIDEY_EXPORT_PATH/Contents/Resources/icon.icns"
 SIDEY_ARM_LIBRARY="$SIDEY_EXPORT_PATH/Contents/Frameworks/libsidey_macos.macos.template_release.arm64.dylib"
 SIDEY_X86_LIBRARY="$SIDEY_EXPORT_PATH/Contents/Frameworks/libsidey_macos.macos.template_release.x86_64.dylib"
 if [ ! -x "$SIDEY_MAIN_EXECUTABLE" ]; then
 	echo "Exported executable not found: $SIDEY_MAIN_EXECUTABLE" >&2
+	exit 1
+fi
+if [ ! -s "$SIDEY_ICON" ]; then
+	echo "Exported icon not found: $SIDEY_ICON" >&2
 	exit 1
 fi
 
