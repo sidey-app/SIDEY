@@ -1,6 +1,9 @@
 class_name BackendConfig
 extends RefCounted
 
+const PROJECT_URL_SETTING := "sidey/backend/supabase_url"
+const PROJECT_PUBLISHABLE_KEY_SETTING := "sidey/backend/supabase_publishable_key"
+
 var url := ""
 var publishable_key := ""
 
@@ -37,6 +40,20 @@ static func from_environment() -> BackendConfig:
 		OS.get_environment("SIDEY_SUPABASE_URL"),
 		OS.get_environment("SIDEY_SUPABASE_PUBLISHABLE_KEY"),
 	)
+
+
+static func from_project_settings() -> BackendConfig:
+	return BackendConfig.new(
+		str(ProjectSettings.get_setting(PROJECT_URL_SETTING, "")),
+		str(ProjectSettings.get_setting(PROJECT_PUBLISHABLE_KEY_SETTING, "")),
+	)
+
+
+static func from_runtime() -> BackendConfig:
+	var environment_config := from_environment()
+	if not environment_config.url.is_empty() or not environment_config.publishable_key.is_empty():
+		return environment_config
+	return from_project_settings()
 
 
 static func _is_secret_key(key: String) -> bool:

@@ -12,6 +12,7 @@ var _typing_received := false
 var _presence_received := false
 var _database_message_received := false
 var _expected_message_id := ""
+var _channel_error := ""
 
 
 func _initialize() -> void:
@@ -44,12 +45,18 @@ func _run() -> void:
 	root.add_child(realtime)
 	_check(realtime.configure(config, backend.access_token(), backend.user_id()) == OK, "Realtime configured")
 	realtime.channel_joined.connect(func(joined_room_id: String) -> void: _joined = joined_room_id == room_id)
+	realtime.channel_error.connect(func(error_room_id: String, reason: String) -> void:
+		if error_room_id == room_id:
+			_channel_error = reason
+	)
 	realtime.broadcast_received.connect(_on_broadcast.bind(room_id))
 	realtime.presence_state_received.connect(func(received_room_id: String, _state: Dictionary) -> void: _presence_received = received_room_id == room_id)
 	realtime.presence_diff_received.connect(func(received_room_id: String, _joins: Dictionary, _leaves: Dictionary) -> void: _presence_received = received_room_id == room_id)
 	_check(realtime.subscribe_room(room_id, {"state": "online"}) == OK, "private room subscribed")
 	_check(realtime.connect_realtime() == OK, "Realtime socket started")
-	await _wait_until(func() -> bool: return _joined)
+	await _wait_until(func() -> bool: return _joined or not _channel_error.is_empty())
+	if not _channel_error.is_empty():
+		push_error("REALTIME_CHANNEL_JOIN_ERROR reason=%s" % _channel_error)
 	_check(_joined, "private room joined")
 	if _joined:
 		var refreshed: Dictionary = await backend.refresh_session()

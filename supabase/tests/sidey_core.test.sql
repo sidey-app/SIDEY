@@ -1,5 +1,8 @@
 begin;
 
+-- Linked tests connect as a temporary member of `postgres`; assume that role
+-- explicitly so pgTAP in the extensions schema is visible, just like local runs.
+set local role postgres;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
@@ -182,7 +185,7 @@ select throws_like(
   '%permission denied for table messages%',
   'direct message insert is denied'
 );
-reset role;
+set local role postgres;
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
 select throws_ok(

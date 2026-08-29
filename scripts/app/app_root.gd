@@ -15,6 +15,7 @@ const BackendRuntimeScript := preload("res://scripts/backend/backend_runtime.gd"
 const ActivityPresenceScript := preload("res://scripts/platform/activity_presence.gd")
 const SideyThemeScript := preload("res://scripts/ui/sidey_theme.gd")
 const OverlayEditTrayScript := preload("res://scripts/overlay/overlay_edit_tray.gd")
+const BACKEND_APP_SMOKE_TIMEOUT_SECONDS := 8.0
 
 var _character_row: CharacterRow
 var _character_camera: Camera3D
@@ -270,7 +271,7 @@ func _setup_platform_bridge() -> void:
 func _setup_backend_runtime() -> Error:
 	if _has_argument("--local-ux-demo") or _has_argument("--smoke-test") or _has_argument("--offline"):
 		return OK
-	var config := BackendConfigScript.from_environment()
+	var config := BackendConfigScript.from_runtime()
 	var has_partial_config := not config.url.is_empty() or not config.publishable_key.is_empty()
 	if not config.is_valid():
 		return ERR_INVALID_PARAMETER if has_partial_config else OK
@@ -316,6 +317,7 @@ func _run_backend_app_smoke() -> void:
 		)
 		if not bool(onboarded.get("ok", false)):
 			push_error("BACKEND_APP_SMOKE_ONBOARD_FAILED code=%s" % str(onboarded.get("error_code", "unknown")))
+			await _cleanup_backend_app_smoke()
 			get_tree().quit(1)
 			return
 	_activate_room_session()
@@ -327,21 +329,30 @@ func _run_backend_app_smoke() -> void:
 	)
 	if not bool(sent.get("ok", false)):
 		push_error("BACKEND_APP_SMOKE_MESSAGE_FAILED code=%s" % str(sent.get("error_code", "unknown")))
+		await _cleanup_backend_app_smoke()
 		get_tree().quit(1)
 		return
-	await get_tree().create_timer(0.4).timeout
+	var message_deadline := Time.get_ticks_msec() + int(BACKEND_APP_SMOKE_TIMEOUT_SECONDS * 1000.0)
+	while _chat_controller.recent_messages(_room_controller.active_room_id()).is_empty() \
+			and Time.get_ticks_msec() < message_deadline:
+		await get_tree().create_timer(0.05).timeout
 	if _chat_controller.recent_messages(_room_controller.active_room_id()).is_empty():
 		push_error("BACKEND_APP_SMOKE_MESSAGE_NOT_APPLIED")
+		await _cleanup_backend_app_smoke()
 		get_tree().quit(1)
 		return
+	await _cleanup_backend_app_smoke()
+	print("SIDEY_BACKEND_APP_SMOKE_OK")
+	get_tree().quit(0)
+
+
+func _cleanup_backend_app_smoke() -> void:
 	var room_ids: Array[String] = []
 	for room in _room_controller.rooms():
 		room_ids.append(str(room.get("id", "")))
 	for room_id in room_ids:
 		await _backend_runtime.leave_room(room_id)
 	_backend_runtime.backend_client().clear_session()
-	print("SIDEY_BACKEND_APP_SMOKE_OK")
-	get_tree().quit(0)
 
 
 func _activate_platform_runtime() -> void:

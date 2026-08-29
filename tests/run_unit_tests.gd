@@ -166,6 +166,9 @@ func _run_backend_protocol_tests() -> void:
 	_check_equal(config.is_valid(), true, "backend config accepts publishable key")
 	_check_equal(config.url, "http://127.0.0.1:54321", "backend config trims URL")
 	_check_equal(config.realtime_url().begins_with("ws://127.0.0.1:54321/realtime/v1/websocket?"), true, "backend websocket URL")
+	var bundled_config = BackendConfigScript.from_project_settings()
+	_check_equal(bundled_config.is_valid(), true, "exported app bundles valid public backend config")
+	_check_equal(bundled_config.publishable_key.begins_with("sb_publishable_"), true, "bundled backend key is publishable")
 	_check_equal(BackendConfigScript.new("https://example.test", "sb_secret_nope").is_valid(), false, "backend rejects secret key")
 	var legacy_service_role := "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature"
 	_check_equal(BackendConfigScript.new("https://example.test", legacy_service_role).is_valid(), false, "backend rejects legacy service role JWT")

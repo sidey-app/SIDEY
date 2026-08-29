@@ -45,3 +45,8 @@ renderer/rendering_method.web="gl_compatibility"
 viewport/transparent_background=true
 textures/default_filters/use_nearest_mipmap_filter=false
 textures/vram_compression/import_etc2_astc=true
+
+[sidey]
+
+backend/supabase_url="https://whtejsviizgejauasqqt.supabase.co"
+backend/supabase_publishable_key="sb_publishable_kkASOI4rRTX8Drob21hkCw_VwUex63Y"
