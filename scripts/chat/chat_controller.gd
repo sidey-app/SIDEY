@@ -19,6 +19,7 @@ const HISTORY_SIZE := Vector2(320.0, 226.0)
 const HISTORY_GAP := 6.0
 const EDGE_MARGIN := 8.0
 const FIXED_UI_FACTOR := OverlayGeometryScript.FIXED_UI_FACTOR
+const IME_SUBMIT_MAX_WAIT_FRAMES := 4
 
 var _room_controller: RoomController
 var _chat_store: ChatStore
@@ -39,6 +40,7 @@ var _last_valid_draft := ""
 var _restoring_draft := false
 var _history_access_enabled := false
 var _submit_queued := false
+var _submit_wait_frames := 0
 
 
 func configure(
@@ -53,6 +55,7 @@ func configure(
 	_typing_tracker = TypingTrackerScript.new()
 	_build_ui()
 	set_process(true)
+	set_process_input(true)
 
 
 func set_session(room: Dictionary, profile: Dictionary) -> void:
@@ -246,6 +249,23 @@ func _process(_delta: float) -> void:
 		typing_event.emit(event, _active_room_id, _self_user_id)
 
 
+func _input(event: InputEvent) -> void:
+	if not is_instance_valid(_text_edit) or not _text_edit.has_focus():
+		return
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	var key_event := event as InputEventKey
+	if not is_enter_key(key_event):
+		return
+	if key_event.shift_pressed:
+		if _text_edit.has_ime_text():
+			_text_edit.apply_ime()
+		_text_edit.insert_text_at_caret("\n")
+	else:
+		_submit_from_enter()
+	get_viewport().set_input_as_handled()
+
+
 func _on_text_changed() -> void:
 	if _restoring_draft:
 		return
@@ -270,11 +290,7 @@ func _on_text_gui_input(event: InputEvent) -> void:
 					_text_edit.apply_ime()
 				_text_edit.insert_text_at_caret("\n")
 			else:
-				if _text_edit.has_ime_text():
-					_text_edit.apply_ime()
-					_queue_submit()
-				else:
-					_send_current_message()
+				_submit_from_enter()
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_ESCAPE:
 			_text_edit.release_focus()
@@ -432,12 +448,32 @@ func _queue_submit() -> void:
 	if _submit_queued or _send_in_progress:
 		return
 	_submit_queued = true
+	_submit_wait_frames = 0
 	_flush_queued_submit.call_deferred()
 
 
 func _flush_queued_submit() -> void:
+	if not is_instance_valid(_text_edit):
+		_submit_queued = false
+		return
+	if _text_edit.has_ime_text():
+		if _submit_wait_frames >= IME_SUBMIT_MAX_WAIT_FRAMES:
+			_submit_queued = false
+			return
+		_submit_wait_frames += 1
+		_text_edit.apply_ime()
+		get_tree().process_frame.connect(_flush_queued_submit, CONNECT_ONE_SHOT)
+		return
 	_submit_queued = false
-	if not is_instance_valid(_text_edit) or _text_edit.has_ime_text():
+	_send_current_message()
+
+
+func _submit_from_enter() -> void:
+	if _submit_queued or _send_in_progress:
+		return
+	if _text_edit.has_ime_text():
+		_text_edit.apply_ime()
+		_queue_submit()
 		return
 	_send_current_message()
 

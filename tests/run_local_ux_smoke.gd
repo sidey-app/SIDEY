@@ -71,13 +71,19 @@ func _run() -> void:
 		_check(ChatControllerScript.should_submit_key(enter, true), "Enter submits after applying active IME text")
 		message_input.text = "Enter 전송"
 		chat._on_text_changed()
+		message_input.grab_focus()
+		await process_frame
 		var message_count := chat.recent_messages(first_room_id).size()
-		chat._on_text_gui_input(enter)
-		_check(chat.recent_messages(first_room_id).size() == message_count + 1, "Enter sends the current draft")
+		chat._input(enter)
+		_check(chat.recent_messages(first_room_id).size() == message_count + 1, "pre-GUI Enter sends the current draft on its first press")
 		_check(message_input.text.is_empty(), "successful send clears only the draft")
 		_check(chat.composer_visible(), "successful send keeps the composer visible")
-		message_input.text = "첫째 줄\n둘째 줄"
+		message_input.text = "첫째 줄"
 		chat._on_text_changed()
+		message_input.set_caret_line(0)
+		message_input.set_caret_column(message_input.text.length())
+		chat._input(shift_enter)
+		message_input.insert_text_at_caret("둘째 줄")
 		_check(message_input.text == "첫째 줄\n둘째 줄", "multiline draft accepts Shift+Enter newlines")
 		var valid_length_draft := "가".repeat(ChatStore.MAX_BODY_LENGTH)
 		message_input.text = valid_length_draft
