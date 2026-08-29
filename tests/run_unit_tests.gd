@@ -119,6 +119,10 @@ func _run_chat_store_tests() -> void:
 	_check_equal(ChatStoreScript.validate_body("a".repeat(201)), ERR_INVALID_PARAMETER, "chat rejects long body")
 	_check_equal(ChatStoreScript.validate_body("1\n2\n3"), OK, "chat accepts three lines")
 	_check_equal(ChatStoreScript.validate_body("1\n2\n3\n4"), ERR_INVALID_PARAMETER, "chat rejects fourth line")
+	var iso_chat = ChatStoreScript.new()
+	iso_chat.insert({"id": "newer", "room_id": "room-iso", "sender_id": "user-1", "body": "둘", "created_at": "2026-08-29T02:00:00Z"})
+	iso_chat.insert({"id": "older", "room_id": "room-iso", "sender_id": "user-1", "body": "하나", "created_at": "2026-08-29T01:00:00Z"})
+	_check_equal(iso_chat.recent("room-iso")[0]["id"], "older", "chat sorts ISO server timestamps")
 
 
 func _run_typing_tracker_tests() -> void:

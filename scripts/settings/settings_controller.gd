@@ -19,11 +19,17 @@ var _launch_at_login: CheckBox
 var _feedback: Label
 var _character_ids: Array[String] = []
 var _room_ids: Array[String] = []
+var _backend_runtime: BackendRuntime
 
 
-func configure(room_controller: RoomController, platform_bridge: PlatformBridge) -> void:
+func configure(
+	room_controller: RoomController,
+	platform_bridge: PlatformBridge,
+	backend_runtime: BackendRuntime = null,
+) -> void:
 	_room_controller = room_controller
 	_platform_bridge = platform_bridge
+	_backend_runtime = backend_runtime
 	_room_controller.rooms_changed.connect(_on_rooms_changed)
 	_room_controller.active_room_changed.connect(_on_active_room_changed)
 
@@ -176,6 +182,9 @@ func _refresh_active_room_name() -> void:
 
 
 func _save_profile() -> void:
+	if is_instance_valid(_backend_runtime):
+		_save_remote_profile.call_deferred()
+		return
 	var error := _room_controller.set_profile(
 		_nickname_edit.text,
 		_character_ids[_character_picker.selected],
@@ -192,11 +201,17 @@ func _select_room(index: int) -> void:
 
 
 func _rename_active_room() -> void:
+	if is_instance_valid(_backend_runtime):
+		_rename_remote_room.call_deferred()
+		return
 	var error := _room_controller.rename_room(_room_controller.active_room_id(), _room_name_edit.text)
 	_show_result(error, "그룹 이름을 바꿨음.", "방장 권한과 1~20자 이름을 확인해줘.")
 
 
 func _create_room() -> void:
+	if is_instance_valid(_backend_runtime):
+		_create_remote_room.call_deferred()
+		return
 	var error := _room_controller.create_room(_new_room_edit.text)
 	_show_result(error, "새 그룹을 만들었음.", "그룹 이름 또는 최대 5개 제한을 확인해줘.")
 	if error == OK:
@@ -204,10 +219,49 @@ func _create_room() -> void:
 
 
 func _join_room() -> void:
+	if is_instance_valid(_backend_runtime):
+		_join_remote_room.call_deferred()
+		return
 	var error := _room_controller.join_demo_room(_invite_code_edit.text)
 	_show_result(error, "그룹에 참여했음.", "코드가 틀렸거나 이미 참여했거나 그룹이 5개임.")
 	if error == OK:
 		_invite_code_edit.text = ""
+
+
+func _save_remote_profile() -> void:
+	var result: Dictionary = await _backend_runtime.update_profile(
+		_nickname_edit.text,
+		_character_ids[_character_picker.selected],
+	)
+	_show_backend_result(result, "프로필을 저장했음.")
+
+
+func _rename_remote_room() -> void:
+	var result: Dictionary = await _backend_runtime.rename_room(
+		_room_controller.active_room_id(),
+		_room_name_edit.text,
+	)
+	_show_backend_result(result, "그룹 이름을 바꿨음.")
+
+
+func _create_remote_room() -> void:
+	var result: Dictionary = await _backend_runtime.create_room(_new_room_edit.text)
+	_show_backend_result(result, "새 그룹을 만들었음.")
+	if bool(result.get("ok", false)):
+		_new_room_edit.text = ""
+
+
+func _join_remote_room() -> void:
+	var result: Dictionary = await _backend_runtime.join_room(_invite_code_edit.text)
+	_show_backend_result(result, "그룹에 참여했음.")
+	if bool(result.get("ok", false)):
+		_invite_code_edit.text = ""
+
+
+func _show_backend_result(result: Dictionary, success: String) -> void:
+	var ok := bool(result.get("ok", false))
+	_feedback.text = success if ok else "처리하지 못했음: %s" % str(result.get("error_code", "unknown"))
+	_feedback.add_theme_color_override("font_color", Color("75cdb5") if ok else Color("ff9d91"))
 
 
 func _toggle_launch_at_login(enabled: bool) -> void:

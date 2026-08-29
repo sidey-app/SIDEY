@@ -5,7 +5,7 @@ signal boot_completed(onboarding_required: bool)
 signal boot_failed(code: String, message: String)
 signal snapshot_applied
 signal snapshot_sync_finished(result: Dictionary)
-signal message_received(message: Dictionary)
+signal message_received(message: Dictionary, replayed: bool)
 signal typing_changed(room_id: String, user_id: String, typing: bool)
 signal presence_changed(room_id: String, user_id: String, presence: String)
 signal connection_state_changed(state: String)
@@ -284,7 +284,7 @@ func _sync_recent_messages(room_id: String) -> void:
 	rows.reverse()
 	for row in rows:
 		if row is Dictionary:
-			message_received.emit((row as Dictionary).duplicate(true))
+			message_received.emit((row as Dictionary).duplicate(true), true)
 
 
 func _on_broadcast_received(room_id: String, event_name: String, payload: Dictionary) -> void:
@@ -304,7 +304,7 @@ func _on_broadcast_received(room_id: String, event_name: String, payload: Dictio
 	if table_name == "messages" and event_name == "INSERT":
 		var record := payload.get("record", {}) as Dictionary
 		if not record.is_empty():
-			message_received.emit(record.duplicate(true))
+			message_received.emit(record.duplicate(true), false)
 	elif table_name in ["profiles", "rooms", "room_members"]:
 		_request_snapshot_sync()
 

@@ -10,6 +10,8 @@ const CharacterHudScript := preload("res://scripts/characters/character_hud.gd")
 const ChatControllerScript := preload("res://scripts/chat/chat_controller.gd")
 const OnboardingControllerScript := preload("res://scripts/onboarding/onboarding_controller.gd")
 const SettingsControllerScript := preload("res://scripts/settings/settings_controller.gd")
+const BackendConfigScript := preload("res://scripts/backend/backend_config.gd")
+const BackendRuntimeScript := preload("res://scripts/backend/backend_runtime.gd")
 
 var _character_row: CharacterRow
 var _overlay_controller: OverlayController
@@ -29,12 +31,13 @@ var _screen_locked := false
 var _system_sleeping := false
 var _platform_runtime_active := false
 var _ephemeral_settings_path := ""
+var _backend_runtime: BackendRuntime
 
 
 func _ready() -> void:
 	_setup_environment()
 	_setup_camera()
-	if _has_argument("--local-ux-demo"):
+	if _has_argument("--local-ux-demo") or _has_argument("--backend-app-smoke"):
 		_ephemeral_settings_path = "/tmp/sidey-local-ux-%d.json" % OS.get_process_id()
 	_settings_store = SettingsStoreScript.new(
 		_ephemeral_settings_path if not _ephemeral_settings_path.is_empty() else "user://settings.json"
@@ -54,6 +57,10 @@ func _ready() -> void:
 	_platform_bridge = PlatformBridgeScript.new()
 	_platform_bridge.name = "PlatformBridge"
 	add_child(_platform_bridge)
+	var backend_setup_error := _setup_backend_runtime()
+	if backend_setup_error != OK:
+		_fail("Backend configuration is invalid", backend_setup_error)
+		return
 	_overlay_controller = OverlayControllerScript.new()
 	_overlay_controller.name = "OverlayController"
 	add_child(_overlay_controller)
@@ -76,7 +83,11 @@ func _ready() -> void:
 	_on_scale_changed(_overlay_controller.overlay_scale())
 	if _has_argument("--unlocked"):
 		_overlay_controller.set_locked(false, false)
-	if _room_controller.is_onboarding_complete():
+	if is_instance_valid(_backend_runtime):
+		_character_row.visible = false
+		_character_hud.visible = false
+		_start_backend_flow.call_deferred()
+	elif _room_controller.is_onboarding_complete():
 		_activate_room_session()
 	elif _has_argument("--smoke-test") or DisplayServer.get_name() == "headless":
 		_configure_debug_hud()
@@ -193,7 +204,7 @@ func _setup_local_ux() -> void:
 	_chat_controller = ChatControllerScript.new()
 	_chat_controller.name = "ChatController"
 	add_child(_chat_controller)
-	_chat_controller.configure(_room_controller, _overlay_canvas)
+	_chat_controller.configure(_room_controller, _overlay_canvas, _backend_runtime)
 	_chat_controller.message_accepted.connect(_on_message_accepted)
 	_chat_controller.typing_event.connect(_on_typing_event)
 	_chat_controller.input_visibility_changed.connect(_on_chat_input_visibility_changed)
@@ -204,11 +215,15 @@ func _setup_local_ux() -> void:
 	_settings_controller = SettingsControllerScript.new()
 	_settings_controller.name = "SettingsController"
 	add_child(_settings_controller)
-	_settings_controller.configure(_room_controller, _platform_bridge)
+	_settings_controller.configure(_room_controller, _platform_bridge, _backend_runtime)
 	_settings_controller.opened.connect(_on_settings_opened)
 	_settings_controller.closed.connect(_on_settings_closed)
 	_room_controller.active_room_changed.connect(_on_active_room_changed)
 	_room_controller.profile_changed.connect(_on_profile_changed)
+	if is_instance_valid(_backend_runtime):
+		_backend_runtime.message_received.connect(_on_backend_message_received)
+		_backend_runtime.typing_changed.connect(_on_backend_typing_changed)
+		_backend_runtime.presence_changed.connect(_on_backend_presence_changed)
 
 
 func _setup_status_menu() -> void:
@@ -237,6 +252,83 @@ func _setup_platform_bridge() -> void:
 	_platform_bridge.global_shortcut_pressed.connect(_on_global_shortcut_pressed)
 	_screen_locked = _platform_bridge.is_screen_locked()
 	_sync_native_activity_state()
+
+
+func _setup_backend_runtime() -> Error:
+	if _has_argument("--local-ux-demo") or _has_argument("--smoke-test") or _has_argument("--offline"):
+		return OK
+	var config := BackendConfigScript.from_environment()
+	var has_partial_config := not config.url.is_empty() or not config.publishable_key.is_empty()
+	if not config.is_valid():
+		return ERR_INVALID_PARAMETER if has_partial_config else OK
+	_backend_runtime = BackendRuntimeScript.new() as BackendRuntime
+	_backend_runtime.name = "BackendRuntime"
+	add_child(_backend_runtime)
+	var session_profile := _argument_value("--backend-profile=")
+	return _backend_runtime.configure(
+		config,
+		_platform_bridge,
+		_room_controller,
+		"default" if session_profile.is_empty() else session_profile,
+	)
+
+
+func _start_backend_flow() -> void:
+	var result: Dictionary = await _backend_runtime.start()
+	if not bool(result.get("ok", false)):
+		if _has_argument("--backend-app-smoke"):
+			push_error("BACKEND_APP_SMOKE_BOOT_FAILED code=%s" % str(result.get("error_code", "unknown")))
+			get_tree().quit(1)
+			return
+		_onboarding_controller.show_onboarding(_room_controller, _backend_runtime)
+		_onboarding_controller.show_blocking_error(
+			"서버에 연결하지 못했음. 네트워크와 SIDEY 백엔드 설정을 확인한 뒤 앱을 다시 실행해줘.\n오류: %s" \
+			% str(result.get("error_code", "unknown"))
+		)
+		return
+	if _has_argument("--backend-app-smoke"):
+		_run_backend_app_smoke.call_deferred()
+	elif bool(result.get("onboarding_required", false)):
+		_onboarding_controller.show_onboarding(_room_controller, _backend_runtime)
+	else:
+		_activate_room_session()
+
+
+func _run_backend_app_smoke() -> void:
+	if _room_controller.rooms().is_empty():
+		var onboarded: Dictionary = await _backend_runtime.onboard_create(
+			"앱스모크",
+			"minty_pup",
+			"앱 스모크 방",
+		)
+		if not bool(onboarded.get("ok", false)):
+			push_error("BACKEND_APP_SMOKE_ONBOARD_FAILED code=%s" % str(onboarded.get("error_code", "unknown")))
+			get_tree().quit(1)
+			return
+	_activate_room_session()
+	var message_id := ChatControllerScript._uuid_v4()
+	var sent: Dictionary = await _backend_runtime.send_message(
+		message_id,
+		_room_controller.active_room_id(),
+		"AppRoot 백엔드 연결 확인",
+	)
+	if not bool(sent.get("ok", false)):
+		push_error("BACKEND_APP_SMOKE_MESSAGE_FAILED code=%s" % str(sent.get("error_code", "unknown")))
+		get_tree().quit(1)
+		return
+	await get_tree().create_timer(0.4).timeout
+	if _chat_controller.recent_messages(_room_controller.active_room_id()).is_empty():
+		push_error("BACKEND_APP_SMOKE_MESSAGE_NOT_APPLIED")
+		get_tree().quit(1)
+		return
+	var room_ids: Array[String] = []
+	for room in _room_controller.rooms():
+		room_ids.append(str(room.get("id", "")))
+	for room_id in room_ids:
+		await _backend_runtime.leave_room(room_id)
+	_backend_runtime.backend_client().clear_session()
+	print("SIDEY_BACKEND_APP_SMOKE_OK")
+	get_tree().quit(0)
 
 
 func _activate_platform_runtime() -> void:
@@ -431,11 +523,44 @@ func _on_message_accepted(message: Dictionary, active_room: bool) -> void:
 
 
 func _on_typing_event(action: StringName, room_id: String, user_id: String) -> void:
+	if is_instance_valid(_backend_runtime):
+		var send_error := _backend_runtime.send_typing(room_id, action)
+		if send_error != OK and send_error != ERR_UNCONFIGURED:
+			push_warning("BACKEND_TYPING_SEND_FAILED error=%d" % send_error)
 	if room_id != _room_controller.active_room_id():
 		return
 	var presence := PresenceState.Value.TYPING if action != &"typing_stop" else _local_resting_presence()
 	_character_row.set_member_presence(user_id, presence, false)
 	_character_hud.set_presence(user_id, presence)
+
+
+func _on_backend_message_received(message: Dictionary, replayed: bool) -> void:
+	var error := _chat_controller.restore_message(message) if replayed else _chat_controller.receive_message(message)
+	if error not in [OK, ERR_ALREADY_EXISTS]:
+		push_warning("BACKEND_MESSAGE_APPLY_FAILED error=%d" % error)
+
+
+func _on_backend_typing_changed(room_id: String, user_id: String, typing: bool) -> void:
+	if room_id != _room_controller.active_room_id():
+		return
+	var presence := PresenceState.Value.TYPING if typing else _cached_member_presence(room_id, user_id)
+	_character_row.set_member_presence(user_id, presence, false)
+	_character_hud.set_presence(user_id, presence)
+
+
+func _on_backend_presence_changed(room_id: String, user_id: String, presence: String) -> void:
+	if room_id != _room_controller.active_room_id():
+		return
+	var value := PresenceState.from_string(presence)
+	_character_row.set_member_presence(user_id, value, false)
+	_character_hud.set_presence(user_id, value)
+
+
+func _cached_member_presence(room_id: String, user_id: String) -> PresenceState.Value:
+	for member in _room_controller.room_by_id(room_id).get("members", []) as Array:
+		if str((member as Dictionary).get("user_id", "")) == user_id:
+			return PresenceState.from_string(str((member as Dictionary).get("presence", "offline")))
+	return PresenceState.Value.OFFLINE
 
 
 func _on_global_shortcut_pressed(action: StringName) -> void:
@@ -458,15 +583,21 @@ func _on_system_sleep_changed(sleeping: bool) -> void:
 
 func _on_system_resumed() -> void:
 	_sync_native_activity_state()
+	if is_instance_valid(_backend_runtime):
+		var reconnect_error := _backend_runtime.reconnect_after_resume()
+		if reconnect_error != OK:
+			push_warning("BACKEND_RESUME_RECONNECT_FAILED error=%d" % reconnect_error)
 
 
 func _sync_native_activity_state() -> void:
 	if not is_instance_valid(_character_row) or not is_instance_valid(_room_controller):
 		return
+	var presence := _local_resting_presence()
+	if is_instance_valid(_backend_runtime):
+		_backend_runtime.set_local_presence("away" if presence == PresenceState.Value.AWAY else "online")
 	var user_id := str(_room_controller.profile().get("user_id", ""))
 	if user_id.is_empty() or _character_row.member_index(user_id) < 0:
 		return
-	var presence := _local_resting_presence()
 	_character_row.set_member_presence(user_id, presence, true)
 	_character_hud.set_presence(user_id, presence)
 

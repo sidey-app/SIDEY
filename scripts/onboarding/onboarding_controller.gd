@@ -13,10 +13,14 @@ var _room_name_edit: LineEdit
 var _invite_code_edit: LineEdit
 var _error_label: Label
 var _character_ids: Array[String] = []
+var _backend_runtime: BackendRuntime
+var _create_button: Button
+var _join_button: Button
 
 
-func show_onboarding(room_controller: RoomController) -> void:
+func show_onboarding(room_controller: RoomController, backend_runtime: BackendRuntime = null) -> void:
 	_room_controller = room_controller
+	_backend_runtime = backend_runtime
 	if is_instance_valid(_window):
 		_window.popup_centered()
 		return
@@ -28,6 +32,14 @@ func close() -> void:
 	if is_instance_valid(_window):
 		_window.queue_free()
 	_window = null
+
+
+func show_blocking_error(message: String) -> void:
+	if not is_instance_valid(_window):
+		_build_window()
+	_set_busy(true)
+	_error_label.text = message
+	_window.popup_centered()
 
 
 func _build_window() -> void:
@@ -82,10 +94,10 @@ func _build_window() -> void:
 	_room_name_edit.max_length = RoomController.MAX_ROOM_NAME_LENGTH
 	_room_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	create_row.add_child(_room_name_edit)
-	var create_button := Button.new()
-	create_button.text = "만들고 시작"
-	create_button.pressed.connect(_create_room)
-	create_row.add_child(create_button)
+	_create_button = Button.new()
+	_create_button.text = "만들고 시작"
+	_create_button.pressed.connect(_create_room)
+	create_row.add_child(_create_button)
 	content.add_child(create_row)
 	content.add_child(_field_label("또는 초대 코드로 참여"))
 	var join_row := HBoxContainer.new()
@@ -93,10 +105,10 @@ func _build_window() -> void:
 	_invite_code_edit.placeholder_text = "7KM4-NP2Q"
 	_invite_code_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	join_row.add_child(_invite_code_edit)
-	var join_button := Button.new()
-	join_button.text = "참여하고 시작"
-	join_button.pressed.connect(_join_room)
-	join_row.add_child(join_button)
+	_join_button = Button.new()
+	_join_button.text = "참여하고 시작"
+	_join_button.pressed.connect(_join_room)
+	join_row.add_child(_join_button)
 	content.add_child(join_row)
 	if OS.is_debug_build():
 		var demo_help := Label.new()
@@ -111,6 +123,9 @@ func _build_window() -> void:
 
 
 func _create_room() -> void:
+	if is_instance_valid(_backend_runtime):
+		_create_remote_room.call_deferred()
+		return
 	var profile_error := _validate_and_save_profile()
 	if profile_error != OK:
 		return
@@ -122,6 +137,9 @@ func _create_room() -> void:
 
 
 func _join_room() -> void:
+	if is_instance_valid(_backend_runtime):
+		_join_remote_room.call_deferred()
+		return
 	var profile_error := _validate_and_save_profile()
 	if profile_error != OK:
 		return
@@ -130,6 +148,65 @@ func _join_room() -> void:
 		_show_error("로컬 검증에서는 SIDEY-DEMO 코드만 사용할 수 있음.")
 		return
 	_finish()
+
+
+func _create_remote_room() -> void:
+	if not _validate_remote_fields(true):
+		return
+	_set_busy(true)
+	var result: Dictionary = await _backend_runtime.onboard_create(
+		_nickname_edit.text,
+		_character_ids[_character_picker.selected],
+		_room_name_edit.text,
+	)
+	_set_busy(false)
+	if not bool(result.get("ok", false)):
+		_show_backend_error(result)
+		return
+	_finish()
+
+
+func _join_remote_room() -> void:
+	if not _validate_remote_fields(false):
+		return
+	_set_busy(true)
+	var result: Dictionary = await _backend_runtime.onboard_join(
+		_nickname_edit.text,
+		_character_ids[_character_picker.selected],
+		_invite_code_edit.text,
+	)
+	_set_busy(false)
+	if not bool(result.get("ok", false)):
+		_show_backend_error(result)
+		return
+	_finish()
+
+
+func _validate_remote_fields(creating: bool) -> bool:
+	if RoomController.validate_nickname(_nickname_edit.text) != OK:
+		_show_error("닉네임은 줄바꿈 없이 2~12자로 입력해줘.")
+		return false
+	if creating and RoomController.validate_room_name(_room_name_edit.text) != OK:
+		_show_error("그룹 이름은 1~20자로 입력해줘.")
+		return false
+	if not creating and _invite_code_edit.text.strip_edges().is_empty():
+		_show_error("초대 코드를 입력해줘.")
+		return false
+	return true
+
+
+func _set_busy(busy: bool) -> void:
+	_create_button.disabled = busy
+	_join_button.disabled = busy
+	_nickname_edit.editable = not busy
+	_character_picker.disabled = busy
+	_room_name_edit.editable = not busy
+	_invite_code_edit.editable = not busy
+	_error_label.text = "서버에 연결 중…" if busy else ""
+
+
+func _show_backend_error(result: Dictionary) -> void:
+	_show_error("처리하지 못했음: %s" % str(result.get("error_code", "unknown")))
 
 
 func _validate_and_save_profile() -> Error:

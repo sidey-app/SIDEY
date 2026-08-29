@@ -64,12 +64,21 @@ static func validate_body(body: String) -> Error:
 static func _sort_messages(left: Dictionary, right: Dictionary) -> bool:
 	var left_created := _created_time(left.get("created_at", 0.0))
 	var right_created := _created_time(right.get("created_at", 0.0))
-	if is_equal_approx(left_created, right_created):
+	if absf(left_created - right_created) < 0.000001:
 		return str(left.get("id", "")) < str(right.get("id", ""))
 	return left_created < right_created
 
 
 static func _created_time(value: Variant) -> float:
 	if value is String and (value as String).contains("T"):
-		return Time.get_unix_time_from_datetime_string(value)
+		var timestamp := value as String
+		var base := timestamp.left(19)
+		var unix_time := float(Time.get_unix_time_from_datetime_string(base))
+		var offset_start := maxi(timestamp.find("+", 19), timestamp.find("-", 19))
+		if offset_start >= 0:
+			var offset_parts := timestamp.substr(offset_start + 1, 5).split(":")
+			if offset_parts.size() == 2:
+				var offset_seconds := int(offset_parts[0]) * 3600 + int(offset_parts[1]) * 60
+				unix_time += offset_seconds if timestamp[offset_start] == "-" else -offset_seconds
+		return unix_time
 	return float(value)

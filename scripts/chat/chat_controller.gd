@@ -22,11 +22,18 @@ var _history_button: Button
 var _active_room_id := ""
 var _self_user_id := ""
 var _quiet_mode := false
+var _backend_runtime: BackendRuntime
+var _send_in_progress := false
 
 
-func configure(room_controller: RoomController, canvas: CanvasLayer) -> void:
+func configure(
+	room_controller: RoomController,
+	canvas: CanvasLayer,
+	backend_runtime: BackendRuntime = null,
+) -> void:
 	_room_controller = room_controller
 	_canvas = canvas
+	_backend_runtime = backend_runtime
 	_chat_store = ChatStoreScript.new()
 	_typing_tracker = TypingTrackerScript.new()
 	_build_ui()
@@ -89,6 +96,18 @@ func receive_message(message: Dictionary) -> Error:
 	else:
 		_rebuild_history()
 	message_accepted.emit(message.duplicate(true), is_active)
+	return OK
+
+
+func restore_message(message: Dictionary) -> Error:
+	var room_id := str(message.get("room_id", ""))
+	if not _room_controller.has_room(room_id):
+		return ERR_DOES_NOT_EXIST
+	var insert_error := _chat_store.insert(message)
+	if insert_error != OK:
+		return insert_error
+	if room_id == _active_room_id:
+		_rebuild_history()
 	return OK
 
 
@@ -197,8 +216,13 @@ func _on_text_gui_input(event: InputEvent) -> void:
 
 
 func _send_current_message() -> void:
+	if _send_in_progress:
+		return
 	var body := _text_edit.text.strip_edges()
 	if ChatStore.validate_body(body) != OK:
+		return
+	if is_instance_valid(_backend_runtime):
+		_send_remote_message.call_deferred(body)
 		return
 	var message := {
 		"id": "local-message-%d-%d" % [Time.get_ticks_usec(), randi()],
@@ -216,6 +240,44 @@ func _send_current_message() -> void:
 	_input_panel.visible = false
 	_rebuild_history()
 	message_accepted.emit(message, true)
+
+
+func _send_remote_message(body: String) -> void:
+	_send_in_progress = true
+	_send_button.disabled = true
+	var message_id := _uuid_v4()
+	var result: Dictionary = await _backend_runtime.send_message(
+		message_id,
+		_active_room_id,
+		body,
+	)
+	_send_in_progress = false
+	if not bool(result.get("ok", false)):
+		push_warning("REMOTE_MESSAGE_SEND_FAILED code=%s message=%s" % [
+			str(result.get("error_code", "unknown")),
+			str(result.get("error_message", "")),
+		])
+		_on_text_changed()
+		return
+	var message := _first_record(result.get("data"))
+	if message.is_empty():
+		message = {
+			"id": message_id,
+			"room_id": _active_room_id,
+			"sender_id": _self_user_id,
+			"body": body,
+			"created_at": Time.get_unix_time_from_system(),
+		}
+	var insert_error := _chat_store.insert(message)
+	if insert_error not in [OK, ERR_ALREADY_EXISTS]:
+		push_warning("REMOTE_MESSAGE_CACHE_FAILED error=%d" % insert_error)
+		return
+	_emit_typing_stop()
+	_text_edit.text = ""
+	_input_panel.visible = false
+	_rebuild_history()
+	if insert_error == OK:
+		message_accepted.emit(message, true)
 
 
 func _emit_typing_stop() -> void:
@@ -252,3 +314,25 @@ func _sender_name(user_id: String) -> String:
 
 func _now_seconds() -> float:
 	return Time.get_ticks_msec() / 1000.0
+
+
+static func _first_record(value: Variant) -> Dictionary:
+	if value is Dictionary:
+		return (value as Dictionary).duplicate(true)
+	if value is Array and not (value as Array).is_empty() and (value as Array)[0] is Dictionary:
+		return ((value as Array)[0] as Dictionary).duplicate(true)
+	return {}
+
+
+static func _uuid_v4() -> String:
+	var bytes := Crypto.new().generate_random_bytes(16)
+	bytes[6] = (bytes[6] & 0x0f) | 0x40
+	bytes[8] = (bytes[8] & 0x3f) | 0x80
+	var hex := bytes.hex_encode()
+	return "%s-%s-%s-%s-%s" % [
+		hex.substr(0, 8),
+		hex.substr(8, 4),
+		hex.substr(12, 4),
+		hex.substr(16, 4),
+		hex.substr(20, 12),
+	]
