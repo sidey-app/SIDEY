@@ -193,8 +193,8 @@ func _setup_ui() -> void:
 	controls.add_child(drag_button)
 	var scale_slider := HSlider.new()
 	scale_slider.custom_minimum_size = Vector2(150.0, 0.0)
-	scale_slider.min_value = 70.0
-	scale_slider.max_value = 150.0
+	scale_slider.min_value = OverlayGeometry.MIN_SCALE * 100.0
+	scale_slider.max_value = OverlayGeometry.MAX_SCALE * 100.0
 	scale_slider.step = 1.0
 	scale_slider.value = _overlay_controller.overlay_scale() * 100.0
 	scale_slider.value_changed.connect(func(value: float) -> void: _overlay_controller.set_overlay_scale(value / 100.0))

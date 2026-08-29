@@ -1,7 +1,7 @@
 class_name SettingsStore
 extends RefCounted
 
-const CURRENT_SCHEMA_VERSION := 2
+const CURRENT_SCHEMA_VERSION := 3
 const OverlayGeometryScript := preload("res://scripts/overlay/overlay_geometry.gd")
 const DEFAULT_SETTINGS := {
 	"schema_version": CURRENT_SCHEMA_VERSION,
@@ -9,7 +9,7 @@ const DEFAULT_SETTINGS := {
 		"screen": -1,
 		"screen_signature": "",
 		"position": [0, 0],
-		"scale": 1.0,
+		"scale": OverlayGeometryScript.MIN_SCALE,
 		"visible": true,
 		"locked": true,
 	},

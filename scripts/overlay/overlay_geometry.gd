@@ -1,8 +1,8 @@
 class_name OverlayGeometry
 extends RefCounted
 
-const MIN_SCALE := 0.70
-const MAX_SCALE := 1.50
+const MIN_SCALE := 1.50
+const MAX_SCALE := 2.00
 
 
 static func clamp_scale(value: float) -> float:

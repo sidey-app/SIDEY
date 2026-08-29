@@ -41,8 +41,8 @@ func _initialize() -> void:
 
 
 func _run_geometry_tests() -> void:
-	_check_equal(OverlayGeometryScript.scaled_window_size(Vector2i(400, 300), 0.2), Vector2i(280, 210), "scale lower bound")
-	_check_equal(OverlayGeometryScript.scaled_window_size(Vector2i(400, 300), 2.0), Vector2i(600, 450), "scale upper bound")
+	_check_equal(OverlayGeometryScript.scaled_window_size(Vector2i(400, 300), 0.2), Vector2i(600, 450), "scale lower bound")
+	_check_equal(OverlayGeometryScript.scaled_window_size(Vector2i(400, 300), 3.0), Vector2i(800, 600), "scale upper bound")
 	_check_equal(
 		OverlayGeometryScript.centered_scaled_position(Vector2i(100, 100), Vector2i(400, 300), Vector2i(600, 450)),
 		Vector2i(0, 25),
@@ -64,12 +64,13 @@ func _run_settings_tests() -> void:
 	var path := "/tmp/sidey-settings-test-%d.json" % OS.get_process_id()
 	var store = SettingsStoreScript.new(path)
 	_check_equal(store.overlay()["locked"], true, "settings default locked")
+	_check_equal(store.overlay()["scale"], OverlayGeometryScript.MIN_SCALE, "settings default readable scale")
 	_check_equal(store.set_overlay_geometry(Vector2i(123, 456), 1.25, 2, "screen-a"), OK, "settings save geometry")
 	_check_equal(store.set_overlay_locked(false), OK, "settings save lock")
 	_check_equal(store.set_quiet_mode(true), OK, "settings save quiet mode")
 	var restored = SettingsStoreScript.new(path)
 	_check_equal(restored.overlay()["position"], [123, 456], "settings restore position")
-	_check_equal(restored.overlay()["scale"], 1.25, "settings restore scale")
+	_check_equal(restored.overlay()["scale"], OverlayGeometryScript.MIN_SCALE, "settings restore scale")
 	_check_equal(restored.overlay()["locked"], false, "settings restore lock")
 	_check_equal(restored.quiet_mode(), true, "settings restore quiet mode")
 	var migrated := SettingsStoreScript.migrate({

@@ -7,6 +7,8 @@ config_version=5
 
 config/name="SIDEY"
 run/main_scene="res://scenes/app_root.tscn"
+boot_splash/bg_color=Color(0, 0, 0, 0)
+boot_splash/show_image=false
 
 [display]
 
@@ -19,6 +21,7 @@ window/size/borderless=true
 window/size/always_on_top=true
 window/subwindows/embed_subwindows=false
 window/stretch/mode="canvas_items"
+window/per_pixel_transparency/allowed=true
 
 [input]
 
@@ -39,5 +42,6 @@ state_offline_sleep={
 renderer/rendering_method="mobile"
 renderer/rendering_method.mobile="mobile"
 renderer/rendering_method.web="gl_compatibility"
+viewport/transparent_background=true
 textures/default_filters/use_nearest_mipmap_filter=false
 textures/vram_compression/import_etc2_astc=true

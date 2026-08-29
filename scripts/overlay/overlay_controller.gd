@@ -15,7 +15,7 @@ var _window: Window
 var _settings_store: SettingsStore
 var _locked := true
 var _overlay_visible := true
-var _scale := 1.0
+var _scale := OverlayGeometryScript.MIN_SCALE
 var _last_position := Vector2i.ZERO
 var _last_size := BASE_WINDOW_SIZE
 var _screen_fingerprint := ""
@@ -172,6 +172,7 @@ func _configure_window_flags() -> void:
 	_window.borderless = true
 	_window.always_on_top = true
 	_window.unresizable = true
+	_window.transparent_bg = true
 	if DisplayServer.has_feature(DisplayServer.FEATURE_WINDOW_TRANSPARENCY):
 		_window.transparent = true
 
