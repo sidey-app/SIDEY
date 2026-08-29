@@ -33,6 +33,7 @@ func _run() -> void:
 	chat.message_accepted.connect(func(_message: Dictionary, active: bool) -> void: _accepted_active_flags.append(active))
 	_check(chat.composer_visible(), "inline composer remains visible for an active room")
 	_check(is_equal_approx(chat.composer_rect().position.x, 8.0), "inline composer follows the clamped self anchor")
+	_check(chat.composer_rect().size.is_equal_approx(Vector2(179.2, 33.6)), "composer stays at the fixed 160 percent size")
 	var message_input := canvas.find_child("MessageInput", true, false) as TextEdit
 	_check(message_input != null, "inline composer has a text input")
 	if message_input != null:
@@ -67,7 +68,7 @@ func _run() -> void:
 		var shift_enter := _key_event(KEY_ENTER, true)
 		_check(ChatControllerScript.should_submit_key(enter, false), "Enter submits a draft")
 		_check(not ChatControllerScript.should_submit_key(shift_enter, false), "Shift+Enter remains a newline")
-		_check(not ChatControllerScript.should_submit_key(enter, true), "Enter does not submit while IME text is active")
+		_check(ChatControllerScript.should_submit_key(enter, true), "Enter submits after applying active IME text")
 		message_input.text = "Enter 전송"
 		chat._on_text_changed()
 		var message_count := chat.recent_messages(first_room_id).size()

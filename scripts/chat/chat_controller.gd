@@ -5,16 +5,20 @@ signal message_accepted(message: Dictionary, active_room: bool)
 signal typing_event(action: StringName, room_id: String, user_id: String)
 signal input_visibility_changed(visible: bool)
 signal history_visibility_changed(visible: bool)
+signal composer_hover_changed(hovered: bool)
 
 const ChatStoreScript := preload("res://scripts/chat/chat_store.gd")
 const TypingTrackerScript := preload("res://scripts/chat/typing_tracker.gd")
 const OverlayThemeScript := preload("res://scripts/ui/overlay_theme.gd")
+const OverlayGeometryScript := preload("res://scripts/overlay/overlay_geometry.gd")
 const LOGICAL_WIDTH := 720.0
 const COMPOSER_SIZE := Vector2(224.0, 42.0)
-const COMPOSER_Y := 320.0
+const COMPOSER_GAP := 4.0
+const DEFAULT_IDENTITY_BASELINE_Y := 318.0
 const HISTORY_SIZE := Vector2(320.0, 226.0)
-const HISTORY_Y := 84.0
+const HISTORY_GAP := 6.0
 const EDGE_MARGIN := 8.0
+const FIXED_UI_FACTOR := OverlayGeometryScript.FIXED_UI_FACTOR
 
 var _room_controller: RoomController
 var _chat_store: ChatStore
@@ -30,9 +34,11 @@ var _quiet_mode := false
 var _backend_runtime: BackendRuntime
 var _send_in_progress := false
 var _anchor_x := LOGICAL_WIDTH * 0.5
+var _identity_baseline_y := DEFAULT_IDENTITY_BASELINE_Y
 var _last_valid_draft := ""
 var _restoring_draft := false
 var _history_access_enabled := false
+var _submit_queued := false
 
 
 func configure(
@@ -86,12 +92,14 @@ func cancel_composer() -> void:
 	input_visibility_changed.emit(is_instance_valid(_input_panel) and _input_panel.visible)
 
 
-func set_anchor_x(anchor_x: float) -> void:
+func set_anchor_x(anchor_x: float, identity_rect := Rect2()) -> void:
 	_anchor_x = clampf(anchor_x, 0.0, LOGICAL_WIDTH)
+	if identity_rect.size.y > 0.0:
+		_identity_baseline_y = identity_rect.end.y
 	if is_instance_valid(_input_panel):
-		_input_panel.position = Vector2(_composer_left(), COMPOSER_Y)
+		_input_panel.position = Vector2(_composer_left(), _composer_top())
 	if is_instance_valid(_history_panel):
-		_history_panel.position = Vector2(_history_left(), HISTORY_Y)
+		_history_panel.position = Vector2(_history_left(), _history_top())
 
 
 func composer_visible() -> bool:
@@ -101,13 +109,13 @@ func composer_visible() -> bool:
 func composer_rect() -> Rect2:
 	if not is_instance_valid(_input_panel):
 		return Rect2()
-	return Rect2(_input_panel.position, _input_panel.size)
+	return Rect2(_input_panel.position, _input_panel.size * _input_panel.scale)
 
 
 func history_rect() -> Rect2:
 	if not history_visible():
 		return Rect2()
-	return Rect2(_history_panel.position, _history_panel.size)
+	return Rect2(_history_panel.position, _history_panel.size * _history_panel.scale)
 
 
 func toggle_history() -> void:
@@ -173,9 +181,10 @@ func recent_messages(room_id: String) -> Array[Dictionary]:
 func _build_ui() -> void:
 	_input_panel = PanelContainer.new()
 	_input_panel.name = "InlineComposer"
-	_input_panel.position = Vector2(_composer_left(), COMPOSER_Y)
+	_input_panel.position = Vector2(_composer_left(), _composer_top())
 	_input_panel.custom_minimum_size = COMPOSER_SIZE
 	_input_panel.size = COMPOSER_SIZE
+	_input_panel.scale = Vector2.ONE * FIXED_UI_FACTOR
 	_input_panel.visible = false
 	_input_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	input_visibility_changed.emit(false)
@@ -198,13 +207,16 @@ func _build_ui() -> void:
 	_text_edit.add_theme_stylebox_override("read_only", OverlayThemeScript.composer_style())
 	_text_edit.text_changed.connect(_on_text_changed)
 	_text_edit.gui_input.connect(_on_text_gui_input)
+	_text_edit.mouse_entered.connect(func() -> void: composer_hover_changed.emit(true))
+	_text_edit.mouse_exited.connect(func() -> void: composer_hover_changed.emit(false))
 	_input_panel.add_child(_text_edit)
 
 	_history_panel = PanelContainer.new()
 	_history_panel.name = "HistoryPanel"
-	_history_panel.position = Vector2(_history_left(), HISTORY_Y)
+	_history_panel.position = Vector2(_history_left(), _history_top())
 	_history_panel.custom_minimum_size = HISTORY_SIZE
 	_history_panel.size = HISTORY_SIZE
+	_history_panel.scale = Vector2.ONE * FIXED_UI_FACTOR
 	_history_panel.visible = false
 	_history_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	_history_panel.add_theme_stylebox_override("panel", OverlayThemeScript.history_style())
@@ -252,8 +264,17 @@ func _on_text_changed() -> void:
 
 func _on_text_gui_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if should_submit_key(event, _text_edit.has_ime_text()):
-			_send_current_message()
+		if is_enter_key(event):
+			if event.shift_pressed:
+				if _text_edit.has_ime_text():
+					_text_edit.apply_ime()
+				_text_edit.insert_text_at_caret("\n")
+			else:
+				if _text_edit.has_ime_text():
+					_text_edit.apply_ime()
+					_queue_submit()
+				else:
+					_send_current_message()
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_ESCAPE:
 			_text_edit.release_focus()
@@ -268,6 +289,7 @@ func _send_current_message() -> void:
 	if ChatStore.validate_body(body) != OK:
 		return
 	if is_instance_valid(_backend_runtime):
+		_send_in_progress = true
 		_send_remote_message.call_deferred(body)
 		return
 	var message := {
@@ -288,7 +310,6 @@ func _send_current_message() -> void:
 
 
 func _send_remote_message(body: String) -> void:
-	_send_in_progress = true
 	_text_edit.editable = false
 	var message_id := _uuid_v4()
 	var result: Dictionary = await _backend_runtime.send_message(
@@ -364,19 +385,29 @@ func _now_seconds() -> float:
 
 
 func _composer_left() -> float:
+	var rendered_width := COMPOSER_SIZE.x * FIXED_UI_FACTOR
 	return clampf(
-		_anchor_x - COMPOSER_SIZE.x * 0.5,
+		_anchor_x - rendered_width * 0.5,
 		EDGE_MARGIN,
-		LOGICAL_WIDTH - EDGE_MARGIN - COMPOSER_SIZE.x,
+		LOGICAL_WIDTH - EDGE_MARGIN - rendered_width,
 	)
+
+
+func _composer_top() -> float:
+	return _identity_baseline_y + COMPOSER_GAP
 
 
 func _history_left() -> float:
+	var rendered_width := HISTORY_SIZE.x * FIXED_UI_FACTOR
 	return clampf(
-		_anchor_x - HISTORY_SIZE.x * 0.5,
+		_anchor_x - rendered_width * 0.5,
 		EDGE_MARGIN,
-		LOGICAL_WIDTH - EDGE_MARGIN - HISTORY_SIZE.x,
+		LOGICAL_WIDTH - EDGE_MARGIN - rendered_width,
 	)
+
+
+func _history_top() -> float:
+	return _composer_top() - HISTORY_GAP - HISTORY_SIZE.y * FIXED_UI_FACTOR
 
 
 func _clear_draft() -> void:
@@ -397,10 +428,26 @@ func _restore_last_valid_draft() -> void:
 	_restoring_draft = false
 
 
-static func should_submit_key(event: InputEventKey, ime_active: bool) -> bool:
-	return event.keycode in [KEY_ENTER, KEY_KP_ENTER] \
-		and not event.shift_pressed \
-		and not ime_active
+func _queue_submit() -> void:
+	if _submit_queued or _send_in_progress:
+		return
+	_submit_queued = true
+	_flush_queued_submit.call_deferred()
+
+
+func _flush_queued_submit() -> void:
+	_submit_queued = false
+	if not is_instance_valid(_text_edit) or _text_edit.has_ime_text():
+		return
+	_send_current_message()
+
+
+static func is_enter_key(event: InputEventKey) -> bool:
+	return event.keycode in [KEY_ENTER, KEY_KP_ENTER]
+
+
+static func should_submit_key(event: InputEventKey, _ime_active: bool) -> bool:
+	return is_enter_key(event) and not event.shift_pressed
 
 
 static func _first_record(value: Variant) -> Dictionary:
