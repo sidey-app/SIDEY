@@ -1,0 +1,33 @@
+class_name OverlayTheme
+extends RefCounted
+
+const HUD_BACKGROUND := Color(0.02, 0.025, 0.03, 0.72)
+const HUD_BACKGROUND_HOVER := Color(0.04, 0.05, 0.06, 0.82)
+const TEXT_PRIMARY := Color(1.0, 1.0, 1.0, 0.98)
+const TEXT_SECONDARY := Color(1.0, 1.0, 1.0, 0.62)
+
+
+static func identity_pill_style() -> StyleBoxFlat:
+	return _style(HUD_BACKGROUND, 14, Vector4(10, 5, 10, 5))
+
+
+static func self_badge_style() -> StyleBoxFlat:
+	return _style(Color(1.0, 1.0, 1.0, 0.15), 8, Vector4(6, 2, 6, 2))
+
+
+static func presence_dot_style(color: Color) -> StyleBoxFlat:
+	return _style(color, 5, Vector4.ZERO)
+
+
+static func _style(color: Color, radius: int, margins: Vector4) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = color
+	style.corner_radius_top_left = radius
+	style.corner_radius_top_right = radius
+	style.corner_radius_bottom_left = radius
+	style.corner_radius_bottom_right = radius
+	style.content_margin_left = margins.x
+	style.content_margin_top = margins.y
+	style.content_margin_right = margins.z
+	style.content_margin_bottom = margins.w
+	return style

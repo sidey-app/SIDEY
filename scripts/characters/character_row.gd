@@ -28,13 +28,15 @@ func configure_members(members: Array[Dictionary]) -> Error:
 	_members = members.duplicate(true)
 	var safe_count := members.size()
 	var positions := layout_positions(safe_count)
-	var visual_scale := 1.0 if safe_count == 1 else 0.58
+	var visual_scale := 0.74 if safe_count == 1 else 0.58
+	var vertical_offset := 0.24 if safe_count == 1 else 0.30
 	for index in safe_count:
 		var member := members[index]
 		var character_id := str(member.get("character_id", "minty_pup"))
 		var character := CharacterViewScript.new() as CharacterView
 		character.name = "Character_%s" % str(member.get("user_id", index)).validate_node_name()
 		character.position.x = positions[index]
+		character.position.y = vertical_offset
 		character.scale = Vector3.ONE * visual_scale
 		add_child(character)
 		var configure_error := character.configure(character_id)

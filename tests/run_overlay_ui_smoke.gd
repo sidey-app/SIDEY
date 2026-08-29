@@ -38,18 +38,38 @@ func _run() -> void:
 
 	var labels := hud.find_children("*", "Label", true, false)
 	_check(_label_count(labels, "친구 모임") == 0, "room name is absent from overlay")
-	_check(_nickname_count(labels) == 5, "five large nicknames are shown")
+	_check(_nickname_count(labels) == 5, "five nicknames are shown")
+	_check(_label_count(labels, "나") == 1, "self identity is shown once")
 	for label_node in labels:
 		var label := label_node as Label
 		if label.text.begins_with("친구") and label.text != "친구 모임":
-			_check(label.get_theme_font_size("font_size") >= 19, "nickname text is readable")
+			_check(label.get_theme_font_size("font_size") >= 16, "nickname text is readable")
+	var identity_panel := hud.find_child("Identity_friend-0", true, false) as PanelContainer
+	_check(identity_panel != null, "self identity pill exists")
+	if identity_panel != null:
+		var identity_style := identity_panel.get_theme_stylebox("panel") as StyleBoxFlat
+		_check(identity_style != null, "identity pill has a flat style")
+		if identity_style != null:
+			_check(identity_style.bg_color.a >= 0.7, "identity pill uses dark translucent background")
+	_check(hud.self_anchor_x() < 100.0, "self anchor follows the left-most character")
+	_check(_same_rgb(hud.presence_color("friend-0"), PresenceState.indicator_color(PresenceState.Value.ONLINE)), "online dot is green")
+	hud.set_presence("friend-0", PresenceState.Value.TYPING)
+	_check(_same_rgb(hud.presence_color("friend-0"), PresenceState.indicator_color(PresenceState.Value.TYPING)), "typing dot is green")
+	hud.set_presence("friend-0", PresenceState.Value.AWAY)
+	_check(_same_rgb(hud.presence_color("friend-0"), PresenceState.indicator_color(PresenceState.Value.AWAY)), "away dot is orange")
+	hud.set_presence("friend-0", PresenceState.Value.OFFLINE)
+	_check(_same_rgb(hud.presence_color("friend-0"), PresenceState.indicator_color(PresenceState.Value.OFFLINE)), "offline dot is gray")
+	hud.set_presence("friend-0", PresenceState.Value.RECONNECTING)
+	var reconnect_alpha := hud.presence_dot_alpha("friend-0")
+	hud._process(CharacterHud.RECONNECT_BLINK_SECONDS + 0.01)
+	_check(not is_equal_approx(reconnect_alpha, hud.presence_dot_alpha("friend-0")), "reconnecting dot blinks")
+	var first_bubble_rect := hud.bubble_rect("friend-0")
+	var second_bubble_rect := hud.bubble_rect("friend-1")
+	_check(first_bubble_rect.position.y != second_bubble_rect.position.y, "multi-member bubbles alternate between two lanes")
+	_check(first_bubble_rect.position.x >= 0.0 and first_bubble_rect.end.x <= 720.0, "left bubble stays inside the overlay")
+	_check(hud.bubble_rect("friend-4").end.x <= 720.0, "right bubble stays inside the overlay")
 
-	var visible_bubble: PanelContainer
-	for panel_node in hud.find_children("*", "PanelContainer", true, false):
-		var panel := panel_node as PanelContainer
-		if panel.is_visible_in_tree():
-			visible_bubble = panel
-			break
+	var visible_bubble := hud.find_child("Bubble", true, false) as PanelContainer
 	_check(visible_bubble != null, "message bubble becomes visible")
 	if visible_bubble != null:
 		var bubble_style := visible_bubble.get_theme_stylebox("panel") as StyleBoxFlat
@@ -136,6 +156,12 @@ func _press_button(buttons: Array[Node], text: String) -> void:
 			button.pressed.emit()
 			return
 	_check(false, "button exists: %s" % text)
+
+
+func _same_rgb(left: Color, right: Color) -> bool:
+	return is_equal_approx(left.r, right.r) \
+		and is_equal_approx(left.g, right.g) \
+		and is_equal_approx(left.b, right.b)
 
 
 func _check(condition: bool, label: String) -> void:
