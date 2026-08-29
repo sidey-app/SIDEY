@@ -1,0 +1,10 @@
+[configuration]
+
+entry_symbol = "sidey_macos_library_init"
+compatibility_minimum = "4.7"
+reloadable = true
+
+[libraries]
+
+macos.debug.arm64 = "res://native/macos/bin/libsidey_macos.macos.editor.arm64.dylib"
+macos.release.arm64 = "res://native/macos/bin/libsidey_macos.macos.template_release.arm64.dylib"

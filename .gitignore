@@ -9,5 +9,11 @@
 /assets/characters/
 /artifacts/motion-review/
 
+# Locally compiled native bridge binaries.
+/native/macos/bin/
+/native/macos/.generated/
+/native/macos/src/*.os
+/native/macos/.sconsign.dblite
+
 # macOS metadata.
 .DS_Store

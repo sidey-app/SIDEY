@@ -15,6 +15,8 @@ var _scale_label: Label
 var _state_label: Label
 var _debug_panel: Control
 var _status_menu_controller: StatusMenuController
+var _screen_locked := false
+var _system_sleeping := false
 
 
 func _ready() -> void:
@@ -41,6 +43,7 @@ func _ready() -> void:
 		return
 	_setup_ui()
 	_setup_status_menu()
+	_setup_platform_bridge()
 	_on_locked_changed(_overlay_controller.is_locked())
 	_on_scale_changed(_overlay_controller.overlay_scale())
 	if _has_argument("--unlocked"):
@@ -56,6 +59,8 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	if is_instance_valid(_overlay_controller):
 		_overlay_controller.flush_settings()
+	if is_instance_valid(_platform_bridge):
+		_platform_bridge.unregister_hotkeys()
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -160,6 +165,20 @@ func _setup_status_menu() -> void:
 	_status_menu_controller.quit_requested.connect(_on_quit_requested)
 
 
+func _setup_platform_bridge() -> void:
+	_platform_bridge.screen_lock_changed.connect(_on_screen_lock_changed)
+	_platform_bridge.system_sleep_changed.connect(_on_system_sleep_changed)
+	_platform_bridge.system_resumed.connect(_on_system_resumed)
+	_platform_bridge.global_shortcut_pressed.connect(_on_global_shortcut_pressed)
+	_screen_locked = _platform_bridge.is_screen_locked()
+	_sync_native_activity_state()
+	if DisplayServer.get_name() == "headless" or not _platform_bridge.is_native_available():
+		return
+	_report_native_error(_platform_bridge.set_overlay_runtime_mode(true), "runtime_mode")
+	_report_native_error(_platform_bridge.set_all_spaces_window_policy(true), "all_spaces")
+	_report_native_error(_platform_bridge.register_default_hotkeys(), "global_hotkeys")
+
+
 func _add_state_button(parent: Control, text: String, state: CharacterState.Value) -> void:
 	var button := Button.new()
 	button.text = text
@@ -177,6 +196,8 @@ func _on_locked_changed(locked: bool) -> void:
 		_interaction_panel.visible = not locked
 	if is_instance_valid(_debug_panel):
 		_debug_panel.visible = not locked
+	if is_instance_valid(_platform_bridge) and DisplayServer.get_name() != "headless":
+		_report_native_error(_platform_bridge.set_ignores_mouse_events(locked), "mouse_passthrough")
 
 
 func _on_scale_changed(scale: float) -> void:
@@ -205,7 +226,10 @@ func _finish_smoke_test() -> void:
 			return
 		print("APP_ROOT_CAPTURE_OK path=%s" % capture_path)
 	print("APP_ROOT_SMOKE_OK report=%s status_menu=%s" % [
-		_overlay_controller.diagnostic_report(),
+		{
+			"overlay": _overlay_controller.diagnostic_report(),
+			"platform": _platform_bridge.capability_report(),
+		},
 		_status_menu_controller.is_available(),
 	])
 	get_tree().quit(0)
@@ -219,7 +243,45 @@ func _argument_value(prefix: String) -> String:
 
 
 func _on_compose_requested() -> void:
+	_overlay_controller.set_overlay_visible(true)
+	_overlay_controller.set_locked(false)
 	_state_label.text = "●  메시지 UI는 로컬 UX 단계에서 연결"
+
+
+func _on_global_shortcut_pressed(action: StringName) -> void:
+	match action:
+		&"compose":
+			_on_compose_requested()
+		&"toggle_lock":
+			_overlay_controller.toggle_locked()
+
+
+func _on_screen_lock_changed(locked: bool) -> void:
+	_screen_locked = locked
+	_sync_native_activity_state()
+
+
+func _on_system_sleep_changed(sleeping: bool) -> void:
+	_system_sleeping = sleeping
+	_sync_native_activity_state()
+
+
+func _on_system_resumed() -> void:
+	_sync_native_activity_state()
+
+
+func _sync_native_activity_state() -> void:
+	if not is_instance_valid(_character_row):
+		return
+	var next_state := CharacterState.Value.OFFLINE_SLEEP \
+		if _screen_locked or _system_sleeping \
+		else CharacterState.Value.ONLINE_IDLE
+	_character_row.set_all_motion_states(next_state, true)
+
+
+func _report_native_error(error: Error, operation: String) -> void:
+	if error != OK and error != ERR_UNAVAILABLE:
+		push_warning("MACOS_BRIDGE_OPERATION_FAILED operation=%s error=%d" % [operation, error])
 
 
 func _on_quit_requested() -> void:
