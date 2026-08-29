@@ -17,3 +17,8 @@
 
 # macOS metadata.
 .DS_Store
+
+# Local backend endpoints and publishable keys. Secret/service-role keys never belong here.
+.env
+.env.*
+!.env.example

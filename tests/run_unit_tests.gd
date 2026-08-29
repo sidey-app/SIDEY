@@ -8,6 +8,9 @@ const RoomControllerScript := preload("res://scripts/rooms/room_controller.gd")
 const PresenceStateScript := preload("res://scripts/characters/presence_state.gd")
 const ChatStoreScript := preload("res://scripts/chat/chat_store.gd")
 const TypingTrackerScript := preload("res://scripts/chat/typing_tracker.gd")
+const BackendConfigScript := preload("res://scripts/backend/backend_config.gd")
+const RealtimeProtocolScript := preload("res://scripts/backend/realtime_protocol.gd")
+const ReconnectBackoffScript := preload("res://scripts/backend/reconnect_backoff.gd")
 
 var _failures := 0
 var _checks := 0
@@ -20,6 +23,7 @@ func _initialize() -> void:
 	_run_presence_state_tests()
 	_run_chat_store_tests()
 	_run_typing_tracker_tests()
+	_run_backend_protocol_tests()
 	_run_room_controller_tests()
 	if _failures == 0:
 		print("SIDEY_UNIT_TESTS_OK checks=%d" % _checks)
@@ -122,6 +126,37 @@ func _run_typing_tracker_tests() -> void:
 	_check_equal(tracker.note_input(20.0), &"typing_start", "typing restarts after expiry")
 	_check_equal(tracker.stop(), true, "typing explicit stop")
 	_check_equal(tracker.stop(), false, "typing stop is idempotent")
+
+
+func _run_backend_protocol_tests() -> void:
+	var config = BackendConfigScript.new("http://127.0.0.1:54321/", "sb_publishable_test")
+	_check_equal(config.is_valid(), true, "backend config accepts publishable key")
+	_check_equal(config.url, "http://127.0.0.1:54321", "backend config trims URL")
+	_check_equal(config.realtime_url().begins_with("ws://127.0.0.1:54321/realtime/v1/websocket?"), true, "backend websocket URL")
+	_check_equal(BackendConfigScript.new("https://example.test", "sb_secret_nope").is_valid(), false, "backend rejects secret key")
+	var legacy_service_role := "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature"
+	_check_equal(BackendConfigScript.new("https://example.test", legacy_service_role).is_valid(), false, "backend rejects legacy service role JWT")
+	var join_raw: String = RealtimeProtocolScript.join_frame("room:abc", "7", "jwt", "user-1", true)
+	var join := RealtimeProtocolScript.decode_frame(join_raw)
+	_check_equal(join["join_ref"], "7", "Realtime join ref")
+	_check_equal(join["topic"], "realtime:room:abc", "Realtime wire topic")
+	_check_equal(join["event"], "phx_join", "Realtime join event")
+	_check_equal(join["payload"]["config"]["private"], true, "Realtime channel is private")
+	_check_equal(join["payload"]["config"]["presence"]["enabled"], true, "Realtime Presence enabled")
+	var heartbeat := RealtimeProtocolScript.decode_frame(RealtimeProtocolScript.heartbeat_frame("8"))
+	_check_equal(heartbeat["join_ref"], null, "heartbeat has no join ref")
+	_check_equal(heartbeat["topic"], "phoenix", "heartbeat Phoenix topic")
+	_check_equal(RealtimeProtocolScript.decode_frame("{}")["error"], "invalid_json_frame", "Realtime rejects object frame")
+	_check_equal(RealtimeProtocolScript.decode_frame("[1,2]")["error"], "invalid_frame_shape", "Realtime rejects short frame")
+	var backoff = ReconnectBackoffScript.new()
+	_check_approx(backoff.next_delay(0.5), 1.0, "reconnect first delay")
+	_check_approx(backoff.next_delay(0.5), 2.0, "reconnect second delay")
+	backoff.next_delay(0.5)
+	backoff.next_delay(0.5)
+	_check_approx(backoff.next_delay(0.5), 15.0, "reconnect capped delay")
+	_check_approx(backoff.next_delay(0.5), 15.0, "reconnect stays capped")
+	backoff.reset()
+	_check_equal(backoff.attempt(), 0, "reconnect reset")
 
 
 func _run_room_controller_tests() -> void:
