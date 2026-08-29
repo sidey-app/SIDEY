@@ -1,0 +1,188 @@
+extends Node3D
+
+const CharacterRowScript := preload("res://scripts/characters/character_row.gd")
+const OverlayControllerScript := preload("res://scripts/overlay/overlay_controller.gd")
+const PlatformBridgeScript := preload("res://scripts/platform/platform_bridge.gd")
+const SettingsStoreScript := preload("res://scripts/settings/settings_store.gd")
+
+var _character_row: CharacterRow
+var _overlay_controller: OverlayController
+var _platform_bridge: PlatformBridge
+var _settings_store: SettingsStore
+var _interaction_panel: Control
+var _scale_label: Label
+var _state_label: Label
+
+
+func _ready() -> void:
+	_setup_environment()
+	_setup_camera()
+	_settings_store = SettingsStoreScript.new()
+	_platform_bridge = PlatformBridgeScript.new()
+	_platform_bridge.name = "PlatformBridge"
+	add_child(_platform_bridge)
+	_overlay_controller = OverlayControllerScript.new()
+	_overlay_controller.name = "OverlayController"
+	add_child(_overlay_controller)
+	_overlay_controller.configure(get_window(), _settings_store)
+	_overlay_controller.locked_changed.connect(_on_locked_changed)
+	_overlay_controller.scale_changed.connect(_on_scale_changed)
+
+	_character_row = CharacterRowScript.new() as CharacterRow
+	_character_row.name = "CharacterRow"
+	add_child(_character_row)
+	var character_count := _requested_debug_character_count()
+	var configure_error := _character_row.configure_debug(character_count)
+	if configure_error != OK:
+		_fail("Character row could not be configured", configure_error)
+		return
+	_setup_ui()
+	_on_locked_changed(_overlay_controller.is_locked())
+	_on_scale_changed(_overlay_controller.overlay_scale())
+	if _has_argument("--unlocked"):
+		_overlay_controller.set_locked(false, false)
+	print("APP_ROOT_READY characters=%d report=%s" % [
+		_character_row.character_count(),
+		_overlay_controller.diagnostic_report(),
+	])
+	if _has_argument("--smoke-test"):
+		get_tree().create_timer(0.25).timeout.connect(_finish_smoke_test)
+
+
+func _exit_tree() -> void:
+	if is_instance_valid(_overlay_controller):
+		_overlay_controller.flush_settings()
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if not event is InputEventKey or not event.pressed or event.echo:
+		return
+	match event.physical_keycode:
+		KEY_1:
+			_set_debug_motion(CharacterState.Value.ONLINE_IDLE)
+		KEY_2:
+			_set_debug_motion(CharacterState.Value.TYPING)
+		KEY_3:
+			_set_debug_motion(CharacterState.Value.OFFLINE_SLEEP)
+
+
+func _setup_environment() -> void:
+	var environment := Environment.new()
+	environment.background_mode = Environment.BG_CLEAR_COLOR
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = Color("d8e7ef")
+	environment.ambient_light_energy = 0.72
+	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	var world_environment := WorldEnvironment.new()
+	world_environment.environment = environment
+	add_child(world_environment)
+	var key_light := DirectionalLight3D.new()
+	key_light.rotation_degrees = Vector3(-32.0, -28.0, 0.0)
+	key_light.light_color = Color("fff2dd")
+	key_light.light_energy = 1.15
+	key_light.shadow_enabled = false
+	add_child(key_light)
+
+
+func _setup_camera() -> void:
+	var camera := Camera3D.new()
+	camera.name = "UpperBodyCamera"
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.size = 1.48
+	camera.position = Vector3(0.0, 1.16, 3.0)
+	add_child(camera)
+	camera.look_at(Vector3(0.0, 1.16, 0.0), Vector3.UP)
+
+
+func _setup_ui() -> void:
+	var canvas := CanvasLayer.new()
+	canvas.layer = 10
+	add_child(canvas)
+	_state_label = Label.new()
+	_state_label.position = Vector2(286.0, 296.0)
+	_state_label.size = Vector2(148.0, 24.0)
+	_state_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_state_label.text = "●  Minty Pup · 나"
+	_state_label.add_theme_font_size_override("font_size", 14)
+	_state_label.add_theme_color_override("font_color", Color("a9eadb"))
+	canvas.add_child(_state_label)
+
+	_interaction_panel = PanelContainer.new()
+	_interaction_panel.position = Vector2(182.0, 318.0)
+	_interaction_panel.size = Vector2(356.0, 38.0)
+	canvas.add_child(_interaction_panel)
+	var controls := HBoxContainer.new()
+	controls.add_theme_constant_override("separation", 8)
+	_interaction_panel.add_child(controls)
+	var drag_button := Button.new()
+	drag_button.text = "⠿ 이동"
+	drag_button.tooltip_text = "SIDEY 캐릭터 전체를 이동"
+	drag_button.button_down.connect(_overlay_controller.begin_drag)
+	controls.add_child(drag_button)
+	var scale_slider := HSlider.new()
+	scale_slider.custom_minimum_size = Vector2(150.0, 0.0)
+	scale_slider.min_value = 70.0
+	scale_slider.max_value = 150.0
+	scale_slider.step = 1.0
+	scale_slider.value = _overlay_controller.overlay_scale() * 100.0
+	scale_slider.value_changed.connect(func(value: float) -> void: _overlay_controller.set_overlay_scale(value / 100.0))
+	controls.add_child(scale_slider)
+	_scale_label = Label.new()
+	_scale_label.custom_minimum_size = Vector2(44.0, 0.0)
+	controls.add_child(_scale_label)
+	var lock_button := Button.new()
+	lock_button.text = "잠금"
+	lock_button.pressed.connect(func() -> void: _overlay_controller.set_locked(true))
+	controls.add_child(lock_button)
+
+	if OS.is_debug_build():
+		var debug_panel := HBoxContainer.new()
+		debug_panel.position = Vector2(12.0, 12.0)
+		debug_panel.add_theme_constant_override("separation", 4)
+		canvas.add_child(debug_panel)
+		_add_state_button(debug_panel, "온라인", CharacterState.Value.ONLINE_IDLE)
+		_add_state_button(debug_panel, "타이핑", CharacterState.Value.TYPING)
+		_add_state_button(debug_panel, "수면", CharacterState.Value.OFFLINE_SLEEP)
+
+
+func _add_state_button(parent: Control, text: String, state: CharacterState.Value) -> void:
+	var button := Button.new()
+	button.text = text
+	button.pressed.connect(func() -> void: _set_debug_motion(state))
+	parent.add_child(button)
+
+
+func _set_debug_motion(state: CharacterState.Value) -> void:
+	if is_instance_valid(_character_row):
+		_character_row.set_all_motion_states(state, true)
+
+
+func _on_locked_changed(locked: bool) -> void:
+	if is_instance_valid(_interaction_panel):
+		_interaction_panel.visible = not locked
+
+
+func _on_scale_changed(scale: float) -> void:
+	if is_instance_valid(_scale_label):
+		_scale_label.text = "%d%%" % roundi(scale * 100.0)
+
+
+func _requested_debug_character_count() -> int:
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--debug-characters="):
+			return clampi(int(argument.trim_prefix("--debug-characters=")), 1, CharacterRow.MAX_CHARACTERS)
+	return 1
+
+
+func _has_argument(expected: String) -> bool:
+	return expected in OS.get_cmdline_user_args()
+
+
+func _finish_smoke_test() -> void:
+	print("APP_ROOT_SMOKE_OK report=%s" % _overlay_controller.diagnostic_report())
+	get_tree().quit(0)
+
+
+func _fail(message: String, error: Error) -> void:
+	push_error("APP_ROOT_FAILED message=%s error=%d" % [message, error])
+	get_tree().quit(1)
