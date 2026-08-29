@@ -5,6 +5,7 @@ const SettingsStoreScript := preload("res://scripts/settings/settings_store.gd")
 const CharacterCatalogScript := preload("res://scripts/characters/character_catalog.gd")
 const CharacterRowScript := preload("res://scripts/characters/character_row.gd")
 const RoomControllerScript := preload("res://scripts/rooms/room_controller.gd")
+const PresenceStateScript := preload("res://scripts/characters/presence_state.gd")
 
 var _failures := 0
 var _checks := 0
@@ -14,6 +15,7 @@ func _initialize() -> void:
 	_run_geometry_tests()
 	_run_settings_tests()
 	_run_character_data_tests()
+	_run_presence_state_tests()
 	_run_room_controller_tests()
 	if _failures == 0:
 		print("SIDEY_UNIT_TESTS_OK checks=%d" % _checks)
@@ -77,6 +79,15 @@ func _run_character_data_tests() -> void:
 	_check_approx(five_positions[0], -1.16, "five character layout start")
 	_check_approx(five_positions[4], 1.16, "five character layout end")
 	_check_equal(CharacterRowScript.layout_positions(8).size(), 5, "character row max five")
+
+
+func _run_presence_state_tests() -> void:
+	_check_equal(PresenceStateScript.motion_state(PresenceState.Value.ONLINE), CharacterState.Value.ONLINE_IDLE, "online motion mapping")
+	_check_equal(PresenceStateScript.motion_state(PresenceState.Value.TYPING), CharacterState.Value.TYPING, "typing motion mapping")
+	_check_equal(PresenceStateScript.motion_state(PresenceState.Value.AWAY), CharacterState.Value.OFFLINE_SLEEP, "away motion mapping")
+	_check_equal(PresenceStateScript.motion_state(PresenceState.Value.OFFLINE), CharacterState.Value.OFFLINE_SLEEP, "offline motion mapping")
+	_check_equal(PresenceStateScript.motion_state(PresenceState.Value.RECONNECTING), CharacterState.Value.OFFLINE_SLEEP, "reconnecting motion mapping")
+	_check_equal(PresenceStateScript.from_string("invalid"), PresenceState.Value.OFFLINE, "unknown presence is offline")
 
 
 func _run_room_controller_tests() -> void:
