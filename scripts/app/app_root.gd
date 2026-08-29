@@ -213,7 +213,7 @@ func _setup_local_ux() -> void:
 	_chat_controller = ChatControllerScript.new()
 	_chat_controller.name = "ChatController"
 	add_child(_chat_controller)
-	_chat_controller.configure(_room_controller, _overlay_canvas, _backend_runtime)
+	_chat_controller.configure(_room_controller, _overlay_canvas, _backend_runtime, _platform_bridge)
 	_chat_controller.message_accepted.connect(_on_message_accepted)
 	_chat_controller.typing_event.connect(_on_typing_event)
 	_chat_controller.input_visibility_changed.connect(_on_chat_input_visibility_changed)

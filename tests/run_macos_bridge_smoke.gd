@@ -2,6 +2,7 @@ extends SceneTree
 
 var _failures := 0
 var _shortcut_action := StringName()
+var _local_enter_received := false
 
 
 func _initialize() -> void:
@@ -27,6 +28,10 @@ func _initialize() -> void:
 	bridge.connect("global_shortcut_pressed", _on_global_shortcut)
 	bridge.call("dispatch_hotkey", 1)
 	_check(_shortcut_action == &"compose", "hotkey dispatch signal")
+	bridge.connect("local_enter_pressed", func(shift_pressed: bool) -> void: _local_enter_received = not shift_pressed)
+	bridge.call("set_local_enter_monitor_enabled", true)
+	bridge.call("dispatch_local_enter", false)
+	_check(_local_enter_received, "local Enter dispatch signal")
 
 	var account := "native-smoke-%d" % OS.get_process_id()
 	var secret := "sidey-smoke-secret"

@@ -20,6 +20,9 @@ const HISTORY_GAP := 6.0
 const EDGE_MARGIN := 8.0
 const FIXED_UI_FACTOR := OverlayGeometryScript.FIXED_UI_FACTOR
 const IME_SUBMIT_MAX_WAIT_FRAMES := 4
+const NATIVE_ENTER_NONE := -1
+const NATIVE_ENTER_SUBMIT := 0
+const NATIVE_ENTER_NEWLINE := 1
 
 var _room_controller: RoomController
 var _chat_store: ChatStore
@@ -41,19 +44,30 @@ var _restoring_draft := false
 var _history_access_enabled := false
 var _submit_queued := false
 var _submit_wait_frames := 0
+var _native_enter_events_enabled := false
+var _native_enter_action := NATIVE_ENTER_NONE
+var _native_enter_wait_frames := 0
+var _platform_bridge: PlatformBridge
 
 
 func configure(
 	room_controller: RoomController,
 	canvas: CanvasLayer,
 	backend_runtime: BackendRuntime = null,
+	platform_bridge: PlatformBridge = null,
 ) -> void:
 	_room_controller = room_controller
 	_canvas = canvas
 	_backend_runtime = backend_runtime
+	_platform_bridge = platform_bridge
 	_chat_store = ChatStoreScript.new()
 	_typing_tracker = TypingTrackerScript.new()
 	_build_ui()
+	if is_instance_valid(platform_bridge) and platform_bridge.supports_local_enter_events():
+		_native_enter_events_enabled = true
+		platform_bridge.local_enter_pressed.connect(_on_native_enter_pressed)
+		_text_edit.focus_entered.connect(_set_native_enter_monitor_enabled.bind(true))
+		_text_edit.focus_exited.connect(_set_native_enter_monitor_enabled.bind(false))
 	set_process(true)
 	set_process_input(true)
 
@@ -256,6 +270,9 @@ func _input(event: InputEvent) -> void:
 		return
 	var key_event := event as InputEventKey
 	if not is_enter_key(key_event):
+		return
+	if _native_enter_events_enabled:
+		get_viewport().set_input_as_handled()
 		return
 	if key_event.shift_pressed:
 		if _text_edit.has_ime_text():
@@ -476,6 +493,45 @@ func _submit_from_enter() -> void:
 		_queue_submit()
 		return
 	_send_current_message()
+
+
+func _on_native_enter_pressed(shift_pressed: bool) -> void:
+	if not is_instance_valid(_text_edit) or not _text_edit.has_focus():
+		return
+	if _native_enter_action != NATIVE_ENTER_NONE:
+		return
+	_native_enter_action = NATIVE_ENTER_NEWLINE if shift_pressed else NATIVE_ENTER_SUBMIT
+	_native_enter_wait_frames = 0
+	get_tree().process_frame.connect(_flush_native_enter, CONNECT_ONE_SHOT)
+
+
+func _flush_native_enter() -> void:
+	if _native_enter_action == NATIVE_ENTER_NONE or not is_instance_valid(_text_edit):
+		return
+	if _text_edit.has_ime_text():
+		if _native_enter_wait_frames >= IME_SUBMIT_MAX_WAIT_FRAMES:
+			_native_enter_action = NATIVE_ENTER_NONE
+			push_warning("NATIVE_IME_ENTER_TIMEOUT")
+			return
+		_native_enter_wait_frames += 1
+		_text_edit.apply_ime()
+		get_tree().process_frame.connect(_flush_native_enter, CONNECT_ONE_SHOT)
+		return
+	var action := _native_enter_action
+	_native_enter_action = NATIVE_ENTER_NONE
+	if action == NATIVE_ENTER_NEWLINE:
+		_text_edit.insert_text_at_caret("\n")
+	else:
+		_send_current_message()
+
+
+func _set_native_enter_monitor_enabled(enabled: bool) -> void:
+	if is_instance_valid(_platform_bridge):
+		_platform_bridge.set_local_enter_monitor_enabled(enabled)
+
+
+func _exit_tree() -> void:
+	_set_native_enter_monitor_enabled(false)
 
 
 static func is_enter_key(event: InputEventKey) -> bool:

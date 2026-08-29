@@ -85,6 +85,14 @@ func _run() -> void:
 		chat._input(shift_enter)
 		message_input.insert_text_at_caret("둘째 줄")
 		_check(message_input.text == "첫째 줄\n둘째 줄", "multiline draft accepts Shift+Enter newlines")
+		message_input.text = "한글 조합 확정"
+		chat._on_text_changed()
+		message_count = chat.recent_messages(first_room_id).size()
+		chat._on_native_enter_pressed(false)
+		await process_frame
+		await process_frame
+		_check(chat.recent_messages(first_room_id).size() == message_count + 1, "native IME Enter submits after committed text is applied")
+		_check(message_input.text.is_empty(), "native IME Enter clears the submitted draft")
 		var valid_length_draft := "가".repeat(ChatStore.MAX_BODY_LENGTH)
 		message_input.text = valid_length_draft
 		chat._on_text_changed()

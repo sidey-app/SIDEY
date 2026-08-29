@@ -84,6 +84,7 @@ SideyMacOSBridge::SideyMacOSBridge() {
 
 SideyMacOSBridge::~SideyMacOSBridge() {
 	unregister_hotkeys();
+	unregister_local_key_monitor();
 	unregister_workspace_observers();
 }
 
@@ -101,19 +102,24 @@ void SideyMacOSBridge::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_ignores_mouse_events", "enabled"), &SideyMacOSBridge::set_ignores_mouse_events);
 	ClassDB::bind_method(D_METHOD("set_launch_at_login", "enabled"), &SideyMacOSBridge::set_launch_at_login);
 	ClassDB::bind_method(D_METHOD("is_launch_at_login_enabled"), &SideyMacOSBridge::is_launch_at_login_enabled);
+	ClassDB::bind_method(D_METHOD("set_local_enter_monitor_enabled", "enabled"), &SideyMacOSBridge::set_local_enter_monitor_enabled);
 	ClassDB::bind_method(D_METHOD("dispatch_hotkey", "hotkey_id"), &SideyMacOSBridge::dispatch_hotkey);
+	ClassDB::bind_method(D_METHOD("dispatch_local_enter", "shift_pressed"), &SideyMacOSBridge::dispatch_local_enter);
 
 	ADD_SIGNAL(MethodInfo("screen_lock_changed", PropertyInfo(Variant::BOOL, "locked")));
 	ADD_SIGNAL(MethodInfo("system_sleep_changed", PropertyInfo(Variant::BOOL, "sleeping")));
 	ADD_SIGNAL(MethodInfo("system_resumed"));
 	ADD_SIGNAL(MethodInfo("global_shortcut_pressed", PropertyInfo(Variant::STRING_NAME, "action")));
+	ADD_SIGNAL(MethodInfo("local_enter_pressed", PropertyInfo(Variant::BOOL, "shift_pressed")));
 }
 
 void SideyMacOSBridge::_notification(int what) {
 	if (what == NOTIFICATION_READY) {
 		register_workspace_observers();
+		register_local_key_monitor();
 	} else if (what == NOTIFICATION_EXIT_TREE) {
 		unregister_hotkeys();
+		unregister_local_key_monitor();
 		unregister_workspace_observers();
 	}
 }
@@ -129,6 +135,7 @@ Dictionary SideyMacOSBridge::capability_report() const {
 	report["launch_at_login"] = true;
 	report["all_spaces_window_policy"] = true;
 	report["dockless_activation_policy"] = true;
+	report["local_enter_events"] = true;
 	return report;
 }
 
@@ -320,6 +327,10 @@ bool SideyMacOSBridge::is_launch_at_login_enabled() const {
 	return false;
 }
 
+void SideyMacOSBridge::set_local_enter_monitor_enabled(bool enabled) {
+	local_enter_monitor_enabled_ = enabled;
+}
+
 void SideyMacOSBridge::dispatch_hotkey(int hotkey_id) {
 	switch (static_cast<UInt32>(hotkey_id)) {
 		case kComposeHotkeyId:
@@ -330,6 +341,47 @@ void SideyMacOSBridge::dispatch_hotkey(int hotkey_id) {
 			break;
 		default:
 			break;
+	}
+}
+
+void SideyMacOSBridge::dispatch_local_enter(bool shift_pressed) {
+	emit_signal("local_enter_pressed", shift_pressed);
+}
+
+void SideyMacOSBridge::register_local_key_monitor() {
+	if (local_key_monitor_ != nullptr) {
+		return;
+	}
+	@autoreleasepool {
+		SideyMacOSBridge *bridge = this;
+		id monitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskKeyDown
+			handler:^NSEvent *(NSEvent *event) {
+				if (!bridge->local_enter_monitor_enabled_ || event.isARepeat) {
+					return event;
+				}
+				const unsigned short key_code = event.keyCode;
+				if (key_code != kVK_Return && key_code != kVK_ANSI_KeypadEnter) {
+					return event;
+				}
+				const NSEventModifierFlags modifiers = event.modifierFlags & NSEventModifierFlagDeviceIndependentFlagsMask;
+				if ((modifiers & (NSEventModifierFlagCommand | NSEventModifierFlagControl | NSEventModifierFlagOption)) != 0) {
+					return event;
+				}
+				bridge->call_deferred("dispatch_local_enter", (modifiers & NSEventModifierFlagShift) != 0);
+				return event;
+			}];
+		local_key_monitor_ = (__bridge_retained void *)monitor;
+	}
+}
+
+void SideyMacOSBridge::unregister_local_key_monitor() {
+	if (local_key_monitor_ == nullptr) {
+		return;
+	}
+	@autoreleasepool {
+		id monitor = (__bridge_transfer id)local_key_monitor_;
+		[NSEvent removeMonitor:monitor];
+		local_key_monitor_ = nullptr;
 	}
 }
 

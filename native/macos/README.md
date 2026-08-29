@@ -33,5 +33,6 @@ macOS 13 이상용 universal 앱을 ad-hoc 서명해 내보낼 수 있다.
 - `SMAppService` 로그인 실행
 - Dock 아이콘을 숨기는 accessory activation policy
 - AppKit `ignoresMouseEvents` 클릭 통과 보강
+- 활성 SIDEY 입력창의 Return을 IME 처리 전에 관찰하는 앱 내부 키 모니터
 
 전역 단축키 기본값은 메시지 작성 `⌘⇧Space`, 상호작용 잠금 전환 `⌘⌥L`이다.
