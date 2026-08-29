@@ -10,6 +10,8 @@ const BASE_WINDOW_SIZE := Vector2i(720, 360)
 const SCREEN_POLL_INTERVAL := 0.5
 const SAVE_DEBOUNCE := 0.35
 const EDGE_MARGIN := 24
+const COMPOSER_RECT := Rect2(84.0, 142.0, 552.0, 146.0)
+const HISTORY_RECT := Rect2(374.0, 34.0, 338.0, 230.0)
 
 var _window: Window
 var _settings_store: SettingsStore
@@ -24,6 +26,9 @@ var _save_elapsed := 0.0
 var _geometry_dirty := false
 var _configured := false
 var _headless := false
+var _control_region := Rect2(66.0, 296.0, 588.0, 62.0)
+var _composer_open := false
+var _history_open := false
 
 
 func configure(window: Window, settings_store: SettingsStore) -> Error:
@@ -56,9 +61,7 @@ func set_locked(locked: bool, persist := true) -> void:
 	if _locked == locked and _configured:
 		return
 	_locked = locked
-	if not _headless:
-		_window.unfocusable = locked
-		_window.mouse_passthrough = locked
+	_apply_input_policy()
 	if persist and _settings_store != null:
 		_report_settings_error(_settings_store.set_overlay_locked(locked), "locked")
 	locked_changed.emit(locked)
@@ -66,6 +69,17 @@ func set_locked(locked: bool, persist := true) -> void:
 
 func toggle_locked() -> void:
 	set_locked(not _locked)
+
+
+func set_control_region(region: Rect2) -> void:
+	_control_region = region
+	_apply_input_policy()
+
+
+func set_auxiliary_ui_state(composer_open: bool, history_open: bool) -> void:
+	_composer_open = composer_open
+	_history_open = history_open
+	_apply_input_policy()
 
 
 func set_overlay_visible(visible: bool, persist := true) -> void:
@@ -95,6 +109,7 @@ func set_overlay_scale(next_scale: float) -> void:
 	_window.size = next_size
 	_window.position = _clamp_to_screen(next_position, next_size, _current_screen())
 	_mark_geometry_dirty()
+	_apply_input_policy()
 	scale_changed.emit(_scale)
 
 
@@ -140,6 +155,9 @@ func diagnostic_report() -> Dictionary:
 		"transparent": _window.transparent,
 		"unfocusable": _window.unfocusable,
 		"mouse_passthrough": _window.mouse_passthrough,
+		"mouse_passthrough_points": _window.mouse_passthrough_polygon.size(),
+		"composer_open": _composer_open,
+		"history_open": _history_open,
 	}
 
 
@@ -173,6 +191,7 @@ func _configure_window_flags() -> void:
 	_window.always_on_top = true
 	_window.unresizable = true
 	_window.transparent_bg = true
+	_window.mouse_passthrough = false
 	if DisplayServer.has_feature(DisplayServer.FEATURE_WINDOW_TRANSPARENCY):
 		_window.transparent = true
 
@@ -202,6 +221,7 @@ func _restore_settings() -> void:
 	_window.position = _clamp_to_screen(position, size, screen)
 	set_locked(_locked, false)
 	set_overlay_visible(_overlay_visible, false)
+	_apply_input_policy()
 
 
 func _recover_after_screen_change() -> void:
@@ -282,3 +302,33 @@ func _save_geometry() -> void:
 func _report_settings_error(error: Error, field: String) -> void:
 	if error != OK:
 		push_warning("OVERLAY_SETTINGS_SAVE_FAILED field=%s error=%d" % [field, error])
+
+
+func _apply_input_policy() -> void:
+	if not _configured and _window == null:
+		return
+	if _headless:
+		return
+	_window.mouse_passthrough = false
+	if not _locked:
+		_window.unfocusable = false
+		_window.mouse_passthrough_polygon = PackedVector2Array()
+		return
+	_window.unfocusable = not _composer_open
+	var region := _control_region
+	if _composer_open:
+		region = region.merge(COMPOSER_RECT)
+	if _history_open:
+		region = region.merge(HISTORY_RECT)
+	_window.mouse_passthrough_polygon = _scaled_rect_polygon(region)
+
+
+func _scaled_rect_polygon(region: Rect2) -> PackedVector2Array:
+	var start := region.position * _scale
+	var end := region.end * _scale
+	return PackedVector2Array([
+		start,
+		Vector2(end.x, start.y),
+		end,
+		Vector2(start.x, end.y),
+	])

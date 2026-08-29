@@ -13,13 +13,14 @@ const SettingsControllerScript := preload("res://scripts/settings/settings_contr
 const BackendConfigScript := preload("res://scripts/backend/backend_config.gd")
 const BackendRuntimeScript := preload("res://scripts/backend/backend_runtime.gd")
 const ActivityPresenceScript := preload("res://scripts/platform/activity_presence.gd")
+const SideyThemeScript := preload("res://scripts/ui/sidey_theme.gd")
+const OverlayToolbarScript := preload("res://scripts/overlay/overlay_toolbar.gd")
 
 var _character_row: CharacterRow
 var _overlay_controller: OverlayController
 var _platform_bridge: PlatformBridge
 var _settings_store: SettingsStore
-var _interaction_panel: Control
-var _scale_label: Label
+var _overlay_toolbar
 var _debug_panel: Control
 var _status_menu_controller: StatusMenuController
 var _room_controller: RoomController
@@ -35,9 +36,12 @@ var _ephemeral_settings_path := ""
 var _backend_runtime: BackendRuntime
 var _idle_seconds := 0.0
 var _idle_poll_elapsed := 0.0
+var _composer_open := false
+var _history_open := false
 
 
 func _ready() -> void:
+	get_window().theme = SideyThemeScript.create()
 	_setup_environment()
 	_setup_camera()
 	if _has_argument("--local-ux-demo") or _has_argument("--backend-app-smoke"):
@@ -179,35 +183,18 @@ func _setup_ui() -> void:
 	_overlay_canvas.layer = 10
 	add_child(_overlay_canvas)
 
-	_interaction_panel = PanelContainer.new()
-	_interaction_panel.position = Vector2(182.0, 318.0)
-	_interaction_panel.size = Vector2(356.0, 38.0)
-	_overlay_canvas.add_child(_interaction_panel)
-	var controls := HBoxContainer.new()
-	controls.add_theme_constant_override("separation", 8)
-	_interaction_panel.add_child(controls)
-	var drag_button := Button.new()
-	drag_button.text = "⠿ 이동"
-	drag_button.tooltip_text = "SIDEY 캐릭터 전체를 이동"
-	drag_button.button_down.connect(_overlay_controller.begin_drag)
-	controls.add_child(drag_button)
-	var scale_slider := HSlider.new()
-	scale_slider.custom_minimum_size = Vector2(150.0, 0.0)
-	scale_slider.min_value = OverlayGeometry.MIN_SCALE * 100.0
-	scale_slider.max_value = OverlayGeometry.MAX_SCALE * 100.0
-	scale_slider.step = 1.0
-	scale_slider.value = _overlay_controller.overlay_scale() * 100.0
-	scale_slider.value_changed.connect(func(value: float) -> void: _overlay_controller.set_overlay_scale(value / 100.0))
-	controls.add_child(scale_slider)
-	_scale_label = Label.new()
-	_scale_label.custom_minimum_size = Vector2(44.0, 0.0)
-	controls.add_child(_scale_label)
-	var lock_button := Button.new()
-	lock_button.text = "잠금"
-	lock_button.pressed.connect(func() -> void: _overlay_controller.set_locked(true))
-	controls.add_child(lock_button)
+	_overlay_toolbar = OverlayToolbarScript.new()
+	_overlay_toolbar.name = "OverlayToolbar"
+	_overlay_canvas.add_child(_overlay_toolbar)
+	_overlay_toolbar.compose_requested.connect(_on_compose_requested)
+	_overlay_toolbar.history_requested.connect(_on_history_requested)
+	_overlay_toolbar.locked_change_requested.connect(_overlay_controller.set_locked)
+	_overlay_toolbar.drag_requested.connect(_overlay_controller.begin_drag)
+	_overlay_toolbar.scale_requested.connect(_overlay_controller.set_overlay_scale)
+	_overlay_toolbar.set_overlay_scale(_overlay_controller.overlay_scale())
+	_overlay_controller.set_control_region(_overlay_toolbar.interactive_rect())
 
-	if OS.is_debug_build():
+	if OS.is_debug_build() and _has_argument("--motion-controls"):
 		_debug_panel = HBoxContainer.new()
 		_debug_panel.position = Vector2(12.0, 12.0)
 		_debug_panel.add_theme_constant_override("separation", 4)
@@ -228,6 +215,7 @@ func _setup_local_ux() -> void:
 	_chat_controller.message_accepted.connect(_on_message_accepted)
 	_chat_controller.typing_event.connect(_on_typing_event)
 	_chat_controller.input_visibility_changed.connect(_on_chat_input_visibility_changed)
+	_chat_controller.history_visibility_changed.connect(_on_history_visibility_changed)
 	_onboarding_controller = OnboardingControllerScript.new()
 	_onboarding_controller.name = "OnboardingController"
 	add_child(_onboarding_controller)
@@ -377,19 +365,17 @@ func _set_debug_motion(state: CharacterState.Value) -> void:
 
 
 func _on_locked_changed(locked: bool) -> void:
-	if is_instance_valid(_interaction_panel):
-		_interaction_panel.visible = not locked
+	if is_instance_valid(_overlay_toolbar):
+		_overlay_toolbar.set_locked(locked)
 	if is_instance_valid(_debug_panel):
 		_debug_panel.visible = not locked
-	if is_instance_valid(_chat_controller):
-		_chat_controller.set_interaction_enabled(not locked)
 	if is_instance_valid(_platform_bridge) and DisplayServer.get_name() != "headless":
-		_report_native_error(_platform_bridge.set_ignores_mouse_events(locked), "mouse_passthrough")
+		_report_native_error(_platform_bridge.set_ignores_mouse_events(false), "mouse_passthrough_polygon")
 
 
 func _on_scale_changed(scale: float) -> void:
-	if is_instance_valid(_scale_label):
-		_scale_label.text = "%d%%" % roundi(scale * 100.0)
+	if is_instance_valid(_overlay_toolbar):
+		_overlay_toolbar.set_overlay_scale(scale)
 
 
 func _on_overlay_visibility_changed(overlay_visible: bool) -> void:
@@ -481,8 +467,15 @@ func _argument_value(prefix: String) -> String:
 
 func _on_compose_requested() -> void:
 	_overlay_controller.set_overlay_visible(true)
-	_overlay_controller.set_locked(false)
+	_overlay_toolbar.reveal()
 	_chat_controller.open_composer()
+
+
+func _on_history_requested() -> void:
+	if not is_instance_valid(_chat_controller):
+		return
+	_overlay_toolbar.reveal()
+	_chat_controller.toggle_history()
 
 
 func _on_onboarding_completed() -> void:
@@ -541,7 +534,20 @@ func _on_quiet_mode_changed(enabled: bool) -> void:
 
 
 func _on_chat_input_visibility_changed(input_visible: bool) -> void:
-	_character_hud.set_identities_visible(not input_visible)
+	_composer_open = input_visible
+	_sync_overlay_interaction_state()
+
+
+func _on_history_visibility_changed(history_visible: bool) -> void:
+	_history_open = history_visible
+	_sync_overlay_interaction_state()
+
+
+func _sync_overlay_interaction_state() -> void:
+	if is_instance_valid(_overlay_toolbar):
+		_overlay_toolbar.set_context_active(_composer_open or _history_open)
+	if is_instance_valid(_overlay_controller):
+		_overlay_controller.set_auxiliary_ui_state(_composer_open, _history_open)
 
 
 func _on_settings_opened() -> void:

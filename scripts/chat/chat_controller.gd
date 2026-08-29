@@ -4,9 +4,11 @@ extends Node
 signal message_accepted(message: Dictionary, active_room: bool)
 signal typing_event(action: StringName, room_id: String, user_id: String)
 signal input_visibility_changed(visible: bool)
+signal history_visibility_changed(visible: bool)
 
 const ChatStoreScript := preload("res://scripts/chat/chat_store.gd")
 const TypingTrackerScript := preload("res://scripts/chat/typing_tracker.gd")
+const SideyThemeScript := preload("res://scripts/ui/sidey_theme.gd")
 
 var _room_controller: RoomController
 var _chat_store: ChatStore
@@ -18,7 +20,6 @@ var _send_button: Button
 var _counter_label: Label
 var _history_panel: PanelContainer
 var _history_list: VBoxContainer
-var _history_button: Button
 var _active_room_id := ""
 var _self_user_id := ""
 var _quiet_mode := false
@@ -42,6 +43,9 @@ func configure(
 
 func set_session(room: Dictionary, profile: Dictionary) -> void:
 	cancel_composer()
+	if is_instance_valid(_history_panel):
+		_history_panel.visible = false
+		history_visibility_changed.emit(false)
 	_active_room_id = str(room.get("id", ""))
 	_self_user_id = str(profile.get("user_id", ""))
 	_rebuild_history()
@@ -59,8 +63,8 @@ func open_composer() -> void:
 	if _active_room_id.is_empty():
 		return
 	_input_panel.visible = true
-	_text_edit.grab_focus()
 	input_visibility_changed.emit(true)
+	_text_edit.grab_focus()
 
 
 func cancel_composer() -> void:
@@ -72,13 +76,17 @@ func cancel_composer() -> void:
 	_emit_typing_stop()
 
 
-func set_interaction_enabled(enabled: bool) -> void:
-	if not enabled:
-		cancel_composer()
-	if is_instance_valid(_history_button):
-		_history_button.visible = enabled
-	if not enabled and is_instance_valid(_history_panel):
-		_history_panel.visible = false
+func toggle_history() -> void:
+	if not is_instance_valid(_history_panel) or _active_room_id.is_empty():
+		return
+	_history_panel.visible = not _history_panel.visible
+	if _history_panel.visible:
+		_rebuild_history()
+	history_visibility_changed.emit(_history_panel.visible)
+
+
+func history_visible() -> bool:
+	return is_instance_valid(_history_panel) and _history_panel.visible
 
 
 func receive_message(message: Dictionary) -> Error:
@@ -117,28 +125,18 @@ func recent_messages(room_id: String) -> Array[Dictionary]:
 
 func _build_ui() -> void:
 	_input_panel = PanelContainer.new()
-	_input_panel.position = Vector2(170.0, 214.0)
-	_input_panel.size = Vector2(380.0, 98.0)
+	_input_panel.position = Vector2(86.0, 148.0)
+	_input_panel.size = Vector2(548.0, 136.0)
 	_input_panel.visible = false
 	input_visibility_changed.emit(false)
 	_canvas.add_child(_input_panel)
-	var input_style := StyleBoxFlat.new()
-	input_style.bg_color = Color(0.055, 0.08, 0.10, 0.96)
-	input_style.corner_radius_top_left = 12
-	input_style.corner_radius_top_right = 12
-	input_style.corner_radius_bottom_left = 12
-	input_style.corner_radius_bottom_right = 12
-	input_style.content_margin_left = 10.0
-	input_style.content_margin_right = 10.0
-	input_style.content_margin_top = 8.0
-	input_style.content_margin_bottom = 8.0
-	_input_panel.add_theme_stylebox_override("panel", input_style)
+	_input_panel.add_theme_stylebox_override("panel", SideyThemeScript.message_bubble_style())
 	var input_row := HBoxContainer.new()
-	input_row.add_theme_constant_override("separation", 8)
+	input_row.add_theme_constant_override("separation", 12)
 	_input_panel.add_child(input_row)
 	_text_edit = TextEdit.new()
-	_text_edit.custom_minimum_size = Vector2(276.0, 78.0)
-	_text_edit.placeholder_text = "짧은 메시지 · 최대 200자 / 3줄"
+	_text_edit.custom_minimum_size = Vector2(400.0, 108.0)
+	_text_edit.placeholder_text = "메시지를 입력해줘"
 	_text_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
 	_text_edit.text_changed.connect(_on_text_changed)
 	_text_edit.gui_input.connect(_on_text_gui_input)
@@ -153,30 +151,35 @@ func _build_ui() -> void:
 	_counter_label = Label.new()
 	_counter_label.text = "0 / 200"
 	_counter_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_counter_label.add_theme_font_size_override("font_size", 11)
+	_counter_label.add_theme_font_size_override("font_size", 14)
+	_counter_label.add_theme_color_override("font_color", SideyThemeScript.TEXT_MUTED)
 	actions.add_child(_counter_label)
 	var cancel_button := Button.new()
 	cancel_button.text = "닫기"
+	cancel_button.theme_type_variation = &"SideySecondaryButton"
 	cancel_button.pressed.connect(cancel_composer)
 	actions.add_child(cancel_button)
 
-	_history_button = Button.new()
-	_history_button.position = Vector2(640.0, 42.0)
-	_history_button.size = Vector2(68.0, 30.0)
-	_history_button.text = "기록"
-	_history_button.visible = false
-	_history_button.pressed.connect(_toggle_history)
-	_canvas.add_child(_history_button)
 	_history_panel = PanelContainer.new()
-	_history_panel.position = Vector2(440.0, 76.0)
-	_history_panel.size = Vector2(268.0, 166.0)
+	_history_panel.position = Vector2(378.0, 38.0)
+	_history_panel.size = Vector2(334.0, 222.0)
 	_history_panel.visible = false
+	_history_panel.add_theme_stylebox_override("panel", SideyThemeScript.message_bubble_style())
 	_canvas.add_child(_history_panel)
+	var history_content := VBoxContainer.new()
+	history_content.add_theme_constant_override("separation", 10)
+	_history_panel.add_child(history_content)
+	var history_title := Label.new()
+	history_title.text = "최근 메시지"
+	history_title.add_theme_font_size_override("font_size", 19)
+	history_title.add_theme_color_override("font_color", SideyThemeScript.TEXT_PRIMARY)
+	history_content.add_child(history_title)
 	var scroll := ScrollContainer.new()
-	_history_panel.add_child(scroll)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	history_content.add_child(scroll)
 	_history_list = VBoxContainer.new()
-	_history_list.custom_minimum_size = Vector2(244.0, 0.0)
-	_history_list.add_theme_constant_override("separation", 5)
+	_history_list.custom_minimum_size = Vector2(292.0, 0.0)
+	_history_list.add_theme_constant_override("separation", 10)
 	scroll.add_child(_history_list)
 
 
@@ -195,7 +198,7 @@ func _on_text_changed() -> void:
 	_counter_label.text = "%d / %d" % [body.length(), ChatStore.MAX_BODY_LENGTH]
 	_counter_label.add_theme_color_override(
 		"font_color",
-		Color("dce9ec") if valid or body.is_empty() else Color("ff837a"),
+		SideyThemeScript.TEXT_MUTED if valid or body.is_empty() else SideyThemeScript.DANGER,
 	)
 	if body.is_empty():
 		_emit_typing_stop()
@@ -238,6 +241,7 @@ func _send_current_message() -> void:
 	_emit_typing_stop()
 	_text_edit.text = ""
 	_input_panel.visible = false
+	input_visibility_changed.emit(false)
 	_rebuild_history()
 	message_accepted.emit(message, true)
 
@@ -275,6 +279,7 @@ func _send_remote_message(body: String) -> void:
 	_emit_typing_stop()
 	_text_edit.text = ""
 	_input_panel.visible = false
+	input_visibility_changed.emit(false)
 	_rebuild_history()
 	if insert_error == OK:
 		message_accepted.emit(message, true)
@@ -285,23 +290,26 @@ func _emit_typing_stop() -> void:
 		typing_event.emit(&"typing_stop", _active_room_id, _self_user_id)
 
 
-func _toggle_history() -> void:
-	_history_panel.visible = not _history_panel.visible
-	if _history_panel.visible:
-		_rebuild_history()
-
-
 func _rebuild_history() -> void:
 	if not is_instance_valid(_history_list):
 		return
 	for child in _history_list.get_children():
 		child.queue_free()
 	for message in _chat_store.recent(_active_room_id):
-		var line := Label.new()
-		line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		line.text = "%s  %s" % [_sender_name(str(message.get("sender_id", ""))), str(message.get("body", ""))]
-		line.add_theme_font_size_override("font_size", 12)
-		_history_list.add_child(line)
+		var message_block := VBoxContainer.new()
+		message_block.add_theme_constant_override("separation", 2)
+		var sender := Label.new()
+		sender.text = _sender_name(str(message.get("sender_id", "")))
+		sender.add_theme_font_size_override("font_size", 14)
+		sender.add_theme_color_override("font_color", SideyThemeScript.TEXT_SECONDARY)
+		message_block.add_child(sender)
+		var body := Label.new()
+		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		body.text = str(message.get("body", ""))
+		body.add_theme_font_size_override("font_size", 17)
+		body.add_theme_color_override("font_color", SideyThemeScript.TEXT_PRIMARY)
+		message_block.add_child(body)
+		_history_list.add_child(message_block)
 
 
 func _sender_name(user_id: String) -> String:
