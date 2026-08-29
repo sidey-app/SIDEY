@@ -135,6 +135,11 @@ func diagnostic_report() -> Dictionary:
 		"scale": _scale,
 		"locked": _locked,
 		"visible": _overlay_visible,
+		"borderless": _window.borderless,
+		"always_on_top": _window.always_on_top,
+		"transparent": _window.transparent,
+		"unfocusable": _window.unfocusable,
+		"mouse_passthrough": _window.mouse_passthrough,
 	}
 
 

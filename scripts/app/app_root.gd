@@ -196,11 +196,26 @@ func _has_argument(expected: String) -> bool:
 
 
 func _finish_smoke_test() -> void:
+	var capture_path := _argument_value("--capture=")
+	if not capture_path.is_empty():
+		var capture_error := get_viewport().get_texture().get_image().save_png(capture_path)
+		if capture_error != OK:
+			push_error("APP_ROOT_CAPTURE_FAILED path=%s error=%d" % [capture_path, capture_error])
+			get_tree().quit(1)
+			return
+		print("APP_ROOT_CAPTURE_OK path=%s" % capture_path)
 	print("APP_ROOT_SMOKE_OK report=%s status_menu=%s" % [
 		_overlay_controller.diagnostic_report(),
 		_status_menu_controller.is_available(),
 	])
 	get_tree().quit(0)
+
+
+func _argument_value(prefix: String) -> String:
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with(prefix):
+			return argument.trim_prefix(prefix)
+	return ""
 
 
 func _on_compose_requested() -> void:
