@@ -4,6 +4,7 @@ const OverlayGeometryScript := preload("res://scripts/overlay/overlay_geometry.g
 const SettingsStoreScript := preload("res://scripts/settings/settings_store.gd")
 const CharacterCatalogScript := preload("res://scripts/characters/character_catalog.gd")
 const CharacterRowScript := preload("res://scripts/characters/character_row.gd")
+const RoomControllerScript := preload("res://scripts/rooms/room_controller.gd")
 
 var _failures := 0
 var _checks := 0
@@ -13,6 +14,7 @@ func _initialize() -> void:
 	_run_geometry_tests()
 	_run_settings_tests()
 	_run_character_data_tests()
+	_run_room_controller_tests()
 	if _failures == 0:
 		print("SIDEY_UNIT_TESTS_OK checks=%d" % _checks)
 		quit(0)
@@ -61,6 +63,7 @@ func _run_settings_tests() -> void:
 	_check_equal(migrated["schema_version"], SettingsStoreScript.CURRENT_SCHEMA_VERSION, "settings schema migration")
 	_check_equal(migrated["overlay"]["position"], [99, 77], "settings legacy position")
 	_check_equal(migrated["overlay"]["scale"], OverlayGeometryScript.MAX_SCALE, "settings migration clamp")
+	_check_equal(migrated["local_state"], {}, "settings migration initializes local state")
 	DirAccess.remove_absolute(path)
 
 
@@ -74,6 +77,37 @@ func _run_character_data_tests() -> void:
 	_check_approx(five_positions[0], -1.16, "five character layout start")
 	_check_approx(five_positions[4], 1.16, "five character layout end")
 	_check_equal(CharacterRowScript.layout_positions(8).size(), 5, "character row max five")
+
+
+func _run_room_controller_tests() -> void:
+	var path := "/tmp/sidey-room-test-%d.json" % OS.get_process_id()
+	var store = SettingsStoreScript.new(path)
+	var rooms = RoomControllerScript.new()
+	_check_equal(rooms.configure(store), OK, "room controller configure")
+	_check_equal(rooms.set_profile("민트", "minty_pup"), OK, "profile validation")
+	_check_equal(rooms.create_room("첫 그룹"), OK, "create first room")
+	var first_room_id: String = rooms.active_room_id()
+	_check_equal(rooms.join_demo_room("sidey-demo"), OK, "join demo room normalized code")
+	_check_equal((rooms.active_room()["members"] as Array).size(), 5, "demo room has five members")
+	_check_equal(rooms.set_active_room(first_room_id), OK, "switch active room")
+	_check_equal(rooms.mark_message_received("demo-friends"), OK, "inactive room unread")
+	_check_equal(rooms.unread_count("demo-friends"), 1, "unread count increments")
+	_check_equal(rooms.set_active_room("demo-friends"), OK, "activate unread room")
+	_check_equal(rooms.unread_count("demo-friends"), 0, "active room clears unread")
+	_check_equal(rooms.set_profile(" 하 늘 ", "minty_pup"), ERR_ALREADY_EXISTS, "profile nickname conflict across rooms")
+	for index in 3:
+		_check_equal(rooms.create_room("추가 그룹 %d" % index), OK, "create room within user limit %d" % index)
+	_check_equal(rooms.create_room("여섯 번째"), ERR_BUSY, "reject sixth room")
+	_check_equal(rooms.complete_onboarding(), OK, "complete onboarding with profile and room")
+	var restored = RoomControllerScript.new()
+	_check_equal(restored.configure(SettingsStoreScript.new(path)), OK, "restore room state")
+	_check_equal(restored.rooms().size(), 5, "restore five rooms")
+	_check_equal(restored.is_onboarding_complete(), true, "restore onboarding state")
+	_check_equal(RoomControllerScript.validate_nickname("한"), ERR_INVALID_PARAMETER, "nickname minimum length")
+	_check_equal(RoomControllerScript.validate_room_name(""), ERR_INVALID_PARAMETER, "room name required")
+	rooms.free()
+	restored.free()
+	DirAccess.remove_absolute(path)
 
 
 func _check_equal(actual: Variant, expected: Variant, label: String) -> void:

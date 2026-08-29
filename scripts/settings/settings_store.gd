@@ -1,7 +1,7 @@
 class_name SettingsStore
 extends RefCounted
 
-const CURRENT_SCHEMA_VERSION := 1
+const CURRENT_SCHEMA_VERSION := 2
 const OverlayGeometryScript := preload("res://scripts/overlay/overlay_geometry.gd")
 const DEFAULT_SETTINGS := {
 	"schema_version": CURRENT_SCHEMA_VERSION,
@@ -14,6 +14,7 @@ const DEFAULT_SETTINGS := {
 		"locked": true,
 	},
 	"quiet_mode": false,
+	"local_state": {},
 }
 
 var _path: String
@@ -59,6 +60,10 @@ func quiet_mode() -> bool:
 	return bool(_settings.get("quiet_mode", false))
 
 
+func local_state() -> Dictionary:
+	return (_settings.get("local_state", {}) as Dictionary).duplicate(true)
+
+
 func set_overlay_geometry(
 	position: Vector2i,
 	scale: float,
@@ -93,6 +98,13 @@ func set_quiet_mode(enabled: bool) -> Error:
 	return save()
 
 
+func set_local_state(state: Dictionary) -> Error:
+	# Local state is a non-secret cache. Refresh tokens and invite-code plaintext
+	# belong in the platform secure store and must never be passed here.
+	_settings["local_state"] = state.duplicate(true)
+	return save()
+
+
 static func migrate(raw_settings: Dictionary) -> Dictionary:
 	var migrated := DEFAULT_SETTINGS.duplicate(true)
 	var source_version := int(raw_settings.get("schema_version", 0))
@@ -118,5 +130,7 @@ static func migrate(raw_settings: Dictionary) -> Dictionary:
 		migrated["overlay"]["visible"] = bool(raw_overlay.get("visible", true))
 		migrated["overlay"]["locked"] = bool(raw_overlay.get("locked", true))
 	migrated["quiet_mode"] = bool(raw_settings.get("quiet_mode", false))
+	if source_version >= 2 and raw_settings.get("local_state") is Dictionary:
+		migrated["local_state"] = (raw_settings["local_state"] as Dictionary).duplicate(true)
 	migrated["schema_version"] = CURRENT_SCHEMA_VERSION
 	return migrated
