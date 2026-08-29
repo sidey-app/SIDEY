@@ -497,6 +497,7 @@ func _activate_room_session() -> void:
 	_character_row.visible = true
 	_character_hud.visible = true
 	_character_hud.configure_room(room)
+	_chat_controller.set_anchor_x(_character_hud.self_anchor_x())
 	_chat_controller.set_session(room, _room_controller.profile())
 	_activate_platform_runtime()
 

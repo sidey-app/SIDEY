@@ -19,7 +19,23 @@ static func presence_dot_style(color: Color) -> StyleBoxFlat:
 	return _style(color, 5, Vector4.ZERO)
 
 
-static func _style(color: Color, radius: int, margins: Vector4) -> StyleBoxFlat:
+static func composer_style(focused := false) -> StyleBoxFlat:
+	return _style(
+		Color(0.02, 0.025, 0.03, 0.84 if focused else 0.72),
+		14,
+		Vector4(12, 8, 12, 8),
+		Color(1.0, 1.0, 1.0, 0.22) if focused else Color.TRANSPARENT,
+		1 if focused else 0,
+	)
+
+
+static func _style(
+	color: Color,
+	radius: int,
+	margins: Vector4,
+	border_color := Color.TRANSPARENT,
+	border_width := 0,
+) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = color
 	style.corner_radius_top_left = radius
@@ -30,4 +46,9 @@ static func _style(color: Color, radius: int, margins: Vector4) -> StyleBoxFlat:
 	style.content_margin_top = margins.y
 	style.content_margin_right = margins.z
 	style.content_margin_bottom = margins.w
+	style.border_color = border_color
+	style.border_width_left = border_width
+	style.border_width_top = border_width
+	style.border_width_right = border_width
+	style.border_width_bottom = border_width
 	return style

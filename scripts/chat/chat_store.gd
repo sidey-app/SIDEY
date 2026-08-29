@@ -54,9 +54,15 @@ func clear_room(room_id: String) -> void:
 
 static func validate_body(body: String) -> Error:
 	var cleaned := body.strip_edges()
-	if cleaned.is_empty() or cleaned.length() > MAX_BODY_LENGTH:
+	if cleaned.is_empty() or validate_draft(body) != OK:
 		return ERR_INVALID_PARAMETER
-	if cleaned.split("\n", true).size() > MAX_BODY_LINES:
+	return OK
+
+
+static func validate_draft(body: String) -> Error:
+	if body.length() > MAX_BODY_LENGTH:
+		return ERR_INVALID_PARAMETER
+	if body.split("\n", true).size() > MAX_BODY_LINES:
 		return ERR_INVALID_PARAMETER
 	return OK
 

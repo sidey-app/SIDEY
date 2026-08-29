@@ -9,6 +9,11 @@ signal history_visibility_changed(visible: bool)
 const ChatStoreScript := preload("res://scripts/chat/chat_store.gd")
 const TypingTrackerScript := preload("res://scripts/chat/typing_tracker.gd")
 const SideyThemeScript := preload("res://scripts/ui/sidey_theme.gd")
+const OverlayThemeScript := preload("res://scripts/ui/overlay_theme.gd")
+const LOGICAL_WIDTH := 720.0
+const COMPOSER_SIZE := Vector2(224.0, 42.0)
+const COMPOSER_Y := 320.0
+const EDGE_MARGIN := 8.0
 
 var _room_controller: RoomController
 var _chat_store: ChatStore
@@ -16,8 +21,6 @@ var _typing_tracker: TypingTracker
 var _canvas: CanvasLayer
 var _input_panel: PanelContainer
 var _text_edit: TextEdit
-var _send_button: Button
-var _counter_label: Label
 var _history_panel: PanelContainer
 var _history_list: VBoxContainer
 var _active_room_id := ""
@@ -25,6 +28,9 @@ var _self_user_id := ""
 var _quiet_mode := false
 var _backend_runtime: BackendRuntime
 var _send_in_progress := false
+var _anchor_x := LOGICAL_WIDTH * 0.5
+var _last_valid_draft := ""
+var _restoring_draft := false
 
 
 func configure(
@@ -42,12 +48,15 @@ func configure(
 
 
 func set_session(room: Dictionary, profile: Dictionary) -> void:
-	cancel_composer()
+	_emit_typing_stop()
+	_clear_draft()
 	if is_instance_valid(_history_panel):
 		_history_panel.visible = false
 		history_visibility_changed.emit(false)
 	_active_room_id = str(room.get("id", ""))
 	_self_user_id = str(profile.get("user_id", ""))
+	_input_panel.visible = not _active_room_id.is_empty()
+	input_visibility_changed.emit(_input_panel.visible)
 	_rebuild_history()
 
 
@@ -68,12 +77,27 @@ func open_composer() -> void:
 
 
 func cancel_composer() -> void:
-	if is_instance_valid(_text_edit):
-		_text_edit.text = ""
-	if is_instance_valid(_input_panel):
-		_input_panel.visible = false
-	input_visibility_changed.emit(false)
+	_clear_draft()
 	_emit_typing_stop()
+	if is_instance_valid(_input_panel):
+		_input_panel.visible = not _active_room_id.is_empty()
+	input_visibility_changed.emit(is_instance_valid(_input_panel) and _input_panel.visible)
+
+
+func set_anchor_x(anchor_x: float) -> void:
+	_anchor_x = clampf(anchor_x, 0.0, LOGICAL_WIDTH)
+	if is_instance_valid(_input_panel):
+		_input_panel.position = Vector2(_composer_left(), COMPOSER_Y)
+
+
+func composer_visible() -> bool:
+	return is_instance_valid(_input_panel) and _input_panel.visible
+
+
+func composer_rect() -> Rect2:
+	if not is_instance_valid(_input_panel):
+		return Rect2()
+	return Rect2(_input_panel.position, _input_panel.size)
 
 
 func toggle_history() -> void:
@@ -125,40 +149,33 @@ func recent_messages(room_id: String) -> Array[Dictionary]:
 
 func _build_ui() -> void:
 	_input_panel = PanelContainer.new()
-	_input_panel.position = Vector2(86.0, 148.0)
-	_input_panel.size = Vector2(548.0, 136.0)
+	_input_panel.name = "InlineComposer"
+	_input_panel.position = Vector2(_composer_left(), COMPOSER_Y)
+	_input_panel.custom_minimum_size = COMPOSER_SIZE
+	_input_panel.size = COMPOSER_SIZE
 	_input_panel.visible = false
+	_input_panel.mouse_filter = Control.MOUSE_FILTER_STOP
 	input_visibility_changed.emit(false)
 	_canvas.add_child(_input_panel)
-	_input_panel.add_theme_stylebox_override("panel", SideyThemeScript.message_bubble_style())
-	var input_row := HBoxContainer.new()
-	input_row.add_theme_constant_override("separation", 12)
-	_input_panel.add_child(input_row)
+	_input_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	_text_edit = TextEdit.new()
-	_text_edit.custom_minimum_size = Vector2(400.0, 108.0)
-	_text_edit.placeholder_text = "메시지를 입력해줘"
+	_text_edit.name = "MessageInput"
+	_text_edit.custom_minimum_size = COMPOSER_SIZE
+	_text_edit.placeholder_text = "메시지…"
 	_text_edit.wrap_mode = TextEdit.LINE_WRAPPING_BOUNDARY
+	_text_edit.scroll_smooth = true
+	_text_edit.mouse_default_cursor_shape = Control.CURSOR_IBEAM
+	_text_edit.add_theme_font_size_override("font_size", 16)
+	_text_edit.add_theme_color_override("font_color", OverlayThemeScript.TEXT_PRIMARY)
+	_text_edit.add_theme_color_override("font_placeholder_color", OverlayThemeScript.TEXT_SECONDARY)
+	_text_edit.add_theme_color_override("caret_color", Color.WHITE)
+	_text_edit.add_theme_color_override("selection_color", Color(1.0, 1.0, 1.0, 0.18))
+	_text_edit.add_theme_stylebox_override("normal", OverlayThemeScript.composer_style())
+	_text_edit.add_theme_stylebox_override("focus", OverlayThemeScript.composer_style(true))
+	_text_edit.add_theme_stylebox_override("read_only", OverlayThemeScript.composer_style())
 	_text_edit.text_changed.connect(_on_text_changed)
 	_text_edit.gui_input.connect(_on_text_gui_input)
-	input_row.add_child(_text_edit)
-	var actions := VBoxContainer.new()
-	input_row.add_child(actions)
-	_send_button = Button.new()
-	_send_button.text = "보내기"
-	_send_button.disabled = true
-	_send_button.pressed.connect(_send_current_message)
-	actions.add_child(_send_button)
-	_counter_label = Label.new()
-	_counter_label.text = "0 / 200"
-	_counter_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_counter_label.add_theme_font_size_override("font_size", 14)
-	_counter_label.add_theme_color_override("font_color", SideyThemeScript.TEXT_MUTED)
-	actions.add_child(_counter_label)
-	var cancel_button := Button.new()
-	cancel_button.text = "닫기"
-	cancel_button.theme_type_variation = &"SideySecondaryButton"
-	cancel_button.pressed.connect(cancel_composer)
-	actions.add_child(cancel_button)
+	_input_panel.add_child(_text_edit)
 
 	_history_panel = PanelContainer.new()
 	_history_panel.position = Vector2(378.0, 38.0)
@@ -192,15 +209,14 @@ func _process(_delta: float) -> void:
 
 
 func _on_text_changed() -> void:
+	if _restoring_draft:
+		return
 	var body := _text_edit.text
-	var valid := ChatStore.validate_body(body) == OK
-	_send_button.disabled = not valid
-	_counter_label.text = "%d / %d" % [body.length(), ChatStore.MAX_BODY_LENGTH]
-	_counter_label.add_theme_color_override(
-		"font_color",
-		SideyThemeScript.TEXT_MUTED if valid or body.is_empty() else SideyThemeScript.DANGER,
-	)
-	if body.is_empty():
+	if ChatStore.validate_draft(body) != OK:
+		_restore_last_valid_draft()
+		return
+	_last_valid_draft = body
+	if body.strip_edges().is_empty():
 		_emit_typing_stop()
 		return
 	var event := _typing_tracker.note_input(_now_seconds())
@@ -210,11 +226,12 @@ func _on_text_changed() -> void:
 
 func _on_text_gui_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode in [KEY_ENTER, KEY_KP_ENTER] and (event.meta_pressed or event.ctrl_pressed):
+		if should_submit_key(event, _text_edit.has_ime_text()):
 			_send_current_message()
 			get_viewport().set_input_as_handled()
 		elif event.keycode == KEY_ESCAPE:
-			cancel_composer()
+			_text_edit.release_focus()
+			_emit_typing_stop()
 			get_viewport().set_input_as_handled()
 
 
@@ -239,16 +256,14 @@ func _send_current_message() -> void:
 		push_warning("LOCAL_MESSAGE_INSERT_FAILED error=%d" % insert_error)
 		return
 	_emit_typing_stop()
-	_text_edit.text = ""
-	_input_panel.visible = false
-	input_visibility_changed.emit(false)
+	_clear_draft()
 	_rebuild_history()
 	message_accepted.emit(message, true)
 
 
 func _send_remote_message(body: String) -> void:
 	_send_in_progress = true
-	_send_button.disabled = true
+	_text_edit.editable = false
 	var message_id := _uuid_v4()
 	var result: Dictionary = await _backend_runtime.send_message(
 		message_id,
@@ -256,12 +271,12 @@ func _send_remote_message(body: String) -> void:
 		body,
 	)
 	_send_in_progress = false
+	_text_edit.editable = true
 	if not bool(result.get("ok", false)):
 		push_warning("REMOTE_MESSAGE_SEND_FAILED code=%s message=%s" % [
 			str(result.get("error_code", "unknown")),
 			str(result.get("error_message", "")),
 		])
-		_on_text_changed()
 		return
 	var message := _first_record(result.get("data"))
 	if message.is_empty():
@@ -277,9 +292,7 @@ func _send_remote_message(body: String) -> void:
 		push_warning("REMOTE_MESSAGE_CACHE_FAILED error=%d" % insert_error)
 		return
 	_emit_typing_stop()
-	_text_edit.text = ""
-	_input_panel.visible = false
-	input_visibility_changed.emit(false)
+	_clear_draft()
 	_rebuild_history()
 	if insert_error == OK:
 		message_accepted.emit(message, true)
@@ -322,6 +335,38 @@ func _sender_name(user_id: String) -> String:
 
 func _now_seconds() -> float:
 	return Time.get_ticks_msec() / 1000.0
+
+
+func _composer_left() -> float:
+	return clampf(
+		_anchor_x - COMPOSER_SIZE.x * 0.5,
+		EDGE_MARGIN,
+		LOGICAL_WIDTH - EDGE_MARGIN - COMPOSER_SIZE.x,
+	)
+
+
+func _clear_draft() -> void:
+	_last_valid_draft = ""
+	if not is_instance_valid(_text_edit):
+		return
+	_restoring_draft = true
+	_text_edit.text = ""
+	_restoring_draft = false
+
+
+func _restore_last_valid_draft() -> void:
+	_restoring_draft = true
+	_text_edit.text = _last_valid_draft
+	var last_line := maxi(0, _text_edit.get_line_count() - 1)
+	_text_edit.set_caret_line(last_line)
+	_text_edit.set_caret_column(_text_edit.get_line(last_line).length())
+	_restoring_draft = false
+
+
+static func should_submit_key(event: InputEventKey, ime_active: bool) -> bool:
+	return event.keycode in [KEY_ENTER, KEY_KP_ENTER] \
+		and not event.shift_pressed \
+		and not ime_active
 
 
 static func _first_record(value: Variant) -> Dictionary:
