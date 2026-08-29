@@ -5,6 +5,7 @@ signal compose_requested
 signal settings_requested
 signal quit_requested
 signal quiet_mode_changed(enabled: bool)
+signal room_selected(room_id: String)
 
 const ITEM_OVERLAY_VISIBLE := 100
 const ITEM_ACTIVE_ROOM := 200
@@ -14,6 +15,7 @@ const ITEM_QUIET := 500
 const ITEM_RESET_POSITION := 600
 const ITEM_SETTINGS := 700
 const ITEM_QUIT := 800
+const ITEM_ROOM_BASE := 1000
 const STATUS_ICON_PATH := "res://assets/ui/status_icon.svg"
 
 var _overlay_controller: OverlayController
@@ -21,14 +23,25 @@ var _settings_store: SettingsStore
 var _popup_menu: PopupMenu
 var _status_indicator: StatusIndicator
 var _quiet_mode := false
+var _room_controller: RoomController
+var _room_item_ids: Dictionary = {}
 
 
-func configure(overlay_controller: OverlayController, settings_store: SettingsStore) -> Error:
+func configure(
+	overlay_controller: OverlayController,
+	settings_store: SettingsStore,
+	room_controller: RoomController = null,
+) -> Error:
 	_overlay_controller = overlay_controller
 	_settings_store = settings_store
+	_room_controller = room_controller
 	_quiet_mode = settings_store.quiet_mode()
 	_overlay_controller.locked_changed.connect(_refresh_menu)
 	_overlay_controller.overlay_visibility_changed.connect(_refresh_menu)
+	if _room_controller != null:
+		_room_controller.rooms_changed.connect(_on_rooms_changed)
+		_room_controller.active_room_changed.connect(_on_active_room_changed)
+		_room_controller.unread_changed.connect(_on_unread_changed)
 	if not DisplayServer.has_feature(DisplayServer.FEATURE_STATUS_INDICATOR):
 		return ERR_UNAVAILABLE
 	_build_menu()
@@ -48,20 +61,8 @@ func _build_menu() -> void:
 	_popup_menu = PopupMenu.new()
 	_popup_menu.name = "StatusMenu"
 	add_child(_popup_menu)
-	_popup_menu.add_item("SIDEY 숨기기", ITEM_OVERLAY_VISIBLE)
-	_popup_menu.add_separator()
-	_popup_menu.add_item("활성 그룹 · 로컬 검증", ITEM_ACTIVE_ROOM)
-	_popup_menu.set_item_disabled(_popup_menu.get_item_index(ITEM_ACTIVE_ROOM), true)
-	_popup_menu.add_item("메시지 작성", ITEM_COMPOSE)
-	_popup_menu.add_item("상호작용 잠금 해제", ITEM_LOCKED)
-	_popup_menu.add_check_item("조용히 모드", ITEM_QUIET)
-	_popup_menu.add_separator()
-	_popup_menu.add_item("위치 초기화", ITEM_RESET_POSITION)
-	_popup_menu.add_item("설정 (준비 중)", ITEM_SETTINGS)
-	_popup_menu.set_item_disabled(_popup_menu.get_item_index(ITEM_SETTINGS), true)
-	_popup_menu.add_separator()
-	_popup_menu.add_item("SIDEY 종료", ITEM_QUIT)
 	_popup_menu.id_pressed.connect(_on_item_pressed)
+	_rebuild_menu_items()
 
 	_status_indicator = StatusIndicator.new()
 	_status_indicator.name = "SIDEYStatusIndicator"
@@ -75,7 +76,48 @@ func _build_menu() -> void:
 	_status_indicator.menu = _popup_menu.get_path()
 
 
+func _rebuild_menu_items() -> void:
+	_popup_menu.clear()
+	_room_item_ids.clear()
+	_popup_menu.add_item("SIDEY 숨기기", ITEM_OVERLAY_VISIBLE)
+	_popup_menu.add_separator()
+	var active_room_name := "그룹 없음"
+	if _room_controller != null and not _room_controller.active_room().is_empty():
+		active_room_name = str(_room_controller.active_room().get("name", "그룹"))
+	_popup_menu.add_item("활성 그룹 · %s" % active_room_name, ITEM_ACTIVE_ROOM)
+	_popup_menu.set_item_disabled(_popup_menu.get_item_index(ITEM_ACTIVE_ROOM), true)
+	if _room_controller != null:
+		var room_list := _room_controller.rooms()
+		for index in room_list.size():
+			var room := room_list[index]
+			var item_id := ITEM_ROOM_BASE + index
+			var unread := int(room.get("unread", 0))
+			var label := "  %s%s" % [
+				str(room.get("name", "그룹")),
+				"  (%d)" % unread if unread > 0 else "",
+			]
+			_popup_menu.add_radio_check_item(label, item_id)
+			_popup_menu.set_item_checked(
+				_popup_menu.get_item_index(item_id),
+				str(room.get("id", "")) == _room_controller.active_room_id(),
+			)
+			_room_item_ids[item_id] = str(room.get("id", ""))
+	_popup_menu.add_separator()
+	_popup_menu.add_item("메시지 작성", ITEM_COMPOSE)
+	_popup_menu.add_item("상호작용 잠금 해제", ITEM_LOCKED)
+	_popup_menu.add_check_item("조용히 모드", ITEM_QUIET)
+	_popup_menu.add_separator()
+	_popup_menu.add_item("위치 초기화", ITEM_RESET_POSITION)
+	_popup_menu.add_item("설정 (준비 중)", ITEM_SETTINGS)
+	_popup_menu.set_item_disabled(_popup_menu.get_item_index(ITEM_SETTINGS), true)
+	_popup_menu.add_separator()
+	_popup_menu.add_item("SIDEY 종료", ITEM_QUIT)
+
+
 func _on_item_pressed(item_id: int) -> void:
+	if _room_item_ids.has(item_id):
+		room_selected.emit(str(_room_item_ids[item_id]))
+		return
 	match item_id:
 		ITEM_OVERLAY_VISIBLE:
 			_overlay_controller.toggle_overlay_visible()
@@ -114,3 +156,21 @@ func _refresh_menu(_unused: Variant = null) -> void:
 		"상호작용 잠금 해제" if _overlay_controller.is_locked() else "상호작용 잠금",
 	)
 	_popup_menu.set_item_checked(_popup_menu.get_item_index(ITEM_QUIET), _quiet_mode)
+
+
+func _on_rooms_changed(_rooms: Array[Dictionary]) -> void:
+	if is_instance_valid(_popup_menu):
+		_rebuild_menu_items()
+		_refresh_menu()
+
+
+func _on_active_room_changed(_previous_room_id: String, _room_id: String) -> void:
+	if is_instance_valid(_popup_menu):
+		_rebuild_menu_items()
+		_refresh_menu()
+
+
+func _on_unread_changed(_room_id: String, _count: int) -> void:
+	if is_instance_valid(_popup_menu):
+		_rebuild_menu_items()
+		_refresh_menu()

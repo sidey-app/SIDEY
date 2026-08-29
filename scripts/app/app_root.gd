@@ -5,6 +5,10 @@ const OverlayControllerScript := preload("res://scripts/overlay/overlay_controll
 const PlatformBridgeScript := preload("res://scripts/platform/platform_bridge.gd")
 const SettingsStoreScript := preload("res://scripts/settings/settings_store.gd")
 const StatusMenuControllerScript := preload("res://scripts/app/status_menu_controller.gd")
+const RoomControllerScript := preload("res://scripts/rooms/room_controller.gd")
+const CharacterHudScript := preload("res://scripts/characters/character_hud.gd")
+const ChatControllerScript := preload("res://scripts/chat/chat_controller.gd")
+const OnboardingControllerScript := preload("res://scripts/onboarding/onboarding_controller.gd")
 
 var _character_row: CharacterRow
 var _overlay_controller: OverlayController
@@ -12,17 +16,39 @@ var _platform_bridge: PlatformBridge
 var _settings_store: SettingsStore
 var _interaction_panel: Control
 var _scale_label: Label
-var _state_label: Label
 var _debug_panel: Control
 var _status_menu_controller: StatusMenuController
+var _room_controller: RoomController
+var _character_hud: CharacterHud
+var _chat_controller: ChatController
+var _onboarding_controller: OnboardingController
+var _overlay_canvas: CanvasLayer
 var _screen_locked := false
 var _system_sleeping := false
+var _platform_runtime_active := false
+var _ephemeral_settings_path := ""
 
 
 func _ready() -> void:
 	_setup_environment()
 	_setup_camera()
-	_settings_store = SettingsStoreScript.new()
+	if _has_argument("--local-ux-demo"):
+		_ephemeral_settings_path = "/tmp/sidey-local-ux-%d.json" % OS.get_process_id()
+	_settings_store = SettingsStoreScript.new(
+		_ephemeral_settings_path if not _ephemeral_settings_path.is_empty() else "user://settings.json"
+	)
+	_room_controller = RoomControllerScript.new()
+	_room_controller.name = "RoomController"
+	add_child(_room_controller)
+	var room_configure_error := _room_controller.configure(_settings_store)
+	if room_configure_error != OK:
+		_fail("Room state could not be restored", room_configure_error)
+		return
+	if _has_argument("--local-ux-demo"):
+		var demo_error := _bootstrap_local_demo()
+		if demo_error != OK:
+			_fail("Local demo state could not be created", demo_error)
+			return
 	_platform_bridge = PlatformBridgeScript.new()
 	_platform_bridge.name = "PlatformBridge"
 	add_child(_platform_bridge)
@@ -36,18 +62,28 @@ func _ready() -> void:
 	_character_row = CharacterRowScript.new() as CharacterRow
 	_character_row.name = "CharacterRow"
 	add_child(_character_row)
-	var character_count := _requested_debug_character_count()
-	var configure_error := _character_row.configure_debug(character_count)
+	var configure_error := _configure_initial_characters()
 	if configure_error != OK:
 		_fail("Character row could not be configured", configure_error)
 		return
 	_setup_ui()
+	_setup_local_ux()
 	_setup_status_menu()
 	_setup_platform_bridge()
 	_on_locked_changed(_overlay_controller.is_locked())
 	_on_scale_changed(_overlay_controller.overlay_scale())
 	if _has_argument("--unlocked"):
 		_overlay_controller.set_locked(false, false)
+	if _room_controller.is_onboarding_complete():
+		_activate_room_session()
+	elif _has_argument("--smoke-test") or DisplayServer.get_name() == "headless":
+		_configure_debug_hud()
+		_activate_platform_runtime()
+	else:
+		_character_row.visible = false
+		_character_hud.visible = false
+		_onboarding_controller.show_onboarding(_room_controller)
+	_apply_debug_actions()
 	print("APP_ROOT_READY characters=%d report=%s" % [
 		_character_row.character_count(),
 		_overlay_controller.diagnostic_report(),
@@ -61,6 +97,8 @@ func _exit_tree() -> void:
 		_overlay_controller.flush_settings()
 	if is_instance_valid(_platform_bridge):
 		_platform_bridge.unregister_hotkeys()
+	if not _ephemeral_settings_path.is_empty():
+		DirAccess.remove_absolute(_ephemeral_settings_path)
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -104,22 +142,14 @@ func _setup_camera() -> void:
 
 
 func _setup_ui() -> void:
-	var canvas := CanvasLayer.new()
-	canvas.layer = 10
-	add_child(canvas)
-	_state_label = Label.new()
-	_state_label.position = Vector2(286.0, 296.0)
-	_state_label.size = Vector2(148.0, 24.0)
-	_state_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_state_label.text = "●  Minty Pup · 나"
-	_state_label.add_theme_font_size_override("font_size", 14)
-	_state_label.add_theme_color_override("font_color", Color("a9eadb"))
-	canvas.add_child(_state_label)
+	_overlay_canvas = CanvasLayer.new()
+	_overlay_canvas.layer = 10
+	add_child(_overlay_canvas)
 
 	_interaction_panel = PanelContainer.new()
 	_interaction_panel.position = Vector2(182.0, 318.0)
 	_interaction_panel.size = Vector2(356.0, 38.0)
-	canvas.add_child(_interaction_panel)
+	_overlay_canvas.add_child(_interaction_panel)
 	var controls := HBoxContainer.new()
 	controls.add_theme_constant_override("separation", 8)
 	_interaction_panel.add_child(controls)
@@ -148,21 +178,46 @@ func _setup_ui() -> void:
 		_debug_panel = HBoxContainer.new()
 		_debug_panel.position = Vector2(12.0, 12.0)
 		_debug_panel.add_theme_constant_override("separation", 4)
-		canvas.add_child(_debug_panel)
+		_overlay_canvas.add_child(_debug_panel)
 		_add_state_button(_debug_panel, "온라인", CharacterState.Value.ONLINE_IDLE)
 		_add_state_button(_debug_panel, "타이핑", CharacterState.Value.TYPING)
 		_add_state_button(_debug_panel, "수면", CharacterState.Value.OFFLINE_SLEEP)
+
+
+func _setup_local_ux() -> void:
+	_character_hud = CharacterHudScript.new()
+	_character_hud.name = "CharacterHud"
+	_overlay_canvas.add_child(_character_hud)
+	_chat_controller = ChatControllerScript.new()
+	_chat_controller.name = "ChatController"
+	add_child(_chat_controller)
+	_chat_controller.configure(_room_controller, _overlay_canvas)
+	_chat_controller.message_accepted.connect(_on_message_accepted)
+	_chat_controller.typing_event.connect(_on_typing_event)
+	_chat_controller.input_visibility_changed.connect(_on_chat_input_visibility_changed)
+	_onboarding_controller = OnboardingControllerScript.new()
+	_onboarding_controller.name = "OnboardingController"
+	add_child(_onboarding_controller)
+	_onboarding_controller.completed.connect(_on_onboarding_completed)
+	_room_controller.active_room_changed.connect(_on_active_room_changed)
 
 
 func _setup_status_menu() -> void:
 	_status_menu_controller = StatusMenuControllerScript.new()
 	_status_menu_controller.name = "StatusMenuController"
 	add_child(_status_menu_controller)
-	var status_menu_error := _status_menu_controller.configure(_overlay_controller, _settings_store)
+	var status_menu_error := _status_menu_controller.configure(
+		_overlay_controller,
+		_settings_store,
+		_room_controller,
+	)
 	if status_menu_error != OK and status_menu_error != ERR_UNAVAILABLE:
 		push_warning("STATUS_MENU_SETUP_FAILED error=%d" % status_menu_error)
 	_status_menu_controller.compose_requested.connect(_on_compose_requested)
 	_status_menu_controller.quit_requested.connect(_on_quit_requested)
+	_status_menu_controller.quiet_mode_changed.connect(_on_quiet_mode_changed)
+	_status_menu_controller.room_selected.connect(_on_room_selected)
+	_chat_controller.set_quiet_mode(_status_menu_controller.quiet_mode())
 
 
 func _setup_platform_bridge() -> void:
@@ -172,6 +227,12 @@ func _setup_platform_bridge() -> void:
 	_platform_bridge.global_shortcut_pressed.connect(_on_global_shortcut_pressed)
 	_screen_locked = _platform_bridge.is_screen_locked()
 	_sync_native_activity_state()
+
+
+func _activate_platform_runtime() -> void:
+	if _platform_runtime_active:
+		return
+	_platform_runtime_active = true
 	if DisplayServer.get_name() == "headless" or not _platform_bridge.is_native_available():
 		return
 	_report_native_error(_platform_bridge.set_overlay_runtime_mode(true), "runtime_mode")
@@ -196,6 +257,8 @@ func _on_locked_changed(locked: bool) -> void:
 		_interaction_panel.visible = not locked
 	if is_instance_valid(_debug_panel):
 		_debug_panel.visible = not locked
+	if is_instance_valid(_chat_controller):
+		_chat_controller.set_interaction_enabled(not locked)
 	if is_instance_valid(_platform_bridge) and DisplayServer.get_name() != "headless":
 		_report_native_error(_platform_bridge.set_ignores_mouse_events(locked), "mouse_passthrough")
 
@@ -210,6 +273,50 @@ func _requested_debug_character_count() -> int:
 		if argument.begins_with("--debug-characters="):
 			return clampi(int(argument.trim_prefix("--debug-characters=")), 1, CharacterRow.MAX_CHARACTERS)
 	return 1
+
+
+func _configure_initial_characters() -> Error:
+	if _room_controller.is_onboarding_complete():
+		var members: Array[Dictionary] = []
+		for member in _room_controller.active_room().get("members", []) as Array:
+			members.append((member as Dictionary).duplicate(true))
+		return _character_row.configure_members(members)
+	return _character_row.configure_debug(_requested_debug_character_count())
+
+
+func _bootstrap_local_demo() -> Error:
+	var profile_error := _room_controller.set_profile("민트", "minty_pup")
+	if profile_error != OK:
+		return profile_error
+	var join_error := _room_controller.join_demo_room(RoomController.DEMO_INVITE_CODE)
+	if join_error != OK:
+		return join_error
+	return _room_controller.complete_onboarding()
+
+
+func _configure_debug_hud() -> void:
+	_character_hud.configure_room({
+		"name": "로컬 검증",
+		"members": _character_row.members(),
+	})
+
+
+func _apply_debug_actions() -> void:
+	if not OS.is_debug_build():
+		return
+	if _has_argument("--open-composer"):
+		_on_compose_requested()
+	if _has_argument("--demo-message") and _room_controller.is_onboarding_complete():
+		var members: Array = _room_controller.active_room().get("members", []) as Array
+		if members.size() > 1:
+			var sender := members[1] as Dictionary
+			_chat_controller.receive_message({
+				"id": "debug-message-%d" % Time.get_ticks_usec(),
+				"room_id": _room_controller.active_room_id(),
+				"sender_id": str(sender.get("user_id", "")),
+				"body": "오늘 저녁 같이 먹을래?",
+				"created_at": Time.get_unix_time_from_system(),
+			})
 
 
 func _has_argument(expected: String) -> bool:
@@ -245,7 +352,65 @@ func _argument_value(prefix: String) -> String:
 func _on_compose_requested() -> void:
 	_overlay_controller.set_overlay_visible(true)
 	_overlay_controller.set_locked(false)
-	_state_label.text = "●  메시지 UI는 로컬 UX 단계에서 연결"
+	_chat_controller.open_composer()
+
+
+func _on_onboarding_completed() -> void:
+	_activate_room_session()
+	_overlay_controller.set_overlay_visible(true)
+
+
+func _activate_room_session() -> void:
+	var room := _room_controller.active_room()
+	if room.is_empty():
+		return
+	var members: Array[Dictionary] = []
+	for member in room.get("members", []) as Array:
+		members.append((member as Dictionary).duplicate(true))
+	var configure_error := _character_row.configure_members(members)
+	if configure_error != OK:
+		_fail("Active room characters could not be configured", configure_error)
+		return
+	_character_row.visible = true
+	_character_hud.visible = true
+	_character_hud.configure_room(room)
+	_chat_controller.set_session(room, _room_controller.profile())
+	_activate_platform_runtime()
+
+
+func _on_active_room_changed(_previous_room_id: String, _room_id: String) -> void:
+	if _room_controller.is_onboarding_complete():
+		_activate_room_session()
+
+
+func _on_room_selected(room_id: String) -> void:
+	var error := _room_controller.set_active_room(room_id)
+	if error != OK:
+		push_warning("ROOM_SWITCH_FAILED room_id=%s error=%d" % [room_id, error])
+
+
+func _on_quiet_mode_changed(enabled: bool) -> void:
+	_chat_controller.set_quiet_mode(enabled)
+	if enabled:
+		_character_hud.hide_all_messages()
+
+
+func _on_chat_input_visibility_changed(input_visible: bool) -> void:
+	_character_hud.set_identities_visible(not input_visible)
+
+
+func _on_message_accepted(message: Dictionary, active_room: bool) -> void:
+	if not active_room or _chat_controller.quiet_mode():
+		return
+	_character_hud.show_message(str(message.get("sender_id", "")), str(message.get("body", "")))
+
+
+func _on_typing_event(action: StringName, room_id: String, user_id: String) -> void:
+	if room_id != _room_controller.active_room_id():
+		return
+	var presence := PresenceState.Value.TYPING if action != &"typing_stop" else _local_resting_presence()
+	_character_row.set_member_presence(user_id, presence, false)
+	_character_hud.set_presence(user_id, presence)
 
 
 func _on_global_shortcut_pressed(action: StringName) -> void:
@@ -271,12 +436,20 @@ func _on_system_resumed() -> void:
 
 
 func _sync_native_activity_state() -> void:
-	if not is_instance_valid(_character_row):
+	if not is_instance_valid(_character_row) or not is_instance_valid(_room_controller):
 		return
-	var next_state := CharacterState.Value.OFFLINE_SLEEP \
+	var user_id := str(_room_controller.profile().get("user_id", ""))
+	if user_id.is_empty() or _character_row.member_index(user_id) < 0:
+		return
+	var presence := _local_resting_presence()
+	_character_row.set_member_presence(user_id, presence, true)
+	_character_hud.set_presence(user_id, presence)
+
+
+func _local_resting_presence() -> PresenceState.Value:
+	return PresenceState.Value.AWAY \
 		if _screen_locked or _system_sleeping \
-		else CharacterState.Value.ONLINE_IDLE
-	_character_row.set_all_motion_states(next_state, true)
+		else PresenceState.Value.ONLINE
 
 
 func _report_native_error(error: Error, operation: String) -> void:
