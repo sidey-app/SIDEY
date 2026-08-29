@@ -4,6 +4,7 @@ const CharacterRowScript := preload("res://scripts/characters/character_row.gd")
 const OverlayControllerScript := preload("res://scripts/overlay/overlay_controller.gd")
 const PlatformBridgeScript := preload("res://scripts/platform/platform_bridge.gd")
 const SettingsStoreScript := preload("res://scripts/settings/settings_store.gd")
+const StatusMenuControllerScript := preload("res://scripts/app/status_menu_controller.gd")
 
 var _character_row: CharacterRow
 var _overlay_controller: OverlayController
@@ -12,6 +13,8 @@ var _settings_store: SettingsStore
 var _interaction_panel: Control
 var _scale_label: Label
 var _state_label: Label
+var _debug_panel: Control
+var _status_menu_controller: StatusMenuController
 
 
 func _ready() -> void:
@@ -37,6 +40,7 @@ func _ready() -> void:
 		_fail("Character row could not be configured", configure_error)
 		return
 	_setup_ui()
+	_setup_status_menu()
 	_on_locked_changed(_overlay_controller.is_locked())
 	_on_scale_changed(_overlay_controller.overlay_scale())
 	if _has_argument("--unlocked"):
@@ -136,13 +140,24 @@ func _setup_ui() -> void:
 	controls.add_child(lock_button)
 
 	if OS.is_debug_build():
-		var debug_panel := HBoxContainer.new()
-		debug_panel.position = Vector2(12.0, 12.0)
-		debug_panel.add_theme_constant_override("separation", 4)
-		canvas.add_child(debug_panel)
-		_add_state_button(debug_panel, "온라인", CharacterState.Value.ONLINE_IDLE)
-		_add_state_button(debug_panel, "타이핑", CharacterState.Value.TYPING)
-		_add_state_button(debug_panel, "수면", CharacterState.Value.OFFLINE_SLEEP)
+		_debug_panel = HBoxContainer.new()
+		_debug_panel.position = Vector2(12.0, 12.0)
+		_debug_panel.add_theme_constant_override("separation", 4)
+		canvas.add_child(_debug_panel)
+		_add_state_button(_debug_panel, "온라인", CharacterState.Value.ONLINE_IDLE)
+		_add_state_button(_debug_panel, "타이핑", CharacterState.Value.TYPING)
+		_add_state_button(_debug_panel, "수면", CharacterState.Value.OFFLINE_SLEEP)
+
+
+func _setup_status_menu() -> void:
+	_status_menu_controller = StatusMenuControllerScript.new()
+	_status_menu_controller.name = "StatusMenuController"
+	add_child(_status_menu_controller)
+	var status_menu_error := _status_menu_controller.configure(_overlay_controller, _settings_store)
+	if status_menu_error != OK and status_menu_error != ERR_UNAVAILABLE:
+		push_warning("STATUS_MENU_SETUP_FAILED error=%d" % status_menu_error)
+	_status_menu_controller.compose_requested.connect(_on_compose_requested)
+	_status_menu_controller.quit_requested.connect(_on_quit_requested)
 
 
 func _add_state_button(parent: Control, text: String, state: CharacterState.Value) -> void:
@@ -160,6 +175,8 @@ func _set_debug_motion(state: CharacterState.Value) -> void:
 func _on_locked_changed(locked: bool) -> void:
 	if is_instance_valid(_interaction_panel):
 		_interaction_panel.visible = not locked
+	if is_instance_valid(_debug_panel):
+		_debug_panel.visible = not locked
 
 
 func _on_scale_changed(scale: float) -> void:
@@ -179,7 +196,19 @@ func _has_argument(expected: String) -> bool:
 
 
 func _finish_smoke_test() -> void:
-	print("APP_ROOT_SMOKE_OK report=%s" % _overlay_controller.diagnostic_report())
+	print("APP_ROOT_SMOKE_OK report=%s status_menu=%s" % [
+		_overlay_controller.diagnostic_report(),
+		_status_menu_controller.is_available(),
+	])
+	get_tree().quit(0)
+
+
+func _on_compose_requested() -> void:
+	_state_label.text = "●  메시지 UI는 로컬 UX 단계에서 연결"
+
+
+func _on_quit_requested() -> void:
+	_overlay_controller.flush_settings()
 	get_tree().quit(0)
 
 
