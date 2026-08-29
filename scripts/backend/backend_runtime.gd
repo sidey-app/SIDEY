@@ -62,6 +62,7 @@ func configure(
 	_realtime.presence_state_received.connect(_on_presence_state)
 	_realtime.presence_diff_received.connect(_on_presence_diff)
 	_presence_roster = PresenceRosterScript.new()
+	_room_controller.active_room_changed.connect(_on_active_room_changed)
 	set_process(true)
 	return OK
 
@@ -204,7 +205,7 @@ func set_local_presence(presence: String) -> void:
 	_local_presence = "away" if presence == "away" else "online"
 	if _realtime_configured:
 		for room_id in _realtime.subscribed_room_ids():
-			_realtime.update_presence(room_id, _presence_payload())
+			_realtime.update_presence(room_id, _presence_payload(room_id))
 
 
 func reconnect_after_resume() -> Error:
@@ -252,16 +253,22 @@ func _sync_realtime_rooms() -> void:
 			_presence_roster.clear_room(subscribed_room_id)
 	for room_id in desired:
 		if room_id not in _realtime.subscribed_room_ids():
-			_realtime.subscribe_room(str(room_id), _presence_payload())
+			_realtime.subscribe_room(str(room_id), _presence_payload(str(room_id)))
 	if not desired.is_empty() and not _realtime.is_connected_to_server():
 		_realtime.connect_realtime()
 
 
-func _presence_payload() -> Dictionary:
+func _presence_payload(room_id: String) -> Dictionary:
 	return {
-		"state": _local_presence,
+		"state": presence_for_room(_local_presence, room_id, _room_controller.active_room_id()),
 		"online_at": Time.get_datetime_string_from_system(true),
 	}
+
+
+static func presence_for_room(local_presence: String, room_id: String, active_room_id: String) -> String:
+	if room_id.is_empty() or room_id != active_room_id:
+		return "offline"
+	return "away" if local_presence == "away" else "online"
 
 
 func _on_session_changed(_session: Dictionary) -> void:
@@ -278,6 +285,27 @@ func _on_socket_disconnected(_code: int, _reason: String) -> void:
 
 func _on_channel_joined(room_id: String) -> void:
 	_sync_recent_messages.call_deferred(room_id)
+
+
+func _on_active_room_changed(previous_room_id: String, room_id: String) -> void:
+	_set_own_cached_presence(previous_room_id, "offline")
+	_set_own_cached_presence(room_id, presence_for_room(_local_presence, room_id, room_id))
+	if not _realtime_configured:
+		return
+	for changed_room_id in [previous_room_id, room_id]:
+		if changed_room_id.is_empty() or changed_room_id not in _realtime.subscribed_room_ids():
+			continue
+		_realtime.update_presence(changed_room_id, _presence_payload(changed_room_id))
+
+
+func _set_own_cached_presence(room_id: String, presence: String) -> void:
+	if room_id.is_empty():
+		return
+	var user_id := _backend.user_id() if is_instance_valid(_backend) else ""
+	if user_id.is_empty():
+		user_id = str(_room_controller.profile().get("user_id", ""))
+	if not user_id.is_empty():
+		_emit_presence(room_id, user_id, presence)
 
 
 func _sync_recent_messages(room_id: String) -> void:

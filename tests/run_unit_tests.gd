@@ -13,6 +13,7 @@ const RealtimeProtocolScript := preload("res://scripts/backend/realtime_protocol
 const ReconnectBackoffScript := preload("res://scripts/backend/reconnect_backoff.gd")
 const RealtimeClientScript := preload("res://scripts/backend/realtime_client.gd")
 const BackendRepositoryScript := preload("res://scripts/backend/backend_repository.gd")
+const BackendRuntimeScript := preload("res://scripts/backend/backend_runtime.gd")
 const PresenceRosterScript := preload("res://scripts/backend/presence_roster.gd")
 const ActivityPresenceScript := preload("res://scripts/platform/activity_presence.gd")
 
@@ -250,6 +251,25 @@ func _run_presence_roster_tests() -> void:
 	_check_equal(roster.presence("room-1", "user-1"), "away", "Presence retains remaining away device")
 	roster.apply_diff("room-1", {}, {"user-1": {"metas": [{"phx_ref": "a"}]}})
 	_check_equal(roster.presence("room-1", "user-1"), "offline", "Presence is offline after final device leaves")
+	roster.apply_state("room-2", {
+		"user-1": {"metas": [{"phx_ref": "c", "state": "offline"}]},
+	})
+	_check_equal(roster.presence("room-2", "user-1"), "offline", "Presence keeps inactive-room tracking offline")
+	_check_equal(
+		BackendRuntimeScript.presence_for_room("online", "room-1", "room-1"),
+		"online",
+		"active room publishes local online presence",
+	)
+	_check_equal(
+		BackendRuntimeScript.presence_for_room("away", "room-1", "room-1"),
+		"away",
+		"active room preserves local away presence",
+	)
+	_check_equal(
+		BackendRuntimeScript.presence_for_room("online", "room-2", "room-1"),
+		"offline",
+		"inactive room publishes offline presence",
+	)
 
 
 func _run_room_controller_tests() -> void:
@@ -262,6 +282,27 @@ func _run_room_controller_tests() -> void:
 	var first_room_id: String = rooms.active_room_id()
 	_check_equal(rooms.join_demo_room("sidey-demo"), OK, "join demo room normalized code")
 	_check_equal((rooms.active_room()["members"] as Array).size(), 5, "demo room has five members")
+	var self_user_id := str(rooms.profile().get("user_id", ""))
+	_check_equal(rooms.set_cached_member_presence(first_room_id, self_user_id, "online"), OK, "cache first-room Presence")
+	var refreshed_rooms := rooms.rooms()
+	for room_index in refreshed_rooms.size():
+		if str(refreshed_rooms[room_index].get("id", "")) != first_room_id:
+			continue
+		var refreshed_members: Array = refreshed_rooms[room_index].get("members", []) as Array
+		for member_index in refreshed_members.size():
+			if str((refreshed_members[member_index] as Dictionary).get("user_id", "")) == self_user_id:
+				refreshed_members[member_index]["presence"] = "offline"
+		refreshed_rooms[room_index]["members"] = refreshed_members
+	_check_equal(
+		rooms.replace_server_state(rooms.profile(), refreshed_rooms),
+		OK,
+		"server snapshot refresh applies without discarding room state",
+	)
+	_check_equal(
+		_member_presence(rooms.room_by_id(first_room_id), self_user_id),
+		"online",
+		"server snapshot refresh preserves cached Presence",
+	)
 	_check_equal(rooms.set_active_room(first_room_id), OK, "switch active room")
 	_check_equal(rooms.mark_message_received("demo-friends"), OK, "inactive room unread")
 	_check_equal(rooms.unread_count("demo-friends"), 1, "unread count increments")
@@ -285,6 +326,13 @@ func _run_room_controller_tests() -> void:
 	rooms.free()
 	restored.free()
 	DirAccess.remove_absolute(path)
+
+
+func _member_presence(room: Dictionary, user_id: String) -> String:
+	for member in room.get("members", []) as Array:
+		if str((member as Dictionary).get("user_id", "")) == user_id:
+			return str((member as Dictionary).get("presence", "offline"))
+	return "offline"
 
 
 func _check_equal(actual: Variant, expected: Variant, label: String) -> void:

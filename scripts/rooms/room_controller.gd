@@ -239,12 +239,28 @@ func replace_server_state(profile: Dictionary, server_rooms: Array[Dictionary]) 
 	if server_rooms.size() > MAX_ROOMS:
 		return ERR_INVALID_DATA
 	var unread_by_room: Dictionary = {}
+	var presence_by_member: Dictionary = {}
 	for existing_room in _rooms:
-		unread_by_room[str(existing_room.get("id", ""))] = int(existing_room.get("unread", 0))
+		var existing_room_id := str(existing_room.get("id", ""))
+		unread_by_room[existing_room_id] = int(existing_room.get("unread", 0))
+		for existing_member in existing_room.get("members", []) as Array:
+			var existing_user_id := str((existing_member as Dictionary).get("user_id", ""))
+			if not existing_user_id.is_empty():
+				presence_by_member[_member_cache_key(existing_room_id, existing_user_id)] = \
+					str((existing_member as Dictionary).get("presence", "offline"))
 	var next_rooms: Array[Dictionary] = []
 	for raw_room in server_rooms:
 		var room := raw_room.duplicate(true)
-		room["unread"] = maxi(0, int(unread_by_room.get(str(room.get("id", "")), 0)))
+		var room_id := str(room.get("id", ""))
+		room["unread"] = maxi(0, int(unread_by_room.get(room_id, 0)))
+		var members: Array = room.get("members", []) as Array
+		for member_index in members.size():
+			var member := members[member_index] as Dictionary
+			var cache_key := _member_cache_key(room_id, str(member.get("user_id", "")))
+			if presence_by_member.has(cache_key):
+				member["presence"] = str(presence_by_member[cache_key])
+				members[member_index] = member
+		room["members"] = members
 		if not _is_valid_room_cache(room):
 			return ERR_INVALID_DATA
 		next_rooms.append(room)
@@ -326,6 +342,10 @@ func _set_unread_in_memory(room_id: String, count: int) -> void:
 		if str(_rooms[index].get("id", "")) == room_id:
 			_rooms[index]["unread"] = maxi(0, count)
 			return
+
+
+static func _member_cache_key(room_id: String, user_id: String) -> String:
+	return "%s|%s" % [room_id, user_id]
 
 
 func _is_valid_room_cache(room: Dictionary) -> bool:

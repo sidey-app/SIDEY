@@ -34,6 +34,9 @@ func _run() -> void:
 	_check(rooms.is_onboarding_complete(), "remote snapshot completes onboarding")
 	_check(rooms.rooms().size() == 1, "remote room is in local display cache")
 	var first_room_id := rooms.active_room_id()
+	var self_user_id := str(rooms.profile().get("user_id", ""))
+	await _wait_until(func() -> bool: return _member_presence(rooms.room_by_id(first_room_id), self_user_id) == "online")
+	_check(_member_presence(rooms.room_by_id(first_room_id), self_user_id) == "online", "active room receives own online Presence")
 	var original_invite_code := runtime.read_invite_code(first_room_id)
 	_check(not original_invite_code.is_empty(), "owner invite code is available from secure client store")
 	var rotated: Dictionary = await runtime.rotate_invite_code(first_room_id)
@@ -45,6 +48,20 @@ func _run() -> void:
 	var second_room: Dictionary = await runtime.create_room("두 번째 방")
 	_check(bool(second_room.get("ok", false)), "second remote room created")
 	_check(rooms.rooms().size() == 2, "two remote rooms are cached")
+	var second_room_id := ""
+	for room in rooms.rooms():
+		var candidate_room_id := str(room.get("id", ""))
+		if candidate_room_id != first_room_id:
+			second_room_id = candidate_room_id
+	_check(not second_room_id.is_empty(), "second room id resolved")
+	_check(_member_presence(rooms.room_by_id(first_room_id), self_user_id) == "online", "snapshot refresh preserves active-room Presence")
+	_check(_member_presence(rooms.room_by_id(second_room_id), self_user_id) == "offline", "new inactive room starts offline")
+	_check(rooms.set_active_room(second_room_id) == OK, "second room activated")
+	_check(_member_presence(rooms.room_by_id(first_room_id), self_user_id) == "offline", "previous room becomes offline immediately")
+	_check(_member_presence(rooms.room_by_id(second_room_id), self_user_id) == "online", "new active room becomes online immediately")
+	_check(rooms.set_active_room(first_room_id) == OK, "first room reactivated")
+	_check(_member_presence(rooms.room_by_id(first_room_id), self_user_id) == "online", "reactivated room becomes online immediately")
+	_check(_member_presence(rooms.room_by_id(second_room_id), self_user_id) == "offline", "inactive second room becomes offline immediately")
 	var room_ids: Array[String] = []
 	for room in rooms.rooms():
 		room_ids.append(str(room.get("id", "")))
@@ -55,6 +72,19 @@ func _run() -> void:
 	runtime.queue_free()
 	rooms.queue_free()
 	_finish.call_deferred()
+
+
+func _wait_until(predicate: Callable, timeout_seconds := 8.0) -> void:
+	var deadline := Time.get_ticks_msec() + int(timeout_seconds * 1000.0)
+	while not predicate.call() and Time.get_ticks_msec() < deadline:
+		await create_timer(0.05).timeout
+
+
+func _member_presence(room: Dictionary, user_id: String) -> String:
+	for member in room.get("members", []) as Array:
+		if str((member as Dictionary).get("user_id", "")) == user_id:
+			return str((member as Dictionary).get("presence", "offline"))
+	return "offline"
 
 
 func _check(condition: bool, label: String) -> void:

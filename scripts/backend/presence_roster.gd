@@ -49,7 +49,10 @@ func presence(room_id: String, user_id: String) -> String:
 	for meta in metas:
 		if str((meta as Dictionary).get("state", "online")) == "online":
 			return "online"
-	return "away"
+	for meta in metas:
+		if str((meta as Dictionary).get("state", "online")) == "away":
+			return "away"
+	return "offline"
 
 
 func clear_room(room_id: String) -> void:

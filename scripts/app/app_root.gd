@@ -527,6 +527,7 @@ func _activate_room_session() -> void:
 	_character_hud.configure_room(room)
 	_overlay_edit_tray.set_available(true)
 	_chat_controller.set_session(room, _room_controller.profile())
+	_sync_native_activity_state()
 	_sync_character_ui_layout()
 	_sync_overlay_interaction_state()
 	_activate_platform_runtime()
