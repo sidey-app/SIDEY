@@ -30,11 +30,6 @@ state_offline_sleep={
 "deadzone": 0.5,
 "events": [Object(InputEventKey,"physical_keycode":51,"unicode":51)]
 }
-state_transition_test={
-"deadzone": 0.5,
-"events": [Object(InputEventKey,"physical_keycode":52,"unicode":52)]
-}
-
 [rendering]
 
 renderer/rendering_method="mobile"

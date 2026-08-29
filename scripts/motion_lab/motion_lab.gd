@@ -82,7 +82,7 @@ func _ready() -> void:
 	var requested_state := _requested_review_state()
 	_controller.set_state(requested_state, true)
 	_state_label.text = "%s · REVIEW" % CharacterState.label(requested_state)
-	_notice_label.text = "1: online_idle    2: typing    3: offline_sleep    4: approval gate"
+	_notice_label.text = "1: online_idle    2: typing    3: offline_sleep"
 	print("MOTION_LAB_READY asset=%s state=%s" % [
 		ASSET_PATH,
 		CharacterState.label(requested_state),
@@ -111,10 +111,6 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_3:
 			_controller.set_state(CharacterState.Value.OFFLINE_SLEEP, true)
 			_notice_label.text = "offline_sleep restarted"
-		KEY_4:
-			_notice_label.text = "transitions are locked until sleep approval"
-
-
 func _setup_environment() -> void:
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR

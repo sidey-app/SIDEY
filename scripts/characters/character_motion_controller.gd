@@ -77,7 +77,7 @@ func set_state(next_state: CharacterState.Value, restart := false) -> void:
 	var previous_state := _state
 	_state = next_state
 	var animation_name := CharacterState.label(_state).to_lower()
-	_animation_player.play(animation_name, 0.25)
+	_animation_player.play(animation_name, 0.15)
 	if is_instance_valid(_typing_prop):
 		_typing_prop.visible = _state == CharacterState.Value.TYPING
 	if is_instance_valid(_sleep_effect):
