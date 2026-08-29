@@ -13,9 +13,35 @@ const BLUE_HOVER := Color("1b64da")
 const BLUE_PRESSED := Color("1957b8")
 const DANGER := Color("f04452")
 const SUCCESS := Color("20b486")
+const STANDARD_WINDOW_MIN_SCALE := 1.0
+const STANDARD_WINDOW_MAX_SCALE := 2.0
 
 
 static func create() -> Theme:
+	return _create_theme(false)
+
+
+static func create_standard_window_theme() -> Theme:
+	return _create_theme(true)
+
+
+static func standard_window_scale(screen := DisplayServer.SCREEN_PRIMARY) -> float:
+	return clampf(
+		DisplayServer.screen_get_scale(screen),
+		STANDARD_WINDOW_MIN_SCALE,
+		STANDARD_WINDOW_MAX_SCALE,
+	)
+
+
+static func scaled_window_size(logical_size: Vector2i, scale: float) -> Vector2i:
+	var safe_scale := clampf(scale, STANDARD_WINDOW_MIN_SCALE, STANDARD_WINDOW_MAX_SCALE)
+	return Vector2i(
+		int(round(logical_size.x * safe_scale)),
+		int(round(logical_size.y * safe_scale)),
+	)
+
+
+static func _create_theme(standard_window: bool) -> Theme:
 	var theme := Theme.new()
 	var system_font := SystemFont.new()
 	system_font.font_names = PackedStringArray([
@@ -28,14 +54,24 @@ static func create() -> Theme:
 		"Arial",
 	])
 	theme.default_font = system_font
-	theme.default_font_size = 18
+	theme.default_font_size = 20 if standard_window else 18
 
-	theme.set_font_size(&"font_size", &"Label", 18)
+	theme.set_font_size(&"font_size", &"Label", 20 if standard_window else 18)
 	theme.set_color(&"font_color", &"Label", TEXT_PRIMARY)
 	theme.set_color(&"font_shadow_color", &"Label", Color(0.0, 0.0, 0.0, 0.0))
 
-	_configure_button(theme, &"Button", BLUE, BLUE_HOVER, BLUE_PRESSED, Color.WHITE)
-	theme.set_font_size(&"font_size", &"Button", 17)
+	_configure_button(
+		theme,
+		&"Button",
+		BLUE,
+		BLUE_HOVER,
+		BLUE_PRESSED,
+		Color.WHITE,
+		14,
+		Vector4(18, 12, 18, 12),
+		standard_window,
+	)
+	theme.set_font_size(&"font_size", &"Button", 18 if standard_window else 17)
 	theme.set_color(&"font_disabled_color", &"Button", Color("b0b8c1"))
 	theme.set_stylebox(&"disabled", &"Button", _style(Color("e5e8eb"), 14, Vector4(18, 12, 18, 12)))
 
@@ -47,6 +83,9 @@ static func create() -> Theme:
 		Color("e5e8eb"),
 		Color("d1d6db"),
 		TEXT_PRIMARY,
+		14,
+		Vector4(18, 12, 18, 12),
+		standard_window,
 	)
 	theme.set_type_variation(&"SideyDangerButton", &"Button")
 	_configure_button(
@@ -56,6 +95,9 @@ static func create() -> Theme:
 		Color("ffe0e3"),
 		Color("ffc9ce"),
 		DANGER,
+		14,
+		Vector4(18, 12, 18, 12),
+		standard_window,
 	)
 	theme.set_type_variation(&"SideyOverlayButton", &"Button")
 	_configure_button(
@@ -68,9 +110,11 @@ static func create() -> Theme:
 		12,
 		Vector4(12, 6, 12, 6),
 	)
+	if standard_window:
+		_configure_standard_window_variations(theme)
 
 	for control_type in [&"LineEdit", &"TextEdit"]:
-		theme.set_font_size(&"font_size", control_type, 18)
+		theme.set_font_size(&"font_size", control_type, 20 if standard_window else 18)
 		theme.set_color(&"font_color", control_type, TEXT_PRIMARY)
 		theme.set_color(&"font_placeholder_color", control_type, TEXT_MUTED)
 		theme.set_color(&"caret_color", control_type, BLUE)
@@ -83,25 +127,102 @@ static func create() -> Theme:
 		)
 		theme.set_stylebox(&"read_only", control_type, _style(Color("f7f8fa"), 14, Vector4(16, 13, 16, 13)))
 
-	theme.set_font_size(&"font_size", &"OptionButton", 17)
+	theme.set_font_size(&"font_size", &"OptionButton", 19 if standard_window else 17)
 	theme.set_color(&"font_color", &"OptionButton", TEXT_PRIMARY)
 	theme.set_stylebox(&"normal", &"OptionButton", _style(FIELD, 14, Vector4(16, 12, 38, 12)))
 	theme.set_stylebox(&"hover", &"OptionButton", _style(Color("e5e8eb"), 14, Vector4(16, 12, 38, 12)))
 	theme.set_stylebox(&"pressed", &"OptionButton", _style(Color("d1d6db"), 14, Vector4(16, 12, 38, 12)))
+	if standard_window:
+		theme.set_stylebox(&"focus", &"OptionButton", _focus_style(14))
 
 	theme.set_stylebox(
 		&"panel",
 		&"PanelContainer",
-		_style(SURFACE, 20, Vector4(24, 22, 24, 22), DIVIDER, 1, Color(0.08, 0.11, 0.16, 0.08), 18),
+		_style(
+			SURFACE,
+			16 if standard_window else 20,
+			Vector4(26, 24, 26, 24) if standard_window else Vector4(24, 22, 24, 22),
+			DIVIDER,
+			1,
+			Color(0.08, 0.11, 0.16, 0.04) if standard_window else Color(0.08, 0.11, 0.16, 0.08),
+			6 if standard_window else 18,
+		),
 	)
 	theme.set_color(&"font_color", &"CheckBox", TEXT_PRIMARY)
-	theme.set_font_size(&"font_size", &"CheckBox", 17)
+	theme.set_font_size(&"font_size", &"CheckBox", 19 if standard_window else 17)
 	theme.set_constant(&"separation", &"CheckBox", 10)
+	if standard_window:
+		theme.set_stylebox(&"focus", &"CheckBox", _focus_style(10))
 	theme.set_color(&"font_color", &"PopupMenu", TEXT_PRIMARY)
-	theme.set_font_size(&"font_size", &"PopupMenu", 17)
+	theme.set_font_size(&"font_size", &"PopupMenu", 18 if standard_window else 17)
 	theme.set_stylebox(&"panel", &"PopupMenu", _style(SURFACE, 14, Vector4(8, 8, 8, 8), DIVIDER, 1))
 	theme.set_stylebox(&"separator", &"HSeparator", _line_style(DIVIDER))
+	if standard_window:
+		theme.set_stylebox(&"panel", &"TabContainer", StyleBoxEmpty.new())
 	return theme
+
+
+static func _configure_standard_window_variations(theme: Theme) -> void:
+	theme.set_type_variation(&"SideyNavigationButton", &"Button")
+	_configure_button(
+		theme,
+		&"SideyNavigationButton",
+		Color.TRANSPARENT,
+		Color("e5e8eb"),
+		Color("d1d6db"),
+		TEXT_PRIMARY,
+		12,
+		Vector4(16, 12, 16, 12),
+		true,
+	)
+	theme.set_type_variation(&"SideyNavigationButtonSelected", &"Button")
+	_configure_button(
+		theme,
+		&"SideyNavigationButtonSelected",
+		SURFACE,
+		SURFACE,
+		Color("e8f3ff"),
+		BLUE,
+		12,
+		Vector4(16, 12, 16, 12),
+		true,
+	)
+	theme.set_type_variation(&"SideySegmentButton", &"Button")
+	_configure_button(
+		theme,
+		&"SideySegmentButton",
+		FIELD,
+		Color("e5e8eb"),
+		Color("d1d6db"),
+		TEXT_SECONDARY,
+		12,
+		Vector4(18, 10, 18, 10),
+		true,
+	)
+	theme.set_type_variation(&"SideySegmentButtonSelected", &"Button")
+	_configure_button(
+		theme,
+		&"SideySegmentButtonSelected",
+		BLUE,
+		BLUE_HOVER,
+		BLUE_PRESSED,
+		Color.WHITE,
+		12,
+		Vector4(18, 10, 18, 10),
+		true,
+	)
+	theme.set_type_variation(&"SideyFeedbackSuccess", &"PanelContainer")
+	theme.set_stylebox(
+		&"panel",
+		&"SideyFeedbackSuccess",
+		_style(Color("effbf7"), 12, Vector4(16, 12, 16, 12), Color("b8ead9"), 1),
+	)
+	theme.set_type_variation(&"SideyFeedbackDanger", &"PanelContainer")
+	theme.set_stylebox(
+		&"panel",
+		&"SideyFeedbackDanger",
+		_style(Color("fff2f3"), 12, Vector4(16, 12, 16, 12), Color("ffc9ce"), 1),
+	)
 
 
 static func overlay_panel_style() -> StyleBoxFlat:
@@ -137,6 +258,7 @@ static func _configure_button(
 	font_color: Color,
 	radius := 14,
 	margins := Vector4(18, 12, 18, 12),
+	show_focus := false,
 ) -> void:
 	theme.set_color(&"font_color", theme_type, font_color)
 	theme.set_color(&"font_hover_color", theme_type, font_color)
@@ -144,7 +266,11 @@ static func _configure_button(
 	theme.set_stylebox(&"normal", theme_type, _style(normal_color, radius, margins))
 	theme.set_stylebox(&"hover", theme_type, _style(hover_color, radius, margins))
 	theme.set_stylebox(&"pressed", theme_type, _style(pressed_color, radius, margins))
-	theme.set_stylebox(&"focus", theme_type, StyleBoxEmpty.new())
+	theme.set_stylebox(&"focus", theme_type, _focus_style(radius) if show_focus else StyleBoxEmpty.new())
+
+
+static func _focus_style(radius: int) -> StyleBoxFlat:
+	return _style(Color.TRANSPARENT, radius, Vector4.ZERO, BLUE, 2)
 
 
 static func _style(
