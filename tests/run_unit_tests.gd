@@ -14,6 +14,7 @@ const ReconnectBackoffScript := preload("res://scripts/backend/reconnect_backoff
 const RealtimeClientScript := preload("res://scripts/backend/realtime_client.gd")
 const BackendRepositoryScript := preload("res://scripts/backend/backend_repository.gd")
 const PresenceRosterScript := preload("res://scripts/backend/presence_roster.gd")
+const ActivityPresenceScript := preload("res://scripts/platform/activity_presence.gd")
 
 var _failures := 0
 var _checks := 0
@@ -24,6 +25,7 @@ func _initialize() -> void:
 	_run_settings_tests()
 	_run_character_data_tests()
 	_run_presence_state_tests()
+	_run_activity_presence_tests()
 	_run_chat_store_tests()
 	_run_typing_tracker_tests()
 	_run_backend_protocol_tests()
@@ -101,6 +103,13 @@ func _run_presence_state_tests() -> void:
 	_check_equal(PresenceStateScript.motion_state(PresenceState.Value.OFFLINE), CharacterState.Value.OFFLINE_SLEEP, "offline motion mapping")
 	_check_equal(PresenceStateScript.motion_state(PresenceState.Value.RECONNECTING), CharacterState.Value.OFFLINE_SLEEP, "reconnecting motion mapping")
 	_check_equal(PresenceStateScript.from_string("invalid"), PresenceState.Value.OFFLINE, "unknown presence is offline")
+
+
+func _run_activity_presence_tests() -> void:
+	_check_equal(ActivityPresenceScript.state(false, false, 299.9), "online", "activity remains online before idle threshold")
+	_check_equal(ActivityPresenceScript.state(false, false, 300.0), "away", "activity becomes away at idle threshold")
+	_check_equal(ActivityPresenceScript.state(true, false, 0.0), "away", "screen lock forces away")
+	_check_equal(ActivityPresenceScript.state(false, true, 0.0), "away", "system sleep forces away")
 
 
 func _run_chat_store_tests() -> void:

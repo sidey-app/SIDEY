@@ -12,6 +12,7 @@ const OnboardingControllerScript := preload("res://scripts/onboarding/onboarding
 const SettingsControllerScript := preload("res://scripts/settings/settings_controller.gd")
 const BackendConfigScript := preload("res://scripts/backend/backend_config.gd")
 const BackendRuntimeScript := preload("res://scripts/backend/backend_runtime.gd")
+const ActivityPresenceScript := preload("res://scripts/platform/activity_presence.gd")
 
 var _character_row: CharacterRow
 var _overlay_controller: OverlayController
@@ -32,6 +33,8 @@ var _system_sleeping := false
 var _platform_runtime_active := false
 var _ephemeral_settings_path := ""
 var _backend_runtime: BackendRuntime
+var _idle_seconds := 0.0
+var _idle_poll_elapsed := 0.0
 
 
 func _ready() -> void:
@@ -67,6 +70,7 @@ func _ready() -> void:
 	_overlay_controller.configure(get_window(), _settings_store)
 	_overlay_controller.locked_changed.connect(_on_locked_changed)
 	_overlay_controller.scale_changed.connect(_on_scale_changed)
+	_overlay_controller.overlay_visibility_changed.connect(_on_overlay_visibility_changed)
 
 	_character_row = CharacterRowScript.new() as CharacterRow
 	_character_row.name = "CharacterRow"
@@ -81,6 +85,7 @@ func _ready() -> void:
 	_setup_platform_bridge()
 	_on_locked_changed(_overlay_controller.is_locked())
 	_on_scale_changed(_overlay_controller.overlay_scale())
+	_on_overlay_visibility_changed(_overlay_controller.is_overlay_visible())
 	if _has_argument("--unlocked"):
 		_overlay_controller.set_locked(false, false)
 	if is_instance_valid(_backend_runtime):
@@ -124,6 +129,21 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_set_debug_motion(CharacterState.Value.TYPING)
 		KEY_3:
 			_set_debug_motion(CharacterState.Value.OFFLINE_SLEEP)
+
+
+func _process(delta: float) -> void:
+	if not is_instance_valid(_platform_bridge) or not _platform_bridge.is_native_available():
+		return
+	_idle_poll_elapsed += delta
+	if _idle_poll_elapsed < 1.0:
+		return
+	_idle_poll_elapsed = 0.0
+	var next_idle_seconds := _platform_bridge.get_idle_seconds()
+	var was_away := _idle_seconds >= ActivityPresence.DEFAULT_IDLE_THRESHOLD_SECONDS
+	var is_away := next_idle_seconds >= ActivityPresence.DEFAULT_IDLE_THRESHOLD_SECONDS
+	_idle_seconds = next_idle_seconds
+	if was_away != is_away:
+		_sync_native_activity_state()
 
 
 func _setup_environment() -> void:
@@ -252,6 +272,7 @@ func _setup_platform_bridge() -> void:
 	_platform_bridge.system_resumed.connect(_on_system_resumed)
 	_platform_bridge.global_shortcut_pressed.connect(_on_global_shortcut_pressed)
 	_screen_locked = _platform_bridge.is_screen_locked()
+	_idle_seconds = _platform_bridge.get_idle_seconds()
 	_sync_native_activity_state()
 
 
@@ -369,6 +390,12 @@ func _on_locked_changed(locked: bool) -> void:
 func _on_scale_changed(scale: float) -> void:
 	if is_instance_valid(_scale_label):
 		_scale_label.text = "%d%%" % roundi(scale * 100.0)
+
+
+func _on_overlay_visibility_changed(overlay_visible: bool) -> void:
+	if is_instance_valid(_character_row):
+		_character_row.process_mode = Node.PROCESS_MODE_INHERIT \
+			if overlay_visible else Node.PROCESS_MODE_DISABLED
 
 
 func _requested_debug_character_count() -> int:
@@ -615,7 +642,7 @@ func _sync_native_activity_state() -> void:
 
 func _local_resting_presence() -> PresenceState.Value:
 	return PresenceState.Value.AWAY \
-		if _screen_locked or _system_sleeping \
+		if ActivityPresenceScript.state(_screen_locked, _system_sleeping, _idle_seconds) == "away" \
 		else PresenceState.Value.ONLINE
 
 
