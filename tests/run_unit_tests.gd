@@ -13,6 +13,7 @@ const RealtimeProtocolScript := preload("res://scripts/backend/realtime_protocol
 const ReconnectBackoffScript := preload("res://scripts/backend/reconnect_backoff.gd")
 const RealtimeClientScript := preload("res://scripts/backend/realtime_client.gd")
 const BackendRepositoryScript := preload("res://scripts/backend/backend_repository.gd")
+const PresenceRosterScript := preload("res://scripts/backend/presence_roster.gd")
 
 var _failures := 0
 var _checks := 0
@@ -27,6 +28,7 @@ func _initialize() -> void:
 	_run_typing_tracker_tests()
 	_run_backend_protocol_tests()
 	_run_backend_repository_tests()
+	_run_presence_roster_tests()
 	_run_room_controller_tests()
 	if _failures == 0:
 		print("SIDEY_UNIT_TESTS_OK checks=%d" % _checks)
@@ -204,6 +206,19 @@ func _run_backend_repository_tests() -> void:
 	_check_equal(members.size(), 2, "backend snapshot maps members")
 	_check_equal((members[0] as Dictionary)["is_self"], true, "backend snapshot marks self")
 	_check_equal((members[0] as Dictionary)["nickname"], (members[1] as Dictionary)["nickname"], "backend snapshot preserves duplicate nicknames")
+
+
+func _run_presence_roster_tests() -> void:
+	var roster = PresenceRosterScript.new()
+	var changed := roster.apply_state("room-1", {
+		"user-1": {"metas": [{"phx_ref": "a", "state": "away"}, {"phx_ref": "b", "state": "online"}]},
+	})
+	_check_equal(changed, ["user-1"], "Presence state reports changed user")
+	_check_equal(roster.presence("room-1", "user-1"), "online", "Presence uses online device priority")
+	roster.apply_diff("room-1", {}, {"user-1": {"metas": [{"phx_ref": "b"}]}})
+	_check_equal(roster.presence("room-1", "user-1"), "away", "Presence retains remaining away device")
+	roster.apply_diff("room-1", {}, {"user-1": {"metas": [{"phx_ref": "a"}]}})
+	_check_equal(roster.presence("room-1", "user-1"), "offline", "Presence is offline after final device leaves")
 
 
 func _run_room_controller_tests() -> void:

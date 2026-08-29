@@ -62,8 +62,14 @@ static func validate_body(body: String) -> Error:
 
 
 static func _sort_messages(left: Dictionary, right: Dictionary) -> bool:
-	var left_created := float(left.get("created_at", 0.0))
-	var right_created := float(right.get("created_at", 0.0))
+	var left_created := _created_time(left.get("created_at", 0.0))
+	var right_created := _created_time(right.get("created_at", 0.0))
 	if is_equal_approx(left_created, right_created):
 		return str(left.get("id", "")) < str(right.get("id", ""))
 	return left_created < right_created
+
+
+static func _created_time(value: Variant) -> float:
+	if value is String and (value as String).contains("T"):
+		return Time.get_unix_time_from_datetime_string(value)
+	return float(value)

@@ -214,6 +214,20 @@ func unread_count(room_id: String) -> int:
 	return 0
 
 
+func set_cached_member_presence(room_id: String, user_id: String, presence: String) -> Error:
+	for room_index in _rooms.size():
+		if str(_rooms[room_index].get("id", "")) != room_id:
+			continue
+		var members: Array = _rooms[room_index].get("members", []) as Array
+		for member_index in members.size():
+			if str((members[member_index] as Dictionary).get("user_id", "")) == user_id:
+				members[member_index]["presence"] = presence
+				_rooms[room_index]["members"] = members
+				return OK
+		return ERR_DOES_NOT_EXIST
+	return ERR_DOES_NOT_EXIST
+
+
 func complete_onboarding() -> Error:
 	if not has_profile() or _rooms.is_empty():
 		return ERR_UNCONFIGURED
