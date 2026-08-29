@@ -17,6 +17,7 @@ const SideyThemeScript := preload("res://scripts/ui/sidey_theme.gd")
 const OverlayEditTrayScript := preload("res://scripts/overlay/overlay_edit_tray.gd")
 
 var _character_row: CharacterRow
+var _character_camera: Camera3D
 var _overlay_controller: OverlayController
 var _platform_bridge: PlatformBridge
 var _settings_store: SettingsStore
@@ -169,13 +170,13 @@ func _setup_environment() -> void:
 
 
 func _setup_camera() -> void:
-	var camera := Camera3D.new()
-	camera.name = "UpperBodyCamera"
-	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.size = 1.48
-	camera.position = Vector3(0.0, 1.16, 3.0)
-	add_child(camera)
-	camera.look_at(Vector3(0.0, 1.16, 0.0), Vector3.UP)
+	_character_camera = Camera3D.new()
+	_character_camera.name = "UpperBodyCamera"
+	_character_camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	_character_camera.size = 1.48
+	_character_camera.position = Vector3(0.0, 1.16, 3.0)
+	add_child(_character_camera)
+	_character_camera.look_at(Vector3(0.0, 1.16, 0.0), Vector3.UP)
 
 
 func _setup_ui() -> void:
@@ -190,6 +191,7 @@ func _setup_ui() -> void:
 	_overlay_edit_tray.locked_change_requested.connect(_overlay_controller.set_locked)
 	_overlay_edit_tray.drag_requested.connect(_overlay_controller.begin_drag)
 	_overlay_edit_tray.scale_requested.connect(_overlay_controller.set_overlay_scale)
+	_overlay_edit_tray.interactive_rect_changed.connect(_sync_overlay_interaction_state)
 	_overlay_edit_tray.set_overlay_scale(_overlay_controller.overlay_scale())
 	_overlay_edit_tray.set_available(false)
 
@@ -207,6 +209,7 @@ func _setup_local_ux() -> void:
 	_character_hud = CharacterHudScript.new()
 	_character_hud.name = "CharacterHud"
 	_overlay_canvas.add_child(_character_hud)
+	_character_hud.layout_changed.connect(_sync_character_ui_layout)
 	_chat_controller = ChatControllerScript.new()
 	_chat_controller.name = "ChatController"
 	add_child(_chat_controller)
@@ -215,6 +218,7 @@ func _setup_local_ux() -> void:
 	_chat_controller.typing_event.connect(_on_typing_event)
 	_chat_controller.input_visibility_changed.connect(_on_chat_input_visibility_changed)
 	_chat_controller.history_visibility_changed.connect(_on_history_visibility_changed)
+	_chat_controller.composer_hover_changed.connect(_overlay_edit_tray.set_composer_hovered)
 	_onboarding_controller = OnboardingControllerScript.new()
 	_onboarding_controller.name = "OnboardingController"
 	add_child(_onboarding_controller)
@@ -376,8 +380,13 @@ func _on_locked_changed(locked: bool) -> void:
 
 
 func _on_scale_changed(scale: float) -> void:
+	if is_instance_valid(_character_row):
+		_character_row.set_overlay_scale(scale)
+	if is_instance_valid(_character_hud):
+		_character_hud.set_overlay_scale(scale)
 	if is_instance_valid(_overlay_edit_tray):
 		_overlay_edit_tray.set_overlay_scale(scale)
+	_sync_character_ui_layout()
 
 
 func _on_overlay_visibility_changed(overlay_visible: bool) -> void:
@@ -417,13 +426,19 @@ func _configure_debug_hud() -> void:
 		"name": "로컬 검증",
 		"members": _character_row.members(),
 	})
+	_sync_character_ui_layout()
 
 
 func _apply_debug_actions() -> void:
 	if not OS.is_debug_build():
 		return
+	var debug_scale := _argument_value("--debug-scale=")
+	if not debug_scale.is_empty():
+		_overlay_controller.set_overlay_scale(float(debug_scale) / 100.0)
 	if _has_argument("--open-composer"):
 		_on_compose_requested()
+	if _has_argument("--hover-composer"):
+		_overlay_edit_tray.set_composer_hovered(true)
 	if _has_argument("--demo-message") and _room_controller.is_onboarding_complete():
 		var members: Array = _room_controller.active_room().get("members", []) as Array
 		if not members.is_empty():
@@ -499,10 +514,9 @@ func _activate_room_session() -> void:
 	_character_row.visible = true
 	_character_hud.visible = true
 	_character_hud.configure_room(room)
-	_chat_controller.set_anchor_x(_character_hud.self_anchor_x())
-	_overlay_edit_tray.set_character_anchor(_character_hud.self_anchor_x(), _chat_controller.composer_rect())
 	_overlay_edit_tray.set_available(true)
 	_chat_controller.set_session(room, _room_controller.profile())
+	_sync_character_ui_layout()
 	_sync_overlay_interaction_state()
 	_activate_platform_runtime()
 
@@ -547,6 +561,23 @@ func _on_chat_input_visibility_changed(_input_visible: bool) -> void:
 
 
 func _on_history_visibility_changed(_history_visible: bool) -> void:
+	_sync_overlay_interaction_state()
+
+
+func _sync_character_ui_layout() -> void:
+	if not is_instance_valid(_character_row) or not is_instance_valid(_character_hud):
+		return
+	_character_hud.set_head_anchors(_character_row.projected_head_anchors(_character_camera))
+	if is_instance_valid(_chat_controller):
+		_chat_controller.set_anchor_x(
+			_character_hud.self_anchor_x(),
+			_character_hud.self_identity_rect(),
+		)
+	if is_instance_valid(_overlay_edit_tray) and is_instance_valid(_chat_controller):
+		_overlay_edit_tray.set_character_anchor(
+			_character_hud.self_anchor_x(),
+			_chat_controller.composer_rect(),
+		)
 	_sync_overlay_interaction_state()
 
 

@@ -51,7 +51,7 @@ func _run() -> void:
 		_check(identity_style != null, "identity pill has a flat style")
 		if identity_style != null:
 			_check(identity_style.bg_color.a >= 0.7, "identity pill uses dark translucent background")
-	_check(hud.self_anchor_x() < 100.0, "self anchor follows the left-most character")
+	_check(hud.self_anchor_x() < 150.0, "self anchor follows the scaled left-most character")
 	_check(_same_rgb(hud.presence_color("friend-0"), PresenceState.indicator_color(PresenceState.Value.ONLINE)), "online dot is green")
 	hud.set_presence("friend-0", PresenceState.Value.TYPING)
 	_check(_same_rgb(hud.presence_color("friend-0"), PresenceState.indicator_color(PresenceState.Value.TYPING)), "typing dot is green")
@@ -64,10 +64,19 @@ func _run() -> void:
 	hud._process(CharacterHud.RECONNECT_BLINK_SECONDS + 0.01)
 	_check(not is_equal_approx(reconnect_alpha, hud.presence_dot_alpha("friend-0")), "reconnecting dot blinks")
 	var first_bubble_rect := hud.bubble_rect("friend-0")
+	_check(first_bubble_rect.end.y <= 155.0 - CharacterHud.BUBBLE_HEAD_GAP + 0.01, "single visible bubble uses the lane nearest its head")
+	hud.show_message("friend-1", "나도 같이 먹자")
 	var second_bubble_rect := hud.bubble_rect("friend-1")
-	_check(first_bubble_rect.position.y != second_bubble_rect.position.y, "multi-member bubbles alternate between two lanes")
+	_check(first_bubble_rect.position.y != second_bubble_rect.position.y, "adjacent visible bubbles use two lanes")
+	_check(not first_bubble_rect.intersects(second_bubble_rect), "adjacent bubbles do not overlap")
 	_check(first_bubble_rect.position.x >= 0.0 and first_bubble_rect.end.x <= 720.0, "left bubble stays inside the overlay")
 	_check(hud.bubble_rect("friend-4").end.x <= 720.0, "right bubble stays inside the overlay")
+	var fixed_bubble_size := first_bubble_rect.size
+	var identity_size_150 := hud.identity_rect("friend-0").size
+	hud.set_overlay_scale(2.0)
+	_check(hud.identity_rect("friend-0").size.y > identity_size_150.y, "nickname pill follows the character scale")
+	_check(hud.bubble_rect("friend-0").size.is_equal_approx(fixed_bubble_size), "bubble size stays fixed while characters scale")
+	hud.set_overlay_scale(1.5)
 
 	var visible_bubble := hud.find_child("Bubble", true, false) as PanelContainer
 	_check(visible_bubble != null, "message bubble becomes visible")
@@ -80,7 +89,7 @@ func _run() -> void:
 				"message bubble is white",
 			)
 
-	var composer_rect := Rect2(8.0, 320.0, 224.0, 42.0)
+	var composer_rect := Rect2(8.0, 322.0, 179.2, 33.6)
 	tray.set_character_anchor(hud.self_anchor_x(), composer_rect)
 	tray.set_locked(true)
 	var buttons := tray.find_children("*", "Button", true, false)
@@ -92,9 +101,14 @@ func _run() -> void:
 	var lock_button := tray.find_child("LockButton", true, false) as Button
 	var move_button := tray.find_child("MoveButton", true, false) as Button
 	var history_button := tray.find_child("HistoryButton", true, false) as Button
-	_check(lock_button != null and lock_button.is_visible_in_tree(), "closed lock remains visible while locked")
+	_check(lock_button != null and not lock_button.is_visible_in_tree(), "closed lock stays hidden until composer hover")
 	_check(move_button != null and not move_button.is_visible_in_tree(), "move icon is hidden while locked")
 	_check(history_button != null and not history_button.is_visible_in_tree(), "history icon is hidden while locked")
+	_check(tray.interactive_rect().size == Vector2.ZERO, "hidden lock adds no input region")
+	tray.set_composer_hovered(true)
+	await create_timer(OverlayEditTray.FADE_SECONDS + 0.02).timeout
+	_check(lock_button.is_visible_in_tree(), "composer hover reveals the closed lock")
+	_check(tray.interactive_rect().size.x > 0.0, "visible lock adds its input region")
 	lock_button.pressed.emit()
 	_check(_lock_request == false, "closed lock requests edit mode")
 	var slider := tray.find_child("ScaleSlider", true, false) as HSlider
@@ -104,6 +118,7 @@ func _run() -> void:
 		_check(slider.min_value == 150.0, "overlay minimum scale is 150 percent")
 		_check(slider.max_value == 200.0, "overlay maximum scale is 200 percent")
 	tray.set_locked(false)
+	await create_timer(OverlayEditTray.REVEAL_SECONDS + 0.02).timeout
 	if slider != null:
 		_check(slider.is_visible_in_tree(), "scale appears only in edit mode")
 	_check(move_button.is_visible_in_tree(), "move icon appears in edit mode")
@@ -112,14 +127,22 @@ func _run() -> void:
 	history_button.pressed.emit()
 	_check(_drag_requested, "move starts only from the move icon")
 	_check(_history_requested, "history opens from its icon in edit mode")
-	var tray_panel := tray.find_child("EditTrayPanel", true, false) as PanelContainer
+	var tray_panel := tray.find_child("EditTrayPanel", true, false) as Panel
 	var tray_style := tray_panel.get_theme_stylebox("panel") as StyleBoxFlat
 	_check(tray_style != null and tray_style.bg_color.r < 0.1 and tray_style.bg_color.a >= 0.7, "edit tray uses a dark translucent pill")
-	tray.set_character_anchor(642.0, Rect2(488.0, 320.0, 224.0, 42.0))
-	tray.set_locked(false)
+	var tray_rect_before_drag := tray.interactive_rect()
+	slider.drag_started.emit()
+	tray.set_character_anchor(642.0, Rect2(532.8, 322.0, 179.2, 33.6))
+	_check(tray.interactive_rect().is_equal_approx(tray_rect_before_drag), "tray stays pinned while its scale slider is dragged")
+	slider.drag_ended.emit(true)
+	await create_timer(OverlayEditTray.REVEAL_SECONDS + 0.02).timeout
 	var tray_row := tray.find_child("EditTrayRow", true, false) as HBoxContainer
 	_check(tray_row.get_child(tray_row.get_child_count() - 1) == lock_button, "lock icon stays next to a right-edge composer")
 	tray.set_character_anchor(hud.self_anchor_x(), composer_rect)
+	for node in buttons:
+		var button := node as Button
+		_check(button.custom_minimum_size == Vector2(28.0, 28.0), "icon buttons use the smaller size")
+		_check(button.icon.get_size().x >= 72.0, "tray SVG icons are imported at high resolution")
 	for label_node in tray.find_children("*", "Label", true, false):
 		_check((label_node as Label).text not in ["채팅", "기록", "이동", "편집 완료", "•••"], "legacy overlay control text is absent")
 
@@ -129,23 +152,32 @@ func _run() -> void:
 	_check(overlay.configure(root, SettingsStoreScript.new(settings_path)) == OK, "overlay controller configured")
 	overlay.set_locked(true, false)
 	tray.set_locked(true)
-	overlay.set_interactive_regions([composer_rect, tray.interactive_rect()])
+	tray.set_composer_hovered(false)
+	await create_timer(OverlayEditTray.REVEAL_SECONDS + OverlayEditTray.HIDE_GRACE_SECONDS + OverlayEditTray.FADE_SECONDS + 0.04).timeout
+	overlay.set_interactive_regions([composer_rect])
 	var locked_polygon := overlay.interactive_polygon()
-	var overlay_scale := overlay.overlay_scale()
+	var window_scale := OverlayGeometry.FIXED_WINDOW_SCALE
 	_check(not locked_polygon.is_empty(), "locked overlay uses a limited input polygon")
-	_check(Geometry2D.is_point_in_polygon(composer_rect.get_center() * overlay_scale, locked_polygon), "locked polygon includes the composer")
-	_check(not Geometry2D.is_point_in_polygon(Vector2(360.0, 180.0) * overlay_scale, locked_polygon), "locked polygon passes unrelated window space through")
+	_check(overlay.diagnostic_report()["size"] == Vector2i(1440, 720), "overlay window remains fixed at the maximum footprint")
+	_check(Geometry2D.is_point_in_polygon(composer_rect.get_center() * window_scale, locked_polygon), "locked polygon includes the composer")
+	_check(not Geometry2D.is_point_in_polygon(Vector2(360.0, 180.0) * window_scale, locked_polygon), "locked polygon passes unrelated window space through")
+	var fixed_window_position := root.position
+	var fixed_window_size := root.size
+	overlay.set_overlay_scale(2.0)
+	_check(root.position == fixed_window_position, "scale changes do not recenter the window")
+	_check(root.size == fixed_window_size, "scale changes do not resize the window")
 	overlay.set_locked(false, false)
 	tray.set_locked(false)
+	await create_timer(OverlayEditTray.REVEAL_SECONDS + 0.02).timeout
 	overlay.set_interactive_regions([composer_rect, tray.interactive_rect()])
 	var unlocked_polygon := overlay.interactive_polygon()
 	_check(not unlocked_polygon.is_empty(), "unlocked overlay still uses a limited input polygon")
-	_check(Geometry2D.is_point_in_polygon(tray.interactive_rect().get_center() * overlay_scale, unlocked_polygon), "unlocked polygon includes the edit tray")
+	_check(Geometry2D.is_point_in_polygon(tray.interactive_rect().get_center() * window_scale, unlocked_polygon), "unlocked polygon includes the edit tray")
 	_check(_polygon_bounds(unlocked_polygon).size.x < root.size.x, "unlocked polygon does not cover the full window")
-	var history_rect := Rect2(8.0, 84.0, 320.0, 226.0)
+	var history_rect := Rect2(8.0, 135.2, 256.0, 180.8)
 	overlay.set_interactive_regions([composer_rect, tray.interactive_rect(), history_rect])
 	var history_polygon := overlay.interactive_polygon()
-	_check(Geometry2D.is_point_in_polygon(history_rect.get_center() * overlay_scale, history_polygon), "history polygon includes the open history panel")
+	_check(Geometry2D.is_point_in_polygon(history_rect.get_center() * window_scale, history_polygon), "history polygon includes the open history panel")
 	overlay.set_locked(true, false)
 	var status_menu := StatusMenuControllerScript.new() as StatusMenuController
 	root.add_child(status_menu)

@@ -41,9 +41,9 @@ static func style_icon_button(button: Button) -> void:
 	button.add_theme_color_override("icon_normal_color", TEXT_PRIMARY)
 	button.add_theme_color_override("icon_hover_color", Color.WHITE)
 	button.add_theme_color_override("icon_pressed_color", Color.WHITE)
-	button.add_theme_stylebox_override("normal", _style(Color.TRANSPARENT, 10, Vector4.ZERO))
-	button.add_theme_stylebox_override("hover", _style(Color(1.0, 1.0, 1.0, 0.12), 10, Vector4.ZERO))
-	button.add_theme_stylebox_override("pressed", _style(Color(1.0, 1.0, 1.0, 0.2), 10, Vector4.ZERO))
+	button.add_theme_stylebox_override("normal", _style(Color.TRANSPARENT, 10, Vector4(5, 5, 5, 5)))
+	button.add_theme_stylebox_override("hover", _style(Color(1.0, 1.0, 1.0, 0.12), 10, Vector4(5, 5, 5, 5)))
+	button.add_theme_stylebox_override("pressed", _style(Color(1.0, 1.0, 1.0, 0.2), 10, Vector4(5, 5, 5, 5)))
 	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 
 
