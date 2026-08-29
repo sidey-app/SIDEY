@@ -1,0 +1,13 @@
+# Local product context for coding assistants; do not commit.
+/AGENTS.md
+/docs/
+
+# Godot generated files.
+/.godot/
+
+# Private licensed character binaries, extracted textures, and local review output.
+/assets/characters/
+/artifacts/motion-review/
+
+# macOS metadata.
+.DS_Store

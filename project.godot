@@ -1,0 +1,43 @@
+; Engine configuration file.
+; Edit through the Godot editor when possible.
+
+config_version=5
+
+[application]
+
+config/name="SIDEY"
+run/main_scene="res://scenes/motion_lab.tscn"
+
+[display]
+
+window/size/viewport_width=640
+window/size/viewport_height=640
+window/size/window_width_override=640
+window/size/window_height_override=640
+window/stretch/mode="canvas_items"
+
+[input]
+
+state_online_idle={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":49,"unicode":49)]
+}
+state_typing={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":50,"unicode":50)]
+}
+state_offline_sleep={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":51,"unicode":51)]
+}
+state_transition_test={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":52,"unicode":52)]
+}
+
+[rendering]
+
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="mobile"
+renderer/rendering_method.web="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
