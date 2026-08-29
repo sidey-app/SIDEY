@@ -122,7 +122,6 @@ func _on_item_pressed(item_id: int) -> void:
 			_overlay_controller.toggle_overlay_visible()
 		ITEM_COMPOSE:
 			_overlay_controller.set_overlay_visible(true)
-			_overlay_controller.set_locked(false)
 			compose_requested.emit()
 		ITEM_LOCKED:
 			_overlay_controller.toggle_locked()

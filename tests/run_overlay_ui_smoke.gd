@@ -3,11 +3,15 @@ extends SceneTree
 const CharacterHudScript := preload("res://scripts/characters/character_hud.gd")
 const OverlayToolbarScript := preload("res://scripts/overlay/overlay_toolbar.gd")
 const SideyThemeScript := preload("res://scripts/ui/sidey_theme.gd")
+const OverlayControllerScript := preload("res://scripts/overlay/overlay_controller.gd")
+const SettingsStoreScript := preload("res://scripts/settings/settings_store.gd")
+const StatusMenuControllerScript := preload("res://scripts/app/status_menu_controller.gd")
 
 var _failures := 0
 var _compose_requested := false
 var _history_requested := false
 var _lock_request: Variant = null
+var _menu_compose_requested := false
 
 
 func _initialize() -> void:
@@ -76,7 +80,23 @@ func _run() -> void:
 	if slider is HSlider:
 		_check((slider as HSlider).is_visible_in_tree(), "scale appears only in edit mode")
 
+	var settings_path := "/tmp/sidey-overlay-ui-%d.json" % OS.get_process_id()
+	var overlay := OverlayControllerScript.new() as OverlayController
+	root.add_child(overlay)
+	_check(overlay.configure(root, SettingsStoreScript.new(settings_path)) == OK, "overlay controller configured")
+	overlay.set_locked(true, false)
+	var status_menu := StatusMenuControllerScript.new() as StatusMenuController
+	root.add_child(status_menu)
+	status_menu.configure(overlay, SettingsStoreScript.new(settings_path))
+	status_menu.compose_requested.connect(func() -> void: _menu_compose_requested = true)
+	status_menu._on_item_pressed(StatusMenuControllerScript.ITEM_COMPOSE)
+	_check(_menu_compose_requested, "menu bar requests the composer")
+	_check(overlay.is_locked(), "menu bar composer preserves the lock")
+	DirAccess.remove_absolute(settings_path)
+
 	canvas.queue_free()
+	status_menu.queue_free()
+	overlay.queue_free()
 	_finish.call_deferred()
 
 
