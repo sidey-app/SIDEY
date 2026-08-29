@@ -3,6 +3,9 @@ extends RefCounted
 
 const MIN_SCALE := 1.50
 const MAX_SCALE := 2.00
+const FIXED_WINDOW_SCALE := MAX_SCALE
+const FIXED_UI_SCALE := 1.60
+const FIXED_UI_FACTOR := FIXED_UI_SCALE / FIXED_WINDOW_SCALE
 
 
 static func clamp_scale(value: float) -> float:
@@ -25,6 +28,18 @@ static func centered_scaled_position(
 	return current_position + Vector2i(
 		roundi((current_size.x - next_size.x) * 0.5),
 		roundi((current_size.y - next_size.y) * 0.5),
+	)
+
+
+static func migrate_to_fixed_window_position(
+	legacy_position: Vector2i,
+	legacy_scale: float,
+	anchor: Vector2,
+) -> Vector2i:
+	var safe_scale := clamp_scale(legacy_scale)
+	return legacy_position + Vector2i(
+		roundi(anchor.x * (safe_scale - FIXED_WINDOW_SCALE)),
+		roundi(anchor.y * (safe_scale - FIXED_WINDOW_SCALE)),
 	)
 
 

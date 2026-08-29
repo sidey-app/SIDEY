@@ -20,6 +20,7 @@ const REQUIRED_ROLES: Array[StringName] = [
 
 var model_path := ""
 var bone_names: Dictionary = {}
+var bubble_anchor_offset := Vector3.ZERO
 
 
 static func minty_pup() -> CharacterRigProfile:
@@ -41,6 +42,7 @@ static func minty_pup() -> CharacterRigProfile:
 		&"neck": &"neck",
 		&"head": &"Head",
 	}
+	profile.bubble_anchor_offset = Vector3(0.0, 0.60, 0.0)
 	return profile
 
 

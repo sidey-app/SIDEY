@@ -48,6 +48,11 @@ func _run_geometry_tests() -> void:
 		Vector2i(0, 25),
 		"centered scaling",
 	)
+	_check_equal(
+		OverlayGeometryScript.migrate_to_fixed_window_position(Vector2i(100, 200), 1.5, Vector2(360.0, 318.0)),
+		Vector2i(-80, 41),
+		"fixed window migration preserves the character baseline",
+	)
 	var usable_rect := Rect2i(100, 50, 1200, 800)
 	_check_equal(OverlayGeometryScript.clamp_position(Vector2i(-500, 900), Vector2i(400, 300), usable_rect), Vector2i(100, 550), "usable rect clamp")
 	_check_equal(OverlayGeometryScript.clamp_position(Vector2i(500, 400), Vector2i(2000, 1200), usable_rect), usable_rect.position, "oversize window clamp")
@@ -82,6 +87,15 @@ func _run_settings_tests() -> void:
 	_check_equal(migrated["overlay"]["position"], [99, 77], "settings legacy position")
 	_check_equal(migrated["overlay"]["scale"], OverlayGeometryScript.MAX_SCALE, "settings migration clamp")
 	_check_equal(migrated["local_state"], {}, "settings migration initializes local state")
+	var migrated_v3 := SettingsStoreScript.migrate({
+		"schema_version": 3,
+		"overlay": {
+			"position": [100, 200],
+			"scale": 1.5,
+			"screen": 0,
+		},
+	})
+	_check_equal(migrated_v3["overlay"]["position"], [-80, 41], "v3 geometry migrates to the fixed window")
 	DirAccess.remove_absolute(path)
 
 
@@ -92,8 +106,8 @@ func _run_character_data_tests() -> void:
 	_check_equal(CharacterRowScript.layout_positions(1), single_position, "single character centered")
 	var five_positions := CharacterRowScript.layout_positions(5)
 	_check_equal(five_positions.size(), 5, "five character layout count")
-	_check_approx(five_positions[0], -1.16, "five character layout start")
-	_check_approx(five_positions[4], 1.16, "five character layout end")
+	_check_approx(five_positions[0], -1.17, "five character layout start")
+	_check_approx(five_positions[4], 1.17, "five character layout end")
 	_check_equal(CharacterRowScript.layout_positions(8).size(), 5, "character row max five")
 
 

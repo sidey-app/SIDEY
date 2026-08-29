@@ -3,9 +3,13 @@ extends Node3D
 
 const MAX_CHARACTERS := 5
 const CharacterViewScript := preload("res://scripts/characters/character_view.gd")
+const OverlayGeometryScript := preload("res://scripts/overlay/overlay_geometry.gd")
 
 var _characters: Array[CharacterView] = []
 var _members: Array[Dictionary] = []
+var _base_positions: Array[float] = []
+var _base_visual_scale := 1.0
+var _overlay_scale := OverlayGeometryScript.MIN_SCALE
 
 
 func configure_debug(count: int, character_id: String = "minty_pup") -> Error:
@@ -28,7 +32,8 @@ func configure_members(members: Array[Dictionary]) -> Error:
 	_members = members.duplicate(true)
 	var safe_count := members.size()
 	var positions := layout_positions(safe_count)
-	var visual_scale := 0.74 if safe_count == 1 else 0.58
+	_base_positions = positions.duplicate()
+	_base_visual_scale = 0.74 if safe_count == 1 else 0.58
 	var vertical_offset := 0.24 if safe_count == 1 else 0.30
 	for index in safe_count:
 		var member := members[index]
@@ -37,7 +42,7 @@ func configure_members(members: Array[Dictionary]) -> Error:
 		character.name = "Character_%s" % str(member.get("user_id", index)).validate_node_name()
 		character.position.x = positions[index]
 		character.position.y = vertical_offset
-		character.scale = Vector3.ONE * visual_scale
+		character.scale = Vector3.ONE * _base_visual_scale
 		add_child(character)
 		var configure_error := character.configure(character_id)
 		if configure_error != OK:
@@ -46,6 +51,7 @@ func configure_members(members: Array[Dictionary]) -> Error:
 		_characters.append(character)
 		var presence := PresenceState.from_string(str(member.get("presence", "offline")))
 		character.set_motion_state(PresenceState.motion_state(presence), true)
+	_apply_overlay_scale()
 	return OK
 
 
@@ -55,6 +61,7 @@ func clear() -> void:
 			character.queue_free()
 	_characters.clear()
 	_members.clear()
+	_base_positions.clear()
 
 
 func character_count() -> int:
@@ -86,6 +93,31 @@ func set_all_motion_states(state: CharacterState.Value, restart := false) -> voi
 		character.set_motion_state(state, restart)
 
 
+func set_overlay_scale(scale: float) -> void:
+	_overlay_scale = OverlayGeometryScript.clamp_scale(scale)
+	_apply_overlay_scale()
+
+
+func projected_head_anchors(camera: Camera3D) -> Dictionary:
+	var result := {}
+	if not is_instance_valid(camera):
+		return result
+	for index in mini(_members.size(), _characters.size()):
+		result[str(_members[index].get("user_id", ""))] = camera.unproject_position(
+			_characters[index].head_anchor_global(),
+		)
+	return result
+
+
+func _apply_overlay_scale() -> void:
+	var factor := _overlay_scale / OverlayGeometryScript.FIXED_WINDOW_SCALE
+	for index in _characters.size():
+		if index >= _base_positions.size():
+			continue
+		_characters[index].position.x = _base_positions[index] * factor
+		_characters[index].scale = Vector3.ONE * _base_visual_scale * factor
+
+
 func set_motion_state(index: int, state: CharacterState.Value, restart := false) -> void:
 	if index < 0 or index >= _characters.size():
 		return
@@ -96,7 +128,7 @@ static func layout_positions(count: int) -> Array[float]:
 	var safe_count := clampi(count, 1, MAX_CHARACTERS)
 	if safe_count == 1:
 		return [0.0]
-	var spacing := 0.58
+	var spacing := 0.585
 	var start := -spacing * (safe_count - 1) * 0.5
 	var positions: Array[float] = []
 	for index in safe_count:

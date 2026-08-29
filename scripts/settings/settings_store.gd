@@ -1,7 +1,8 @@
 class_name SettingsStore
 extends RefCounted
 
-const CURRENT_SCHEMA_VERSION := 3
+const CURRENT_SCHEMA_VERSION := 4
+const OVERLAY_BASELINE_ANCHOR := Vector2(360.0, 318.0)
 const OverlayGeometryScript := preload("res://scripts/overlay/overlay_geometry.gd")
 const DEFAULT_SETTINGS := {
 	"schema_version": CURRENT_SCHEMA_VERSION,
@@ -121,7 +122,15 @@ static func migrate(raw_settings: Dictionary) -> Dictionary:
 		var raw_overlay: Dictionary = raw_settings.get("overlay", {}) as Dictionary
 		var raw_position: Array = raw_overlay.get("position", [0, 0]) as Array
 		if raw_position.size() >= 2:
-			migrated["overlay"]["position"] = [int(raw_position[0]), int(raw_position[1])]
+			var position := Vector2i(int(raw_position[0]), int(raw_position[1]))
+			var legacy_scale := OverlayGeometryScript.clamp_scale(float(raw_overlay.get("scale", 1.0)))
+			if source_version < CURRENT_SCHEMA_VERSION:
+				position = OverlayGeometryScript.migrate_to_fixed_window_position(
+					position,
+					legacy_scale,
+					OVERLAY_BASELINE_ANCHOR,
+				)
+			migrated["overlay"]["position"] = [position.x, position.y]
 		migrated["overlay"]["scale"] = OverlayGeometryScript.clamp_scale(
 			float(raw_overlay.get("scale", 1.0)),
 		)

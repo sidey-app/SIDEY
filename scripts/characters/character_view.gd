@@ -7,6 +7,7 @@ const SleepEffectScript := preload("res://scripts/characters/sleep_effect.gd")
 
 var motion_controller: CharacterMotionController
 var character_id := ""
+var _head_anchor_local := Vector3(0.0, 1.0, 0.0)
 
 
 func configure(requested_character_id: String) -> Error:
@@ -47,6 +48,7 @@ func configure(requested_character_id: String) -> Error:
 	if profile == null:
 		push_error("CHARACTER_RIG_PROFILE_MISSING id=%s" % requested_character_id)
 		return ERR_INVALID_DATA
+	_head_anchor_local = _calculate_head_anchor(skeleton, profile)
 
 	var typing_keyboard := TypingKeyboardScript.new()
 	typing_keyboard.name = "TypingKeyboard"
@@ -67,6 +69,18 @@ func configure(requested_character_id: String) -> Error:
 func set_motion_state(state: CharacterState.Value, restart := false) -> void:
 	if is_instance_valid(motion_controller):
 		motion_controller.set_state(state, restart)
+
+
+func head_anchor_global() -> Vector3:
+	return to_global(_head_anchor_local)
+
+
+func _calculate_head_anchor(skeleton: Skeleton3D, profile: CharacterRigProfile) -> Vector3:
+	var head_index := profile.bone_index(skeleton, &"head")
+	if head_index < 0:
+		return Vector3(0.0, 1.0, 0.0)
+	var head_origin := skeleton.get_bone_global_rest(head_index).origin
+	return to_local(skeleton.to_global(head_origin)) + profile.bubble_anchor_offset
 
 
 func _find_first_skeleton(node: Node) -> Skeleton3D:

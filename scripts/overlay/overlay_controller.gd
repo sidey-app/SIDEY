@@ -97,18 +97,8 @@ func set_overlay_scale(next_scale: float) -> void:
 	var clamped_scale := OverlayGeometryScript.clamp_scale(next_scale)
 	if is_equal_approx(_scale, clamped_scale):
 		return
-	var current_size := _window.size
-	var next_size := OverlayGeometryScript.scaled_window_size(BASE_WINDOW_SIZE, clamped_scale)
-	var next_position := OverlayGeometryScript.centered_scaled_position(
-		_window.position,
-		current_size,
-		next_size,
-	)
 	_scale = clamped_scale
-	_window.size = next_size
-	_window.position = _clamp_to_screen(next_position, next_size, _current_screen())
 	_mark_geometry_dirty()
-	_apply_input_policy()
 	scale_changed.emit(_scale)
 
 
@@ -145,6 +135,7 @@ func diagnostic_report() -> Dictionary:
 		"status_indicator_supported": DisplayServer.has_feature(DisplayServer.FEATURE_STATUS_INDICATOR),
 		"position": _window.position,
 		"size": _window.size,
+		"window_scale": OverlayGeometryScript.FIXED_WINDOW_SCALE,
 		"screen": _current_screen(),
 		"scale": _scale,
 		"locked": _locked,
@@ -206,7 +197,10 @@ func _restore_settings() -> void:
 		screens,
 		DisplayServer.get_primary_screen(),
 	)
-	var size := OverlayGeometryScript.scaled_window_size(BASE_WINDOW_SIZE, _scale)
+	var size := OverlayGeometryScript.scaled_window_size(
+		BASE_WINDOW_SIZE,
+		OverlayGeometryScript.FIXED_WINDOW_SCALE,
+	)
 	_window.size = size
 	_window.current_screen = screen
 	var saved_position := overlay_settings.get("position", [0, 0]) as Array
@@ -326,7 +320,7 @@ func _build_input_polygon() -> PackedVector2Array:
 		merged = result[0]
 	var scaled := PackedVector2Array()
 	for point in merged:
-		scaled.append(point * _scale)
+		scaled.append(point * OverlayGeometryScript.FIXED_WINDOW_SCALE)
 	return scaled
 
 
