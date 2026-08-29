@@ -4,12 +4,24 @@ macOS 13 이상에서만 빌드한다. 공식 `godot-cpp` 서브모듈을 사용
 
 ```sh
 git submodule update --init
-./scripts/build_macos_bridge.sh editor
+./scripts/build_macos_bridge.sh editor arm64
+./scripts/build_macos_bridge.sh editor x86_64
+./scripts/build_macos_bridge.sh template_release arm64
+./scripts/build_macos_bridge.sh template_release x86_64
 ```
 
 빌드 스크립트는 설치된 Godot에서 정확한 GDExtension API를 덤프한다. 같은 `4.7` 계열이라도
 엔진과 `godot-cpp` 내장 API가 어긋나면 종료 시 크래시가 날 수 있으므로, 내장 JSON에 기대지 않는다.
 Godot 경로가 기본 설치 위치와 다르면 `SIDEY_GODOT_BIN`으로 지정한다.
+
+공식 Godot export template을 설치한 뒤 아래 명령으로 arm64/x86_64 릴리스 브리지를 빌드하고,
+macOS 13 이상용 universal 앱을 ad-hoc 서명해 내보낼 수 있다.
+
+```sh
+./scripts/export_macos.sh
+```
+
+로컬 export 결과는 `build/macos/SIDEY.app`에 생성되며 Git에는 포함하지 않는다.
 
 브리지가 제공하는 기능:
 

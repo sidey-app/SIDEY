@@ -4,6 +4,7 @@
 
 # Godot generated files.
 /.godot/
+/build/
 
 # Private licensed character binaries, extracted textures, and local review output.
 /assets/characters/

@@ -1,11 +1,12 @@
 #!/bin/sh
 set -eu
 
-SIDEY_REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+SIDEY_REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && /bin/pwd -P)
 SIDEY_NATIVE_DIR="$SIDEY_REPO_ROOT/native/macos"
 SIDEY_API_DIR="$SIDEY_NATIVE_DIR/.generated"
 SIDEY_API_FILE="$SIDEY_API_DIR/extension_api.json"
 SIDEY_BUILD_TARGET=${1:-editor}
+SIDEY_BUILD_ARCH=${2:-arm64}
 SIDEY_GODOT_EXECUTABLE=${SIDEY_GODOT_BIN:-/Applications/Godot.app/Contents/MacOS/Godot}
 
 if [ ! -x "$SIDEY_GODOT_EXECUTABLE" ]; then
@@ -21,7 +22,7 @@ mkdir -p "$SIDEY_API_DIR"
 
 scons -C "$SIDEY_NATIVE_DIR" \
 	platform=macos \
-	arch=arm64 \
+	arch="$SIDEY_BUILD_ARCH" \
 	target="$SIDEY_BUILD_TARGET" \
 	custom_api_file="$SIDEY_API_FILE" \
 	-j4

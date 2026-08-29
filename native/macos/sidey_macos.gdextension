@@ -7,4 +7,6 @@ reloadable = true
 [libraries]
 
 macos.debug.arm64 = "res://native/macos/bin/libsidey_macos.macos.editor.arm64.dylib"
+macos.debug.x86_64 = "res://native/macos/bin/libsidey_macos.macos.editor.x86_64.dylib"
 macos.release.arm64 = "res://native/macos/bin/libsidey_macos.macos.template_release.arm64.dylib"
+macos.release.x86_64 = "res://native/macos/bin/libsidey_macos.macos.template_release.x86_64.dylib"
