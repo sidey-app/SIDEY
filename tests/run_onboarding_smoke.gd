@@ -26,8 +26,18 @@ func _run() -> void:
 		_check(not window.transparent, "onboarding is opaque")
 		_check(not window.borderless, "onboarding has normal window frame")
 		_check(not window.always_on_top, "onboarding is not an overlay")
-		_check(window.size.x >= 460 and window.size.y >= 440, "onboarding minimum layout size")
+		_check(window.size.x >= 640 and window.size.y >= 680, "onboarding has a readable layout size")
+		_check(window.theme != null and window.theme.default_font_size >= 18, "onboarding uses large typography")
+		_check(window.find_children("*", "ScrollContainer", true, false).size() >= 1, "onboarding scrolls on smaller screens")
+		_check(window.find_children("*", "PanelContainer", true, false).size() >= 2, "onboarding uses card sections")
 		_check(window.find_children("*", "LineEdit", true, false).size() >= 3, "onboarding has profile and room inputs")
+		var title := _find_label(window, "친구들을 화면 곁으로")
+		_check(title != null and title.get_theme_font_size("font_size") >= 32, "onboarding title is prominent")
+		var capture_path := _argument_value("--capture=")
+		if not capture_path.is_empty():
+			await process_frame
+			await RenderingServer.frame_post_draw
+			_check(window.get_texture().get_image().save_png(capture_path) == OK, "onboarding capture saved")
 	onboarding.close()
 	room_controller.queue_free()
 	finish.call_deferred()
@@ -38,6 +48,21 @@ func _check(condition: bool, label: String) -> void:
 		return
 	_failures += 1
 	push_error("ONBOARDING_TEST_FAILED %s" % label)
+
+
+func _find_label(window: Window, text: String) -> Label:
+	for node in window.find_children("*", "Label", true, false):
+		var label := node as Label
+		if label.text == text:
+			return label
+	return null
+
+
+func _argument_value(prefix: String) -> String:
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with(prefix):
+			return argument.trim_prefix(prefix)
+	return ""
 
 
 func finish() -> void:

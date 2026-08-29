@@ -5,6 +5,7 @@ signal opened
 signal closed
 
 const CharacterCatalogScript := preload("res://scripts/characters/character_catalog.gd")
+const SideyThemeScript := preload("res://scripts/ui/sidey_theme.gd")
 
 var _room_controller: RoomController
 var _platform_bridge: PlatformBridge
@@ -58,125 +59,168 @@ func _build_window() -> void:
 	_window = Window.new()
 	_window.name = "SettingsWindow"
 	_window.title = "SIDEY 설정"
-	_window.size = Vector2i(560, 760)
-	_window.min_size = Vector2i(520, 680)
+	_window.size = Vector2i(720, 880)
+	_window.min_size = Vector2i(640, 720)
 	_window.transparent = false
 	_window.borderless = false
 	_window.always_on_top = false
 	_window.transient = false
+	_window.theme = SideyThemeScript.create()
 	_window.close_requested.connect(close)
 	add_child(_window)
+	var background := ColorRect.new()
+	background.name = "Background"
+	background.color = SideyThemeScript.BACKGROUND
+	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_window.add_child(background)
+	var scroll := ScrollContainer.new()
+	scroll.name = "SettingsScroll"
+	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_window.add_child(scroll)
 	var margin := MarginContainer.new()
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	margin.add_theme_constant_override("margin_left", 28)
-	margin.add_theme_constant_override("margin_right", 28)
-	margin.add_theme_constant_override("margin_top", 24)
-	margin.add_theme_constant_override("margin_bottom", 24)
-	_window.add_child(margin)
+	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.add_theme_constant_override("margin_left", 42)
+	margin.add_theme_constant_override("margin_right", 42)
+	margin.add_theme_constant_override("margin_top", 36)
+	margin.add_theme_constant_override("margin_bottom", 36)
+	scroll.add_child(margin)
 	var content := VBoxContainer.new()
-	content.add_theme_constant_override("separation", 9)
+	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.add_theme_constant_override("separation", 16)
 	margin.add_child(content)
 	var title := Label.new()
 	title.text = "SIDEY 설정"
-	title.add_theme_font_size_override("font_size", 24)
+	title.add_theme_font_size_override("font_size", 36)
 	content.add_child(title)
-	content.add_child(_section_label("내 프로필"))
+	var intro := Label.new()
+	intro.text = "내 모습과 친구 그룹을 한곳에서 관리해요."
+	intro.add_theme_color_override("font_color", SideyThemeScript.TEXT_SECONDARY)
+	content.add_child(intro)
+	var profile_card := _add_card(content, "내 프로필", "모든 그룹에 같은 프로필이 표시돼요.")
 	var profile_row := HBoxContainer.new()
+	profile_row.add_theme_constant_override("separation", 10)
 	_nickname_edit = LineEdit.new()
 	_nickname_edit.placeholder_text = "닉네임 · 2~12자"
 	_nickname_edit.max_length = RoomController.MAX_NICKNAME_LENGTH
 	_nickname_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_nickname_edit.custom_minimum_size.y = 54
 	profile_row.add_child(_nickname_edit)
 	_character_picker = OptionButton.new()
 	for entry in CharacterCatalogScript.all():
 		_character_ids.append(str(entry["id"]))
 		_character_picker.add_item(str(entry["display_name"]))
+	_character_picker.custom_minimum_size = Vector2(150, 54)
 	profile_row.add_child(_character_picker)
 	var save_profile_button := Button.new()
 	save_profile_button.text = "저장"
+	save_profile_button.custom_minimum_size = Vector2(92, 54)
 	save_profile_button.pressed.connect(_save_profile)
 	profile_row.add_child(save_profile_button)
-	content.add_child(profile_row)
-	content.add_child(HSeparator.new())
-	content.add_child(_section_label("활성 그룹"))
+	profile_card.add_child(profile_row)
+	var active_card := _add_card(content, "지금 볼 그룹", "오버레이에는 선택한 그룹의 친구만 보여요.")
 	_room_picker = OptionButton.new()
+	_room_picker.custom_minimum_size.y = 54
 	_room_picker.item_selected.connect(_select_room)
-	content.add_child(_room_picker)
+	active_card.add_child(_room_picker)
 	var rename_row := HBoxContainer.new()
+	rename_row.add_theme_constant_override("separation", 10)
 	_room_name_edit = LineEdit.new()
 	_room_name_edit.placeholder_text = "그룹 이름 · 방장만 변경 가능"
 	_room_name_edit.max_length = RoomController.MAX_ROOM_NAME_LENGTH
 	_room_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_room_name_edit.custom_minimum_size.y = 54
 	rename_row.add_child(_room_name_edit)
 	var rename_button := Button.new()
 	rename_button.text = "이름 변경"
+	rename_button.theme_type_variation = &"SideySecondaryButton"
+	rename_button.custom_minimum_size = Vector2(128, 54)
 	rename_button.pressed.connect(_rename_active_room)
 	rename_row.add_child(rename_button)
-	content.add_child(rename_row)
-	content.add_child(_section_label("그룹 추가 · 사용자당 최대 5개"))
+	active_card.add_child(rename_row)
+	var add_card := _add_card(content, "그룹 추가", "최대 5개 그룹에 참여할 수 있어요.")
 	var create_row := HBoxContainer.new()
+	create_row.add_theme_constant_override("separation", 10)
 	_new_room_edit = LineEdit.new()
 	_new_room_edit.placeholder_text = "새 그룹 이름"
 	_new_room_edit.max_length = RoomController.MAX_ROOM_NAME_LENGTH
 	_new_room_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_new_room_edit.custom_minimum_size.y = 54
 	create_row.add_child(_new_room_edit)
 	var create_button := Button.new()
 	create_button.text = "만들기"
+	create_button.custom_minimum_size = Vector2(128, 54)
 	create_button.pressed.connect(_create_room)
 	create_row.add_child(create_button)
-	content.add_child(create_row)
+	add_card.add_child(create_row)
 	var join_row := HBoxContainer.new()
+	join_row.add_theme_constant_override("separation", 10)
 	_invite_code_edit = LineEdit.new()
 	_invite_code_edit.placeholder_text = "초대 코드"
 	_invite_code_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_invite_code_edit.custom_minimum_size.y = 54
 	join_row.add_child(_invite_code_edit)
 	var join_button := Button.new()
 	join_button.text = "코드로 참여"
+	join_button.theme_type_variation = &"SideySecondaryButton"
+	join_button.custom_minimum_size = Vector2(128, 54)
 	join_button.pressed.connect(_join_room)
 	join_row.add_child(join_button)
-	content.add_child(join_row)
+	add_card.add_child(join_row)
 	if OS.is_debug_build():
 		var demo_help := Label.new()
 		demo_help.text = "개발용 코드: SIDEY-DEMO"
-		demo_help.add_theme_font_size_override("font_size", 12)
-		demo_help.add_theme_color_override("font_color", Color("75cdb5"))
-		content.add_child(demo_help)
-	content.add_child(HSeparator.new())
-	content.add_child(_section_label("그룹 관리"))
+		demo_help.add_theme_font_size_override("font_size", 15)
+		demo_help.add_theme_color_override("font_color", SideyThemeScript.SUCCESS)
+		add_card.add_child(demo_help)
+	var manage_card := _add_card(content, "그룹 관리", "초대 코드는 방장만 새로 발급할 수 있어요.")
 	var invite_row := HBoxContainer.new()
+	invite_row.add_theme_constant_override("separation", 10)
 	_invite_code_display = LineEdit.new()
 	_invite_code_display.placeholder_text = "초대 코드 원문 없음"
 	_invite_code_display.editable = false
 	_invite_code_display.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_invite_code_display.custom_minimum_size.y = 54
 	invite_row.add_child(_invite_code_display)
 	_copy_invite_button = Button.new()
 	_copy_invite_button.text = "복사"
+	_copy_invite_button.theme_type_variation = &"SideySecondaryButton"
+	_copy_invite_button.custom_minimum_size = Vector2(88, 54)
 	_copy_invite_button.pressed.connect(_copy_invite_code)
 	invite_row.add_child(_copy_invite_button)
 	_rotate_invite_button = Button.new()
 	_rotate_invite_button.text = "재발급"
+	_rotate_invite_button.theme_type_variation = &"SideySecondaryButton"
+	_rotate_invite_button.custom_minimum_size = Vector2(104, 54)
 	_rotate_invite_button.pressed.connect(_rotate_remote_invite)
 	invite_row.add_child(_rotate_invite_button)
-	content.add_child(invite_row)
+	manage_card.add_child(invite_row)
 	_members_list = VBoxContainer.new()
-	_members_list.add_theme_constant_override("separation", 4)
-	content.add_child(_members_list)
+	_members_list.add_theme_constant_override("separation", 8)
+	manage_card.add_child(_members_list)
 	_leave_room_button = Button.new()
 	_leave_room_button.text = "이 그룹에서 나가기"
+	_leave_room_button.theme_type_variation = &"SideyDangerButton"
+	_leave_room_button.custom_minimum_size.y = 52
 	_leave_room_button.pressed.connect(_leave_remote_room)
-	content.add_child(_leave_room_button)
-	content.add_child(HSeparator.new())
+	manage_card.add_child(_leave_room_button)
+	var preference_card := _add_card(content, "앱 설정", "컴퓨터를 켰을 때 SIDEY를 자동으로 시작할 수 있어요.")
 	_launch_at_login = CheckBox.new()
 	_launch_at_login.text = "로그인할 때 SIDEY 자동 실행"
+	_launch_at_login.custom_minimum_size.y = 44
 	_launch_at_login.disabled = not _platform_bridge.is_native_available()
 	_launch_at_login.toggled.connect(_toggle_launch_at_login)
-	content.add_child(_launch_at_login)
+	preference_card.add_child(_launch_at_login)
 	_feedback = Label.new()
+	_feedback.custom_minimum_size.y = 26
 	_feedback.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_feedback.add_theme_color_override("font_color", Color("ff9d91"))
+	_feedback.add_theme_color_override("font_color", SideyThemeScript.DANGER)
 	content.add_child(_feedback)
 	var close_button := Button.new()
 	close_button.text = "닫기"
+	close_button.theme_type_variation = &"SideySecondaryButton"
+	close_button.custom_minimum_size.y = 54
 	close_button.pressed.connect(close)
 	content.add_child(close_button)
 
@@ -291,7 +335,10 @@ func _join_remote_room() -> void:
 func _show_backend_result(result: Dictionary, success: String) -> void:
 	var ok := bool(result.get("ok", false))
 	_feedback.text = success if ok else "처리하지 못했음: %s" % str(result.get("error_code", "unknown"))
-	_feedback.add_theme_color_override("font_color", Color("75cdb5") if ok else Color("ff9d91"))
+	_feedback.add_theme_color_override(
+		"font_color",
+		SideyThemeScript.SUCCESS if ok else SideyThemeScript.DANGER,
+	)
 
 
 func _refresh_group_management() -> void:
@@ -328,6 +375,7 @@ func _rebuild_member_management(room: Dictionary, is_owner: bool) -> void:
 		if is_owner and not bool(member_data.get("is_self", false)) and is_instance_valid(_backend_runtime):
 			var remove_button := Button.new()
 			remove_button.text = "내보내기"
+			remove_button.theme_type_variation = &"SideyDangerButton"
 			remove_button.pressed.connect(_remove_remote_member.bind(str(member_data.get("user_id", ""))))
 			row.add_child(remove_button)
 		_members_list.add_child(row)
@@ -338,7 +386,7 @@ func _copy_invite_code() -> void:
 		return
 	DisplayServer.clipboard_set(_invite_code_display.text)
 	_feedback.text = "초대 코드를 클립보드에 복사했음."
-	_feedback.add_theme_color_override("font_color", Color("75cdb5"))
+	_feedback.add_theme_color_override("font_color", SideyThemeScript.SUCCESS)
 
 
 func _rotate_remote_invite() -> void:
@@ -372,7 +420,10 @@ func _toggle_launch_at_login(enabled: bool) -> void:
 
 func _show_result(error: Error, success: String, failure: String) -> void:
 	_feedback.text = success if error == OK else "%s (오류 %d)" % [failure, error]
-	_feedback.add_theme_color_override("font_color", Color("75cdb5") if error == OK else Color("ff9d91"))
+	_feedback.add_theme_color_override(
+		"font_color",
+		SideyThemeScript.SUCCESS if error == OK else SideyThemeScript.DANGER,
+	)
 
 
 func _on_rooms_changed(_rooms: Array[Dictionary]) -> void:
@@ -383,9 +434,20 @@ func _on_active_room_changed(_previous_room_id: String, _room_id: String) -> voi
 	_refresh_rooms()
 
 
-func _section_label(text: String) -> Label:
-	var label := Label.new()
-	label.text = text
-	label.add_theme_font_size_override("font_size", 14)
-	label.add_theme_color_override("font_color", Color("c9e5df"))
-	return label
+func _add_card(parent: VBoxContainer, title_text: String, subtitle_text: String) -> VBoxContainer:
+	var card := PanelContainer.new()
+	parent.add_child(card)
+	var stack := VBoxContainer.new()
+	stack.add_theme_constant_override("separation", 10)
+	card.add_child(stack)
+	var title := Label.new()
+	title.text = title_text
+	title.add_theme_font_size_override("font_size", 23)
+	stack.add_child(title)
+	var subtitle := Label.new()
+	subtitle.text = subtitle_text
+	subtitle.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	subtitle.add_theme_font_size_override("font_size", 16)
+	subtitle.add_theme_color_override("font_color", SideyThemeScript.TEXT_SECONDARY)
+	stack.add_child(subtitle)
+	return stack

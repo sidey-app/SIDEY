@@ -33,6 +33,10 @@ func _run() -> void:
 		_check(not window.transparent, "settings is opaque")
 		_check(not window.borderless, "settings has normal window frame")
 		_check(not window.always_on_top, "settings is not overlay")
+		_check(window.size.x >= 640 and window.size.y >= 720, "settings has a readable layout size")
+		_check(window.theme != null and window.theme.default_font_size >= 18, "settings uses large typography")
+		_check(window.find_children("*", "ScrollContainer", true, false).size() >= 1, "settings scrolls on smaller screens")
+		_check(window.find_children("*", "PanelContainer", true, false).size() >= 5, "settings uses grouped card sections")
 		_check(window.find_children("*", "OptionButton", true, false).size() >= 2, "settings has character and room pickers")
 		_check(window.find_children("*", "CheckBox", true, false).size() == 1, "settings has launch-at-login control")
 		var button_labels: Array[String] = []
@@ -40,6 +44,13 @@ func _run() -> void:
 			button_labels.append((button as Button).text)
 		_check("재발급" in button_labels, "settings has invite rotation control")
 		_check("이 그룹에서 나가기" in button_labels, "settings has room leave control")
+		var title := _find_label(window, "SIDEY 설정")
+		_check(title != null and title.get_theme_font_size("font_size") >= 32, "settings title is prominent")
+		var capture_path := _argument_value("--capture=")
+		if not capture_path.is_empty():
+			await process_frame
+			await RenderingServer.frame_post_draw
+			_check(window.get_texture().get_image().save_png(capture_path) == OK, "settings capture saved")
 	settings.close()
 	settings.queue_free()
 	platform.queue_free()
@@ -52,6 +63,21 @@ func _check(condition: bool, label: String) -> void:
 		return
 	_failures += 1
 	push_error("SETTINGS_UI_TEST_FAILED %s" % label)
+
+
+func _find_label(window: Window, text: String) -> Label:
+	for node in window.find_children("*", "Label", true, false):
+		var label := node as Label
+		if label.text == text:
+			return label
+	return null
+
+
+func _argument_value(prefix: String) -> String:
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with(prefix):
+			return argument.trim_prefix(prefix)
+	return ""
 
 
 func _finish() -> void:
