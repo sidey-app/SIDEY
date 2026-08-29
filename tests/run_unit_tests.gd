@@ -2,6 +2,8 @@ extends SceneTree
 
 const OverlayGeometryScript := preload("res://scripts/overlay/overlay_geometry.gd")
 const SettingsStoreScript := preload("res://scripts/settings/settings_store.gd")
+const CharacterCatalogScript := preload("res://scripts/characters/character_catalog.gd")
+const CharacterRowScript := preload("res://scripts/characters/character_row.gd")
 
 var _failures := 0
 var _checks := 0
@@ -10,6 +12,7 @@ var _checks := 0
 func _initialize() -> void:
 	_run_geometry_tests()
 	_run_settings_tests()
+	_run_character_data_tests()
 	if _failures == 0:
 		print("SIDEY_UNIT_TESTS_OK checks=%d" % _checks)
 		quit(0)
@@ -61,9 +64,29 @@ func _run_settings_tests() -> void:
 	DirAccess.remove_absolute(path)
 
 
+func _run_character_data_tests() -> void:
+	_check_equal(CharacterCatalogScript.has("minty_pup"), true, "catalog contains minty pup")
+	_check_equal(CharacterCatalogScript.get_entry("missing"), {}, "catalog rejects unknown character")
+	var single_position: Array[float] = [0.0]
+	_check_equal(CharacterRowScript.layout_positions(1), single_position, "single character centered")
+	var five_positions := CharacterRowScript.layout_positions(5)
+	_check_equal(five_positions.size(), 5, "five character layout count")
+	_check_approx(five_positions[0], -1.16, "five character layout start")
+	_check_approx(five_positions[4], 1.16, "five character layout end")
+	_check_equal(CharacterRowScript.layout_positions(8).size(), 5, "character row max five")
+
+
 func _check_equal(actual: Variant, expected: Variant, label: String) -> void:
 	_checks += 1
 	if actual == expected:
+		return
+	_failures += 1
+	push_error("TEST_FAILED %s expected=%s actual=%s" % [label, expected, actual])
+
+
+func _check_approx(actual: float, expected: float, label: String) -> void:
+	_checks += 1
+	if is_equal_approx(actual, expected):
 		return
 	_failures += 1
 	push_error("TEST_FAILED %s expected=%s actual=%s" % [label, expected, actual])
