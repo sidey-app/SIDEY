@@ -184,6 +184,24 @@ func set_active_room(room_id: String) -> Error:
 	return save_error
 
 
+func rename_room(room_id: String, room_name: String) -> Error:
+	var name_error := validate_room_name(room_name)
+	if name_error != OK:
+		return name_error
+	var profile_user_id := str(_profile.get("user_id", ""))
+	for index in _rooms.size():
+		if str(_rooms[index].get("id", "")) != room_id:
+			continue
+		if str(_rooms[index].get("owner_id", "")) != profile_user_id:
+			return ERR_UNAUTHORIZED
+		_rooms[index]["name"] = room_name.strip_edges()
+		var save_error := _save()
+		if save_error == OK:
+			rooms_changed.emit(rooms())
+		return save_error
+	return ERR_DOES_NOT_EXIST
+
+
 func mark_message_received(room_id: String) -> Error:
 	if not has_room(room_id):
 		return ERR_DOES_NOT_EXIST

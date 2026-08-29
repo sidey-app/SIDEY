@@ -9,6 +9,7 @@ const RoomControllerScript := preload("res://scripts/rooms/room_controller.gd")
 const CharacterHudScript := preload("res://scripts/characters/character_hud.gd")
 const ChatControllerScript := preload("res://scripts/chat/chat_controller.gd")
 const OnboardingControllerScript := preload("res://scripts/onboarding/onboarding_controller.gd")
+const SettingsControllerScript := preload("res://scripts/settings/settings_controller.gd")
 
 var _character_row: CharacterRow
 var _overlay_controller: OverlayController
@@ -22,6 +23,7 @@ var _room_controller: RoomController
 var _character_hud: CharacterHud
 var _chat_controller: ChatController
 var _onboarding_controller: OnboardingController
+var _settings_controller: SettingsController
 var _overlay_canvas: CanvasLayer
 var _screen_locked := false
 var _system_sleeping := false
@@ -199,7 +201,14 @@ func _setup_local_ux() -> void:
 	_onboarding_controller.name = "OnboardingController"
 	add_child(_onboarding_controller)
 	_onboarding_controller.completed.connect(_on_onboarding_completed)
+	_settings_controller = SettingsControllerScript.new()
+	_settings_controller.name = "SettingsController"
+	add_child(_settings_controller)
+	_settings_controller.configure(_room_controller, _platform_bridge)
+	_settings_controller.opened.connect(_on_settings_opened)
+	_settings_controller.closed.connect(_on_settings_closed)
 	_room_controller.active_room_changed.connect(_on_active_room_changed)
+	_room_controller.profile_changed.connect(_on_profile_changed)
 
 
 func _setup_status_menu() -> void:
@@ -215,6 +224,7 @@ func _setup_status_menu() -> void:
 		push_warning("STATUS_MENU_SETUP_FAILED error=%d" % status_menu_error)
 	_status_menu_controller.compose_requested.connect(_on_compose_requested)
 	_status_menu_controller.quit_requested.connect(_on_quit_requested)
+	_status_menu_controller.settings_requested.connect(_settings_controller.open)
 	_status_menu_controller.quiet_mode_changed.connect(_on_quiet_mode_changed)
 	_status_menu_controller.room_selected.connect(_on_room_selected)
 	_chat_controller.set_quiet_mode(_status_menu_controller.quiet_mode())
@@ -383,6 +393,11 @@ func _on_active_room_changed(_previous_room_id: String, _room_id: String) -> voi
 		_activate_room_session()
 
 
+func _on_profile_changed(_profile: Dictionary) -> void:
+	if _room_controller.is_onboarding_complete():
+		_activate_room_session()
+
+
 func _on_room_selected(room_id: String) -> void:
 	var error := _room_controller.set_active_room(room_id)
 	if error != OK:
@@ -397,6 +412,16 @@ func _on_quiet_mode_changed(enabled: bool) -> void:
 
 func _on_chat_input_visibility_changed(input_visible: bool) -> void:
 	_character_hud.set_identities_visible(not input_visible)
+
+
+func _on_settings_opened() -> void:
+	if DisplayServer.get_name() != "headless" and _platform_bridge.is_native_available():
+		_report_native_error(_platform_bridge.set_overlay_runtime_mode(false), "settings_runtime_mode")
+
+
+func _on_settings_closed() -> void:
+	if _platform_runtime_active and DisplayServer.get_name() != "headless":
+		_report_native_error(_platform_bridge.set_overlay_runtime_mode(true), "overlay_runtime_mode")
 
 
 func _on_message_accepted(message: Dictionary, active_room: bool) -> void:

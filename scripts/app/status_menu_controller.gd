@@ -108,8 +108,7 @@ func _rebuild_menu_items() -> void:
 	_popup_menu.add_check_item("조용히 모드", ITEM_QUIET)
 	_popup_menu.add_separator()
 	_popup_menu.add_item("위치 초기화", ITEM_RESET_POSITION)
-	_popup_menu.add_item("설정 (준비 중)", ITEM_SETTINGS)
-	_popup_menu.set_item_disabled(_popup_menu.get_item_index(ITEM_SETTINGS), true)
+	_popup_menu.add_item("설정", ITEM_SETTINGS)
 	_popup_menu.add_separator()
 	_popup_menu.add_item("SIDEY 종료", ITEM_QUIT)
 
