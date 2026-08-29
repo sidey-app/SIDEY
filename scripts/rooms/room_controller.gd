@@ -83,17 +83,9 @@ func set_profile(nickname: String, character_id: String = "minty_pup") -> Error:
 		return nickname_error
 	if not CharacterCatalogScript.has(character_id):
 		return ERR_DOES_NOT_EXIST
-	var nickname_key := normalize_nickname(nickname)
-	for room in _rooms:
-		for member in room.get("members", []) as Array:
-			if bool((member as Dictionary).get("is_self", false)):
-				continue
-			if str((member as Dictionary).get("nickname_key", "")) == nickname_key:
-				return ERR_ALREADY_EXISTS
 	_profile = {
 		"user_id": str(_profile.get("user_id", _new_local_id("user"))),
 		"nickname": nickname.strip_edges(),
-		"nickname_key": nickname_key,
 		"character_id": character_id,
 	}
 	_sync_self_member()
@@ -145,7 +137,6 @@ func join_demo_room(invite_code: String) -> Error:
 		members.append({
 			"user_id": "demo-user-%d" % (index + 1),
 			"nickname": friend_names[index],
-			"nickname_key": normalize_nickname(friend_names[index]),
 			"character_id": "minty_pup",
 			"presence": ["online", "typing", "away", "offline"][index],
 			"is_self": false,
@@ -261,11 +252,6 @@ static func validate_room_name(room_name: String) -> Error:
 	return OK
 
 
-static func normalize_nickname(nickname: String) -> String:
-	var whitespace := RegEx.create_from_string("\\s+")
-	return whitespace.sub(nickname.strip_edges().to_lower(), "", true)
-
-
 static func normalize_invite_code(invite_code: String) -> String:
 	return invite_code.strip_edges().to_upper().replace(" ", "")
 
@@ -285,7 +271,6 @@ func _self_member() -> Dictionary:
 	return {
 		"user_id": str(_profile.get("user_id", "local-user")),
 		"nickname": str(_profile.get("nickname", "나")),
-		"nickname_key": str(_profile.get("nickname_key", "나")),
 		"character_id": str(_profile.get("character_id", "minty_pup")),
 		"presence": "online",
 		"is_self": true,

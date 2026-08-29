@@ -143,7 +143,7 @@ func _run_room_controller_tests() -> void:
 	_check_equal(rooms.set_active_room(first_room_id), OK, "return to owned room")
 	_check_equal(rooms.rename_room(first_room_id, "이름 변경"), OK, "owner renames room")
 	_check_equal(rooms.active_room()["name"], "이름 변경", "renamed room persists in model")
-	_check_equal(rooms.set_profile(" 하 늘 ", "minty_pup"), ERR_ALREADY_EXISTS, "profile nickname conflict across rooms")
+	_check_equal(rooms.set_profile(" 하 늘 ", "minty_pup"), OK, "duplicate nickname is allowed in a room")
 	for index in 3:
 		_check_equal(rooms.create_room("추가 그룹 %d" % index), OK, "create room within user limit %d" % index)
 	_check_equal(rooms.create_room("여섯 번째"), ERR_BUSY, "reject sixth room")

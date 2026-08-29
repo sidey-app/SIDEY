@@ -4,17 +4,6 @@ create extension if not exists pg_cron with schema pg_catalog;
 create schema if not exists private;
 revoke all on schema private from public, anon, authenticated;
 
-create or replace function public.normalize_nickname(value text)
-returns text
-language sql
-immutable
-strict
-parallel safe
-set search_path = ''
-as $$
-  select lower(regexp_replace(btrim(value), '\s+', '', 'g'));
-$$;
-
 create or replace function private.hash_invite_code(value text)
 returns bytea
 language sql
@@ -41,7 +30,6 @@ $$;
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   nickname text not null,
-  nickname_key text generated always as (public.normalize_nickname(nickname)) stored,
   character_id text not null default 'minty_pup',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -67,11 +55,8 @@ create table public.rooms (
 create table public.room_members (
   room_id uuid not null references public.rooms(id) on delete cascade,
   user_id uuid not null references auth.users(id) on delete cascade,
-  nickname_key text not null,
   joined_at timestamptz not null default now(),
-  primary key (room_id, user_id),
-  constraint room_members_unique_nickname unique (room_id, nickname_key),
-  constraint room_members_nickname_key_present check (char_length(nickname_key) between 1 and 12)
+  primary key (room_id, user_id)
 );
 
 create index room_members_user_joined_idx on public.room_members (user_id, joined_at);
@@ -187,9 +172,7 @@ set search_path = ''
 as $$
 declare
   current_user_id uuid := auth.uid();
-  nickname_key_value text;
   saved_profile public.profiles;
-  conflict_rooms jsonb;
 begin
   if current_user_id is null then
     raise exception using errcode = '42501', message = 'authentication_required';
@@ -200,26 +183,6 @@ begin
   if p_character_id !~ '^[a-z0-9_]{1,40}$' then
     raise exception using errcode = '22023', message = 'invalid_character_id';
   end if;
-  nickname_key_value := public.normalize_nickname(p_nickname);
-
-  select jsonb_agg(jsonb_build_object('id', conflict.id, 'name', conflict.name))
-  into conflict_rooms
-  from (
-    select distinct rooms.id, rooms.name
-    from public.room_members mine
-    join public.room_members peer on peer.room_id = mine.room_id
-    join public.rooms on rooms.id = mine.room_id
-    where mine.user_id = current_user_id
-      and peer.user_id <> current_user_id
-      and peer.nickname_key = nickname_key_value
-  ) conflict;
-  if conflict_rooms is not null then
-    raise exception using
-      errcode = '23505',
-      message = 'nickname_conflict',
-      detail = conflict_rooms::text;
-  end if;
-
   insert into public.profiles (id, nickname, character_id)
   values (current_user_id, btrim(p_nickname), p_character_id)
   on conflict (id) do update
@@ -228,9 +191,6 @@ begin
       updated_at = now()
   returning * into saved_profile;
 
-  update public.room_members
-  set nickname_key = saved_profile.nickname_key
-  where user_id = current_user_id;
   return saved_profile;
 end;
 $$;
@@ -270,8 +230,8 @@ begin
     private.hash_invite_code(generated_code),
     '••••-••' || right(generated_code, 2)
   ) returning id into created_room_id;
-  insert into public.room_members (room_id, user_id, nickname_key)
-  values (created_room_id, current_user_id, current_profile.nickname_key);
+  insert into public.room_members (room_id, user_id)
+  values (created_room_id, current_user_id);
   return query select created_room_id, generated_code;
 end;
 $$;
@@ -330,15 +290,8 @@ begin
     return query select null::uuid, 'member_limit_reached'::text;
     return;
   end if;
-  if exists (
-    select 1 from public.room_members members
-    where members.room_id = target_room.id and members.nickname_key = current_profile.nickname_key
-  ) then
-    return query select null::uuid, 'nickname_conflict'::text;
-    return;
-  end if;
-  insert into public.room_members (room_id, user_id, nickname_key)
-  values (target_room.id, current_user_id, current_profile.nickname_key);
+  insert into public.room_members (room_id, user_id)
+  values (target_room.id, current_user_id);
   return query select target_room.id, null::text;
 end;
 $$;

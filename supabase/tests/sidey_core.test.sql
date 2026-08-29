@@ -44,7 +44,7 @@ begin
 end;
 $$;
 
-select is(public.normalize_nickname(' 민 트 '), '민트', 'nickname normalization removes whitespace');
+select has_column('public', 'profiles', 'nickname', 'profile stores a display nickname');
 select ok((select relrowsecurity from pg_class where oid = 'public.profiles'::regclass), 'profiles RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.rooms'::regclass), 'rooms RLS enabled');
 select ok((select relrowsecurity from pg_class where oid = 'public.room_members'::regclass), 'room members RLS enabled');
@@ -120,11 +120,9 @@ select is(
 );
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
-select throws_ok(
+select lives_ok(
   $$select public.upsert_profile(' 민 트 ', 'minty_pup')$$,
-  '23505',
-  'nickname_conflict',
-  'profile change rejects a nickname collision in any joined room'
+  'duplicate nickname is allowed in the same room'
 );
 select lives_ok(
   $$

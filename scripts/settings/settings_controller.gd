@@ -180,7 +180,7 @@ func _save_profile() -> void:
 		_nickname_edit.text,
 		_character_ids[_character_picker.selected],
 	)
-	_show_result(error, "프로필을 저장했음.", "닉네임 형식 또는 참여 그룹 내 중복을 확인해줘.")
+	_show_result(error, "프로필을 저장했음.", "닉네임은 공백을 제외하고 2~12자로 입력해줘.")
 
 
 func _select_room(index: int) -> void:
