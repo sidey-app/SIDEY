@@ -71,6 +71,17 @@ func _run() -> void:
 	_check(not first_bubble_rect.intersects(second_bubble_rect), "adjacent bubbles do not overlap")
 	_check(first_bubble_rect.position.x >= 0.0 and first_bubble_rect.end.x <= 720.0, "left bubble stays inside the overlay")
 	_check(hud.bubble_rect("friend-4").end.x <= 720.0, "right bubble stays inside the overlay")
+	var short_bubble_rect := hud.bubble_rect("friend-1")
+	var long_body := "가나다라마바사아자차카타파하".repeat(15)
+	hud.show_message("friend-1", long_body)
+	await process_frame
+	var long_bubble_rect := hud.bubble_rect("friend-1")
+	var long_bubble_label := hud.find_child("BubbleGroup_1", true, false).get_node("Bubble/Message") as Label
+	_check(is_equal_approx(long_bubble_rect.size.x, short_bubble_rect.size.x), "long bubble keeps the compact width")
+	_check(long_bubble_rect.size.y > short_bubble_rect.size.y, "long bubble grows vertically for wrapped text")
+	_check(long_bubble_label.max_lines_visible == CharacterHud.BUBBLE_MAX_LINES, "long bubble is capped at ten visible lines")
+	_check(long_bubble_label.get_visible_line_count() == CharacterHud.BUBBLE_MAX_LINES, "long bubble renders ten wrapped lines")
+	_check(not hud.bubble_rect("friend-0").intersects(long_bubble_rect), "expanded adjacent bubbles do not overlap")
 	var fixed_bubble_size := first_bubble_rect.size
 	var identity_size_150 := hud.identity_rect("friend-0").size
 	hud.set_overlay_scale(2.0)

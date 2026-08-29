@@ -14,6 +14,8 @@ const IDENTITY_HEIGHT := 30.0
 const IDENTITY_BASELINE_Y := IDENTITY_Y + IDENTITY_HEIGHT
 const SINGLE_BUBBLE_SIZE := Vector2(252.0, 70.0)
 const MULTI_BUBBLE_SIZE := Vector2(170.0, 54.0)
+const BUBBLE_MAX_LINES := 10
+const BUBBLE_TAIL_HEIGHT := 10.0
 const FIXED_UI_FACTOR := OverlayGeometryScript.FIXED_UI_FACTOR
 const BUBBLE_EDGE_MARGIN := 4.0
 const BUBBLE_COLLISION_GAP := 4.0
@@ -124,7 +126,7 @@ func _build_bubble_group(index: int, member_count: int) -> Control:
 	var bubble_size := SINGLE_BUBBLE_SIZE if member_count == 1 else MULTI_BUBBLE_SIZE
 	var group := Control.new()
 	group.name = "BubbleGroup_%d" % index
-	group.size = Vector2(bubble_size.x, bubble_size.y + 10.0)
+	group.size = Vector2(bubble_size.x, bubble_size.y + BUBBLE_TAIL_HEIGHT)
 	group.scale = Vector2.ONE * FIXED_UI_FACTOR
 	group.visible = false
 	group.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -133,19 +135,33 @@ func _build_bubble_group(index: int, member_count: int) -> Control:
 	bubble.custom_minimum_size = bubble_size
 	bubble.size = bubble_size
 	bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bubble.add_theme_stylebox_override("panel", SideyThemeScript.message_bubble_style())
+	var bubble_style := SideyThemeScript.message_bubble_style()
+	bubble.add_theme_stylebox_override("panel", bubble_style)
 	group.add_child(bubble)
 	var bubble_label := Label.new()
 	bubble_label.name = "Message"
 	bubble_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bubble_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	bubble_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	bubble_label.max_lines_visible = BUBBLE_MAX_LINES
 	bubble_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	bubble_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	bubble_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	bubble_label.add_theme_font_size_override("font_size", 15 if member_count > 1 else 17)
+	bubble_label.add_theme_constant_override("line_spacing", 0)
 	bubble_label.add_theme_color_override("font_color", SideyThemeScript.TEXT_PRIMARY)
 	bubble.add_child(bubble_label)
+	bubble_label.size = Vector2(
+		bubble_size.x
+			- bubble_style.get_content_margin(SIDE_LEFT)
+			- bubble_style.get_content_margin(SIDE_RIGHT),
+		maxf(
+			1.0,
+			bubble_size.y
+				- bubble_style.get_content_margin(SIDE_TOP)
+				- bubble_style.get_content_margin(SIDE_BOTTOM),
+		),
+	)
 	var tail := Polygon2D.new()
 	tail.name = "Tail"
 	tail.position = Vector2(bubble_size.x * 0.5 - 9.0, bubble_size.y - 1.0)
@@ -191,9 +207,11 @@ func show_message(user_id: String, body: String) -> void:
 	var label := slot["bubble_label"] as Label
 	var timer := slot["timer"] as Timer
 	label.text = body
+	_resize_bubble(slot)
 	bubble_group.visible = true
 	timer.start()
 	_relayout_bubbles()
+	_refresh_bubble_size.call_deferred(user_id)
 
 
 func hide_all_messages() -> void:
@@ -257,6 +275,24 @@ func _hide_message(user_id: String) -> void:
 	_relayout_bubbles()
 
 
+func _refresh_bubble_size(user_id: String) -> void:
+	if not _slots.has(user_id):
+		return
+	_resize_bubble(_slots[user_id] as Dictionary)
+	_relayout_bubbles()
+
+
+func _resize_bubble(slot: Dictionary) -> void:
+	var bubble_size := slot["bubble_size"] as Vector2
+	var group := slot["bubble_group"] as Control
+	var bubble := group.get_node("Bubble") as PanelContainer
+	var tail := group.get_node("Tail") as Polygon2D
+	bubble.size = bubble_size
+	bubble.reset_size()
+	group.size = Vector2(bubble_size.x, bubble.size.y + BUBBLE_TAIL_HEIGHT)
+	tail.position.y = bubble.size.y - 1.0
+
+
 func _layout_identity(slot: Dictionary) -> void:
 	var panel := slot["identity_panel"] as PanelContainer
 	var factor := _overlay_scale / OverlayGeometryScript.FIXED_WINDOW_SCALE
@@ -301,6 +337,8 @@ func _relayout_bubbles() -> void:
 		if _intersects_any(lower_rect.grow(BUBBLE_COLLISION_GAP), placed):
 			chosen = upper_rect
 		chosen.position.y = maxf(BUBBLE_EDGE_MARGIN, chosen.position.y)
+		if _intersects_any(chosen.grow(BUBBLE_COLLISION_GAP), placed):
+			chosen = _shift_bubble_horizontally(chosen, placed)
 		group.position = chosen.position
 		var tail := group.get_node("Tail") as Polygon2D
 		var tail_center_rendered := clampf(
@@ -329,6 +367,30 @@ static func _intersects_any(candidate: Rect2, placed: Array[Rect2]) -> bool:
 		if candidate.intersects(rect):
 			return true
 	return false
+
+
+static func _shift_bubble_horizontally(candidate: Rect2, placed: Array[Rect2]) -> Rect2:
+	var best := candidate
+	var best_distance := INF
+	for obstacle in placed:
+		if candidate.end.y <= obstacle.position.y or candidate.position.y >= obstacle.end.y:
+			continue
+		for candidate_x in [
+			obstacle.position.x - BUBBLE_COLLISION_GAP - candidate.size.x,
+			obstacle.end.x + BUBBLE_COLLISION_GAP,
+		]:
+			if candidate_x < BUBBLE_EDGE_MARGIN:
+				continue
+			if candidate_x + candidate.size.x > LOGICAL_WIDTH - BUBBLE_EDGE_MARGIN:
+				continue
+			var shifted := Rect2(Vector2(candidate_x, candidate.position.y), candidate.size)
+			if _intersects_any(shifted.grow(BUBBLE_COLLISION_GAP), placed):
+				continue
+			var distance := absf(candidate_x - candidate.position.x)
+			if distance < best_distance:
+				best = shifted
+				best_distance = distance
+	return best
 
 
 func presence_color(user_id: String) -> Color:
