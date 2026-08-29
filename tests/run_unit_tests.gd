@@ -6,6 +6,8 @@ const CharacterCatalogScript := preload("res://scripts/characters/character_cata
 const CharacterRowScript := preload("res://scripts/characters/character_row.gd")
 const RoomControllerScript := preload("res://scripts/rooms/room_controller.gd")
 const PresenceStateScript := preload("res://scripts/characters/presence_state.gd")
+const ChatStoreScript := preload("res://scripts/chat/chat_store.gd")
+const TypingTrackerScript := preload("res://scripts/chat/typing_tracker.gd")
 
 var _failures := 0
 var _checks := 0
@@ -16,6 +18,8 @@ func _initialize() -> void:
 	_run_settings_tests()
 	_run_character_data_tests()
 	_run_presence_state_tests()
+	_run_chat_store_tests()
+	_run_typing_tracker_tests()
 	_run_room_controller_tests()
 	if _failures == 0:
 		print("SIDEY_UNIT_TESTS_OK checks=%d" % _checks)
@@ -88,6 +92,36 @@ func _run_presence_state_tests() -> void:
 	_check_equal(PresenceStateScript.motion_state(PresenceState.Value.OFFLINE), CharacterState.Value.OFFLINE_SLEEP, "offline motion mapping")
 	_check_equal(PresenceStateScript.motion_state(PresenceState.Value.RECONNECTING), CharacterState.Value.OFFLINE_SLEEP, "reconnecting motion mapping")
 	_check_equal(PresenceStateScript.from_string("invalid"), PresenceState.Value.OFFLINE, "unknown presence is offline")
+
+
+func _run_chat_store_tests() -> void:
+	var chat = ChatStoreScript.new()
+	var message := {
+		"id": "message-1",
+		"room_id": "room-1",
+		"sender_id": "user-1",
+		"body": " 안녕 ",
+		"created_at": 20.0,
+	}
+	_check_equal(chat.insert(message), OK, "chat accepts valid message")
+	_check_equal(chat.insert(message), ERR_ALREADY_EXISTS, "chat deduplicates UUID")
+	_check_equal(chat.recent("room-1")[0]["body"], "안녕", "chat trims message body")
+	_check_equal(ChatStoreScript.validate_body(""), ERR_INVALID_PARAMETER, "chat rejects empty body")
+	_check_equal(ChatStoreScript.validate_body("a".repeat(201)), ERR_INVALID_PARAMETER, "chat rejects long body")
+	_check_equal(ChatStoreScript.validate_body("1\n2\n3"), OK, "chat accepts three lines")
+	_check_equal(ChatStoreScript.validate_body("1\n2\n3\n4"), ERR_INVALID_PARAMETER, "chat rejects fourth line")
+
+
+func _run_typing_tracker_tests() -> void:
+	var tracker = TypingTrackerScript.new()
+	_check_equal(tracker.note_input(10.0), &"typing_start", "typing starts on first input")
+	_check_equal(tracker.note_input(11.0), &"", "typing does not spam start")
+	_check_equal(tracker.poll(12.0), &"typing_keepalive", "typing keepalive every two seconds")
+	_check_equal(tracker.poll(14.9), &"typing_keepalive", "typing keepalive continues before expiry")
+	_check_equal(tracker.poll(15.0), &"typing_stop", "typing expires after four seconds")
+	_check_equal(tracker.note_input(20.0), &"typing_start", "typing restarts after expiry")
+	_check_equal(tracker.stop(), true, "typing explicit stop")
+	_check_equal(tracker.stop(), false, "typing stop is idempotent")
 
 
 func _run_room_controller_tests() -> void:
