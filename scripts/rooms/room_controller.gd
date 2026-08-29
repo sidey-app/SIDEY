@@ -221,6 +221,35 @@ func complete_onboarding() -> Error:
 	return _save()
 
 
+func replace_server_state(profile: Dictionary, server_rooms: Array[Dictionary]) -> Error:
+	if server_rooms.size() > MAX_ROOMS:
+		return ERR_INVALID_DATA
+	var unread_by_room: Dictionary = {}
+	for existing_room in _rooms:
+		unread_by_room[str(existing_room.get("id", ""))] = int(existing_room.get("unread", 0))
+	var next_rooms: Array[Dictionary] = []
+	for raw_room in server_rooms:
+		var room := raw_room.duplicate(true)
+		room["unread"] = maxi(0, int(unread_by_room.get(str(room.get("id", "")), 0)))
+		if not _is_valid_room_cache(room):
+			return ERR_INVALID_DATA
+		next_rooms.append(room)
+	_profile = profile.duplicate(true)
+	_rooms = next_rooms
+	var previous_room_id := _active_room_id
+	if not has_room(_active_room_id):
+		_active_room_id = str(_rooms[0].get("id", "")) if not _rooms.is_empty() else ""
+	_onboarding_complete = has_profile() and not _rooms.is_empty()
+	var save_error := _save()
+	if save_error != OK:
+		return save_error
+	profile_changed.emit(self.profile())
+	rooms_changed.emit(rooms())
+	if previous_room_id != _active_room_id:
+		active_room_changed.emit(previous_room_id, _active_room_id)
+	return OK
+
+
 func debug_replace_rooms(next_rooms: Array[Dictionary], active_room_id: String) -> Error:
 	if next_rooms.size() > MAX_ROOMS:
 		return ERR_INVALID_PARAMETER

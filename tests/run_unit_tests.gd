@@ -12,6 +12,7 @@ const BackendConfigScript := preload("res://scripts/backend/backend_config.gd")
 const RealtimeProtocolScript := preload("res://scripts/backend/realtime_protocol.gd")
 const ReconnectBackoffScript := preload("res://scripts/backend/reconnect_backoff.gd")
 const RealtimeClientScript := preload("res://scripts/backend/realtime_client.gd")
+const BackendRepositoryScript := preload("res://scripts/backend/backend_repository.gd")
 
 var _failures := 0
 var _checks := 0
@@ -25,6 +26,7 @@ func _initialize() -> void:
 	_run_chat_store_tests()
 	_run_typing_tracker_tests()
 	_run_backend_protocol_tests()
+	_run_backend_repository_tests()
 	_run_room_controller_tests()
 	if _failures == 0:
 		print("SIDEY_UNIT_TESTS_OK checks=%d" % _checks)
@@ -179,6 +181,29 @@ func _run_backend_protocol_tests() -> void:
 	_check_approx(backoff.next_delay(0.5), 15.0, "reconnect stays capped")
 	backoff.reset()
 	_check_equal(backoff.attempt(), 0, "reconnect reset")
+
+
+func _run_backend_repository_tests() -> void:
+	var snapshot := BackendRepositoryScript.map_snapshot(
+		"user-1",
+		[{"id": "user-1", "nickname": "민트", "character_id": "minty_pup"}],
+		[{"id": "room-1", "name": "친구들", "owner_id": "user-1", "invite_version": 1}],
+		[
+			{"room_id": "room-1", "user_id": "user-1", "joined_at": "2026-01-01T00:00:00Z"},
+			{"room_id": "room-1", "user_id": "user-2", "joined_at": "2026-01-02T00:00:00Z"},
+		],
+		[
+			{"id": "user-1", "nickname": "민트", "character_id": "minty_pup"},
+			{"id": "user-2", "nickname": "민트", "character_id": "minty_pup"},
+		],
+	)
+	_check_equal(snapshot["ok"], true, "backend snapshot maps")
+	_check_equal(snapshot["profile"]["user_id"], "user-1", "backend snapshot maps current profile")
+	_check_equal((snapshot["rooms"] as Array).size(), 1, "backend snapshot maps room")
+	var members := ((snapshot["rooms"] as Array)[0] as Dictionary)["members"] as Array
+	_check_equal(members.size(), 2, "backend snapshot maps members")
+	_check_equal((members[0] as Dictionary)["is_self"], true, "backend snapshot marks self")
+	_check_equal((members[0] as Dictionary)["nickname"], (members[1] as Dictionary)["nickname"], "backend snapshot preserves duplicate nicknames")
 
 
 func _run_room_controller_tests() -> void:

@@ -2,6 +2,7 @@ extends SceneTree
 
 const BackendConfigScript := preload("res://scripts/backend/backend_config.gd")
 const BackendClientScript := preload("res://scripts/backend/backend_client.gd")
+const BackendRepositoryScript := preload("res://scripts/backend/backend_repository.gd")
 
 var _failures := 0
 
@@ -52,6 +53,10 @@ func _run() -> void:
 	var messages: Dictionary = await backend.recent_messages(room_id)
 	_check(bool(messages.get("ok", false)), "messages query succeeds")
 	_check(_contains_message(messages.get("data", []) as Array, message_id), "stored message is queryable")
+	var snapshot: Dictionary = await BackendRepositoryScript.new().load_snapshot(backend)
+	_check(bool(snapshot.get("ok", false)), "room snapshot query succeeds")
+	_check((snapshot.get("rooms", []) as Array).size() == 1, "room snapshot contains joined room")
+	_check(str((snapshot.get("profile", {}) as Dictionary).get("nickname", "")) == "통합테스트", "room snapshot contains profile")
 	var leave: Dictionary = await backend.call_rpc("leave_room", {"p_room_id": room_id})
 	_check(bool(leave.get("ok", false)), "integration room is removed")
 	backend.queue_free()
