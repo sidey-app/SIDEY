@@ -10,8 +10,7 @@ const BASE_WINDOW_SIZE := Vector2i(720, 360)
 const SCREEN_POLL_INTERVAL := 0.5
 const SAVE_DEBOUNCE := 0.35
 const EDGE_MARGIN := 24
-const COMPOSER_RECT := Rect2(84.0, 142.0, 552.0, 146.0)
-const HISTORY_RECT := Rect2(374.0, 34.0, 338.0, 230.0)
+const INPUT_REGION_PADDING := 5.0
 
 var _window: Window
 var _settings_store: SettingsStore
@@ -26,9 +25,8 @@ var _save_elapsed := 0.0
 var _geometry_dirty := false
 var _configured := false
 var _headless := false
-var _control_region := Rect2(66.0, 296.0, 588.0, 62.0)
-var _composer_open := false
-var _history_open := false
+var _interactive_regions: Array[Rect2] = []
+var _input_polygon := PackedVector2Array()
 
 
 func configure(window: Window, settings_store: SettingsStore) -> Error:
@@ -71,15 +69,16 @@ func toggle_locked() -> void:
 	set_locked(not _locked)
 
 
-func set_control_region(region: Rect2) -> void:
-	_control_region = region
+func set_interactive_regions(regions: Array[Rect2]) -> void:
+	_interactive_regions.clear()
+	for region in regions:
+		if region.size.x > 0.0 and region.size.y > 0.0:
+			_interactive_regions.append(region)
 	_apply_input_policy()
 
 
-func set_auxiliary_ui_state(composer_open: bool, history_open: bool) -> void:
-	_composer_open = composer_open
-	_history_open = history_open
-	_apply_input_policy()
+func interactive_polygon() -> PackedVector2Array:
+	return _input_polygon.duplicate()
 
 
 func set_overlay_visible(visible: bool, persist := true) -> void:
@@ -155,9 +154,8 @@ func diagnostic_report() -> Dictionary:
 		"transparent": _window.transparent,
 		"unfocusable": _window.unfocusable,
 		"mouse_passthrough": _window.mouse_passthrough,
-		"mouse_passthrough_points": _window.mouse_passthrough_polygon.size(),
-		"composer_open": _composer_open,
-		"history_open": _history_open,
+		"mouse_passthrough_points": _input_polygon.size(),
+		"interactive_regions": _interactive_regions.size(),
 	}
 
 
@@ -305,27 +303,36 @@ func _report_settings_error(error: Error, field: String) -> void:
 
 
 func _apply_input_policy() -> void:
+	_input_polygon = _build_input_polygon()
 	if not _configured and _window == null:
 		return
 	if _headless:
 		return
 	_window.mouse_passthrough = false
-	if not _locked:
-		_window.unfocusable = false
-		_window.mouse_passthrough_polygon = PackedVector2Array()
-		return
-	_window.unfocusable = not _composer_open
-	var region := _control_region
-	if _composer_open:
-		region = region.merge(COMPOSER_RECT)
-	if _history_open:
-		region = region.merge(HISTORY_RECT)
-	_window.mouse_passthrough_polygon = _scaled_rect_polygon(region)
+	_window.unfocusable = _interactive_regions.is_empty()
+	_window.mouse_passthrough_polygon = _input_polygon
 
 
-func _scaled_rect_polygon(region: Rect2) -> PackedVector2Array:
-	var start := region.position * _scale
-	var end := region.end * _scale
+func _build_input_polygon() -> PackedVector2Array:
+	if _interactive_regions.is_empty():
+		return PackedVector2Array()
+	var merged := _rect_polygon(_interactive_regions[0].grow(INPUT_REGION_PADDING))
+	for index in range(1, _interactive_regions.size()):
+		var next := _rect_polygon(_interactive_regions[index].grow(INPUT_REGION_PADDING))
+		var result := Geometry2D.merge_polygons(merged, next)
+		if result.size() != 1:
+			push_warning("OVERLAY_INPUT_REGIONS_DISCONNECTED index=%d" % index)
+			continue
+		merged = result[0]
+	var scaled := PackedVector2Array()
+	for point in merged:
+		scaled.append(point * _scale)
+	return scaled
+
+
+static func _rect_polygon(region: Rect2) -> PackedVector2Array:
+	var start := region.position
+	var end := region.end
 	return PackedVector2Array([
 		start,
 		Vector2(end.x, start.y),

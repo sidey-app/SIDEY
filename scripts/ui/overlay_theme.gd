@@ -29,6 +29,24 @@ static func composer_style(focused := false) -> StyleBoxFlat:
 	)
 
 
+static func tray_style() -> StyleBoxFlat:
+	return _style(HUD_BACKGROUND, 14, Vector4(6, 6, 6, 6))
+
+
+static func history_style() -> StyleBoxFlat:
+	return _style(Color(0.02, 0.025, 0.03, 0.92), 18, Vector4(16, 14, 16, 14))
+
+
+static func style_icon_button(button: Button) -> void:
+	button.add_theme_color_override("icon_normal_color", TEXT_PRIMARY)
+	button.add_theme_color_override("icon_hover_color", Color.WHITE)
+	button.add_theme_color_override("icon_pressed_color", Color.WHITE)
+	button.add_theme_stylebox_override("normal", _style(Color.TRANSPARENT, 10, Vector4.ZERO))
+	button.add_theme_stylebox_override("hover", _style(Color(1.0, 1.0, 1.0, 0.12), 10, Vector4.ZERO))
+	button.add_theme_stylebox_override("pressed", _style(Color(1.0, 1.0, 1.0, 0.2), 10, Vector4.ZERO))
+	button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+
+
 static func _style(
 	color: Color,
 	radius: int,

@@ -14,13 +14,13 @@ const BackendConfigScript := preload("res://scripts/backend/backend_config.gd")
 const BackendRuntimeScript := preload("res://scripts/backend/backend_runtime.gd")
 const ActivityPresenceScript := preload("res://scripts/platform/activity_presence.gd")
 const SideyThemeScript := preload("res://scripts/ui/sidey_theme.gd")
-const OverlayToolbarScript := preload("res://scripts/overlay/overlay_toolbar.gd")
+const OverlayEditTrayScript := preload("res://scripts/overlay/overlay_edit_tray.gd")
 
 var _character_row: CharacterRow
 var _overlay_controller: OverlayController
 var _platform_bridge: PlatformBridge
 var _settings_store: SettingsStore
-var _overlay_toolbar
+var _overlay_edit_tray: OverlayEditTray
 var _debug_panel: Control
 var _status_menu_controller: StatusMenuController
 var _room_controller: RoomController
@@ -36,8 +36,6 @@ var _ephemeral_settings_path := ""
 var _backend_runtime: BackendRuntime
 var _idle_seconds := 0.0
 var _idle_poll_elapsed := 0.0
-var _composer_open := false
-var _history_open := false
 
 
 func _ready() -> void:
@@ -92,6 +90,8 @@ func _ready() -> void:
 	_on_overlay_visibility_changed(_overlay_controller.is_overlay_visible())
 	if _has_argument("--unlocked"):
 		_overlay_controller.set_locked(false, false)
+	elif _has_argument("--locked"):
+		_overlay_controller.set_locked(true, false)
 	if is_instance_valid(_backend_runtime):
 		_character_row.visible = false
 		_character_hud.visible = false
@@ -183,16 +183,15 @@ func _setup_ui() -> void:
 	_overlay_canvas.layer = 10
 	add_child(_overlay_canvas)
 
-	_overlay_toolbar = OverlayToolbarScript.new()
-	_overlay_toolbar.name = "OverlayToolbar"
-	_overlay_canvas.add_child(_overlay_toolbar)
-	_overlay_toolbar.compose_requested.connect(_on_compose_requested)
-	_overlay_toolbar.history_requested.connect(_on_history_requested)
-	_overlay_toolbar.locked_change_requested.connect(_overlay_controller.set_locked)
-	_overlay_toolbar.drag_requested.connect(_overlay_controller.begin_drag)
-	_overlay_toolbar.scale_requested.connect(_overlay_controller.set_overlay_scale)
-	_overlay_toolbar.set_overlay_scale(_overlay_controller.overlay_scale())
-	_overlay_controller.set_control_region(_overlay_toolbar.interactive_rect())
+	_overlay_edit_tray = OverlayEditTrayScript.new() as OverlayEditTray
+	_overlay_edit_tray.name = "OverlayEditTray"
+	_overlay_canvas.add_child(_overlay_edit_tray)
+	_overlay_edit_tray.history_requested.connect(_on_history_requested)
+	_overlay_edit_tray.locked_change_requested.connect(_overlay_controller.set_locked)
+	_overlay_edit_tray.drag_requested.connect(_overlay_controller.begin_drag)
+	_overlay_edit_tray.scale_requested.connect(_overlay_controller.set_overlay_scale)
+	_overlay_edit_tray.set_overlay_scale(_overlay_controller.overlay_scale())
+	_overlay_edit_tray.set_available(false)
 
 	if OS.is_debug_build() and _has_argument("--motion-controls"):
 		_debug_panel = HBoxContainer.new()
@@ -365,17 +364,20 @@ func _set_debug_motion(state: CharacterState.Value) -> void:
 
 
 func _on_locked_changed(locked: bool) -> void:
-	if is_instance_valid(_overlay_toolbar):
-		_overlay_toolbar.set_locked(locked)
+	if is_instance_valid(_overlay_edit_tray):
+		_overlay_edit_tray.set_locked(locked)
+	if is_instance_valid(_chat_controller):
+		_chat_controller.set_history_access_enabled(not locked)
 	if is_instance_valid(_debug_panel):
 		_debug_panel.visible = not locked
 	if is_instance_valid(_platform_bridge) and DisplayServer.get_name() != "headless":
 		_report_native_error(_platform_bridge.set_ignores_mouse_events(false), "mouse_passthrough_polygon")
+	_sync_overlay_interaction_state()
 
 
 func _on_scale_changed(scale: float) -> void:
-	if is_instance_valid(_overlay_toolbar):
-		_overlay_toolbar.set_overlay_scale(scale)
+	if is_instance_valid(_overlay_edit_tray):
+		_overlay_edit_tray.set_overlay_scale(scale)
 
 
 func _on_overlay_visibility_changed(overlay_visible: bool) -> void:
@@ -424,8 +426,8 @@ func _apply_debug_actions() -> void:
 		_on_compose_requested()
 	if _has_argument("--demo-message") and _room_controller.is_onboarding_complete():
 		var members: Array = _room_controller.active_room().get("members", []) as Array
-		if members.size() > 1:
-			var sender := members[1] as Dictionary
+		if not members.is_empty():
+			var sender := members[mini(1, members.size() - 1)] as Dictionary
 			_chat_controller.receive_message({
 				"id": "debug-message-%d" % Time.get_ticks_usec(),
 				"room_id": _room_controller.active_room_id(),
@@ -433,6 +435,8 @@ func _apply_debug_actions() -> void:
 				"body": "오늘 저녁 같이 먹을래?",
 				"created_at": Time.get_unix_time_from_system(),
 			})
+	if _has_argument("--open-history"):
+		_on_history_requested()
 
 
 func _has_argument(expected: String) -> bool:
@@ -467,14 +471,12 @@ func _argument_value(prefix: String) -> String:
 
 func _on_compose_requested() -> void:
 	_overlay_controller.set_overlay_visible(true)
-	_overlay_toolbar.reveal()
 	_chat_controller.open_composer()
 
 
 func _on_history_requested() -> void:
 	if not is_instance_valid(_chat_controller):
 		return
-	_overlay_toolbar.reveal()
 	_chat_controller.toggle_history()
 
 
@@ -498,7 +500,10 @@ func _activate_room_session() -> void:
 	_character_hud.visible = true
 	_character_hud.configure_room(room)
 	_chat_controller.set_anchor_x(_character_hud.self_anchor_x())
+	_overlay_edit_tray.set_character_anchor(_character_hud.self_anchor_x(), _chat_controller.composer_rect())
+	_overlay_edit_tray.set_available(true)
 	_chat_controller.set_session(room, _room_controller.profile())
+	_sync_overlay_interaction_state()
 	_activate_platform_runtime()
 
 
@@ -519,6 +524,9 @@ func _on_rooms_changed_for_session(_rooms: Array[Dictionary]) -> void:
 	_character_row.visible = false
 	_character_hud.clear_members()
 	_character_hud.visible = false
+	_chat_controller.set_session({}, {})
+	_overlay_edit_tray.set_available(false)
+	_sync_overlay_interaction_state()
 	_onboarding_controller.show_onboarding(_room_controller, _backend_runtime)
 
 
@@ -534,21 +542,25 @@ func _on_quiet_mode_changed(enabled: bool) -> void:
 		_character_hud.hide_all_messages()
 
 
-func _on_chat_input_visibility_changed(input_visible: bool) -> void:
-	_composer_open = input_visible
+func _on_chat_input_visibility_changed(_input_visible: bool) -> void:
 	_sync_overlay_interaction_state()
 
 
-func _on_history_visibility_changed(history_visible: bool) -> void:
-	_history_open = history_visible
+func _on_history_visibility_changed(_history_visible: bool) -> void:
 	_sync_overlay_interaction_state()
 
 
 func _sync_overlay_interaction_state() -> void:
-	if is_instance_valid(_overlay_toolbar):
-		_overlay_toolbar.set_context_active(_composer_open or _history_open)
-	if is_instance_valid(_overlay_controller):
-		_overlay_controller.set_auxiliary_ui_state(_composer_open, _history_open)
+	if not is_instance_valid(_overlay_controller):
+		return
+	var regions: Array[Rect2] = []
+	if is_instance_valid(_chat_controller) and _chat_controller.composer_visible():
+		regions.append(_chat_controller.composer_rect())
+	if is_instance_valid(_overlay_edit_tray) and _overlay_edit_tray.is_available():
+		regions.append(_overlay_edit_tray.interactive_rect())
+	if is_instance_valid(_chat_controller) and _chat_controller.history_visible():
+		regions.append(_chat_controller.history_rect())
+	_overlay_controller.set_interactive_regions(regions)
 
 
 func _on_settings_opened() -> void:

@@ -8,11 +8,12 @@ signal history_visibility_changed(visible: bool)
 
 const ChatStoreScript := preload("res://scripts/chat/chat_store.gd")
 const TypingTrackerScript := preload("res://scripts/chat/typing_tracker.gd")
-const SideyThemeScript := preload("res://scripts/ui/sidey_theme.gd")
 const OverlayThemeScript := preload("res://scripts/ui/overlay_theme.gd")
 const LOGICAL_WIDTH := 720.0
 const COMPOSER_SIZE := Vector2(224.0, 42.0)
 const COMPOSER_Y := 320.0
+const HISTORY_SIZE := Vector2(320.0, 226.0)
+const HISTORY_Y := 84.0
 const EDGE_MARGIN := 8.0
 
 var _room_controller: RoomController
@@ -31,6 +32,7 @@ var _send_in_progress := false
 var _anchor_x := LOGICAL_WIDTH * 0.5
 var _last_valid_draft := ""
 var _restoring_draft := false
+var _history_access_enabled := false
 
 
 func configure(
@@ -88,6 +90,8 @@ func set_anchor_x(anchor_x: float) -> void:
 	_anchor_x = clampf(anchor_x, 0.0, LOGICAL_WIDTH)
 	if is_instance_valid(_input_panel):
 		_input_panel.position = Vector2(_composer_left(), COMPOSER_Y)
+	if is_instance_valid(_history_panel):
+		_history_panel.position = Vector2(_history_left(), HISTORY_Y)
 
 
 func composer_visible() -> bool:
@@ -100,8 +104,14 @@ func composer_rect() -> Rect2:
 	return Rect2(_input_panel.position, _input_panel.size)
 
 
+func history_rect() -> Rect2:
+	if not history_visible():
+		return Rect2()
+	return Rect2(_history_panel.position, _history_panel.size)
+
+
 func toggle_history() -> void:
-	if not is_instance_valid(_history_panel) or _active_room_id.is_empty():
+	if not _history_access_enabled or not is_instance_valid(_history_panel) or _active_room_id.is_empty():
 		return
 	_history_panel.visible = not _history_panel.visible
 	if _history_panel.visible:
@@ -111,6 +121,19 @@ func toggle_history() -> void:
 
 func history_visible() -> bool:
 	return is_instance_valid(_history_panel) and _history_panel.visible
+
+
+func close_history() -> void:
+	if not history_visible():
+		return
+	_history_panel.visible = false
+	history_visibility_changed.emit(false)
+
+
+func set_history_access_enabled(enabled: bool) -> void:
+	_history_access_enabled = enabled
+	if not enabled:
+		close_history()
 
 
 func receive_message(message: Dictionary) -> Error:
@@ -178,24 +201,27 @@ func _build_ui() -> void:
 	_input_panel.add_child(_text_edit)
 
 	_history_panel = PanelContainer.new()
-	_history_panel.position = Vector2(378.0, 38.0)
-	_history_panel.size = Vector2(334.0, 222.0)
+	_history_panel.name = "HistoryPanel"
+	_history_panel.position = Vector2(_history_left(), HISTORY_Y)
+	_history_panel.custom_minimum_size = HISTORY_SIZE
+	_history_panel.size = HISTORY_SIZE
 	_history_panel.visible = false
-	_history_panel.add_theme_stylebox_override("panel", SideyThemeScript.message_bubble_style())
+	_history_panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	_history_panel.add_theme_stylebox_override("panel", OverlayThemeScript.history_style())
 	_canvas.add_child(_history_panel)
 	var history_content := VBoxContainer.new()
 	history_content.add_theme_constant_override("separation", 10)
 	_history_panel.add_child(history_content)
 	var history_title := Label.new()
 	history_title.text = "최근 메시지"
-	history_title.add_theme_font_size_override("font_size", 19)
-	history_title.add_theme_color_override("font_color", SideyThemeScript.TEXT_PRIMARY)
+	history_title.add_theme_font_size_override("font_size", 17)
+	history_title.add_theme_color_override("font_color", OverlayThemeScript.TEXT_PRIMARY)
 	history_content.add_child(history_title)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	history_content.add_child(scroll)
 	_history_list = VBoxContainer.new()
-	_history_list.custom_minimum_size = Vector2(292.0, 0.0)
+	_history_list.custom_minimum_size = Vector2(280.0, 0.0)
 	_history_list.add_theme_constant_override("separation", 10)
 	scroll.add_child(_history_list)
 
@@ -314,13 +340,13 @@ func _rebuild_history() -> void:
 		var sender := Label.new()
 		sender.text = _sender_name(str(message.get("sender_id", "")))
 		sender.add_theme_font_size_override("font_size", 14)
-		sender.add_theme_color_override("font_color", SideyThemeScript.TEXT_SECONDARY)
+		sender.add_theme_color_override("font_color", OverlayThemeScript.TEXT_SECONDARY)
 		message_block.add_child(sender)
 		var body := Label.new()
 		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		body.text = str(message.get("body", ""))
-		body.add_theme_font_size_override("font_size", 17)
-		body.add_theme_color_override("font_color", SideyThemeScript.TEXT_PRIMARY)
+		body.add_theme_font_size_override("font_size", 16)
+		body.add_theme_color_override("font_color", OverlayThemeScript.TEXT_PRIMARY)
 		message_block.add_child(body)
 		_history_list.add_child(message_block)
 
@@ -342,6 +368,14 @@ func _composer_left() -> float:
 		_anchor_x - COMPOSER_SIZE.x * 0.5,
 		EDGE_MARGIN,
 		LOGICAL_WIDTH - EDGE_MARGIN - COMPOSER_SIZE.x,
+	)
+
+
+func _history_left() -> float:
+	return clampf(
+		_anchor_x - HISTORY_SIZE.x * 0.5,
+		EDGE_MARGIN,
+		LOGICAL_WIDTH - EDGE_MARGIN - HISTORY_SIZE.x,
 	)
 
 

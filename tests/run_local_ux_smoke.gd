@@ -52,6 +52,16 @@ func _run() -> void:
 	_check(chat.receive_message(active_message) == OK, "active message accepted")
 	_check(chat.recent_messages(first_room_id).size() == 1, "active history rendered from store")
 	_check(_accepted_active_flags == [false, true], "active flag distinguishes bubble behavior")
+	chat.toggle_history()
+	_check(not chat.history_visible(), "history cannot open while overlay editing is locked")
+	chat.set_history_access_enabled(true)
+	chat.toggle_history()
+	_check(chat.history_visible(), "history opens after overlay editing is unlocked")
+	var history_panel := canvas.find_child("HistoryPanel", true, false) as PanelContainer
+	var history_style := history_panel.get_theme_stylebox("panel") as StyleBoxFlat
+	_check(history_style != null and history_style.bg_color.r < 0.1 and history_style.bg_color.a >= 0.8, "history uses a dark translucent panel")
+	chat.set_history_access_enabled(false)
+	_check(not chat.history_visible(), "locking closes the history panel")
 	if message_input != null:
 		var enter := _key_event(KEY_ENTER)
 		var shift_enter := _key_event(KEY_ENTER, true)
