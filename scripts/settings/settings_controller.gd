@@ -17,6 +17,11 @@ var _new_room_edit: LineEdit
 var _invite_code_edit: LineEdit
 var _launch_at_login: CheckBox
 var _feedback: Label
+var _invite_code_display: LineEdit
+var _copy_invite_button: Button
+var _rotate_invite_button: Button
+var _leave_room_button: Button
+var _members_list: VBoxContainer
 var _character_ids: Array[String] = []
 var _room_ids: Array[String] = []
 var _backend_runtime: BackendRuntime
@@ -53,8 +58,8 @@ func _build_window() -> void:
 	_window = Window.new()
 	_window.name = "SettingsWindow"
 	_window.title = "SIDEY 설정"
-	_window.size = Vector2i(540, 600)
-	_window.min_size = Vector2i(500, 540)
+	_window.size = Vector2i(560, 760)
+	_window.min_size = Vector2i(520, 680)
 	_window.transparent = false
 	_window.borderless = false
 	_window.always_on_top = false
@@ -137,6 +142,30 @@ func _build_window() -> void:
 		demo_help.add_theme_color_override("font_color", Color("75cdb5"))
 		content.add_child(demo_help)
 	content.add_child(HSeparator.new())
+	content.add_child(_section_label("그룹 관리"))
+	var invite_row := HBoxContainer.new()
+	_invite_code_display = LineEdit.new()
+	_invite_code_display.placeholder_text = "초대 코드 원문 없음"
+	_invite_code_display.editable = false
+	_invite_code_display.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	invite_row.add_child(_invite_code_display)
+	_copy_invite_button = Button.new()
+	_copy_invite_button.text = "복사"
+	_copy_invite_button.pressed.connect(_copy_invite_code)
+	invite_row.add_child(_copy_invite_button)
+	_rotate_invite_button = Button.new()
+	_rotate_invite_button.text = "재발급"
+	_rotate_invite_button.pressed.connect(_rotate_remote_invite)
+	invite_row.add_child(_rotate_invite_button)
+	content.add_child(invite_row)
+	_members_list = VBoxContainer.new()
+	_members_list.add_theme_constant_override("separation", 4)
+	content.add_child(_members_list)
+	_leave_room_button = Button.new()
+	_leave_room_button.text = "이 그룹에서 나가기"
+	_leave_room_button.pressed.connect(_leave_remote_room)
+	content.add_child(_leave_room_button)
+	content.add_child(HSeparator.new())
 	_launch_at_login = CheckBox.new()
 	_launch_at_login.text = "로그인할 때 SIDEY 자동 실행"
 	_launch_at_login.disabled = not _platform_bridge.is_native_available()
@@ -179,6 +208,7 @@ func _refresh_rooms() -> void:
 func _refresh_active_room_name() -> void:
 	if is_instance_valid(_room_name_edit):
 		_room_name_edit.text = str(_room_controller.active_room().get("name", ""))
+	_refresh_group_management()
 
 
 func _save_profile() -> void:
@@ -262,6 +292,75 @@ func _show_backend_result(result: Dictionary, success: String) -> void:
 	var ok := bool(result.get("ok", false))
 	_feedback.text = success if ok else "처리하지 못했음: %s" % str(result.get("error_code", "unknown"))
 	_feedback.add_theme_color_override("font_color", Color("75cdb5") if ok else Color("ff9d91"))
+
+
+func _refresh_group_management() -> void:
+	if not is_instance_valid(_invite_code_display):
+		return
+	var room := _room_controller.active_room()
+	var has_room := not room.is_empty()
+	var is_owner := has_room and str(room.get("owner_id", "")) == str(_room_controller.profile().get("user_id", ""))
+	var invite_code := ""
+	if is_owner and is_instance_valid(_backend_runtime):
+		invite_code = _backend_runtime.read_invite_code(str(room.get("id", "")))
+	_invite_code_display.text = invite_code
+	_invite_code_display.placeholder_text = str(room.get("invite_code_hint", "초대 코드 원문 없음")) \
+		if has_room else "활성 그룹 없음"
+	_copy_invite_button.disabled = invite_code.is_empty()
+	_rotate_invite_button.disabled = not is_owner or not is_instance_valid(_backend_runtime)
+	_leave_room_button.disabled = not has_room or not is_instance_valid(_backend_runtime)
+	_rebuild_member_management(room, is_owner)
+
+
+func _rebuild_member_management(room: Dictionary, is_owner: bool) -> void:
+	for child in _members_list.get_children():
+		child.queue_free()
+	for member in room.get("members", []) as Array:
+		var member_data := member as Dictionary
+		var row := HBoxContainer.new()
+		var label := Label.new()
+		label.text = "%s%s" % [
+			str(member_data.get("nickname", "친구")),
+			" · 나" if bool(member_data.get("is_self", false)) else "",
+		]
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(label)
+		if is_owner and not bool(member_data.get("is_self", false)) and is_instance_valid(_backend_runtime):
+			var remove_button := Button.new()
+			remove_button.text = "내보내기"
+			remove_button.pressed.connect(_remove_remote_member.bind(str(member_data.get("user_id", ""))))
+			row.add_child(remove_button)
+		_members_list.add_child(row)
+
+
+func _copy_invite_code() -> void:
+	if _invite_code_display.text.is_empty():
+		return
+	DisplayServer.clipboard_set(_invite_code_display.text)
+	_feedback.text = "초대 코드를 클립보드에 복사했음."
+	_feedback.add_theme_color_override("font_color", Color("75cdb5"))
+
+
+func _rotate_remote_invite() -> void:
+	var result: Dictionary = await _backend_runtime.rotate_invite_code(_room_controller.active_room_id())
+	_show_backend_result(result, "기존 코드를 폐기하고 새 초대 코드를 발급했음.")
+	_refresh_group_management()
+
+
+func _leave_remote_room() -> void:
+	var room_id := _room_controller.active_room_id()
+	var result: Dictionary = await _backend_runtime.leave_room(room_id)
+	_show_backend_result(result, "그룹에서 나왔음.")
+	_refresh_rooms()
+
+
+func _remove_remote_member(user_id: String) -> void:
+	var result: Dictionary = await _backend_runtime.remove_room_member(
+		_room_controller.active_room_id(),
+		user_id,
+	)
+	_show_backend_result(result, "멤버를 그룹에서 내보냈음.")
+	_refresh_group_management()
 
 
 func _toggle_launch_at_login(enabled: bool) -> void:

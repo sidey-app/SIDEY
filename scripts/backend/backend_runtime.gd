@@ -174,6 +174,10 @@ func rotate_invite_code(room_id: String) -> Dictionary:
 	return result
 
 
+func read_invite_code(room_id: String) -> String:
+	return _backend.read_invite_code(room_id)
+
+
 func leave_room(room_id: String) -> Dictionary:
 	var result: Dictionary = await _backend.call_rpc("leave_room", {"p_room_id": room_id})
 	if bool(result.get("ok", false)):

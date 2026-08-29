@@ -220,6 +220,7 @@ func _setup_local_ux() -> void:
 	_settings_controller.closed.connect(_on_settings_closed)
 	_room_controller.active_room_changed.connect(_on_active_room_changed)
 	_room_controller.profile_changed.connect(_on_profile_changed)
+	_room_controller.rooms_changed.connect(_on_rooms_changed_for_session)
 	if is_instance_valid(_backend_runtime):
 		_backend_runtime.message_received.connect(_on_backend_message_received)
 		_backend_runtime.typing_changed.connect(_on_backend_typing_changed)
@@ -488,6 +489,16 @@ func _on_active_room_changed(_previous_room_id: String, _room_id: String) -> voi
 func _on_profile_changed(_profile: Dictionary) -> void:
 	if _room_controller.is_onboarding_complete():
 		_activate_room_session()
+
+
+func _on_rooms_changed_for_session(_rooms: Array[Dictionary]) -> void:
+	if not is_instance_valid(_backend_runtime) or not _room_controller.rooms().is_empty():
+		return
+	_character_row.clear()
+	_character_row.visible = false
+	_character_hud.clear_members()
+	_character_hud.visible = false
+	_onboarding_controller.show_onboarding(_room_controller, _backend_runtime)
 
 
 func _on_room_selected(room_id: String) -> void:

@@ -35,6 +35,11 @@ func _run() -> void:
 		_check(not window.always_on_top, "settings is not overlay")
 		_check(window.find_children("*", "OptionButton", true, false).size() >= 2, "settings has character and room pickers")
 		_check(window.find_children("*", "CheckBox", true, false).size() == 1, "settings has launch-at-login control")
+		var button_labels: Array[String] = []
+		for button in window.find_children("*", "Button", true, false):
+			button_labels.append((button as Button).text)
+		_check("재발급" in button_labels, "settings has invite rotation control")
+		_check("이 그룹에서 나가기" in button_labels, "settings has room leave control")
 	settings.close()
 	settings.queue_free()
 	platform.queue_free()
