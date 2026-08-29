@@ -7,6 +7,7 @@ const SideyThemeScript := preload("res://scripts/ui/sidey_theme.gd")
 
 var _failures := 0
 var _settings_path := ""
+var _completed_count := 0
 
 
 func _initialize() -> void:
@@ -20,6 +21,7 @@ func _run() -> void:
 	_check(room_controller.configure(SettingsStoreScript.new(_settings_path)) == OK, "room controller configured")
 	var onboarding := OnboardingControllerScript.new() as OnboardingController
 	root.add_child(onboarding)
+	onboarding.completed.connect(func() -> void: _completed_count += 1)
 	onboarding.show_onboarding(room_controller)
 	var window := onboarding.get_node_or_null("OnboardingWindow") as Window
 	_check(window != null, "onboarding creates window")
@@ -99,7 +101,15 @@ func _run() -> void:
 			await process_frame
 			await RenderingServer.frame_post_draw
 			_check(window.get_texture().get_image().save_png(capture_min_path) == OK, "onboarding minimum-size capture saved")
-	onboarding.close()
+		var group_submit_button := window.find_child("GroupSubmitButton", true, false) as Button
+		group_submit_button.pressed.emit()
+		await process_frame
+		_check(room_controller.is_onboarding_complete(), "group submission completes onboarding")
+		_check(_completed_count == 1, "onboarding completion is emitted once")
+		_check(onboarding.get_node_or_null("OnboardingWindow") == null, "completed onboarding closes before routing onward")
+		onboarding.show_onboarding(room_controller)
+		await process_frame
+		_check(onboarding.get_node_or_null("OnboardingWindow") == null, "completed onboarding cannot reopen at profile step")
 	room_controller.queue_free()
 	finish.call_deferred()
 

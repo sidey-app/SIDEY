@@ -2,6 +2,7 @@ extends SceneTree
 
 const BackendConfigScript := preload("res://scripts/backend/backend_config.gd")
 const BackendRuntimeScript := preload("res://scripts/backend/backend_runtime.gd")
+const ChatControllerScript := preload("res://scripts/chat/chat_controller.gd")
 const RoomControllerScript := preload("res://scripts/rooms/room_controller.gd")
 const SettingsStoreScript := preload("res://scripts/settings/settings_store.gd")
 
@@ -37,6 +38,34 @@ func _run() -> void:
 	var self_user_id := str(rooms.profile().get("user_id", ""))
 	await _wait_until(func() -> bool: return _member_presence(rooms.room_by_id(first_room_id), self_user_id) == "online")
 	_check(_member_presence(rooms.room_by_id(first_room_id), self_user_id) == "online", "active room receives own online Presence")
+	var canvas := CanvasLayer.new()
+	root.add_child(canvas)
+	var chat := ChatControllerScript.new() as ChatController
+	root.add_child(chat)
+	chat.configure(rooms, canvas, runtime)
+	chat.set_session(rooms.active_room(), rooms.profile())
+	var optimistic_messages: Array[Dictionary] = []
+	chat.message_accepted.connect(func(message: Dictionary, active: bool) -> void:
+		if active and str(message.get("delivery_state", "")) == "pending":
+			optimistic_messages.append(message)
+	)
+	var message_input := canvas.find_child("MessageInput", true, false) as TextEdit
+	message_input.text = "낙관적 전송 통합 확인"
+	chat._on_text_changed()
+	chat._send_current_message()
+	_check(optimistic_messages.size() == 1, "remote chat emits optimistic message before awaiting Supabase")
+	_check(chat.recent_messages(first_room_id).size() == 1, "optimistic message enters local history immediately")
+	_check(message_input.text.is_empty(), "optimistic message clears composer immediately")
+	await _wait_until(func() -> bool: return not chat._send_in_progress)
+	_check(not chat.recent_messages(first_room_id)[0].has("delivery_state"), "Supabase response reconciles optimistic message")
+	var stored_messages: Dictionary = await runtime.backend_client().recent_messages(first_room_id)
+	_check(
+		_contains_message(
+			stored_messages.get("data", []) as Array,
+			str(optimistic_messages[0].get("id", "")),
+		),
+		"optimistic UUID is the Postgres message id",
+	)
 	var original_invite_code := runtime.read_invite_code(first_room_id)
 	_check(not original_invite_code.is_empty(), "owner invite code is available from secure client store")
 	var rotated: Dictionary = await runtime.rotate_invite_code(first_room_id)
@@ -69,6 +98,8 @@ func _run() -> void:
 		var left: Dictionary = await runtime.leave_room(room_id)
 		_check(bool(left.get("ok", false)), "integration room removed")
 	_check(rooms.rooms().is_empty(), "removed rooms disappear from cache")
+	chat.queue_free()
+	canvas.queue_free()
 	runtime.queue_free()
 	rooms.queue_free()
 	_finish.call_deferred()
@@ -85,6 +116,13 @@ func _member_presence(room: Dictionary, user_id: String) -> String:
 		if str((member as Dictionary).get("user_id", "")) == user_id:
 			return str((member as Dictionary).get("presence", "offline"))
 	return "offline"
+
+
+func _contains_message(messages: Array, message_id: String) -> bool:
+	for message in messages:
+		if message is Dictionary and str((message as Dictionary).get("id", "")) == message_id:
+			return true
+	return false
 
 
 func _check(condition: bool, label: String) -> void:

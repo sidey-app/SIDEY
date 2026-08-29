@@ -22,7 +22,7 @@ func insert(message: Dictionary) -> Error:
 		return ERR_ALREADY_EXISTS
 	var stored := message.duplicate(true)
 	stored["body"] = body.strip_edges()
-	_message_ids[message_id] = true
+	_message_ids[message_id] = room_id
 	var room_messages: Array = _messages_by_room.get(room_id, []) as Array
 	room_messages.append(stored)
 	room_messages.sort_custom(_sort_messages)
@@ -30,6 +30,50 @@ func insert(message: Dictionary) -> Error:
 		room_messages = room_messages.slice(room_messages.size() - RECENT_MESSAGE_LIMIT)
 	_messages_by_room[room_id] = room_messages
 	return OK
+
+
+func replace(message: Dictionary) -> Error:
+	var message_id := str(message.get("id", ""))
+	var room_id := str(message.get("room_id", ""))
+	var body := str(message.get("body", ""))
+	if message_id.is_empty() or room_id.is_empty() or str(message.get("sender_id", "")).is_empty():
+		return ERR_INVALID_DATA
+	if validate_body(body) != OK:
+		return ERR_INVALID_DATA
+	if not _message_ids.has(message_id):
+		return ERR_DOES_NOT_EXIST
+	if str(_message_ids[message_id]) != room_id:
+		return ERR_INVALID_DATA
+	var room_messages: Array = _messages_by_room.get(room_id, []) as Array
+	for index in room_messages.size():
+		if str((room_messages[index] as Dictionary).get("id", "")) != message_id:
+			continue
+		var stored := message.duplicate(true)
+		stored["body"] = body.strip_edges()
+		room_messages[index] = stored
+		room_messages.sort_custom(_sort_messages)
+		_messages_by_room[room_id] = room_messages
+		return OK
+	return ERR_DOES_NOT_EXIST
+
+
+func remove(message_id: String) -> Error:
+	if not _message_ids.has(message_id):
+		return ERR_DOES_NOT_EXIST
+	var room_id := str(_message_ids[message_id])
+	var room_messages: Array = _messages_by_room.get(room_id, []) as Array
+	for index in room_messages.size():
+		if str((room_messages[index] as Dictionary).get("id", "")) != message_id:
+			continue
+		room_messages.remove_at(index)
+		_message_ids.erase(message_id)
+		if room_messages.is_empty():
+			_messages_by_room.erase(room_id)
+		else:
+			_messages_by_room[room_id] = room_messages
+		return OK
+	_message_ids.erase(message_id)
+	return ERR_DOES_NOT_EXIST
 
 
 func recent(room_id: String, limit := RECENT_MESSAGE_LIMIT) -> Array[Dictionary]:

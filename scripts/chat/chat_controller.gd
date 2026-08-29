@@ -2,6 +2,7 @@ class_name ChatController
 extends Node
 
 signal message_accepted(message: Dictionary, active_room: bool)
+signal message_rejected(message: Dictionary, error_code: String)
 signal typing_event(action: StringName, room_id: String, user_id: String)
 signal input_visibility_changed(visible: bool)
 signal history_visibility_changed(visible: bool)
@@ -322,8 +323,25 @@ func _send_current_message() -> void:
 	if ChatStore.validate_body(body) != OK:
 		return
 	if is_instance_valid(_backend_runtime):
+		var optimistic_message := {
+			"id": _uuid_v4(),
+			"room_id": _active_room_id,
+			"sender_id": _self_user_id,
+			"body": body,
+			"created_at": Time.get_unix_time_from_system(),
+			"delivery_state": "pending",
+		}
+		var optimistic_error := _chat_store.insert(optimistic_message)
+		if optimistic_error != OK:
+			push_warning("OPTIMISTIC_MESSAGE_INSERT_FAILED error=%d" % optimistic_error)
+			return
 		_send_in_progress = true
-		_send_remote_message.call_deferred(body)
+		_text_edit.editable = false
+		_emit_typing_stop()
+		_clear_draft()
+		_rebuild_history()
+		message_accepted.emit(optimistic_message.duplicate(true), true)
+		_send_remote_message.call_deferred(optimistic_message)
 		return
 	var message := {
 		"id": "local-message-%d-%d" % [Time.get_ticks_usec(), randi()],
@@ -342,17 +360,25 @@ func _send_current_message() -> void:
 	message_accepted.emit(message, true)
 
 
-func _send_remote_message(body: String) -> void:
-	_text_edit.editable = false
-	var message_id := _uuid_v4()
+func _send_remote_message(optimistic_message: Dictionary) -> void:
+	var message_id := str(optimistic_message.get("id", ""))
+	var room_id := str(optimistic_message.get("room_id", ""))
+	var body := str(optimistic_message.get("body", ""))
 	var result: Dictionary = await _backend_runtime.send_message(
 		message_id,
-		_active_room_id,
+		room_id,
 		body,
 	)
 	_send_in_progress = false
 	_text_edit.editable = true
 	if not bool(result.get("ok", false)):
+		var remove_error := _chat_store.remove(message_id)
+		if remove_error not in [OK, ERR_DOES_NOT_EXIST]:
+			push_warning("OPTIMISTIC_MESSAGE_ROLLBACK_FAILED error=%d" % remove_error)
+		if room_id == _active_room_id:
+			_restore_failed_message_draft(body)
+			_rebuild_history()
+		message_rejected.emit(optimistic_message.duplicate(true), str(result.get("error_code", "unknown")))
 		push_warning("REMOTE_MESSAGE_SEND_FAILED code=%s message=%s" % [
 			str(result.get("error_code", "unknown")),
 			str(result.get("error_message", "")),
@@ -360,22 +386,23 @@ func _send_remote_message(body: String) -> void:
 		return
 	var message := _first_record(result.get("data"))
 	if message.is_empty():
-		message = {
-			"id": message_id,
-			"room_id": _active_room_id,
-			"sender_id": _self_user_id,
-			"body": body,
-			"created_at": Time.get_unix_time_from_system(),
-		}
-	var insert_error := _chat_store.insert(message)
-	if insert_error not in [OK, ERR_ALREADY_EXISTS]:
-		push_warning("REMOTE_MESSAGE_CACHE_FAILED error=%d" % insert_error)
-		return
-	_emit_typing_stop()
-	_clear_draft()
-	_rebuild_history()
-	if insert_error == OK:
-		message_accepted.emit(message, true)
+		message = optimistic_message.duplicate(true)
+	message.erase("delivery_state")
+	var replace_error := _chat_store.replace(message)
+	if replace_error != OK:
+		push_warning("REMOTE_MESSAGE_RECONCILE_FAILED error=%d" % replace_error)
+	if room_id == _active_room_id:
+		_rebuild_history()
+
+
+func _restore_failed_message_draft(body: String) -> void:
+	_last_valid_draft = body
+	_restoring_draft = true
+	_text_edit.text = body
+	var last_line := maxi(0, _text_edit.get_line_count() - 1)
+	_text_edit.set_caret_line(last_line)
+	_text_edit.set_caret_column(_text_edit.get_line(last_line).length())
+	_restoring_draft = false
 
 
 func _emit_typing_stop() -> void:

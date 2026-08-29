@@ -64,6 +64,11 @@ func open() -> void:
 	_window.popup_centered()
 
 
+func open_groups() -> void:
+	_active_page = SettingsPage.GROUPS
+	open()
+
+
 func close() -> void:
 	if is_instance_valid(_window):
 		_window.hide()

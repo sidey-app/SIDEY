@@ -4,6 +4,19 @@ const SettingsStoreScript := preload("res://scripts/settings/settings_store.gd")
 const RoomControllerScript := preload("res://scripts/rooms/room_controller.gd")
 const ChatControllerScript := preload("res://scripts/chat/chat_controller.gd")
 
+
+class FakeBackendRuntime:
+	extends BackendRuntime
+
+	var next_result: Dictionary = {"ok": true, "data": {}}
+	var sends: Array[Dictionary] = []
+
+	func send_message(message_id: String, room_id: String, body: String) -> Dictionary:
+		sends.append({"id": message_id, "room_id": room_id, "body": body})
+		await get_tree().process_frame
+		return next_result.duplicate(true)
+
+
 var _failures := 0
 var _settings_path := ""
 var _accepted_active_flags: Array[bool] = []
@@ -109,6 +122,44 @@ func _run() -> void:
 		message_count = chat.recent_messages(first_room_id).size()
 		chat._on_text_gui_input(enter)
 		_check(chat.recent_messages(first_room_id).size() == message_count, "blank message is rejected")
+		var fake_backend := FakeBackendRuntime.new()
+		root.add_child(fake_backend)
+		chat._backend_runtime = fake_backend
+		var optimistic_messages: Array[Dictionary] = []
+		var rejected_messages: Array[Dictionary] = []
+		chat.message_accepted.connect(func(message: Dictionary, _active: bool) -> void:
+			if str(message.get("delivery_state", "")) == "pending":
+				optimistic_messages.append(message)
+		)
+		chat.message_rejected.connect(func(message: Dictionary, _error_code: String) -> void:
+			rejected_messages.append(message)
+		)
+		message_input.text = "바로 보이는 말풍선"
+		chat._on_text_changed()
+		message_count = chat.recent_messages(first_room_id).size()
+		chat._send_current_message()
+		_check(chat.recent_messages(first_room_id).size() == message_count + 1, "remote send inserts optimistic history immediately")
+		_check(optimistic_messages.size() == 1, "remote send emits an immediate optimistic bubble")
+		_check(message_input.text.is_empty(), "optimistic send clears the draft before server response")
+		await _wait_until(func() -> bool: return not chat._send_in_progress)
+		_check(fake_backend.sends.size() == 1, "optimistic message is persisted to the backend")
+		_check(chat.recent_messages(first_room_id).size() == message_count + 1, "server success does not duplicate the optimistic message")
+		_check(not chat.recent_messages(first_room_id)[-1].has("delivery_state"), "server success reconciles pending delivery state")
+		fake_backend.next_result = {
+			"ok": false,
+			"error_code": "transport_error",
+			"error_message": "offline",
+		}
+		message_input.text = "실패하면 복구"
+		chat._on_text_changed()
+		message_count = chat.recent_messages(first_room_id).size()
+		chat._send_current_message()
+		_check(chat.recent_messages(first_room_id).size() == message_count + 1, "failed remote send is optimistic before the response")
+		await _wait_until(func() -> bool: return not chat._send_in_progress)
+		_check(chat.recent_messages(first_room_id).size() == message_count, "failed remote send rolls back optimistic history")
+		_check(message_input.text == "실패하면 복구", "failed remote send restores the original draft")
+		_check(rejected_messages.size() == 1, "failed remote send emits user feedback")
+		fake_backend.queue_free()
 	chat.queue_free()
 	canvas.queue_free()
 	rooms.queue_free()
@@ -131,6 +182,12 @@ func _key_event(keycode: Key, shift_pressed := false) -> InputEventKey:
 	event.pressed = true
 	event.shift_pressed = shift_pressed
 	return event
+
+
+func _wait_until(predicate: Callable, timeout_seconds := 2.0) -> void:
+	var deadline := Time.get_ticks_msec() + int(timeout_seconds * 1000.0)
+	while not predicate.call() and Time.get_ticks_msec() < deadline:
+		await process_frame
 
 
 func _check(condition: bool, label: String) -> void:

@@ -216,6 +216,7 @@ func _setup_local_ux() -> void:
 	add_child(_chat_controller)
 	_chat_controller.configure(_room_controller, _overlay_canvas, _backend_runtime, _platform_bridge)
 	_chat_controller.message_accepted.connect(_on_message_accepted)
+	_chat_controller.message_rejected.connect(_on_message_rejected)
 	_chat_controller.typing_event.connect(_on_typing_event)
 	_chat_controller.input_visibility_changed.connect(_on_chat_input_visibility_changed)
 	_chat_controller.history_visibility_changed.connect(_on_history_visibility_changed)
@@ -509,6 +510,7 @@ func _on_history_requested() -> void:
 func _on_onboarding_completed() -> void:
 	_activate_room_session()
 	_overlay_controller.set_overlay_visible(true)
+	_settings_controller.open_groups()
 
 
 func _activate_room_session() -> void:
@@ -620,6 +622,15 @@ func _on_message_accepted(message: Dictionary, active_room: bool) -> void:
 	if not active_room or _chat_controller.quiet_mode():
 		return
 	_character_hud.show_message(str(message.get("sender_id", "")), str(message.get("body", "")))
+
+
+func _on_message_rejected(message: Dictionary, _error_code: String) -> void:
+	if str(message.get("room_id", "")) != _room_controller.active_room_id() or _chat_controller.quiet_mode():
+		return
+	_character_hud.show_message(
+		str(message.get("sender_id", "")),
+		"전송 실패 · 입력창에서 다시 시도해줘",
+	)
 
 
 func _on_typing_event(action: StringName, room_id: String, user_id: String) -> void:

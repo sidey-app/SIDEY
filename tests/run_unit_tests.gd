@@ -140,6 +140,13 @@ func _run_chat_store_tests() -> void:
 	_check_equal(chat.insert(message), OK, "chat accepts valid message")
 	_check_equal(chat.insert(message), ERR_ALREADY_EXISTS, "chat deduplicates UUID")
 	_check_equal(chat.recent("room-1")[0]["body"], "안녕", "chat trims message body")
+	var saved_message := message.duplicate(true)
+	saved_message["body"] = "서버 저장 완료"
+	saved_message["created_at"] = 21.0
+	_check_equal(chat.replace(saved_message), OK, "chat reconciles an optimistic message")
+	_check_equal(chat.recent("room-1")[0]["body"], "서버 저장 완료", "chat reconciliation applies server record")
+	_check_equal(chat.remove("message-1"), OK, "chat rolls back an optimistic message")
+	_check_equal(chat.has_message("message-1"), false, "chat rollback clears message id")
 	_check_equal(ChatStoreScript.validate_body(""), ERR_INVALID_PARAMETER, "chat rejects empty body")
 	_check_equal(ChatStoreScript.validate_body("a".repeat(201)), ERR_INVALID_PARAMETER, "chat rejects long body")
 	_check_equal(ChatStoreScript.validate_body("1\n2\n3"), OK, "chat accepts three lines")

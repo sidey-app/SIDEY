@@ -43,6 +43,9 @@ var _error_panel: PanelContainer
 func show_onboarding(room_controller: RoomController, backend_runtime: BackendRuntime = null) -> void:
 	_room_controller = room_controller
 	_backend_runtime = backend_runtime
+	if _room_controller.is_onboarding_complete():
+		close()
+		return
 	if is_instance_valid(_window):
 		_window.popup_centered()
 		return
@@ -443,8 +446,8 @@ func _finish() -> void:
 	if error != OK:
 		_show_error("온보딩 상태를 저장하지 못했음 (오류 %d)." % error)
 		return
-	completed.emit()
 	close()
+	completed.emit()
 
 
 func _show_error(message: String) -> void:

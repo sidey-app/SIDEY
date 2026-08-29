@@ -74,6 +74,9 @@ func _run() -> void:
 		await process_frame
 		_check(pages.current_tab == 1 and title.text == "그룹", "sidebar changes the active settings page")
 		_check(group_navigation.theme_type_variation == &"SideyNavigationButtonSelected", "active navigation is highlighted")
+		settings.close()
+		settings.open_groups()
+		_check(pages.current_tab == 1 and title.text == "그룹", "post-onboarding route opens the group settings page")
 		var capture_group_path := _argument_value("--capture-group=")
 		if not capture_group_path.is_empty():
 			await RenderingServer.frame_post_draw

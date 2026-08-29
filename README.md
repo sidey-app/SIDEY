@@ -11,7 +11,7 @@
 
 화면 한켠의 3D 캐릭터로 가까운 친구의 상태와 짧은 메시지를 보여주는 데스크톱 오버레이 메신저입니다.
 
-[![macOS 13+ 다운로드](https://img.shields.io/badge/macOS_13%2B-Download-3182F6?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/aryu1217/SIDEY/releases/download/v0.1.0-alpha.1/SIDEY-macOS-universal-v0.1.0-alpha.1.zip)
+[![macOS 13+ 다운로드](https://img.shields.io/badge/macOS_13%2B-Download-3182F6?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/aryu1217/SIDEY/releases/download/v0.1.0-alpha.2/SIDEY-macOS-universal-v0.1.0-alpha.2.zip)
 ![Apple Silicon + Intel](https://img.shields.io/badge/Universal_2-Apple_Silicon_%2B_Intel-191F28?style=for-the-badge)
 ![Alpha](https://img.shields.io/badge/Status-Alpha-F04452?style=for-the-badge)
 
@@ -29,7 +29,7 @@
 
 지원 환경은 **macOS 13 Ventura 이상**이며 Apple Silicon과 Intel Mac을 모두 지원합니다.
 
-1. [SIDEY macOS ZIP 다운로드](https://github.com/aryu1217/SIDEY/releases/download/v0.1.0-alpha.1/SIDEY-macOS-universal-v0.1.0-alpha.1.zip)를 누릅니다.
+1. [SIDEY macOS ZIP 다운로드](https://github.com/aryu1217/SIDEY/releases/download/v0.1.0-alpha.2/SIDEY-macOS-universal-v0.1.0-alpha.2.zip)를 누릅니다.
 2. 다운로드한 ZIP의 압축을 풉니다.
 3. `SIDEY.app`을 macOS의 `응용 프로그램` 폴더로 옮깁니다.
 4. 처음 한 번은 Finder에서 `SIDEY.app`을 우클릭한 뒤 **열기**를 선택합니다.
@@ -48,7 +48,7 @@
 파일 무결성은 Release에 함께 올라온 `.sha256` 파일과 다음 명령의 결과를 비교해 확인할 수 있습니다.
 
 ```sh
-shasum -a 256 SIDEY-macOS-universal-v0.1.0-alpha.1.zip
+shasum -a 256 SIDEY-macOS-universal-v0.1.0-alpha.2.zip
 ```
 
 ## 기술 구성
