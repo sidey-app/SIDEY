@@ -529,8 +529,14 @@ func _show_backend_result(result: Dictionary, success: String) -> void:
 	var ok := bool(result.get("ok", false))
 	_show_feedback(
 		ok,
-		success if ok else "처리하지 못했음: %s" % str(result.get("error_code", "unknown")),
+		success if ok else "처리하지 못했음: %s" % _backend_error_code(result),
 	)
+
+
+func _backend_error_code(result: Dictionary) -> String:
+	var value: Variant = result.get("error_code")
+	var code := "" if value == null else str(value).strip_edges()
+	return "unknown" if code.is_empty() else code
 
 
 func _refresh_group_management() -> void:

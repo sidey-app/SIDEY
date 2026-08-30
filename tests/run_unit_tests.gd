@@ -207,6 +207,22 @@ func _run_backend_protocol_tests() -> void:
 	_check_equal(decoded_binary["payload"]["payload"]["record"]["id"], "message-1", "Realtime decodes binary JSON payload")
 	_check_equal(RealtimeClientScript.response_timed_out(10.0, 19.99), false, "Realtime response remains live before timeout")
 	_check_equal(RealtimeClientScript.response_timed_out(10.0, 20.0), true, "Realtime response times out at boundary")
+	_check_equal(
+		BackendRuntimeScript.business_error_code({
+			"ok": true,
+			"data": [{"room_id": "room-1", "error_code": null}],
+		}),
+		"",
+		"join RPC null error code is a success",
+	)
+	_check_equal(
+		BackendRuntimeScript.business_error_code({
+			"ok": true,
+			"data": [{"room_id": null, "error_code": "already_a_member"}],
+		}),
+		"already_a_member",
+		"join RPC business error is preserved",
+	)
 	var realtime = RealtimeClientScript.new()
 	_check_equal(realtime.configure(config, "jwt", "user-1"), OK, "Realtime client configures")
 	for index in 5:

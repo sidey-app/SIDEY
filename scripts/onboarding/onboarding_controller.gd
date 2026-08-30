@@ -428,7 +428,9 @@ func _set_busy(busy: bool) -> void:
 
 
 func _show_backend_error(result: Dictionary) -> void:
-	_show_error("처리하지 못했음: %s" % str(result.get("error_code", "unknown")))
+	var value: Variant = result.get("error_code")
+	var code := "" if value == null else str(value).strip_edges()
+	_show_error("처리하지 못했음: %s" % ("unknown" if code.is_empty() else code))
 
 
 func _validate_and_save_profile() -> Error:

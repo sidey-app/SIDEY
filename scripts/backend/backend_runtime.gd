@@ -134,7 +134,7 @@ func onboard_join(nickname: String, character_id: String, invite_code: String) -
 	if not bool(profile.get("ok", false)):
 		return profile
 	var joined: Dictionary = await _backend.join_room(invite_code)
-	var business_error := _business_error(joined)
+	var business_error := business_error_code(joined)
 	if not business_error.is_empty():
 		return _failure(business_error, business_error)
 	if not bool(joined.get("ok", false)):
@@ -152,7 +152,7 @@ func create_room(room_name: String) -> Dictionary:
 
 func join_room(invite_code: String) -> Dictionary:
 	var result: Dictionary = await _backend.join_room(invite_code)
-	var business_error := _business_error(result)
+	var business_error := business_error_code(result)
 	if not business_error.is_empty():
 		return _failure(business_error, business_error)
 	return await _sync_after_mutation(result)
@@ -378,13 +378,14 @@ func _sync_after_mutation(result: Dictionary) -> Dictionary:
 	return result if bool(synced.get("ok", false)) else synced
 
 
-static func _business_error(result: Dictionary) -> String:
+static func business_error_code(result: Dictionary) -> String:
 	if not bool(result.get("ok", false)) or not result.get("data") is Array:
 		return ""
 	var rows := result.data as Array
 	if rows.is_empty() or not rows[0] is Dictionary:
 		return ""
-	return str((rows[0] as Dictionary).get("error_code", ""))
+	var value: Variant = (rows[0] as Dictionary).get("error_code")
+	return "" if value == null else str(value).strip_edges()
 
 
 static func _typed_dictionaries(value: Variant) -> Array[Dictionary]:
