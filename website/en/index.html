@@ -76,7 +76,6 @@
     <main id="main">
       <section class="hero" aria-labelledby="hero-title">
         <div class="hero-copy">
-          <p class="eyebrow">Private ambient messenger · Alpha</p>
           <h1 id="hero-title">Your closest friends, quietly by your side.</h1>
           <p>
             Up to five close friends become tiny pixel animals on your screen. See presence,
@@ -87,10 +86,13 @@
               class="button button-primary"
               href="https://github.com/sidey-app/SIDEY/releases/download/v0.2.0-alpha.6/SIDEY-macOS-arm64-v0.2.0-alpha.6.dmg"
             >
-              <span class="button-icon" aria-hidden="true">↓</span>
+              <span class="platform-icon platform-icon-apple" aria-hidden="true">
+                <img src="../assets/apple-mark.svg" alt="" width="18" height="18">
+              </span>
               Download for macOS
             </a>
             <button class="button button-secondary" type="button" disabled aria-describedby="windows-hero-status">
+              <span class="platform-icon platform-icon-windows" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
               Download for Windows
             </button>
           </div>
@@ -137,7 +139,6 @@
 
       <section class="section" id="features" aria-labelledby="features-title">
         <div class="section-heading">
-          <p class="section-kicker">Close connection</p>
           <h2 id="features-title">Just enough connection, without opening another chat window.</h2>
           <p>See that your friends are around, then share a quick thought when it matters.</p>
         </div>
@@ -154,23 +155,42 @@
             <p>Typing dots appear only while someone uses the SIDEY composer. Sent messages briefly sit above their character.</p>
           </article>
           <article class="feature-card">
-            <span class="feature-icon" aria-hidden="true">↘</span>
-            <h3>Click-through by default</h3>
-            <p>The overlay passes pointer input to the app behind it. Only your character and the composer are explicitly interactive.</p>
+            <span class="feature-icon" aria-hidden="true">×7</span>
+            <h3>Double-click for a bigger hello</h3>
+            <p>Double-click your character to make it grow for a moment and catch your friends' attention. Your message bubble is easier to spot too.</p>
           </article>
         </div>
 
         <figure class="world-strip">
           <figcaption class="world-copy">
-            <strong>Five friends. One screen edge.</strong>
-            <span>Crisp 24×24 pixel characters, always scaled by whole numbers.</span>
+            <strong>See who's around at a glance.</strong>
+            <span>Each character keeps their nickname and current status close by.</span>
           </figcaption>
-          <span class="speech-bubble" aria-hidden="true">You did great today!</span>
-          <span class="character character-hamster" aria-hidden="true"></span>
-          <span class="character character-cat" aria-hidden="true"></span>
-          <span class="character character-puppy" aria-hidden="true"></span>
-          <span class="character character-rabbit" aria-hidden="true"></span>
-          <span class="character character-penguin" aria-hidden="true"></span>
+          <div class="friend-roster" role="list" aria-label="Examples of friend nicknames and current status">
+            <div class="friend-state friend-state-online" role="listitem">
+              <span class="friend-meta"><strong>Tiny Hamster</strong><span>Online</span></span>
+              <span class="character character-hamster character-state-walk" aria-hidden="true"></span>
+            </div>
+            <div class="friend-state friend-state-away" role="listitem">
+              <span class="friend-meta"><strong>Baby Cat</strong><span>Away</span></span>
+              <span class="friend-effect" aria-hidden="true">Zzz</span>
+              <span class="character character-cat character-state-away" aria-hidden="true"></span>
+            </div>
+            <div class="friend-state friend-state-offline" role="listitem">
+              <span class="friend-meta"><strong>Fluffy Pup</strong><span>Offline</span></span>
+              <span class="character character-puppy character-state-offline" aria-hidden="true"></span>
+            </div>
+            <div class="friend-state friend-state-typing" role="listitem">
+              <span class="friend-meta"><strong>Little Penguin</strong><span>Typing</span></span>
+              <span class="friend-typing" aria-hidden="true">•••</span>
+              <span class="character character-penguin character-state-typing" aria-hidden="true"></span>
+            </div>
+            <div class="friend-state friend-state-reaction" role="listitem">
+              <span class="friend-meta"><strong>Bunny Boss</strong><span>Big reaction</span></span>
+              <span class="speech-bubble" aria-hidden="true">You did great today!</span>
+              <span class="character character-rabbit character-state-reaction" aria-hidden="true"></span>
+            </div>
+          </div>
           <span class="scene-edge" aria-hidden="true"></span>
         </figure>
       </section>
@@ -228,6 +248,7 @@
             <span class="development-badge" id="windows-card-status">In development</span>
             <div class="download-actions">
               <button class="button button-secondary" type="button" disabled aria-describedby="windows-card-status">
+                <span class="platform-icon platform-icon-windows" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
                 Download for Windows
               </button>
             </div>
@@ -236,36 +257,6 @@
         </div>
       </section>
 
-      <section class="section" id="privacy" aria-labelledby="privacy-title">
-        <div class="privacy-panel">
-          <div>
-            <p class="section-kicker">Privacy boundary</p>
-            <h2 id="privacy-title">Your friends' presence, not what is on your screen.</h2>
-            <p>
-              The only global activity signals are time since the last system input and screen-lock state.
-              Typing status comes only from the SIDEY composer.
-            </p>
-          </div>
-          <ul class="privacy-list" aria-label="Data SIDEY does not collect">
-            <li>Screen contents</li>
-            <li>Active app lists</li>
-            <li>Keys typed in other apps</li>
-            <li>Mouse coordinates</li>
-            <li>File contents</li>
-            <li>Microphone or camera data</li>
-          </ul>
-        </div>
-        <aside class="alpha-panel" aria-labelledby="alpha-title">
-          <span class="alpha-mark" aria-hidden="true">!</span>
-          <div>
-            <h3 id="alpha-title">A note about the Alpha</h3>
-            <p>
-              E2EE is not currently provided. SIDEY also does not guarantee display above secure screens, DRM apps,
-              elevated apps, or every exclusive-fullscreen game.
-            </p>
-          </div>
-        </aside>
-      </section>
     </main>
 
     <footer class="site-footer">

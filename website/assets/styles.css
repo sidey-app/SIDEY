@@ -170,27 +170,6 @@ main {
   padding: 56px 0 92px;
 }
 
-.eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 22px;
-  color: var(--brand-dark);
-  font-size: 0.78rem;
-  font-weight: 820;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-}
-
-.eyebrow::before {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  background: var(--coral);
-  box-shadow: 10px 0 0 rgba(111, 115, 246, 0.36);
-  content: "";
-}
-
 .hero h1 {
   max-width: 720px;
   margin: 0;
@@ -201,7 +180,11 @@ main {
   text-wrap: balance;
 }
 
-.hero-copy > p:not(.eyebrow):not(.requirements) {
+.heading-line {
+  display: block;
+}
+
+.hero-copy > p:not(.requirements) {
   max-width: 590px;
   margin: 24px 0 0;
   color: var(--muted);
@@ -269,6 +252,35 @@ main {
 .button-icon {
   font-size: 1.12em;
   line-height: 1;
+}
+
+.platform-icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+}
+
+.platform-icon img {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.platform-icon-windows {
+  display: grid;
+  grid-template-columns: repeat(2, 7px);
+  grid-template-rows: repeat(2, 7px);
+  gap: 2px;
+}
+
+.platform-icon-windows i {
+  display: block;
+  width: 7px;
+  height: 7px;
+  background: currentColor;
 }
 
 .requirements {
@@ -495,6 +507,11 @@ main {
   animation-delay: -1.9s;
 }
 
+.character-penguin {
+  background-image: url("./characters/pixel_penguin.png");
+  animation-delay: -0.9s;
+}
+
 .speech-bubble {
   position: absolute;
   z-index: 6;
@@ -617,9 +634,7 @@ main {
 }
 
 .feature-card,
-.download-card,
-.privacy-panel,
-.alpha-panel {
+.download-card {
   border: 1px solid var(--line);
   background: var(--surface);
   box-shadow: 0 18px 50px rgba(65, 64, 120, 0.08);
@@ -672,8 +687,9 @@ main {
 
 .world-strip {
   position: relative;
-  min-height: 260px;
+  min-height: 390px;
   margin-top: 22px;
+  padding: 32px clamp(24px, 5vw, 58px) 3px;
   overflow: hidden;
   border: 1px solid rgba(64, 65, 106, 0.13);
   border-radius: var(--radius-large);
@@ -707,10 +723,9 @@ main {
 }
 
 .world-copy {
-  position: absolute;
-  top: 36px;
-  left: clamp(24px, 5vw, 58px);
-  max-width: 330px;
+  position: relative;
+  z-index: 4;
+  max-width: 430px;
 }
 
 .world-copy strong {
@@ -726,38 +741,135 @@ main {
   font-size: 0.88rem;
 }
 
-.world-strip .character {
+.friend-roster {
+  position: relative;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  height: 265px;
+  margin-top: 10px;
+}
+
+.friend-state {
+  position: relative;
+  min-width: 0;
+  height: 265px;
+}
+
+.friend-meta {
+  position: absolute;
+  z-index: 8;
+  bottom: 83px;
+  left: 50%;
+  display: grid;
+  min-width: max-content;
+  padding: 7px 10px;
+  border: 1px solid rgba(43, 45, 76, 0.1);
+  border-radius: 11px;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 20px rgba(49, 48, 91, 0.1);
+  font-size: 0.7rem;
+  line-height: 1.25;
+  transform: translateX(-50%);
+}
+
+.friend-meta strong {
+  font-size: 0.77rem;
+  font-weight: 820;
+}
+
+.friend-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 3px;
+  color: var(--muted);
+  font-weight: 680;
+}
+
+.friend-meta > span::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  content: "";
+}
+
+.friend-state-away .friend-meta > span::before {
+  background: var(--orange);
+}
+
+.friend-state-offline .friend-meta > span::before {
+  background: #dc5666;
+}
+
+.friend-state-reaction .friend-meta > span::before {
+  background: var(--brand-dark);
+}
+
+.friend-state .character {
   --frame: 72px;
+  right: auto;
   bottom: 3px;
+  left: 50%;
+  animation: none;
+  transform: translateX(-50%);
 }
 
-.world-strip .character-hamster {
-  left: 11%;
+.friend-state .character-state-walk {
+  background-position: 22.222% 0;
 }
 
-.world-strip .character-cat {
-  left: 30%;
+.friend-state .character-state-away {
+  background-position: 66.667% 0;
 }
 
-.world-strip .character-puppy {
-  left: 49%;
+.friend-state .character-state-offline {
+  background-position: 88.889% 0;
+  filter: grayscale(0.62) saturate(0.6) drop-shadow(0 5px 3px rgba(32, 31, 54, 0.12));
+  opacity: 0.75;
 }
 
-.world-strip .character-rabbit {
-  left: 68%;
+.friend-state-reaction .character {
+  --frame: 168px;
+  bottom: -1px;
 }
 
-.world-strip .character-penguin {
-  right: 9%;
-  left: auto;
-  background-image: url("./characters/pixel_penguin.png");
-  animation-delay: -0.9s;
+.friend-state-reaction .friend-meta {
+  bottom: 172px;
 }
 
-.world-strip .speech-bubble {
-  right: 20%;
-  bottom: 94px;
-  left: auto;
+.friend-state-reaction .speech-bubble {
+  right: auto;
+  bottom: 218px;
+  left: 50%;
+  min-width: max-content;
+  transform: translateX(-50%);
+}
+
+.friend-effect,
+.friend-typing {
+  position: absolute;
+  z-index: 7;
+  right: 19%;
+  bottom: 57px;
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.friend-effect {
+  color: var(--orange);
+  text-shadow: 0 1px 0 #fff;
+}
+
+.friend-typing {
+  padding: 3px 7px 5px;
+  border-radius: 999px;
+  color: var(--brand-dark);
+  background: #fff;
+  box-shadow: 0 7px 18px rgba(49, 48, 91, 0.13);
+  letter-spacing: 0.08em;
 }
 
 .download-section {
@@ -880,93 +992,6 @@ main {
   background: rgba(255, 255, 255, 0.22);
 }
 
-.privacy-panel {
-  display: grid;
-  grid-template-columns: 0.92fr 1.08fr;
-  gap: clamp(32px, 7vw, 92px);
-  padding: clamp(32px, 6vw, 72px);
-  border-radius: var(--radius-large);
-}
-
-.privacy-panel h2 {
-  max-width: 440px;
-}
-
-.privacy-panel > div > p:last-child {
-  margin: 17px 0 0;
-  color: var(--muted);
-}
-
-.privacy-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 11px;
-  align-content: center;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.privacy-list li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 50px;
-  padding: 10px 13px;
-  border: 1px solid rgba(57, 173, 114, 0.13);
-  border-radius: 13px;
-  color: #3f5f50;
-  background: rgba(231, 249, 239, 0.72);
-  font-size: 0.86rem;
-  font-weight: 690;
-}
-
-.privacy-list li::before {
-  display: grid;
-  flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
-  place-items: center;
-  border-radius: 50%;
-  color: #fff;
-  background: var(--green);
-  font-size: 0.68rem;
-  content: "✓";
-}
-
-.alpha-panel {
-  display: flex;
-  align-items: flex-start;
-  gap: 20px;
-  margin-top: 18px;
-  padding: 25px 28px;
-  border-radius: var(--radius-medium);
-  background: rgba(255, 248, 232, 0.84);
-}
-
-.alpha-mark {
-  display: grid;
-  flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border-radius: 11px;
-  color: #8b5906;
-  background: #ffe5ae;
-  font-weight: 900;
-}
-
-.alpha-panel h3 {
-  margin: 1px 0 4px;
-  font-size: 1rem;
-}
-
-.alpha-panel p {
-  margin: 0;
-  color: #74633f;
-  font-size: 0.86rem;
-}
-
 .site-footer {
   width: min(calc(100% - 40px), var(--content));
   margin: 0 auto;
@@ -1054,8 +1079,7 @@ main {
     min-height: 0;
   }
 
-  .download-grid,
-  .privacy-panel {
+  .download-grid {
     grid-template-columns: 1fr;
   }
 }
@@ -1147,41 +1171,32 @@ main {
   }
 
   .world-strip {
-    min-height: 245px;
+    min-height: 0;
+    padding: 28px 18px 3px;
   }
 
-  .world-strip .character {
-    --frame: 48px;
+  .friend-roster {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    height: auto;
+    margin-top: 18px;
   }
 
-  .world-strip .character-hamster {
-    left: 4%;
+  .friend-state {
+    height: 175px;
   }
 
-  .world-strip .character-cat {
-    left: 24%;
+  .friend-state-reaction {
+    grid-column: 1 / -1;
+    height: 265px;
   }
 
-  .world-strip .character-puppy {
-    left: 44%;
+  .friend-state-reaction .speech-bubble {
+    bottom: 218px;
   }
 
-  .world-strip .character-rabbit {
-    left: 64%;
-  }
-
-  .world-strip .character-penguin {
-    right: 2%;
-  }
-
-  .world-strip .speech-bubble {
-    right: 10%;
-    bottom: 76px;
-    left: auto;
-  }
-
-  .privacy-list {
-    grid-template-columns: 1fr;
+  .friend-effect,
+  .friend-typing {
+    right: 24%;
   }
 
   .footer-row {
@@ -1212,7 +1227,7 @@ main {
     aspect-ratio: 0.95 / 1;
   }
 
-  .character-rabbit {
+  .desktop-scene .character-rabbit {
     display: none;
   }
 
@@ -1248,9 +1263,7 @@ main {
   }
 
   .feature-card,
-  .download-card,
-  .privacy-panel,
-  .alpha-panel {
+  .download-card {
     background: var(--surface-solid);
   }
 }
