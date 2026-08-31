@@ -15,7 +15,7 @@
 ![Apple Silicon](https://img.shields.io/badge/Architecture-Apple_Silicon_arm64-191F28?style=for-the-badge)
 ![Alpha](https://img.shields.io/badge/Status-Alpha-F04452?style=for-the-badge)
 
-> 현재 공개 파일은 초기 테스트용 `alpha` 버전입니다. macOS용 빌드만 제공하며 UI와 동작이 바뀔 수 있습니다.
+> 현재 공개 파일은 초기 테스트용 `v0.2.0-alpha.4`(build 6)입니다. macOS용 빌드만 제공하며 UI와 동작이 바뀔 수 있습니다.
 
 Windows 11 25H2 x64 네이티브판은 별도 코드베이스로 개발 중입니다. 아직 공개 설치 파일은 없으며, 햄스터 1종 플랫폼 검증을 통과하기 전에는 Windows판을 완성 또는 배포 가능 상태로 보지 않습니다.
 
@@ -29,34 +29,39 @@ Windows 11 25H2 x64 네이티브판은 별도 코드베이스로 개발 중입�
 
 ## macOS 설치
 
-지원 환경은 **macOS 26 이상, Apple Silicon Mac**입니다. Intel Mac은 이 네이티브 alpha에서 지원하지 않습니다.
+지원 환경은 **macOS 26 이상, Apple Silicon(arm64) Mac**입니다. Intel Mac은 이 네이티브 alpha에서 지원하지 않습니다. 공개 배포본은 Developer ID Application으로 서명하고 Apple 공증과 ticket staple을 마쳤습니다.
 
-1. [SIDEY Releases](https://github.com/sidey-app/SIDEY/releases)에서 최신 `SIDEY-macOS-arm64-<version>.zip`을 받습니다.
-2. 다운로드한 ZIP의 압축을 풉니다.
-3. `SIDEY.app`을 macOS의 `응용 프로그램` 폴더로 옮깁니다.
-4. 처음 한 번은 Finder에서 `SIDEY.app`을 우클릭한 뒤 **열기**를 선택합니다.
+### Homebrew로 설치
 
-### macOS가 실행을 막는 경우
+```sh
+brew install --cask sidey-app/tap/sidey
+```
 
-이 alpha 빌드는 Apple Developer ID로 공증되지 않은 ad-hoc 서명 앱입니다. Apple이 확인한 개발자 앱처럼 바로 실행되지는 않습니다.
+업데이트와 삭제는 각각 다음 명령을 사용합니다. 삭제해도 SIDEY 계정과 로컬 설정은 자동으로 지우지 않습니다.
 
-1. `SIDEY.app` 실행을 한 번 시도합니다.
-2. **시스템 설정 → 개인정보 보호 및 보안**으로 이동합니다.
-3. 보안 영역에서 SIDEY의 **확인 없이 열기**를 누릅니다.
-4. 다시 표시되는 확인창에서 **열기**를 선택합니다.
+```sh
+brew upgrade --cask sidey-app/tap/sidey
+brew uninstall --cask sidey-app/tap/sidey
+```
 
-반드시 이 저장소의 [공식 GitHub Releases](https://github.com/sidey-app/SIDEY/releases)에서 받은 파일만 실행하세요. 자세한 절차와 위험은 [Apple의 미확인 개발자 앱 안내](https://support.apple.com/en-ca/102445)를 확인할 수 있습니다.
+### DMG로 직접 설치
+
+1. [SIDEY Releases](https://github.com/sidey-app/SIDEY/releases)에서 최신 `SIDEY-macOS-arm64-<version>.dmg`를 받습니다.
+2. DMG를 열고 `SIDEY.app`을 `Applications` 바로가기로 드래그합니다.
+3. 응용 프로그램 폴더에서 `SIDEY.app`을 실행합니다.
+
+ZIP은 Sparkle 자동 업데이트용 산출물입니다. 새로 설치할 때는 DMG를 사용하세요.
 
 ### alpha 업데이트
 
-Sparkle이 없는 기존 alpha는 새 Release의 ZIP을 내려받아 기존 `/Applications/SIDEY.app`을 한 번 수동 교체해야 합니다. Sparkle 내장 빌드부터 메뉴바의 **업데이트 확인…**과 사용자 동의 기반 자동 확인을 사용할 수 있습니다. Apple Developer ID 활성화 전에는 서명된 업데이트 피드에 배포 항목을 올리지 않으므로, ad-hoc alpha에서 자동 업데이트가 즉시 제공된다고 보면 안 됩니다.
+Homebrew 설치본은 `brew upgrade --cask sidey-app/tap/sidey`로 갱신할 수 있습니다. Sparkle 내장 빌드는 메뉴바의 **업데이트 확인…**과 사용자 동의 기반 자동 확인도 제공합니다. Sparkle이 없던 과거 alpha는 최신 DMG로 한 번 수동 교체해야 합니다.
 
-앱 번들만 바꾸므로 계정 세션, 그룹, 닉네임과 로컬 설정은 유지됩니다. 수동 교체 시 실행 중인 SIDEY는 먼저 종료해야 합니다.
+앱 번들만 바꾸므로 계정 세션, 그룹, 닉네임과 로컬 설정은 유지됩니다. 수동 교체 시 실행 중인 SIDEY는 먼저 종료해야 합니다. 로컬 개발본 `Sidey-dev`는 Sparkle을 시작하지 않으며 업데이트 확인 메뉴도 비활성화됩니다.
 
 파일 무결성은 Release에 함께 올라온 `.sha256` 파일과 다음 명령의 결과를 비교해 확인할 수 있습니다.
 
 ```sh
-shasum -a 256 SIDEY-macOS-arm64-*.zip
+shasum -a 256 SIDEY-macOS-arm64-*.dmg
 ```
 
 ## 기술 구성
@@ -105,6 +110,12 @@ macOS 26과 Xcode 26 이상이 필요합니다. 기본 macOS 내보내기는 네
 ./scripts/macos/test_native.sh
 ```
 
+최신 `Release` 구성의 ad-hoc 개발본을 검증해 `/Applications/Sidey-dev.app` 하나로 설치하고 실행하려면 다음 스크립트를 사용합니다. 표시명과 채널만 `Sidey-dev`·`development`이며, 기존 익명 계정·그룹·설정을 이어 쓰기 위해 bundle ID와 `com.sidey.desktop` Keychain service는 배포본과 같습니다.
+
+```sh
+./scripts/install_macos_dev.sh
+```
+
 테스트 DerivedData는 macOS의 `Documents` 폴더 파일 접근 지연과
 `SIDEY.app` 중복 산출물을 피하도록 임시 디렉터리에 만들고 종료 시 삭제합니다.
 
@@ -113,7 +124,7 @@ macOS 26과 Xcode 26 이상이 필요합니다. 기본 macOS 내보내기는 네
 버전 태그와 일치하는 검증된 Release ZIP을 만들려면 다음 명령을 사용합니다.
 
 ```sh
-./scripts/package_macos_release.sh v0.2.0-alpha.3
+./scripts/package_macos_release.sh v0.2.0-alpha.4
 ```
 
 Developer ID 활성화 뒤 실제 배포본은 인증서 이름, Team ID, `notarytool` Keychain profile을 지정해 같은 스크립트로 서명·공증·staple까지 끝냅니다. 신규 설치용 DMG에는 `SIDEY.app`과 `Applications` 바로가기가 들어가며, Sparkle 업데이트용 ZIP과 함께 각각 SHA-256 파일이 생성됩니다. 공증 profile을 지정하지 않은 ad-hoc 빌드는 ZIP만 만들고 배포용 DMG 생성을 거부합니다.
@@ -123,7 +134,7 @@ SIDEY_CODE_SIGN_IDENTITY="Developer ID Application: YOUR NAME (TEAMID)" \
 SIDEY_DEVELOPMENT_TEAM="TEAMID" \
 SIDEY_HARDENED_RUNTIME=YES \
 SIDEY_NOTARYTOOL_PROFILE="sidey-notary" \
-  ./scripts/package_macos_release.sh v0.2.0-alpha.3
+  ./scripts/package_macos_release.sh v0.2.0-alpha.4
 ```
 
 Developer ID로 서명·공증하고 GitHub Release에 동일 ZIP을 업로드한 뒤 Sparkle appcast를 만들려면 다음 명령을 사용합니다. ad-hoc 빌드는 appcast 게시 도구가 기본적으로 거부합니다.
@@ -131,6 +142,6 @@ Developer ID로 서명·공증하고 GitHub Release에 동일 ZIP을 업로드�
 ```sh
 SIDEY_RELEASE_NOTES=/path/to/release-notes.md \
   ./scripts/macos/prepare_sparkle_appcast.sh \
-  v0.2.0-alpha.3 \
-  build/releases/v0.2.0-alpha.3/SIDEY-macOS-arm64-v0.2.0-alpha.3.zip
+  v0.2.0-alpha.4 \
+  build/releases/v0.2.0-alpha.4/SIDEY-macOS-arm64-v0.2.0-alpha.4.zip
 ```

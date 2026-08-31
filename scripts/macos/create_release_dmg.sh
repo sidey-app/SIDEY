@@ -38,7 +38,7 @@ printf '%s\n' "$SIDEY_APP_SIGNATURE" | grep -Eq '^Authority=Developer ID Applica
 	echo "SIDEY.app is not signed with Developer ID Application" >&2
 	exit 65
 }
-printf '%s\n' "$SIDEY_APP_SIGNATURE" | grep -Eq '^flags=.*runtime' || {
+printf '%s\n' "$SIDEY_APP_SIGNATURE" | grep -Eq 'flags=.*runtime' || {
 	echo "SIDEY.app is missing Hardened Runtime" >&2
 	exit 65
 }

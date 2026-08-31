@@ -16,11 +16,30 @@ final class AppUpdateControllerTests: XCTestCase {
         )
         XCTAssertEqual(info?["SURequireSignedFeed"] as? Bool, true)
         XCTAssertEqual(info?["SUVerifyUpdateBeforeExtraction"] as? Bool, true)
+        XCTAssertEqual(info?["SIDEYReleaseChannel"] as? String, "development")
+        XCTAssertEqual(info?["CFBundleDisplayName"] as? String, "Sidey-dev")
     }
 
-    func testSparkleControllerCanBeCreatedWithoutStartingNetworkChecks() {
-        let controller = SparkleUpdateController(startingUpdater: false)
+    func testProductionSparkleControllerCanBeCreatedWithoutStartingNetworkChecks() {
+        let controller = SparkleUpdateController(
+            releaseChannel: .production,
+            startingUpdater: false
+        )
 
         XCTAssertFalse(controller.canCheckForUpdates)
+    }
+
+    func testDevelopmentChannelDoesNotStartOrExposeSparkleUpdater() {
+        let controller = SparkleUpdateController(
+            releaseChannel: .development,
+            startingUpdater: true
+        )
+
+        XCTAssertFalse(controller.canCheckForUpdates)
+        controller.checkForUpdates()
+    }
+
+    func testUnknownReleaseChannelIsRejected() {
+        XCTAssertNil(AppReleaseChannel(rawValue: "preview"))
     }
 }

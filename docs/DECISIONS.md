@@ -53,10 +53,12 @@
 | 창 보장 범위 | 보안 화면, DRM 앱, 권한이 높은 앱, 모든 독점 전체화면 게임 위 표시를 보장하지 않음 | OS 보안 정책을 제품 약속으로 우회할 수 없다. |
 | 코드베이스 기준 | `main`에 macOS SwiftUI·AppKit·SpriteKit와 Windows C#·WinUI 3·Win32 네이티브 앱을 함께 유지하되 Godot·3D 런타임은 재도입하지 않음 | 플랫폼 구현은 분리하고 Postgres·Realtime 계약과 자동화 테스트로 동등성을 관리한다. 기존 macOS 세션·설정 migration 계층은 유지한다. |
 | 서버 계약 | 운영에 적용된 `20260829000000_sidey_core.sql`이 방당 5명과 사용자당 5개 방을 이미 강제하며 pixel-world 전용 schema migration은 추가하지 않음 | 운영과 `main`의 최종 계약이 같으므로 임시 20명 staging migration을 승격하지 않는다. |
-| macOS 업데이트 | Sparkle `2.9.6`을 앱에 내장하고 GitHub의 HTTPS appcast와 Release ZIP을 사용. ZIP과 appcast는 `sidey-app` 전용 EdDSA 키로 서명하고 다운로드 압축 해제 전 검증과 signed feed 검증을 강제. 메뉴에서 수동 확인을 제공하고 자동 확인은 Sparkle의 사용자 동의 흐름을 따름 | 실행 코드를 바꾸는 공급망이므로 공개키만 앱과 저장소에 두고 개인키는 release operator의 Keychain·암호화 오프라인 백업에만 둔다. Developer ID 서명, Hardened Runtime, 공증·staple을 통과하지 않은 ZIP은 appcast에 게시하지 않는다. |
+| macOS 업데이트 | Sparkle `2.9.6`을 production 채널 앱에만 시작하고 GitHub의 HTTPS appcast와 Release ZIP을 사용. ZIP과 appcast는 `sidey-app` 전용 EdDSA 키로 서명하고 다운로드 압축 해제 전 검증과 signed feed 검증을 강제. production 메뉴에서 수동 확인을 제공하고 자동 확인은 Sparkle의 사용자 동의 흐름을 따름 | 실행 코드를 바꾸는 공급망이므로 공개키만 앱과 저장소에 두고 개인키는 release operator의 Keychain·암호화 오프라인 백업에만 둔다. Developer ID 서명, Hardened Runtime, 공증·staple과 `SIDEY`·`production` 메타데이터를 통과하지 않은 ZIP은 appcast에 게시하지 않는다. |
 | macOS 직접 배포 | Developer ID Application으로 서명하고 Hardened Runtime·Apple 공증·ticket staple을 통과한 DMG를 신규 설치 기본 파일로 사용. DMG에는 `SIDEY.app`과 `/Applications` 바로가기를 넣고, Sparkle에는 같은 공증 앱의 서명된 ZIP을 제공 | 브라우저 설치에서 Gatekeeper 우회를 요구하지 않고, 최초 설치용 컨테이너와 자동 업데이트용 아카이브의 역할을 분리한다. ad-hoc 빌드에는 배포용 DMG를 생성하지 않는다. |
-| 업데이트 전환 | Sparkle이 없는 기존 alpha는 새 ZIP으로 한 번 수동 교체하고, Sparkle 내장 빌드부터 앱 내부 업데이트를 사용. Developer ID 활성화 전 signed appcast는 유효하되 update item 없이 유지 | 기존 설치에 프레임워크를 원격으로 소급 탑재할 수 없고, ad-hoc 자동 업데이트를 공개하면 Gatekeeper·코드 서명 연속성 검증이 불안정해진다. |
-| 배포 채널 | 버전 `0.2.0`, 빌드 `5`의 Apple Silicon 앱을 `v0.2.0-alpha.3` GitHub pre-release로 배포 | 픽셀 월드 상호작용·캐릭터 리액션·앱 아이콘을 다듬고 composer 자동 닫힘을 5초로 조정한 alpha 패치다. Developer ID 서명·공증과 장시간 수동 검증 전에는 정식 stable로 오인시키지 않는다. |
+| Homebrew 배포 | 공개 third-party tap `sidey-app/homebrew-tap`의 `sidey` Cask가 버전 고정 공증 DMG와 SHA-256을 사용. arm64·macOS 26+만 허용하고 `auto_updates true`, 안전한 앱 종료, `SIDEY.app` 설치를 선언하며 사용자 데이터 `zap`은 두지 않음 | `brew install --cask sidey-app/tap/sidey`를 재현 가능하게 제공하면서 uninstall이 계정·설정을 임의 삭제하지 않게 한다. 공식 `homebrew/cask` 등록은 별도 결정 전까지 범위 밖이다. |
+| macOS 로컬 개발 설치 | 최신 Release 구성의 ad-hoc 앱을 `Sidey-dev`·`development`로 빌드해 `/Applications/Sidey-dev.app`에만 설치. bundle ID `app.sidey.desktop`, login item ID, `com.sidey.desktop` Keychain service는 배포본과 공유하고 development 채널은 Sparkle을 시작하지 않으며 업데이트 메뉴를 비활성화 | 운영 데이터와 설정을 이어 쓰되 로컬 빌드가 공개 업데이트를 받거나 배포본으로 오인되는 것을 막는다. 설치 스크립트는 정확한 dev 경로만 교체한다. |
+| 업데이트 전환 | Sparkle이 없는 기존 alpha는 최신 공증 DMG로 한 번 수동 교체하고, Sparkle 내장 production 빌드부터 앱 내부 업데이트를 사용 | 기존 설치에 프레임워크를 원격으로 소급 탑재할 수 없고, ad-hoc development 자동 업데이트는 Gatekeeper·코드 서명 연속성을 깨뜨릴 수 있다. |
+| 배포 채널 | 버전 `0.2.0`, 빌드 `6`의 Developer ID 서명·Hardened Runtime·Apple 공증 Apple Silicon 앱을 `v0.2.0-alpha.4` GitHub pre-release로 배포 | Realtime 자동 복구, 그룹 이름 변경·멤버 추방·그룹 삭제, 단순화한 그룹 카드와 오버레이 입력 흐름, 공증 DMG·Sparkle ZIP·Homebrew 설치를 묶은 alpha 패치다. 30분 장시간 기준 전에는 stable로 표시하지 않는다. |
 | Windows 인증 | Google OAuth + PKCE, `sidey://auth/callback`, Credential Locker | Windows에서는 시스템 브라우저로 로그인하고 callback·refresh token·평문 초대 코드를 로컬 일반 설정이 아닌 보안 저장소에 보관한다. Google 이름·사진은 SIDEY 닉네임으로 복사하지 않는다. |
 | Windows alpha 배포 | `v0.3.0-alpha.1`, self-contained x64 ZIP + SHA-256, GitHub pre-release | 첫 공개본은 미서명 수동 교체 배포로 제한하고 SmartScreen 경고·자동 업데이트 없음·다중 모니터 실기 미검증을 명시한다. MSIX·서명·ARM64는 후속 결정이다. |
 
@@ -67,7 +69,7 @@
 - 상태 전환, 주황 `Zzz`, 오프라인 숨김, 방 전환 UUID diff, 최대 8자 닉네임·반투명 배경과 상태 점 간격, 캐릭터 겹침 시 idle 해제·가속 통과, 실제 메시지 말풍선의 8pt 분리·72pt/s 제한·경계 힘 재배분·혼잡 안정성, 타이핑 말풍선 제외, 7배·0.8초 더블클릭 리액션의 1초 제한·Broadcast 중복 제거, 말풍선 교체·eviction·만료·이동 중 추적을 검증한다.
 - 실서버 2클라이언트 테스트에서 한쪽 WebSocket을 강제로 끊은 뒤 재실행 없이 자동 재구독하고 메시지·Presence·`character_pulse` 수신을 복구해야 한다.
 - 월드는 항상 위이며 전체 영역의 클릭 통과를 유지한다. 내 캐릭터 hotspot과 입력창만 포인터를 받고 입력창만 키보드 포커스 가능하며, 마지막 전송 뒤 5초 유지·타이머 갱신·실패 복구를 지키고 최근 기록은 일반 창이어야 한다.
-- Sparkle 프레임워크와 `SUFeedURL`·`SUPublicEDKey`가 Release 번들에 포함되고 signed feed·압축 해제 전 검증이 강제되어야 한다. appcast 게시 도구는 ad-hoc 빌드를 기본 거부하고 Developer ID·Hardened Runtime·stapled notarization을 검증해야 한다.
+- Sparkle 프레임워크와 `SUFeedURL`·`SUPublicEDKey`가 Release 번들에 포함되고 signed feed·압축 해제 전 검증이 강제되어야 한다. appcast 게시 도구는 ad-hoc·development 빌드를 기본 거부하고 Developer ID·Hardened Runtime·stapled notarization·production 표시명과 채널을 검증해야 한다. development 채널은 Sparkle을 만들지 않고 업데이트 메뉴를 비활성화해야 한다.
 - 5번째 가입 성공, 6번째 거부, 여섯 번째 방 거부, 방장 전용 이름 변경·추방·삭제와 cascade, RLS, 중복 닉네임·캐릭터 허용을 SQL 테스트한다.
 - 최대 방 인원 5명으로 30분 실행하고, 별도 20노드 합성 부하에서도 p95 frame time 40ms 이하, 100ms 이상 main-thread hang 없음, 지속 RSS 증가 없음, 숨긴 월드의 SpriteKit 정지를 확인한다.
 - Windows는 햄스터 1종의 투명·최상위·클릭 통과·52×52 hotspot·DPI·잠금·절전 복귀를 실기에서 먼저 통과한 후 Google 로그인·방·Presence·타이핑·메시지를 연결한다.

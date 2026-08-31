@@ -54,6 +54,8 @@ SIDEY_BUNDLED_PUBLIC_KEY=$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$S
 SIDEY_BUNDLED_FEED_URL=$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "$SIDEY_INFO_PLIST")
 SIDEY_REQUIRES_SIGNED_FEED=$(/usr/libexec/PlistBuddy -c 'Print :SURequireSignedFeed' "$SIDEY_INFO_PLIST")
 SIDEY_VERIFIES_BEFORE_EXTRACTION=$(/usr/libexec/PlistBuddy -c 'Print :SUVerifyUpdateBeforeExtraction' "$SIDEY_INFO_PLIST")
+SIDEY_RELEASE_CHANNEL=$(/usr/libexec/PlistBuddy -c 'Print :SIDEYReleaseChannel' "$SIDEY_INFO_PLIST")
+SIDEY_DISPLAY_NAME=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$SIDEY_INFO_PLIST")
 
 if [ "$SIDEY_PUBLIC_KEY" != "$SIDEY_BUNDLED_PUBLIC_KEY" ]; then
 	echo "The release bundle public key does not match the '$SIDEY_SPARKLE_ACCOUNT' Keychain key" >&2
@@ -65,6 +67,10 @@ if [ "$SIDEY_BUNDLED_FEED_URL" != "$SIDEY_EXPECTED_FEED_URL" ]; then
 fi
 if [ "$SIDEY_REQUIRES_SIGNED_FEED" != true ] || [ "$SIDEY_VERIFIES_BEFORE_EXTRACTION" != true ]; then
 	echo "The release bundle must require signed feeds and pre-extraction verification" >&2
+	exit 65
+fi
+if [ "$SIDEY_RELEASE_CHANNEL" != production ] || [ "$SIDEY_DISPLAY_NAME" != SIDEY ]; then
+	echo "Refusing to publish a non-production SIDEY build" >&2
 	exit 65
 fi
 
@@ -79,7 +85,7 @@ if [ -z "$SIDEY_TEAM_ID" ] || [ "$SIDEY_TEAM_ID" = "not set" ]; then
 	fi
 	echo "WARNING: generating a local-only appcast from an ad-hoc signed build" >&2
 else
-	printf '%s\n' "$SIDEY_SIGNATURE_INFO" | grep -Eq '^flags=.*runtime' || {
+	printf '%s\n' "$SIDEY_SIGNATURE_INFO" | grep -Eq 'flags=.*runtime' || {
 		echo "Developer ID release is missing Hardened Runtime" >&2
 		exit 65
 	}

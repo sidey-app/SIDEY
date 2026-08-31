@@ -29,7 +29,9 @@ set -- xcodebuild \
 	ARCHS=arm64 \
 	ONLY_ACTIVE_ARCH=YES \
 	"CODE_SIGN_IDENTITY=$SIDEY_CODE_SIGN_IDENTITY" \
-	"ENABLE_HARDENED_RUNTIME=$SIDEY_HARDENED_RUNTIME"
+	"ENABLE_HARDENED_RUNTIME=$SIDEY_HARDENED_RUNTIME" \
+	SIDEY_DISPLAY_NAME=SIDEY \
+	SIDEY_RELEASE_CHANNEL=production
 if [ "$SIDEY_CODE_SIGN_IDENTITY" != "-" ]; then
 	if [ -z "$SIDEY_DEVELOPMENT_TEAM" ]; then
 		echo "SIDEY_DEVELOPMENT_TEAM is required for Developer ID signing" >&2
@@ -131,6 +133,14 @@ if [ "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$SIDEY_INFO_
 fi
 if [ "$(/usr/libexec/PlistBuddy -c 'Print :LSUIElement' "$SIDEY_INFO_PLIST")" != "true" ]; then
 	echo "SIDEY must run as an agent/menu bar application" >&2
+	exit 1
+fi
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$SIDEY_INFO_PLIST")" != "SIDEY" ]; then
+	echo "Release display name must be SIDEY" >&2
+	exit 1
+fi
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :SIDEYReleaseChannel' "$SIDEY_INFO_PLIST")" != "production" ]; then
+	echo "Release channel must be production" >&2
 	exit 1
 fi
 if [ "$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "$SIDEY_INFO_PLIST")" != "https://raw.githubusercontent.com/sidey-app/SIDEY/main/updates/appcast.xml" ]; then
