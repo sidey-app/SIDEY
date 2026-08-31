@@ -85,7 +85,7 @@ enum OverlayRegionLayout {
 
 @MainActor
 final class OverlayWindowGroup {
-    static let defaultComposerAutoDismissDelay: Duration = .seconds(10)
+    static let defaultComposerAutoDismissDelay: Duration = .seconds(5)
 
     private let model: AppModel
     private let onSend: (String) -> Void

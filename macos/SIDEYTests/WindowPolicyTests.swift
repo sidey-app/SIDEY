@@ -225,7 +225,7 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertEqual(typingChanges, [true, false])
     }
 
-    func testComposerDismissesTenSecondsAfterTheLastSubmittedMessage() {
+    func testComposerDismissesFiveSecondsAfterTheLastSubmittedMessage() {
         let model = AppModel(preferences: .defaults)
         let roomID = UUID()
         model.rooms = [Room(
@@ -249,7 +249,7 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertTrue(group.composerVisible)
         XCTAssertEqual(sentBodies, ["첫 메시지", "마지막 메시지"])
         XCTAssertEqual(scheduler.scheduleCount, 2)
-        XCTAssertEqual(scheduler.latestDelay, .seconds(10))
+        XCTAssertEqual(scheduler.latestDelay, .seconds(5))
 
         scheduler.fireLatest()
         XCTAssertFalse(group.composerVisible)
