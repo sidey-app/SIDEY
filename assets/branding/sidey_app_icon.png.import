@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bhd6urxq15dt"
-path="res://.godot/imported/sidey_app_icon.svg-7903ce7307a6cf06102a05663662915f.ctex"
+uid="uid://cw12gugknoojo"
+path="res://.godot/imported/sidey_app_icon.png-68968d0e70e33064818d9391f69f0eca.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/branding/sidey_app_icon.svg"
-dest_files=["res://.godot/imported/sidey_app_icon.svg-7903ce7307a6cf06102a05663662915f.ctex"]
+source_file="res://assets/branding/sidey_app_icon.png"
+dest_files=["res://.godot/imported/sidey_app_icon.png-68968d0e70e33064818d9391f69f0eca.ctex"]
 
 [params]
 
@@ -38,6 +38,3 @@ process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
 detect_3d/compress_to=1
-svg/scale=1.0
-editor/scale_with_editor_scale=false
-editor/convert_colors_with_editor_theme=false

@@ -16,6 +16,7 @@ const ActivityPresenceScript := preload("res://scripts/platform/activity_presenc
 const SideyThemeScript := preload("res://scripts/ui/sidey_theme.gd")
 const OverlayEditTrayScript := preload("res://scripts/overlay/overlay_edit_tray.gd")
 const BACKEND_APP_SMOKE_TIMEOUT_SECONDS := 8.0
+const DESK_BENCHMARK_MODEL_PATH := "res://assets/characters/dog/minty_pup_station_v3_animated.glb"
 
 var _character_row: CharacterRow
 var _character_camera: Camera3D
@@ -419,8 +420,17 @@ func _configure_initial_characters() -> Error:
 		var members: Array[Dictionary] = []
 		for member in _room_controller.active_room().get("members", []) as Array:
 			members.append((member as Dictionary).duplicate(true))
-		return _character_row.configure_members(members)
+		return _configure_character_members(members)
 	return _character_row.configure_debug(_requested_debug_character_count())
+
+
+func _configure_character_members(members: Array[Dictionary]) -> Error:
+	if _has_argument("--performance-desk-demo"):
+		var one_character_slice: Array[Dictionary] = []
+		if not members.is_empty():
+			one_character_slice.append(members[0].duplicate(true))
+		return _character_row.configure_members(one_character_slice, DESK_BENCHMARK_MODEL_PATH, true)
+	return _character_row.configure_members(members)
 
 
 func _bootstrap_local_demo() -> Error:
@@ -520,7 +530,7 @@ func _activate_room_session() -> void:
 	var members: Array[Dictionary] = []
 	for member in room.get("members", []) as Array:
 		members.append((member as Dictionary).duplicate(true))
-	var configure_error := _character_row.configure_members(members)
+	var configure_error := _configure_character_members(members)
 	if configure_error != OK:
 		_fail("Active room characters could not be configured", configure_error)
 		return

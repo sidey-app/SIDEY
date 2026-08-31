@@ -1,0 +1,114 @@
+{
+  "source": "assets/characters/dog/minty_pup_station_v3_animated.glb",
+  "source_sha256": "a412f896a295679090006a48092c2018e5bb87c69d64e3b086f909b2a49c3430",
+  "clips": [
+    {
+      "file": "MintyPupOnlineIdle.usdz",
+      "track": "online_idle",
+      "frames": [
+        1,
+        90
+      ],
+      "bytes": 2476319,
+      "sha256": "d58bf93c1266db16de6ef34e3843ce6bb17b346cea5bdb839e933a4d2077452e",
+      "validation": {
+        "armatures": 1,
+        "bones": 19,
+        "meshes": 5,
+        "triangles": 22248,
+        "materials": [
+          "LaptopSilver",
+          "StationCream",
+          "StationDark",
+          "material"
+        ],
+        "animation_tracks": [
+          "online_idle"
+        ],
+        "fps": 30,
+        "texture_dimensions": [
+          "512x512"
+        ],
+        "head_pose_signature": [
+          0.99984,
+          0.00262,
+          -5e-05,
+          -0.01745
+        ]
+      },
+      "usdchecker": "Success!"
+    },
+    {
+      "file": "MintyPupTyping.usdz",
+      "track": "typing",
+      "frames": [
+        1,
+        60
+      ],
+      "bytes": 2458769,
+      "sha256": "16f95f5322709acafedadc41c55e05ee5fd57c3f9cdb78d3f882ef37fba9a384",
+      "validation": {
+        "armatures": 1,
+        "bones": 19,
+        "meshes": 5,
+        "triangles": 22248,
+        "materials": [
+          "LaptopSilver",
+          "StationCream",
+          "StationDark",
+          "material"
+        ],
+        "animation_tracks": [
+          "typing"
+        ],
+        "fps": 30,
+        "texture_dimensions": [
+          "512x512"
+        ],
+        "head_pose_signature": [
+          0.99895,
+          0.04536,
+          0.00032,
+          0.00697
+        ]
+      },
+      "usdchecker": "Success!"
+    },
+    {
+      "file": "MintyPupOfflineSleep.usdz",
+      "track": "away_sleep",
+      "frames": [
+        1,
+        90
+      ],
+      "bytes": 2476319,
+      "sha256": "fef0f284417f6aec9b804701cb2db19347e798fc4fe200bdc6c24b02a799be57",
+      "validation": {
+        "armatures": 1,
+        "bones": 19,
+        "meshes": 5,
+        "triangles": 22248,
+        "materials": [
+          "LaptopSilver",
+          "StationCream",
+          "StationDark",
+          "material"
+        ],
+        "animation_tracks": [
+          "away_sleep"
+        ],
+        "fps": 30,
+        "texture_dimensions": [
+          "512x512"
+        ],
+        "head_pose_signature": [
+          0.97392,
+          0.21591,
+          0.0151,
+          0.0681
+        ]
+      },
+      "usdchecker": "Success!"
+    }
+  ]
+}

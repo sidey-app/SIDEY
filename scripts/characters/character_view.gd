@@ -8,14 +8,21 @@ const SleepEffectScript := preload("res://scripts/characters/sleep_effect.gd")
 var motion_controller: CharacterMotionController
 var character_id := ""
 var _head_anchor_local := Vector3(0.0, 1.0, 0.0)
+var _imported_animation_player: AnimationPlayer
+var _uses_imported_animations := false
+var _imported_motion_state := CharacterState.Value.ONLINE_IDLE
 
 
-func configure(requested_character_id: String) -> Error:
+func configure(
+	requested_character_id: String,
+	model_path_override := "",
+	use_imported_animations := false,
+) -> Error:
 	if CharacterCatalogScript.has(requested_character_id) == false:
 		push_error("CHARACTER_UNKNOWN id=%s" % requested_character_id)
 		return ERR_DOES_NOT_EXIST
 	var entry := CharacterCatalogScript.get_entry(requested_character_id)
-	var model_path := str(entry["model_path"])
+	var model_path := model_path_override if not model_path_override.is_empty() else str(entry["model_path"])
 	if not ResourceLoader.exists(model_path):
 		push_error("CHARACTER_ASSET_MISSING id=%s path=%s" % [requested_character_id, model_path])
 		return ERR_FILE_NOT_FOUND
@@ -31,12 +38,14 @@ func configure(requested_character_id: String) -> Error:
 	var model := packed_scene.instantiate()
 	model.name = "%sModel" % requested_character_id.to_pascal_case()
 	visual_root.add_child(model)
-	_normalize_materials(model)
+	if not use_imported_animations:
+		_normalize_materials(model)
 
-	var imported_animation_player := _find_first_animation_player(model)
-	if imported_animation_player != null:
-		imported_animation_player.stop()
-		imported_animation_player.active = false
+	_imported_animation_player = _find_first_animation_player(model)
+	_uses_imported_animations = use_imported_animations
+	if _imported_animation_player != null:
+		_imported_animation_player.stop()
+		_imported_animation_player.active = use_imported_animations
 	var skeleton := _find_first_skeleton(model)
 	if skeleton == null:
 		push_error("CHARACTER_SKELETON_MISSING id=%s" % requested_character_id)
@@ -44,6 +53,21 @@ func configure(requested_character_id: String) -> Error:
 	if _find_first_mesh(model) == null:
 		push_error("CHARACTER_MESH_MISSING id=%s" % requested_character_id)
 		return ERR_INVALID_DATA
+	if use_imported_animations:
+		if _imported_animation_player == null:
+			push_error("CHARACTER_IMPORTED_ANIMATIONS_MISSING id=%s path=%s" % [requested_character_id, model_path])
+			return ERR_INVALID_DATA
+		for animation_name in ["online_idle", "typing", "away_sleep"]:
+			if not _imported_animation_player.has_animation(animation_name):
+				push_error("CHARACTER_IMPORTED_ANIMATION_MISSING name=%s path=%s" % [animation_name, model_path])
+				return ERR_INVALID_DATA
+			var animation := _imported_animation_player.get_animation(animation_name)
+			animation.loop_mode = Animation.LOOP_LINEAR
+		var head_index := skeleton.find_bone("head")
+		if head_index >= 0:
+			_head_anchor_local = to_local(skeleton.to_global(skeleton.get_bone_global_rest(head_index).origin))
+		set_motion_state(CharacterState.Value.ONLINE_IDLE, true)
+		return OK
 	var profile := CharacterCatalogScript.rig_profile(requested_character_id)
 	if profile == null:
 		push_error("CHARACTER_RIG_PROFILE_MISSING id=%s" % requested_character_id)
@@ -67,8 +91,26 @@ func configure(requested_character_id: String) -> Error:
 
 
 func set_motion_state(state: CharacterState.Value, restart := false) -> void:
+	if _uses_imported_animations and is_instance_valid(_imported_animation_player):
+		var animation_name := _imported_animation_name(state)
+		if not animation_name.is_empty() and (restart or _imported_motion_state != state):
+			_imported_motion_state = state
+			_imported_animation_player.play(animation_name, 0.15)
+		return
 	if is_instance_valid(motion_controller):
 		motion_controller.set_state(state, restart)
+
+
+func _imported_animation_name(state: CharacterState.Value) -> String:
+	match state:
+		CharacterState.Value.ONLINE_IDLE:
+			return "online_idle"
+		CharacterState.Value.TYPING:
+			return "typing"
+		CharacterState.Value.OFFLINE_SLEEP:
+			return "away_sleep"
+		_:
+			return ""
 
 
 func head_anchor_global() -> Vector3:

@@ -1,6 +1,6 @@
 extends SceneTree
 
-const ASSET_PATH := "res://assets/characters/dog/dog_mint_v1_rigged.glb"
+const DEFAULT_ASSET_PATH := "res://assets/characters/dog/dog_mint_v1_rigged.glb"
 
 var _skeletons: Array[Skeleton3D] = []
 var _meshes: Array[MeshInstance3D] = []
@@ -8,16 +8,17 @@ var _animation_players: Array[AnimationPlayer] = []
 
 
 func _initialize() -> void:
-	var packed_scene := load(ASSET_PATH) as PackedScene
+	var asset_path := _requested_asset_path()
+	var packed_scene := load(asset_path) as PackedScene
 	if packed_scene == null:
-		push_error("ASSET_MISSING path=%s" % ASSET_PATH)
+		push_error("ASSET_MISSING path=%s" % asset_path)
 		quit(1)
 		return
 
 	var instance := packed_scene.instantiate()
 	_collect(instance)
 
-	print("ASSET path=%s" % ASSET_PATH)
+	print("ASSET path=%s" % asset_path)
 	print("ROOT name=%s class=%s" % [instance.name, instance.get_class()])
 	print("TREE")
 	_print_tree(instance)
@@ -75,6 +76,13 @@ func _initialize() -> void:
 
 	instance.free()
 	quit()
+
+
+func _requested_asset_path() -> String:
+	for argument in OS.get_cmdline_user_args():
+		if argument.begins_with("--asset="):
+			return argument.trim_prefix("--asset=")
+	return DEFAULT_ASSET_PATH
 
 
 func _collect(node: Node) -> void:

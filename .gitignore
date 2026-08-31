@@ -1,6 +1,7 @@
-# Local product context for coding assistants; do not commit.
+# Local coding-assistant instructions; do not commit.
 /AGENTS.md
-/docs/
+
+# Product decisions and specifications under /docs are versioned with the code.
 
 # Godot generated files.
 /.godot/
@@ -8,7 +9,11 @@
 
 # Private licensed character binaries, extracted textures, and local review output.
 /assets/characters/
-/artifacts/motion-review/
+/artifacts/
+
+# Generated interpreter caches.
+**/__pycache__/
+*.py[cod]
 
 # Locally compiled native bridge binaries.
 /native/macos/bin/

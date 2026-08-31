@@ -1,0 +1,68 @@
+import AppKit
+import QuartzCore
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var coordinator: AppCoordinator?
+    private let launchProbe = LaunchPerformanceProbe()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        let environment = ProcessInfo.processInfo.environment
+        if environment["SIDEY_TESTING"] == "1"
+            || environment["XCTestConfigurationFilePath"] != nil
+            || NSClassFromString("XCTestCase") != nil
+            || NSClassFromString("XCTest.XCTestCase") != nil {
+            return
+        }
+        let coordinator: AppCoordinator
+        if let suiteName = environment["SIDEY_PREFERENCES_SUITE"],
+           let defaults = UserDefaults(suiteName: suiteName) {
+            coordinator = AppCoordinator(
+                preferencesStore: .userDefaults(defaults),
+                legacyMigrator: .none,
+                onLandingFirstFrame: { [weak launchProbe] in
+                    launchProbe?.markFirstFrame()
+                }
+            )
+        } else {
+            coordinator = AppCoordinator(onLandingFirstFrame: { [weak launchProbe] in
+                launchProbe?.markFirstFrame()
+            })
+        }
+        self.coordinator = coordinator
+        coordinator.start()
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        coordinator?.handleManualReopen()
+        return true
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        coordinator?.shutdown()
+    }
+}
+
+@MainActor
+private final class LaunchPerformanceProbe {
+    private let startedAt = CACurrentMediaTime()
+    private let outputURL = ProcessInfo.processInfo.environment["SIDEY_LAUNCH_METRICS_PATH"]
+        .map { URL(fileURLWithPath: $0) }
+    private var didReport = false
+
+    func markFirstFrame() {
+        guard !didReport, let outputURL else { return }
+        didReport = true
+        let snapshot = LaunchMetricsSnapshot(
+            firstLandingFrameMS: (CACurrentMediaTime() - startedAt) * 1_000
+        )
+        Task.detached(priority: .utility) {
+            guard let data = try? JSONEncoder().encode(snapshot) else { return }
+            try? data.write(to: outputURL, options: .atomic)
+        }
+    }
+}
+
+private struct LaunchMetricsSnapshot: Codable, Sendable {
+    let firstLandingFrameMS: Double
+}

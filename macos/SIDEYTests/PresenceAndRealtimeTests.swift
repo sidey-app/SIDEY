@@ -1,0 +1,269 @@
+import XCTest
+@testable import SIDEY
+
+@MainActor
+final class PresenceAndRealtimeTests: XCTestCase {
+    func testSystemActivityStateUsesAnyInputAndLiveScreenLockState() {
+        XCTAssertEqual(SystemActivityMonitor.anyInputEventType.rawValue, UInt32.max)
+        XCTAssertEqual(
+            SystemActivityMonitor.state(screenLocked: false, idleSeconds: 299.9, awayThreshold: 300),
+            .online
+        )
+        XCTAssertEqual(
+            SystemActivityMonitor.state(screenLocked: false, idleSeconds: 300, awayThreshold: 300),
+            .away
+        )
+        XCTAssertEqual(
+            SystemActivityMonitor.state(screenLocked: true, idleSeconds: 0, awayThreshold: 300),
+            .away
+        )
+    }
+
+    func testSystemActivityPollingRecoversWhenUnlockNotificationWasMissed() {
+        var screenLocked = true
+        var states: [PresenceState] = []
+        let monitor = SystemActivityMonitor(
+            idleSecondsProvider: { 0 },
+            screenLockedProvider: { screenLocked },
+            onChange: { states.append($0) }
+        )
+
+        monitor.start()
+        screenLocked = false
+        monitor.refresh()
+        monitor.stop()
+
+        XCTAssertEqual(states, [.away, .online])
+    }
+
+    func testSoloRoomUsesEffectiveLocalPresenceInsteadOfOfflineSnapshot() {
+        let roomID = UUID()
+        let userID = UUID()
+        let model = AppModel(preferences: .defaults)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(id: userID, nickname: "나", characterID: "minty_pup"),
+                rooms: [Room(
+                    id: roomID,
+                    name: "혼자 테스트",
+                    ownerID: userID,
+                    members: [RoomMember(
+                        userID: userID,
+                        nickname: "나",
+                        characterID: "minty_pup",
+                        presence: .offline
+                    )],
+                    inviteCodeHint: "AB••••",
+                    inviteVersion: 1
+                )]
+            ),
+            currentUserID: userID
+        )
+
+        model.connectionState = .online
+        model.presence = .online
+        XCTAssertEqual(model.avatarPresence, .online)
+
+        model.presence = .away
+        XCTAssertEqual(model.avatarPresence, .away)
+
+        model.connectionState = .connecting
+        XCTAssertEqual(model.avatarPresence, .reconnecting)
+    }
+
+    func testOfflinePresenceUsesRedIndicatorWhileReconnectRemainsGray() {
+        XCTAssertEqual(PresenceIndicatorTone.tone(for: .offline), .red)
+        XCTAssertEqual(PresenceIndicatorTone.tone(for: .reconnecting), .gray)
+    }
+
+    func testTypingStopRestoresAwayPresence() {
+        let roomID = UUID()
+        let friendID = UUID()
+        let model = AppModel(preferences: .defaults)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: nil,
+                rooms: [Room(
+                    id: roomID,
+                    name: "친구들",
+                    ownerID: friendID,
+                    members: [RoomMember(
+                        userID: friendID,
+                        nickname: "친구",
+                        characterID: "minty_pup",
+                        presence: .away
+                    )],
+                    inviteCodeHint: "AB••••",
+                    inviteVersion: 1
+                )]
+            ),
+            currentUserID: UUID()
+        )
+
+        model.updateTyping(roomID: roomID, userID: friendID, active: true)
+        XCTAssertEqual(model.rooms[0].members[0].presence, .typing)
+        model.updateTyping(roomID: roomID, userID: friendID, active: false)
+        XCTAssertEqual(model.rooms[0].members[0].presence, .away)
+    }
+
+    func testRealtimePlanCapsRoomsAndSwitchesActiveRoom() {
+        let rooms = (0..<6).map { _ in UUID() }
+        let existing = Set([rooms[0], UUID()])
+        let plan = RealtimeRoomPlan.make(existing: existing, requested: rooms, activeRoomID: rooms[4])
+
+        XCTAssertEqual(plan.desired.count, 5)
+        XCTAssertEqual(plan.activeRoomID, rooms[4])
+        XCTAssertTrue(plan.removals.isSubset(of: existing))
+        XCTAssertFalse(plan.desired.contains(rooms[5]))
+    }
+
+    func testRealtimeConnectionRequiresEveryDesiredRoomAndRecoversAfterResubscribe() {
+        let firstRoomID = UUID()
+        let secondRoomID = UUID()
+        var tracker = RealtimeConnectionTracker()
+
+        tracker.replaceDesiredRoomIDs([firstRoomID, secondRoomID])
+        XCTAssertFalse(tracker.isConnected)
+
+        tracker.setSubscribed(true, roomID: firstRoomID)
+        XCTAssertFalse(tracker.isConnected)
+        tracker.setSubscribed(true, roomID: secondRoomID)
+        XCTAssertTrue(tracker.isConnected)
+
+        tracker.setSubscribed(false, roomID: firstRoomID)
+        XCTAssertFalse(tracker.isConnected)
+        tracker.setSubscribed(true, roomID: firstRoomID)
+        XCTAssertTrue(tracker.isConnected)
+
+        tracker.replaceDesiredRoomIDs([secondRoomID])
+        XCTAssertTrue(tracker.isConnected)
+    }
+
+    func testActiveRoomSwitchPublishesOfflineToPreviousRoomAndLocalStateToNewRoom() {
+        let previousRoomID = UUID()
+        let nextRoomID = UUID()
+
+        XCTAssertEqual(
+            PresencePublicationPlan.state(
+                for: previousRoomID,
+                activeRoomID: nextRoomID,
+                localPresence: .away
+            ),
+            .offline
+        )
+        XCTAssertEqual(
+            PresencePublicationPlan.state(
+                for: nextRoomID,
+                activeRoomID: nextRoomID,
+                localPresence: .away
+            ),
+            .away
+        )
+    }
+
+    func testPresenceStateReplacementDoesNotEndOfflineWhenJoinAndLeaveShareAUser() {
+        let updatedUserID = UUID()
+        let departedUserID = UUID()
+
+        let updates = PresenceChangePlan.updates(
+            joined: [updatedUserID: .away],
+            left: [updatedUserID, departedUserID]
+        )
+
+        XCTAssertEqual(
+            updates.first(where: { $0.userID == updatedUserID })?.state,
+            .away
+        )
+        XCTAssertEqual(
+            updates.first(where: { $0.userID == departedUserID })?.state,
+            .offline
+        )
+        XCTAssertEqual(updates.filter { $0.userID == updatedUserID }.count, 1)
+    }
+
+    func testReconnectStateRestoresLastPresence() {
+        let roomID = UUID()
+        let friendID = UUID()
+        let model = AppModel(preferences: .defaults)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: nil,
+                rooms: [Room(
+                    id: roomID,
+                    name: "친구들",
+                    ownerID: friendID,
+                    members: [RoomMember(
+                        userID: friendID,
+                        nickname: "친구",
+                        characterID: "minty_pup",
+                        presence: .online
+                    )],
+                    inviteCodeHint: "AB••••",
+                    inviteVersion: 1
+                )]
+            ),
+            currentUserID: UUID()
+        )
+
+        model.setRealtimeConnected(false)
+        XCTAssertEqual(model.rooms[0].members[0].presence, .reconnecting)
+        model.setRealtimeConnected(true)
+        XCTAssertEqual(model.rooms[0].members[0].presence, .online)
+    }
+
+    func testBroadcastTypingLeaseDoesNotRemainStuckAcrossReconnect() {
+        let roomID = UUID()
+        let friendID = UUID()
+        let model = AppModel(preferences: .defaults)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: nil,
+                rooms: [Room(
+                    id: roomID,
+                    name: "친구들",
+                    ownerID: friendID,
+                    members: [RoomMember(
+                        userID: friendID,
+                        nickname: "친구",
+                        characterID: "minty_pup",
+                        presence: .away
+                    )],
+                    inviteCodeHint: "AB••••",
+                    inviteVersion: 1
+                )]
+            ),
+            currentUserID: UUID()
+        )
+
+        model.updateTyping(roomID: roomID, userID: friendID, active: true)
+        XCTAssertEqual(model.rooms[0].members[0].presence, .typing)
+
+        model.setRealtimeConnected(false)
+        XCTAssertEqual(model.rooms[0].members[0].presence, .reconnecting)
+        model.setRealtimeConnected(true)
+        XCTAssertEqual(model.rooms[0].members[0].presence, .away)
+    }
+
+    func testTypingLeaseStartsOnceAndDoesNotRestartForEveryKeystroke() {
+        let roomID = UUID()
+        var lease = TypingLease()
+
+        XCTAssertEqual(lease.update(active: true, roomID: roomID), [.start(roomID)])
+        XCTAssertEqual(lease.update(active: true, roomID: roomID), [])
+        XCTAssertEqual(lease.update(active: true, roomID: roomID), [])
+        XCTAssertEqual(lease.update(active: false, roomID: roomID), [.stop(roomID)])
+        XCTAssertEqual(lease.update(active: false, roomID: roomID), [])
+    }
+
+    func testTypingLeaseStopsPreviousRoomBeforeStartingAnother() {
+        let previousRoomID = UUID()
+        let nextRoomID = UUID()
+        var lease = TypingLease()
+
+        XCTAssertEqual(lease.update(active: true, roomID: previousRoomID), [.start(previousRoomID)])
+        XCTAssertEqual(
+            lease.update(active: true, roomID: nextRoomID),
+            [.stop(previousRoomID), .start(nextRoomID)]
+        )
+    }
+}

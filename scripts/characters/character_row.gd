@@ -25,7 +25,11 @@ func configure_debug(count: int, character_id: String = "minty_pup") -> Error:
 	return configure_members(debug_members)
 
 
-func configure_members(members: Array[Dictionary]) -> Error:
+func configure_members(
+	members: Array[Dictionary],
+	model_path_override := "",
+	use_imported_animations := false,
+) -> Error:
 	clear()
 	if members.is_empty() or members.size() > MAX_CHARACTERS:
 		return ERR_INVALID_PARAMETER
@@ -34,7 +38,7 @@ func configure_members(members: Array[Dictionary]) -> Error:
 	var positions := layout_positions(safe_count)
 	_base_positions = positions.duplicate()
 	_base_visual_scale = 0.74 if safe_count == 1 else 0.58
-	var vertical_offset := 0.24 if safe_count == 1 else 0.30
+	var vertical_offset := 1.16 if use_imported_animations else (0.24 if safe_count == 1 else 0.30)
 	for index in safe_count:
 		var member := members[index]
 		var character_id := str(member.get("character_id", "minty_pup"))
@@ -44,7 +48,11 @@ func configure_members(members: Array[Dictionary]) -> Error:
 		character.position.y = vertical_offset
 		character.scale = Vector3.ONE * _base_visual_scale
 		add_child(character)
-		var configure_error := character.configure(character_id)
+		var configure_error := character.configure(
+			character_id,
+			model_path_override,
+			use_imported_animations,
+		)
 		if configure_error != OK:
 			clear()
 			return configure_error
