@@ -23,6 +23,7 @@ final class VerticallyCenteredMessageTextView: NSTextView {
 
 struct NativeMessageField: NSViewRepresentable {
     @Binding var text: String
+    let onInputActivity: () -> Void
     let onSubmit: () -> Void
     let onCancel: () -> Void
 
@@ -96,6 +97,7 @@ struct NativeMessageField: NSViewRepresentable {
         }
 
         func textDidChange(_ notification: Notification) {
+            parent.onInputActivity()
             guard let textView = notification.object as? NSTextView,
                   !textView.hasMarkedText()
             else { return }

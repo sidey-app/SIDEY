@@ -100,7 +100,8 @@ final class OverlayWindowGroup {
     private lazy var interactionWindow = OverlayInteractionWindowController(
         model: model,
         onSend: { [weak self] body in self?.submitComposerMessage(body) },
-        onTypingChanged: { [weak self] active in self?.onTypingChanged(active) },
+        onInputActivity: { [weak self] in self?.composerDidReceiveInput() },
+        onTypingChanged: { [weak self] active in self?.composerTypingChanged(active) },
         onCancel: { [weak self] in self?.dismissComposer() }
     )
     private lazy var hotspotWindow = CharacterHotspotWindowController(
@@ -209,6 +210,15 @@ final class OverlayWindowGroup {
         guard composerVisible else { return }
         scheduleComposerAutoDismiss()
         onSend(body)
+    }
+
+    func composerTypingChanged(_ active: Bool) {
+        if active { cancelComposerAutoDismiss() }
+        onTypingChanged(active)
+    }
+
+    func composerDidReceiveInput() {
+        cancelComposerAutoDismiss()
     }
 
     var worldLevel: NSWindow.Level { worldWindow.level }

@@ -3,6 +3,7 @@ import SwiftUI
 struct OverlayComposerView: View {
     @Bindable var model: AppModel
     let onSend: (String) -> Void
+    let onInputActivity: () -> Void
     let onTypingChanged: (Bool) -> Void
     let onCancel: () -> Void
 
@@ -12,7 +13,12 @@ struct OverlayComposerView: View {
                 if model.draft.isEmpty {
                     Text("짧은 메시지").foregroundStyle(.tertiary)
                 }
-                NativeMessageField(text: $model.draft, onSubmit: send, onCancel: onCancel)
+                NativeMessageField(
+                    text: $model.draft,
+                    onInputActivity: onInputActivity,
+                    onSubmit: send,
+                    onCancel: onCancel
+                )
             }
             .frame(maxWidth: .infinity, minHeight: 34, maxHeight: 40)
             .onChange(of: model.draft) { _, value in

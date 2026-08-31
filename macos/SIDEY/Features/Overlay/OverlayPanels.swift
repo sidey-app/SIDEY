@@ -110,10 +110,12 @@ final class PixelWorldWindowController {
 final class OverlayInteractionWindowController {
     static let panelSize = CGSize(width: 400, height: 56)
     private let panel: NSPanel
+    private var focusRequestID = 0
 
     init(
         model: AppModel,
         onSend: @escaping (String) -> Void,
+        onInputActivity: @escaping () -> Void,
         onTypingChanged: @escaping (Bool) -> Void,
         onCancel: @escaping () -> Void
     ) {
@@ -135,6 +137,7 @@ final class OverlayInteractionWindowController {
             rootView: OverlayComposerView(
                 model: model,
                 onSend: onSend,
+                onInputActivity: onInputActivity,
                 onTypingChanged: onTypingChanged,
                 onCancel: onCancel
             )
@@ -153,16 +156,42 @@ final class OverlayInteractionWindowController {
             // Showing the composer must not steal focus from the current app.
             panel.orderFrontRegardless()
         } else {
+            focusRequestID &+= 1
             panel.orderOut(nil)
         }
     }
 
     func focusMessageField() {
+        NSApplication.shared.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
-        guard let field = panel.contentView?.firstDescendant(
+        focusRequestID &+= 1
+        let requestID = focusRequestID
+
+        // Character clicks arrive from a non-activating hotspot panel. Defer
+        // first-responder assignment until that mouse event has completed and
+        // SwiftUI has attached the representable NSTextView to the view tree.
+        DispatchQueue.main.async { [weak self] in
+            self?.completeMessageFieldFocus(requestID: requestID, attemptsRemaining: 2)
+        }
+    }
+
+    private func completeMessageFieldFocus(requestID: Int, attemptsRemaining: Int) {
+        guard requestID == focusRequestID, panel.isVisible else { return }
+        panel.contentView?.layoutSubtreeIfNeeded()
+        if let field = panel.contentView?.firstDescendant(
             withIdentifier: NSUserInterfaceItemIdentifier("sidey.message-field")
-        ) else { return }
-        panel.makeFirstResponder(field)
+        ) {
+            panel.makeKeyAndOrderFront(nil)
+            if panel.makeFirstResponder(field) { return }
+        }
+
+        guard attemptsRemaining > 0 else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.completeMessageFieldFocus(
+                requestID: requestID,
+                attemptsRemaining: attemptsRemaining - 1
+            )
+        }
     }
 
     var level: NSWindow.Level { panel.level }
@@ -170,6 +199,10 @@ final class OverlayInteractionWindowController {
     var size: CGSize { panel.frame.size }
     var ignoresMouseEvents: Bool { panel.ignoresMouseEvents }
     var isKeyWindow: Bool { panel.isKeyWindow }
+    var messageFieldIsFirstResponder: Bool {
+        (panel.firstResponder as? NSView)?.identifier
+            == NSUserInterfaceItemIdentifier("sidey.message-field")
+    }
     var collectionBehavior: NSWindow.CollectionBehavior { panel.collectionBehavior }
 }
 

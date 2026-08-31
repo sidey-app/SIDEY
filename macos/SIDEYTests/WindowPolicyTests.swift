@@ -206,6 +206,26 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertTrue(group.composerVisible)
     }
 
+    func testCharacterClickFocusesMessageFieldAfterMouseEventCompletes() async {
+        let model = AppModel(preferences: .defaults)
+        let controller = OverlayInteractionWindowController(
+            model: model,
+            onSend: { _ in },
+            onInputActivity: {},
+            onTypingChanged: { _ in },
+            onCancel: {}
+        )
+        controller.setVisible(true)
+
+        controller.focusMessageField()
+        for _ in 0..<3 { await Task.yield() }
+
+        XCTAssertTrue(controller.isVisible)
+        XCTAssertTrue(controller.isKeyWindow)
+        XCTAssertTrue(controller.messageFieldIsFirstResponder)
+        controller.setVisible(false)
+    }
+
     func testComposerDismissPreservesDraftAndStopsTyping() {
         let model = AppModel(preferences: .defaults)
         let roomID = UUID()
@@ -279,6 +299,36 @@ final class WindowPolicyTests: XCTestCase {
 
         XCTAssertTrue(group.composerVisible)
         XCTAssertEqual(model.draft, "실패할 메시지")
+        XCTAssertGreaterThanOrEqual(scheduler.cancelCount, 1)
+        group.dismissComposer()
+    }
+
+    func testTypingNextMessageCancelsPendingComposerAutoDismiss() {
+        let model = AppModel(preferences: .defaults)
+        let roomID = UUID()
+        model.rooms = [Room(
+            id: roomID, name: "테스트", ownerID: UUID(), members: [],
+            inviteCodeHint: "TEST", inviteVersion: 1
+        )]
+        model.preferences.activeRoomID = roomID
+        var typingChanges: [Bool] = []
+        let scheduler = TestComposerAutoDismissScheduler()
+        let group = OverlayWindowGroup(
+            model: model,
+            onTypingChanged: { typingChanges.append($0) },
+            composerAutoDismissScheduler: scheduler
+        )
+        group.setVisible(true)
+        group.presentComposer()
+        group.submitComposerMessage("첫 메시지")
+
+        group.composerDidReceiveInput()
+        group.composerTypingChanged(true)
+        scheduler.fireLatest()
+
+        XCTAssertTrue(group.composerVisible)
+        XCTAssertTrue(group.interactionIsVisible)
+        XCTAssertEqual(typingChanges, [true])
         XCTAssertGreaterThanOrEqual(scheduler.cancelCount, 1)
         group.dismissComposer()
     }
