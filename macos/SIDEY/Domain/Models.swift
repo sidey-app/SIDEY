@@ -426,6 +426,33 @@ struct TypingLease: Equatable, Sendable {
     }
 }
 
+struct CharacterPulseEvent: Equatable, Identifiable, Sendable {
+    let id: UUID
+    let roomID: UUID
+    let userID: UUID
+}
+
+struct CharacterPulseCooldown: Equatable, Sendable {
+    static let duration: TimeInterval = 10
+
+    private struct Key: Hashable, Sendable {
+        let roomID: UUID
+        let userID: UUID
+    }
+
+    private var lastAcceptedUptime: [Key: TimeInterval] = [:]
+
+    mutating func accept(roomID: UUID, userID: UUID, uptime: TimeInterval) -> Bool {
+        guard uptime.isFinite else { return false }
+        let key = Key(roomID: roomID, userID: userID)
+        if let last = lastAcceptedUptime[key], uptime - last < Self.duration {
+            return false
+        }
+        lastAcceptedUptime[key] = uptime
+        return true
+    }
+}
+
 enum PresenceChangePlan {
     /// Supabase Presence can report a state replacement as leave(old) and
     /// join(new) for the same key in one delta. The join must win without an

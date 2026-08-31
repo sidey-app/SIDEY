@@ -90,6 +90,7 @@ final class OverlayWindowGroup {
     private let model: AppModel
     private let onSend: (String) -> Void
     private let onTypingChanged: (Bool) -> Void
+    private let onCharacterDoubleClick: () -> Void
     private let onRegionChanged: () -> Void
     private lazy var worldWindow = PixelWorldWindowController(
         model: model,
@@ -103,7 +104,7 @@ final class OverlayWindowGroup {
         onCancel: { [weak self] in self?.dismissComposer() }
     )
     private lazy var hotspotWindow = CharacterHotspotWindowController(
-        onClick: { [weak self] in self?.toggleComposer() }
+        onClick: { [weak self] clickCount in self?.handleCharacterClick(clickCount: clickCount) }
     )
     private var screenObserver: ScreenObserverToken?
     private(set) var currentFrame: CGRect = .zero
@@ -118,6 +119,7 @@ final class OverlayWindowGroup {
         model: AppModel,
         onSend: @escaping (String) -> Void = { _ in },
         onTypingChanged: @escaping (Bool) -> Void = { _ in },
+        onCharacterDoubleClick: @escaping () -> Void = {},
         onRegionChanged: @escaping () -> Void = {},
         composerAutoDismissDelay: Duration = OverlayWindowGroup.defaultComposerAutoDismissDelay,
         composerAutoDismissScheduler: (any ComposerAutoDismissScheduling)? = nil
@@ -125,6 +127,7 @@ final class OverlayWindowGroup {
         self.model = model
         self.onSend = onSend
         self.onTypingChanged = onTypingChanged
+        self.onCharacterDoubleClick = onCharacterDoubleClick
         self.onRegionChanged = onRegionChanged
         self.composerAutoDismissDelay = composerAutoDismissDelay
         self.composerAutoDismissScheduler = composerAutoDismissScheduler ?? TaskComposerAutoDismissScheduler()
@@ -182,6 +185,24 @@ final class OverlayWindowGroup {
 
     func toggleComposer() {
         composerVisible ? dismissComposer() : presentComposer()
+    }
+
+    func handleCharacterClick(clickCount: Int) {
+        switch clickCount {
+        case 1:
+            toggleComposer()
+        case 2:
+            // The first click in the sequence already performed the existing
+            // single-click behavior. Keep the composer open after the second.
+            presentComposer()
+            onCharacterDoubleClick()
+        default:
+            break
+        }
+    }
+
+    func playCharacterPulse(_ event: CharacterPulseEvent) {
+        worldWindow.playCharacterPulse(event)
     }
 
     func submitComposerMessage(_ body: String) {

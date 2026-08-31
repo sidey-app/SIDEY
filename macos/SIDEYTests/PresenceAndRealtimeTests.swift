@@ -358,4 +358,17 @@ final class PresenceAndRealtimeTests: XCTestCase {
             [.stop(previousRoomID), .start(nextRoomID)]
         )
     }
+
+    func testCharacterPulseCooldownAllowsOneEventPerMemberEveryTenSeconds() {
+        let roomID = UUID()
+        let userID = UUID()
+        var cooldown = CharacterPulseCooldown()
+
+        XCTAssertTrue(cooldown.accept(roomID: roomID, userID: userID, uptime: 100))
+        XCTAssertFalse(cooldown.accept(roomID: roomID, userID: userID, uptime: 109.999))
+        XCTAssertTrue(cooldown.accept(roomID: roomID, userID: userID, uptime: 110))
+        XCTAssertTrue(cooldown.accept(roomID: roomID, userID: UUID(), uptime: 110))
+        XCTAssertFalse(cooldown.accept(roomID: roomID, userID: userID, uptime: .infinity))
+        XCTAssertEqual(CharacterPulseCooldown.duration, 10)
+    }
 }

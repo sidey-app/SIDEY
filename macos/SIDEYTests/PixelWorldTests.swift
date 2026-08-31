@@ -24,6 +24,22 @@ final class PixelWorldTests: XCTestCase {
         XCTAssertLessThan(longDot.x, shortDot.x)
     }
 
+    func testNameplateBackgroundAddsPaddingWithoutCoveringStatusDot() {
+        let nicknameFrame = CGRect(x: -24, y: 26, width: 48, height: 12)
+        let background = PixelNameplateLayout.backgroundFrame(nicknameFrame: nicknameFrame)
+        let dot = PixelNameplateLayout.statusDotPosition(nicknameFrame: nicknameFrame)
+
+        XCTAssertEqual(background.minX, nicknameFrame.minX - PixelNameplateLayout.horizontalPadding)
+        XCTAssertEqual(background.maxX, nicknameFrame.maxX + PixelNameplateLayout.horizontalPadding)
+        XCTAssertEqual(background.minY, nicknameFrame.minY - PixelNameplateLayout.verticalPadding)
+        XCTAssertEqual(background.maxY, nicknameFrame.maxY + PixelNameplateLayout.verticalPadding)
+        XCTAssertLessThanOrEqual(
+            dot.x + PixelNameplateLayout.statusDotRadius,
+            background.minX
+        )
+        XCTAssertEqual(PixelNameplateLayout.backgroundColor.alphaComponent, 0.62, accuracy: 0.001)
+    }
+
     func testTwentyAgentsStayFiniteAndOnEveryEdgeTrackDuringLongSimulation() {
         for edge in OverlayEdge.allCases {
             let bounds = edge.isHorizontal
@@ -106,6 +122,53 @@ final class PixelWorldTests: XCTestCase {
         }
 
         XCTAssertTrue(agents.allSatisfy { $0.trackPosition.isFinite && $0.velocity.isFinite })
+    }
+
+    func testOverlappingHeadOnAgentsAccelerateThroughInsteadOfSlowing() {
+        let geometry = EdgeTrackGeometry(
+            bounds: CGRect(x: 0, y: 0, width: 320, height: 240),
+            edge: .bottom
+        )
+        var agents = [
+            PixelMovementAgent(id: UUID(), trackPosition: 120, velocity: 8, target: 280),
+            PixelMovementAgent(id: UUID(), trackPosition: 160, velocity: -8, target: 40)
+        ]
+
+        PixelMovementSimulation.step(
+            agents: &agents,
+            deltaTime: 1.0 / 30.0,
+            geometry: geometry,
+            avoidanceRects: [],
+            stoppedIDs: []
+        )
+
+        XCTAssertGreaterThan(agents[0].velocity, 8)
+        XCTAssertLessThan(agents[1].velocity, -8)
+        XCTAssertGreaterThan(agents[0].trackPosition, 120)
+        XCTAssertLessThan(agents[1].trackPosition, 160)
+    }
+
+    func testOverlapEndsIdleSoCharactersDoNotRemainStacked() {
+        let geometry = EdgeTrackGeometry(
+            bounds: CGRect(x: 0, y: 0, width: 320, height: 240),
+            edge: .bottom
+        )
+        var agents = [
+            PixelMovementAgent(id: UUID(), trackPosition: 140, target: 280, idleRemaining: 1),
+            PixelMovementAgent(id: UUID(), trackPosition: 145, target: 40, idleRemaining: 1)
+        ]
+
+        PixelMovementSimulation.step(
+            agents: &agents,
+            deltaTime: 1.0 / 30.0,
+            geometry: geometry,
+            avoidanceRects: [],
+            stoppedIDs: []
+        )
+
+        XCTAssertTrue(agents.allSatisfy { $0.idleRemaining == 0 })
+        XCTAssertNotEqual(agents[0].trackPosition, 140)
+        XCTAssertNotEqual(agents[1].trackPosition, 145)
     }
 
     func testMessageBubbleDoesNotStopAnOnlineSender() {
@@ -263,6 +326,34 @@ final class PixelWorldTests: XCTestCase {
 
         scene.apply(roomID: roomID, members: [member], bubbles: [], edge: .bottom, installationSeed: 1)
         XCTAssertTrue(scene.renderedBubbleIsTyping(for: member.id))
+    }
+
+    func testCharacterPulsePlaysOncePerBroadcastEvent() {
+        let roomID = UUID()
+        let member = makeMember(isCurrentUser: true)
+        let scene = PixelWorldScene(size: CGSize(width: 720, height: 240))
+        let first = CharacterPulseEvent(id: UUID(), roomID: roomID, userID: member.id)
+
+        scene.apply(
+            roomID: roomID, members: [member], bubbles: [], edge: .bottom,
+            installationSeed: 1, characterPulse: first
+        )
+        XCTAssertEqual(scene.renderedPulseCount(for: member.id), 1)
+
+        scene.apply(
+            roomID: roomID, members: [member], bubbles: [], edge: .bottom,
+            installationSeed: 1, characterPulse: first
+        )
+        XCTAssertEqual(scene.renderedPulseCount(for: member.id), 1)
+
+        scene.apply(
+            roomID: roomID, members: [member], bubbles: [], edge: .bottom,
+            installationSeed: 1,
+            characterPulse: CharacterPulseEvent(id: UUID(), roomID: roomID, userID: member.id)
+        )
+        XCTAssertEqual(scene.renderedPulseCount(for: member.id), 2)
+        XCTAssertEqual(PixelCharacterPulseStyle.peakScale, 1.5)
+        XCTAssertEqual(PixelCharacterPulseStyle.totalDuration, 0.56, accuracy: 0.001)
     }
 
     func testAwayOfflineAndReconnectHaveDistinctVisualStates() throws {

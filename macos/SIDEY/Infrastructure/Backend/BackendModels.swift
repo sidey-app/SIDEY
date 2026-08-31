@@ -10,6 +10,7 @@ enum BackendEvent: Sendable {
     case message(ChatMessage)
     case presence(roomID: UUID, userID: UUID, state: PresenceState)
     case typing(roomID: UUID, userID: UUID, active: Bool)
+    case characterPulse(CharacterPulseEvent)
     case connection(Bool)
 }
 
@@ -176,6 +177,16 @@ struct PresencePayload: Codable, Sendable {
 struct TypingPayload: Codable, Sendable {
     let userID: UUID
     enum CodingKeys: String, CodingKey { case userID = "user_id" }
+}
+
+struct CharacterPulsePayload: Codable, Sendable {
+    let userID: UUID
+    let eventID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case userID = "user_id"
+        case eventID = "event_id"
+    }
 }
 
 enum SideyBackendError: LocalizedError, Equatable {

@@ -17,6 +17,7 @@ final class AppCoordinator {
         model: model,
         onSend: { [weak self] body in self?.sendMessage(body) },
         onTypingChanged: { [weak self] active in self?.typingChanged(active) },
+        onCharacterDoubleClick: { [weak self] in self?.characterDoubleClicked() },
         onRegionChanged: { [weak self] in self?.persistPreferences() }
     )
     private lazy var historyWindow = HistoryWindowController(model: model)
@@ -60,6 +61,7 @@ final class AppCoordinator {
     private var didCompleteFirstRunTransition = false
     private var backendBootstrapState: BackendBootstrapState = .pending
     private var typingLease = TypingLease()
+    private var characterPulseCooldown = CharacterPulseCooldown()
     private lazy var activityMonitor = SystemActivityMonitor { [weak self] state in
         self?.localPresenceChanged(state)
     }
@@ -549,6 +551,16 @@ final class AppCoordinator {
             model.updatePresence(roomID: roomID, userID: userID, state: state)
         case .typing(let roomID, let userID, let active):
             model.updateTyping(roomID: roomID, userID: userID, active: active)
+        case .characterPulse(let event):
+            guard event.roomID == model.activeRoom?.id,
+                  model.activeRoom?.members.contains(where: { $0.userID == event.userID }) == true,
+                  characterPulseCooldown.accept(
+                    roomID: event.roomID,
+                    userID: event.userID,
+                    uptime: ProcessInfo.processInfo.systemUptime
+                  )
+            else { return }
+            overlayWindows.playCharacterPulse(event)
         case .connection(let connected):
             model.connectionState = connected ? .online : .connecting
             model.setRealtimeConnected(connected)
@@ -600,6 +612,23 @@ final class AppCoordinator {
                 }
             }
         }
+    }
+
+    private func characterDoubleClicked() {
+        guard let room = model.activeRoom,
+              let userID = model.currentUserID,
+              room.members.contains(where: { $0.userID == userID }),
+              characterPulseCooldown.accept(
+                roomID: room.id,
+                userID: userID,
+                uptime: ProcessInfo.processInfo.systemUptime
+              )
+        else { return }
+
+        let event = CharacterPulseEvent(id: UUID(), roomID: room.id, userID: userID)
+        overlayWindows.playCharacterPulse(event)
+        guard let backend else { return }
+        Task { try? await backend.broadcastCharacterPulse(roomID: room.id, eventID: event.id) }
     }
 }
 

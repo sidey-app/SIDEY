@@ -87,6 +87,17 @@ actor SideyBackend {
         try await channel.broadcast(event: event, message: TypingPayload(userID: userID))
     }
 
+    func broadcastCharacterPulse(roomID: UUID, eventID: UUID) async throws {
+        guard roomID == activeRoomID,
+              let channel = channels[roomID],
+              let userID = client.auth.currentUser?.id
+        else { return }
+        try await channel.broadcast(
+            event: "character_pulse",
+            message: CharacterPulsePayload(userID: userID, eventID: eventID)
+        )
+    }
+
     func shutdown() async {
         for roomID in Array(channels.keys) { await removeChannel(roomID) }
         for task in typingExpiryTasks.values { task.cancel() }
@@ -248,6 +259,7 @@ actor SideyBackend {
         let typingStart = channel.broadcastStream(event: "typing_start")
         let typingKeepalive = channel.broadcastStream(event: "typing_keepalive")
         let typingStop = channel.broadcastStream(event: "typing_stop")
+        let characterPulse = channel.broadcastStream(event: "character_pulse")
         let presenceChanges = channel.presenceChange()
         let statusChanges = channel.statusChange
 
@@ -274,6 +286,9 @@ actor SideyBackend {
             },
             Task { [weak self] in
                 for await payload in typingStop { await self?.handleTyping(roomID: roomID, payload: payload, active: false) }
+            },
+            Task { [weak self] in
+                for await payload in characterPulse { await self?.handleCharacterPulse(roomID: roomID, payload: payload) }
             },
             Task { [weak self] in
                 for await action in presenceChanges { await self?.handlePresence(roomID: roomID, action: action) }
@@ -376,6 +391,18 @@ actor SideyBackend {
             guard !Task.isCancelled else { return }
             await self?.expireTyping(roomID: roomID, userID: typing.userID, key: key)
         }
+    }
+
+    private func handleCharacterPulse(roomID: UUID, payload: JSONObject) {
+        let inner = payload["payload"]?.objectValue ?? payload
+        guard let pulse = try? inner.decode(as: CharacterPulsePayload.self),
+              pulse.userID != client.auth.currentUser?.id
+        else { return }
+        eventContinuation.yield(.characterPulse(CharacterPulseEvent(
+            id: pulse.eventID,
+            roomID: roomID,
+            userID: pulse.userID
+        )))
     }
 
     private func expireTyping(roomID: UUID, userID: UUID, key: String) {

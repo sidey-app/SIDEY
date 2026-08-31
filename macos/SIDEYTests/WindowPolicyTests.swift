@@ -172,7 +172,7 @@ final class WindowPolicyTests: XCTestCase {
     }
 
     func testCharacterHotspotIsTheOnlyPointerReceivingOverlayPanel() {
-        let controller = CharacterHotspotWindowController(onClick: {})
+        let controller = CharacterHotspotWindowController(onClick: { _ in })
         controller.setFrame(CGRect(x: 100, y: 100, width: 52, height: 52))
         controller.setVisible(true)
 
@@ -182,6 +182,28 @@ final class WindowPolicyTests: XCTestCase {
 
         controller.setVisible(false)
         XCTAssertFalse(controller.isVisible)
+    }
+
+    func testCharacterHotspotDoubleClickKeepsComposerOpenAndRequestsPulse() {
+        let model = AppModel(preferences: .defaults)
+        let roomID = UUID()
+        model.rooms = [Room(
+            id: roomID, name: "테스트", ownerID: UUID(), members: [],
+            inviteCodeHint: "TEST", inviteVersion: 1
+        )]
+        model.preferences.activeRoomID = roomID
+        var pulseRequests = 0
+        let group = OverlayWindowGroup(
+            model: model,
+            onCharacterDoubleClick: { pulseRequests += 1 }
+        )
+        group.setVisible(true)
+
+        group.handleCharacterClick(clickCount: 1)
+        group.handleCharacterClick(clickCount: 2)
+
+        XCTAssertEqual(pulseRequests, 1)
+        XCTAssertTrue(group.composerVisible)
     }
 
     func testComposerDismissPreservesDraftAndStopsTyping() {

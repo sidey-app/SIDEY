@@ -12,9 +12,9 @@ private final class CharacterHotspotPanel: NSPanel {
 }
 
 private final class CharacterHotspotView: NSView {
-    let onClick: () -> Void
+    let onClick: (Int) -> Void
 
-    init(onClick: @escaping () -> Void) {
+    init(onClick: @escaping (Int) -> Void) {
         self.onClick = onClick
         super.init(frame: .zero)
     }
@@ -22,7 +22,7 @@ private final class CharacterHotspotView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { nil }
 
-    override func mouseDown(with event: NSEvent) { onClick() }
+    override func mouseDown(with event: NSEvent) { onClick(event.clickCount) }
 }
 
 @MainActor
@@ -31,6 +31,7 @@ final class PixelWorldWindowController {
     private let model: AppModel
     private var hostingView: NSHostingView<PixelWorldView>?
     private var composerVisible = false
+    private var characterPulse: CharacterPulseEvent?
     private let onCurrentUserFrameChanged: (CGRect?) -> Void
 
     init(
@@ -74,10 +75,17 @@ final class PixelWorldWindowController {
         hostingView?.rootView = makeRootView()
     }
 
+    func playCharacterPulse(_ event: CharacterPulseEvent) {
+        guard event.roomID == model.activeRoom?.id, let hostingView else { return }
+        characterPulse = event
+        hostingView.rootView = makeRootView()
+    }
+
     func orderOut() {
         panel.orderOut(nil)
         panel.contentView = nil
         hostingView = nil
+        characterPulse = nil
     }
 
     var level: NSWindow.Level { panel.level }
@@ -92,6 +100,7 @@ final class PixelWorldWindowController {
         PixelWorldView(
             model: model,
             composerVisible: composerVisible,
+            characterPulse: characterPulse,
             onCurrentUserFrameChanged: onCurrentUserFrameChanged
         )
     }
@@ -171,7 +180,7 @@ final class CharacterHotspotWindowController {
     private var requestedVisible = false
     private var hasFrame = false
 
-    init(onClick: @escaping () -> Void) {
+    init(onClick: @escaping (Int) -> Void) {
         panel = CharacterHotspotPanel(
             contentRect: CGRect(origin: .zero, size: Self.panelSize),
             styleMask: [.borderless, .nonactivatingPanel],

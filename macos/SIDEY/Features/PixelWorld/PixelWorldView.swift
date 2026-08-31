@@ -4,6 +4,7 @@ import SwiftUI
 struct PixelWorldView: View {
     @Bindable var model: AppModel
     let composerVisible: Bool
+    let characterPulse: CharacterPulseEvent?
     let onCurrentUserFrameChanged: (CGRect?) -> Void
 
     var body: some View {
@@ -14,6 +15,7 @@ struct PixelWorldView: View {
             edge: model.preferences.overlayRegion.edge,
             installationSeed: model.preferences.installationSeed,
             composerVisible: composerVisible,
+            characterPulse: characterPulse,
             onCurrentUserFrameChanged: onCurrentUserFrameChanged
         )
     }
@@ -26,6 +28,7 @@ private struct PixelWorldRepresentable: NSViewRepresentable {
     let edge: OverlayEdge
     let installationSeed: UInt64
     let composerVisible: Bool
+    let characterPulse: CharacterPulseEvent?
     let onCurrentUserFrameChanged: (CGRect?) -> Void
 
     func makeNSView(context: Context) -> SKView {
@@ -57,6 +60,7 @@ private struct PixelWorldRepresentable: NSViewRepresentable {
             edge: edge,
             installationSeed: installationSeed,
             composerVisible: composerVisible,
+            characterPulse: characterPulse,
             onCurrentUserFrameChanged: onCurrentUserFrameChanged
         )
     }

@@ -56,6 +56,12 @@ final class BackendIntegrationTests: XCTestCase {
             try await first.broadcastTyping(roomID: created.roomID, event: "typing_stop")
             try await waitUntil("typing_stop Broadcast 수신") { await secondProbe.typingStopped }
 
+            let pulseEventID = UUID()
+            try await first.broadcastCharacterPulse(roomID: created.roomID, eventID: pulseEventID)
+            try await waitUntil("character_pulse Broadcast 수신") {
+                await secondProbe.characterPulseEventIDs.contains(pulseEventID)
+            }
+
             try await first.setLocalPresence(.away)
             let optionalFirstUserID = await first.currentUserID()
             let firstUserID = try XCTUnwrap(optionalFirstUserID)
@@ -109,6 +115,7 @@ private actor BackendEventProbe {
     private(set) var messageIDs: Set<UUID> = []
     private(set) var typingStarted = false
     private(set) var typingStopped = false
+    private(set) var characterPulseEventIDs: Set<UUID> = []
     private(set) var presence: [UUID: PresenceState] = [:]
 
     func consume(_ events: AsyncStream<BackendEvent>) async {
@@ -120,6 +127,8 @@ private actor BackendEventProbe {
                 messageIDs.insert(message.id)
             case .typing(_, _, let active):
                 if active { typingStarted = true } else { typingStopped = true }
+            case .characterPulse(let event):
+                characterPulseEventIDs.insert(event.id)
             case .presence(_, let userID, let state):
                 presence[userID] = state
             case .snapshot:

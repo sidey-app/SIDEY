@@ -116,6 +116,8 @@ enum PixelMovementPolicy {
 enum PixelMovementSimulation {
     static let characterRadius: CGFloat = 25
     static let maximumSpeed: CGFloat = 22
+    static let overlapMaximumSpeed: CGFloat = 30
+    static let overlapForwardAcceleration: CGFloat = 64
 
     static func step(
         agents: inout [PixelMovementAgent],
@@ -129,6 +131,7 @@ enum PixelMovementSimulation {
         guard deltaTime > 0 else { return }
 
         var separation: [UUID: CGFloat] = [:]
+        var overlappingIDs: Set<UUID> = []
         for lhsIndex in agents.indices {
             for rhsIndex in agents.indices where rhsIndex > lhsIndex {
                 let lhs = agents[lhsIndex]
@@ -146,6 +149,8 @@ enum PixelMovementSimulation {
                 let strength = max(0, 1 - distance / desiredDistance) * 30
                 separation[lhs.id, default: 0] += direction * strength
                 separation[rhs.id, default: 0] -= direction * strength
+                overlappingIDs.insert(lhs.id)
+                overlappingIDs.insert(rhs.id)
             }
         }
 
@@ -156,16 +161,38 @@ enum PixelMovementSimulation {
                 agents[index] = agent
                 continue
             }
-            if agent.idleRemaining > 0 {
+            let isOverlapping = overlappingIDs.contains(agent.id)
+            if agent.idleRemaining > 0, !isOverlapping {
                 agent.idleRemaining = max(0, agent.idleRemaining - deltaTime)
                 agent.velocity = 0
                 agents[index] = agent
                 continue
             }
+            if isOverlapping {
+                agent.idleRemaining = 0
+            }
 
             let delta = agent.target - agent.trackPosition
-            var acceleration: CGFloat = abs(delta) > 2 ? (delta < 0 ? -32 : 32) : 0
-            acceleration += separation[agent.id, default: 0]
+            let targetDirection: CGFloat = if abs(delta) > 2 {
+                delta < 0 ? -1 : 1
+            } else if abs(agent.velocity) > 0.1 {
+                agent.velocity < 0 ? -1 : 1
+            } else {
+                separation[agent.id, default: 0] < 0 ? -1 : 1
+            }
+            var acceleration: CGFloat = abs(delta) > 2 ? targetDirection * 32 : 0
+            let separationForce = separation[agent.id, default: 0]
+            if isOverlapping {
+                // The one-dimensional track has no room for a side-step. When
+                // separation opposes travel, head-on characters otherwise stick
+                // together, so accelerate through while preserving direction.
+                acceleration += targetDirection * overlapForwardAcceleration
+                if separationForce * targetDirection > 0 {
+                    acceleration += separationForce
+                }
+            } else {
+                acceleration += separationForce
+            }
             for rect in avoidanceRects {
                 acceleration += avoidanceForce(
                     trackPosition: agent.trackPosition,
@@ -175,8 +202,10 @@ enum PixelMovementSimulation {
             }
 
             agent.velocity += acceleration * CGFloat(deltaTime)
-            agent.velocity *= pow(0.82, CGFloat(deltaTime * 30))
-            agent.velocity = min(max(agent.velocity, -maximumSpeed), maximumSpeed)
+            let damping: CGFloat = isOverlapping ? 0.92 : 0.82
+            agent.velocity *= pow(damping, CGFloat(deltaTime * 30))
+            let speedLimit = isOverlapping ? overlapMaximumSpeed : maximumSpeed
+            agent.velocity = min(max(agent.velocity, -speedLimit), speedLimit)
             agent.trackPosition = geometry.clamped(agent.trackPosition + agent.velocity * CGFloat(deltaTime))
 
             if !agent.trackPosition.isFinite || !agent.velocity.isFinite {
@@ -272,11 +301,24 @@ struct PixelCharacterVisualState: Equatable {
     let showsDozeLabel: Bool
 }
 
+enum PixelCharacterPulseStyle {
+    static let peakScale: CGFloat = 1.5
+    static let growDuration: TimeInterval = 0.14
+    static let settleDuration: TimeInterval = 0.42
+    static let totalDuration = growDuration + settleDuration
+}
+
+private struct CharacterPulseKey: Hashable {
+    let roomID: UUID
+    let userID: UUID
+}
+
 final class PixelWorldScene: SKScene {
     private var characterNodes: [UUID: PixelCharacterNode] = [:]
     private var agents: [UUID: PixelMovementAgent] = [:]
     private var members: [UUID: PixelWorldMember] = [:]
     private var activeBubbles: [UUID: ActiveBubble] = [:]
+    private var lastPulseEventIDs: [CharacterPulseKey: UUID] = [:]
     private var currentRoomID: UUID?
     private var installationSeed: UInt64 = 0
     private var edge: OverlayEdge = .bottom
@@ -324,6 +366,7 @@ final class PixelWorldScene: SKScene {
         edge: OverlayEdge,
         installationSeed: UInt64,
         composerVisible: Bool = false,
+        characterPulse: CharacterPulseEvent? = nil,
         onCurrentUserFrameChanged: ((CGRect?) -> Void)? = nil
     ) {
         self.onCurrentUserFrameChanged = onCurrentUserFrameChanged
@@ -375,6 +418,15 @@ final class PixelWorldScene: SKScene {
                 tangentPosition: tangent,
                 tangentLength: geometry.tangentLength
             )
+        }
+        if let characterPulse,
+           characterPulse.roomID == roomID,
+           let node = characterNodes[characterPulse.userID] {
+            let key = CharacterPulseKey(roomID: characterPulse.roomID, userID: characterPulse.userID)
+            if lastPulseEventIDs[key] != characterPulse.id {
+                lastPulseEventIDs[key] = characterPulse.id
+                node.playPulse()
+            }
         }
         reportCurrentUserFrame(force: true)
     }
@@ -437,6 +489,10 @@ final class PixelWorldScene: SKScene {
 
     func renderedVisualState(for memberID: UUID) -> PixelCharacterVisualState? {
         characterNodes[memberID]?.visualState
+    }
+
+    func renderedPulseCount(for memberID: UUID) -> Int {
+        characterNodes[memberID]?.pulsePlayCount ?? 0
     }
 
     private var composerAvoidanceRects: [CGRect] {
@@ -507,6 +563,10 @@ enum PixelNameplateLayout {
     static let verticalPosition: CGFloat = 32
     static let statusDotRadius: CGFloat = 3
     static let spacing: CGFloat = 5
+    static let horizontalPadding: CGFloat = 4
+    static let verticalPadding: CGFloat = 2
+    static let cornerRadius: CGFloat = 6
+    static let backgroundColor = NSColor(srgbRed: 0.02, green: 0.025, blue: 0.035, alpha: 0.62)
 
     static func statusDotPosition(nicknameFrame: CGRect) -> CGPoint {
         CGPoint(
@@ -514,13 +574,20 @@ enum PixelNameplateLayout {
             y: verticalPosition
         )
     }
+
+    static func backgroundFrame(nicknameFrame: CGRect) -> CGRect {
+        nicknameFrame.insetBy(dx: -horizontalPadding, dy: -verticalPadding)
+    }
 }
 
 private final class PixelCharacterNode: SKNode {
     private static let animationKey = "pixel-character-motion"
+    private static let pulseAnimationKey = "pixel-character-pulse"
     private let memberID: UUID
     private let presentation = SKNode()
+    private let spritePulseAnchor = SKNode()
     private let sprite = SKSpriteNode()
+    private let nameplateBackground = SKShapeNode()
     private let nickname = SKLabelNode(fontNamed: "AppleSDGothicNeo-SemiBold")
     private let statusDot = SKShapeNode(circleOfRadius: PixelNameplateLayout.statusDotRadius)
     private let dozeLabel = SKLabelNode(fontNamed: "AppleSDGothicNeo-Bold")
@@ -528,6 +595,7 @@ private final class PixelCharacterNode: SKNode {
     private var currentMotion: PixelCharacterMotion?
     private var currentBubbleKey: String?
     private(set) var characterID: String
+    private(set) var pulsePlayCount = 0
 
     var bubbleBody: String? { bubbleNode?.body }
     var bubbleIsTyping: Bool { bubbleNode?.isTyping ?? false }
@@ -550,7 +618,15 @@ private final class PixelCharacterNode: SKNode {
         sprite.size = CGSize(width: 48, height: 48)
         sprite.texture = PixelCharacterTextureStore.shared.textures(for: self.characterID).idle[0]
         sprite.texture?.filteringMode = .nearest
-        presentation.addChild(sprite)
+        spritePulseAnchor.position = CGPoint(x: 0, y: -EdgeTrackGeometry.footInset)
+        sprite.position = CGPoint(x: 0, y: EdgeTrackGeometry.footInset)
+        presentation.addChild(spritePulseAnchor)
+        spritePulseAnchor.addChild(sprite)
+
+        nameplateBackground.fillColor = PixelNameplateLayout.backgroundColor
+        nameplateBackground.strokeColor = .clear
+        nameplateBackground.zPosition = 11
+        presentation.addChild(nameplateBackground)
 
         nickname.fontSize = 11
         nickname.fontColor = .white
@@ -593,6 +669,14 @@ private final class PixelCharacterNode: SKNode {
         }
         presentation.zRotation = edge.presentationRotation
         nickname.text = member.isCurrentUser ? "\(member.nickname) · 나" : member.nickname
+        let backgroundFrame = PixelNameplateLayout.backgroundFrame(nicknameFrame: nickname.frame)
+        let backgroundPath = CGMutablePath()
+        backgroundPath.addRoundedRect(
+            in: backgroundFrame,
+            cornerWidth: PixelNameplateLayout.cornerRadius,
+            cornerHeight: PixelNameplateLayout.cornerRadius
+        )
+        nameplateBackground.path = backgroundPath
         statusDot.position = PixelNameplateLayout.statusDotPosition(nicknameFrame: nickname.frame)
         statusDot.fillColor = PresenceIndicatorTone.tone(for: member.presence).color
         updateBubble(
@@ -603,6 +687,18 @@ private final class PixelCharacterNode: SKNode {
             edge: edge
         )
         updateMotion(member: member, moving: false)
+    }
+
+    func playPulse() {
+        pulsePlayCount += 1
+        spritePulseAnchor.removeAction(forKey: Self.pulseAnimationKey)
+        spritePulseAnchor.setScale(1)
+
+        let grow = SKAction.scale(to: PixelCharacterPulseStyle.peakScale, duration: PixelCharacterPulseStyle.growDuration)
+        grow.timingMode = .easeOut
+        let settle = SKAction.scale(to: 1, duration: PixelCharacterPulseStyle.settleDuration)
+        settle.timingMode = .easeInEaseOut
+        spritePulseAnchor.run(.sequence([grow, settle]), withKey: Self.pulseAnimationKey)
     }
 
     func updateMotion(member: PixelWorldMember, moving: Bool) {
