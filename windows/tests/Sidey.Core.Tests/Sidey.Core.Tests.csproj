@@ -20,5 +20,8 @@
     <None Include="../../src/Sidey.Overlay/Assets/Characters/pixel_hamster.png" Link="TestAssets/pixel_hamster.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="../../src/Sidey.Overlay/Assets/Characters/pixel_hamster.bgra" Link="TestAssets/pixel_hamster.bgra">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>

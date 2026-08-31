@@ -31,7 +31,7 @@
 ### 2.2 Windows 구현 목표
 
 - Windows 11 25H2(build 26200) 이상 x64 네이티브 클라이언트를 C#/.NET 10 LTS·WinUI 3·Win32로 구현한다.
-- 일반 창은 SIDEY 브랜드의 Windows Fluent UI로 만들고, 투명 월드는 전용 Win32 HWND와 System Composition/Win2D·Direct2D가 소유한다.
+- 일반 창은 SIDEY 브랜드의 Windows Fluent UI로 만들고, 투명 월드는 전용 Win32 HWND가 소유한다. 첫 햄스터 local slice는 사전 생성한 premultiplied BGRA frame을 `UpdateLayeredWindow`로 표시해 창 정책과 자원 안정성을 검증하며, 최종 5캐릭터 렌더러는 이 실측 뒤 결정한다.
 - 햄스터 1종으로 창 정책·DPI·클릭 통과·hotspot·잠금·절전 복귀를 먼저 통과한 후 5종과 전체 기능으로 확장한다.
 - 최종 목표는 macOS와 서버 계약·제품 행동이 동등한 Windows 판이며, 플랫폼 창·설정 UI는 Windows 관례를 따른다.
 - Godot·WPF·Electron·WebView는 사용하지 않는다.
@@ -91,15 +91,20 @@
 
 닉네임 상태 점은 고정 x 좌표를 사용하지 않는다. 실제 닉네임 label frame의 왼쪽에서 점 반지름과 5pt 간격만큼 떨어진 위치를 계산해 최대 8자 이름과 `· 나` 표식에서도 겹치지 않게 한다. 흰색 닉네임 뒤에는 여백이 있는 반투명 검정 캡슐을 렌더하며, 뒤 애플리케이션의 실제 픽셀은 읽지 않는다.
 
-내 캐릭터를 더블클릭하면 캐릭터 스프라이트만 발 위치를 기준으로 4배까지 0.14초 동안 커지고 0.42초 동안 원래 크기로 복귀한다. 닉네임·상태 점·말풍선은 확대하지 않는다. 로컬에서 즉시 재생한 뒤 같은 방에 이벤트 UUID와 사용자 UUID를 담은 `character_pulse` Broadcast를 보내며, 송신·수신 모두 캐릭터별 10초 쿨타임을 적용한다. 동일 이벤트 UUID는 한 번만 재생한다.
+내 캐릭터를 더블클릭하면 캐릭터 스프라이트만 발 위치를 기준으로 4배까지 0.14초 동안 커지고 0.42초 동안 원래 크기로 복귀한다. 닉네임·상태 점·말풍선은 확대하지 않는다. 로컬에서 즉시 재생한 뒤 같은 방에 이벤트 UUID와 사용자 UUID를 담은 `character_pulse` Broadcast를 보내며, 송신·수신 모두 캐릭터별 1초 쿨타임을 적용한다. 동일 이벤트 UUID는 한 번만 재생한다.
 
 ### 4.3 이동
 
 - 각 캐릭터는 선택한 가장자리와 평행한 1차원 track의 로컬 랜덤 목적지를 향해 산책하고 간헐적으로 idle 한다.
+- 일반 산책 속도는 최대 22pt/s다.
 - 캐릭터끼리 부드럽게 회피하되 강한 충돌 물리나 순간이동을 사용하지 않는다.
 - 캐릭터가 겹치면 idle을 즉시 끝내고 진행을 방해하는 분리력은 제거한 뒤 목표 방향으로 잠시 가속해 빠르게 통과한다.
+- 실제 메시지 말풍선 본문이 접선 방향으로 겹치면 두 발신자의 idle을 즉시 끝내고 반대 방향으로 240pt/s² 분리 가속한다. 최대 속도는 72pt/s이며 본문 사이에 최소 8pt 여유가 생길 때까지 분리 상태를 유지한다.
+- 말풍선 충돌이 해소되면 즉시 22pt/s 제한과 기존 산책 목표로 복귀한다. 타이핑 `.`·`..`·`...` 말풍선은 이동 충돌 계산에서 제외한다.
+- 한쪽이 track 끝이나 정지 상태라 해당 방향으로 움직일 수 없으면 그 쌍의 남는 힘을 전체 분리 방향을 뒤집지 않는 범위에서 움직일 수 있는 상대에게 배분한다. 둘 다 움직일 수 없으면 현재 위치를 유지한다.
+- 3~4개 말풍선이 동시에 겹치면 충돌 진입 시의 1차원 순서를 유지하며 모든 충돌 쌍의 분리력을 합산한다. 속도 상한과 track 범위를 우선하며 공간이 부족하면 일부 겹침을 허용한다.
 - 상단 월드에서는 입력창이 실제로 열려 있을 때만 상단 중앙의 440×76 영역을 우선 회피한다.
-- 공간이 부족하면 겹침을 허용한다. 설정이나 월드 크기를 자동 변경하지 않는다.
+- 공간이 부족해도 설정이나 월드 크기를 자동 변경하거나 순간이동하지 않는다.
 - 실제 메시지 말풍선이 떠 있어도 온라인 발신자는 이동을 계속하며, 말풍선과 꼬리가 위치를 추적한다.
 - 좌표는 네트워크로 보내지 않는다.
 - 설치 seed, room UUID, user UUID로 안정적인 초기 위치를 만들고 UUID diff로 기존 노드의 위치를 보존한다.
@@ -150,6 +155,8 @@
 - 프리셋 접선 길이가 짧으면 최대 폭을 `길이 - 16pt`로 줄여 다시 측정한다.
 - 캐릭터가 가장자리 끝에 도달해도 순간이동시키지 않는다. 말풍선만 접선 방향으로 보정한다.
 - 메시지와 타이핑 말풍선에는 삼각형 꼬리가 있으며, 보정 뒤에도 꼬리 끝은 발신자 캐릭터를 가리킨다.
+- 실제 메시지 본문 frame만 이동 충돌 범위로 사용하고 타이핑 말풍선은 제외한다.
+- 충돌을 해결하기 위한 추가 줄 올림, 본문 축약, 오래된 메시지 조기 제거는 하지 않는다.
 
 ### 5.3 조용히 모드와 미확인 수
 
@@ -167,13 +174,15 @@
 ### 6.2 입력창
 
 - 선택 모니터의 `visibleFrame` 상단 중앙, 노치·메뉴바 아래 10pt에 400×56으로 고정한다. 노치가 없는 화면에서도 같은 상단 여백을 사용한다.
-- 왼쪽 `×` 닫기 버튼, 텍스트 입력, 오른쪽 전송 버튼만 제공한다.
+- 왼쪽 `×` 닫기 버튼, `메시지를 입력해 주세요` placeholder가 있는 텍스트 입력, 오른쪽 전송 버튼만 제공한다.
 - 이 패널만 키보드 포커스와 포인터 입력을 받는다.
+- 패널의 둥근 glass 영역 밖과 hosting surface는 포커스 여부와 무관하게 완전 투명하며 400×56 사각 배경을 그리지 않는다.
 - 최대 200자·3줄, Enter 전송, Shift+Enter 줄바꿈 계약을 유지한다.
 - 앱 실행과 오버레이 표시 직후에는 숨겨져 있다.
 - 내 캐릭터 단일 클릭 또는 메뉴바 `메시지 작성`으로 열고 즉시 포커스한다.
 - 내 캐릭터 더블클릭은 리액션을 실행하고 입력창은 열린 상태로 유지한다.
-- 왼쪽 `×`, 내 캐릭터 재클릭 또는 Esc는 draft를 보존하고 닫으며 `typing_stop`을 보낸다.
+- 캐릭터 또는 입력 패널 클릭으로 앱이 활성화될 때는 수동 앱 재열기로 처리하거나 설정창을 열지 않는다.
+- 왼쪽 `×`, 내 캐릭터 재클릭, Esc 또는 입력창 외부 클릭은 draft를 보존하고 닫으며 `typing_stop`을 보낸다. 외부 클릭은 전역 마우스 이벤트나 좌표를 수집하지 않고 입력 패널의 키 포커스 상실로 판정한다.
 - 유효한 메시지를 전송하면 입력창을 유지하고 마지막 전송 시점부터 5초 뒤 자동으로 닫는다. 5초 안에 다시 전송하면 타이머를 갱신한다.
 - 낙관적 전송 실패 시 예약 닫힘을 취소하고 원문을 복구한 뒤 입력창을 열어 포커스한다.
 - 오버레이 숨김, 활성 방 전환, 현재 사용자 노드 제거 시 입력창을 닫는다.
@@ -201,7 +210,7 @@
 
 ### 6.4 Windows 창과 트레이
 
-- 월드는 WinUI XAML 창에 투명 표현을 위임하지 않고 `WS_POPUP` 기반 전용 Win32 HWND에 System Composition visual tree를 붙인다.
+- 월드는 WinUI XAML 창에 투명 표현을 위임하지 않고 `WS_POPUP` 기반 전용 Win32 HWND가 소유한다. 첫 local slice는 24px 원본에서 정수 nearest-neighbor로 미리 만든 premultiplied BGRA frame을 `UpdateLayeredWindow`로 표시하며 tick마다 bitmap이나 surface를 새로 할당하지 않는다.
 - 월드 HWND는 작업 표시줄·Alt-Tab에 나타나지 않고 활성화되지 않으며 외부 앱으로 포인터를 통과시킨다.
 - 내 캐릭터 상호작용 52×52 hotspot은 별도 HWND가 소유하고 최대 15Hz·1 DIP 임계값으로 위치를 갱신한다. 전역 마우스 hook·전역 좌표 수집은 금지한다.
 - composer는 400×56 DIP 별도 WinUI 창이며, 내 캐릭터 클릭·트레이 `메시지 작성`만 이 창을 활성화한다.
@@ -221,7 +230,7 @@
 - 입력창 및 캐릭터 상호 회피
 - 타이핑 점과 상태 모션 frame
 - 캐릭터 리액션의 이벤트 UUID 중복 제거와 발 기준 확대·복귀 action
-- 캐릭터의 1차원 접선 좌표와 말풍선 꼬리 배치
+- 캐릭터의 1차원 접선 좌표, 실제 메시지 말풍선 충돌 범위·분리 순서와 말풍선 꼬리 배치
 
 `AppModel`은 다음 제품·서버 상태를 소유한다.
 
@@ -233,7 +242,7 @@
 
 Presence나 snapshot을 적용할 때 UUID 기준으로 추가·갱신·삭제하며 존재하는 캐릭터 노드의 위치를 초기화하지 않는다.
 
-`OverlayWindowGroup`은 composer 표시 상태와 내 캐릭터 단일·더블클릭 패널을 소유한다. `AppCoordinator`는 `character_pulse` 송수신과 캐릭터별 10초 쿨타임을 소유한다. `AppModel`에는 화면 좌표나 애니메이션 frame을 저장하지 않는다.
+`OverlayWindowGroup`은 composer 표시 상태와 내 캐릭터 단일·더블클릭 패널을 소유한다. `AppCoordinator`는 `character_pulse` 송수신과 캐릭터별 1초 쿨타임을 소유한다. `AppModel`에는 화면 좌표나 애니메이션 frame을 저장하지 않는다.
 
 `SideyBackend`는 Realtime 채널·수신 task·Presence publish와 자동 복구 watchdog을 소유한다. 복구 성공 시 snapshot 이벤트만 상위로 보내며, `AppCoordinator`가 이를 적용하고 활성 방의 최근 메시지를 재조회한다.
 
@@ -265,7 +274,7 @@ OverlayRegionPreference(
 - `Sidey.Core`는 프로필·방·Presence·message ledger·bubble ledger·이동 시뮬레이션·검증 규칙을 소유하고 WinUI·Win32·Supabase를 참조하지 않는다.
 - `Sidey.App`의 feature ViewModel은 화면에 표시할 상태와 사용자 명령만 소유한다. Supabase endpoint·Realtime payload·HWND를 직접 다루지 않는다.
 - `Sidey.Infrastructure`는 `IAuthService`·`IBackendGateway`·`ICredentialStore`·`IPreferencesStore`를 구현하고 community Supabase C# client를 교체 가능한 adapter 뒤에 격리한다.
-- `Sidey.Overlay`는 별도 dispatcher thread에서 30FPS 고정 step을 실행하고 불변 `WorldSnapshot`을 UUID diff로 반영한다. 위치·속도·animation frame은 앱 세션 상태에 저장하지 않는다.
+- `Sidey.Overlay`는 전용 Win32 message-loop thread와 30FPS 고정 step을 소유하고 불변 `WorldSnapshot`을 UUID diff로 반영한다. 위치·속도·animation frame은 앱 세션 상태에 저장하지 않는다. 첫 local slice의 GDI bitmap frame은 시작할 때만 만들고 종료 시 모두 해제한다.
 - `Sidey.Platform.Windows`는 창 정책·모니터·DPI·트레이·로그인 실행·입력 유휴·잠금·절전 이벤트를 소유한다.
 - Windows 일반 설정은 `%LOCALAPPDATA%\SIDEY\preferences.json`에 atomic replace로 저장하고, OAuth 세션·PKCE verifier·평문 초대 코드는 Credential Locker에만 저장한다.
 - 24px sprite는 물리 픽셀 기준 `max(2, round-away-from-zero(2 × dpi / 96))` 정수 배율로 렌더한다.
@@ -309,12 +318,12 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 ### 10.1 자동화 테스트
 
 - 영역: 4개 가장자리 × 3개 길이, 중앙 정렬, 회전, visible frame, 깊이 제한, 모니터 fallback
-- 이동: 20개 합성 노드가 3,000 tick 동안 1차원 track과 발 기준선을 유지하고 finite 좌표, 입력창·상호 회피, 겹침 시 idle 해제·가속 통과, 혼잡 시 안전한 겹침
+- 이동: 20개 합성 노드가 3,000 tick 동안 1차원 track과 발 기준선을 유지하고 finite 좌표, 입력창·상호 회피, 겹침 시 idle 해제·가속 통과, 실제 메시지 말풍선의 240pt/s² 분리 가속·72pt/s 상한·8pt 해소·경계 힘 재배분·혼잡 시 안정적인 겹침·일반 목표 복귀
 - 상태: 온라인·자리 비움 doze·오프라인 curled sleep·재연결·타이핑, 내 캐릭터 항상 표시, 오프라인 숨김, 방 전환 UUID diff, 최대 8자 닉네임·반투명 배경과 상태 점 5pt 간격, 발 기준 4배 리액션과 이벤트 UUID 중복 제거
 - Realtime: backoff 계산을 단위 검증하고, 실서버 2클라이언트에서 한쪽 WebSocket 강제 단절 뒤 자동 재구독·메시지·Presence·`character_pulse` 재수신을 검증
 - 메시지: 발신자별 교체, 최대 4개 eviction, 10초 만료, 이동 중 말풍선 추적, 낙관적 성공·실패, 조용히 모드, 미확인 수
-- 말풍선: 1자·200자·3줄·프리셋 양 끝·4방향에서 본문과 꼬리 누적 frame이 캔버스 안에 유지
-- 창: 월드 항상 위·클릭 통과, 내 캐릭터 52×52 hotspot만 포인터 수신, composer의 선택 모니터 상단 중앙·노치 아래 10pt 배치와 왼쪽 `×` 닫기, 단일·더블클릭 분기와 캐릭터별 10초 리액션 쿨타임, composer 초기 숨김·열기·Esc·마지막 전송 뒤 5초 자동 닫힘·타이머 갱신·실패 복구, 기록 일반 창
+- 말풍선: 1자·200자·3줄·프리셋 양 끝·4방향에서 본문과 꼬리 누적 frame이 캔버스 안에 유지하고 실제 메시지 본문만 접선 충돌 범위에 포함하며 타이핑 말풍선은 제외
+- 창: 월드 항상 위·클릭 통과, 내 캐릭터 52×52 hotspot만 포인터 수신, composer의 선택 모니터 상단 중앙·노치 아래 10pt 배치와 왼쪽 `×`·Esc·외부 클릭 닫기, 단일·더블클릭 분기와 캐릭터별 1초 리액션 쿨타임, composer 초기 숨김·열기·마지막 전송 뒤 5초 자동 닫힘·타이머 갱신·실패 복구, 기록 일반 창
 - 업데이트: Sparkle `2.9.6` 프레임워크·메뉴 항목·피드 URL·EdDSA 공개키가 번들에 포함되고 signed feed와 압축 해제 전 검증을 강제하며, 업데이트 진행 중에는 수동 확인 메뉴를 비활성화
 - 에셋: 5개 시트의 240×24 RGBA·10프레임·공통 발 기준선·결정적 hash·Release 번들 포함, 메뉴 아이콘 1x·2x template/unread variant
 - 서버: 5번째 성공, 6번째 `member_limit_reached`, 여섯 번째 방 거부, RLS, 중복 닉네임·캐릭터 허용

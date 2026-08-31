@@ -124,10 +124,11 @@ final class AppCoordinator {
         startBackend()
     }
 
-    func handleManualReopen() {
+    func handleManualReopen(originatesFromOverlayInteraction: Bool = false) {
         guard ManualReopenPolicy.shouldOpenSettings(
             hasShownNativeLanding: model.preferences.hasShownNativeLanding,
-            composerVisible: overlayWindows.composerVisible
+            composerVisible: overlayWindows.composerVisible,
+            originatesFromOverlayInteraction: originatesFromOverlayInteraction
         ) else { return }
         showSettings()
     }

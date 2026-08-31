@@ -7,6 +7,7 @@
       <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="SIDEY" />
       <TextBlock Text="Windows 네이티브 햄스터 slice 준비 중" TextWrapping="Wrap" />
       <InfoBar
+          x:Name="StatusInfoBar"
           IsOpen="True"
           IsClosable="False"
           Severity="Informational"

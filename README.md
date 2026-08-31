@@ -64,7 +64,7 @@ shasum -a 256 SIDEY-macOS-arm64-*.zip
 - macOS 앱과 UI: Swift 6, SwiftUI, AppKit
 - 2D 픽셀 월드: SpriteKit, 24×24 스프라이트의 nearest-neighbor 확대
 - Windows 앱과 UI: C#/.NET 10 LTS, WinUI 3, Windows App SDK, Win32
-- Windows 2D 픽셀 월드: System Composition, Win2D/Direct2D 전용 오버레이 HWND
+- Windows 2D 픽셀 월드: 전용 Win32 오버레이 HWND. 첫 1캐릭터 local slice는 `UpdateLayeredWindow`로 창·DPI·클릭 통과·자원 안정성을 검증하고 최종 렌더러는 실측 뒤 결정
 - 사용자·그룹·메시지·실시간 상태: Supabase
 
 메시지는 Postgres를 원본으로 저장하고, Presence는 접속 상태, Broadcast는 타이핑 같은 일시 이벤트에만 사용합니다.

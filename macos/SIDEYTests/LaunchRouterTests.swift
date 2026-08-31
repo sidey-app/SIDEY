@@ -33,6 +33,11 @@ final class LaunchRouterTests: XCTestCase {
             hasShownNativeLanding: false,
             composerVisible: false
         ))
+        XCTAssertFalse(ManualReopenPolicy.shouldOpenSettings(
+            hasShownNativeLanding: true,
+            composerVisible: false,
+            originatesFromOverlayInteraction: true
+        ))
     }
 
     func testExistingUserWaitsForBackendBeforeOpeningOverlay() {

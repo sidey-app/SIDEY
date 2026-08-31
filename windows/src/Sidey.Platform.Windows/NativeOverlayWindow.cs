@@ -21,30 +21,47 @@ public readonly record struct NativePixelRect(int X, int Y, int Width, int Heigh
 public sealed unsafe class NativeOverlayWindow : IDisposable
 {
     private const string WindowClassName = "SIDEY.NativeOverlayWindow";
-    private const byte FullyOpaque = 255;
+    private const byte AlmostTransparent = 1;
     private static readonly object RegistrationLock = new();
     private static readonly ConcurrentDictionary<nint, NativeOverlayWindowRole> Roles = new();
+    private static readonly ConcurrentDictionary<nint, Action> Activations = new();
+    private static readonly ConcurrentDictionary<nint, uint> OwnerThreads = new();
+    private static readonly ConcurrentDictionary<uint, int> ThreadWindowCounts = new();
     private static readonly WNDPROC WindowProcedureCallback = WindowProcedure;
     private static readonly HWND TopmostWindow = new((void*)(-1));
     private static bool _classRegistered;
 
     private HWND _handle;
+    private readonly uint _ownerThreadId;
     private bool _disposed;
 
-    private NativeOverlayWindow(HWND handle, NativeOverlayWindowRole role)
+    private NativeOverlayWindow(HWND handle, NativeOverlayWindowRole role, Action? activated)
     {
         _handle = handle;
         Role = role;
-        Roles[(nint)handle.Value] = role;
+        var handleValue = (nint)handle.Value;
+        var ownerThread = PInvoke.GetCurrentThreadId();
+        _ownerThreadId = ownerThread;
+        Roles[handleValue] = role;
+        if (activated is not null)
+        {
+            Activations[handleValue] = activated;
+        }
+        OwnerThreads[handleValue] = ownerThread;
+        ThreadWindowCounts.AddOrUpdate(ownerThread, 1, static (_, count) => count + 1);
     }
 
     public NativeOverlayWindowRole Role { get; }
     public nint Handle => (nint)_handle.Value;
     public bool IsCreated => _handle != HWND.Null;
 
+    public static uint ExtendedStyleBits(NativeOverlayWindowRole role) =>
+        (uint)WindowStyles.ExtendedStyle(role);
+
     public static unsafe NativeOverlayWindow Create(
         NativeOverlayWindowRole role,
-        NativePixelRect initialBounds)
+        NativePixelRect initialBounds,
+        Action? activated = null)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -78,17 +95,18 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "CreateWindowExW failed.");
         }
 
-        if (!PInvoke.SetLayeredWindowAttributes(
+        if (role == NativeOverlayWindowRole.Hotspot
+            && !PInvoke.SetLayeredWindowAttributes(
                 handle,
                 default,
-                FullyOpaque,
+                AlmostTransparent,
                 LAYERED_WINDOW_ATTRIBUTES_FLAGS.LWA_ALPHA))
         {
             PInvoke.DestroyWindow(handle);
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "SetLayeredWindowAttributes failed.");
         }
 
-        var window = new NativeOverlayWindow(handle, role);
+        var window = new NativeOverlayWindow(handle, role, activated);
         window.SetBounds(initialBounds, visible: true);
         return window;
     }
@@ -135,7 +153,15 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
         if (handle != HWND.Null)
         {
             Roles.TryRemove((nint)handle.Value, out _);
-            PInvoke.PostMessage(handle, PInvoke.WM_CLOSE, default, default);
+            Activations.TryRemove((nint)handle.Value, out _);
+            if (PInvoke.GetCurrentThreadId() == _ownerThreadId)
+            {
+                PInvoke.DestroyWindow(handle);
+            }
+            else
+            {
+                PInvoke.PostMessage(handle, PInvoke.WM_CLOSE, default, default);
+            }
         }
     }
 
@@ -183,6 +209,13 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
             return new LRESULT(3); // MA_NOACTIVATE
         }
 
+        if (message == PInvoke.WM_LBUTTONUP
+            && Activations.TryGetValue((nint)window.Value, out var activated))
+        {
+            activated();
+            return default;
+        }
+
         if (message == PInvoke.WM_CLOSE)
         {
             PInvoke.DestroyWindow(window);
@@ -191,8 +224,21 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
 
         if (message == PInvoke.WM_DESTROY)
         {
-            Roles.TryRemove((nint)window.Value, out _);
-            PInvoke.PostQuitMessage(0);
+            var handle = (nint)window.Value;
+            Roles.TryRemove(handle, out _);
+            Activations.TryRemove(handle, out _);
+            if (OwnerThreads.TryRemove(handle, out var ownerThread))
+            {
+                var remaining = ThreadWindowCounts.AddOrUpdate(
+                    ownerThread,
+                    0,
+                    static (_, count) => Math.Max(0, count - 1));
+                if (remaining == 0)
+                {
+                    ThreadWindowCounts.TryRemove(ownerThread, out _);
+                    PInvoke.PostQuitMessage(0);
+                }
+            }
             return default;
         }
 
@@ -207,8 +253,7 @@ internal static class WindowStyles
         var style = WINDOW_EX_STYLE.WS_EX_TOPMOST
             | WINDOW_EX_STYLE.WS_EX_TOOLWINDOW
             | WINDOW_EX_STYLE.WS_EX_NOACTIVATE
-            | WINDOW_EX_STYLE.WS_EX_LAYERED
-            | WINDOW_EX_STYLE.WS_EX_NOREDIRECTIONBITMAP;
+            | WINDOW_EX_STYLE.WS_EX_LAYERED;
         return role == NativeOverlayWindowRole.World
             ? style | WINDOW_EX_STYLE.WS_EX_TRANSPARENT
             : style;

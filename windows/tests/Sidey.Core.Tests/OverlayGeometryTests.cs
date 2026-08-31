@@ -103,4 +103,23 @@ public sealed class OverlayGeometryTests
             }
         }
     }
+
+    [Fact]
+    public void HotspotTrackingIsCappedAtFifteenHertzAndOneDip()
+    {
+        var previous = new PointD(100, 100);
+
+        Assert.False(HotspotTrackingPolicy.ShouldUpdate(
+            previous,
+            new PointD(102, 100),
+            TimeSpan.FromMilliseconds(60)));
+        Assert.False(HotspotTrackingPolicy.ShouldUpdate(
+            previous,
+            new PointD(100.9, 100.9),
+            TimeSpan.FromMilliseconds(70)));
+        Assert.True(HotspotTrackingPolicy.ShouldUpdate(
+            previous,
+            new PointD(101, 100),
+            TimeSpan.FromMilliseconds(70)));
+    }
 }

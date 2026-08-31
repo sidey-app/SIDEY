@@ -234,7 +234,49 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertTrue(controller.isVisible)
         XCTAssertTrue(controller.isKeyWindow)
         XCTAssertTrue(controller.messageFieldIsFirstResponder)
+        XCTAssertTrue(controller.usesTransparentSurface)
         controller.setVisible(false)
+    }
+
+    func testComposerRequestsDismissWhenAnotherWindowBecomesKey() async {
+        let model = AppModel(preferences: .defaults)
+        var dismissRequests = 0
+        let controller = OverlayInteractionWindowController(
+            model: model,
+            onSend: { _ in },
+            onInputActivity: {},
+            onTypingChanged: { _ in },
+            onCancel: { dismissRequests += 1 }
+        )
+        let otherWindow = NSWindow(
+            contentRect: CGRect(x: 0, y: 0, width: 100, height: 100),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        defer {
+            controller.setVisible(false)
+            otherWindow.orderOut(nil)
+        }
+
+        controller.setVisible(true)
+        controller.focusMessageField()
+        for _ in 0..<3 { await Task.yield() }
+        XCTAssertTrue(controller.isKeyWindow)
+
+        otherWindow.makeKeyAndOrderFront(nil)
+        for _ in 0..<3 { await Task.yield() }
+
+        XCTAssertEqual(dismissRequests, 1)
+    }
+
+    func testAppDelegatePreventsDefaultSettingsSceneRestorationOnReopen() {
+        let delegate = AppDelegate()
+
+        XCTAssertFalse(delegate.applicationShouldHandleReopen(
+            NSApplication.shared,
+            hasVisibleWindows: false
+        ))
     }
 
     func testComposerDismissPreservesDraftAndStopsTyping() {

@@ -39,8 +39,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        coordinator?.handleManualReopen()
-        return true
+        coordinator?.handleManualReopen(
+            originatesFromOverlayInteraction: OverlayWindowIdentifier.isInteractionSource(
+                sender.currentEvent?.window?.identifier
+            )
+        )
+        // AppCoordinator exclusively owns SIDEY's custom settings window.
+        // Prevent AppKit/SwiftUI from restoring the empty Settings scene too.
+        return false
     }
 
     func applicationWillTerminate(_ notification: Notification) {

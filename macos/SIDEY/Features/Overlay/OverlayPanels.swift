@@ -25,6 +25,15 @@ private final class CharacterHotspotView: NSView {
     override func mouseDown(with event: NSEvent) { onClick(event.clickCount) }
 }
 
+enum OverlayWindowIdentifier {
+    static let composer = NSUserInterfaceItemIdentifier("sidey.overlay.composer")
+    static let characterHotspot = NSUserInterfaceItemIdentifier("sidey.overlay.character-hotspot")
+
+    static func isInteractionSource(_ identifier: NSUserInterfaceItemIdentifier?) -> Bool {
+        identifier == composer || identifier == characterHotspot
+    }
+}
+
 @MainActor
 final class PixelWorldWindowController {
     private let panel: NSPanel
@@ -121,10 +130,12 @@ enum OverlayComposerLayout {
 }
 
 @MainActor
-final class OverlayInteractionWindowController {
+final class OverlayInteractionWindowController: NSObject, NSWindowDelegate {
     static let panelSize = OverlayComposerLayout.panelSize
     private let panel: NSPanel
+    private let onDismissRequested: () -> Void
     private var focusRequestID = 0
+    private var isProgrammaticallyHiding = false
 
     init(
         model: AppModel,
@@ -133,12 +144,16 @@ final class OverlayInteractionWindowController {
         onTypingChanged: @escaping (Bool) -> Void,
         onCancel: @escaping () -> Void
     ) {
+        onDismissRequested = onCancel
         panel = InteractiveOverlayPanel(
             contentRect: CGRect(origin: .zero, size: Self.panelSize),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
         )
+        super.init()
+        panel.identifier = OverlayWindowIdentifier.composer
+        panel.delegate = self
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false
@@ -147,7 +162,7 @@ final class OverlayInteractionWindowController {
         panel.hidesOnDeactivate = false
         panel.canHide = false
         panel.isReleasedWhenClosed = false
-        panel.contentView = NSHostingView(
+        let hostingView = NSHostingView(
             rootView: OverlayComposerView(
                 model: model,
                 onSend: onSend,
@@ -156,6 +171,10 @@ final class OverlayInteractionWindowController {
                 onCancel: onCancel
             )
         )
+        hostingView.wantsLayer = true
+        hostingView.layer?.isOpaque = false
+        hostingView.layer?.backgroundColor = NSColor.clear.cgColor
+        panel.contentView = hostingView
     }
 
     func setScreenFrame(_ visibleFrame: CGRect) {
@@ -168,8 +187,15 @@ final class OverlayInteractionWindowController {
             panel.orderFrontRegardless()
         } else {
             focusRequestID &+= 1
+            isProgrammaticallyHiding = true
             panel.orderOut(nil)
+            isProgrammaticallyHiding = false
         }
+    }
+
+    func windowDidResignKey(_ notification: Notification) {
+        guard !isProgrammaticallyHiding, panel.isVisible else { return }
+        onDismissRequested()
     }
 
     func focusMessageField() {
@@ -210,6 +236,18 @@ final class OverlayInteractionWindowController {
     var size: CGSize { panel.frame.size }
     var ignoresMouseEvents: Bool { panel.ignoresMouseEvents }
     var isKeyWindow: Bool { panel.isKeyWindow }
+    var usesTransparentSurface: Bool {
+        guard
+            let layer = panel.contentView?.layer,
+            let layerBackground = layer.backgroundColor,
+            let layerColor = NSColor(cgColor: layerBackground)
+        else { return false }
+
+        return !panel.isOpaque
+            && panel.backgroundColor.alphaComponent < 0.001
+            && !layer.isOpaque
+            && layerColor.alphaComponent < 0.001
+    }
     var messageFieldIsFirstResponder: Bool {
         (panel.firstResponder as? NSView)?.identifier
             == NSUserInterfaceItemIdentifier("sidey.message-field")
@@ -231,6 +269,7 @@ final class CharacterHotspotWindowController {
             backing: .buffered,
             defer: false
         )
+        panel.identifier = OverlayWindowIdentifier.characterHotspot
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false

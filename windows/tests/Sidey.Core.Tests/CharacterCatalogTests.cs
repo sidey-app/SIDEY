@@ -40,4 +40,16 @@ public sealed class CharacterCatalogTests
             "43171c1dd614629058b6d593c57ca0e5841b0be03a04a05181dfda67c53a7f45",
             Convert.ToHexStringLower(SHA256.HashData(bytes)));
     }
+
+    [Fact]
+    public void HamsterRuntimeBgraIsDeterministicAndMatchesSheetDimensions()
+    {
+        var path = Path.Combine(AppContext.BaseDirectory, "TestAssets", "pixel_hamster.bgra");
+        var bytes = File.ReadAllBytes(path);
+
+        Assert.Equal(240 * 24 * 4, bytes.Length);
+        Assert.Equal(
+            "8532df2c91beb19d9794e16576df5b9e37397ed764869c0f734c4abefcc2b088",
+            Convert.ToHexStringLower(SHA256.HashData(bytes)));
+    }
 }

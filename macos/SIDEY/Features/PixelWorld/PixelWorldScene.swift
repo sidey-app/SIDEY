@@ -98,6 +98,7 @@ struct PixelMovementAgent: Equatable, Identifiable, Sendable {
     var velocity: CGFloat = 0
     var target: CGFloat
     var idleRemaining: TimeInterval = 0
+    var messageBubbleSeparationOrder: CGFloat? = nil
 }
 
 enum PixelMovementPolicy {
@@ -138,13 +139,17 @@ enum PixelMovementSimulation {
     static let maximumSpeed: CGFloat = 22
     static let overlapMaximumSpeed: CGFloat = 30
     static let overlapForwardAcceleration: CGFloat = 64
+    static let messageBubbleClearance: CGFloat = 8
+    static let messageBubbleMaximumSpeed: CGFloat = 72
+    static let messageBubbleSeparationAcceleration: CGFloat = 240
 
     static func step(
         agents: inout [PixelMovementAgent],
         deltaTime rawDeltaTime: TimeInterval,
         geometry: EdgeTrackGeometry,
         avoidanceRects: [CGRect],
-        stoppedIDs: Set<UUID>
+        stoppedIDs: Set<UUID>,
+        messageBubbleTangentRanges: [UUID: ClosedRange<CGFloat>] = [:]
     ) {
         guard !agents.isEmpty, geometry.tangentLength.isFinite else { return }
         let deltaTime = min(max(rawDeltaTime, 0), 1.0 / 10.0)
@@ -174,6 +179,97 @@ enum PixelMovementSimulation {
             }
         }
 
+        var messageBubbleCollisionPairs: [(UUID, UUID)] = []
+        var messageBubbleSeparatingIDs: Set<UUID> = []
+        for lhsIndex in agents.indices {
+            for rhsIndex in agents.indices where rhsIndex > lhsIndex {
+                let lhs = agents[lhsIndex]
+                let rhs = agents[rhsIndex]
+                guard let lhsRange = messageBubbleTangentRanges[lhs.id],
+                      let rhsRange = messageBubbleTangentRanges[rhs.id],
+                      lhsRange.lowerBound.isFinite,
+                      lhsRange.upperBound.isFinite,
+                      rhsRange.lowerBound.isFinite,
+                      rhsRange.upperBound.isFinite
+                else { continue }
+
+                let gap = max(lhsRange.lowerBound, rhsRange.lowerBound)
+                    - min(lhsRange.upperBound, rhsRange.upperBound)
+                guard gap < messageBubbleClearance else { continue }
+
+                messageBubbleCollisionPairs.append((lhs.id, rhs.id))
+                messageBubbleSeparatingIDs.insert(lhs.id)
+                messageBubbleSeparatingIDs.insert(rhs.id)
+            }
+        }
+
+        for index in agents.indices {
+            if messageBubbleSeparatingIDs.contains(agents[index].id) {
+                if agents[index].messageBubbleSeparationOrder == nil {
+                    agents[index].messageBubbleSeparationOrder = agents[index].trackPosition
+                }
+            } else {
+                agents[index].messageBubbleSeparationOrder = nil
+            }
+        }
+
+        let agentsByID = Dictionary(uniqueKeysWithValues: agents.map { ($0.id, $0) })
+        var messageBubbleSeparation: [UUID: CGFloat] = [:]
+        var blockedForceTransfers: [(recipientID: UUID, force: CGFloat)] = []
+        for (lhsID, rhsID) in messageBubbleCollisionPairs {
+            guard let lhs = agentsByID[lhsID], let rhs = agentsByID[rhsID] else { continue }
+            let lhsOrder = lhs.messageBubbleSeparationOrder ?? lhs.trackPosition
+            let rhsOrder = rhs.messageBubbleSeparationOrder ?? rhs.trackPosition
+            let lhsIsLeft = if abs(lhsOrder - rhsOrder) > 0.001 {
+                lhsOrder < rhsOrder
+            } else {
+                lhs.id.uuidString < rhs.id.uuidString
+            }
+            let left = lhsIsLeft ? lhs : rhs
+            let right = lhsIsLeft ? rhs : lhs
+            let leftCanMove = canMove(
+                agentsByID[left.id],
+                direction: -1,
+                stoppedIDs: stoppedIDs,
+                trackRange: geometry.trackRange
+            )
+            let rightCanMove = canMove(
+                agentsByID[right.id],
+                direction: 1,
+                stoppedIDs: stoppedIDs,
+                trackRange: geometry.trackRange
+            )
+
+            messageBubbleSeparation[left.id, default: 0] -= messageBubbleSeparationAcceleration
+            messageBubbleSeparation[right.id, default: 0] += messageBubbleSeparationAcceleration
+            switch (leftCanMove, rightCanMove) {
+            case (true, false):
+                blockedForceTransfers.append((left.id, -messageBubbleSeparationAcceleration))
+            case (false, true):
+                blockedForceTransfers.append((right.id, messageBubbleSeparationAcceleration))
+            case (true, true), (false, false):
+                break
+            }
+        }
+        let untransferredSeparation = messageBubbleSeparation
+        for transfer in blockedForceTransfers {
+            let existingForce = untransferredSeparation[transfer.recipientID, default: 0]
+            guard existingForce * transfer.force > 0 else { continue }
+            messageBubbleSeparation[transfer.recipientID, default: 0] += transfer.force
+        }
+        for agent in agents {
+            let force = messageBubbleSeparation[agent.id, default: 0]
+            guard abs(force) > 0.001 else { continue }
+            if !canMove(
+                agent,
+                direction: force,
+                stoppedIDs: stoppedIDs,
+                trackRange: geometry.trackRange
+            ) {
+                messageBubbleSeparation[agent.id] = 0
+            }
+        }
+
         for index in agents.indices {
             var agent = agents[index]
             guard !stoppedIDs.contains(agent.id) else {
@@ -182,14 +278,44 @@ enum PixelMovementSimulation {
                 continue
             }
             let isOverlapping = overlappingIDs.contains(agent.id)
-            if agent.idleRemaining > 0, !isOverlapping {
+            let isSeparatingMessageBubbles = messageBubbleSeparatingIDs.contains(agent.id)
+            if agent.idleRemaining > 0, !isOverlapping, !isSeparatingMessageBubbles {
                 agent.idleRemaining = max(0, agent.idleRemaining - deltaTime)
                 agent.velocity = 0
                 agents[index] = agent
                 continue
             }
-            if isOverlapping {
+            if isOverlapping || isSeparatingMessageBubbles {
                 agent.idleRemaining = 0
+            }
+
+            if isSeparatingMessageBubbles {
+                var acceleration = messageBubbleSeparation[agent.id, default: 0]
+                for rect in avoidanceRects {
+                    acceleration += avoidanceForce(
+                        trackPosition: agent.trackPosition,
+                        geometry: geometry,
+                        rect: rect
+                    )
+                }
+                if abs(acceleration) <= 0.001 {
+                    agent.velocity = 0
+                } else {
+                    agent.velocity += acceleration * CGFloat(deltaTime)
+                    agent.velocity = min(
+                        max(agent.velocity, -messageBubbleMaximumSpeed),
+                        messageBubbleMaximumSpeed
+                    )
+                    agent.trackPosition = geometry.clamped(
+                        agent.trackPosition + agent.velocity * CGFloat(deltaTime)
+                    )
+                }
+                if !agent.trackPosition.isFinite || !agent.velocity.isFinite {
+                    agent.trackPosition = geometry.trackRange.lowerBound
+                    agent.velocity = 0
+                }
+                agents[index] = agent
+                continue
             }
 
             let delta = agent.target - agent.trackPosition
@@ -236,6 +362,19 @@ enum PixelMovementSimulation {
         }
     }
 
+    private static func canMove(
+        _ agent: PixelMovementAgent?,
+        direction: CGFloat,
+        stoppedIDs: Set<UUID>,
+        trackRange: ClosedRange<CGFloat>
+    ) -> Bool {
+        guard let agent, !stoppedIDs.contains(agent.id) else { return false }
+        if direction < 0 {
+            return agent.trackPosition > trackRange.lowerBound + 0.001
+        }
+        return agent.trackPosition < trackRange.upperBound - 0.001
+    }
+
     private static func avoidanceForce(
         trackPosition: CGFloat,
         geometry: EdgeTrackGeometry,
@@ -258,6 +397,7 @@ struct PixelBubbleLayout: Equatable, Sendable {
     let size: CGSize
     let localCenterX: CGFloat
     let tailTipX: CGFloat
+    let bodyFrame: CGRect
     let totalFrame: CGRect
 
     static func make(
@@ -310,7 +450,23 @@ struct PixelBubbleLayout: Equatable, Sendable {
         )
         let tailPoint = CGPoint(x: 0, y: 44)
         let total = bodyFrame.union(CGRect(origin: tailPoint, size: CGSize(width: 0.001, height: 0.001)))
-        return Self(size: size, localCenterX: localCenterX, tailTipX: tailTipX, totalFrame: total)
+        return Self(
+            size: size,
+            localCenterX: localCenterX,
+            tailTipX: tailTipX,
+            bodyFrame: bodyFrame,
+            totalFrame: total
+        )
+    }
+
+    func bodyTangentRange(at tangentPosition: CGFloat, edge: OverlayEdge) -> ClosedRange<CGFloat> {
+        let tangentSign: CGFloat = switch edge {
+        case .bottom, .right: 1
+        case .top, .left: -1
+        }
+        let first = tangentPosition + bodyFrame.minX * tangentSign
+        let second = tangentPosition + bodyFrame.maxX * tangentSign
+        return min(first, second)...max(first, second)
     }
 }
 
@@ -462,7 +618,8 @@ final class PixelWorldScene: SKScene {
             deltaTime: deltaTime,
             geometry: geometry,
             avoidanceRects: composerAvoidanceRects,
-            stoppedIDs: stoppedIDs
+            stoppedIDs: stoppedIDs,
+            messageBubbleTangentRanges: messageBubbleTangentRanges
         )
 
         for var agent in orderedAgents {
@@ -494,6 +651,23 @@ final class PixelWorldScene: SKScene {
     var nodeIDs: Set<UUID> { Set(characterNodes.keys) }
     var agentStates: [PixelMovementAgent] { agents.values.sorted { $0.id.uuidString < $1.id.uuidString } }
     var trackGeometry: EdgeTrackGeometry { EdgeTrackGeometry(bounds: frame, edge: edge) }
+    var messageBubbleTangentRanges: [UUID: ClosedRange<CGFloat>] {
+        let geometry = trackGeometry
+        return activeBubbles.reduce(into: [:]) { ranges, entry in
+            guard let agent = agents[entry.key], members[entry.key] != nil else { return }
+            let layout = PixelBubbleLayout.make(
+                text: entry.value.body,
+                isTyping: false,
+                tangentPosition: agent.trackPosition,
+                tangentLength: geometry.tangentLength,
+                edge: edge
+            )
+            ranges[entry.key] = layout.bodyTangentRange(
+                at: agent.trackPosition,
+                edge: edge
+            )
+        }
+    }
 
     func renderedCharacterID(for memberID: UUID) -> String? {
         characterNodes[memberID]?.characterID

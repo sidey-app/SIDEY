@@ -38,6 +38,9 @@ jobs:
       - name: Core tests
         run: dotnet test windows/tests/Sidey.Core.Tests/Sidey.Core.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=sidey-core.trx"
 
+      - name: Windows platform policy tests
+        run: dotnet test windows/tests/Sidey.Platform.Windows.Tests/Sidey.Platform.Windows.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=sidey-platform.trx"
+
       - name: Build Windows solution
         run: dotnet build windows/SIDEY.Windows.slnx --configuration Release --no-restore
 
@@ -62,7 +65,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-test-results
-          path: windows/tests/Sidey.Core.Tests/TestResults/*.trx
+          path: windows/tests/**/TestResults/*.trx
           if-no-files-found: warn
 
       - name: Upload internal Windows artifact

@@ -22,7 +22,7 @@ struct OverlayComposerView: View {
 
             ZStack(alignment: .leading) {
                 if model.draft.isEmpty {
-                    Text("짧은 메시지").foregroundStyle(.tertiary)
+                    Text("메시지를 입력해 주세요").foregroundStyle(.tertiary)
                 }
                 NativeMessageField(
                     text: $model.draft,
@@ -50,6 +50,7 @@ struct OverlayComposerView: View {
         .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
         .glassEffect(in: RoundedRectangle(cornerRadius: 15, style: .continuous))
         .padding(5)
+        .background(Color.clear)
     }
 
     private func send() {

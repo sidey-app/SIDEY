@@ -19,9 +19,10 @@ enum LaunchRouter {
 enum ManualReopenPolicy {
     static func shouldOpenSettings(
         hasShownNativeLanding: Bool,
-        composerVisible: Bool
+        composerVisible: Bool,
+        originatesFromOverlayInteraction: Bool = false
     ) -> Bool {
-        hasShownNativeLanding && !composerVisible
+        hasShownNativeLanding && !composerVisible && !originatesFromOverlayInteraction
     }
 }
 
@@ -452,7 +453,7 @@ struct CharacterPulseEvent: Equatable, Identifiable, Sendable {
 }
 
 struct CharacterPulseCooldown: Equatable, Sendable {
-    static let duration: TimeInterval = 10
+    static let duration: TimeInterval = 1
 
     private struct Key: Hashable, Sendable {
         let roomID: UUID

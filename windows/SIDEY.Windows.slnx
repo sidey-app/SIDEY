@@ -8,5 +8,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Sidey.Core.Tests/Sidey.Core.Tests.csproj" />
+    <Project Path="tests/Sidey.Platform.Windows.Tests/Sidey.Platform.Windows.Tests.csproj" />
   </Folder>
 </Solution>

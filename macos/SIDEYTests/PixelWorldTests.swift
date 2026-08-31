@@ -194,6 +194,314 @@ final class PixelWorldTests: XCTestCase {
         XCTAssertNotEqual(agents[1].trackPosition, 145)
     }
 
+    func testMessageBubbleOverlapSeparatesRapidlyOnEveryEdge() {
+        for edge in OverlayEdge.allCases {
+            let bounds = edge.isHorizontal
+                ? CGRect(x: 0, y: 0, width: 640, height: 240)
+                : CGRect(x: 0, y: 0, width: 240, height: 640)
+            let geometry = EdgeTrackGeometry(bounds: bounds, edge: edge)
+            var agents = [
+                PixelMovementAgent(id: UUID(), trackPosition: 260, target: 560),
+                PixelMovementAgent(id: UUID(), trackPosition: 330, target: 80)
+            ]
+            let initialGap = messageBubbleGap(agents: agents, halfWidth: 70)
+            var reachedClearance = false
+
+            for _ in 0..<30 {
+                PixelMovementSimulation.step(
+                    agents: &agents,
+                    deltaTime: 1.0 / 30.0,
+                    geometry: geometry,
+                    avoidanceRects: [],
+                    stoppedIDs: [],
+                    messageBubbleTangentRanges: messageBubbleRanges(agents: agents, halfWidth: 70)
+                )
+                XCTAssertTrue(agents.allSatisfy {
+                    $0.trackPosition.isFinite
+                        && $0.velocity.isFinite
+                        && geometry.trackRange.contains($0.trackPosition)
+                        && abs($0.velocity) <= PixelMovementSimulation.messageBubbleMaximumSpeed
+                })
+                if messageBubbleGap(agents: agents, halfWidth: 70)
+                    >= PixelMovementSimulation.messageBubbleClearance {
+                    reachedClearance = true
+                    break
+                }
+            }
+
+            XCTAssertTrue(reachedClearance, "\(edge) did not clear message bubbles")
+            XCTAssertGreaterThan(messageBubbleGap(agents: agents, halfWidth: 70), initialGap)
+        }
+    }
+
+    func testMessageBubbleOverlapEndsIdleImmediately() {
+        let geometry = EdgeTrackGeometry(
+            bounds: CGRect(x: 0, y: 0, width: 520, height: 240),
+            edge: .bottom
+        )
+        var agents = [
+            PixelMovementAgent(id: UUID(), trackPosition: 220, target: 480, idleRemaining: 3),
+            PixelMovementAgent(id: UUID(), trackPosition: 300, target: 40, idleRemaining: 3)
+        ]
+
+        PixelMovementSimulation.step(
+            agents: &agents,
+            deltaTime: 1.0 / 30.0,
+            geometry: geometry,
+            avoidanceRects: [],
+            stoppedIDs: [],
+            messageBubbleTangentRanges: messageBubbleRanges(agents: agents, halfWidth: 60)
+        )
+
+        XCTAssertTrue(agents.allSatisfy { $0.idleRemaining == 0 })
+        XCTAssertLessThan(agents[0].trackPosition, 220)
+        XCTAssertGreaterThan(agents[1].trackPosition, 300)
+    }
+
+    func testMessageBubbleSeparationTransfersForceFromStoppedOrEdgeBlockedCharacter() {
+        let geometry = EdgeTrackGeometry(
+            bounds: CGRect(x: 0, y: 0, width: 520, height: 240),
+            edge: .bottom
+        )
+        let stoppedID = UUID()
+        var stoppedPair = [
+            PixelMovementAgent(id: stoppedID, trackPosition: 220, target: 480),
+            PixelMovementAgent(id: UUID(), trackPosition: 270, target: 40)
+        ]
+
+        PixelMovementSimulation.step(
+            agents: &stoppedPair,
+            deltaTime: 1.0 / 30.0,
+            geometry: geometry,
+            avoidanceRects: [],
+            stoppedIDs: [stoppedID],
+            messageBubbleTangentRanges: messageBubbleRanges(agents: stoppedPair, halfWidth: 50)
+        )
+
+        XCTAssertEqual(stoppedPair[0].trackPosition, 220)
+        XCTAssertEqual(stoppedPair[0].velocity, 0)
+        XCTAssertGreaterThan(stoppedPair[1].trackPosition, 270)
+        XCTAssertEqual(
+            stoppedPair[1].velocity,
+            PixelMovementSimulation.messageBubbleSeparationAcceleration * 2 / 30,
+            accuracy: 0.001
+        )
+
+        var edgePair = [
+            PixelMovementAgent(
+                id: UUID(),
+                trackPosition: geometry.trackRange.lowerBound,
+                target: geometry.trackRange.upperBound
+            ),
+            PixelMovementAgent(id: UUID(), trackPosition: 80, target: geometry.trackRange.lowerBound)
+        ]
+        let blockedPosition = edgePair[0].trackPosition
+
+        PixelMovementSimulation.step(
+            agents: &edgePair,
+            deltaTime: 1.0 / 30.0,
+            geometry: geometry,
+            avoidanceRects: [],
+            stoppedIDs: [],
+            messageBubbleTangentRanges: messageBubbleRanges(agents: edgePair, halfWidth: 50)
+        )
+
+        XCTAssertEqual(edgePair[0].trackPosition, blockedPosition)
+        XCTAssertEqual(edgePair[0].velocity, 0)
+        XCTAssertGreaterThan(edgePair[1].trackPosition, 80)
+    }
+
+    func testMessageBubbleOverlapStaysPutWhenBothCharactersCannotMoveOutward() {
+        let geometry = EdgeTrackGeometry(
+            bounds: CGRect(x: 0, y: 0, width: 100, height: 240),
+            edge: .bottom
+        )
+        var agents = [
+            PixelMovementAgent(
+                id: UUID(),
+                trackPosition: geometry.trackRange.lowerBound,
+                target: geometry.trackRange.upperBound
+            ),
+            PixelMovementAgent(
+                id: UUID(),
+                trackPosition: geometry.trackRange.upperBound,
+                target: geometry.trackRange.lowerBound
+            )
+        ]
+        let original = agents
+
+        PixelMovementSimulation.step(
+            agents: &agents,
+            deltaTime: 1.0 / 30.0,
+            geometry: geometry,
+            avoidanceRects: [],
+            stoppedIDs: [],
+            messageBubbleTangentRanges: messageBubbleRanges(agents: agents, halfWidth: 50)
+        )
+
+        XCTAssertEqual(agents.map(\.trackPosition), original.map(\.trackPosition))
+        XCTAssertEqual(agents.map(\.velocity), [0, 0])
+    }
+
+    func testTypingBubblesDoNotCreateMessageCollisionRangesOrEndIdle() {
+        let roomID = UUID()
+        let members = [
+            PixelWorldMember(
+                id: UUID(), nickname: "첫째", characterID: "pixel_hamster",
+                presence: .online, isTyping: true, isCurrentUser: true
+            ),
+            PixelWorldMember(
+                id: UUID(), nickname: "둘째", characterID: "pixel_cat",
+                presence: .online, isTyping: true, isCurrentUser: false
+            )
+        ]
+        let scene = PixelWorldScene(size: CGSize(width: 520, height: 240))
+        scene.apply(roomID: roomID, members: members, bubbles: [], edge: .bottom, installationSeed: 7)
+
+        XCTAssertTrue(members.allSatisfy { scene.renderedBubbleIsTyping(for: $0.id) })
+        let typingOnlyRanges = scene.messageBubbleTangentRanges
+        XCTAssertTrue(typingOnlyRanges.isEmpty)
+
+        scene.apply(
+            roomID: roomID,
+            members: members,
+            bubbles: [ActiveBubble(
+                senderID: members[0].id,
+                messageID: UUID(),
+                body: "실제 메시지",
+                expiresAt: .now.addingTimeInterval(10)
+            )],
+            edge: .bottom,
+            installationSeed: 7
+        )
+        XCTAssertEqual(Set(scene.messageBubbleTangentRanges.keys), [members[0].id])
+
+        let geometry = EdgeTrackGeometry(bounds: scene.frame, edge: .bottom)
+        var agents = [
+            PixelMovementAgent(id: members[0].id, trackPosition: 180, target: 480, idleRemaining: 2),
+            PixelMovementAgent(id: members[1].id, trackPosition: 260, target: 40, idleRemaining: 2)
+        ]
+        PixelMovementSimulation.step(
+            agents: &agents,
+            deltaTime: 1.0 / 30.0,
+            geometry: geometry,
+            avoidanceRects: [],
+            stoppedIDs: [],
+            messageBubbleTangentRanges: typingOnlyRanges
+        )
+
+        XCTAssertEqual(agents.map(\.trackPosition), [180, 260])
+        XCTAssertTrue(agents.allSatisfy { $0.idleRemaining > 0 })
+    }
+
+    func testFourLongMessageBubblesOnNarrowTrackStayFiniteBoundedAndStable() {
+        let geometry = EdgeTrackGeometry(
+            bounds: CGRect(x: 0, y: 0, width: 140, height: 240),
+            edge: .bottom
+        )
+        let ids = (1...4).map { value in
+            UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", value))!
+        }
+        var agents = ids.map { PixelMovementAgent(id: $0, trackPosition: 70, target: 70) }
+        var directionChanges = Dictionary(uniqueKeysWithValues: ids.map { ($0, 0) })
+        var lastDirections = Dictionary(uniqueKeysWithValues: ids.map { ($0, CGFloat.zero) })
+        var reachedMaximumSpeed = false
+
+        for _ in 0..<300 {
+            let previousPositions = Dictionary(uniqueKeysWithValues: agents.map { ($0.id, $0.trackPosition) })
+            let ranges = Dictionary(uniqueKeysWithValues: agents.map { agent in
+                let layout = PixelBubbleLayout.make(
+                    text: String(repeating: "긴메시지", count: 50),
+                    isTyping: false,
+                    tangentPosition: agent.trackPosition,
+                    tangentLength: geometry.tangentLength,
+                    edge: .bottom
+                )
+                return (agent.id, layout.bodyTangentRange(at: agent.trackPosition, edge: .bottom))
+            })
+            PixelMovementSimulation.step(
+                agents: &agents,
+                deltaTime: 1.0 / 30.0,
+                geometry: geometry,
+                avoidanceRects: [],
+                stoppedIDs: [],
+                messageBubbleTangentRanges: ranges
+            )
+
+            for agent in agents {
+                XCTAssertTrue(agent.trackPosition.isFinite)
+                XCTAssertTrue(agent.velocity.isFinite)
+                XCTAssertTrue(geometry.trackRange.contains(agent.trackPosition))
+                XCTAssertLessThanOrEqual(abs(agent.velocity), PixelMovementSimulation.messageBubbleMaximumSpeed)
+                if abs(agent.velocity) == PixelMovementSimulation.messageBubbleMaximumSpeed {
+                    reachedMaximumSpeed = true
+                }
+                XCTAssertLessThanOrEqual(
+                    abs(agent.trackPosition - (previousPositions[agent.id] ?? agent.trackPosition)),
+                    PixelMovementSimulation.messageBubbleMaximumSpeed / 30 + 0.001
+                )
+                let direction = agent.velocity == 0 ? CGFloat.zero : (agent.velocity < 0 ? -1 : 1)
+                if direction != 0,
+                   let previous = lastDirections[agent.id],
+                   previous != 0,
+                   previous != direction {
+                    directionChanges[agent.id, default: 0] += 1
+                }
+                if direction != 0 {
+                    lastDirections[agent.id] = direction
+                }
+            }
+        }
+
+        XCTAssertTrue(directionChanges.values.allSatisfy { $0 <= 1 })
+        XCTAssertTrue(reachedMaximumSpeed)
+    }
+
+    func testMessageBubbleResolutionRestoresWalkingLimitAndOriginalTargets() {
+        let geometry = EdgeTrackGeometry(
+            bounds: CGRect(x: 0, y: 0, width: 620, height: 240),
+            edge: .bottom
+        )
+        var agents = [
+            PixelMovementAgent(id: UUID(), trackPosition: 240, target: 560),
+            PixelMovementAgent(id: UUID(), trackPosition: 300, target: 60)
+        ]
+        let originalTargets = agents.map(\.target)
+
+        for _ in 0..<60 {
+            PixelMovementSimulation.step(
+                agents: &agents,
+                deltaTime: 1.0 / 30.0,
+                geometry: geometry,
+                avoidanceRects: [],
+                stoppedIDs: [],
+                messageBubbleTangentRanges: messageBubbleRanges(agents: agents, halfWidth: 60)
+            )
+            if messageBubbleGap(agents: agents, halfWidth: 60)
+                >= PixelMovementSimulation.messageBubbleClearance {
+                break
+            }
+        }
+        XCTAssertGreaterThanOrEqual(
+            messageBubbleGap(agents: agents, halfWidth: 60),
+            PixelMovementSimulation.messageBubbleClearance
+        )
+        XCTAssertEqual(agents.map(\.target), originalTargets)
+
+        PixelMovementSimulation.step(
+            agents: &agents,
+            deltaTime: 1.0 / 30.0,
+            geometry: geometry,
+            avoidanceRects: [],
+            stoppedIDs: [],
+            messageBubbleTangentRanges: [:]
+        )
+
+        XCTAssertTrue(agents.allSatisfy { abs($0.velocity) <= PixelMovementSimulation.maximumSpeed })
+        XCTAssertTrue(agents.allSatisfy { $0.messageBubbleSeparationOrder == nil })
+        XCTAssertEqual(agents.map(\.target), originalTargets)
+    }
+
     func testMessageBubbleDoesNotStopAnOnlineSender() {
         let movingID = UUID()
         let awayID = UUID()
@@ -295,6 +603,13 @@ final class PixelWorldTests: XCTestCase {
                         "\(edge) \(tangent) \(message.count): \(worldFrame)"
                     )
                     XCTAssertLessThanOrEqual(layout.size.width, 220)
+                    let tangentRange = layout.bodyTangentRange(at: tangent, edge: edge)
+                    let worldBodyFrame = geometry.worldFrame(for: layout.bodyFrame, at: tangent)
+                    let expectedRange = edge.isHorizontal
+                        ? (worldBodyFrame.minX - bounds.minX)...(worldBodyFrame.maxX - bounds.minX)
+                        : (worldBodyFrame.minY - bounds.minY)...(worldBodyFrame.maxY - bounds.minY)
+                    XCTAssertEqual(tangentRange.lowerBound, expectedRange.lowerBound, accuracy: 0.001)
+                    XCTAssertEqual(tangentRange.upperBound, expectedRange.upperBound, accuracy: 0.001)
                 }
             }
         }
@@ -435,5 +750,20 @@ final class PixelWorldTests: XCTestCase {
             id: UUID(), nickname: "친구", characterID: "pixel_hamster",
             presence: .online, isTyping: false, isCurrentUser: isCurrentUser
         )
+    }
+
+    private func messageBubbleRanges(
+        agents: [PixelMovementAgent],
+        halfWidth: CGFloat
+    ) -> [UUID: ClosedRange<CGFloat>] {
+        Dictionary(uniqueKeysWithValues: agents.map { agent in
+            (agent.id, (agent.trackPosition - halfWidth)...(agent.trackPosition + halfWidth))
+        })
+    }
+
+    private func messageBubbleGap(agents: [PixelMovementAgent], halfWidth: CGFloat) -> CGFloat {
+        let ordered = agents.sorted { $0.trackPosition < $1.trackPosition }
+        guard ordered.count >= 2 else { return .infinity }
+        return (ordered[1].trackPosition - halfWidth) - (ordered[0].trackPosition + halfWidth)
     }
 }
