@@ -302,7 +302,7 @@ struct PixelCharacterVisualState: Equatable {
 }
 
 enum PixelCharacterPulseStyle {
-    static let peakScale: CGFloat = 1.5
+    static let peakScale: CGFloat = 4
     static let growDuration: TimeInterval = 0.14
     static let settleDuration: TimeInterval = 0.42
     static let totalDuration = growDuration + settleDuration

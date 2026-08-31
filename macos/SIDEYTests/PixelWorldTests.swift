@@ -352,7 +352,7 @@ final class PixelWorldTests: XCTestCase {
             characterPulse: CharacterPulseEvent(id: UUID(), roomID: roomID, userID: member.id)
         )
         XCTAssertEqual(scene.renderedPulseCount(for: member.id), 2)
-        XCTAssertEqual(PixelCharacterPulseStyle.peakScale, 1.5)
+        XCTAssertEqual(PixelCharacterPulseStyle.peakScale, 4)
         XCTAssertEqual(PixelCharacterPulseStyle.totalDuration, 0.56, accuracy: 0.001)
     }
 
