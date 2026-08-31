@@ -15,6 +15,34 @@ struct OverlayScreenGeometry: Equatable, Sendable {
     let visibleFrame: CGRect
 }
 
+@MainActor
+protocol ComposerAutoDismissScheduling: AnyObject {
+    func schedule(after delay: Duration, action: @escaping @MainActor () -> Void)
+    func cancel()
+}
+
+@MainActor
+private final class TaskComposerAutoDismissScheduler: ComposerAutoDismissScheduling {
+    private var task: Task<Void, Never>?
+
+    func schedule(after delay: Duration, action: @escaping @MainActor () -> Void) {
+        cancel()
+        task = Task { @MainActor in
+            do {
+                try await Task.sleep(for: delay)
+            } catch {
+                return
+            }
+            action()
+        }
+    }
+
+    func cancel() {
+        task?.cancel()
+        task = nil
+    }
+}
+
 enum OverlayRegionLayout {
     static let preferredDepth: CGFloat = 240
 
@@ -57,6 +85,8 @@ enum OverlayRegionLayout {
 
 @MainActor
 final class OverlayWindowGroup {
+    static let defaultComposerAutoDismissDelay: Duration = .seconds(10)
+
     private let model: AppModel
     private let onSend: (String) -> Void
     private let onTypingChanged: (Bool) -> Void
@@ -68,10 +98,7 @@ final class OverlayWindowGroup {
     )
     private lazy var interactionWindow = OverlayInteractionWindowController(
         model: model,
-        onSend: { [weak self] body in
-            self?.dismissComposer(sendTypingStop: false)
-            self?.onSend(body)
-        },
+        onSend: { [weak self] body in self?.submitComposerMessage(body) },
         onTypingChanged: { [weak self] active in self?.onTypingChanged(active) },
         onCancel: { [weak self] in self?.dismissComposer() }
     )
@@ -84,17 +111,23 @@ final class OverlayWindowGroup {
     private var overlayVisible = false
     private(set) var composerVisible = false
     private var currentUserLocalFrame: CGRect?
+    private let composerAutoDismissDelay: Duration
+    private let composerAutoDismissScheduler: any ComposerAutoDismissScheduling
 
     init(
         model: AppModel,
         onSend: @escaping (String) -> Void = { _ in },
         onTypingChanged: @escaping (Bool) -> Void = { _ in },
-        onRegionChanged: @escaping () -> Void = {}
+        onRegionChanged: @escaping () -> Void = {},
+        composerAutoDismissDelay: Duration = OverlayWindowGroup.defaultComposerAutoDismissDelay,
+        composerAutoDismissScheduler: (any ComposerAutoDismissScheduling)? = nil
     ) {
         self.model = model
         self.onSend = onSend
         self.onTypingChanged = onTypingChanged
         self.onRegionChanged = onRegionChanged
+        self.composerAutoDismissDelay = composerAutoDismissDelay
+        self.composerAutoDismissScheduler = composerAutoDismissScheduler ?? TaskComposerAutoDismissScheduler()
         screenObserver = ScreenObserverToken(NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
@@ -133,6 +166,7 @@ final class OverlayWindowGroup {
 
     func presentComposer() {
         guard overlayVisible, model.activeRoom != nil else { return }
+        cancelComposerAutoDismiss()
         composerVisible = true
         worldWindow.setComposerVisible(true)
         interactionWindow.setVisible(true)
@@ -148,6 +182,12 @@ final class OverlayWindowGroup {
 
     func toggleComposer() {
         composerVisible ? dismissComposer() : presentComposer()
+    }
+
+    func submitComposerMessage(_ body: String) {
+        guard composerVisible else { return }
+        scheduleComposerAutoDismiss()
+        onSend(body)
     }
 
     var worldLevel: NSWindow.Level { worldWindow.level }
@@ -200,11 +240,22 @@ final class OverlayWindowGroup {
     }
 
     private func dismissComposer(sendTypingStop: Bool) {
+        cancelComposerAutoDismiss()
         guard composerVisible || interactionWindow.isVisible else { return }
         composerVisible = false
         interactionWindow.setVisible(false)
         worldWindow.setComposerVisible(false)
         if sendTypingStop { onTypingChanged(false) }
+    }
+
+    private func scheduleComposerAutoDismiss() {
+        composerAutoDismissScheduler.schedule(after: composerAutoDismissDelay) { [weak self] in
+            self?.dismissComposer(sendTypingStop: true)
+        }
+    }
+
+    private func cancelComposerAutoDismiss() {
+        composerAutoDismissScheduler.cancel()
     }
 
     private func currentUserFrameChanged(_ localFrame: CGRect?) {

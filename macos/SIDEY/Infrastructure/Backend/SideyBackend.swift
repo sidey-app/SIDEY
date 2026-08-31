@@ -141,10 +141,8 @@ actor SideyBackend {
 
     @discardableResult
     func upsertProfile(nickname: String, characterID: String = "pixel_hamster") async throws -> Profile {
-        let normalized = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard normalized.count >= 2, normalized.count <= 12,
-              normalized.rangeOfCharacter(from: .newlines) == nil
-        else { throw SideyBackendError.invalidProfile }
+        guard ProfileValidator.isValidNickname(nickname) else { throw SideyBackendError.invalidProfile }
+        let normalized = ProfileValidator.normalizedNickname(nickname)
         let value: DatabaseProfile = try await client.rpc(
             "upsert_profile",
             params: UpsertProfileParameters(nickname: normalized, characterID: characterID)

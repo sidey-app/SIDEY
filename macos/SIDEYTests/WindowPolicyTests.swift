@@ -203,6 +203,64 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertEqual(typingChanges, [true, false])
     }
 
+    func testComposerDismissesTenSecondsAfterTheLastSubmittedMessage() {
+        let model = AppModel(preferences: .defaults)
+        let roomID = UUID()
+        model.rooms = [Room(
+            id: roomID, name: "테스트", ownerID: UUID(), members: [],
+            inviteCodeHint: "TEST", inviteVersion: 1
+        )]
+        model.preferences.activeRoomID = roomID
+        var sentBodies: [String] = []
+        let scheduler = TestComposerAutoDismissScheduler()
+        let group = OverlayWindowGroup(
+            model: model,
+            onSend: { sentBodies.append($0) },
+            composerAutoDismissScheduler: scheduler
+        )
+        group.setVisible(true)
+        group.presentComposer()
+
+        group.submitComposerMessage("첫 메시지")
+        group.submitComposerMessage("마지막 메시지")
+
+        XCTAssertTrue(group.composerVisible)
+        XCTAssertEqual(sentBodies, ["첫 메시지", "마지막 메시지"])
+        XCTAssertEqual(scheduler.scheduleCount, 2)
+        XCTAssertEqual(scheduler.latestDelay, .seconds(10))
+
+        scheduler.fireLatest()
+        XCTAssertFalse(group.composerVisible)
+        XCTAssertFalse(group.interactionIsVisible)
+    }
+
+    func testPresentingComposerAgainCancelsPendingAutoDismissForFailureRecovery() {
+        let model = AppModel(preferences: .defaults)
+        let roomID = UUID()
+        model.rooms = [Room(
+            id: roomID, name: "테스트", ownerID: UUID(), members: [],
+            inviteCodeHint: "TEST", inviteVersion: 1
+        )]
+        model.preferences.activeRoomID = roomID
+        let scheduler = TestComposerAutoDismissScheduler()
+        let group = OverlayWindowGroup(
+            model: model,
+            composerAutoDismissScheduler: scheduler
+        )
+        group.setVisible(true)
+        group.presentComposer()
+        group.submitComposerMessage("실패할 메시지")
+
+        model.draft = "실패할 메시지"
+        group.presentComposer()
+        scheduler.fireLatest()
+
+        XCTAssertTrue(group.composerVisible)
+        XCTAssertEqual(model.draft, "실패할 메시지")
+        XCTAssertGreaterThanOrEqual(scheduler.cancelCount, 1)
+        group.dismissComposer()
+    }
+
     func testClosingSettingsDoesNotHidePixelWorld() {
         let model = AppModel(preferences: .defaults)
         let settings = SettingsWindowController(model: model)
@@ -273,5 +331,30 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertEqual(regular.size, CGSize(width: 18, height: 18))
         XCTAssertEqual(unread.size, CGSize(width: 18, height: 18))
         XCTAssertNotEqual(regular.tiffRepresentation, unread.tiffRepresentation)
+    }
+}
+
+@MainActor
+private final class TestComposerAutoDismissScheduler: ComposerAutoDismissScheduling {
+    private var action: (@MainActor () -> Void)?
+    private(set) var latestDelay: Duration?
+    private(set) var scheduleCount = 0
+    private(set) var cancelCount = 0
+
+    func schedule(after delay: Duration, action: @escaping @MainActor () -> Void) {
+        latestDelay = delay
+        self.action = action
+        scheduleCount += 1
+    }
+
+    func cancel() {
+        action = nil
+        cancelCount += 1
+    }
+
+    func fireLatest() {
+        let pending = action
+        action = nil
+        pending?()
     }
 }

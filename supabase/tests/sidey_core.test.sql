@@ -6,7 +6,7 @@ set local role postgres;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(46);
+select plan(48);
 
 insert into auth.users (
   id,
@@ -128,6 +128,16 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002
 select lives_ok(
   $$select public.upsert_profile(' 민 트 ', 'pixel_hamster')$$,
   'duplicate nickname is allowed in the same room'
+);
+select lives_ok(
+  $$select public.upsert_profile('가나다라마바사아', 'pixel_hamster')$$,
+  'eight-character nickname is accepted'
+);
+select throws_ok(
+  $$select public.upsert_profile('가나다라마바사아자', 'pixel_hamster')$$,
+  '22023',
+  'invalid_nickname',
+  'nine-character nickname is rejected'
 );
 select lives_ok(
   $$

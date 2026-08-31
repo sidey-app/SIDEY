@@ -446,6 +446,32 @@ enum PresenceChangePlan {
     }
 }
 
+enum ProfileValidator {
+    static let minimumNicknameCharacters = 2
+    static let maximumNicknameCharacters = 8
+
+    static func normalizedNickname(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func isValidNickname(_ value: String) -> Bool {
+        let normalized = normalizedNickname(value)
+        return normalized.count >= minimumNicknameCharacters
+            && normalized.count <= maximumNicknameCharacters
+            && value.rangeOfCharacter(from: .newlines) == nil
+            && !value.contains("\t")
+    }
+
+    static func limitedNicknameDraft(_ value: String) -> String {
+        let singleLine = value.filter { !$0.isNewline && $0 != "\t" }
+        return String(singleLine.prefix(maximumNicknameCharacters))
+    }
+
+    static func displayNickname(_ value: String) -> String {
+        String(normalizedNickname(value).prefix(maximumNicknameCharacters))
+    }
+}
+
 enum MessageValidator {
     static let maximumCharacters = 200
     static let maximumLines = 3

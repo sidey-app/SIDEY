@@ -503,13 +503,26 @@ final class PixelWorldScene: SKScene {
     }
 }
 
+enum PixelNameplateLayout {
+    static let verticalPosition: CGFloat = 32
+    static let statusDotRadius: CGFloat = 3
+    static let spacing: CGFloat = 5
+
+    static func statusDotPosition(nicknameFrame: CGRect) -> CGPoint {
+        CGPoint(
+            x: nicknameFrame.minX - spacing - statusDotRadius,
+            y: verticalPosition
+        )
+    }
+}
+
 private final class PixelCharacterNode: SKNode {
     private static let animationKey = "pixel-character-motion"
     private let memberID: UUID
     private let presentation = SKNode()
     private let sprite = SKSpriteNode()
     private let nickname = SKLabelNode(fontNamed: "AppleSDGothicNeo-SemiBold")
-    private let statusDot = SKShapeNode(circleOfRadius: 3)
+    private let statusDot = SKShapeNode(circleOfRadius: PixelNameplateLayout.statusDotRadius)
     private let dozeLabel = SKLabelNode(fontNamed: "AppleSDGothicNeo-Bold")
     private var bubbleNode: PixelBubbleNode?
     private var currentMotion: PixelCharacterMotion?
@@ -543,12 +556,12 @@ private final class PixelCharacterNode: SKNode {
         nickname.fontColor = .white
         nickname.verticalAlignmentMode = .center
         nickname.horizontalAlignmentMode = .center
-        nickname.position = CGPoint(x: 0, y: 32)
+        nickname.position = CGPoint(x: 0, y: PixelNameplateLayout.verticalPosition)
         nickname.zPosition = 12
         presentation.addChild(nickname)
 
         statusDot.strokeColor = .clear
-        statusDot.position = CGPoint(x: -30, y: 32)
+        statusDot.position = PixelNameplateLayout.statusDotPosition(nicknameFrame: nickname.frame)
         statusDot.zPosition = 12
         presentation.addChild(statusDot)
 
@@ -580,6 +593,7 @@ private final class PixelCharacterNode: SKNode {
         }
         presentation.zRotation = edge.presentationRotation
         nickname.text = member.isCurrentUser ? "\(member.nickname) · 나" : member.nickname
+        statusDot.position = PixelNameplateLayout.statusDotPosition(nicknameFrame: nickname.frame)
         statusDot.fillColor = PresenceIndicatorTone.tone(for: member.presence).color
         updateBubble(
             bubble: bubble,

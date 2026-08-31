@@ -193,7 +193,7 @@ enum SideyBackendError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .invalidProfile: "닉네임은 줄바꿈 없이 2~12자로 입력해줘"
+        case .invalidProfile: "닉네임은 줄바꿈 없이 2~8자로 입력해줘"
         case .invalidRoomName: "그룹 이름은 줄바꿈 없이 1~20자로 입력해줘"
         case .invalidInviteCode: "초대 코드를 다시 확인해줘"
         case .roomLimitReached: "한 사용자는 그룹을 최대 5개까지 사용할 수 있음"

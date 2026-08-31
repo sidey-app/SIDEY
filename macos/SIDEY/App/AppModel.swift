@@ -127,7 +127,7 @@ final class AppModel {
             guard isCurrentUser || preferences.showOfflineMembers || baseState != .offline else { return nil }
             return PixelWorldMember(
                 id: member.userID,
-                nickname: member.nickname,
+                nickname: ProfileValidator.displayNickname(member.nickname),
                 characterID: PixelCharacterCatalog.canonicalID(for: member.characterID),
                 presence: baseState,
                 isTyping: isTyping,

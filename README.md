@@ -45,6 +45,10 @@
 
 반드시 이 저장소의 [공식 GitHub Releases](https://github.com/sidey-app/SIDEY/releases)에서 받은 파일만 실행하세요. 자세한 절차와 위험은 [Apple의 미확인 개발자 앱 안내](https://support.apple.com/en-ca/102445)를 확인할 수 있습니다.
 
+### alpha 업데이트
+
+현재 alpha에는 자동 업데이트 기능이 없습니다. 새 Release의 ZIP을 내려받아 압축을 풀고 기존 `/Applications/SIDEY.app`을 새 앱으로 교체해야 합니다. 앱 번들만 바꾸므로 계정 세션, 그룹, 닉네임과 로컬 설정은 유지됩니다. 실행 중인 SIDEY는 먼저 종료해야 합니다.
+
 파일 무결성은 Release에 함께 올라온 `.sha256` 파일과 다음 명령의 결과를 비교해 확인할 수 있습니다.
 
 ```sh
@@ -91,5 +95,5 @@ macOS 26과 Xcode 26 이상이 필요합니다. 기본 macOS 내보내기는 네
 버전 태그와 일치하는 검증된 Release ZIP을 만들려면 다음 명령을 사용합니다.
 
 ```sh
-./scripts/package_macos_release.sh v0.2.0-alpha.1
+./scripts/package_macos_release.sh v0.2.0-alpha.2
 ```

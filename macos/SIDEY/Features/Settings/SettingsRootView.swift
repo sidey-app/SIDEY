@@ -153,9 +153,13 @@ private struct OnboardingView: View {
                 maximumColumns: 3,
                 selection: $model.selectedCharacterID
             )
-            TextField("닉네임 2~12자", text: $model.nickname)
+            TextField("닉네임 2~8자", text: $model.nickname)
                 .textFieldStyle(.roundedBorder)
                 .font(.title3)
+                .onChange(of: model.nickname) { _, value in
+                    let limited = ProfileValidator.limitedNicknameDraft(value)
+                    if limited != value { model.nickname = limited }
+                }
             HStack {
                 Text("같은 그룹에서 캐릭터와 닉네임이 겹쳐도 괜찮음")
                     .font(.caption)
@@ -215,8 +219,7 @@ private struct OnboardingView: View {
     }
 
     private var validNickname: Bool {
-        let value = model.nickname.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.count >= 2 && value.count <= 12 && value.rangeOfCharacter(from: .newlines) == nil
+        ProfileValidator.isValidNickname(model.nickname)
     }
 
     private var validRoomName: Bool {
@@ -240,9 +243,13 @@ private struct ProfileSettingsView: View {
     var body: some View {
         SettingsSection(title: "내 프로필", subtitle: "친구들에게 보이는 이름과 캐릭터") {
             LabeledContent("닉네임") {
-                TextField("2~12자", text: $model.nickname)
+                TextField("2~8자", text: $model.nickname)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 320)
+                    .onChange(of: model.nickname) { _, value in
+                        let limited = ProfileValidator.limitedNicknameDraft(value)
+                        if limited != value { model.nickname = limited }
+                    }
             }
             Text("캐릭터")
                 .font(.headline)
@@ -269,8 +276,7 @@ private struct ProfileSettingsView: View {
     }
 
     private var validNickname: Bool {
-        let value = model.nickname.trimmingCharacters(in: .whitespacesAndNewlines)
-        return value.count >= 2 && value.count <= 12 && value.rangeOfCharacter(from: .newlines) == nil
+        ProfileValidator.isValidNickname(model.nickname)
     }
 }
 

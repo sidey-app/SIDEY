@@ -5,6 +5,25 @@ import XCTest
 
 @MainActor
 final class PixelWorldTests: XCTestCase {
+    func testStatusDotKeepsFivePointGapFromMeasuredNicknameFrame() {
+        let shortFrame = CGRect(x: -12, y: 26, width: 24, height: 12)
+        let longFrame = CGRect(x: -44, y: 26, width: 88, height: 12)
+        let shortDot = PixelNameplateLayout.statusDotPosition(nicknameFrame: shortFrame)
+        let longDot = PixelNameplateLayout.statusDotPosition(nicknameFrame: longFrame)
+
+        XCTAssertEqual(
+            shortDot.x + PixelNameplateLayout.statusDotRadius + PixelNameplateLayout.spacing,
+            shortFrame.minX,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(
+            longDot.x + PixelNameplateLayout.statusDotRadius + PixelNameplateLayout.spacing,
+            longFrame.minX,
+            accuracy: 0.001
+        )
+        XCTAssertLessThan(longDot.x, shortDot.x)
+    }
+
     func testTwentyAgentsStayFiniteAndOnEveryEdgeTrackDuringLongSimulation() {
         for edge in OverlayEdge.allCases {
             let bounds = edge.isHorizontal
