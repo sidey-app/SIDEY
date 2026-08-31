@@ -205,9 +205,14 @@ private struct OnboardingView: View {
                 HStack {
                     Text("새 비공개 그룹을 직접 만들 수 있습니다.").foregroundStyle(.secondary)
                     Spacer()
-                    Button("그룹 만들기", action: actions.onCreateRoom)
+                    Button(action: actions.onCreateRoom) {
+                        OperationButtonLabel(
+                            title: model.groupOperation.createButtonTitle,
+                            showsProgress: model.groupOperation == .creating
+                        )
+                    }
                         .buttonStyle(.glassProminent)
-                        .disabled(model.isWorking || !validRoomName)
+                        .disabled(model.groupMutationsDisabled || !validRoomName)
                 }
             } else {
                 TextField("친구에게 받은 초대 코드", text: $model.inviteCode)
@@ -219,9 +224,14 @@ private struct OnboardingView: View {
                 HStack {
                     Text("그룹에는 최대 5명까지 참여할 수 있습니다.").foregroundStyle(.secondary)
                     Spacer()
-                    Button("코드로 참여", action: actions.onJoinRoom)
+                    Button(action: actions.onJoinRoom) {
+                        OperationButtonLabel(
+                            title: model.groupOperation.joinButtonTitle,
+                            showsProgress: model.groupOperation == .joining
+                        )
+                    }
                         .buttonStyle(.glassProminent)
-                        .disabled(model.isWorking || model.inviteCode.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(model.groupMutationsDisabled || model.inviteCode.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }
@@ -296,7 +306,7 @@ private struct ProfileSettingsView: View {
                     PendingTextInputCommitter.commitThen(onSave)
                 }
                     .buttonStyle(.glassProminent)
-                    .disabled(model.isWorking || !validNickname)
+                    .disabled(model.groupMutationsDisabled || !validNickname)
             }
         }
 
@@ -336,7 +346,9 @@ private struct GroupsSettingsView: View {
                             room: room,
                             currentUserID: model.currentUserID,
                             isActive: room.id == model.activeRoom?.id,
-                            isWorking: model.isWorking,
+                            mutationsDisabled: model.groupMutationsDisabled,
+                            selectionDisabled: model.isWorking || !model.groupOperation.allowsRoomSelection,
+                            isSwitchingTarget: model.groupOperation.isSwitching(to: room.id),
                             onSelect: { actions.onSelectRoom(room.id) },
                             onCopyInviteCode: { await actions.onCopyInviteCode(room.id) },
                             onRename: { name in actions.onRenameRoom(room.id, name) },
@@ -365,9 +377,14 @@ private struct GroupsSettingsView: View {
                 HStack {
                     TextField("새 그룹 이름", text: $model.newRoomName)
                         .textFieldStyle(.roundedBorder)
-                    Button("그룹 만들기", action: actions.onCreateRoom)
+                    Button(action: actions.onCreateRoom) {
+                        OperationButtonLabel(
+                            title: model.groupOperation.createButtonTitle,
+                            showsProgress: model.groupOperation == .creating
+                        )
+                    }
                         .buttonStyle(.glassProminent)
-                        .disabled(model.isWorking || !validRoomName || !validNickname)
+                        .disabled(model.groupMutationsDisabled || !validRoomName || !validNickname)
                 }
 
                 if let invite = model.lastCreatedInviteCode {
@@ -402,9 +419,14 @@ private struct GroupsSettingsView: View {
                             let uppercased = value.uppercased()
                             if value != uppercased { model.inviteCode = uppercased }
                         }
-                    Button("코드로 참여", action: actions.onJoinRoom)
+                    Button(action: actions.onJoinRoom) {
+                        OperationButtonLabel(
+                            title: model.groupOperation.joinButtonTitle,
+                            showsProgress: model.groupOperation == .joining
+                        )
+                    }
                         .buttonStyle(.glassProminent)
-                        .disabled(model.isWorking || model.inviteCode.trimmingCharacters(in: .whitespaces).isEmpty || !validNickname)
+                        .disabled(model.groupMutationsDisabled || model.inviteCode.trimmingCharacters(in: .whitespaces).isEmpty || !validNickname)
                 }
             }
         }
@@ -423,7 +445,9 @@ private struct RoomRow: View {
     let room: Room
     let currentUserID: UUID?
     let isActive: Bool
-    let isWorking: Bool
+    let mutationsDisabled: Bool
+    let selectionDisabled: Bool
+    let isSwitchingTarget: Bool
     let onSelect: () -> Void
     let onCopyInviteCode: () async -> Bool
     let onRename: (String) -> Void
@@ -448,6 +472,18 @@ private struct RoomRow: View {
             }
         }
         .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(
+            isSwitchingTarget ? Color.accentColor.opacity(0.10) : .clear,
+            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(
+                    isSwitchingTarget ? Color.accentColor.opacity(0.55) : .clear,
+                    lineWidth: 1
+                )
+        }
         .onChange(of: room.name) { _, newName in
             if !isRenaming { renameDraft = newName }
         }
@@ -531,9 +567,14 @@ private struct RoomRow: View {
             }
             .buttonStyle(.plain)
 
-            if !isActive {
-                Button("그룹 참가", action: onSelect)
-                    .disabled(isWorking)
+            if !isActive || isSwitchingTarget {
+                Button(action: onSelect) {
+                    OperationButtonLabel(
+                        title: isSwitchingTarget ? "연결 중…" : "그룹 참가",
+                        showsProgress: isSwitchingTarget
+                    )
+                }
+                .disabled(selectionDisabled || isSwitchingTarget)
             }
             Button(action: copyInviteCode) {
                 Label(
@@ -544,7 +585,7 @@ private struct RoomRow: View {
                 )
                 .foregroundStyle(inviteCopyFeedback.showsConfirmation ? .green : .primary)
             }
-            .disabled(isWorking)
+            .disabled(mutationsDisabled)
             .help("이 기기의 키체인에 보관된 초대 코드를 복사합니다.")
 
             Button(action: toggleExpansion) {
@@ -566,11 +607,11 @@ private struct RoomRow: View {
                 renameDraft = room.name
                 isRenaming = true
             }
-            .disabled(isWorking)
+            .disabled(mutationsDisabled)
             Button("그룹 삭제", systemImage: "trash", role: .destructive) {
                 showsDeleteConfirmation = true
             }
-            .disabled(isWorking)
+            .disabled(mutationsDisabled)
         }
         .padding(.leading, 48)
     }
@@ -616,12 +657,12 @@ private struct RoomRow: View {
                 onRename(value)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(isWorking || !RoomNameValidator.isValid(renameDraft))
+            .disabled(mutationsDisabled || !RoomNameValidator.isValid(renameDraft))
             Button("취소") {
                 renameDraft = room.name
                 isRenaming = false
             }
-            .disabled(isWorking)
+            .disabled(mutationsDisabled)
         }
         .padding(.leading, 48)
     }
@@ -662,10 +703,25 @@ private struct RoomRow: View {
                 Button("내보내기", role: .destructive) {
                     removalCandidate = member
                 }
-                .disabled(isWorking)
+                .disabled(mutationsDisabled)
             }
         }
         .padding(.leading, 48)
+    }
+}
+
+private struct OperationButtonLabel: View {
+    let title: String
+    let showsProgress: Bool
+
+    var body: some View {
+        HStack(spacing: 7) {
+            if showsProgress {
+                ProgressView()
+                    .controlSize(.small)
+            }
+            Text(title)
+        }
     }
 }
 

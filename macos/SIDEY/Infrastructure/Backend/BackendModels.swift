@@ -12,6 +12,7 @@ enum BackendEvent: Sendable {
     case typing(roomID: UUID, userID: UUID, active: Bool)
     case characterPulse(CharacterPulseEvent)
     case connection(Bool)
+    case technicalError(String)
 }
 
 struct CreatedRoom: Equatable, Sendable {
@@ -98,13 +99,116 @@ struct DatabaseMessage: Codable, Sendable {
     }
 
     var domain: ChatMessage {
-        ChatMessage(
-            id: id,
-            roomID: roomID,
-            senderID: senderID,
-            body: body,
-            createdAt: ISO8601DateFormatter().date(from: createdAt) ?? .now
+        get throws {
+            ChatMessage(
+                id: id,
+                roomID: roomID,
+                senderID: senderID,
+                body: body,
+                createdAt: try PostgresTimestampDecoder.decode(createdAt)
+            )
+        }
+    }
+}
+
+enum PostgresTimestampDecoder {
+    private static let shape = try! NSRegularExpression(
+        pattern: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$"#
+    )
+
+    static func decode(_ value: String) throws -> Date {
+        let range = NSRange(value.startIndex..<value.endIndex, in: value)
+        let bytes = Array(value.utf8)
+        guard shape.firstMatch(in: value, range: range)?.range == range,
+              bytes.count >= 20,
+              let year = integer(bytes, 0..<4),
+              let month = integer(bytes, 5..<7),
+              let day = integer(bytes, 8..<10),
+              let hour = integer(bytes, 11..<13),
+              let minute = integer(bytes, 14..<16),
+              let second = integer(bytes, 17..<19)
+        else {
+            throw SideyBackendError.invalidTimestamp
+        }
+
+        var suffixIndex = 19
+        var fractionalSeconds = 0.0
+        if bytes[suffixIndex] == Character(".").asciiValue! {
+            let fractionStart = suffixIndex + 1
+            suffixIndex = fractionStart
+            while suffixIndex < bytes.count,
+                  bytes[suffixIndex] >= Character("0").asciiValue!,
+                  bytes[suffixIndex] <= Character("9").asciiValue! {
+                suffixIndex += 1
+            }
+            guard let fraction = integer(bytes, fractionStart..<suffixIndex) else {
+                throw SideyBackendError.invalidTimestamp
+            }
+            fractionalSeconds = Double(fraction)
+                / pow(10, Double(suffixIndex - fractionStart))
+        }
+
+        let offsetSeconds: TimeInterval
+        if bytes[suffixIndex] == Character("Z").asciiValue! {
+            offsetSeconds = 0
+        } else {
+            guard suffixIndex + 6 == bytes.count,
+                  let offsetHour = integer(bytes, (suffixIndex + 1)..<(suffixIndex + 3)),
+                  let offsetMinute = integer(bytes, (suffixIndex + 4)..<(suffixIndex + 6)),
+                  offsetHour <= 23,
+                  offsetMinute <= 59
+            else {
+                throw SideyBackendError.invalidTimestamp
+            }
+            let direction = bytes[suffixIndex] == Character("+").asciiValue! ? 1.0 : -1.0
+            offsetSeconds = direction * TimeInterval((offsetHour * 60 + offsetMinute) * 60)
+        }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let components = DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: year,
+            month: month,
+            day: day,
+            hour: hour,
+            minute: minute,
+            second: second
         )
+        guard let wholeSeconds = calendar.date(from: components) else {
+            throw SideyBackendError.invalidTimestamp
+        }
+        let roundTrip = calendar.dateComponents(
+            [.year, .month, .day, .hour, .minute, .second],
+            from: wholeSeconds
+        )
+        guard roundTrip.year == year,
+              roundTrip.month == month,
+              roundTrip.day == day,
+              roundTrip.hour == hour,
+              roundTrip.minute == minute,
+              roundTrip.second == second
+        else {
+            throw SideyBackendError.invalidTimestamp
+        }
+        return wholeSeconds.addingTimeInterval(fractionalSeconds - offsetSeconds)
+    }
+
+    private static func integer(_ bytes: [UInt8], _ range: Range<Int>) -> Int? {
+        guard !range.isEmpty, range.lowerBound >= 0, range.upperBound <= bytes.count else {
+            return nil
+        }
+        var result = 0
+        for index in range {
+            let byte = bytes[index]
+            guard byte >= Character("0").asciiValue!,
+                  byte <= Character("9").asciiValue!
+            else { return nil }
+            result = (result * 10) + Int(byte - Character("0").asciiValue!)
+        }
+        return result
     }
 }
 
@@ -199,6 +303,11 @@ struct PresencePayload: Codable, Sendable {
     }
 }
 
+struct PresencePublicationIntent: Equatable, Sendable {
+    let activeRoomID: UUID?
+    let localPresence: PresenceState
+}
+
 struct TypingPayload: Codable, Sendable {
     let userID: UUID
     enum CodingKeys: String, CodingKey { case userID = "user_id" }
@@ -228,7 +337,9 @@ enum SideyBackendError: LocalizedError, Equatable {
     case ownerCannotRemoveSelf
     case noActiveRoom
     case malformedResponse
+    case invalidTimestamp
     case sessionRecoveryFailed
+    case realtimeUnavailable
     case remote(String)
 
     var errorDescription: String? {
@@ -246,7 +357,9 @@ enum SideyBackendError: LocalizedError, Equatable {
         case .ownerCannotRemoveSelf: "방장 본인은 내보낼 수 없습니다."
         case .noActiveRoom: "메시지를 보낼 그룹이 없습니다."
         case .malformedResponse: "서버 응답 형식을 해석하지 못했습니다."
+        case .invalidTimestamp: "서버 메시지 시각을 해석하지 못했습니다."
         case .sessionRecoveryFailed: "기존 로그인 세션을 복구하지 못했습니다. 새 계정은 만들지 않았으니 다시 로그인하거나 지원을 요청해 주세요."
+        case .realtimeUnavailable: "실시간 연결이 준비되지 않았습니다."
         case .remote(let message): message
         }
     }

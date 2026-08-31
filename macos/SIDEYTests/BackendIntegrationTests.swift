@@ -233,6 +233,8 @@ private actor BackendEventProbe {
             case .snapshot(let snapshot):
                 snapshotCount += 1
                 roomNames = Dictionary(uniqueKeysWithValues: snapshot.rooms.map { ($0.id, $0.name) })
+            case .technicalError:
+                break
             }
         }
     }

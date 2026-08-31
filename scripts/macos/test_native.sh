@@ -18,6 +18,15 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
+SIDEY_DMG_BACKGROUND="$SIDEY_TEST_DIR/dmg-background.png"
+xcrun swift \
+	"$SIDEY_REPO_ROOT/scripts/macos/generate_dmg_background.swift" \
+	"$SIDEY_REPO_ROOT" \
+	"$SIDEY_DMG_BACKGROUND"
+SIDEY_DMG_BACKGROUND_INFO=$(sips -g pixelWidth -g pixelHeight "$SIDEY_DMG_BACKGROUND")
+printf '%s\n' "$SIDEY_DMG_BACKGROUND_INFO" | grep -Eq 'pixelWidth: 660$'
+printf '%s\n' "$SIDEY_DMG_BACKGROUND_INFO" | grep -Eq 'pixelHeight: 420$'
+
 xcodebuild \
 	-project "$SIDEY_REPO_ROOT/macos/SIDEY.xcodeproj" \
 	-scheme SIDEY \

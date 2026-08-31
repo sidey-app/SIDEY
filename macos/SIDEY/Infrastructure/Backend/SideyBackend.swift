@@ -20,6 +20,11 @@ actor SideyBackend {
     private var typingExpiryTasks: [String: Task<Void, Never>] = [:]
     private var activeRoomID: UUID?
     private var localPresence: PresenceState = .online
+    private lazy var presencePublicationQueue = PresencePublicationQueue<PresencePublicationIntent> {
+        [weak self] intent in
+        guard let self else { return }
+        try await self.performPresencePublication(intent)
+    }
     private var connectionTracker = RealtimeConnectionTracker()
     private var lastEmittedConnectionState: Bool?
     private var isShuttingDown = false
@@ -124,6 +129,7 @@ actor SideyBackend {
         for roomID in Array(channels.keys) { await removeChannel(roomID) }
         for task in typingExpiryTasks.values { task.cancel() }
         typingExpiryTasks.removeAll()
+        await presencePublicationQueue.cancel()
         eventContinuation.finish()
     }
 
@@ -268,7 +274,7 @@ actor SideyBackend {
             "send_message",
             params: SendMessageParameters(id: id, roomID: roomID, body: normalized)
         ).execute().value
-        return value.domain
+        return try value.domain
     }
 
     func recentMessages(roomID: UUID, limit: Int = 50) async throws -> [ChatMessage] {
@@ -278,7 +284,7 @@ actor SideyBackend {
             .order("created_at", ascending: false)
             .limit(min(max(limit, 1), 50))
             .execute().value
-        return rows.reversed().map(\.domain)
+        return try rows.reversed().map { try $0.domain }
     }
 
     func currentUserID() -> UUID? {
@@ -412,15 +418,34 @@ actor SideyBackend {
     }
 
     private func publishPresence() async throws {
-        guard let userID = client.auth.currentUser?.id else { return }
-        for (roomID, channel) in channels {
-            guard client.realtimeV2.status == .connected,
-                  channel.status == .subscribed
-            else { continue }
+        try await presencePublicationQueue.submit(PresencePublicationIntent(
+            activeRoomID: activeRoomID,
+            localPresence: localPresence
+        ))
+    }
+
+    private func performPresencePublication(_ intent: PresencePublicationIntent) async throws {
+        guard !connectionTracker.desiredRoomIDs.isEmpty else { return }
+        guard let userID = client.auth.currentUser?.id else {
+            throw SideyBackendError.realtimeUnavailable
+        }
+        guard client.realtimeV2.status == .connected else {
+            throw SideyBackendError.realtimeUnavailable
+        }
+
+        // A publication is a complete desired-room batch. Missing or
+        // unsubscribed channels are errors instead of silently producing a
+        // partial Presence state that can make two rooms look active.
+        for roomID in connectionTracker.desiredRoomIDs.sorted(by: {
+            $0.uuidString < $1.uuidString
+        }) {
+            guard let channel = channels[roomID], channel.status == .subscribed else {
+                throw SideyBackendError.realtimeUnavailable
+            }
             let state = PresencePublicationPlan.state(
                 for: roomID,
-                activeRoomID: activeRoomID,
-                localPresence: localPresence
+                activeRoomID: intent.activeRoomID,
+                localPresence: intent.localPresence
             )
             try await channel.track(PresencePayload(
                 userID: userID,
@@ -559,7 +584,13 @@ actor SideyBackend {
         if event == "INSERT", table == "messages",
            let record = change["record"]?.objectValue,
            let message = try? record.decode(as: DatabaseMessage.self) {
-            eventContinuation.yield(.message(message.domain))
+            do {
+                eventContinuation.yield(.message(try message.domain))
+            } catch {
+                eventContinuation.yield(.technicalError(
+                    "메시지 수신 실패: \(error.localizedDescription)"
+                ))
+            }
         } else if ["profiles", "rooms", "room_members"].contains(table) {
             scheduleStructuralSnapshot()
         }

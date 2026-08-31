@@ -120,6 +120,34 @@ enum BackendBootstrapState: Equatable, Sendable {
     case failed
 }
 
+enum GroupOperation: Equatable, Sendable {
+    case idle
+    case creating
+    case joining
+    case switching(UUID)
+
+    var blocksMutations: Bool { self != .idle }
+
+    var allowsRoomSelection: Bool {
+        switch self {
+        case .idle, .switching: true
+        case .creating, .joining: false
+        }
+    }
+
+    func isSwitching(to roomID: UUID) -> Bool {
+        self == .switching(roomID)
+    }
+
+    var createButtonTitle: String {
+        self == .creating ? "만드는 중…" : "그룹 만들기"
+    }
+
+    var joinButtonTitle: String {
+        self == .joining ? "참여 중…" : "코드로 참여"
+    }
+}
+
 enum FirstRunDestination: Equatable, Sendable {
     case waiting
     case onboarding

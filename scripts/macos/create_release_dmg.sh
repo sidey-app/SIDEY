@@ -5,6 +5,7 @@ SIDEY_APP_PATH=${1:-}
 SIDEY_DMG_PATH=${2:-}
 SIDEY_CODE_SIGN_IDENTITY=${SIDEY_CODE_SIGN_IDENTITY:--}
 SIDEY_NOTARYTOOL_PROFILE=${SIDEY_NOTARYTOOL_PROFILE:-}
+SIDEY_REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && /bin/pwd -P)
 SIDEY_DMG_STAGE=$(mktemp -d "${TMPDIR:-/tmp}/sidey-dmg.XXXXXX")
 
 cleanup() {
@@ -45,20 +46,10 @@ printf '%s\n' "$SIDEY_APP_SIGNATURE" | grep -Eq 'flags=.*runtime' || {
 xcrun stapler validate "$SIDEY_APP_PATH"
 spctl --assess --type execute --verbose=2 "$SIDEY_APP_PATH"
 
-SIDEY_DMG_ROOT="$SIDEY_DMG_STAGE/root"
 SIDEY_UNSIGNED_DMG="$SIDEY_DMG_STAGE/SIDEY.dmg"
-mkdir -p "$SIDEY_DMG_ROOT"
-ditto "$SIDEY_APP_PATH" "$SIDEY_DMG_ROOT/SIDEY.app"
-ln -s /Applications "$SIDEY_DMG_ROOT/Applications"
-
-hdiutil create \
-	-quiet \
-	-volname SIDEY \
-	-srcfolder "$SIDEY_DMG_ROOT" \
-	-format UDZO \
-	-ov \
+"$SIDEY_REPO_ROOT/scripts/macos/build_dmg_layout.sh" \
+	"$SIDEY_APP_PATH" \
 	"$SIDEY_UNSIGNED_DMG"
-hdiutil verify "$SIDEY_UNSIGNED_DMG" >/dev/null
 
 codesign \
 	--force \
@@ -91,6 +82,7 @@ xcrun stapler staple "$SIDEY_UNSIGNED_DMG"
 xcrun stapler validate "$SIDEY_UNSIGNED_DMG"
 codesign --verify --verbose=2 "$SIDEY_UNSIGNED_DMG"
 hdiutil verify "$SIDEY_UNSIGNED_DMG" >/dev/null
+"$SIDEY_REPO_ROOT/scripts/macos/verify_dmg_layout.sh" "$SIDEY_UNSIGNED_DMG"
 spctl \
 	--assess \
 	--type open \

@@ -66,6 +66,8 @@
 - 사용자·프로필·방·메시지는 RLS를 통과해야 한다.
 - macOS 그룹 설정에서 모든 멤버는 기본 접힘 상태인 각 그룹 카드의 제목 영역 또는 오른쪽 끝의 좌우 10pt 여백을 둔 단일 화살표를 눌러 캐릭터·닉네임·`나` 표시를 펼쳐 볼 수 있다. 헤더 왼쪽 기본 disclosure 화살표와 별도 `…` 메뉴는 두지 않으며, 비활성 그룹 전환 버튼은 `그룹 참가`로 표시한다. 방장은 닉네임 바로 왼쪽의 금색 `crown.fill`로 표시하며 오버레이 이름표에는 왕관을 넣지 않는다.
 - 현재 `owner_id`인 방장만 펼친 멤버 목록 아래의 그룹 이름 변경·그룹 삭제 버튼과 본인을 제외한 멤버의 추방 버튼을 볼 수 있다. 이름은 앞뒤 공백을 제거한 줄바꿈·탭 없는 1~20자이며, 추방은 대상 닉네임을 표시한 확인을 거친다. 삭제는 멤버와 모든 메시지가 영구 삭제된다는 파괴적 2단계 확인을 거친 hard delete다.
+- macOS 그룹 작업은 `idle / creating / joining / switching(UUID)`로 모델링한다. 생성 버튼은 `만드는 중…`, 코드 참여 버튼은 `참여 중…`, 전환 대상 카드는 스피너와 `연결 중…` 및 accent 배경·테두리를 표시한다. 전환 중에는 다른 그룹 선택만 계속 허용하고 생성·삭제·이름 변경·추방 같은 mutation은 차단한다.
+- 그룹 선택은 150ms 동안 합쳐 마지막 대상만 남기며 이미 시작한 네트워크 작업은 직렬 실행한다. 최종 대상 Presence와 해당 `roomID`의 최근 메시지 조회가 모두 성공하기 전에는 현재 활성 그룹과 기록을 유지한다. 이전 요청의 성공·실패는 UI에 적용하지 않고, 최종 실패 시 이전 활성 그룹 Presence를 복구하며 복구도 실패한 경우에만 Realtime 연결 오류로 전환한다.
 - 관리 권한은 클라이언트 표시 여부와 별개로 서버 RPC에서 다시 검증한다. 활성 그룹이 추방·삭제로 사라지면 composer·typing·말풍선을 정리하고 가장 오래된 남은 그룹을 활성화한다. 마지막 그룹이 사라지면 오버레이를 숨기고 기존 프로필을 유지한 그룹 참여 화면으로 돌아간다.
 - macOS는 익명 인증과 기존 세션 복구 정책을 유지한다. 복구 실패를 새 익명 계정 생성으로 조용히 덮어쓰지 않는다.
 - Windows 신규 설치는 시스템 브라우저의 Google OAuth PKCE 로그인을 필수로 하고 `sidey://auth/callback`으로 복귀한다. Google 이름·사진은 프로필에 자동 복사하지 않는다.
@@ -97,11 +99,13 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 | 논리 상태 | 행동 | 점 색상 |
 | --- | --- | --- |
 | 온라인 | 산책 또는 idle | 초록 |
-| 자리 비움 | 선 채 눈을 감고 고개를 떨어뜨리는 졸기, 14pt 주황 `Zzz`와 약 2pt 어두운 외곽선·0.55↔1 alpha·3pt 부유, 원래 채도 | 주황 |
+| 자리 비움 | 선 채 눈을 감고 고개를 떨어뜨리는 졸기, 14pt 주황 `Z` → `Zz` → `Zzz`를 각각 0.45초씩 반복하고 약 2pt 어두운 외곽선·0.55↔1 alpha·3pt 부유 유지, 원래 채도 | 주황 |
 | 오프라인 | 옆으로 웅크린 잠, 저채도, 약 75% 불투명도 | 빨강 |
 | 재연결 | 정지 | 회색 |
 
 타이핑은 캐릭터 모션을 바꾸지 않는다. `TypingIndicatorNode`가 `.` → `..` → `...`을 0.35초 간격으로 반복한다. 같은 캐릭터에 실제 메시지 말풍선이 있으면 타이핑 action을 중단하고 메시지를 우선하며, 메시지 만료 뒤 여전히 타이핑 중이면 점 애니메이션을 다시 시작한다. Broadcast 빈도와 schema는 바꾸지 않는다.
+
+자리 비움이 해제되면 Z 텍스트와 부유·alpha action을 모두 취소하고 텍스트를 `Z`로 초기화한다.
 
 닉네임 상태 점은 고정 x 좌표를 사용하지 않는다. 실제 닉네임 label frame의 왼쪽에서 점 반지름과 5pt 간격만큼 떨어진 위치를 계산해 최대 8자 이름과 `· 나` 표식에서도 겹치지 않게 한다. 흰색 닉네임 뒤에는 여백이 있는 반투명 검정 캡슐을 렌더하며, 뒤 애플리케이션의 실제 픽셀은 읽지 않는다.
 
@@ -154,6 +158,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - macOS 클라이언트는 5초마다 WebSocket과 각 방 채널의 실제 구독 상태를 확인한다. 비정상이 8초 이상 지속되면 채널 및 수신 스트림을 재생성하고, 실패가 이어지면 8초·16초·최대 30초 간격으로 재시도한다.
 - 재구독 중에는 로컬 상태를 재연결로 표시한다. 성공하면 현재 Presence를 다시 publish하고 방·멤버 snapshot과 최근 메시지를 다시 읽어 단절 중 누락된 가입·메시지를 보정한다.
 - 메시지 ledger는 `senderID`를 보존한다.
+- Postgres `created_at`은 소수 초 유무와 `Z` 또는 `+00:00` 같은 UTC offset이 있는 ISO-8601을 엄격히 해석한다. 기록 표시는 기존처럼 사용자 로컬 시간을 사용하고, 해석 실패를 현재 시각으로 대체하지 않으며 기술 오류로 노출한다.
 - 클라이언트가 UUID로 메시지를 낙관적으로 표시하고 동일 UUID의 저장·Realtime 결과와 중복 제거한다.
 - 저장 실패 시 낙관 기록과 말풍선을 제거하고 입력 원문을 복구한다.
 
@@ -253,6 +258,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 메시지 ledger와 active bubble 목록
 - 오버레이 영역, 모니터, 오프라인 표시 등 환경설정
 - 편집 중인 `selectedCharacterID`
+- 연결 상태와 분리된 현재 `GroupOperation`
 
 그룹 설정의 각 행은 펼침 여부, 이름 변경 draft, 삭제·추방 확인 대상과 초대 코드 복사 피드백을 로컬 UI 상태로 소유한다. 복사 성공 시 해당 행의 버튼만 초록 `checkmark.circle.fill`과 `복사 완료`를 3초 동안 표시하고, 3초 안 재클릭하면 타이머를 다시 시작하며 행 제거 시 취소한다. 성공 전역 배너는 표시하지 않고 실패만 기존 오류 배너를 사용한다. 실제 Keychain 읽기와 클립보드 처리는 `AppCoordinator`가 담당한다. 서버에서 읽은 방·멤버 배열을 행 상태로 복제하거나 mutation 성공을 가정해 임의 수정하지 않는다.
 
@@ -264,7 +270,7 @@ Presence나 snapshot을 적용할 때 UUID 기준으로 추가·갱신·삭제�
 
 `OverlayWindowGroup`은 composer 표시 상태와 내 캐릭터 단일·더블클릭 패널을 소유한다. `AppCoordinator`는 `character_pulse` 송수신과 캐릭터별 1초 쿨타임을 소유한다. `AppModel`에는 화면 좌표나 애니메이션 frame을 저장하지 않는다.
 
-`SideyBackend`는 Realtime 채널·수신 task·Presence publish와 자동 복구 watchdog을 소유한다. 복구 성공 시 snapshot 이벤트만 상위로 보내며, `AppCoordinator`가 이를 적용하고 활성 방의 최근 메시지를 재조회한다. 방·멤버 구조의 연속 Broadcast는 150ms 동안 coalesce해 한 번만 snapshot을 읽고, 사라진 그룹의 Realtime 채널과 이 기기의 Keychain 초대 코드를 정리한다.
+`AppCoordinator`의 방 전환 파이프라인은 150ms 마지막 선택 우선 처리, 직렬 네트워크 실행, 최종 대상 메시지의 명시적 `roomID` 조회, 성공 뒤 활성 그룹·기록 commit, 최종 실패 rollback을 소유한다. `SideyBackend`는 Realtime 채널·수신 task·Presence publish와 자동 복구 watchdog을 소유한다. snapshot·복구·방 전환이 요청하는 Presence는 하나의 직렬 publication queue가 최신 전체 방 상태로 coalesce해 동시에 `track`하지 않는다. 복구 성공 시 snapshot 이벤트만 상위로 보내며, `AppCoordinator`가 이를 적용하고 활성 방의 최근 메시지를 재조회한다. 방·멤버 구조의 연속 Broadcast는 150ms 동안 coalesce해 한 번만 snapshot을 읽고, 사라진 그룹의 Realtime 채널과 이 기기의 Keychain 초대 코드를 정리한다.
 
 ### 7.2 환경설정
 
@@ -340,15 +346,16 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 
 - 영역: 4개 가장자리 × 3개 길이의 240pt activity frame과 최대 360pt render frame, 접선 144pt 여유, 중앙 정렬, 회전, visible frame, 깊이 제한, hotspot 원점 변환, 모니터 fallback
 - 이동: 20개 합성 노드가 3,000 tick 동안 1차원 track과 발 기준선을 유지하고 finite 좌표, 입력창·상호 회피, 겹침 시 idle 해제·가속 통과, 실제 메시지 말풍선의 240pt/s² 분리 가속·72pt/s 상한·8pt 해소·경계 힘 재배분·혼잡 시 안정적인 겹침·일반 목표 복귀
-- 상태: 온라인·자리 비움 doze와 주황 `Zzz`·오프라인 curled sleep·재연결·타이핑, 내 캐릭터 항상 표시, 오프라인 숨김, 방 전환 UUID diff, 최대 8자 닉네임·반투명 배경과 상태 점 5pt 간격, 발 기준 7배·0.8초 리액션과 이벤트 UUID 중복 제거
-- Realtime: backoff와 구조 snapshot coalescing을 검증하고, 실서버 2클라이언트에서 한쪽 WebSocket 강제 단절 뒤 자동 재구독·메시지·Presence·`character_pulse` 재수신, 이름 변경·추방·삭제의 재실행 없는 snapshot 반영과 채널 정리를 검증
-- 메시지: 발신자별 교체, 최대 4개 eviction, 10초 만료, 이동 중 말풍선 추적, 낙관적 성공·실패, 조용히 모드, 미확인 수
+- 상태: 온라인·자리 비움 doze와 0.45초 `Z`→`Zz`→`Zzz` 순환·해제 시 action 정리, 오프라인 curled sleep·재연결·타이핑, 내 캐릭터 항상 표시, 오프라인 숨김, 방 전환 UUID diff, 최대 8자 닉네임·반투명 배경과 상태 점 5pt 간격, 발 기준 7배·0.8초 리액션과 이벤트 UUID 중복 제거
+- Realtime: backoff와 구조 snapshot coalescing, Presence publication 최대 동시 실행 수 1과 최신 전체 상태 우선 적용을 검증하고, 실서버 2클라이언트에서 한쪽 WebSocket 강제 단절 뒤 자동 재구독·메시지·Presence·`character_pulse` 재수신, 이름 변경·추방·삭제의 재실행 없는 snapshot 반영과 채널 정리를 검증
+- 메시지: 발신자별 교체, 최대 4개 eviction, 10초 만료, 이동 중 말풍선 추적, 낙관적 성공·실패, 조용히 모드, 미확인 수, 소수 3·6자리·소수 없는 `created_at`과 `Z`·UTC offset 해석, 잘못된 시각 거부, 서버 시각 기반 기록 정렬
 - 말풍선: 1자·200자·3줄·프리셋 양 끝·4방향에서 본문과 꼬리 누적 frame이 캔버스 안에 유지하고 실제 메시지 본문만 접선 충돌 범위에 포함하며 타이핑 말풍선은 제외
 - 창: 월드 항상 위·전체 클릭 통과, 내 캐릭터 52×52 hotspot, composer의 선택 모니터 상단 중앙·노치 아래 10pt 배치와 왼쪽 `×`·Esc·외부 클릭 닫기, 단일·더블클릭 분기와 캐릭터별 1초 리액션 쿨타임, composer 초기 숨김·열기·마지막 전송 뒤 5초 자동 닫힘·타이머 갱신·실패 복구, 기록 일반 창
 - 업데이트: production 채널에 Sparkle `2.9.6` 프레임워크·메뉴 항목·피드 URL·EdDSA 공개키가 번들에 포함되고 signed feed와 압축 해제 전 검증을 강제하며, 업데이트 진행 중에는 수동 확인 메뉴를 비활성화. development 채널은 Sparkle을 시작하지 않고 수동 확인 메뉴도 항상 비활성화
 - 에셋: 5개 시트의 240×24 RGBA·10프레임·공통 발 기준선·결정적 hash·Release 번들 포함, 메뉴 아이콘 1x·2x template/unread variant
 - 설정: 860×640 최소 크기와 1000×760 기본 크기의 라이트·다크 렌더, 옅은 카드 명도, 240pt 컨트롤 영역과 Picker·버튼·토글 오른쪽 정렬, `동작 정보` 제거, 두 사람 그룹 아이콘, 한글 IME 조합 확정 후 닉네임 저장
-- 그룹 설정: 0·1·5명 멤버 목록, 기본 접힘·제목 영역 및 오른쪽 단일 화살표 펼침, `그룹 참가` 문구, UUID 기반 방장 왕관과 펼친 목록 아래 방장 전용 이름 변경·삭제 버튼, 이름 변경 저장·취소, 대상 명시 추방 확인, 영구 삭제 2단계 확인, 활성·비활성·마지막 그룹 삭제 fallback, 초대 코드 복사 성공·실패와 3초 표시·재클릭 갱신·행 제거 취소
+- 그룹 설정: 0·1·5명 멤버 목록, 기본 접힘·제목 영역 및 오른쪽 단일 화살표 펼침, `그룹 참가` 문구, 생성·참여·전환별 진행 문구와 라이트·다크 대상 카드 강조, A→B→C 연속 선택에서 C만 commit, UUID 기반 방장 왕관과 펼친 목록 아래 방장 전용 이름 변경·삭제 버튼, 이름 변경 저장·취소, 대상 명시 추방 확인, 영구 삭제 2단계 확인, 활성·비활성·마지막 그룹 삭제 fallback, 초대 코드 복사 성공·실패와 3초 표시·재클릭 갱신·행 제거 취소
+- DMG: 660×420 배경, `SIDEY.app`, `/Applications` 심볼릭 링크, 기존 5종 idle 프레임, `.DS_Store`를 자동 생성·마운트 검증하고 Finder에서 아이콘 위치·안내 문구·nearest-neighbor 픽셀 선명도를 수동 확인
 - Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단
 - 서버: 5번째 성공, 6번째 `member_limit_reached`, 여섯 번째 방 거부, 비방장 이름 변경·추방·삭제 거부, 방장 성공·본인 추방 거부·삭제 cascade, RLS, 중복 닉네임·캐릭터 허용
 
@@ -378,7 +385,7 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 1. 전체 macOS 단위·창 정책 테스트와 20노드 합성 부하를 통과한다.
 2. 로컬 Supabase에서 5명 제한과 SQL 테스트를 통과한다.
 3. Developer ID Application 인증서와 Hardened Runtime으로 앱·로그인 항목·Sparkle의 중첩 코드를 서명하고 Apple 공증 뒤 ticket을 staple한다.
-4. `scripts/package_macos_release.sh`로 버전·빌드 번호, arm64 아키텍처, 번들 메타데이터, 코드 서명, 신규 설치용 DMG, Sparkle용 ZIP과 각 SHA-256을 검증한다. DMG는 `SIDEY.app`과 `/Applications` 바로가기를 포함하고 별도로 Developer ID 서명·공증·staple을 통과해야 한다. `CFBundleVersion`은 이전 공개 빌드보다 반드시 커야 한다.
+4. `scripts/package_macos_release.sh`로 버전·빌드 번호, arm64 아키텍처, 번들 메타데이터, 코드 서명, 신규 설치용 DMG, Sparkle용 ZIP과 각 SHA-256을 검증한다. 로그인된 Finder 세션에서 쓰기 가능한 DMG를 마운트해 660×420 배경, 왼쪽 `SIDEY.app`, 오른쪽 `/Applications` 바로가기, 숨긴 toolbar·sidebar·status bar와 `.DS_Store`를 설정한 뒤 UDZO로 변환한다. 배경에는 `SIDEY 설치`, 드래그 안내, 좌→우 픽셀 화살표와 기존 5종 idle 프레임을 정수 nearest-neighbor로 넣는다. 변환본을 다시 마운트해 앱·심볼릭 링크·배경 크기·`.DS_Store`를 자동 검증하고, 별도로 Developer ID 서명·공증·staple을 통과해야 한다. `CFBundleVersion`은 이전 공개 빌드보다 반드시 커야 한다.
 5. 검증된 커밋을 `main`에 푸시하고 동일 커밋에 버전 태그와 GitHub pre-release 또는 release를 만든 뒤, 그 태그에 검증된 DMG와 ZIP을 업로드한다. 신규 설치 링크는 DMG를, Sparkle appcast는 ZIP을 가리킨다.
 6. `scripts/macos/prepare_sparkle_appcast.sh`로 ZIP의 EdDSA 서명과 signed appcast를 생성한다. 이 도구가 Developer ID, Hardened Runtime, stapled notarization, 앱의 `SIDEY` 표시명·`production` 채널·공개키·피드 URL·보안 플래그를 모두 통과하고, GitHub Release에서 다시 받은 ZIP이 로컬 검증본과 바이트 단위로 같아야 한다.
 7. Release ZIP URL이 실제로 내려받아지는지 확인한 뒤 생성된 `updates/appcast.xml`을 커밋·푸시한다. appcast를 먼저 게시하면 클라이언트가 존재하지 않는 ZIP을 보게 되므로 순서를 바꾸지 않는다.

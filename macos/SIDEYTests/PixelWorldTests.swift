@@ -718,7 +718,8 @@ final class PixelWorldTests: XCTestCase {
         XCTAssertEqual(away.alpha, 1)
         XCTAssertEqual(away.colorBlendFactor, 0)
         XCTAssertTrue(away.showsDozeLabel)
-        XCTAssertEqual(PixelDozeLabelStyle.text, "Zzz")
+        XCTAssertEqual(PixelDozeLabelStyle.texts, ["Z", "Zz", "Zzz"])
+        XCTAssertEqual(PixelDozeLabelStyle.frameDuration, 0.45, accuracy: 0.001)
         XCTAssertEqual(PixelDozeLabelStyle.fontSize, 14)
         XCTAssertEqual(PixelDozeLabelStyle.outlineWidth, 2)
         XCTAssertEqual(PixelDozeLabelStyle.restingAlpha, 0.55, accuracy: 0.001)
@@ -733,6 +734,35 @@ final class PixelWorldTests: XCTestCase {
         let reconnecting = try XCTUnwrap(apply(.reconnecting))
         XCTAssertEqual(reconnecting.motion, .stopped)
         XCTAssertFalse(reconnecting.showsDozeLabel)
+    }
+
+    func testDozeLabelCyclesAtBoundariesAndResetsWhenAwayEnds() throws {
+        XCTAssertEqual(PixelDozeLabelStyle.text(atElapsed: 0), "Z")
+        XCTAssertEqual(PixelDozeLabelStyle.text(atElapsed: 0.449), "Z")
+        XCTAssertEqual(PixelDozeLabelStyle.text(atElapsed: 0.45), "Zz")
+        XCTAssertEqual(PixelDozeLabelStyle.text(atElapsed: 0.90), "Zzz")
+        XCTAssertEqual(PixelDozeLabelStyle.text(atElapsed: 1.35), "Z")
+
+        let scene = PixelWorldScene(size: CGSize(width: 720, height: 240))
+        let roomID = UUID()
+        let memberID = UUID()
+        func apply(_ presence: PresenceState) {
+            scene.apply(
+                roomID: roomID,
+                members: [PixelWorldMember(
+                    id: memberID, nickname: "친구", characterID: "pixel_cat",
+                    presence: presence, isTyping: false, isCurrentUser: false
+                )],
+                bubbles: [], edge: .bottom, installationSeed: 7
+            )
+        }
+
+        apply(.away)
+        XCTAssertEqual(scene.renderedDozeText(for: memberID), "Z")
+        XCTAssertTrue(scene.hasRenderedDozeActions(for: memberID))
+        apply(.online)
+        XCTAssertEqual(scene.renderedDozeText(for: memberID), "Z")
+        XCTAssertFalse(scene.hasRenderedDozeActions(for: memberID))
     }
 
     func testCurrentUserFrameCallbackUsesOnlyThe52PointHotspot() throws {

@@ -64,6 +64,7 @@ final class AppCoordinator {
         onOpenSettings: { [weak self] in self?.showSettings() },
         onQuit: { NSApplication.shared.terminate(nil) }
     )
+    private var roomSwitchPipeline: RoomSwitchPipeline!
     private var landingTask: Task<Void, Never>?
     private var backendTask: Task<Void, Never>?
     private var backendEventTask: Task<Void, Never>?
@@ -106,6 +107,31 @@ final class AppCoordinator {
             self.runtimeConfiguration = nil
             self.configurationError = error
         }
+        self.roomSwitchPipeline = RoomSwitchPipeline(
+            debounce: .milliseconds(150),
+            performSwitch: { [weak self] roomID in
+                guard let self, let backend = self.backend else {
+                    throw SideyBackendError.realtimeUnavailable
+                }
+                try await backend.setActiveRoom(roomID)
+                return try await backend.recentMessages(roomID: roomID)
+            },
+            restoreCommittedRoom: { [weak self] in
+                guard let self, let backend = self.backend else {
+                    throw SideyBackendError.realtimeUnavailable
+                }
+                try await backend.setActiveRoom(self.model.activeRoom?.id)
+            },
+            operationChanged: { [weak self] operation in
+                self?.model.groupOperation = operation
+            },
+            committed: { [weak self] roomID, messages in
+                self?.commitRoomSwitch(roomID: roomID, messages: messages)
+            },
+            failed: { [weak self] _, error, restoreError in
+                self?.handleRoomSwitchFailure(error, restoreError: restoreError)
+            }
+        )
     }
 
     func start() {
@@ -167,6 +193,7 @@ final class AppCoordinator {
         backendEventTask?.cancel()
         typingTask?.cancel()
         bubbleExpiryTask?.cancel()
+        roomSwitchPipeline.cancel()
         activityMonitor.stop()
         mainThreadProbe.stop()
         if let backend { Task { await backend.shutdown() } }
@@ -395,7 +422,7 @@ final class AppCoordinator {
                     roomIDs: snapshot.rooms.map(\.id),
                     activeRoomID: model.activeRoom?.id
                 )
-                try await loadActiveMessages(from: backend)
+                try await loadMessages(from: backend, roomID: model.activeRoom?.id)
                 model.connectionState = .online
                 model.errorMessage = nil
                 backendBootstrapState = .ready
@@ -432,7 +459,7 @@ final class AppCoordinator {
         guard let backend else { return }
         let roomName = model.newRoomName
         let characterID = PixelCharacterCatalog.canonicalID(for: model.selectedCharacterID)
-        runMutation {
+        runMutation(groupOperation: .creating) {
             _ = try await backend.upsertProfile(
                 nickname: self.model.nickname,
                 characterID: characterID
@@ -448,7 +475,7 @@ final class AppCoordinator {
         guard let backend else { return }
         let inviteCode = model.inviteCode
         let characterID = PixelCharacterCatalog.canonicalID(for: model.selectedCharacterID)
-        runMutation {
+        runMutation(groupOperation: .joining) {
             _ = try await backend.upsertProfile(
                 nickname: self.model.nickname,
                 characterID: characterID
@@ -486,33 +513,52 @@ final class AppCoordinator {
     }
 
     private func selectRoom(_ roomID: UUID) {
+        guard model.rooms.contains(where: { $0.id == roomID }), !model.isWorking else { return }
+        switch model.groupOperation {
+        case .creating, .joining:
+            return
+        case .switching(let targetRoomID) where targetRoomID == roomID:
+            return
+        case .idle, .switching:
+            break
+        }
+        if model.activeRoom?.id == roomID, model.groupOperation == .idle { return }
         overlayWindows.dismissComposer()
         typingChanged(false)
-        model.preferences.activeRoomID = roomID
-        model.markRoomRead(roomID)
-        model.clearBubbles()
-        refreshStatusItem()
-        persistPreferences()
-        if let backend {
-            Task { [weak self] in
-                guard let self else { return }
-                do {
-                    try await backend.setActiveRoom(roomID)
-                    try await loadActiveMessages(from: backend)
-                } catch {
-                    model.errorMessage = "그룹 전환 실패: \(error.localizedDescription)"
-                }
-            }
-        }
+        model.errorMessage = nil
+        roomSwitchPipeline.request(roomID)
     }
 
-    private func loadActiveMessages(from backend: SideyBackend) async throws {
-        guard let roomID = model.activeRoom?.id else {
+    private func loadMessages(from backend: SideyBackend, roomID: UUID?) async throws {
+        guard let roomID else {
             model.clearBubbles()
             return
         }
         let messages = try await backend.recentMessages(roomID: roomID)
         model.replaceMessages(roomID: roomID, with: messages)
+    }
+
+    private func commitRoomSwitch(roomID: UUID, messages: [ChatMessage]) {
+        guard model.rooms.contains(where: { $0.id == roomID }) else { return }
+        model.replaceMessages(roomID: roomID, with: messages)
+        model.preferences.activeRoomID = roomID
+        model.markRoomRead(roomID)
+        model.clearBubbles()
+        model.connectionState = .online
+        model.errorMessage = nil
+        refreshStatusItem()
+        persistPreferences()
+    }
+
+    private func handleRoomSwitchFailure(_ error: any Error, restoreError: (any Error)?) {
+        if let restoreError {
+            model.connectionState = .failed(restoreError.localizedDescription)
+            model.setRealtimeConnected(false)
+            model.errorMessage = "실시간 연결 복구 실패: \(restoreError.localizedDescription)"
+        } else {
+            model.errorMessage = "그룹 전환 실패: \(error.localizedDescription)"
+        }
+        refreshStatusItem()
     }
 
     private func sendMessage(_ body: String) {
@@ -554,15 +600,22 @@ final class AppCoordinator {
 
     private func runMutation(
         successMessage: String? = nil,
+        groupOperation: GroupOperation? = nil,
         _ operation: @escaping @MainActor () async throws -> Void
     ) {
-        guard let backend, !model.isWorking else { return }
+        guard let backend, !model.isWorking, model.groupOperation == .idle else { return }
         model.isWorking = true
+        if let groupOperation { model.groupOperation = groupOperation }
         model.errorMessage = nil
         model.successMessage = nil
         Task { [weak self] in
             guard let self else { return }
-            defer { model.isWorking = false }
+            defer {
+                model.isWorking = false
+                if let groupOperation, model.groupOperation == groupOperation {
+                    model.groupOperation = .idle
+                }
+            }
             do {
                 let wasOnboardingComplete = model.preferences.onboardingComplete
                 try await operation()
@@ -573,9 +626,9 @@ final class AppCoordinator {
                 )
                 try await backend.syncRealtime(
                     roomIDs: snapshot.rooms.map(\.id),
-                    activeRoomID: model.activeRoom?.id
+                    activeRoomID: model.realtimeActiveRoomID
                 )
-                try await loadActiveMessages(from: backend)
+                try await loadMessages(from: backend, roomID: model.activeRoom?.id)
                 model.connectionState = .online
                 model.errorMessage = nil
                 model.successMessage = successMessage
@@ -616,9 +669,9 @@ final class AppCoordinator {
                     do {
                         try await backend.syncRealtime(
                             roomIDs: snapshot.rooms.map(\.id),
-                            activeRoomID: model.activeRoom?.id
+                            activeRoomID: model.realtimeActiveRoomID
                         )
-                        try await loadActiveMessages(from: backend)
+                        try await loadMessages(from: backend, roomID: model.activeRoom?.id)
                     } catch {
                         model.connectionState = .failed(error.localizedDescription)
                     }
@@ -651,6 +704,8 @@ final class AppCoordinator {
         case .connection(let connected):
             model.connectionState = connected ? .online : .connecting
             model.setRealtimeConnected(connected)
+        case .technicalError(let message):
+            model.errorMessage = message
         }
     }
 

@@ -380,4 +380,118 @@ final class PresenceAndRealtimeTests: XCTestCase {
         XCTAssertFalse(cooldown.accept(roomID: roomID, userID: userID, uptime: .infinity))
         XCTAssertEqual(CharacterPulseCooldown.duration, 1)
     }
+
+
+    func testLatestRoomSelectionWinsWithoutApplyingCompletedStaleSwitch() async {
+        let roomB = UUID()
+        let roomC = UUID()
+        let bStarted = expectation(description: "B 전환 시작")
+        let cCommitted = expectation(description: "C만 적용")
+        let gate = AsyncTestGate()
+        let probe = SerialExecutionProbe<UUID>()
+        var committedRoomIDs: [UUID] = []
+
+        let pipeline = RoomSwitchPipeline(
+            debounce: .milliseconds(5),
+            performSwitch: { roomID in
+                await probe.begin(roomID)
+                if roomID == roomB {
+                    bStarted.fulfill()
+                    await gate.wait()
+                }
+                await probe.end()
+                return []
+            },
+            restoreCommittedRoom: {},
+            operationChanged: { _ in },
+            committed: { roomID, _ in
+                committedRoomIDs.append(roomID)
+                if roomID == roomC { cCommitted.fulfill() }
+            },
+            failed: { _, error, _ in
+                XCTFail("예상하지 못한 전환 실패: \(error)")
+            }
+        )
+
+        pipeline.request(roomB)
+        await fulfillment(of: [bStarted], timeout: 1)
+        pipeline.request(roomC)
+        await gate.open()
+        await fulfillment(of: [cCommitted], timeout: 1)
+
+        let switchProbe = await probe.snapshot()
+        XCTAssertEqual(committedRoomIDs, [roomC])
+        XCTAssertEqual(switchProbe.maximumConcurrent, 1)
+        XCTAssertEqual(switchProbe.started, [roomB, roomC])
+        pipeline.cancel()
+    }
+
+    func testPresencePublicationCoalescesToLatestFullStateAndRunsSerially() async throws {
+        let firstStarted = expectation(description: "첫 Presence 게시 시작")
+        let gate = AsyncTestGate()
+        let probe = SerialExecutionProbe<Int>()
+        let queue = PresencePublicationQueue<Int> { value in
+            await probe.begin(value)
+            if value == 1 {
+                firstStarted.fulfill()
+                await gate.wait()
+            }
+            await probe.end()
+        }
+
+        let first = Task { try await queue.submit(1) }
+        await fulfillment(of: [firstStarted], timeout: 1)
+        let second = Task { try await queue.submit(2) }
+        try await Task.sleep(for: .milliseconds(10))
+        let third = Task { try await queue.submit(3) }
+        try await Task.sleep(for: .milliseconds(10))
+        await gate.open()
+
+        try await first.value
+        try await second.value
+        try await third.value
+        let publicationProbe = await probe.snapshot()
+        XCTAssertEqual(publicationProbe.maximumConcurrent, 1)
+        XCTAssertEqual(publicationProbe.started, [1, 3])
+        await queue.cancel()
+    }
+}
+
+private actor AsyncTestGate {
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        guard !isOpen else { return }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func open() {
+        isOpen = true
+        let pending = waiters
+        waiters.removeAll()
+        for waiter in pending { waiter.resume() }
+    }
+}
+
+private actor SerialExecutionProbe<Value: Sendable & Equatable> {
+    private(set) var started: [Value] = []
+    private(set) var maximumConcurrent = 0
+    private var concurrent = 0
+
+    func begin(_ value: Value) {
+        concurrent += 1
+        maximumConcurrent = max(maximumConcurrent, concurrent)
+        started.append(value)
+    }
+
+    func end() {
+        concurrent -= 1
+    }
+
+    func snapshot() -> (started: [Value], maximumConcurrent: Int) {
+        (started, maximumConcurrent)
+    }
 }

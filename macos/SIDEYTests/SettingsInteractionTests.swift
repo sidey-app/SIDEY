@@ -77,6 +77,37 @@ final class SettingsInteractionTests: XCTestCase {
         XCTAssertNotNil(NSImage(systemSymbolName: SettingsPage.groups.systemImage, accessibilityDescription: nil))
     }
 
+    func testGroupOperationUsesSpecificProgressLabelsAndMutationPolicy() {
+        let roomID = UUID()
+
+        XCTAssertEqual(GroupOperation.creating.createButtonTitle, "만드는 중…")
+        XCTAssertEqual(GroupOperation.joining.joinButtonTitle, "참여 중…")
+        XCTAssertTrue(GroupOperation.switching(roomID).isSwitching(to: roomID))
+        XCTAssertTrue(GroupOperation.switching(roomID).allowsRoomSelection)
+        XCTAssertTrue(GroupOperation.switching(roomID).blocksMutations)
+        XCTAssertFalse(GroupOperation.creating.allowsRoomSelection)
+    }
+
+    func testSwitchingGroupCardRendersInLightAndDarkModes() throws {
+        let activeRoomID = UUID()
+        let targetRoomID = UUID()
+        for scheme in [ColorScheme.light, .dark] {
+            let data = try renderSettings(
+                size: SettingsWindowController.settingsContentSize,
+                colorScheme: scheme
+            ) { model in
+                model.activeSettingsPage = .groups
+                model.preferences.activeRoomID = activeRoomID
+                model.rooms = [
+                    Self.room(id: activeRoomID, name: "현재 그룹"),
+                    Self.room(id: targetRoomID, name: "전환 대상")
+                ]
+                model.groupOperation = .switching(targetRoomID)
+            }
+            XCTAssertGreaterThan(data.count, 10_000)
+        }
+    }
+
     func testSettingsRenderAtMinimumAndDefaultSizesInLightAndDarkModes() throws {
         let snapshotSentinel = "/private/tmp/sidey-render-settings-snapshots"
         let configuredOutput = ProcessInfo.processInfo.environment["SIDEY_SETTINGS_SNAPSHOT_DIR"]
@@ -120,7 +151,8 @@ final class SettingsInteractionTests: XCTestCase {
     private func renderSettings(
         size: CGSize,
         colorScheme: ColorScheme,
-        scrollToBottom: Bool = false
+        scrollToBottom: Bool = false,
+        configure: (AppModel) -> Void = { _ in }
     ) throws -> Data {
         var preferences = AppPreferences.defaults
         preferences.onboardingComplete = true
@@ -131,6 +163,7 @@ final class SettingsInteractionTests: XCTestCase {
             OverlayScreenOption(id: "display:main", name: "내장 디스플레이"),
             OverlayScreenOption(id: "display:secondary", name: "보조 디스플레이")
         ]
+        configure(model)
 
         let root = SettingsRootView(model: model, actions: .empty)
             .environment(\.colorScheme, colorScheme)
@@ -167,6 +200,17 @@ final class SettingsInteractionTests: XCTestCase {
         let bitmap = try XCTUnwrap(hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds))
         hostingView.cacheDisplay(in: hostingView.bounds, to: bitmap)
         return try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+    }
+
+    private static func room(id: UUID, name: String) -> Room {
+        Room(
+            id: id,
+            name: name,
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "••••-••AA",
+            inviteVersion: 1
+        )
     }
 }
 

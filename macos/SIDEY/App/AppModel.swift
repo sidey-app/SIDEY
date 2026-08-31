@@ -23,6 +23,7 @@ final class AppModel {
     var errorMessage: String?
     var successMessage: String?
     var isWorking = false
+    var groupOperation: GroupOperation = .idle
     var newRoomName = ""
     var inviteCode = ""
     var lastCreatedInviteCode: String?
@@ -57,6 +58,15 @@ final class AppModel {
             return match
         }
         return rooms.first
+    }
+
+    var realtimeActiveRoomID: UUID? {
+        if case .switching(let roomID) = groupOperation { return roomID }
+        return activeRoom?.id
+    }
+
+    var groupMutationsDisabled: Bool {
+        isWorking || groupOperation.blocksMutations
     }
 
     func apply(snapshot: BackendSnapshot, currentUserID: UUID?) {

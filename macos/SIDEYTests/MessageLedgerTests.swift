@@ -2,6 +2,58 @@ import XCTest
 @testable import SIDEY
 
 final class MessageLedgerTests: XCTestCase {
+    func testPostgresTimestampsDecodeFractionalAndWholeSecondsWithUTCOffsets() throws {
+        let timestamps = [
+            "2026-08-31T01:02:03.123Z",
+            "2026-08-31T01:02:03.123456Z",
+            "2026-08-31T01:02:03Z",
+            "2026-08-31T01:02:03+00:00",
+            "2026-08-31T10:02:03.123456+09:00"
+        ]
+        let decoded = try timestamps.map(PostgresTimestampDecoder.decode)
+
+        XCTAssertEqual(decoded[1].timeIntervalSince(decoded[0]), 0.000456, accuracy: 0.000001)
+        XCTAssertEqual(decoded[0].timeIntervalSince(decoded[2]), 0.123, accuracy: 0.000001)
+        XCTAssertEqual(decoded[2], decoded[3])
+        XCTAssertEqual(decoded[1], decoded[4])
+    }
+
+    func testInvalidPostgresTimestampFailsInsteadOfUsingCurrentTime() {
+        for value in [
+            "",
+            "2026-08-31 01:02:03",
+            "2026-08-31T25:02:03Z",
+            "2026-08-31T01:02:03.1234567Z",
+            "2026-08-31T01:02:03+24:00",
+            "not-a-date"
+        ] {
+            XCTAssertThrowsError(try PostgresTimestampDecoder.decode(value)) { error in
+                XCTAssertEqual(error as? SideyBackendError, .invalidTimestamp)
+            }
+        }
+    }
+
+    @MainActor
+    func testDistinctServerTimestampsRemainDistinctAndOrderHistoryNewestFirst() throws {
+        let roomID = UUID()
+        let senderID = UUID()
+        let older = try DatabaseMessage(
+            id: UUID(), roomID: roomID, senderID: senderID, body: "이전",
+            createdAt: "2026-08-31T01:02:03.123Z"
+        ).domain
+        let newer = try DatabaseMessage(
+            id: UUID(), roomID: roomID, senderID: senderID, body: "최신",
+            createdAt: "2026-08-31T01:02:04.456789+00:00"
+        ).domain
+        var ledger = MessageLedger()
+
+        ledger.confirm(newer)
+        ledger.confirm(older)
+
+        XCTAssertNotEqual(older.createdAt, newer.createdAt)
+        XCTAssertEqual(OverlayHistoryView.recentEntries(in: ledger, roomID: roomID).map(\.body), ["최신", "이전"])
+    }
+
     func testOptimisticMessagePreservesSenderAndConfirmsWithoutDuplicate() {
         let id = UUID()
         let roomID = UUID()
