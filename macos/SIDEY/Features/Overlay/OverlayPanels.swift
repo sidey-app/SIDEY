@@ -106,9 +106,23 @@ final class PixelWorldWindowController {
     }
 }
 
+enum OverlayComposerLayout {
+    static let panelSize = CGSize(width: 400, height: 56)
+    static let topInset: CGFloat = 10
+
+    static func frame(in visibleFrame: CGRect) -> CGRect {
+        CGRect(
+            x: visibleFrame.midX - panelSize.width / 2,
+            y: visibleFrame.maxY - panelSize.height - topInset,
+            width: panelSize.width,
+            height: panelSize.height
+        )
+    }
+}
+
 @MainActor
 final class OverlayInteractionWindowController {
-    static let panelSize = CGSize(width: 400, height: 56)
+    static let panelSize = OverlayComposerLayout.panelSize
     private let panel: NSPanel
     private var focusRequestID = 0
 
@@ -145,10 +159,7 @@ final class OverlayInteractionWindowController {
     }
 
     func setScreenFrame(_ visibleFrame: CGRect) {
-        panel.setFrameOrigin(NSPoint(
-            x: visibleFrame.midX - Self.panelSize.width / 2,
-            y: visibleFrame.minY + 10
-        ))
+        panel.setFrame(OverlayComposerLayout.frame(in: visibleFrame), display: panel.isVisible)
     }
 
     func setVisible(_ visible: Bool) {

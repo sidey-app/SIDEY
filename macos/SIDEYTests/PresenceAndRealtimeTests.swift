@@ -231,6 +231,15 @@ final class PresenceAndRealtimeTests: XCTestCase {
         XCTAssertTrue(tracker.isConnected)
     }
 
+    func testRealtimeRecoveryBackoffStartsAtEightSecondsAndCapsAtThirty() {
+        XCTAssertEqual(RealtimeRecoveryPolicy.watchdogInterval, 5)
+        XCTAssertEqual(RealtimeRecoveryPolicy.delay(forAttempt: 1), 8)
+        XCTAssertEqual(RealtimeRecoveryPolicy.delay(forAttempt: 2), 16)
+        XCTAssertEqual(RealtimeRecoveryPolicy.delay(forAttempt: 3), 30)
+        XCTAssertEqual(RealtimeRecoveryPolicy.delay(forAttempt: 20), 30)
+        XCTAssertEqual(RealtimeRecoveryPolicy.delay(forAttempt: 0), 8)
+    }
+
     func testActiveRoomSwitchPublishesOfflineToPreviousRoomAndLocalStateToNewRoom() {
         let previousRoomID = UUID()
         let nextRoomID = UUID()

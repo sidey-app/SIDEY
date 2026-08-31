@@ -69,6 +69,37 @@ final class BackendIntegrationTests: XCTestCase {
                 await secondProbe.presence[firstUserID] == .away
             }
 
+            let optionalSecondUserID = await second.currentUserID()
+            let secondUserID = try XCTUnwrap(optionalSecondUserID)
+            let presenceUpdatesBeforeInterruption = await firstProbe.presenceUpdateCounts[secondUserID, default: 0]
+            let disconnectionsBeforeInterruption = await secondProbe.disconnectedAfterConnectCount
+            await second.interruptRealtimeConnectionForTesting()
+            try await waitUntil("강제 단절 감지", timeout: .seconds(15)) {
+                await secondProbe.disconnectedAfterConnectCount > disconnectionsBeforeInterruption
+            }
+            try await waitUntil("Realtime 자동 재구독", timeout: .seconds(30)) {
+                await secondProbe.isConnected
+            }
+            try await waitUntil("재구독 뒤 Presence 재발행") {
+                await firstProbe.hasPresenceUpdate(
+                    userID: secondUserID,
+                    state: .online,
+                    after: presenceUpdatesBeforeInterruption
+                )
+            }
+
+            let recoveredBody = "재구독 메시지 \(UUID().uuidString.prefix(8))"
+            let recoveredMessage = try await first.sendMessage(roomID: created.roomID, body: recoveredBody)
+            try await waitUntil("재구독 뒤 메시지 수신") {
+                await secondProbe.messageIDs.contains(recoveredMessage.id)
+            }
+
+            let recoveredPulseEventID = UUID()
+            try await first.broadcastCharacterPulse(roomID: created.roomID, eventID: recoveredPulseEventID)
+            try await waitUntil("재구독 뒤 character_pulse 수신") {
+                await secondProbe.characterPulseEventIDs.contains(recoveredPulseEventID)
+            }
+
             try await second.leaveRoom(created.roomID)
             try await first.leaveRoom(created.roomID)
             createdRoomID = nil
@@ -117,11 +148,23 @@ private actor BackendEventProbe {
     private(set) var typingStopped = false
     private(set) var characterPulseEventIDs: Set<UUID> = []
     private(set) var presence: [UUID: PresenceState] = [:]
+    private(set) var presenceUpdateCounts: [UUID: Int] = [:]
+    private(set) var disconnectedAfterConnectCount = 0
+    private var hasConnected = false
+
+    func hasPresenceUpdate(userID: UUID, state: PresenceState, after count: Int) -> Bool {
+        presence[userID] == state && presenceUpdateCounts[userID, default: 0] > count
+    }
 
     func consume(_ events: AsyncStream<BackendEvent>) async {
         for await event in events {
             switch event {
             case .connection(let connected):
+                if connected {
+                    hasConnected = true
+                } else if hasConnected {
+                    disconnectedAfterConnectCount += 1
+                }
                 isConnected = connected
             case .message(let message):
                 messageIDs.insert(message.id)
@@ -131,6 +174,7 @@ private actor BackendEventProbe {
                 characterPulseEventIDs.insert(event.id)
             case .presence(_, let userID, let state):
                 presence[userID] = state
+                presenceUpdateCounts[userID, default: 0] += 1
             case .snapshot:
                 break
             }

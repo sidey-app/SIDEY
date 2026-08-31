@@ -395,6 +395,16 @@ struct RealtimeConnectionTracker: Equatable, Sendable {
     }
 }
 
+enum RealtimeRecoveryPolicy {
+    static let watchdogInterval: TimeInterval = 5
+    static let maximumDelay: TimeInterval = 30
+
+    static func delay(forAttempt attempt: Int) -> TimeInterval {
+        let exponent = Double(max(0, min(attempt - 1, 5)))
+        return min(8 * pow(2, exponent), maximumDelay)
+    }
+}
+
 enum PresencePublicationPlan {
     static func state(
         for roomID: UUID,

@@ -12,10 +12,12 @@
 | --- | --- | --- |
 | 제품명 | `SIDEY` | 공식 제품명이다. `같이온`·`같이ON`은 제품 문구, 코드, 식별자에 사용하지 않는다. |
 | 제품 형태 | 최대 5명의 실제 친구가 2D 픽셀 동물로 화면 가장자리에서 함께 움직이는 초대 전용 데스크톱 ambient messenger | 고정형 채팅 목록보다 친구의 존재와 짧은 대화가 자연스럽게 보이는 경험에 집중한다. AI 동료나 가상 반려동물 제품은 아니다. |
-| 현재 구현 범위 | macOS 네이티브와 내장 픽셀 동물 5종 | 햄스터 vertical slice의 렌더링·상태·메시지 구조를 유지하면서 고양이·강아지·토끼·펭귄 선택을 추가한다. Windows는 후속 플랫폼 검증 대상으로 남긴다. |
-| 플랫폼 순서 | macOS 26 이상 Apple Silicon 우선, Windows 후속 | 장시간 오버레이 안정성과 성능을 한 플랫폼에서 먼저 검증한다. |
+| 현재 구현 범위 | macOS 네이티브 alpha와 Windows 네이티브 개발 | macOS Swift/SpriteKit 앱은 유지하고 Windows에서 햄스터 vertical slice를 먼저 검증한 뒤 기능·행동 동등판으로 확장한다. |
+| 플랫폼 순서 | macOS alpha를 기준 구현으로 유지하고 Windows 11 25H2+ x64를 후속 개발 | 이미 배포된 macOS 코드를 재작성하지 않고 Windows 고유 창·DPI·전원·IME 리스크를 별도로 검증한다. |
 | macOS 클라이언트 | SwiftUI + AppKit + SpriteKit | 일반 창은 SwiftUI/AppKit, 창 정책은 AppKit, 픽셀 월드는 SpriteKit이 담당한다. |
-| 백엔드 | Supabase Auth, Postgres, Realtime Presence·Broadcast | 기존 인증·방·메시지 계약을 유지하면서 클라이언트 표현만 전환한다. |
+| Windows 클라이언트 | Windows 11 25H2(build 26200)+ x64, C#/.NET 10 LTS + WinUI 3/Windows App SDK 2.4.0 + Win32 | 일반 창은 WinUI 3, 투명 월드는 전용 Win32 HWND와 System Composition/Win2D·Direct2D, 트레이·모니터·활동 감지는 Win32 플랫폼 서비스가 담당한다. WPF·Electron·WebView·Godot은 사용하지 않는다. |
+| 클라이언트 공통화 | 플랫폼별 네이티브 코드베이스와 공통 서버 계약 | Godot 공통 런타임은 폐기하고 서버 schema·Realtime payload·제품 행동 규칙을 동등성 계약으로 삼는다. |
+| 백엔드 | Supabase Auth, Postgres, Realtime Presence·Broadcast | 기존 인증·방·메시지 계약을 유지하면서 클라이언트 표현만 전환한다. macOS 익명 세션은 유지하고 Windows 신규 설치는 Google OAuth PKCE 로그인을 필수로 한다. |
 | 그룹 인원 | 방당 최대 5명, 서버에서 강제 | 5번째 가입은 허용하고 6번째는 `member_limit_reached`로 거부한다. 클라이언트 검증만으로 대체하지 않는다. |
 | 사용자당 그룹 | 최대 5개, 한 번에 활성 그룹 하나만 표시 | 그룹 수 제한은 기존 서버 계약을 유지하고 화면에는 선택한 월드 하나만 노출한다. |
 | 그룹 공개 범위 | 초대 전용 비공개 그룹 | 공개 검색·추천·발견 기능은 범위 밖이다. |
@@ -34,7 +36,7 @@
 | 말풍선 | 발신자별 최신 1개, 전체 최대 4개, 기본 10초, 실측 최대 폭 220pt, 삼각형 꼬리 | 최대 200자·3줄 입력을 생략하지 않고 렌더하며 끝에서는 말풍선만 접선 보정한다. 말풍선이 떠 있어도 온라인 캐릭터는 계속 이동한다. |
 | 메시지 전송 | UUID 기반 낙관적 표시 후 Postgres 저장과 조정, 실패 시 말풍선·낙관 기록 제거 및 입력 원문 복구 | 즉시 반응과 서버 원본성을 동시에 유지한다. ledger는 `senderID`를 보존한다. |
 | 조용히 모드 | 메시지 본문 말풍선은 숨기고 미확인 수는 유지하며, 타이핑 순환 점은 표시 | 화면 공유 중 본문 노출을 막되 상대가 입력 중이라는 신호는 유지한다. |
-| 입력창 | 기본 숨김인 400×56 입력창을 내 캐릭터 단일 클릭 또는 메뉴바 `메시지 작성`으로 열고, 유효한 전송 뒤 마지막 전송 시점부터 5초간 유지한 뒤 자동으로 닫기 | 전송 뒤 입력창이 계속 남는 방해를 줄이되 짧은 연속 메시지는 창을 다시 열지 않고 보낼 수 있게 한다. 전송할 때마다 타이머를 갱신하고, Esc·재클릭은 즉시 닫으며, 더블클릭은 리액션을 실행한 뒤 입력창을 열린 상태로 유지한다. 전송 실패로 원문을 복구할 때는 예약 닫힘을 취소한다. 내 캐릭터 위 52×52 NSPanel만 클릭을 받고 월드는 계속 클릭 통과한다. |
+| 입력창 | 기본 숨김인 400×56 입력창을 선택 모니터의 상단 중앙, 노치·메뉴바 아래 10pt에 고정하고 내 캐릭터 단일 클릭 또는 메뉴바 `메시지 작성`으로 열며, 왼쪽 `×`·Esc·캐릭터 재클릭으로 닫고 유효한 전송 뒤 마지막 전송 시점부터 5초간 유지한 뒤 자동으로 닫기 | 입력 위치를 찾기 쉽게 일관되게 유지하면서 노치·메뉴바와 겹치지 않게 하고 포인터만으로도 명시적으로 닫을 수 있게 한다. 전송할 때마다 타이머를 갱신하고, 모든 닫기 경로는 draft를 보존하고 `typing_stop`을 보내며, 더블클릭은 리액션을 실행한 뒤 입력창을 열린 상태로 유지한다. 전송 실패로 원문을 복구할 때는 예약 닫힘을 취소한다. 내 캐릭터 위 52×52 NSPanel만 클릭을 받고 월드는 계속 클릭 통과한다. |
 | 제거하는 오버레이 조작 | 잠금, 직접 이동, 크기 조절, 오버레이의 기록·설정 버튼 제거 | 프리셋 기반 영역 모델과 충돌하는 과거 3D 조작 계약을 남기지 않는다. |
 | 최근 기록 | 메뉴바에서 여는 일반 macOS 창 | 클릭 통과 오버레이와 키보드·스크롤 입력을 분리한다. |
 | 메뉴바 | 픽셀 햄스터 얼굴 template icon과 unread variant를 사용하고, 메뉴는 오버레이 표시, 메시지 작성, 활성 그룹·미확인 수, 조용히 모드, 최근 기록, 그룹 설정, 로그인 실행, 업데이트 확인, 설정, 종료만 제공 | 밝고 어두운 메뉴바에 자동 대응하며 이미지 로딩 실패 시에만 `pawprint.fill`을 사용한다. |
@@ -43,25 +45,31 @@
 | 내장 캐릭터 | `pixel_hamster`, `pixel_cat`, `pixel_puppy`, `pixel_rabbit`, `pixel_penguin`; 각 24×24×10프레임, 2배 정수 확대 약 48pt, nearest-neighbor | idle 2, walk 4, doze 2, offline 2 프레임과 공통 발 기준선을 결정적 Swift 생성기로 보장한다. 캐릭터 선택과 닉네임은 그룹에서 중복 가능하다. |
 | 과거 캐릭터 호환 | 클라이언트에서 `minty_pup`을 `pixel_hamster`로 표시하는 alias 제공 | DB 프로필을 즉시 일괄 수정하지 않아도 새 런타임이 안전하게 표시할 수 있다. |
 | 메시지·Realtime 스키마 | Postgres 메시지가 원본, Presence는 연결·활동 상태, Broadcast는 타이핑과 `character_pulse` 같은 일시 이벤트 | 픽셀 월드 위치나 연속 애니메이션 frame을 네트워크 계약에 넣지 않는다. 리액션은 시작 이벤트만 공유한다. |
+| Realtime 자동 복구 | macOS 클라이언트가 5초마다 실제 WebSocket·채널 구독 상태를 검사하고, 비정상이 8초 이상 지속되면 채널과 이벤트 스트림을 재생성한다. 실패 시 8→16→30초 backoff를 적용하고 성공 뒤 Presence·멤버 snapshot·최근 메시지를 다시 맞춘다. | SDK의 소켓 객체가 남아 있어도 채널 구독이 죽을 수 있다. 이때 재실행 없이 오프라인 표시, 누락 메시지, 신규 멤버, 타이핑·리액션 Broadcast를 함께 복구해야 한다. |
 | 데이터 보안 | Supabase RLS 적용, 방 멤버십·5명·사용자당 5개 방 제한을 서버에서 강제, 초대 코드는 해시만 저장 | 클라이언트 우회와 초대 코드 유출 피해를 줄인다. |
 | 개인정보 | 전역 활동은 마지막 시스템 입력 후 경과 시간과 화면 잠금만 사용. 화면 내용, 활성 앱 목록, 다른 앱의 키, 마우스 좌표, 파일, 마이크, 카메라는 수집하지 않음 | 오버레이 편의를 이유로 불필요한 민감 정보를 수집하지 않는다. |
 | 보안 표현 | 설계·구현·검증 전에는 E2EE라고 주장하지 않음 | 전송 암호화와 RLS는 종단간 암호화가 아니다. |
 | 창 보장 범위 | 보안 화면, DRM 앱, 권한이 높은 앱, 모든 독점 전체화면 게임 위 표시를 보장하지 않음 | OS 보안 정책을 제품 약속으로 우회할 수 없다. |
-| 코드베이스 기준 | `main`에는 SwiftUI·AppKit·SpriteKit 2D 네이티브 앱만 유지하고 Godot·3D 런타임, 브리지, 에셋 파이프라인, 테스트를 제거 | 사용하지 않는 두 런타임을 함께 유지하는 비용과 잘못된 배포 경로를 없앤다. 기존 사용자 세션·설정을 읽는 Swift migration 호환 계층은 데이터 손실 방지를 위해 유지한다. |
+| 코드베이스 기준 | `main`에 macOS SwiftUI·AppKit·SpriteKit와 Windows C#·WinUI 3·Win32 네이티브 앱을 함께 유지하되 Godot·3D 런타임은 재도입하지 않음 | 플랫폼 구현은 분리하고 Postgres·Realtime 계약과 자동화 테스트로 동등성을 관리한다. 기존 macOS 세션·설정 migration 계층은 유지한다. |
 | 서버 계약 | 운영에 적용된 `20260829000000_sidey_core.sql`이 방당 5명과 사용자당 5개 방을 이미 강제하며 pixel-world 전용 schema migration은 추가하지 않음 | 운영과 `main`의 최종 계약이 같으므로 임시 20명 staging migration을 승격하지 않는다. |
 | macOS 업데이트 | Sparkle `2.9.6`을 앱에 내장하고 GitHub의 HTTPS appcast와 Release ZIP을 사용. ZIP과 appcast는 `sidey-app` 전용 EdDSA 키로 서명하고 다운로드 압축 해제 전 검증과 signed feed 검증을 강제. 메뉴에서 수동 확인을 제공하고 자동 확인은 Sparkle의 사용자 동의 흐름을 따름 | 실행 코드를 바꾸는 공급망이므로 공개키만 앱과 저장소에 두고 개인키는 release operator의 Keychain·암호화 오프라인 백업에만 둔다. Developer ID 서명, Hardened Runtime, 공증·staple을 통과하지 않은 ZIP은 appcast에 게시하지 않는다. |
 | 업데이트 전환 | Sparkle이 없는 기존 alpha는 새 ZIP으로 한 번 수동 교체하고, Sparkle 내장 빌드부터 앱 내부 업데이트를 사용. Developer ID 활성화 전 signed appcast는 유효하되 update item 없이 유지 | 기존 설치에 프레임워크를 원격으로 소급 탑재할 수 없고, ad-hoc 자동 업데이트를 공개하면 Gatekeeper·코드 서명 연속성 검증이 불안정해진다. |
 | 배포 채널 | 버전 `0.2.0`, 빌드 `5`의 Apple Silicon 앱을 `v0.2.0-alpha.3` GitHub pre-release로 배포 | 픽셀 월드 상호작용·캐릭터 리액션·앱 아이콘을 다듬고 composer 자동 닫힘을 5초로 조정한 alpha 패치다. Developer ID 서명·공증과 장시간 수동 검증 전에는 정식 stable로 오인시키지 않는다. |
+| Windows 인증 | Google OAuth + PKCE, `sidey://auth/callback`, Credential Locker | Windows에서는 시스템 브라우저로 로그인하고 callback·refresh token·평문 초대 코드를 로컬 일반 설정이 아닌 보안 저장소에 보관한다. Google 이름·사진은 SIDEY 닉네임으로 복사하지 않는다. |
+| Windows alpha 배포 | `v0.3.0-alpha.1`, self-contained x64 ZIP + SHA-256, GitHub pre-release | 첫 공개본은 미서명 수동 교체 배포로 제한하고 SmartScreen 경고·자동 업데이트 없음·다중 모니터 실기 미검증을 명시한다. MSIX·서명·ARM64는 후속 결정이다. |
 
 ## 현재 검증 기준
 
 - 4개 가장자리 × 3개 길이의 영역, 중앙 정렬, 회전, visible frame, 모니터 제거 fallback이 단위 테스트를 통과해야 한다.
 - 제품 방은 5명으로 제한하되 20개 합성 노드가 3,000 tick 동안 track 밖이나 NaN 상태로 빠지지 않는 스트레스 테스트를 통과해야 한다.
 - 상태 전환, 오프라인 숨김, 방 전환 UUID diff, 최대 8자 닉네임·반투명 배경과 상태 점 간격, 겹침 시 idle 해제·가속 통과, 더블클릭 리액션 10초 제한·Broadcast 중복 제거, 말풍선 교체·eviction·만료·이동 중 추적을 검증한다.
+- 실서버 2클라이언트 테스트에서 한쪽 WebSocket을 강제로 끊은 뒤 재실행 없이 자동 재구독하고 메시지·Presence·`character_pulse` 수신을 복구해야 한다.
 - 월드는 항상 위·클릭 통과, 입력창만 키보드 포커스 가능, 마지막 전송 뒤 5초 유지·타이머 갱신·실패 복구를 지키고, 최근 기록은 일반 창이어야 한다.
 - Sparkle 프레임워크와 `SUFeedURL`·`SUPublicEDKey`가 Release 번들에 포함되고 signed feed·압축 해제 전 검증이 강제되어야 한다. appcast 게시 도구는 ad-hoc 빌드를 기본 거부하고 Developer ID·Hardened Runtime·stapled notarization을 검증해야 한다.
 - 5번째 가입 성공, 6번째 거부, 여섯 번째 방 거부, RLS, 중복 닉네임·캐릭터 허용을 SQL 테스트한다.
 - 최대 방 인원 5명으로 30분 실행하고, 별도 20노드 합성 부하에서도 p95 frame time 40ms 이하, 100ms 이상 main-thread hang 없음, 지속 RSS 증가 없음, 숨긴 월드의 SpriteKit 정지를 확인한다.
+- Windows는 햄스터 1종의 투명·최상위·클릭 통과·52×52 hotspot·DPI·잠금·절전 복귀를 실기에서 먼저 통과한 후 Google 로그인·방·Presence·타이핑·메시지를 연결한다.
+- Windows 공개 alpha는 5명 2시간과 20노드 30분 부하에서 p95 frame time 40ms 이하, 100ms 이상 UI-thread hang 없음, warm-up 후 working set 20MB 초과 증가 없음, handle·surface 지속 증가 없음을 확인한다.
 
 ## 아직 결정하지 않은 항목
 
@@ -69,5 +77,4 @@
 | --- | --- | --- | --- |
 | D-006 | 자리 비움 전환 시간 | 5분 유지 | 실제 장시간 테스트 후 |
 | D-007 | 메시지 말풍선 시간 | 10초 유지 | 5명 비공개 UX 테스트 후 |
-| D-010 | Windows 최소 지원 버전과 네이티브 브리지 | 미정 | macOS vertical slice 승인 후 |
 | D-012 | E2EE 도입 여부와 프로토콜 | MVP 이후 별도 설계 | 보안 로드맵 수립 시 |

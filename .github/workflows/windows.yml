@@ -1,0 +1,73 @@
+name: Windows native
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'windows/**'
+      - 'scripts/windows/**'
+      - '.github/workflows/windows.yml'
+  pull_request:
+    paths:
+      - 'windows/**'
+      - 'scripts/windows/**'
+      - '.github/workflows/windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test-package:
+    runs-on: windows-2025
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        working-directory: windows
+        run: dotnet restore SIDEY.Windows.slnx
+
+      - name: Core tests
+        run: dotnet test windows/tests/Sidey.Core.Tests/Sidey.Core.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=sidey-core.trx"
+
+      - name: Build Windows solution
+        run: dotnet build windows/SIDEY.Windows.slnx --configuration Release --no-restore
+
+      - name: Publish self-contained x64
+        run: >-
+          dotnet publish windows/src/Sidey.App/Sidey.App.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          --no-restore
+          -p:Version=0.3.0-alpha.1
+          --output build/windows/publish
+
+      - name: Package ZIP and SHA-256
+        run: >-
+          ./scripts/windows/package.ps1
+          -PublishDir ./build/windows/publish
+          -OutDir ./build/windows/artifacts
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-test-results
+          path: windows/tests/Sidey.Core.Tests/TestResults/*.trx
+          if-no-files-found: warn
+
+      - name: Upload internal Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SIDEY-Windows-x64-0.3.0-alpha.1-internal
+          path: build/windows/artifacts/*
+          if-no-files-found: error

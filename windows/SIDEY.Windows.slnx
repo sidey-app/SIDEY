@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Sidey.App/Sidey.App.csproj" />
+    <Project Path="src/Sidey.Core/Sidey.Core.csproj" />
+    <Project Path="src/Sidey.Infrastructure/Sidey.Infrastructure.csproj" />
+    <Project Path="src/Sidey.Overlay/Sidey.Overlay.csproj" />
+    <Project Path="src/Sidey.Platform.Windows/Sidey.Platform.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Sidey.Core.Tests/Sidey.Core.Tests.csproj" />
+  </Folder>
+</Solution>

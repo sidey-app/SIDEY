@@ -5,6 +5,11 @@
 
 # Native build products.
 /build/
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
 
 # Generated interpreter caches.
 **/__pycache__/

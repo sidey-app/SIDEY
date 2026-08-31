@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.26100.0</SupportedOSPlatformVersion>
+    <RootNamespace>Sidey.App</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>false</PublishSingleFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Sidey.Core/Sidey.Core.csproj" />
+    <ProjectReference Include="../Sidey.Infrastructure/Sidey.Infrastructure.csproj" />
+    <ProjectReference Include="../Sidey.Overlay/Sidey.Overlay.csproj" />
+    <ProjectReference Include="../Sidey.Platform.Windows/Sidey.Platform.Windows.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="../Sidey.Overlay/Assets/Characters/pixel_hamster.png" Link="Assets/Characters/pixel_hamster.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

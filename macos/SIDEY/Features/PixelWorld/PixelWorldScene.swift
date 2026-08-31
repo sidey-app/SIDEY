@@ -113,6 +113,26 @@ enum PixelMovementPolicy {
     }
 }
 
+enum PixelWorldAvoidanceLayout {
+    static let composerSize = CGSize(width: 440, height: 76)
+
+    static func composerRects(
+        worldSize: CGSize,
+        edge: OverlayEdge,
+        composerVisible: Bool
+    ) -> [CGRect] {
+        guard composerVisible, edge == .top else { return [] }
+        let worldFrame = CGRect(origin: .zero, size: worldSize)
+        let rect = CGRect(
+            x: worldSize.width / 2 - composerSize.width / 2,
+            y: worldSize.height - composerSize.height,
+            width: composerSize.width,
+            height: composerSize.height
+        ).intersection(worldFrame)
+        return rect.isNull || rect.isEmpty ? [] : [rect]
+    }
+}
+
 enum PixelMovementSimulation {
     static let characterRadius: CGFloat = 25
     static let maximumSpeed: CGFloat = 22
@@ -496,9 +516,11 @@ final class PixelWorldScene: SKScene {
     }
 
     private var composerAvoidanceRects: [CGRect] {
-        guard composerVisible, edge == .bottom else { return [] }
-        return [CGRect(x: size.width / 2 - 220, y: 0, width: 440, height: 76).intersection(frame)]
-            .filter { !$0.isNull && !$0.isEmpty }
+        PixelWorldAvoidanceLayout.composerRects(
+            worldSize: size,
+            edge: edge,
+            composerVisible: composerVisible
+        )
     }
 
     private func stableTrackPosition(roomID: UUID?, userID: UUID, salt: UInt64 = 0) -> CGFloat {

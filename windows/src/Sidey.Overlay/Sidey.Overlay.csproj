@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.26100.0</SupportedOSPlatformVersion>
+    <RootNamespace>Sidey.Overlay</RootNamespace>
+    <UseWinUI>true</UseWinUI>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Graphics.Win2D" />
+    <PackageReference Include="Microsoft.Windows.CsWin32" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.WindowsAppSDK" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Sidey.Core/Sidey.Core.csproj" />
+    <ProjectReference Include="../Sidey.Platform.Windows/Sidey.Platform.Windows.csproj" />
+  </ItemGroup>
+</Project>

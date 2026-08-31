@@ -9,6 +9,17 @@ struct OverlayComposerView: View {
 
     var body: some View {
         HStack(spacing: 10) {
+            Button(action: onCancel) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 13, weight: .bold))
+                    .frame(width: 28, height: 34)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("메시지 입력 닫기")
+            .accessibilityIdentifier("sidey.composer-close")
+
             ZStack(alignment: .leading) {
                 if model.draft.isEmpty {
                     Text("짧은 메시지").foregroundStyle(.tertiary)

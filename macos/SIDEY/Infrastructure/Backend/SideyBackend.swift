@@ -11,10 +11,17 @@ actor SideyBackend {
     private let eventContinuation: AsyncStream<BackendEvent>.Continuation
     private var channels: [UUID: RealtimeChannelV2] = [:]
     private var channelTasks: [UUID: [Task<Void, Never>]] = [:]
+    private var channelRecoveryTasks: [UUID: Task<Void, Never>] = [:]
+    private var channelRecoveryAttempts: [UUID: Int] = [:]
+    private var channelsBeingAdded: Set<UUID> = []
+    private var realtimeWatchdogTask: Task<Void, Never>?
+    private var recoveryReconciliationTask: Task<Void, Never>?
     private var typingExpiryTasks: [String: Task<Void, Never>] = [:]
     private var activeRoomID: UUID?
     private var localPresence: PresenceState = .online
     private var connectionTracker = RealtimeConnectionTracker()
+    private var lastEmittedConnectionState: Bool?
+    private var isShuttingDown = false
 
     init(configuration: RuntimeConfiguration, keychain: KeychainStore = KeychainStore()) {
         let eventPair = AsyncStream<BackendEvent>.makeStream()
@@ -50,6 +57,7 @@ actor SideyBackend {
     }
 
     func syncRealtime(roomIDs: [UUID], activeRoomID: UUID?) async throws {
+        guard !isShuttingDown else { return }
         let plan = RealtimeRoomPlan.make(
             existing: Set(channels.keys),
             requested: roomIDs,
@@ -65,7 +73,8 @@ actor SideyBackend {
             try await addChannel(roomID)
         }
         try await publishPresence()
-        eventContinuation.yield(.connection(connectionTracker.isConnected))
+        emitConnectionState()
+        startRealtimeWatchdogIfNeeded()
     }
 
     func setActiveRoom(_ roomID: UUID?) async throws {
@@ -81,7 +90,7 @@ actor SideyBackend {
     func broadcastTyping(roomID: UUID, event: String) async throws {
         guard roomID == activeRoomID,
               ["typing_start", "typing_keepalive", "typing_stop"].contains(event),
-              let channel = channels[roomID],
+              let channel = subscribedChannel(roomID: roomID),
               let userID = client.auth.currentUser?.id
         else { return }
         try await channel.broadcast(event: event, message: TypingPayload(userID: userID))
@@ -89,7 +98,7 @@ actor SideyBackend {
 
     func broadcastCharacterPulse(roomID: UUID, eventID: UUID) async throws {
         guard roomID == activeRoomID,
-              let channel = channels[roomID],
+              let channel = subscribedChannel(roomID: roomID),
               let userID = client.auth.currentUser?.id
         else { return }
         try await channel.broadcast(
@@ -99,6 +108,15 @@ actor SideyBackend {
     }
 
     func shutdown() async {
+        isShuttingDown = true
+        connectionTracker.replaceDesiredRoomIDs([])
+        realtimeWatchdogTask?.cancel()
+        realtimeWatchdogTask = nil
+        recoveryReconciliationTask?.cancel()
+        recoveryReconciliationTask = nil
+        for task in channelRecoveryTasks.values { task.cancel() }
+        channelRecoveryTasks.removeAll()
+        channelRecoveryAttempts.removeAll()
         for roomID in Array(channels.keys) { await removeChannel(roomID) }
         for task in typingExpiryTasks.values { task.cancel() }
         typingExpiryTasks.removeAll()
@@ -229,6 +247,12 @@ actor SideyBackend {
         try keychain.readString(account: inviteAccount(roomID: roomID))
     }
 
+#if DEBUG
+    func interruptRealtimeConnectionForTesting() {
+        client.realtimeV2.disconnect(reason: "SIDEY integration recovery test")
+    }
+#endif
+
     private func restoreOrCreateSession(requireExistingSession: Bool) async throws -> Session {
         if client.auth.currentSession != nil {
             return try await client.auth.session
@@ -248,6 +272,8 @@ actor SideyBackend {
 
     private func addChannel(_ roomID: UUID) async throws {
         guard let userID = client.auth.currentUser?.id else { throw SideyBackendError.remote("인증 세션이 없음") }
+        channelsBeingAdded.insert(roomID)
+        defer { channelsBeingAdded.remove(roomID) }
         let channel = client.channel("room:\(roomID.uuidString.lowercased())") { config in
             config.isPrivate = true
             config.broadcast.receiveOwnBroadcasts = false
@@ -301,7 +327,8 @@ actor SideyBackend {
         ]
         do {
             try await channel.subscribeWithError()
-            connectionTracker.setSubscribed(true, roomID: roomID)
+            try Task.checkCancellation()
+            connectionTracker.setSubscribed(channel.status == .subscribed, roomID: roomID)
         } catch {
             channelTasks.removeValue(forKey: roomID)?.forEach { $0.cancel() }
             channels.removeValue(forKey: roomID)
@@ -312,6 +339,8 @@ actor SideyBackend {
     }
 
     private func removeChannel(_ roomID: UUID) async {
+        channelRecoveryTasks.removeValue(forKey: roomID)?.cancel()
+        channelRecoveryAttempts.removeValue(forKey: roomID)
         channelTasks.removeValue(forKey: roomID)?.forEach { $0.cancel() }
         connectionTracker.setSubscribed(false, roomID: roomID)
         guard let channel = channels.removeValue(forKey: roomID) else { return }
@@ -321,18 +350,31 @@ actor SideyBackend {
     private func handleChannelStatus(roomID: UUID, status: RealtimeChannelStatus) async {
         switch status {
         case .subscribed:
+            channelRecoveryTasks.removeValue(forKey: roomID)?.cancel()
+            channelRecoveryAttempts.removeValue(forKey: roomID)
             connectionTracker.setSubscribed(true, roomID: roomID)
-            try? await publishPresence()
-            eventContinuation.yield(.connection(connectionTracker.isConnected))
-        case .subscribing, .unsubscribing, .unsubscribed:
+            if channels[roomID]?.status == .subscribed {
+                try? await publishPresence()
+            }
+            emitConnectionState()
+        case .unsubscribed:
             connectionTracker.setSubscribed(false, roomID: roomID)
-            eventContinuation.yield(.connection(connectionTracker.isConnected))
+            emitConnectionState()
+            if !channelsBeingAdded.contains(roomID) {
+                scheduleChannelRecovery(roomID: roomID)
+            }
+        case .subscribing, .unsubscribing:
+            connectionTracker.setSubscribed(false, roomID: roomID)
+            emitConnectionState()
         }
     }
 
     private func publishPresence() async throws {
         guard let userID = client.auth.currentUser?.id else { return }
         for (roomID, channel) in channels {
+            guard client.realtimeV2.status == .connected,
+                  channel.status == .subscribed
+            else { continue }
             let state = PresencePublicationPlan.state(
                 for: roomID,
                 activeRoomID: activeRoomID,
@@ -344,6 +386,129 @@ actor SideyBackend {
                 onlineAt: ISO8601DateFormatter().string(from: .now)
             ))
         }
+    }
+
+    private func subscribedChannel(roomID: UUID) -> RealtimeChannelV2? {
+        guard client.realtimeV2.status == .connected,
+              let channel = channels[roomID],
+              channel.status == .subscribed
+        else {
+            scheduleChannelRecovery(roomID: roomID)
+            return nil
+        }
+        return channel
+    }
+
+    private func startRealtimeWatchdogIfNeeded() {
+        guard realtimeWatchdogTask == nil else { return }
+        realtimeWatchdogTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(RealtimeRecoveryPolicy.watchdogInterval))
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+                await self?.inspectRealtimeHealth()
+            }
+        }
+    }
+
+    private func inspectRealtimeHealth() {
+        guard !isShuttingDown else { return }
+        let socketConnected = client.realtimeV2.status == .connected
+        for roomID in connectionTracker.desiredRoomIDs {
+            let subscribed = socketConnected && channels[roomID]?.status == .subscribed
+            connectionTracker.setSubscribed(subscribed, roomID: roomID)
+            if !subscribed, !channelsBeingAdded.contains(roomID) {
+                scheduleChannelRecovery(roomID: roomID)
+            }
+        }
+        emitConnectionState()
+    }
+
+    private func scheduleChannelRecovery(roomID: UUID) {
+        guard !isShuttingDown,
+              connectionTracker.desiredRoomIDs.contains(roomID),
+              channelRecoveryTasks[roomID] == nil
+        else { return }
+
+        let attempt = channelRecoveryAttempts[roomID, default: 0] + 1
+        channelRecoveryAttempts[roomID] = attempt
+        let delay = RealtimeRecoveryPolicy.delay(forAttempt: attempt)
+        channelRecoveryTasks[roomID] = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .seconds(delay))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            await self?.recoverChannel(roomID: roomID)
+        }
+    }
+
+    private func recoverChannel(roomID: UUID) async {
+        channelRecoveryTasks.removeValue(forKey: roomID)
+        guard !isShuttingDown,
+              connectionTracker.desiredRoomIDs.contains(roomID),
+              !channelsBeingAdded.contains(roomID)
+        else { return }
+
+        if let channel = channels[roomID] {
+            channelTasks.removeValue(forKey: roomID)?.forEach { $0.cancel() }
+            channels.removeValue(forKey: roomID)
+            connectionTracker.setSubscribed(false, roomID: roomID)
+            await client.removeChannel(channel)
+        }
+
+        guard !isShuttingDown,
+              connectionTracker.desiredRoomIDs.contains(roomID)
+        else { return }
+
+        do {
+            try await addChannel(roomID)
+            guard !isShuttingDown,
+                  connectionTracker.desiredRoomIDs.contains(roomID)
+            else {
+                await removeChannel(roomID)
+                return
+            }
+            try await publishPresence()
+            emitConnectionState()
+            scheduleRecoveryReconciliation()
+        } catch {
+            connectionTracker.setSubscribed(false, roomID: roomID)
+            emitConnectionState()
+            scheduleChannelRecovery(roomID: roomID)
+        }
+    }
+
+    private func scheduleRecoveryReconciliation() {
+        guard !isShuttingDown, recoveryReconciliationTask == nil else { return }
+        recoveryReconciliationTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(250))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            await self?.reconcileAfterRealtimeRecovery()
+        }
+    }
+
+    private func reconcileAfterRealtimeRecovery() async {
+        recoveryReconciliationTask = nil
+        guard !isShuttingDown,
+              let snapshot = try? await loadSnapshot()
+        else { return }
+        eventContinuation.yield(.snapshot(snapshot))
+    }
+
+    private func emitConnectionState() {
+        let connected = connectionTracker.isConnected
+        guard lastEmittedConnectionState != connected else { return }
+        lastEmittedConnectionState = connected
+        eventContinuation.yield(.connection(connected))
     }
 
     private func handleDatabaseBroadcast(roomID: UUID, payload: JSONObject, event: String) async {

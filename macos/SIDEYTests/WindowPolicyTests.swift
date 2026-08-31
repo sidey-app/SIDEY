@@ -62,6 +62,17 @@ final class WindowPolicyTests: XCTestCase {
         }
     }
 
+    func testComposerIsCenteredBelowTheSelectedScreensNotchArea() {
+        let visibleFrame = CGRect(x: 100, y: 40, width: 1200, height: 800)
+
+        let frame = OverlayComposerLayout.frame(in: visibleFrame)
+
+        XCTAssertEqual(frame, CGRect(x: 500, y: 774, width: 400, height: 56))
+        XCTAssertEqual(frame.midX, visibleFrame.midX, accuracy: 0.001)
+        XCTAssertEqual(visibleFrame.maxY - frame.maxY, 10, accuracy: 0.001)
+        XCTAssertTrue(visibleFrame.contains(frame))
+    }
+
     func testMissingMonitorFallsBackToPrimaryScreen() throws {
         let primary = OverlayScreenGeometry(
             identifier: "display:primary",

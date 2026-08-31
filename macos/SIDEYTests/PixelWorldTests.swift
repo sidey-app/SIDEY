@@ -60,8 +60,8 @@ final class PixelWorldTests: XCTestCase {
                     agents: &agents,
                     deltaTime: 1.0 / 30.0,
                     geometry: geometry,
-                    avoidanceRects: edge == .bottom
-                        ? [CGRect(x: 380, y: 0, width: 440, height: 76)]
+                    avoidanceRects: edge == .top
+                        ? [CGRect(x: 380, y: 164, width: 440, height: 76)]
                         : [],
                     stoppedIDs: []
                 )
@@ -84,6 +84,29 @@ final class PixelWorldTests: XCTestCase {
                 }
             }
         }
+    }
+
+    func testComposerAvoidanceOccupiesOnlyTheTopCenterTrack() {
+        let size = CGSize(width: 1_200, height: 240)
+
+        XCTAssertEqual(
+            PixelWorldAvoidanceLayout.composerRects(
+                worldSize: size,
+                edge: .top,
+                composerVisible: true
+            ),
+            [CGRect(x: 380, y: 164, width: 440, height: 76)]
+        )
+        XCTAssertTrue(PixelWorldAvoidanceLayout.composerRects(
+            worldSize: size,
+            edge: .bottom,
+            composerVisible: true
+        ).isEmpty)
+        XCTAssertTrue(PixelWorldAvoidanceLayout.composerRects(
+            worldSize: size,
+            edge: .top,
+            composerVisible: false
+        ).isEmpty)
     }
 
     func testAllEdgeFootPointsTouchTheScreenBoundary() {

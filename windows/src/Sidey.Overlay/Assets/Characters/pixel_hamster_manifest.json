@@ -1,0 +1,16 @@
+{
+  "character_id": "pixel_hamster",
+  "legacy_aliases": ["minty_pup"],
+  "frame_pixel_size": [24, 24],
+  "render_dip_size": [48, 48],
+  "sheet_pixel_size": [240, 24],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": {
+    "idle": [0, 1],
+    "walk": [2, 3, 4, 5],
+    "doze": [6, 7],
+    "offline": [8, 9]
+  },
+  "sha256": "43171c1dd614629058b6d593c57ca0e5841b0be03a04a05181dfda67c53a7f45"
+}

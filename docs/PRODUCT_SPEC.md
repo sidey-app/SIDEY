@@ -1,9 +1,9 @@
 # SIDEY 제품 기획서
 
-- 문서 버전: 0.4
+- 문서 버전: 0.5
 - 최종 갱신: 2026-08-31
-- 상태: 가장자리 track·5종 캐릭터·클릭 채팅 구현, macOS alpha 배포
-- 현재 대상 플랫폼: macOS 26 이상 Apple Silicon
+- 상태: macOS alpha 배포, Windows 네이티브 햄스터 vertical slice 개발
+- 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 현재 개발 브랜치: `main`
 
 ## 1. 제품 정의
@@ -22,16 +22,23 @@
 
 ### 2.1 현재 macOS slice
 
-- macOS 네이티브 클라이언트만 구현한다.
+- macOS 네이티브 클라이언트는 현재 alpha 기준 구현으로 유지한다.
 - 햄스터 vertical slice의 구조 위에 내장 픽셀 동물 5종을 제공한다.
 - 실제 그룹은 최대 5명이다. 렌더러 안정성은 별도 20노드 합성 스트레스 테스트로 검증한다.
-- `main`은 SwiftUI·AppKit·SpriteKit 2D 네이티브 앱만 포함한다. 과거 Godot·3D 런타임, 브리지, 에셋 파이프라인과 테스트는 제거한다.
+- macOS 코드·인증·설정 schema는 Windows 개발을 위해 재작성하지 않는다.
 - 기존 설치의 인증 세션과 설정을 잃지 않도록 Swift 기반 legacy migration 호환만 유지한다.
 
-### 2.2 명시적 제외
+### 2.2 Windows 구현 목표
+
+- Windows 11 25H2(build 26200) 이상 x64 네이티브 클라이언트를 C#/.NET 10 LTS·WinUI 3·Win32로 구현한다.
+- 일반 창은 SIDEY 브랜드의 Windows Fluent UI로 만들고, 투명 월드는 전용 Win32 HWND와 System Composition/Win2D·Direct2D가 소유한다.
+- 햄스터 1종으로 창 정책·DPI·클릭 통과·hotspot·잠금·절전 복귀를 먼저 통과한 후 5종과 전체 기능으로 확장한다.
+- 최종 목표는 macOS와 서버 계약·제품 행동이 동등한 Windows 판이며, 플랫폼 창·설정 UI는 Windows 관례를 따른다.
+- Godot·WPF·Electron·WebView는 사용하지 않는다.
+
+### 2.3 명시적 제외
 
 - 내장 5종을 넘는 추가 동물
-- Windows 클라이언트
 - 모바일·웹 클라이언트
 - 공개 그룹·검색·발견
 - 5명을 넘는 그룹
@@ -48,7 +55,9 @@
 - 닉네임은 줄바꿈 없는 2~8자로 제한한다. 닉네임과 캐릭터 선택은 같은 방에서 중복 가능하며 권한·식별은 UUID로 처리한다.
 - 초대 코드는 방장이 재발급하기 전까지 유효하고 DB에는 해시만 저장한다.
 - 사용자·프로필·방·메시지는 RLS를 통과해야 한다.
-- 익명 인증과 기존 세션 복구 정책은 유지한다. 복구 실패를 새 익명 계정 생성으로 조용히 덮어쓰지 않는다.
+- macOS는 익명 인증과 기존 세션 복구 정책을 유지한다. 복구 실패를 새 익명 계정 생성으로 조용히 덮어쓰지 않는다.
+- Windows 신규 설치는 시스템 브라우저의 Google OAuth PKCE 로그인을 필수로 하고 `sidey://auth/callback`으로 복귀한다. Google 이름·사진은 프로필에 자동 복사하지 않는다.
+- Windows와 macOS의 서로 다른 사용자 UUID가 같은 방에 참가하는 것을 지원하며, Mac↔Windows 계정 이전은 범위 밖이다.
 
 ## 4. 픽셀 월드
 
@@ -89,7 +98,7 @@
 - 각 캐릭터는 선택한 가장자리와 평행한 1차원 track의 로컬 랜덤 목적지를 향해 산책하고 간헐적으로 idle 한다.
 - 캐릭터끼리 부드럽게 회피하되 강한 충돌 물리나 순간이동을 사용하지 않는다.
 - 캐릭터가 겹치면 idle을 즉시 끝내고 진행을 방해하는 분리력은 제거한 뒤 목표 방향으로 잠시 가속해 빠르게 통과한다.
-- 하단 월드에서는 입력창이 실제로 열려 있을 때만 주변 440×76 영역을 우선 회피한다.
+- 상단 월드에서는 입력창이 실제로 열려 있을 때만 상단 중앙의 440×76 영역을 우선 회피한다.
 - 공간이 부족하면 겹침을 허용한다. 설정이나 월드 크기를 자동 변경하지 않는다.
 - 실제 메시지 말풍선이 떠 있어도 온라인 발신자는 이동을 계속하며, 말풍선과 꼬리가 위치를 추적한다.
 - 좌표는 네트워크로 보내지 않는다.
@@ -123,6 +132,8 @@
 - Postgres가 메시지 원본이다.
 - Presence는 연결·온라인·자리 비움 상태에 사용한다.
 - Broadcast는 SIDEY 입력창의 타이핑과 `character_pulse`처럼 저장하지 않는 이벤트에만 사용한다.
+- macOS 클라이언트는 5초마다 WebSocket과 각 방 채널의 실제 구독 상태를 확인한다. 비정상이 8초 이상 지속되면 채널 및 수신 스트림을 재생성하고, 실패가 이어지면 8초·16초·최대 30초 간격으로 재시도한다.
+- 재구독 중에는 로컬 상태를 재연결로 표시한다. 성공하면 현재 Presence를 다시 publish하고 방·멤버 snapshot과 최근 메시지를 다시 읽어 단절 중 누락된 가입·메시지를 보정한다.
 - 메시지 ledger는 `senderID`를 보존한다.
 - 클라이언트가 UUID로 메시지를 낙관적으로 표시하고 동일 UUID의 저장·Realtime 결과와 중복 제거한다.
 - 저장 실패 시 낙관 기록과 말풍선을 제거하고 입력 원문을 복구한다.
@@ -146,7 +157,7 @@
 
 ## 6. 창과 조작 정책
 
-### 6.1 월드 창
+### 6.1 macOS 월드 창
 
 - 투명하고 테두리가 없으며 일반 앱 위에 떠 있다.
 - 전체 영역이 `ignoresMouseEvents`로 뒤 애플리케이션에 클릭을 통과시킨다.
@@ -155,14 +166,14 @@
 
 ### 6.2 입력창
 
-- 선택 모니터 하단 중앙에 400×56으로 고정한다.
-- 텍스트 입력과 전송 버튼만 제공한다.
+- 선택 모니터의 `visibleFrame` 상단 중앙, 노치·메뉴바 아래 10pt에 400×56으로 고정한다. 노치가 없는 화면에서도 같은 상단 여백을 사용한다.
+- 왼쪽 `×` 닫기 버튼, 텍스트 입력, 오른쪽 전송 버튼만 제공한다.
 - 이 패널만 키보드 포커스와 포인터 입력을 받는다.
 - 최대 200자·3줄, Enter 전송, Shift+Enter 줄바꿈 계약을 유지한다.
 - 앱 실행과 오버레이 표시 직후에는 숨겨져 있다.
 - 내 캐릭터 단일 클릭 또는 메뉴바 `메시지 작성`으로 열고 즉시 포커스한다.
 - 내 캐릭터 더블클릭은 리액션을 실행하고 입력창은 열린 상태로 유지한다.
-- 내 캐릭터 재클릭 또는 Esc는 draft를 보존하고 닫으며 `typing_stop`을 보낸다.
+- 왼쪽 `×`, 내 캐릭터 재클릭 또는 Esc는 draft를 보존하고 닫으며 `typing_stop`을 보낸다.
 - 유효한 메시지를 전송하면 입력창을 유지하고 마지막 전송 시점부터 5초 뒤 자동으로 닫는다. 5초 안에 다시 전송하면 타이머를 갱신한다.
 - 낙관적 전송 실패 시 예약 닫힘을 취소하고 원문을 복구한 뒤 입력창을 열어 포커스한다.
 - 오버레이 숨김, 활성 방 전환, 현재 사용자 노드 제거 시 입력창을 닫는다.
@@ -187,6 +198,15 @@
 - 업데이트 확인
 - 설정
 - 종료
+
+### 6.4 Windows 창과 트레이
+
+- 월드는 WinUI XAML 창에 투명 표현을 위임하지 않고 `WS_POPUP` 기반 전용 Win32 HWND에 System Composition visual tree를 붙인다.
+- 월드 HWND는 작업 표시줄·Alt-Tab에 나타나지 않고 활성화되지 않으며 외부 앱으로 포인터를 통과시킨다.
+- 내 캐릭터 상호작용 52×52 hotspot은 별도 HWND가 소유하고 최대 15Hz·1 DIP 임계값으로 위치를 갱신한다. 전역 마우스 hook·전역 좌표 수집은 금지한다.
+- composer는 400×56 DIP 별도 WinUI 창이며, 내 캐릭터 클릭·트레이 `메시지 작성`만 이 창을 활성화한다.
+- 트레이 메뉴는 macOS 메뉴바의 제품 행동을 같게 제공하되 Windows alpha에서는 `업데이트 확인`을 제외하고 `로그아웃`을 제공한다.
+- 보안 화면·DRM·관리자 권한 앱·모든 독점 전체화면 위 표시는 보장하지 않는다.
 
 ## 7. 클라이언트 구조
 
@@ -215,6 +235,8 @@ Presence나 snapshot을 적용할 때 UUID 기준으로 추가·갱신·삭제�
 
 `OverlayWindowGroup`은 composer 표시 상태와 내 캐릭터 단일·더블클릭 패널을 소유한다. `AppCoordinator`는 `character_pulse` 송수신과 캐릭터별 10초 쿨타임을 소유한다. `AppModel`에는 화면 좌표나 애니메이션 frame을 저장하지 않는다.
 
+`SideyBackend`는 Realtime 채널·수신 task·Presence publish와 자동 복구 watchdog을 소유한다. 복구 성공 시 snapshot 이벤트만 상위로 보내며, `AppCoordinator`가 이를 적용하고 활성 방의 최근 메시지를 재조회한다.
+
 ### 7.2 환경설정
 
 Codable 계약은 다음과 같다.
@@ -238,6 +260,16 @@ OverlayRegionPreference(
 - 이동: 가장자리 평행 1차원 track, 발 법선 좌표 고정
 - 월드 숨김: scene view 정지·분리
 
+### 7.4 Windows 소유권과 저장
+
+- `Sidey.Core`는 프로필·방·Presence·message ledger·bubble ledger·이동 시뮬레이션·검증 규칙을 소유하고 WinUI·Win32·Supabase를 참조하지 않는다.
+- `Sidey.App`의 feature ViewModel은 화면에 표시할 상태와 사용자 명령만 소유한다. Supabase endpoint·Realtime payload·HWND를 직접 다루지 않는다.
+- `Sidey.Infrastructure`는 `IAuthService`·`IBackendGateway`·`ICredentialStore`·`IPreferencesStore`를 구현하고 community Supabase C# client를 교체 가능한 adapter 뒤에 격리한다.
+- `Sidey.Overlay`는 별도 dispatcher thread에서 30FPS 고정 step을 실행하고 불변 `WorldSnapshot`을 UUID diff로 반영한다. 위치·속도·animation frame은 앱 세션 상태에 저장하지 않는다.
+- `Sidey.Platform.Windows`는 창 정책·모니터·DPI·트레이·로그인 실행·입력 유휴·잠금·절전 이벤트를 소유한다.
+- Windows 일반 설정은 `%LOCALAPPDATA%\SIDEY\preferences.json`에 atomic replace로 저장하고, OAuth 세션·PKCE verifier·평문 초대 코드는 Credential Locker에만 저장한다.
+- 24px sprite는 물리 픽셀 기준 `max(2, round-away-from-zero(2 × dpi / 96))` 정수 배율로 렌더한다.
+
 ## 8. 서버 변경
 
 운영에 적용된 `20260829000000_sidey_core.sql`의 `join_room` 함수가 방 정원을 5명으로 강제한다. 새 캐릭터 ID는 기존 `character_id` 형식에 맞으므로 pixel-world 또는 캐릭터용 schema migration은 추가하지 않는다. 다음 계약은 그대로 유지한다.
@@ -251,6 +283,8 @@ OverlayRegionPreference(
 - 메시지·Presence·Broadcast schema (`character_pulse`는 DB migration 없는 transient 이벤트)
 
 임시로 방 정원을 20명으로 늘렸던 staging migration은 운영에 적용되지 않았고 `main`에서도 제거한다. 20명 조건은 렌더러 합성 부하 테스트에만 사용한다.
+
+Windows 개발은 별도 Supabase staging 프로젝트에 같은 migration·RLS·private Realtime 정책을 적용한다. Google provider와 `sidey://auth/callback` redirect allow-list는 staging에서 먼저 검증하고 Windows alpha 승격 직전 production에 추가한다. OAuth client secret·service-role key는 클라이언트·저장소·CI 산출물에 넣지 않는다. OAuth 사용자도 기존 `auth.users` UUID를 사용하므로 신규 DB schema나 membership migration을 추가하지 않는다.
 
 ## 9. 개인정보와 보안 경계
 
@@ -268,6 +302,8 @@ SIDEY가 사용할 수 있는 전역 활동 신호는 마지막 시스템 입력
 
 E2EE는 현재 설계·구현·검증되지 않았다. 전송 암호화, Postgres, RLS를 근거로 종단간 암호화라고 표현하면 안 된다.
 
+Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity를 처리하지만 SIDEY 클라이언트는 이 값을 닉네임·캐릭터·친구 노출 정보로 복사하지 않는다. 로컬 로그에는 access/refresh token, OAuth callback query, 메시지 본문, 평문 초대 코드를 남기지 않는다.
+
 ## 10. 검증과 승격 기준
 
 ### 10.1 자동화 테스트
@@ -275,14 +311,15 @@ E2EE는 현재 설계·구현·검증되지 않았다. 전송 암호화, Postgre
 - 영역: 4개 가장자리 × 3개 길이, 중앙 정렬, 회전, visible frame, 깊이 제한, 모니터 fallback
 - 이동: 20개 합성 노드가 3,000 tick 동안 1차원 track과 발 기준선을 유지하고 finite 좌표, 입력창·상호 회피, 겹침 시 idle 해제·가속 통과, 혼잡 시 안전한 겹침
 - 상태: 온라인·자리 비움 doze·오프라인 curled sleep·재연결·타이핑, 내 캐릭터 항상 표시, 오프라인 숨김, 방 전환 UUID diff, 최대 8자 닉네임·반투명 배경과 상태 점 5pt 간격, 발 기준 4배 리액션과 이벤트 UUID 중복 제거
+- Realtime: backoff 계산을 단위 검증하고, 실서버 2클라이언트에서 한쪽 WebSocket 강제 단절 뒤 자동 재구독·메시지·Presence·`character_pulse` 재수신을 검증
 - 메시지: 발신자별 교체, 최대 4개 eviction, 10초 만료, 이동 중 말풍선 추적, 낙관적 성공·실패, 조용히 모드, 미확인 수
 - 말풍선: 1자·200자·3줄·프리셋 양 끝·4방향에서 본문과 꼬리 누적 frame이 캔버스 안에 유지
-- 창: 월드 항상 위·클릭 통과, 내 캐릭터 52×52 hotspot만 포인터 수신, 단일·더블클릭 분기와 캐릭터별 10초 리액션 쿨타임, composer 초기 숨김·열기·Esc·마지막 전송 뒤 5초 자동 닫힘·타이머 갱신·실패 복구, 기록 일반 창
+- 창: 월드 항상 위·클릭 통과, 내 캐릭터 52×52 hotspot만 포인터 수신, composer의 선택 모니터 상단 중앙·노치 아래 10pt 배치와 왼쪽 `×` 닫기, 단일·더블클릭 분기와 캐릭터별 10초 리액션 쿨타임, composer 초기 숨김·열기·Esc·마지막 전송 뒤 5초 자동 닫힘·타이머 갱신·실패 복구, 기록 일반 창
 - 업데이트: Sparkle `2.9.6` 프레임워크·메뉴 항목·피드 URL·EdDSA 공개키가 번들에 포함되고 signed feed와 압축 해제 전 검증을 강제하며, 업데이트 진행 중에는 수동 확인 메뉴를 비활성화
 - 에셋: 5개 시트의 240×24 RGBA·10프레임·공통 발 기준선·결정적 hash·Release 번들 포함, 메뉴 아이콘 1x·2x template/unread variant
 - 서버: 5번째 성공, 6번째 `member_limit_reached`, 여섯 번째 방 거부, RLS, 중복 닉네임·캐릭터 허용
 
-### 10.2 장시간 수동·계측 테스트
+### 10.2 macOS 장시간 수동·계측 테스트
 
 최대 방 인원 5명을 표시한 실제 앱을 30분 이상 실행하고, 별도 20노드 합성 부하를 병행하며 다음을 모두 확인한다.
 
@@ -295,7 +332,15 @@ E2EE는 현재 설계·구현·검증되지 않았다. 전송 암호화, Postgre
 - 화면 잠금·절전·복귀
 - Realtime 연결 끊김·재연결과 transient typing 정리
 
-### 10.3 alpha 배포 절차
+### 10.3 Windows 승격 기준
+
+1. 햄스터 1종 local slice에서 투명·최상위·외부 앱 클릭 통과·52×52 hotspot·composer 포커스·100/125/150/200% DPI를 Windows 11 25H2 x64 실기에서 통과한다.
+2. 연결형 햄스터 slice에서 Google PKCE 로그인, 프로필, 방, 메시지, Presence, typing lease, `character_pulse`를 staging의 기존 macOS 클라이언트와 양방향 확인한다.
+3. 이 두 게이트 전에는 나머지 4종 캐릭터와 전체 Windows 기능을 구현하지 않는다.
+4. 최종 5명 월드를 2시간, 20노드 합성 부하를 30분 실행해 p95 frame time 40ms 이하, 100ms 이상 UI-thread hang 없음, warm-up 후 working set 20MB 초과 증가 없음, GDI/USER handle·COM surface 지속 증가 없음을 확인한다.
+5. 현재 보조 모니터 실기 검증은 공개 alpha 완료 조건에서 제외하되 합성 모니터 geometry 테스트는 통과시키고 release note에 mixed-DPI·연결 해제 실기 미검증을 명시한다.
+
+### 10.4 macOS alpha 배포 절차
 
 1. 전체 macOS 단위·창 정책 테스트와 20노드 합성 부하를 통과한다.
 2. 로컬 Supabase에서 5명 제한과 SQL 테스트를 통과한다.
@@ -311,3 +356,11 @@ Sparkle `2.9.6`이 앱에 내장되며 메뉴바 `업데이트 확인…`에서 
 Developer ID 활성화 전에는 서명된 appcast를 update item 없이 유지한다. Sparkle이 없는 기존 alpha 사용자는 Sparkle 내장 빌드로 한 번 수동 교체해야 하며, 이후 앱 내부 업데이트를 사용한다. 사용자 세션과 설정은 앱 번들 외부에 있어 교체·업데이트 후에도 유지된다. Sparkle 개인키는 저장소나 CI 로그에 넣지 않고 release operator의 로그인 Keychain과 암호화한 오프라인 백업에만 둔다.
 
 자동화 테스트와 alpha 배포가 장시간 수동 기준이나 정식 배포 조건을 통과했다는 뜻은 아니다.
+
+### 10.5 Windows alpha 배포 절차
+
+1. Windows 전체 단위·계약·창 정책 테스트와 10.3의 실기·장시간 기준을 통과한다.
+2. staging Google OAuth·RLS·private Realtime을 통과한 뒤 같은 Google provider·redirect를 production에 적용하고 다시 확인한다.
+3. CI에서 .NET·Windows App SDK 런타임을 포함한 `win-x64` self-contained 산출물을 만들고 `SIDEY-Windows-x64-0.3.0-alpha.1.zip`·SHA-256을 검증한다.
+4. 검증된 커밋에 `v0.3.0-alpha.1` 태그와 GitHub pre-release를 만들고 미서명 SmartScreen 경고, 수동 업데이트, ARM64·MSIX·다중 모니터 실기 미검증을 명시한다.
+5. Windows 자동 업데이트·코드 서명·MSIX를 구현했다고 표현하지 않는다.
