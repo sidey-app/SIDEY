@@ -10,6 +10,41 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <language>ko</language>
         <item>
             <title>0.2.0</title>
+            <pubDate>Mon, 31 Aug 2026 19:50:03 +0900</pubDate>
+            <link>https://github.com/sidey-app/SIDEY/releases/tag/v0.2.0-alpha.5</link>
+            <sparkle:version>7</sparkle:version>
+            <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# SIDEY v0.2.0-alpha.5
+
+`0.2.0` build `7` · macOS 26+ · Apple Silicon(arm64) · pre-release
+
+## 설치
+
+- Homebrew: `brew install --cask sidey-app/tap/sidey`
+- 직접 설치: Release의 DMG를 열고 `SIDEY.app`을 Applications로 이동
+
+새 설치에는 공증된 DMG를 사용합니다. ZIP은 Sparkle 업데이트용이며 DMG와 ZIP의 SHA-256 파일을 같은 Release에서 제공합니다.
+
+## 변경 사항
+
+- 설정 화면을 설명이 있는 Liquid Glass 카드와 네이티브 토글 중심으로 정리했습니다.
+- 현재 그룹, 새 그룹 만들기, 초대 코드로 참여를 서로 다른 설정 카드로 분리했습니다.
+- 설정 화면에서도 Sparkle의 서명된 업데이트를 직접 확인할 수 있습니다.
+- 기존 ad-hoc 설치에서 Developer ID 배포본으로 전환할 때 Keychain 접근 목적을 인증 UI에 표시합니다.
+
+## 제한 사항
+
+- 아직 alpha이며 macOS 26 이상 Apple Silicon Mac만 지원합니다.
+- E2EE는 제공하지 않습니다.
+- 보안 화면, DRM 앱, 권한이 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
+- Windows 개발 파일은 이 macOS 배포에 포함되지 않습니다.
+]]></description>
+            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v0.2.0-alpha.5/SIDEY-macOS-arm64-v0.2.0-alpha.5.zip" length="5083952" type="application/octet-stream" sparkle:edSignature="G4VnEZKvq/jg8Qx8WdTlYCayjGOY4fmcwmTSepOCORZFN3zejLu13VcJ4s5Yxl1mdErznvpu0xH3Blioz8O8Dg=="/>
+        </item>
+        <item>
+            <title>0.2.0</title>
             <pubDate>Mon, 31 Aug 2026 18:34:01 +0900</pubDate>
             <link>https://github.com/sidey-app/SIDEY/releases/tag/v0.2.0-alpha.4</link>
             <sparkle:version>6</sparkle:version>
@@ -47,6 +82,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: Q7p2AxlXB8lVCTTq7Tti6MUVRIiBMsm7tl23W75Ys4019M57GhWs8ovLRy32QZOrQVePQPN7gnujQGbbpbPlDQ==
-length: 2951
+edSignature: 3GLpfmEJNA9PUxR2kHII7EoaHB/2WKVjlHvyU5jiufBMLBXa7JsGLkLLjG5hMA300Uos69IdQBMwCUNtoTqnDg==
+length: 5021
 -->
