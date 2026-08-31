@@ -8,7 +8,6 @@ final class AppModel {
     var preferences: AppPreferences
     var overlayVisibility: OverlayVisibility
     var overlayVisible: Bool { overlayVisibility.isVisible }
-    var characterInteractionEnabled = false
     var presence: PresenceState = .online
     var nickname: String
     var selectedCharacterID: String

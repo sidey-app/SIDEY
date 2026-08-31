@@ -40,7 +40,6 @@ final class PixelWorldWindowController {
     private let model: AppModel
     private var hostingView: NSHostingView<PixelWorldView>?
     private var composerVisible = false
-    private var characterInteractionEnabled = false
     private var characterPulse: CharacterPulseEvent?
     private var localActivityFrame: CGRect = .zero
     private let onCurrentUserFrameChanged: (CGRect?) -> Void
@@ -90,13 +89,6 @@ final class PixelWorldWindowController {
         hostingView?.rootView = makeRootView()
     }
 
-    func setCharacterInteractionEnabled(_ enabled: Bool) {
-        guard characterInteractionEnabled != enabled else { return }
-        characterInteractionEnabled = enabled
-        panel.ignoresMouseEvents = !enabled
-        hostingView?.rootView = makeRootView()
-    }
-
     func playCharacterPulse(_ event: CharacterPulseEvent) {
         guard event.roomID == model.activeRoom?.id, let hostingView else { return }
         characterPulse = event
@@ -123,7 +115,6 @@ final class PixelWorldWindowController {
             model: model,
             activityFrame: localActivityFrame,
             composerVisible: composerVisible,
-            characterInteractionEnabled: characterInteractionEnabled,
             characterPulse: characterPulse,
             onCurrentUserFrameChanged: onCurrentUserFrameChanged
         )

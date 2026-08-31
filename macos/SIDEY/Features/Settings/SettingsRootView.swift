@@ -379,26 +379,12 @@ private struct RoomRow: View {
     @State private var showsDeleteConfirmation = false
 
     var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(alignment: .leading, spacing: 12) {
-                if isRenaming {
-                    renameEditor
-                }
-                if room.members.isEmpty {
-                    Text("표시할 멤버 없음")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .padding(.leading, 48)
-                } else {
-                    ForEach(room.members) { member in
-                        memberRow(member)
-                    }
-                }
-            }
-            .padding(.top, 12)
-            .padding(.leading, 8)
-        } label: {
+        VStack(alignment: .leading, spacing: 0) {
             roomHeader
+            if isExpanded {
+                expandedContent
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
         .padding(.vertical, 4)
         .onChange(of: room.name) { _, newName in
@@ -428,24 +414,59 @@ private struct RoomRow: View {
         }
     }
 
-    private var roomHeader: some View {
-        HStack(spacing: 14) {
-            Image(systemName: isActive ? "person.3.fill" : "person.3")
-                .font(.title2)
-                .foregroundStyle(isActive ? .mint : .secondary)
-                .frame(width: 34)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(room.name).font(.headline)
-                Text("\(room.members.count)/5명 · 초대 코드 \(room.inviteCodeHint)")
-                    .font(.caption)
+    private var expandedContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if room.members.isEmpty {
+                Text("표시할 멤버 없음")
+                    .font(.callout)
                     .foregroundStyle(.secondary)
-            }
-            Spacer()
-            if isActive {
-                Label("활성", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.mint)
+                    .padding(.leading, 48)
             } else {
-                Button("이 그룹 보기", action: onSelect)
+                ForEach(room.members) { member in
+                    memberRow(member)
+                }
+            }
+
+            if RoomManagementPolicy.canManage(room, currentUserID: currentUserID) {
+                Divider()
+                    .padding(.leading, 48)
+                if isRenaming {
+                    renameEditor
+                } else {
+                    managementButtons
+                }
+            }
+        }
+        .padding(.top, 12)
+        .padding(.leading, 8)
+    }
+
+    private var roomHeader: some View {
+        HStack(spacing: 10) {
+            Button(action: toggleExpansion) {
+                HStack(spacing: 14) {
+                    Image(systemName: isActive ? "person.3.fill" : "person.3")
+                        .font(.title2)
+                        .foregroundStyle(isActive ? .mint : .secondary)
+                        .frame(width: 34)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(room.name).font(.headline)
+                        Text("\(room.members.count)/5명 · 초대 코드 \(room.inviteCodeHint)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    if isActive {
+                        Label("활성", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.mint)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if !isActive {
+                Button("그룹 참가", action: onSelect)
                     .disabled(isWorking)
             }
             Button(action: onCopyInviteCode) {
@@ -453,24 +474,38 @@ private struct RoomRow: View {
             }
             .disabled(isWorking)
             .help("이 기기의 Keychain에 보관된 초대 코드 복사")
-            if RoomManagementPolicy.canManage(room, currentUserID: currentUserID) {
-                Menu {
-                    Button("이름 변경", systemImage: "pencil") {
-                        renameDraft = room.name
-                        isRenaming = true
-                        isExpanded = true
-                    }
-                    Divider()
-                    Button("그룹 삭제", systemImage: "trash", role: .destructive) {
-                        showsDeleteConfirmation = true
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .menuStyle(.borderlessButton)
-                .disabled(isWorking)
-                .help("그룹 관리")
+
+            Button(action: toggleExpansion) {
+                Image(systemName: "chevron.right")
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .help(isExpanded ? "그룹 접기" : "그룹 펼치기")
+            .accessibilityLabel(isExpanded ? "그룹 접기" : "그룹 펼치기")
+        }
+    }
+
+    private var managementButtons: some View {
+        HStack(spacing: 8) {
+            Button("이름 변경", systemImage: "pencil") {
+                renameDraft = room.name
+                isRenaming = true
+            }
+            .disabled(isWorking)
+            Button("그룹 삭제", systemImage: "trash", role: .destructive) {
+                showsDeleteConfirmation = true
+            }
+            .disabled(isWorking)
+        }
+        .padding(.leading, 48)
+    }
+
+    private func toggleExpansion() {
+        withAnimation(.easeInOut(duration: 0.18)) {
+            isExpanded.toggle()
         }
     }
 

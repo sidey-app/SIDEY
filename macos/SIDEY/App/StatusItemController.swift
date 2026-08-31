@@ -24,7 +24,6 @@ enum StatusItemIconProvider {
 @MainActor
 final class StatusItemController: NSObject, NSMenuDelegate {
     private let onToggleOverlay: () -> Void
-    private let onToggleCharacterInteraction: () -> Void
     private let onFocusMessage: () -> Void
     private let onSelectRoom: (UUID) -> Void
     private let onToggleQuietMode: () -> Void
@@ -37,7 +36,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let onQuit: () -> Void
     private var statusItem: NSStatusItem?
     private var overlayVisible = true
-    private var characterInteractionEnabled = false
     private var rooms: [Room] = []
     private var activeRoomID: UUID?
     private var unreadCounts: [UUID: Int] = [:]
@@ -46,7 +44,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     init(
         onToggleOverlay: @escaping () -> Void,
-        onToggleCharacterInteraction: @escaping () -> Void = {},
         onFocusMessage: @escaping () -> Void = {},
         onSelectRoom: @escaping (UUID) -> Void = { _ in },
         onToggleQuietMode: @escaping () -> Void = {},
@@ -59,7 +56,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         onQuit: @escaping () -> Void
     ) {
         self.onToggleOverlay = onToggleOverlay
-        self.onToggleCharacterInteraction = onToggleCharacterInteraction
         self.onFocusMessage = onFocusMessage
         self.onSelectRoom = onSelectRoom
         self.onToggleQuietMode = onToggleQuietMode
@@ -82,7 +78,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     func update(
         overlayVisible: Bool,
-        characterInteractionEnabled: Bool = false,
         rooms: [Room] = [],
         activeRoomID: UUID? = nil,
         unreadCounts: [UUID: Int] = [:],
@@ -90,7 +85,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         launchAtLogin: Bool = false
     ) {
         self.overlayVisible = overlayVisible
-        self.characterInteractionEnabled = characterInteractionEnabled
         self.rooms = rooms
         self.activeRoomID = activeRoomID
         self.unreadCounts = unreadCounts
@@ -115,16 +109,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         message.target = self
         message.isEnabled = !rooms.isEmpty
         menu.addItem(message)
-
-        let characterInteraction = NSMenuItem(
-            title: "캐릭터 이동 모드",
-            action: #selector(toggleCharacterInteraction),
-            keyEquivalent: ""
-        )
-        characterInteraction.target = self
-        characterInteraction.state = characterInteractionEnabled ? .on : .off
-        characterInteraction.isEnabled = overlayVisible && !rooms.isEmpty
-        menu.addItem(characterInteraction)
 
         menu.addItem(.separator())
 
@@ -204,7 +188,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     @objc private func toggleOverlay() { onToggleOverlay() }
-    @objc private func toggleCharacterInteraction() { onToggleCharacterInteraction() }
     @objc private func focusMessage() { onFocusMessage() }
     @objc private func selectRoom(_ sender: NSMenuItem) {
         guard let rawID = sender.representedObject as? String, let roomID = UUID(uuidString: rawID) else { return }

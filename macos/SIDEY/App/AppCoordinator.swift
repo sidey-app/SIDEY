@@ -47,7 +47,6 @@ final class AppCoordinator {
     )
     private lazy var statusItemController = StatusItemController(
         onToggleOverlay: { [weak self] in self?.toggleOverlay() },
-        onToggleCharacterInteraction: { [weak self] in self?.toggleCharacterInteraction() },
         onFocusMessage: { [weak self] in self?.focusMessageField() },
         onSelectRoom: { [weak self] roomID in self?.selectRoom(roomID) },
         onToggleQuietMode: { [weak self] in self?.setQuietMode(!(self?.model.preferences.quietModeEnabled ?? false)) },
@@ -220,10 +219,6 @@ final class AppCoordinator {
         setOverlayVisible(!model.overlayVisible)
     }
 
-    private func toggleCharacterInteraction() {
-        setCharacterInteractionEnabled(!model.characterInteractionEnabled)
-    }
-
     private func focusMessageField() {
         if !model.overlayVisible { setOverlayVisible(true) }
         overlayWindows.focusMessageField()
@@ -236,18 +231,10 @@ final class AppCoordinator {
     }
 
     private func setOverlayVisible(_ visible: Bool) {
-        if !visible { setCharacterInteractionEnabled(false) }
         model.setOverlayVisibility(OverlayVisibility(isVisible: visible))
         applyRequestedOverlayVisibility()
         refreshStatusItem()
         persistPreferences()
-    }
-
-    private func setCharacterInteractionEnabled(_ enabled: Bool) {
-        let resolved = enabled && model.overlayVisible && model.activeRoom != nil
-        model.characterInteractionEnabled = resolved
-        overlayWindows.setCharacterInteractionEnabled(resolved)
-        refreshStatusItem()
     }
 
     private func applyRequestedOverlayVisibility() {
@@ -320,7 +307,6 @@ final class AppCoordinator {
     private func refreshStatusItem() {
         statusItemController.update(
             overlayVisible: model.overlayVisible,
-            characterInteractionEnabled: model.characterInteractionEnabled,
             rooms: model.rooms,
             activeRoomID: model.activeRoom?.id,
             unreadCounts: model.unreadCounts,

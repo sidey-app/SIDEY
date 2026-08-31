@@ -226,7 +226,6 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertEqual(group.interactionLevel, .floating)
         XCTAssertFalse(group.worldCanHide)
         XCTAssertTrue(group.worldIgnoresMouseEvents)
-        XCTAssertFalse(group.characterInteractionEnabled)
         XCTAssertFalse(group.interactionIgnoresMouseEvents)
         XCTAssertFalse(group.interactionIsVisible)
         XCTAssertFalse(group.interactionIsKeyWindow)
@@ -238,13 +237,6 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertTrue(group.worldCollectionBehavior.contains(.fullScreenAuxiliary))
         XCTAssertTrue(group.interactionCollectionBehavior.contains(.canJoinAllSpaces))
         XCTAssertTrue(settings.window?.childWindows?.isEmpty ?? false)
-
-        group.setCharacterInteractionEnabled(true)
-        XCTAssertTrue(group.characterInteractionEnabled)
-        XCTAssertFalse(group.worldIgnoresMouseEvents)
-        group.setCharacterInteractionEnabled(false)
-        XCTAssertFalse(group.characterInteractionEnabled)
-        XCTAssertTrue(group.worldIgnoresMouseEvents)
 
         group.presentComposer()
         XCTAssertTrue(group.composerVisible)
@@ -500,7 +492,6 @@ final class WindowPolicyTests: XCTestCase {
         let controller = StatusItemController(onToggleOverlay: {}, onOpenSettings: {}, onQuit: {})
         controller.update(
             overlayVisible: true,
-            characterInteractionEnabled: true,
             rooms: rooms,
             activeRoomID: activeRoomID,
             unreadCounts: [otherRoomID: 3],
@@ -510,7 +501,7 @@ final class WindowPolicyTests: XCTestCase {
 
         let menu = controller.makeMenu()
         XCTAssertNotNil(menu.item(withTitle: "메시지 작성…"))
-        XCTAssertEqual(menu.item(withTitle: "캐릭터 이동 모드")?.state, .on)
+        XCTAssertNil(menu.item(withTitle: "캐릭터 이동 모드"))
         XCTAssertNotNil(menu.item(withTitle: "최근 기록…"))
         XCTAssertNil(menu.item(withTitle: "오버레이 잠금 해제"))
         XCTAssertNil(menu.item(withTitle: "오버레이 위치 초기화"))

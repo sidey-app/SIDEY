@@ -228,21 +228,12 @@ final class OverlayWindowGroup {
         if visible {
             apply(preference: model.preferences.overlayRegion, persistFallback: true)
             worldWindow.orderFront()
-            hotspotWindow.setVisible(!model.characterInteractionEnabled)
+            hotspotWindow.setVisible(true)
         } else {
-            setCharacterInteractionEnabled(false)
             dismissComposer()
             hotspotWindow.setVisible(false)
             worldWindow.orderOut()
         }
-    }
-
-    func setCharacterInteractionEnabled(_ enabled: Bool) {
-        let resolved = enabled && overlayVisible && model.activeRoom != nil
-        if resolved { dismissComposer() }
-        model.characterInteractionEnabled = resolved
-        worldWindow.setCharacterInteractionEnabled(resolved)
-        hotspotWindow.setVisible(overlayVisible && !resolved)
     }
 
     func focusMessageField() {
@@ -313,7 +304,6 @@ final class OverlayWindowGroup {
     var worldSize: CGSize { worldWindow.size }
     var worldCanHide: Bool { worldWindow.canHide }
     var worldIgnoresMouseEvents: Bool { worldWindow.ignoresMouseEvents }
-    var characterInteractionEnabled: Bool { model.characterInteractionEnabled }
     var interactionIgnoresMouseEvents: Bool { interactionWindow.ignoresMouseEvents }
     var interactionIsKeyWindow: Bool { interactionWindow.isKeyWindow }
     var worldIsRendering: Bool { worldWindow.isRendering }
