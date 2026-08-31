@@ -37,7 +37,7 @@
 | 입력창 | 기본 숨김인 400×56 입력창을 내 캐릭터 단일 클릭 또는 메뉴바 `메시지 작성`으로 열고, 유효한 전송 뒤 마지막 전송 시점부터 5초간 유지한 뒤 자동으로 닫기 | 전송 뒤 입력창이 계속 남는 방해를 줄이되 짧은 연속 메시지는 창을 다시 열지 않고 보낼 수 있게 한다. 전송할 때마다 타이머를 갱신하고, Esc·재클릭은 즉시 닫으며, 더블클릭은 리액션을 실행한 뒤 입력창을 열린 상태로 유지한다. 전송 실패로 원문을 복구할 때는 예약 닫힘을 취소한다. 내 캐릭터 위 52×52 NSPanel만 클릭을 받고 월드는 계속 클릭 통과한다. |
 | 제거하는 오버레이 조작 | 잠금, 직접 이동, 크기 조절, 오버레이의 기록·설정 버튼 제거 | 프리셋 기반 영역 모델과 충돌하는 과거 3D 조작 계약을 남기지 않는다. |
 | 최근 기록 | 메뉴바에서 여는 일반 macOS 창 | 클릭 통과 오버레이와 키보드·스크롤 입력을 분리한다. |
-| 메뉴바 | 픽셀 햄스터 얼굴 template icon과 unread variant를 사용하고, 메뉴는 오버레이 표시, 메시지 작성, 활성 그룹·미확인 수, 조용히 모드, 최근 기록, 그룹 설정, 로그인 실행, 설정, 종료만 제공 | 밝고 어두운 메뉴바에 자동 대응하며 이미지 로딩 실패 시에만 `pawprint.fill`을 사용한다. |
+| 메뉴바 | 픽셀 햄스터 얼굴 template icon과 unread variant를 사용하고, 메뉴는 오버레이 표시, 메시지 작성, 활성 그룹·미확인 수, 조용히 모드, 최근 기록, 그룹 설정, 로그인 실행, 업데이트 확인, 설정, 종료만 제공 | 밝고 어두운 메뉴바에 자동 대응하며 이미지 로딩 실패 시에만 `pawprint.fill`을 사용한다. |
 | 렌더링 소유권 | `PixelWorld`가 캐릭터 노드, 이동, 닉네임, 상태 점, 말풍선을 단독 소유 | `AppModel`은 방·Presence·메시지·설정 상태만 소유해 서버 상태와 화면 렌더링을 분리한다. |
 | 환경설정 계약 | `OverlayEdge`, `OverlaySpan`, `OverlayRegionPreference(edge, span, screenIdentifier)`를 Codable로 저장 | 스키마를 올리고 과거 frame·lock·scale 값은 읽기 호환만 제공한 뒤 `하단·전체` 영역으로 이전한다. |
 | 내장 캐릭터 | `pixel_hamster`, `pixel_cat`, `pixel_puppy`, `pixel_rabbit`, `pixel_penguin`; 각 24×24×10프레임, 2배 정수 확대 약 48pt, nearest-neighbor | idle 2, walk 4, doze 2, offline 2 프레임과 공통 발 기준선을 결정적 Swift 생성기로 보장한다. 캐릭터 선택과 닉네임은 그룹에서 중복 가능하다. |
@@ -49,7 +49,8 @@
 | 창 보장 범위 | 보안 화면, DRM 앱, 권한이 높은 앱, 모든 독점 전체화면 게임 위 표시를 보장하지 않음 | OS 보안 정책을 제품 약속으로 우회할 수 없다. |
 | 코드베이스 기준 | `main`에는 SwiftUI·AppKit·SpriteKit 2D 네이티브 앱만 유지하고 Godot·3D 런타임, 브리지, 에셋 파이프라인, 테스트를 제거 | 사용하지 않는 두 런타임을 함께 유지하는 비용과 잘못된 배포 경로를 없앤다. 기존 사용자 세션·설정을 읽는 Swift migration 호환 계층은 데이터 손실 방지를 위해 유지한다. |
 | 서버 계약 | 운영에 적용된 `20260829000000_sidey_core.sql`이 방당 5명과 사용자당 5개 방을 이미 강제하며 pixel-world 전용 schema migration은 추가하지 않음 | 운영과 `main`의 최종 계약이 같으므로 임시 20명 staging migration을 승격하지 않는다. |
-| alpha 업데이트 | GitHub Releases의 새 ZIP을 수동으로 내려받아 `/Applications/SIDEY.app`을 교체하며 사용자 데이터는 유지 | 현재 ad-hoc ZIP 배포에는 앱 내부 자동 업데이트가 없다. 자동 업데이트 프레임워크는 서명·공증 방식과 함께 별도 결정한다. |
+| macOS 업데이트 | Sparkle `2.9.6`을 앱에 내장하고 GitHub의 HTTPS appcast와 Release ZIP을 사용. ZIP과 appcast는 `sidey-app` 전용 EdDSA 키로 서명하고 다운로드 압축 해제 전 검증과 signed feed 검증을 강제. 메뉴에서 수동 확인을 제공하고 자동 확인은 Sparkle의 사용자 동의 흐름을 따름 | 실행 코드를 바꾸는 공급망이므로 공개키만 앱과 저장소에 두고 개인키는 release operator의 Keychain·암호화 오프라인 백업에만 둔다. Developer ID 서명, Hardened Runtime, 공증·staple을 통과하지 않은 ZIP은 appcast에 게시하지 않는다. |
+| 업데이트 전환 | Sparkle이 없는 기존 alpha는 새 ZIP으로 한 번 수동 교체하고, Sparkle 내장 빌드부터 앱 내부 업데이트를 사용. Developer ID 활성화 전 signed appcast는 유효하되 update item 없이 유지 | 기존 설치에 프레임워크를 원격으로 소급 탑재할 수 없고, ad-hoc 자동 업데이트를 공개하면 Gatekeeper·코드 서명 연속성 검증이 불안정해진다. |
 | 배포 채널 | 버전 `0.2.0`, 빌드 `5`의 Apple Silicon 앱을 `v0.2.0-alpha.3` GitHub pre-release로 배포 | 픽셀 월드 상호작용·캐릭터 리액션·앱 아이콘을 다듬고 composer 자동 닫힘을 5초로 조정한 alpha 패치다. Developer ID 서명·공증과 장시간 수동 검증 전에는 정식 stable로 오인시키지 않는다. |
 
 ## 현재 검증 기준
@@ -58,6 +59,7 @@
 - 제품 방은 5명으로 제한하되 20개 합성 노드가 3,000 tick 동안 track 밖이나 NaN 상태로 빠지지 않는 스트레스 테스트를 통과해야 한다.
 - 상태 전환, 오프라인 숨김, 방 전환 UUID diff, 최대 8자 닉네임·반투명 배경과 상태 점 간격, 겹침 시 idle 해제·가속 통과, 더블클릭 리액션 10초 제한·Broadcast 중복 제거, 말풍선 교체·eviction·만료·이동 중 추적을 검증한다.
 - 월드는 항상 위·클릭 통과, 입력창만 키보드 포커스 가능, 마지막 전송 뒤 5초 유지·타이머 갱신·실패 복구를 지키고, 최근 기록은 일반 창이어야 한다.
+- Sparkle 프레임워크와 `SUFeedURL`·`SUPublicEDKey`가 Release 번들에 포함되고 signed feed·압축 해제 전 검증이 강제되어야 한다. appcast 게시 도구는 ad-hoc 빌드를 기본 거부하고 Developer ID·Hardened Runtime·stapled notarization을 검증해야 한다.
 - 5번째 가입 성공, 6번째 거부, 여섯 번째 방 거부, RLS, 중복 닉네임·캐릭터 허용을 SQL 테스트한다.
 - 최대 방 인원 5명으로 30분 실행하고, 별도 20노드 합성 부하에서도 p95 frame time 40ms 이하, 100ms 이상 main-thread hang 없음, 지속 RSS 증가 없음, 숨긴 월드의 SpriteKit 정지를 확인한다.
 
@@ -69,4 +71,3 @@
 | D-007 | 메시지 말풍선 시간 | 10초 유지 | 5명 비공개 UX 테스트 후 |
 | D-010 | Windows 최소 지원 버전과 네이티브 브리지 | 미정 | macOS vertical slice 승인 후 |
 | D-012 | E2EE 도입 여부와 프로토콜 | MVP 이후 별도 설계 | 보안 로드맵 수립 시 |
-| D-016 | 정식 배포·자동 업데이트 방식 | Developer ID 서명·공증 후 Sparkle 2 검토 | 서명·공증 준비 시 |

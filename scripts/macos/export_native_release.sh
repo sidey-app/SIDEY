@@ -6,6 +6,10 @@ SIDEY_DERIVED_DATA=${SIDEY_DERIVED_DATA:-$SIDEY_REPO_ROOT/build/native-derived}
 SIDEY_EXPORT_DIR=${1:-$SIDEY_REPO_ROOT/build/macos-native}
 SIDEY_ZIP_PATH=${2:-$SIDEY_EXPORT_DIR/SIDEY-macOS-arm64.zip}
 SIDEY_PRODUCT_APP="$SIDEY_DERIVED_DATA/Build/Products/Release/SIDEY.app"
+SIDEY_CODE_SIGN_IDENTITY=${SIDEY_CODE_SIGN_IDENTITY:--}
+SIDEY_DEVELOPMENT_TEAM=${SIDEY_DEVELOPMENT_TEAM:-}
+SIDEY_HARDENED_RUNTIME=${SIDEY_HARDENED_RUNTIME:-NO}
+SIDEY_NOTARYTOOL_PROFILE=${SIDEY_NOTARYTOOL_PROFILE:-}
 SIDEY_STAGE_DIR=$(mktemp -d "${TMPDIR:-/tmp}/sidey-native-export.XXXXXX")
 
 cleanup() {
@@ -15,7 +19,7 @@ trap cleanup EXIT HUP INT TERM
 
 "$SIDEY_REPO_ROOT/scripts/macos/verify_pixel_hamster.sh"
 
-xcodebuild \
+set -- xcodebuild \
 	-project "$SIDEY_REPO_ROOT/macos/SIDEY.xcodeproj" \
 	-scheme SIDEY \
 	-configuration Release \
@@ -24,7 +28,17 @@ xcodebuild \
 	-disableAutomaticPackageResolution \
 	ARCHS=arm64 \
 	ONLY_ACTIVE_ARCH=YES \
-	build
+	"CODE_SIGN_IDENTITY=$SIDEY_CODE_SIGN_IDENTITY" \
+	"ENABLE_HARDENED_RUNTIME=$SIDEY_HARDENED_RUNTIME"
+if [ "$SIDEY_CODE_SIGN_IDENTITY" != "-" ]; then
+	if [ -z "$SIDEY_DEVELOPMENT_TEAM" ]; then
+		echo "SIDEY_DEVELOPMENT_TEAM is required for Developer ID signing" >&2
+		exit 64
+	fi
+	set -- "$@" CODE_SIGN_STYLE=Manual "DEVELOPMENT_TEAM=$SIDEY_DEVELOPMENT_TEAM" OTHER_CODE_SIGN_FLAGS=--timestamp
+fi
+set -- "$@" build
+"$@"
 
 if [ ! -d "$SIDEY_PRODUCT_APP" ]; then
 	echo "Native SIDEY product not found: $SIDEY_PRODUCT_APP" >&2
@@ -39,12 +53,14 @@ SIDEY_INFO_PLIST="$SIDEY_STAGED_APP/Contents/Info.plist"
 SIDEY_LOGIN_APP="$SIDEY_STAGED_APP/Contents/Library/LoginItems/SIDEYLoginItem.app"
 SIDEY_LOGIN_EXECUTABLE="$SIDEY_LOGIN_APP/Contents/MacOS/SIDEYLoginItem"
 SIDEY_LOGIN_INFO_PLIST="$SIDEY_LOGIN_APP/Contents/Info.plist"
+SIDEY_SPARKLE_FRAMEWORK="$SIDEY_STAGED_APP/Contents/Frameworks/Sparkle.framework"
 
 for SIDEY_REQUIRED_PATH in \
 	"$SIDEY_MAIN_EXECUTABLE" \
 	"$SIDEY_INFO_PLIST" \
 	"$SIDEY_LOGIN_EXECUTABLE" \
-	"$SIDEY_LOGIN_INFO_PLIST"; do
+	"$SIDEY_LOGIN_INFO_PLIST" \
+	"$SIDEY_SPARKLE_FRAMEWORK"; do
 	if [ ! -e "$SIDEY_REQUIRED_PATH" ]; then
 		echo "Required release file missing: $SIDEY_REQUIRED_PATH" >&2
 		exit 1
@@ -71,12 +87,45 @@ if [ "$(/usr/libexec/PlistBuddy -c 'Print :LSUIElement' "$SIDEY_INFO_PLIST")" !=
 	echo "SIDEY must run as an agent/menu bar application" >&2
 	exit 1
 fi
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :SUFeedURL' "$SIDEY_INFO_PLIST")" != "https://raw.githubusercontent.com/sidey-app/SIDEY/main/updates/appcast.xml" ]; then
+	echo "Unexpected Sparkle feed URL" >&2
+	exit 1
+fi
+if [ -z "$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$SIDEY_INFO_PLIST")" ]; then
+	echo "Sparkle public key is missing" >&2
+	exit 1
+fi
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :SURequireSignedFeed' "$SIDEY_INFO_PLIST")" != "true" ]; then
+	echo "SIDEY must require a signed Sparkle feed" >&2
+	exit 1
+fi
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :SUVerifyUpdateBeforeExtraction' "$SIDEY_INFO_PLIST")" != "true" ]; then
+	echo "SIDEY must verify Sparkle updates before extraction" >&2
+	exit 1
+fi
 if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SIDEY_LOGIN_INFO_PLIST")" != "app.sidey.desktop.login-item" ]; then
 	echo "Unexpected login item bundle identifier" >&2
 	exit 1
 fi
 
 codesign --verify --deep --strict "$SIDEY_STAGED_APP"
+if [ -n "$SIDEY_NOTARYTOOL_PROFILE" ]; then
+	if [ "$SIDEY_CODE_SIGN_IDENTITY" = "-" ] || [ "$SIDEY_HARDENED_RUNTIME" != "YES" ]; then
+		echo "Notarization requires Developer ID signing and SIDEY_HARDENED_RUNTIME=YES" >&2
+		exit 64
+	fi
+	SIDEY_NOTARY_ZIP="$SIDEY_STAGE_DIR/SIDEY-notary-submission.zip"
+	ditto -c -k --norsrc --noextattr --noqtn --noacl --keepParent "$SIDEY_STAGED_APP" "$SIDEY_NOTARY_ZIP"
+	xcrun notarytool submit "$SIDEY_NOTARY_ZIP" --keychain-profile "$SIDEY_NOTARYTOOL_PROFILE" --wait
+	xcrun stapler staple "$SIDEY_STAGED_APP"
+	xcrun stapler validate "$SIDEY_STAGED_APP"
+	codesign --verify --deep --strict "$SIDEY_STAGED_APP"
+fi
+codesign --verify --strict "$SIDEY_SPARKLE_FRAMEWORK"
+otool -L "$SIDEY_MAIN_EXECUTABLE" | grep -F '@rpath/Sparkle.framework/Versions/B/Sparkle' >/dev/null || {
+	echo "SIDEY executable is not linked to the bundled Sparkle framework" >&2
+	exit 1
+}
 
 mkdir -p "$SIDEY_EXPORT_DIR"
 SIDEY_EXPORT_APP="$SIDEY_EXPORT_DIR/SIDEY.app"

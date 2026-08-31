@@ -5,6 +5,7 @@ import QuartzCore
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: AppCoordinator?
     private let launchProbe = LaunchPerformanceProbe()
+    private lazy var updateController = SparkleUpdateController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let environment = ProcessInfo.processInfo.environment
@@ -18,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let suiteName = environment["SIDEY_PREFERENCES_SUITE"],
            let defaults = UserDefaults(suiteName: suiteName) {
             coordinator = AppCoordinator(
+                updateController: updateController,
                 preferencesStore: .userDefaults(defaults),
                 legacyMigrator: .none,
                 onLandingFirstFrame: { [weak launchProbe] in
@@ -25,9 +27,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             )
         } else {
-            coordinator = AppCoordinator(onLandingFirstFrame: { [weak launchProbe] in
-                launchProbe?.markFirstFrame()
-            })
+            coordinator = AppCoordinator(
+                updateController: updateController,
+                onLandingFirstFrame: { [weak launchProbe] in
+                    launchProbe?.markFirstFrame()
+                }
+            )
         }
         self.coordinator = coordinator
         coordinator.start()

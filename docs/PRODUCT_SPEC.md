@@ -184,6 +184,7 @@
 - 최근 기록
 - 그룹 설정
 - 로그인 시 실행
+- 업데이트 확인
 - 설정
 - 종료
 
@@ -277,6 +278,7 @@ E2EE는 현재 설계·구현·검증되지 않았다. 전송 암호화, Postgre
 - 메시지: 발신자별 교체, 최대 4개 eviction, 10초 만료, 이동 중 말풍선 추적, 낙관적 성공·실패, 조용히 모드, 미확인 수
 - 말풍선: 1자·200자·3줄·프리셋 양 끝·4방향에서 본문과 꼬리 누적 frame이 캔버스 안에 유지
 - 창: 월드 항상 위·클릭 통과, 내 캐릭터 52×52 hotspot만 포인터 수신, 단일·더블클릭 분기와 캐릭터별 10초 리액션 쿨타임, composer 초기 숨김·열기·Esc·마지막 전송 뒤 5초 자동 닫힘·타이머 갱신·실패 복구, 기록 일반 창
+- 업데이트: Sparkle `2.9.6` 프레임워크·메뉴 항목·피드 URL·EdDSA 공개키가 번들에 포함되고 signed feed와 압축 해제 전 검증을 강제하며, 업데이트 진행 중에는 수동 확인 메뉴를 비활성화
 - 에셋: 5개 시트의 240×24 RGBA·10프레임·공통 발 기준선·결정적 hash·Release 번들 포함, 메뉴 아이콘 1x·2x template/unread variant
 - 서버: 5번째 성공, 6번째 `member_limit_reached`, 여섯 번째 방 거부, RLS, 중복 닉네임·캐릭터 허용
 
@@ -297,10 +299,15 @@ E2EE는 현재 설계·구현·검증되지 않았다. 전송 암호화, Postgre
 
 1. 전체 macOS 단위·창 정책 테스트와 20노드 합성 부하를 통과한다.
 2. 로컬 Supabase에서 5명 제한과 SQL 테스트를 통과한다.
-3. `scripts/package_macos_release.sh`로 버전·빌드 번호, arm64 아키텍처, ad-hoc 서명, ZIP, SHA-256을 검증한다.
-4. 검증된 커밋을 `main`에 푸시하고 동일 커밋에 버전 태그와 GitHub pre-release를 만든다.
-5. Developer ID 서명·공증과 30분 장시간 기준을 통과하기 전에는 stable 배포로 표시하지 않는다.
+3. Developer ID Application 인증서와 Hardened Runtime으로 앱·로그인 항목·Sparkle의 중첩 코드를 서명하고 Apple 공증 뒤 ticket을 staple한다.
+4. `scripts/package_macos_release.sh`로 버전·빌드 번호, arm64 아키텍처, 번들 메타데이터, 코드 서명, ZIP, SHA-256을 검증한다. `CFBundleVersion`은 이전 공개 빌드보다 반드시 커야 한다.
+5. 검증된 커밋을 `main`에 푸시하고 동일 커밋에 버전 태그와 GitHub pre-release 또는 release를 만든 뒤, 그 태그에 검증된 ZIP을 업로드한다.
+6. `scripts/macos/prepare_sparkle_appcast.sh`로 업로드한 것과 바이트가 같은 ZIP의 EdDSA 서명과 signed appcast를 생성한다. 이 도구가 Developer ID, Hardened Runtime, stapled notarization, 앱의 공개키·피드 URL·보안 플래그를 모두 통과해야 한다.
+7. Release ZIP URL이 실제로 내려받아지는지 확인한 뒤 생성된 `updates/appcast.xml`을 커밋·푸시한다. appcast를 먼저 게시하면 클라이언트가 존재하지 않는 ZIP을 보게 되므로 순서를 바꾸지 않는다.
+8. 30분 장시간 기준을 통과하기 전에는 stable 배포로 표시하지 않는다.
 
-현재 alpha는 앱 내부 자동 업데이트를 제공하지 않는다. 기존 사용자는 새 ZIP을 내려받아 실행 중인 SIDEY를 종료한 뒤 `/Applications/SIDEY.app`을 교체한다. 사용자 세션과 설정은 앱 번들 외부에 있어 교체 후에도 유지된다. 정식 자동 업데이트 방식은 Developer ID 서명·공증과 함께 결정한다.
+Sparkle `2.9.6`이 앱에 내장되며 메뉴바 `업데이트 확인…`에서 수동 확인할 수 있다. 자동 확인은 Sparkle의 사용자 동의 흐름을 사용하고, 익명 system profiling은 활성화하지 않는다. appcast와 ZIP은 서로 다른 검증 대상이므로 둘 다 `sidey-app` EdDSA 키로 서명하며 `SURequireSignedFeed`와 `SUVerifyUpdateBeforeExtraction`을 강제한다. 피드는 GitHub raw HTTPS URL, 설치 파일은 GitHub Releases를 사용한다.
+
+Developer ID 활성화 전에는 서명된 appcast를 update item 없이 유지한다. Sparkle이 없는 기존 alpha 사용자는 Sparkle 내장 빌드로 한 번 수동 교체해야 하며, 이후 앱 내부 업데이트를 사용한다. 사용자 세션과 설정은 앱 번들 외부에 있어 교체·업데이트 후에도 유지된다. Sparkle 개인키는 저장소나 CI 로그에 넣지 않고 release operator의 로그인 Keychain과 암호화한 오프라인 백업에만 둔다.
 
 자동화 테스트와 alpha 배포가 장시간 수동 기준이나 정식 배포 조건을 통과했다는 뜻은 아니다.

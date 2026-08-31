@@ -338,11 +338,29 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertNil(menu.item(withTitle: "오버레이 잠금 해제"))
         XCTAssertNil(menu.item(withTitle: "오버레이 위치 초기화"))
         XCTAssertNotNil(menu.item(withTitle: "그룹 설정…"))
+        XCTAssertNotNil(menu.item(withTitle: "업데이트 확인…"))
         XCTAssertEqual(menu.item(withTitle: "조용히 모드")?.state, .on)
         XCTAssertEqual(menu.item(withTitle: "로그인 시 자동 실행")?.state, .on)
         let groups = try XCTUnwrap(menu.item(withTitle: "활성 그룹")?.submenu)
         XCTAssertEqual(groups.item(withTitle: "작업방")?.state, .on)
         XCTAssertNotNil(groups.item(withTitle: "친구방 (3)"))
+    }
+
+    func testStatusMenuDisablesUpdateCheckWhileUpdaterIsBusy() {
+        var canCheckForUpdates = false
+        let controller = StatusItemController(
+            onToggleOverlay: {},
+            canCheckForUpdates: { canCheckForUpdates },
+            onOpenSettings: {},
+            onQuit: {}
+        )
+
+        let menu = controller.makeMenu()
+        XCTAssertEqual(menu.item(withTitle: "업데이트 확인…")?.isEnabled, false)
+
+        canCheckForUpdates = true
+        controller.menuWillOpen(menu)
+        XCTAssertEqual(menu.item(withTitle: "업데이트 확인…")?.isEnabled, true)
     }
 
     func testStatusItemUsesTemplateHamsterAssetsForReadAndUnreadStates() throws {

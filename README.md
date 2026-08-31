@@ -47,7 +47,9 @@
 
 ### alpha 업데이트
 
-현재 alpha에는 자동 업데이트 기능이 없습니다. 새 Release의 ZIP을 내려받아 압축을 풀고 기존 `/Applications/SIDEY.app`을 새 앱으로 교체해야 합니다. 앱 번들만 바꾸므로 계정 세션, 그룹, 닉네임과 로컬 설정은 유지됩니다. 실행 중인 SIDEY는 먼저 종료해야 합니다.
+Sparkle이 없는 기존 alpha는 새 Release의 ZIP을 내려받아 기존 `/Applications/SIDEY.app`을 한 번 수동 교체해야 합니다. Sparkle 내장 빌드부터 메뉴바의 **업데이트 확인…**과 사용자 동의 기반 자동 확인을 사용할 수 있습니다. Apple Developer ID 활성화 전에는 서명된 업데이트 피드에 배포 항목을 올리지 않으므로, ad-hoc alpha에서 자동 업데이트가 즉시 제공된다고 보면 안 됩니다.
+
+앱 번들만 바꾸므로 계정 세션, 그룹, 닉네임과 로컬 설정은 유지됩니다. 수동 교체 시 실행 중인 SIDEY는 먼저 종료해야 합니다.
 
 파일 무결성은 Release에 함께 올라온 `.sha256` 파일과 다음 명령의 결과를 비교해 확인할 수 있습니다.
 
@@ -73,7 +75,7 @@ Windows는 목표 플랫폼이지만 현재 픽셀 월드 vertical slice에는 �
 
 ## 개발·빌드
 
-macOS 26과 Xcode 26 이상이 필요합니다. 기본 macOS 내보내기는 네이티브 arm64 앱을 빌드하고 번들 메타데이터·로그인 항목·서명·아키텍처를 검증한 뒤 ZIP과 SHA-256 파일을 만듭니다.
+macOS 26과 Xcode 26 이상이 필요합니다. 기본 macOS 내보내기는 네이티브 arm64 앱을 빌드하고 번들 메타데이터·로그인 항목·Sparkle 프레임워크·서명·아키텍처를 검증한 뒤 ZIP과 SHA-256 파일을 만듭니다.
 
 ```sh
 ./scripts/export_macos.sh
@@ -96,4 +98,23 @@ macOS 26과 Xcode 26 이상이 필요합니다. 기본 macOS 내보내기는 네
 
 ```sh
 ./scripts/package_macos_release.sh v0.2.0-alpha.3
+```
+
+Developer ID 활성화 뒤 실제 배포본은 인증서 이름, Team ID, `notarytool` Keychain profile을 지정해 같은 스크립트로 서명·공증·staple까지 끝냅니다.
+
+```sh
+SIDEY_CODE_SIGN_IDENTITY="Developer ID Application: YOUR NAME (TEAMID)" \
+SIDEY_DEVELOPMENT_TEAM="TEAMID" \
+SIDEY_HARDENED_RUNTIME=YES \
+SIDEY_NOTARYTOOL_PROFILE="sidey-notary" \
+  ./scripts/package_macos_release.sh v0.2.0-alpha.3
+```
+
+Developer ID로 서명·공증하고 GitHub Release에 동일 ZIP을 업로드한 뒤 Sparkle appcast를 만들려면 다음 명령을 사용합니다. ad-hoc 빌드는 appcast 게시 도구가 기본적으로 거부합니다.
+
+```sh
+SIDEY_RELEASE_NOTES=/path/to/release-notes.md \
+  ./scripts/macos/prepare_sparkle_appcast.sh \
+  v0.2.0-alpha.3 \
+  build/releases/v0.2.0-alpha.3/SIDEY-macOS-arm64-v0.2.0-alpha.3.zip
 ```

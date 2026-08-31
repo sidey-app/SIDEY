@@ -8,6 +8,7 @@ final class AppCoordinator {
 
     private let preferencesStore: PreferencesStore
     private let legacyMigrator: LegacySettingsMigrator
+    private let updateController: any AppUpdateChecking
     private let backend: SideyBackend?
     private let configurationError: Error?
     private let launchReason: LaunchReason
@@ -49,6 +50,8 @@ final class AppCoordinator {
         onOpenHistory: { [weak self] in self?.showHistory() },
         onToggleLaunchAtLogin: { [weak self] in self?.setLaunchAtLogin(!(self?.model.launchAtLogin ?? false)) },
         onOpenGroupSettings: { [weak self] in self?.showGroupSettings() },
+        onCheckForUpdates: { [weak self] in self?.updateController.checkForUpdates() },
+        canCheckForUpdates: { [weak self] in self?.updateController.canCheckForUpdates ?? false },
         onOpenSettings: { [weak self] in self?.showSettings() },
         onQuit: { NSApplication.shared.terminate(nil) }
     )
@@ -68,11 +71,13 @@ final class AppCoordinator {
     private let mainThreadProbe = MainThreadPerformanceProbe()
 
     init(
+        updateController: any AppUpdateChecking,
         preferencesStore: PreferencesStore = .live,
         legacyMigrator: LegacySettingsMigrator = .live,
         arguments: [String] = ProcessInfo.processInfo.arguments,
         onLandingFirstFrame: @escaping () -> Void = {}
     ) {
+        self.updateController = updateController
         self.preferencesStore = preferencesStore
         self.legacyMigrator = legacyMigrator
         self.onLandingFirstFrame = onLandingFirstFrame
