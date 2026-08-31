@@ -147,14 +147,17 @@ private struct OnboardingView: View {
 
     private var profileStep: some View {
         VStack(alignment: .leading, spacing: 22) {
-            Label("아기 햄스터", systemImage: "pawprint.fill")
+            Text("내 캐릭터")
                 .font(.title2.bold())
-                .foregroundStyle(.mint)
+            CharacterSelectionGrid(
+                maximumColumns: 3,
+                selection: $model.selectedCharacterID
+            )
             TextField("닉네임 2~12자", text: $model.nickname)
                 .textFieldStyle(.roundedBorder)
                 .font(.title3)
             HStack {
-                Text("업로드 아바타는 알파 범위 밖임")
+                Text("같은 그룹에서 캐릭터와 닉네임이 겹쳐도 괜찮음")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -192,7 +195,7 @@ private struct OnboardingView: View {
                         if value != uppercased { model.inviteCode = uppercased }
                     }
                 HStack {
-                    Text("그룹당 최대 20명").foregroundStyle(.secondary)
+                    Text("그룹당 최대 5명").foregroundStyle(.secondary)
                     Spacer()
                     Button("코드로 참여", action: actions.onJoinRoom)
                         .buttonStyle(.glassProminent)
@@ -241,10 +244,15 @@ private struct ProfileSettingsView: View {
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 320)
             }
-            LabeledContent("캐릭터") {
-                Label("아기 햄스터", systemImage: "pawprint.fill")
-                    .foregroundStyle(.secondary)
-            }
+            Text("캐릭터")
+                .font(.headline)
+            CharacterSelectionGrid(
+                maximumColumns: 5,
+                selection: $model.selectedCharacterID
+            )
+            Text("캐릭터와 닉네임은 그룹 안에서 중복 선택 가능")
+                .font(.caption)
+                .foregroundStyle(.secondary)
             HStack {
                 Spacer()
                 Button("프로필 저장", action: onSave)
@@ -272,7 +280,7 @@ private struct GroupsSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 26) {
-            SettingsSection(title: "그룹", subtitle: "그룹당 최대 20명 · 사용자당 최대 5개") {
+            SettingsSection(title: "그룹", subtitle: "그룹당 최대 5명 · 사용자당 최대 5개") {
                 if model.rooms.isEmpty {
                     ContentUnavailableView(
                         "아직 연결된 그룹 없음",
@@ -346,7 +354,7 @@ private struct RoomRow: View {
                 .frame(width: 34)
             VStack(alignment: .leading, spacing: 3) {
                 Text(room.name).font(.headline)
-                Text("\(room.members.count)/20명 · 초대 코드 \(room.inviteCodeHint)")
+                Text("\(room.members.count)/5명 · 초대 코드 \(room.inviteCodeHint)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

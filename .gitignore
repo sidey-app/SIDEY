@@ -3,23 +3,12 @@
 
 # Product decisions and specifications under /docs are versioned with the code.
 
-# Godot generated files.
-/.godot/
+# Native build products.
 /build/
-
-# Private licensed character binaries, extracted textures, and local review output.
-/assets/characters/
-/artifacts/
 
 # Generated interpreter caches.
 **/__pycache__/
 *.py[cod]
-
-# Locally compiled native bridge binaries.
-/native/macos/bin/
-/native/macos/.generated/
-/native/macos/src/*.os
-/native/macos/.sconsign.dblite
 
 # macOS metadata.
 .DS_Store

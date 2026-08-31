@@ -6,14 +6,40 @@ private final class InteractiveOverlayPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+private final class CharacterHotspotPanel: NSPanel {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+}
+
+private final class CharacterHotspotView: NSView {
+    let onClick: () -> Void
+
+    init(onClick: @escaping () -> Void) {
+        self.onClick = onClick
+        super.init(frame: .zero)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
+
+    override func mouseDown(with event: NSEvent) { onClick() }
+}
+
 @MainActor
 final class PixelWorldWindowController {
     private let panel: NSPanel
     private let model: AppModel
     private var hostingView: NSHostingView<PixelWorldView>?
+    private var composerVisible = false
+    private let onCurrentUserFrameChanged: (CGRect?) -> Void
 
-    init(model: AppModel, frame: CGRect) {
+    init(
+        model: AppModel,
+        frame: CGRect,
+        onCurrentUserFrameChanged: @escaping (CGRect?) -> Void = { _ in }
+    ) {
         self.model = model
+        self.onCurrentUserFrameChanged = onCurrentUserFrameChanged
         panel = NSPanel(
             contentRect: frame,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -35,11 +61,17 @@ final class PixelWorldWindowController {
 
     func orderFront() {
         if hostingView == nil {
-            let view = NSHostingView(rootView: PixelWorldView(model: model))
+            let view = NSHostingView(rootView: makeRootView())
             hostingView = view
             panel.contentView = view
         }
         panel.orderFrontRegardless()
+    }
+
+    func setComposerVisible(_ visible: Bool) {
+        guard composerVisible != visible else { return }
+        composerVisible = visible
+        hostingView?.rootView = makeRootView()
     }
 
     func orderOut() {
@@ -55,6 +87,14 @@ final class PixelWorldWindowController {
     var isRendering: Bool { hostingView != nil }
     var size: CGSize { panel.frame.size }
     var collectionBehavior: NSWindow.CollectionBehavior { panel.collectionBehavior }
+
+    private func makeRootView() -> PixelWorldView {
+        PixelWorldView(
+            model: model,
+            composerVisible: composerVisible,
+            onCurrentUserFrameChanged: onCurrentUserFrameChanged
+        )
+    }
 }
 
 @MainActor
@@ -65,7 +105,8 @@ final class OverlayInteractionWindowController {
     init(
         model: AppModel,
         onSend: @escaping (String) -> Void,
-        onTypingChanged: @escaping (Bool) -> Void
+        onTypingChanged: @escaping (Bool) -> Void,
+        onCancel: @escaping () -> Void
     ) {
         panel = InteractiveOverlayPanel(
             contentRect: CGRect(origin: .zero, size: Self.panelSize),
@@ -85,7 +126,8 @@ final class OverlayInteractionWindowController {
             rootView: OverlayComposerView(
                 model: model,
                 onSend: onSend,
-                onTypingChanged: onTypingChanged
+                onTypingChanged: onTypingChanged,
+                onCancel: onCancel
             )
         )
     }
@@ -120,6 +162,57 @@ final class OverlayInteractionWindowController {
     var ignoresMouseEvents: Bool { panel.ignoresMouseEvents }
     var isKeyWindow: Bool { panel.isKeyWindow }
     var collectionBehavior: NSWindow.CollectionBehavior { panel.collectionBehavior }
+}
+
+@MainActor
+final class CharacterHotspotWindowController {
+    static let panelSize = CGSize(width: 52, height: 52)
+    private let panel: NSPanel
+    private var requestedVisible = false
+    private var hasFrame = false
+
+    init(onClick: @escaping () -> Void) {
+        panel = CharacterHotspotPanel(
+            contentRect: CGRect(origin: .zero, size: Self.panelSize),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = false
+        panel.level = .floating
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        panel.hidesOnDeactivate = false
+        panel.canHide = false
+        panel.ignoresMouseEvents = false
+        panel.isReleasedWhenClosed = false
+        panel.contentView = CharacterHotspotView(onClick: onClick)
+    }
+
+    func setFrame(_ frame: CGRect?) {
+        guard let frame else {
+            hasFrame = false
+            panel.orderOut(nil)
+            return
+        }
+        hasFrame = true
+        panel.setFrame(frame, display: false)
+        if requestedVisible { panel.orderFrontRegardless() }
+    }
+
+    func setVisible(_ visible: Bool) {
+        requestedVisible = visible
+        if visible, hasFrame {
+            panel.orderFrontRegardless()
+        } else {
+            panel.orderOut(nil)
+        }
+    }
+
+    var isVisible: Bool { panel.isVisible }
+    var ignoresMouseEvents: Bool { panel.ignoresMouseEvents }
+    var size: CGSize { panel.frame.size }
 }
 
 @MainActor

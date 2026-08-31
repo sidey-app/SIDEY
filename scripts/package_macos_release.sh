@@ -10,24 +10,33 @@ if ! printf '%s\n' "$SIDEY_RELEASE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+(-[0
 fi
 
 SIDEY_BASE_VERSION=$(printf '%s\n' "$SIDEY_RELEASE_TAG" | sed -E 's/^v//; s/-.*$//')
-SIDEY_CONFIGURED_VERSION=$(sed -n 's/^application\/short_version="\([^"]*\)"$/\1/p' "$SIDEY_REPO_ROOT/export_presets.cfg")
+SIDEY_PROJECT_FILE="$SIDEY_REPO_ROOT/macos/SIDEY.xcodeproj/project.pbxproj"
+SIDEY_CONFIGURED_VERSION=$(sed -n 's/^[[:space:]]*MARKETING_VERSION = \([^;]*\);$/\1/p' "$SIDEY_PROJECT_FILE" | sort -u)
+SIDEY_BUILD_NUMBER=$(sed -n 's/^[[:space:]]*CURRENT_PROJECT_VERSION = \([^;]*\);$/\1/p' "$SIDEY_PROJECT_FILE" | sort -u)
+
 if [ "$SIDEY_BASE_VERSION" != "$SIDEY_CONFIGURED_VERSION" ]; then
 	echo "Release tag base version $SIDEY_BASE_VERSION does not match app version $SIDEY_CONFIGURED_VERSION" >&2
 	exit 65
 fi
+if ! printf '%s\n' "$SIDEY_BUILD_NUMBER" | grep -Eq '^[0-9]+$'; then
+	echo "Xcode project must contain one numeric build number" >&2
+	exit 65
+fi
 
-SIDEY_APP_PATH="$SIDEY_REPO_ROOT/build/macos/SIDEY.app"
 SIDEY_RELEASE_DIR="$SIDEY_REPO_ROOT/build/releases/$SIDEY_RELEASE_TAG"
-SIDEY_ARCHIVE_NAME="SIDEY-macOS-universal-$SIDEY_RELEASE_TAG.zip"
-SIDEY_CHECKSUM_NAME="SIDEY-macOS-universal-$SIDEY_RELEASE_TAG.sha256"
+SIDEY_ARCHIVE_NAME="SIDEY-macOS-arm64-$SIDEY_RELEASE_TAG.zip"
+SIDEY_CHECKSUM_NAME="$SIDEY_ARCHIVE_NAME.sha256"
 SIDEY_TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/sidey-package.XXXXXX")
 trap 'rm -rf "$SIDEY_TEMP_DIR"' EXIT HUP INT TERM
 
-"$SIDEY_REPO_ROOT/scripts/export_macos.sh" "$SIDEY_APP_PATH"
+SIDEY_TEMP_EXPORT="$SIDEY_TEMP_DIR/export"
+SIDEY_TEMP_ZIP="$SIDEY_TEMP_DIR/$SIDEY_ARCHIVE_NAME"
+"$SIDEY_REPO_ROOT/scripts/export_macos.sh" "$SIDEY_TEMP_EXPORT" "$SIDEY_TEMP_ZIP"
 
+SIDEY_APP_PATH="$SIDEY_TEMP_EXPORT/SIDEY.app"
 SIDEY_INFO_PLIST="$SIDEY_APP_PATH/Contents/Info.plist"
 SIDEY_MAIN_EXECUTABLE="$SIDEY_APP_PATH/Contents/MacOS/SIDEY"
-SIDEY_ICON="$SIDEY_APP_PATH/Contents/Resources/icon.icns"
+SIDEY_ICON="$SIDEY_APP_PATH/Contents/Resources/AppIcon.icns"
 
 [ -x "$SIDEY_MAIN_EXECUTABLE" ] || {
 	echo "Exported SIDEY executable is missing or not executable" >&2
@@ -37,31 +46,23 @@ SIDEY_ICON="$SIDEY_APP_PATH/Contents/Resources/icon.icns"
 	echo "Exported SIDEY icon is missing" >&2
 	exit 66
 }
-lipo "$SIDEY_MAIN_EXECUTABLE" -verify_arch arm64 x86_64
+lipo "$SIDEY_MAIN_EXECUTABLE" -verify_arch arm64
 codesign --verify --deep --strict "$SIDEY_APP_PATH"
-if ! codesign -dv --verbose=4 "$SIDEY_APP_PATH" 2>&1 | grep -q 'Signature=adhoc'; then
-	echo "Expected an ad-hoc signed alpha build" >&2
-	exit 66
-fi
 if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$SIDEY_INFO_PLIST")" != "$SIDEY_BASE_VERSION" ]; then
 	echo "Exported bundle version does not match release tag" >&2
 	exit 66
 fi
-
-ditto -c -k --sequesterRsrc --keepParent "$SIDEY_APP_PATH" "$SIDEY_TEMP_DIR/$SIDEY_ARCHIVE_NAME"
-unzip -t "$SIDEY_TEMP_DIR/$SIDEY_ARCHIVE_NAME" >/dev/null
-mkdir -p "$SIDEY_TEMP_DIR/extracted"
-ditto -x -k "$SIDEY_TEMP_DIR/$SIDEY_ARCHIVE_NAME" "$SIDEY_TEMP_DIR/extracted"
-codesign --verify --deep --strict "$SIDEY_TEMP_DIR/extracted/SIDEY.app"
-lipo "$SIDEY_TEMP_DIR/extracted/SIDEY.app/Contents/MacOS/SIDEY" -verify_arch arm64 x86_64
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$SIDEY_INFO_PLIST")" != "$SIDEY_BUILD_NUMBER" ]; then
+	echo "Exported bundle build number does not match Xcode project" >&2
+	exit 66
+fi
+unzip -t "$SIDEY_TEMP_ZIP" >/dev/null
 
 mkdir -p "$SIDEY_RELEASE_DIR"
-mv -f "$SIDEY_TEMP_DIR/$SIDEY_ARCHIVE_NAME" "$SIDEY_RELEASE_DIR/$SIDEY_ARCHIVE_NAME"
-(
-	cd "$SIDEY_RELEASE_DIR"
-	shasum -a 256 "$SIDEY_ARCHIVE_NAME" >"$SIDEY_CHECKSUM_NAME"
-)
+mv -f "$SIDEY_TEMP_ZIP" "$SIDEY_RELEASE_DIR/$SIDEY_ARCHIVE_NAME"
+mv -f "$SIDEY_TEMP_ZIP.sha256" "$SIDEY_RELEASE_DIR/$SIDEY_CHECKSUM_NAME"
 
-echo "Created macOS alpha release artifacts:"
+echo "Created native macOS alpha release artifacts:"
 echo "  $SIDEY_RELEASE_DIR/$SIDEY_ARCHIVE_NAME"
 echo "  $SIDEY_RELEASE_DIR/$SIDEY_CHECKSUM_NAME"
+echo "  version $SIDEY_BASE_VERSION, build $SIDEY_BUILD_NUMBER, arm64"

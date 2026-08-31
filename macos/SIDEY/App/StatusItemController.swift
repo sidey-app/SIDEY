@@ -1,5 +1,26 @@
 import AppKit
 
+enum StatusItemIconProvider {
+    static let regularAssetName = "SideyMenuIcon"
+    static let unreadAssetName = "SideyMenuIconUnread"
+
+    static func image(hasUnread: Bool) -> NSImage? {
+        let description = hasUnread ? "SIDEY, 읽지 않은 메시지 있음" : "SIDEY"
+        let assetName = hasUnread ? unreadAssetName : regularAssetName
+        if let asset = NSImage(named: NSImage.Name(assetName))?.copy() as? NSImage {
+            asset.isTemplate = true
+            asset.accessibilityDescription = description
+            return asset
+        }
+        let fallback = NSImage(
+            systemSymbolName: "pawprint.fill",
+            accessibilityDescription: description
+        )
+        fallback?.isTemplate = true
+        return fallback
+    }
+}
+
 @MainActor
 final class StatusItemController: NSObject {
     private let onToggleOverlay: () -> Void
@@ -43,7 +64,8 @@ final class StatusItemController: NSObject {
 
     func install() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "person.2.wave.2", accessibilityDescription: "SIDEY")
+        item.button?.image = StatusItemIconProvider.image(hasUnread: false)
+        item.button?.toolTip = "SIDEY"
         item.menu = makeMenu()
         statusItem = item
     }
@@ -145,10 +167,7 @@ final class StatusItemController: NSObject {
 
     private func updateStatusIcon() {
         let hasUnread = unreadCounts.values.contains(where: { $0 > 0 })
-        statusItem?.button?.image = NSImage(
-            systemSymbolName: "person.2.wave.2",
-            accessibilityDescription: hasUnread ? "SIDEY, 읽지 않은 메시지 있음" : "SIDEY"
-        )
+        statusItem?.button?.image = StatusItemIconProvider.image(hasUnread: hasUnread)
         statusItem?.button?.toolTip = hasUnread ? "SIDEY · 읽지 않은 메시지 있음" : "SIDEY"
     }
 

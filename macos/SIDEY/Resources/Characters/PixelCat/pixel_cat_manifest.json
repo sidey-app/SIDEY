@@ -1,0 +1,11 @@
+{
+  "character_id": "pixel_cat",
+  "legacy_aliases": [],
+  "frame_pixel_size": [24, 24],
+  "render_point_size": [48, 48],
+  "sheet_pixel_size": [240, 24],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": { "idle": [0, 1], "walk": [2, 3, 4, 5], "doze": [6, 7], "offline": [8, 9] },
+  "sha256": "d8b370c03b5cf0ede6aa0d9fa6210030e164b015a920622e89ae86f835e018b2"
+}

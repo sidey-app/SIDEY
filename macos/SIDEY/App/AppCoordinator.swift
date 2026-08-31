@@ -375,16 +375,24 @@ final class AppCoordinator {
 
     private func saveProfile() {
         guard let backend else { return }
+        let characterID = PixelCharacterCatalog.canonicalID(for: model.selectedCharacterID)
         runMutation {
-            _ = try await backend.upsertProfile(nickname: self.model.nickname)
+            _ = try await backend.upsertProfile(
+                nickname: self.model.nickname,
+                characterID: characterID
+            )
         }
     }
 
     private func createRoom() {
         guard let backend else { return }
         let roomName = model.newRoomName
+        let characterID = PixelCharacterCatalog.canonicalID(for: model.selectedCharacterID)
         runMutation {
-            _ = try await backend.upsertProfile(nickname: self.model.nickname)
+            _ = try await backend.upsertProfile(
+                nickname: self.model.nickname,
+                characterID: characterID
+            )
             let created = try await backend.createRoom(name: roomName)
             self.model.lastCreatedInviteCode = created.inviteCode
             self.model.newRoomName = ""
@@ -395,8 +403,12 @@ final class AppCoordinator {
     private func joinRoom() {
         guard let backend else { return }
         let inviteCode = model.inviteCode
+        let characterID = PixelCharacterCatalog.canonicalID(for: model.selectedCharacterID)
         runMutation {
-            _ = try await backend.upsertProfile(nickname: self.model.nickname)
+            _ = try await backend.upsertProfile(
+                nickname: self.model.nickname,
+                characterID: characterID
+            )
             let roomID = try await backend.joinRoom(inviteCode: inviteCode)
             self.model.inviteCode = ""
             self.model.preferences.activeRoomID = roomID
@@ -404,6 +416,7 @@ final class AppCoordinator {
     }
 
     private func selectRoom(_ roomID: UUID) {
+        overlayWindows.dismissComposer()
         typingChanged(false)
         model.preferences.activeRoomID = roomID
         model.markRoomRead(roomID)
@@ -436,11 +449,13 @@ final class AppCoordinator {
         guard let backend, let roomID = model.activeRoom?.id else {
             model.errorMessage = SideyBackendError.noActiveRoom.localizedDescription
             model.draft = body
+            overlayWindows.presentComposer()
             return
         }
         guard let senderID = model.currentUserID else {
             model.errorMessage = "현재 사용자 정보를 확인하지 못했음"
             model.draft = body
+            overlayWindows.presentComposer()
             return
         }
         let messageID = UUID()
@@ -462,6 +477,7 @@ final class AppCoordinator {
             } catch {
                 model.errorMessage = "전송 실패: \(error.localizedDescription)"
                 model.draft = model.failMessage(id: messageID) ?? body
+                overlayWindows.presentComposer()
             }
         }
     }

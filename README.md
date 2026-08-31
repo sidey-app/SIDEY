@@ -19,7 +19,7 @@
 
 ## SIDEY에서 할 수 있는 것
 
-- 최대 20명의 가까운 친구와 초대 전용 비공개 그룹 만들기
+- 최대 5명의 가까운 친구와 초대 전용 비공개 그룹 만들기
 - 친구별 픽셀 동물로 온라인·자리 비움·오프라인 상태 확인
 - SIDEY 입력창의 타이핑 상태와 최대 200자의 짧은 메시지 공유
 - 화면 가장자리 12개 프리셋 중 하나에 월드를 배치하고 평소 클릭은 뒤 앱으로 통과
@@ -29,7 +29,7 @@
 
 지원 환경은 **macOS 26 이상, Apple Silicon Mac**입니다. Intel Mac은 이 네이티브 alpha에서 지원하지 않습니다.
 
-1. [SIDEY Releases](https://github.com/sidey-app/SIDEY/releases)에서 `SIDEY-macOS-arm64.zip`을 받습니다.
+1. [SIDEY Releases](https://github.com/sidey-app/SIDEY/releases)에서 최신 `SIDEY-macOS-arm64-<version>.zip`을 받습니다.
 2. 다운로드한 ZIP의 압축을 풉니다.
 3. `SIDEY.app`을 macOS의 `응용 프로그램` 폴더로 옮깁니다.
 4. 처음 한 번은 Finder에서 `SIDEY.app`을 우클릭한 뒤 **열기**를 선택합니다.
@@ -48,7 +48,7 @@
 파일 무결성은 Release에 함께 올라온 `.sha256` 파일과 다음 명령의 결과를 비교해 확인할 수 있습니다.
 
 ```sh
-shasum -a 256 SIDEY-macOS-arm64.zip
+shasum -a 256 SIDEY-macOS-arm64-*.zip
 ```
 
 ## 기술 구성
@@ -65,7 +65,7 @@ SIDEY는 화면 내용, 실행 중인 앱 목록, 다른 앱에서 입력한 키
 
 현재 종단간 암호화(E2EE)는 제공하지 않습니다. 보안 화면, DRM 앱, 권한이 더 높은 앱 또는 모든 독점 전체화면 게임 위에 항상 표시된다고 보장하지도 않습니다.
 
-Windows는 목표 플랫폼이지만 현재 픽셀 월드 vertical slice에는 포함되지 않습니다. 기존 3D alpha 구현은 `archive/native-3d-alpha` 브랜치에 비교·롤백용으로 보존합니다.
+Windows는 목표 플랫폼이지만 현재 픽셀 월드 vertical slice에는 포함되지 않습니다. `main`은 SwiftUI·AppKit·SpriteKit 기반 2D 네이티브 앱만 포함하며 과거 Godot·3D 소스와 배포 경로는 제거했습니다.
 
 ## 개발·빌드
 
@@ -88,8 +88,8 @@ macOS 26과 Xcode 26 이상이 필요합니다. 기본 macOS 내보내기는 네
 
 로컬 백엔드 구성을 덮어쓸 때는 `SIDEY_SUPABASE_URL`과 `SIDEY_SUPABASE_PUBLISHABLE_KEY`를 반드시 함께 설정합니다. secret 또는 service-role 키는 클라이언트에 넣으면 안 됩니다.
 
-기존 Godot macOS 빌드는 비교·회귀용일 뿐 기본 배포 경로가 아닙니다.
+버전 태그와 일치하는 검증된 Release ZIP을 만들려면 다음 명령을 사용합니다.
 
 ```sh
-./scripts/export_godot_macos.sh
+./scripts/package_macos_release.sh v0.2.0-alpha.1
 ```

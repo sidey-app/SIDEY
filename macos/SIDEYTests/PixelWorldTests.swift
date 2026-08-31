@@ -1,165 +1,306 @@
+import AppKit
+import SpriteKit
 import XCTest
 @testable import SIDEY
 
 @MainActor
 final class PixelWorldTests: XCTestCase {
-    func testTwentyAgentsStayFiniteAndInsideRegionDuringLongSimulation() {
-        let bounds = CGRect(x: 0, y: 0, width: 1_200, height: 180)
-        let safe = PixelMovementSimulation.safePlayableBounds(bounds)
-        var agents = (0..<20).map { index in
-            PixelMovementAgent(
-                id: UUID(),
-                position: CGPoint(x: safe.minX + CGFloat(index) * 10, y: safe.midY),
-                target: CGPoint(x: safe.maxX - CGFloat(index) * 9, y: safe.midY + CGFloat(index % 3))
-            )
-        }
+    func testTwentyAgentsStayFiniteAndOnEveryEdgeTrackDuringLongSimulation() {
+        for edge in OverlayEdge.allCases {
+            let bounds = edge.isHorizontal
+                ? CGRect(x: 0, y: 0, width: 1_200, height: 240)
+                : CGRect(x: 0, y: 0, width: 240, height: 1_200)
+            let geometry = EdgeTrackGeometry(bounds: bounds, edge: edge)
+            let range = geometry.trackRange
+            var agents = (0..<20).map { index in
+                PixelMovementAgent(
+                    id: UUID(),
+                    trackPosition: range.lowerBound + CGFloat(index) * 10,
+                    target: range.upperBound - CGFloat(index) * 9
+                )
+            }
 
-        for _ in 0..<3_000 {
-            PixelMovementSimulation.step(
-                agents: &agents,
-                deltaTime: 1.0 / 30.0,
-                bounds: bounds,
-                avoidanceRects: [CGRect(x: 380, y: 0, width: 440, height: 76)],
-                stoppedIDs: []
-            )
-        }
+            for _ in 0..<3_000 {
+                PixelMovementSimulation.step(
+                    agents: &agents,
+                    deltaTime: 1.0 / 30.0,
+                    geometry: geometry,
+                    avoidanceRects: edge == .bottom
+                        ? [CGRect(x: 380, y: 0, width: 440, height: 76)]
+                        : [],
+                    stoppedIDs: []
+                )
+            }
 
-        for agent in agents {
-            XCTAssertTrue(agent.position.x.isFinite)
-            XCTAssertTrue(agent.position.y.isFinite)
-            XCTAssertTrue(agent.velocity.dx.isFinite)
-            XCTAssertTrue(agent.velocity.dy.isFinite)
-            XCTAssertGreaterThanOrEqual(agent.position.x, safe.minX)
-            XCTAssertLessThanOrEqual(agent.position.x, safe.maxX)
-            XCTAssertGreaterThanOrEqual(agent.position.y, safe.minY)
-            XCTAssertLessThanOrEqual(agent.position.y, safe.maxY)
+            for agent in agents {
+                XCTAssertTrue(agent.trackPosition.isFinite)
+                XCTAssertTrue(agent.velocity.isFinite)
+                XCTAssertTrue(range.contains(agent.trackPosition))
+                let point = geometry.point(for: agent.trackPosition)
+                switch edge {
+                case .bottom:
+                    XCTAssertEqual(point.y, bounds.minY + EdgeTrackGeometry.footInset, accuracy: 0.001)
+                case .top:
+                    XCTAssertEqual(point.y, bounds.maxY - EdgeTrackGeometry.footInset, accuracy: 0.001)
+                case .left:
+                    XCTAssertEqual(point.x, bounds.minX + EdgeTrackGeometry.footInset, accuracy: 0.001)
+                case .right:
+                    XCTAssertEqual(point.x, bounds.maxX - EdgeTrackGeometry.footInset, accuracy: 0.001)
+                }
+            }
         }
     }
 
-    func testCrowdedRegionAllowsSafeOverlapWithoutNaN() {
-        let bounds = CGRect(x: 0, y: 0, width: 48, height: 48)
+    func testAllEdgeFootPointsTouchTheScreenBoundary() {
+        for edge in OverlayEdge.allCases {
+            let bounds = edge.isHorizontal
+                ? CGRect(x: 0, y: 0, width: 800, height: 240)
+                : CGRect(x: 0, y: 0, width: 240, height: 800)
+            let geometry = EdgeTrackGeometry(bounds: bounds, edge: edge)
+            let foot = geometry.footPoint(for: geometry.trackRange.lowerBound)
+            switch edge {
+            case .bottom: XCTAssertEqual(foot.y, bounds.minY, accuracy: 0.001)
+            case .top: XCTAssertEqual(foot.y, bounds.maxY, accuracy: 0.001)
+            case .left: XCTAssertEqual(foot.x, bounds.minX, accuracy: 0.001)
+            case .right: XCTAssertEqual(foot.x, bounds.maxX, accuracy: 0.001)
+            }
+        }
+    }
+
+    func testCrowdedTrackAllowsSafeOverlapWithoutNaN() {
+        let geometry = EdgeTrackGeometry(
+            bounds: CGRect(x: 0, y: 0, width: 48, height: 240),
+            edge: .bottom
+        )
         var agents = (0..<20).map { _ in
-            PixelMovementAgent(
-                id: UUID(),
-                position: CGPoint(x: 24, y: 24),
-                target: CGPoint(x: 24, y: 24)
-            )
+            PixelMovementAgent(id: UUID(), trackPosition: 24, target: 24)
         }
 
         for _ in 0..<300 {
             PixelMovementSimulation.step(
                 agents: &agents,
                 deltaTime: 1.0 / 30.0,
-                bounds: bounds,
-                avoidanceRects: [bounds],
+                geometry: geometry,
+                avoidanceRects: [geometry.bounds],
                 stoppedIDs: []
             )
         }
 
-        XCTAssertTrue(agents.allSatisfy {
-            $0.position.x.isFinite && $0.position.y.isFinite
-                && $0.velocity.dx.isFinite && $0.velocity.dy.isFinite
-        })
+        XCTAssertTrue(agents.allSatisfy { $0.trackPosition.isFinite && $0.velocity.isFinite })
     }
 
-    func testMessageBubbleStopsOnlyItsSender() {
-        let stoppedID = UUID()
+    func testMessageBubbleDoesNotStopAnOnlineSender() {
         let movingID = UUID()
-        var agents = [
-            PixelMovementAgent(id: stoppedID, position: CGPoint(x: 40, y: 40), target: CGPoint(x: 200, y: 100)),
-            PixelMovementAgent(id: movingID, position: CGPoint(x: 80, y: 40), target: CGPoint(x: 240, y: 100))
+        let awayID = UUID()
+        let members = [
+            PixelWorldMember(
+                id: movingID, nickname: "온라인", characterID: "pixel_hamster",
+                presence: .online, isTyping: false, isCurrentUser: true
+            ),
+            PixelWorldMember(
+                id: awayID, nickname: "자리 비움", characterID: "pixel_cat",
+                presence: .away, isTyping: false, isCurrentUser: false
+            )
         ]
+        let stoppedIDs = PixelMovementPolicy.stoppedMemberIDs(in: members)
+        XCTAssertFalse(stoppedIDs.contains(movingID))
+        XCTAssertTrue(stoppedIDs.contains(awayID))
+
+        var agents = [PixelMovementAgent(id: movingID, trackPosition: 40, target: 200)]
 
         PixelMovementSimulation.step(
             agents: &agents,
             deltaTime: 1,
-            bounds: CGRect(x: 0, y: 0, width: 300, height: 180),
+            geometry: EdgeTrackGeometry(
+                bounds: CGRect(x: 0, y: 0, width: 300, height: 240),
+                edge: .bottom
+            ),
             avoidanceRects: [],
-            stoppedIDs: [stoppedID]
+            stoppedIDs: stoppedIDs
         )
 
-        XCTAssertEqual(agents.first(where: { $0.id == stoppedID })?.position, CGPoint(x: 40, y: 40))
-        XCTAssertNotEqual(agents.first(where: { $0.id == movingID })?.position, CGPoint(x: 80, y: 40))
+        XCTAssertNotEqual(agents.first?.trackPosition, 40)
     }
 
-    func testUUIDDiffKeepsPositionsAcrossPresenceAndSnapshotUpdates() throws {
+    func testUUIDDiffAndCharacterSwapKeepTrackPosition() throws {
         let roomID = UUID()
-        let members = (0..<20).map { index in
-            PixelWorldMember(
-                id: UUID(),
-                nickname: "친구 \(index)",
-                characterID: "pixel_hamster",
-                presence: .online,
-                isTyping: false,
-                isCurrentUser: index == 0
-            )
-        }
-        let scene = PixelWorldScene(size: CGSize(width: 1_000, height: 180))
-        scene.apply(roomID: roomID, members: members, bubbles: [], edge: .bottom, installationSeed: 42)
-        let initial = Dictionary(uniqueKeysWithValues: scene.agentStates.map { ($0.id, $0.position) })
-
-        let updated = members.enumerated().map { index, member in
-            PixelWorldMember(
-                id: member.id,
-                nickname: member.nickname,
-                characterID: member.characterID,
-                presence: index.isMultiple(of: 2) ? .away : .online,
-                isTyping: index == 3,
-                isCurrentUser: member.isCurrentUser
-            )
-        }
-        scene.apply(roomID: roomID, members: updated, bubbles: [], edge: .left, installationSeed: 42)
-
-        XCTAssertEqual(scene.nodeIDs, Set(members.map(\.id)))
-        for state in scene.agentStates {
-            XCTAssertEqual(state.position, try XCTUnwrap(initial[state.id]))
-        }
-    }
-
-    func testStableSeedReproducesInitialRoomPlacement() {
-        let roomID = UUID()
+        let memberID = UUID()
         let member = PixelWorldMember(
-            id: UUID(),
+            id: memberID,
             nickname: "친구",
             characterID: "pixel_hamster",
             presence: .online,
             isTyping: false,
-            isCurrentUser: false
+            isCurrentUser: true
         )
-        let first = PixelWorldScene(size: CGSize(width: 800, height: 180))
-        let second = PixelWorldScene(size: CGSize(width: 800, height: 180))
+        let scene = PixelWorldScene(size: CGSize(width: 1_000, height: 240))
+        scene.apply(roomID: roomID, members: [member], bubbles: [], edge: .bottom, installationSeed: 42)
+        let initial = try XCTUnwrap(scene.agentStates.first?.trackPosition)
+
+        let updated = PixelWorldMember(
+            id: memberID,
+            nickname: "친구",
+            characterID: "pixel_cat",
+            presence: .away,
+            isTyping: false,
+            isCurrentUser: true
+        )
+        scene.apply(roomID: roomID, members: [updated], bubbles: [], edge: .left, installationSeed: 42)
+
+        XCTAssertEqual(scene.nodeIDs, [memberID])
+        XCTAssertEqual(scene.agentStates.first?.trackPosition, initial)
+        XCTAssertEqual(scene.renderedCharacterID(for: memberID), "pixel_cat")
+    }
+
+    func testStableSeedReproducesInitialRoomPlacement() {
+        let roomID = UUID()
+        let member = makeMember()
+        let first = PixelWorldScene(size: CGSize(width: 800, height: 240))
+        let second = PixelWorldScene(size: CGSize(width: 800, height: 240))
 
         first.apply(roomID: roomID, members: [member], bubbles: [], edge: .bottom, installationSeed: 12_345)
         second.apply(roomID: roomID, members: [member], bubbles: [], edge: .bottom, installationSeed: 12_345)
 
-        XCTAssertEqual(first.agentStates.first?.position, second.agentStates.first?.position)
+        XCTAssertEqual(first.agentStates.first?.trackPosition, second.agentStates.first?.trackPosition)
     }
 
-    func testZeroSizedRepresentableSceneSpreadsMembersAfterFirstLayout() {
+    func testBubbleLayoutKeepsShortLongAndThreeLineMessagesInsideCanvas() {
+        let messages = [
+            "가",
+            String(repeating: "긴메시지", count: 50),
+            "첫 줄\n둘째 줄\n셋째 줄"
+        ]
+        for edge in OverlayEdge.allCases {
+            let bounds = edge.isHorizontal
+                ? CGRect(x: 0, y: 0, width: 720, height: 240)
+                : CGRect(x: 0, y: 0, width: 240, height: 720)
+            let geometry = EdgeTrackGeometry(bounds: bounds, edge: edge)
+            for tangent in [geometry.trackRange.lowerBound, geometry.trackRange.upperBound] {
+                for message in messages {
+                    let layout = PixelBubbleLayout.make(
+                        text: message,
+                        isTyping: false,
+                        tangentPosition: tangent,
+                        tangentLength: geometry.tangentLength,
+                        edge: edge
+                    )
+                    let worldFrame = geometry.worldFrame(for: layout.totalFrame, at: tangent)
+                    XCTAssertTrue(
+                        bounds.insetBy(dx: -0.5, dy: -0.5).contains(worldFrame),
+                        "\(edge) \(tangent) \(message.count): \(worldFrame)"
+                    )
+                    XCTAssertLessThanOrEqual(layout.size.width, 220)
+                }
+            }
+        }
+    }
+
+    func testBubbleUsesExplicitDarkInkOnLightBackground() throws {
+        let text = PixelBubbleStyle.textColor.usingColorSpace(.sRGB) ?? PixelBubbleStyle.textColor
+        let background = PixelBubbleStyle.backgroundColor.usingColorSpace(.sRGB)
+            ?? PixelBubbleStyle.backgroundColor
+        XCTAssertLessThan(text.redComponent, 0.2)
+        XCTAssertLessThan(text.greenComponent, 0.2)
+        XCTAssertLessThan(text.blueComponent, 0.2)
+        XCTAssertGreaterThan(background.redComponent, 0.9)
+        XCTAssertGreaterThan(background.greenComponent, 0.9)
+        XCTAssertGreaterThan(background.blueComponent, 0.9)
+
+        let layout = PixelBubbleLayout.make(
+            text: "ㅎㅎㅎㅎㅎㅎㅎㅎㅎㅎ",
+            isTyping: false,
+            tangentPosition: 200,
+            tangentLength: 720,
+            edge: .bottom
+        )
+        let node = PixelBubbleNode(body: "ㅎㅎㅎㅎㅎㅎㅎㅎㅎㅎ", isTyping: false, layout: layout)
+        let label = try XCTUnwrap(node.children.compactMap { $0 as? SKLabelNode }.first)
+        XCTAssertEqual(label.fontColor, PixelBubbleStyle.textColor)
+    }
+
+    func testTypingDotsMessagePriorityAndTypingReturn() {
+        XCTAssertEqual(TypingIndicatorNode.sequenceFrames, [".", "..", "..."])
+        XCTAssertEqual(TypingIndicatorNode.frameInterval, 0.35, accuracy: 0.001)
+
         let roomID = UUID()
-        let members = (0..<20).map { index in
-            PixelWorldMember(
-                id: UUID(),
-                nickname: "친구 \(index)",
-                characterID: "pixel_hamster",
-                presence: .online,
-                isTyping: false,
-                isCurrentUser: index == 0
+        let member = PixelWorldMember(
+            id: UUID(), nickname: "친구", characterID: "pixel_rabbit",
+            presence: .online, isTyping: true, isCurrentUser: false
+        )
+        let scene = PixelWorldScene(size: CGSize(width: 720, height: 240))
+        scene.apply(roomID: roomID, members: [member], bubbles: [], edge: .bottom, installationSeed: 1)
+        XCTAssertTrue(scene.renderedBubbleIsTyping(for: member.id))
+        XCTAssertEqual(scene.renderedBubbleBody(for: member.id), ".")
+
+        let message = ActiveBubble(
+            senderID: member.id,
+            messageID: UUID(),
+            body: "도착",
+            expiresAt: .now.addingTimeInterval(10)
+        )
+        scene.apply(roomID: roomID, members: [member], bubbles: [message], edge: .bottom, installationSeed: 1)
+        XCTAssertFalse(scene.renderedBubbleIsTyping(for: member.id))
+        XCTAssertEqual(scene.renderedBubbleBody(for: member.id), "도착")
+
+        scene.apply(roomID: roomID, members: [member], bubbles: [], edge: .bottom, installationSeed: 1)
+        XCTAssertTrue(scene.renderedBubbleIsTyping(for: member.id))
+    }
+
+    func testAwayOfflineAndReconnectHaveDistinctVisualStates() throws {
+        let scene = PixelWorldScene(size: CGSize(width: 720, height: 240))
+        let roomID = UUID()
+        let memberID = UUID()
+
+        func apply(_ presence: PresenceState) -> PixelCharacterVisualState? {
+            scene.apply(
+                roomID: roomID,
+                members: [PixelWorldMember(
+                    id: memberID, nickname: "친구", characterID: "pixel_penguin",
+                    presence: presence, isTyping: false, isCurrentUser: false
+                )],
+                bubbles: [], edge: .bottom, installationSeed: 2
             )
+            return scene.renderedVisualState(for: memberID)
         }
-        let scene = PixelWorldScene(size: .zero)
-        scene.apply(roomID: roomID, members: members, bubbles: [], edge: .bottom, installationSeed: 99)
 
-        scene.size = CGSize(width: 1_200, height: 180)
+        let away = try XCTUnwrap(apply(.away))
+        XCTAssertEqual(away.motion, .doze)
+        XCTAssertEqual(away.alpha, 1)
+        XCTAssertEqual(away.colorBlendFactor, 0)
+        XCTAssertTrue(away.showsDozeLabel)
 
-        let positions = Set(scene.agentStates.map { "\(Int($0.position.x)),\(Int($0.position.y))" })
-        XCTAssertGreaterThan(positions.count, 10)
-        let safe = PixelMovementSimulation.safePlayableBounds(scene.frame)
-        for agent in scene.agentStates {
-            XCTAssertGreaterThanOrEqual(agent.position.x, safe.minX)
-            XCTAssertLessThanOrEqual(agent.position.x, safe.maxX)
-            XCTAssertGreaterThanOrEqual(agent.position.y, safe.minY)
-            XCTAssertLessThanOrEqual(agent.position.y, safe.maxY)
-        }
+        let offline = try XCTUnwrap(apply(.offline))
+        XCTAssertEqual(offline.motion, .offline)
+        XCTAssertEqual(offline.alpha, 0.75, accuracy: 0.001)
+        XCTAssertGreaterThan(offline.colorBlendFactor, 0.5)
+        XCTAssertFalse(offline.showsDozeLabel)
+
+        let reconnecting = try XCTUnwrap(apply(.reconnecting))
+        XCTAssertEqual(reconnecting.motion, .stopped)
+        XCTAssertFalse(reconnecting.showsDozeLabel)
+    }
+
+    func testCurrentUserFrameCallbackUsesOnlyThe52PointHotspot() throws {
+        let member = makeMember(isCurrentUser: true)
+        var reported: CGRect?
+        let scene = PixelWorldScene(size: CGSize(width: 720, height: 240))
+        scene.apply(
+            roomID: UUID(), members: [member], bubbles: [], edge: .bottom,
+            installationSeed: 1, onCurrentUserFrameChanged: { reported = $0 }
+        )
+        XCTAssertEqual(try XCTUnwrap(reported).size, CGSize(width: 52, height: 52))
+
+        scene.apply(
+            roomID: nil, members: [], bubbles: [], edge: .bottom,
+            installationSeed: 1, onCurrentUserFrameChanged: { reported = $0 }
+        )
+        XCTAssertNil(reported)
+    }
+
+    private func makeMember(isCurrentUser: Bool = false) -> PixelWorldMember {
+        PixelWorldMember(
+            id: UUID(), nickname: "친구", characterID: "pixel_hamster",
+            presence: .online, isTyping: false, isCurrentUser: isCurrentUser
+        )
     }
 }

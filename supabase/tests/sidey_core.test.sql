@@ -93,7 +93,7 @@ declare
   number integer;
   code text := (select invite_code from test_rooms where label = 'main');
 begin
-  for number in 2..20 loop
+  for number in 2..5 loop
     perform set_config(
       'request.jwt.claim.sub',
       ('00000000-0000-0000-0000-' || lpad(number::text, 12, '0'))::uuid::text,
@@ -106,14 +106,14 @@ $$;
 
 select is(
   (select count(*)::integer from public.room_members where room_id = (select room_id from test_rooms where label = 'main')),
-  20,
-  'room accepts twenty members'
+  5,
+  'room accepts five members'
 );
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000021', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000006', true);
 select results_eq(
   $$select error_code from public.join_room((select invite_code from test_rooms where label = 'main'))$$,
   $$values ('member_limit_reached'::text)$$,
-  'twenty-first room member is rejected'
+  'sixth room member is rejected'
 );
 select is(
   (select count(distinct profiles.character_id)::integer
@@ -161,7 +161,7 @@ select is(
 );
 select is(
   (select count(*)::integer from public.profiles),
-  20,
+  5,
   'room member sees only profiles sharing a room'
 );
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000021', true);
@@ -284,7 +284,7 @@ select lives_ok(
 );
 select is(
   (select count(*)::integer from public.room_members where room_id = (select room_id from test_rooms where label = 'main')),
-  18,
+  3,
   'removed member no longer belongs to room'
 );
 

@@ -34,11 +34,11 @@ final class WindowPolicyTests: XCTestCase {
                 if edge.isHorizontal {
                     XCTAssertEqual(frame.midX, screen.visibleFrame.midX, accuracy: 0.001)
                     XCTAssertEqual(frame.width, screen.visibleFrame.width * span.fraction, accuracy: 0.001)
-                    XCTAssertEqual(frame.height, 180, accuracy: 0.001)
+                    XCTAssertEqual(frame.height, 240, accuracy: 0.001)
                 } else {
                     XCTAssertEqual(frame.midY, screen.visibleFrame.midY, accuracy: 0.001)
                     XCTAssertEqual(frame.height, screen.visibleFrame.height * span.fraction, accuracy: 0.001)
-                    XCTAssertEqual(frame.width, 180, accuracy: 0.001)
+                    XCTAssertEqual(frame.width, 240, accuracy: 0.001)
                 }
             }
         }
@@ -127,6 +127,22 @@ final class WindowPolicyTests: XCTestCase {
 
     func testWindowLevelsClickPolicyAndFixedComposerSize() {
         let model = AppModel(preferences: .defaults)
+        let userID = UUID()
+        let roomID = UUID()
+        model.rooms = [Room(
+            id: roomID,
+            name: "테스트",
+            ownerID: userID,
+            members: [RoomMember(
+                userID: userID,
+                nickname: "나",
+                characterID: "pixel_hamster",
+                presence: .online
+            )],
+            inviteCodeHint: "TEST",
+            inviteVersion: 1
+        )]
+        model.preferences.activeRoomID = roomID
         let settings = SettingsWindowController(model: model)
         let group = OverlayWindowGroup(model: model)
         group.setVisible(true)
@@ -137,7 +153,7 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertFalse(group.worldCanHide)
         XCTAssertTrue(group.worldIgnoresMouseEvents)
         XCTAssertFalse(group.interactionIgnoresMouseEvents)
-        XCTAssertTrue(group.interactionIsVisible)
+        XCTAssertFalse(group.interactionIsVisible)
         XCTAssertFalse(group.interactionIsKeyWindow)
         XCTAssertEqual(group.interactionSize, CGSize(width: 400, height: 56))
         XCTAssertEqual(group.worldSize, group.currentFrame.size)
@@ -146,6 +162,45 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertTrue(group.worldCollectionBehavior.contains(.fullScreenAuxiliary))
         XCTAssertTrue(group.interactionCollectionBehavior.contains(.canJoinAllSpaces))
         XCTAssertTrue(settings.window?.childWindows?.isEmpty ?? false)
+
+        group.presentComposer()
+        XCTAssertTrue(group.composerVisible)
+        XCTAssertTrue(group.interactionIsVisible)
+        group.dismissComposer()
+        XCTAssertFalse(group.composerVisible)
+        XCTAssertFalse(group.interactionIsVisible)
+    }
+
+    func testCharacterHotspotIsTheOnlyPointerReceivingOverlayPanel() {
+        let controller = CharacterHotspotWindowController(onClick: {})
+        controller.setFrame(CGRect(x: 100, y: 100, width: 52, height: 52))
+        controller.setVisible(true)
+
+        XCTAssertTrue(controller.isVisible)
+        XCTAssertFalse(controller.ignoresMouseEvents)
+        XCTAssertEqual(controller.size, CGSize(width: 52, height: 52))
+
+        controller.setVisible(false)
+        XCTAssertFalse(controller.isVisible)
+    }
+
+    func testComposerDismissPreservesDraftAndStopsTyping() {
+        let model = AppModel(preferences: .defaults)
+        let roomID = UUID()
+        model.rooms = [Room(
+            id: roomID, name: "테스트", ownerID: UUID(), members: [],
+            inviteCodeHint: "TEST", inviteVersion: 1
+        )]
+        model.preferences.activeRoomID = roomID
+        model.draft = "보존할 초안"
+        var typingChanges: [Bool] = []
+        let group = OverlayWindowGroup(model: model, onTypingChanged: { typingChanges.append($0) })
+        group.setVisible(true)
+        group.presentComposer()
+        group.dismissComposer()
+
+        XCTAssertEqual(model.draft, "보존할 초안")
+        XCTAssertEqual(typingChanges, [true, false])
     }
 
     func testClosingSettingsDoesNotHidePixelWorld() {
@@ -208,5 +263,15 @@ final class WindowPolicyTests: XCTestCase {
         let groups = try XCTUnwrap(menu.item(withTitle: "활성 그룹")?.submenu)
         XCTAssertEqual(groups.item(withTitle: "작업방")?.state, .on)
         XCTAssertNotNil(groups.item(withTitle: "친구방 (3)"))
+    }
+
+    func testStatusItemUsesTemplateHamsterAssetsForReadAndUnreadStates() throws {
+        let regular = try XCTUnwrap(StatusItemIconProvider.image(hasUnread: false))
+        let unread = try XCTUnwrap(StatusItemIconProvider.image(hasUnread: true))
+        XCTAssertTrue(regular.isTemplate)
+        XCTAssertTrue(unread.isTemplate)
+        XCTAssertEqual(regular.size, CGSize(width: 18, height: 18))
+        XCTAssertEqual(unread.size, CGSize(width: 18, height: 18))
+        XCTAssertNotEqual(regular.tiffRepresentation, unread.tiffRepresentation)
     }
 }

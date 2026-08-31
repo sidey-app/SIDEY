@@ -10,6 +10,7 @@ final class AppModel {
     var overlayVisible: Bool { overlayVisibility.isVisible }
     var presence: PresenceState = .online
     var nickname: String
+    var selectedCharacterID: String
     var draft = ""
     private(set) var messageLedger = MessageLedger()
     private(set) var bubbleLedger = ActiveBubbleLedger()
@@ -34,6 +35,7 @@ final class AppModel {
         self.preferences = preferences
         self.overlayVisibility = OverlayVisibility(isVisible: preferences.overlayVisible)
         self.nickname = preferences.nickname
+        self.selectedCharacterID = PixelCharacterCatalog.canonicalID(for: preferences.selectedCharacterID)
         self.launchAtLogin = preferences.launchAtLogin
     }
 
@@ -93,6 +95,8 @@ final class AppModel {
         if let profile = snapshot.profile {
             nickname = profile.nickname
             preferences.nickname = profile.nickname
+            selectedCharacterID = PixelCharacterCatalog.canonicalID(for: profile.characterID)
+            preferences.selectedCharacterID = selectedCharacterID
         }
         if activeRoom == nil || !rooms.contains(where: { $0.id == preferences.activeRoomID }) {
             preferences.activeRoomID = rooms.first?.id
@@ -120,7 +124,7 @@ final class AppModel {
             let baseState = isCurrentUser
                 ? effectiveLocalPresence
                 : (basePresence[key] ?? (member.presence == .typing ? .online : member.presence))
-            guard preferences.showOfflineMembers || baseState != .offline else { return nil }
+            guard isCurrentUser || preferences.showOfflineMembers || baseState != .offline else { return nil }
             return PixelWorldMember(
                 id: member.userID,
                 nickname: member.nickname,

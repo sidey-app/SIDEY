@@ -343,18 +343,6 @@ struct PixelWorldMember: Equatable, Identifiable, Sendable {
     let isCurrentUser: Bool
 }
 
-enum PixelCharacterCatalog {
-    static let pixelHamsterID = "pixel_hamster"
-    static let legacyMintyPupID = "minty_pup"
-
-    static func canonicalID(for storedID: String) -> String {
-        switch storedID {
-        case pixelHamsterID, legacyMintyPupID: pixelHamsterID
-        default: pixelHamsterID
-        }
-    }
-}
-
 struct RealtimeRoomPlan: Equatable, Sendable {
     let desired: Set<UUID>
     let additions: Set<UUID>

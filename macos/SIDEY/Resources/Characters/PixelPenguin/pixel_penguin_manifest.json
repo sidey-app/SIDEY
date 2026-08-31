@@ -1,0 +1,11 @@
+{
+  "character_id": "pixel_penguin",
+  "legacy_aliases": [],
+  "frame_pixel_size": [24, 24],
+  "render_point_size": [48, 48],
+  "sheet_pixel_size": [240, 24],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": { "idle": [0, 1], "walk": [2, 3, 4, 5], "doze": [6, 7], "offline": [8, 9] },
+  "sha256": "f171503f8ffb938732583a4b6f42443e7a69120bb17496f6e8d34372da2ea886"
+}

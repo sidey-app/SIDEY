@@ -8,6 +8,7 @@ final class PreferencesTests: XCTestCase {
         value.overlayVisible = false
         value.quietModeEnabled = true
         value.showOfflineMembers = false
+        value.selectedCharacterID = "pixel_penguin"
         value.overlayRegion = OverlayRegionPreference(
             edge: .right,
             span: .half,
@@ -37,6 +38,7 @@ final class PreferencesTests: XCTestCase {
         XCTAssertEqual(value.overlayRegion.span, .full)
         XCTAssertTrue(value.showOfflineMembers)
         XCTAssertEqual(value.nickname, "민지")
+        XCTAssertEqual(value.selectedCharacterID, "pixel_hamster")
     }
 
     func testLegacyScreenIdentifierMigratesIntoBottomFullRegion() throws {

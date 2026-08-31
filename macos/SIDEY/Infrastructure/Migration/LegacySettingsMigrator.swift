@@ -30,6 +30,9 @@ struct LegacySettingsMigrator: Sendable {
             var migrated = current
             if let profile = localState["profile"] as? [String: Any] {
                 migrated.nickname = profile["nickname"] as? String ?? migrated.nickname
+                if let characterID = profile["character_id"] as? String {
+                    migrated.selectedCharacterID = PixelCharacterCatalog.canonicalID(for: characterID)
+                }
             }
             if let activeRoom = localState["active_room_id"] as? String {
                 migrated.activeRoomID = UUID(uuidString: activeRoom)

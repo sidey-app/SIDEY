@@ -4,6 +4,7 @@ struct OverlayComposerView: View {
     @Bindable var model: AppModel
     let onSend: (String) -> Void
     let onTypingChanged: (Bool) -> Void
+    let onCancel: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
@@ -11,7 +12,7 @@ struct OverlayComposerView: View {
                 if model.draft.isEmpty {
                     Text("짧은 메시지").foregroundStyle(.tertiary)
                 }
-                NativeMessageField(text: $model.draft, onSubmit: send)
+                NativeMessageField(text: $model.draft, onSubmit: send, onCancel: onCancel)
             }
             .frame(maxWidth: .infinity, minHeight: 34, maxHeight: 40)
             .onChange(of: model.draft) { _, value in

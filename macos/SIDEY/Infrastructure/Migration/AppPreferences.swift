@@ -18,7 +18,7 @@ struct CodableRect: Codable, Equatable, Sendable {
 }
 
 struct AppPreferences: Codable, Equatable, Sendable {
-    static let currentSchemaVersion = 5
+    static let currentSchemaVersion = 6
 
     var schemaVersion = currentSchemaVersion
     var hasShownNativeLanding = false
@@ -33,6 +33,7 @@ struct AppPreferences: Codable, Equatable, Sendable {
     var overlayFrame: CodableRect?
     var overlayScreenIdentifier: String?
     var nickname = "나"
+    var selectedCharacterID = PixelCharacterCatalog.pixelHamsterID
     var activeRoomID: UUID?
     var installationSeed = UInt64.random(in: UInt64.min...UInt64.max)
 
@@ -52,6 +53,7 @@ struct AppPreferences: Codable, Equatable, Sendable {
         case overlayFrame
         case overlayScreenIdentifier
         case nickname
+        case selectedCharacterID
         case activeRoomID
         case installationSeed
     }
@@ -82,6 +84,10 @@ struct AppPreferences: Codable, Equatable, Sendable {
             screenIdentifier: overlayScreenIdentifier
         )
         nickname = try values.decodeIfPresent(String.self, forKey: .nickname) ?? "나"
+        selectedCharacterID = PixelCharacterCatalog.canonicalID(
+            for: try values.decodeIfPresent(String.self, forKey: .selectedCharacterID)
+                ?? PixelCharacterCatalog.pixelHamsterID
+        )
         activeRoomID = try values.decodeIfPresent(UUID.self, forKey: .activeRoomID)
         installationSeed = try values.decodeIfPresent(UInt64.self, forKey: .installationSeed)
             ?? UInt64.random(in: UInt64.min...UInt64.max)

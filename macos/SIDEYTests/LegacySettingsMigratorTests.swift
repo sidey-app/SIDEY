@@ -20,6 +20,7 @@ final class LegacySettingsMigratorTests: XCTestCase {
         let migrated = migrator.migrateIfNeeded(store)
 
         XCTAssertEqual(migrated.nickname, "민지")
+        XCTAssertEqual(migrated.selectedCharacterID, "pixel_hamster")
         XCTAssertEqual(migrated.activeRoomID?.uuidString, "A33009C1-B56D-4DEB-9CF2-ECEB778B658F")
         XCTAssertFalse(migrated.overlayVisible)
         XCTAssertFalse(migrated.overlayLocked)

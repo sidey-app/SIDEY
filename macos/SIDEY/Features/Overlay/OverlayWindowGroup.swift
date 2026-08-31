@@ -16,7 +16,7 @@ struct OverlayScreenGeometry: Equatable, Sendable {
 }
 
 enum OverlayRegionLayout {
-    static let preferredDepth: CGFloat = 180
+    static let preferredDepth: CGFloat = 240
 
     static func screen(
         for preference: OverlayRegionPreference,
@@ -57,14 +57,33 @@ enum OverlayRegionLayout {
 
 @MainActor
 final class OverlayWindowGroup {
-    private let worldWindow: PixelWorldWindowController
-    private let interactionWindow: OverlayInteractionWindowController
     private let model: AppModel
+    private let onSend: (String) -> Void
+    private let onTypingChanged: (Bool) -> Void
     private let onRegionChanged: () -> Void
+    private lazy var worldWindow = PixelWorldWindowController(
+        model: model,
+        frame: .zero,
+        onCurrentUserFrameChanged: { [weak self] frame in self?.currentUserFrameChanged(frame) }
+    )
+    private lazy var interactionWindow = OverlayInteractionWindowController(
+        model: model,
+        onSend: { [weak self] body in
+            self?.dismissComposer(sendTypingStop: false)
+            self?.onSend(body)
+        },
+        onTypingChanged: { [weak self] active in self?.onTypingChanged(active) },
+        onCancel: { [weak self] in self?.dismissComposer() }
+    )
+    private lazy var hotspotWindow = CharacterHotspotWindowController(
+        onClick: { [weak self] in self?.toggleComposer() }
+    )
     private var screenObserver: ScreenObserverToken?
     private(set) var currentFrame: CGRect = .zero
     private(set) var currentScreenIdentifier: String?
     private var overlayVisible = false
+    private(set) var composerVisible = false
+    private var currentUserLocalFrame: CGRect?
 
     init(
         model: AppModel,
@@ -73,13 +92,9 @@ final class OverlayWindowGroup {
         onRegionChanged: @escaping () -> Void = {}
     ) {
         self.model = model
+        self.onSend = onSend
+        self.onTypingChanged = onTypingChanged
         self.onRegionChanged = onRegionChanged
-        worldWindow = PixelWorldWindowController(model: model, frame: .zero)
-        interactionWindow = OverlayInteractionWindowController(
-            model: model,
-            onSend: onSend,
-            onTypingChanged: onTypingChanged
-        )
         screenObserver = ScreenObserverToken(NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
@@ -104,22 +119,44 @@ final class OverlayWindowGroup {
         if visible {
             apply(preference: model.preferences.overlayRegion, persistFallback: true)
             worldWindow.orderFront()
-            interactionWindow.setVisible(true)
+            hotspotWindow.setVisible(true)
         } else {
+            dismissComposer()
+            hotspotWindow.setVisible(false)
             worldWindow.orderOut()
-            interactionWindow.setVisible(false)
         }
     }
 
     func focusMessageField() {
-        guard overlayVisible else { return }
+        presentComposer()
+    }
+
+    func presentComposer() {
+        guard overlayVisible, model.activeRoom != nil else { return }
+        composerVisible = true
+        worldWindow.setComposerVisible(true)
+        interactionWindow.setVisible(true)
         interactionWindow.focusMessageField()
+        if !MessageValidator.normalized(model.draft).isEmpty {
+            onTypingChanged(true)
+        }
+    }
+
+    func dismissComposer() {
+        dismissComposer(sendTypingStop: true)
+    }
+
+    func toggleComposer() {
+        composerVisible ? dismissComposer() : presentComposer()
     }
 
     var worldLevel: NSWindow.Level { worldWindow.level }
     var interactionLevel: NSWindow.Level { interactionWindow.level }
     var worldIsVisible: Bool { worldWindow.isVisible }
     var interactionIsVisible: Bool { interactionWindow.isVisible }
+    var hotspotIsVisible: Bool { hotspotWindow.isVisible }
+    var hotspotIgnoresMouseEvents: Bool { hotspotWindow.ignoresMouseEvents }
+    var hotspotSize: CGSize { hotspotWindow.size }
     var interactionSize: CGSize { interactionWindow.size }
     var worldSize: CGSize { worldWindow.size }
     var worldCanHide: Bool { worldWindow.canHide }
@@ -142,6 +179,7 @@ final class OverlayWindowGroup {
         currentFrame = OverlayRegionLayout.frame(for: resolved, on: screen)
         worldWindow.setFrame(currentFrame)
         interactionWindow.setScreenFrame(screen.visibleFrame)
+        positionHotspot()
 
         if persistFallback,
            (!requestedScreenExists || model.preferences.overlayRegion != resolved) {
@@ -159,6 +197,34 @@ final class OverlayWindowGroup {
         model.availableScreens = screenGeometries.map {
             OverlayScreenOption(id: $0.identifier, name: $0.name)
         }
+    }
+
+    private func dismissComposer(sendTypingStop: Bool) {
+        guard composerVisible || interactionWindow.isVisible else { return }
+        composerVisible = false
+        interactionWindow.setVisible(false)
+        worldWindow.setComposerVisible(false)
+        if sendTypingStop { onTypingChanged(false) }
+    }
+
+    private func currentUserFrameChanged(_ localFrame: CGRect?) {
+        currentUserLocalFrame = localFrame
+        guard localFrame != nil else {
+            hotspotWindow.setFrame(nil)
+            dismissComposer()
+            return
+        }
+        positionHotspot()
+    }
+
+    private func positionHotspot() {
+        guard let localFrame = currentUserLocalFrame else { return }
+        hotspotWindow.setFrame(CGRect(
+            x: currentFrame.minX + localFrame.minX,
+            y: currentFrame.minY + localFrame.minY,
+            width: localFrame.width,
+            height: localFrame.height
+        ))
     }
 
     private var screenGeometries: [OverlayScreenGeometry] {

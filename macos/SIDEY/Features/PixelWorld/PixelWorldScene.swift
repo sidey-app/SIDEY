@@ -38,12 +38,79 @@ enum PixelWorldRendererPolicy {
     }
 }
 
+struct EdgeTrackGeometry: Equatable, Sendable {
+    static let characterPointSize: CGFloat = 48
+    static let hotspotPointSize: CGFloat = 52
+    static let footInset: CGFloat = characterPointSize / 2
+        - CGFloat(PixelCharacterCatalog.footBaselinePixel) * 2
+
+    let bounds: CGRect
+    let edge: OverlayEdge
+
+    var tangentLength: CGFloat { edge.isHorizontal ? bounds.width : bounds.height }
+
+    var trackRange: ClosedRange<CGFloat> {
+        let inset = min(Self.hotspotPointSize / 2, max(0, tangentLength / 2))
+        return inset...(max(inset, tangentLength - inset))
+    }
+
+    func point(for tangent: CGFloat) -> CGPoint {
+        let value = clamped(tangent)
+        return switch edge {
+        case .bottom:
+            CGPoint(x: bounds.minX + value, y: bounds.minY + Self.footInset)
+        case .top:
+            CGPoint(x: bounds.minX + value, y: bounds.maxY - Self.footInset)
+        case .left:
+            CGPoint(x: bounds.minX + Self.footInset, y: bounds.minY + value)
+        case .right:
+            CGPoint(x: bounds.maxX - Self.footInset, y: bounds.minY + value)
+        }
+    }
+
+    func footPoint(for tangent: CGFloat) -> CGPoint {
+        let anchor = point(for: tangent)
+        let localFoot = CGPoint(x: 0, y: -Self.footInset)
+        let cosine = cos(edge.presentationRotation)
+        let sine = sin(edge.presentationRotation)
+        return CGPoint(
+            x: anchor.x + localFoot.x * cosine - localFoot.y * sine,
+            y: anchor.y + localFoot.x * sine + localFoot.y * cosine
+        )
+    }
+
+    func worldFrame(for localFrame: CGRect, at tangent: CGFloat) -> CGRect {
+        let anchor = point(for: tangent)
+        let transform = CGAffineTransform(translationX: anchor.x, y: anchor.y)
+            .rotated(by: edge.presentationRotation)
+        return localFrame.applying(transform)
+    }
+
+    func clamped(_ tangent: CGFloat) -> CGFloat {
+        let finite = tangent.isFinite ? tangent : trackRange.lowerBound
+        return min(max(finite, trackRange.lowerBound), trackRange.upperBound)
+    }
+}
+
 struct PixelMovementAgent: Equatable, Identifiable, Sendable {
     let id: UUID
-    var position: CGPoint
-    var velocity: CGVector = .zero
-    var target: CGPoint
+    var trackPosition: CGFloat
+    var velocity: CGFloat = 0
+    var target: CGFloat
     var idleRemaining: TimeInterval = 0
+}
+
+enum PixelMovementPolicy {
+    static func stoppedMemberIDs(in members: some Sequence<PixelWorldMember>) -> Set<UUID> {
+        Set(members.compactMap { member in
+            switch member.presence {
+            case .away, .offline, .reconnecting:
+                member.id
+            case .online, .typing:
+                nil
+            }
+        })
+    }
 }
 
 enum PixelMovementSimulation {
@@ -53,123 +120,156 @@ enum PixelMovementSimulation {
     static func step(
         agents: inout [PixelMovementAgent],
         deltaTime rawDeltaTime: TimeInterval,
-        bounds: CGRect,
+        geometry: EdgeTrackGeometry,
         avoidanceRects: [CGRect],
         stoppedIDs: Set<UUID>
     ) {
-        guard !agents.isEmpty, bounds.width.isFinite, bounds.height.isFinite else { return }
+        guard !agents.isEmpty, geometry.tangentLength.isFinite else { return }
         let deltaTime = min(max(rawDeltaTime, 0), 1.0 / 10.0)
         guard deltaTime > 0 else { return }
-        let inset = safePlayableBounds(bounds)
 
-        var separation: [UUID: CGVector] = [:]
+        var separation: [UUID: CGFloat] = [:]
         for lhsIndex in agents.indices {
             for rhsIndex in agents.indices where rhsIndex > lhsIndex {
                 let lhs = agents[lhsIndex]
                 let rhs = agents[rhsIndex]
-                let dx = lhs.position.x - rhs.position.x
-                let dy = lhs.position.y - rhs.position.y
-                let distanceSquared = dx * dx + dy * dy
+                let delta = lhs.trackPosition - rhs.trackPosition
+                let distance = abs(delta)
                 let desiredDistance = characterRadius * 2
-                guard distanceSquared < desiredDistance * desiredDistance else { continue }
-                let direction: CGVector
-                if distanceSquared > 0.0001 {
-                    let inverseDistance = 1 / sqrt(distanceSquared)
-                    direction = CGVector(dx: dx * inverseDistance, dy: dy * inverseDistance)
+                guard distance < desiredDistance else { continue }
+                let direction: CGFloat
+                if distance > 0.001 {
+                    direction = delta < 0 ? -1 : 1
                 } else {
-                    direction = deterministicDirection(lhs.id, rhs.id)
+                    direction = lhs.id.uuidString < rhs.id.uuidString ? -1 : 1
                 }
-                let distance = sqrt(max(distanceSquared, 0.0001))
                 let strength = max(0, 1 - distance / desiredDistance) * 30
-                separation[lhs.id, default: .zero] += direction * strength
-                separation[rhs.id, default: .zero] -= direction * strength
+                separation[lhs.id, default: 0] += direction * strength
+                separation[rhs.id, default: 0] -= direction * strength
             }
         }
 
         for index in agents.indices {
             var agent = agents[index]
             guard !stoppedIDs.contains(agent.id) else {
-                agent.velocity = .zero
+                agent.velocity = 0
                 agents[index] = agent
                 continue
             }
             if agent.idleRemaining > 0 {
                 agent.idleRemaining = max(0, agent.idleRemaining - deltaTime)
-                agent.velocity = .zero
+                agent.velocity = 0
                 agents[index] = agent
                 continue
             }
 
-            let toTarget = CGVector(
-                dx: agent.target.x - agent.position.x,
-                dy: agent.target.y - agent.position.y
-            )
-            let targetDistance = toTarget.length
-            var acceleration = targetDistance > 2
-                ? toTarget.normalized * 32
-                : .zero
-            acceleration += separation[agent.id, default: .zero]
+            let delta = agent.target - agent.trackPosition
+            var acceleration: CGFloat = abs(delta) > 2 ? (delta < 0 ? -32 : 32) : 0
+            acceleration += separation[agent.id, default: 0]
             for rect in avoidanceRects {
-                acceleration += avoidanceForce(position: agent.position, rect: rect)
+                acceleration += avoidanceForce(
+                    trackPosition: agent.trackPosition,
+                    geometry: geometry,
+                    rect: rect
+                )
             }
 
             agent.velocity += acceleration * CGFloat(deltaTime)
             agent.velocity *= pow(0.82, CGFloat(deltaTime * 30))
-            if agent.velocity.length > maximumSpeed {
-                agent.velocity = agent.velocity.normalized * maximumSpeed
-            }
-            agent.position.x += agent.velocity.dx * CGFloat(deltaTime)
-            agent.position.y += agent.velocity.dy * CGFloat(deltaTime)
-            agent.position = clamped(agent.position, to: inset)
+            agent.velocity = min(max(agent.velocity, -maximumSpeed), maximumSpeed)
+            agent.trackPosition = geometry.clamped(agent.trackPosition + agent.velocity * CGFloat(deltaTime))
 
-            if !agent.position.x.isFinite || !agent.position.y.isFinite
-                || !agent.velocity.dx.isFinite || !agent.velocity.dy.isFinite {
-                agent.position = CGPoint(x: inset.midX, y: inset.midY)
-                agent.velocity = .zero
+            if !agent.trackPosition.isFinite || !agent.velocity.isFinite {
+                agent.trackPosition = geometry.trackRange.lowerBound
+                agent.velocity = 0
             }
             agents[index] = agent
         }
     }
 
-    static func safePlayableBounds(_ bounds: CGRect) -> CGRect {
-        let horizontalInset = min(characterRadius, max(0, bounds.width / 2))
-        let verticalInset = min(characterRadius, max(0, bounds.height / 2))
-        return bounds.insetBy(dx: horizontalInset, dy: verticalInset)
-    }
-
-    private static func avoidanceForce(position: CGPoint, rect: CGRect) -> CGVector {
+    private static func avoidanceForce(
+        trackPosition: CGFloat,
+        geometry: EdgeTrackGeometry,
+        rect: CGRect
+    ) -> CGFloat {
         let expanded = rect.insetBy(dx: -characterRadius, dy: -characterRadius)
-        guard expanded.contains(position) else {
-            let nearest = CGPoint(
-                x: min(max(position.x, expanded.minX), expanded.maxX),
-                y: min(max(position.y, expanded.minY), expanded.maxY)
+        let point = geometry.point(for: trackPosition)
+        guard expanded.contains(point) else { return 0 }
+        let lower = geometry.edge.isHorizontal
+            ? expanded.minX - geometry.bounds.minX
+            : expanded.minY - geometry.bounds.minY
+        let upper = geometry.edge.isHorizontal
+            ? expanded.maxX - geometry.bounds.minX
+            : expanded.maxY - geometry.bounds.minY
+        return trackPosition - lower < upper - trackPosition ? -90 : 90
+    }
+}
+
+struct PixelBubbleLayout: Equatable, Sendable {
+    let size: CGSize
+    let localCenterX: CGFloat
+    let tailTipX: CGFloat
+    let totalFrame: CGRect
+
+    static func make(
+        text: String,
+        isTyping: Bool,
+        tangentPosition: CGFloat,
+        tangentLength: CGFloat,
+        edge: OverlayEdge
+    ) -> Self {
+        let maximumWidth = min(220, max(24, tangentLength - 16))
+        let size: CGSize
+        if isTyping {
+            size = CGSize(width: min(42, maximumWidth), height: 30)
+        } else {
+            let font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
+            let paragraph = NSMutableParagraphStyle()
+            paragraph.lineBreakMode = .byCharWrapping
+            paragraph.alignment = .center
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .paragraphStyle: paragraph
+            ]
+            let measured = (text as NSString).boundingRect(
+                with: CGSize(width: max(8, maximumWidth - 16), height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                attributes: attributes
+            ).integral.size
+            size = CGSize(
+                width: min(maximumWidth, max(28, ceil(measured.width) + 16)),
+                height: max(28, ceil(measured.height) + 14)
             )
-            let delta = CGVector(dx: position.x - nearest.x, dy: position.y - nearest.y)
-            let influence: CGFloat = 16
-            guard delta.length > 0, delta.length < influence else { return .zero }
-            return delta.normalized * (1 - delta.length / influence) * 45
         }
 
-        let exits: [(CGFloat, CGVector)] = [
-            (position.x - expanded.minX, CGVector(dx: -1, dy: 0)),
-            (expanded.maxX - position.x, CGVector(dx: 1, dy: 0)),
-            (position.y - expanded.minY, CGVector(dx: 0, dy: -1)),
-            (expanded.maxY - position.y, CGVector(dx: 0, dy: 1))
-        ]
-        return (exits.min(by: { $0.0 < $1.0 })?.1 ?? .zero) * 90
-    }
-
-    private static func deterministicDirection(_ lhs: UUID, _ rhs: UUID) -> CGVector {
-        let comparison = lhs.uuidString < rhs.uuidString ? 1.0 : -1.0
-        return CGVector(dx: comparison, dy: 0)
-    }
-
-    private static func clamped(_ point: CGPoint, to rect: CGRect) -> CGPoint {
-        CGPoint(
-            x: min(max(point.x, rect.minX), rect.maxX),
-            y: min(max(point.y, rect.minY), rect.maxY)
+        let halfWidth = size.width / 2
+        let worldCenter = min(
+            max(tangentPosition, halfWidth + 4),
+            max(halfWidth + 4, tangentLength - halfWidth - 4)
         )
+        let tangentSign: CGFloat = switch edge {
+        case .bottom, .right: 1
+        case .top, .left: -1
+        }
+        let localCenterX = (worldCenter - tangentPosition) * tangentSign
+        let tailTipX = -localCenterX
+        let bodyFrame = CGRect(
+            x: localCenterX - halfWidth,
+            y: 52,
+            width: size.width,
+            height: size.height
+        )
+        let tailPoint = CGPoint(x: 0, y: 44)
+        let total = bodyFrame.union(CGRect(origin: tailPoint, size: CGSize(width: 0.001, height: 0.001)))
+        return Self(size: size, localCenterX: localCenterX, tailTipX: tailTipX, totalFrame: total)
     }
+}
+
+struct PixelCharacterVisualState: Equatable {
+    let motion: PixelCharacterMotion
+    let alpha: CGFloat
+    let colorBlendFactor: CGFloat
+    let showsDozeLabel: Bool
 }
 
 final class PixelWorldScene: SKScene {
@@ -180,7 +280,11 @@ final class PixelWorldScene: SKScene {
     private var currentRoomID: UUID?
     private var installationSeed: UInt64 = 0
     private var edge: OverlayEdge = .bottom
+    private var composerVisible = false
     private var lastUpdateTime: TimeInterval?
+    private var lastHotspotReportTime: TimeInterval = 0
+    private var lastHotspotFrame: CGRect?
+    private var onCurrentUserFrameChanged: ((CGRect?) -> Void)?
 
     override init(size: CGSize) {
         super.init(size: size)
@@ -195,24 +299,22 @@ final class PixelWorldScene: SKScene {
 
     override func didChangeSize(_ oldSize: CGSize) {
         super.didChangeSize(oldSize)
-        let safeBounds = PixelMovementSimulation.safePlayableBounds(frame)
+        let geometry = trackGeometry
         let needsInitialLayout = (oldSize.width <= 1 || oldSize.height <= 1)
             && size.width > 1 && size.height > 1
         for id in Array(agents.keys) {
             guard var agent = agents[id] else { continue }
             if needsInitialLayout {
-                // NSViewRepresentable may create SKView at zero size and lay it
-                // out on the next pass. Re-seed once instead of clamping every
-                // new member onto the same corner of the now-valid region.
-                agent.position = stablePoint(roomID: currentRoomID, userID: id)
-                agent.target = stablePoint(roomID: currentRoomID, userID: id, salt: 1)
+                agent.trackPosition = stableTrackPosition(roomID: currentRoomID, userID: id)
+                agent.target = stableTrackPosition(roomID: currentRoomID, userID: id, salt: 1)
             } else {
-                agent.position = clamped(agent.position, to: safeBounds)
-                agent.target = clamped(agent.target, to: safeBounds)
+                agent.trackPosition = geometry.clamped(agent.trackPosition)
+                agent.target = geometry.clamped(agent.target)
             }
             agents[id] = agent
-            characterNodes[id]?.position = agent.position
+            characterNodes[id]?.position = geometry.point(for: agent.trackPosition)
         }
+        reportCurrentUserFrame(force: true)
     }
 
     func apply(
@@ -220,16 +322,21 @@ final class PixelWorldScene: SKScene {
         members requestedMembers: [PixelWorldMember],
         bubbles: [ActiveBubble],
         edge: OverlayEdge,
-        installationSeed: UInt64
+        installationSeed: UInt64,
+        composerVisible: Bool = false,
+        onCurrentUserFrameChanged: ((CGRect?) -> Void)? = nil
     ) {
+        self.onCurrentUserFrameChanged = onCurrentUserFrameChanged
         let roomChanged = roomID != currentRoomID
         currentRoomID = roomID
         self.installationSeed = installationSeed
         self.edge = edge
+        self.composerVisible = composerVisible
         if roomChanged {
             characterNodes.values.forEach { $0.removeFromParent() }
             characterNodes.removeAll()
             agents.removeAll()
+            lastHotspotFrame = nil
         }
 
         let requestedByID = Dictionary(uniqueKeysWithValues: requestedMembers.map { ($0.id, $0) })
@@ -241,53 +348,53 @@ final class PixelWorldScene: SKScene {
 
         members = requestedByID
         activeBubbles = Dictionary(uniqueKeysWithValues: bubbles.map { ($0.senderID, $0) })
+        let geometry = trackGeometry
         for member in requestedMembers {
             let node: PixelCharacterNode
             if let existing = characterNodes[member.id] {
                 node = existing
             } else {
-                node = PixelCharacterNode(memberID: member.id)
+                node = PixelCharacterNode(memberID: member.id, characterID: member.characterID)
                 characterNodes[member.id] = node
                 addChild(node)
-                let initial = stablePoint(roomID: roomID, userID: member.id)
-                let target = stablePoint(roomID: roomID, userID: member.id, salt: 1)
+                let initial = stableTrackPosition(roomID: roomID, userID: member.id)
+                let target = stableTrackPosition(roomID: roomID, userID: member.id, salt: 1)
                 agents[member.id] = PixelMovementAgent(
                     id: member.id,
-                    position: initial,
+                    trackPosition: initial,
                     target: target,
                     idleRemaining: stableUnit(roomID: roomID, userID: member.id, salt: 2) * 1.5
                 )
-                node.position = initial
+                node.position = geometry.point(for: initial)
             }
+            let tangent = agents[member.id]?.trackPosition ?? geometry.trackRange.lowerBound
             node.apply(
                 member: member,
                 bubble: activeBubbles[member.id],
-                presentationRotation: edge.presentationRotation
+                edge: edge,
+                tangentPosition: tangent,
+                tangentLength: geometry.tangentLength
             )
         }
+        reportCurrentUserFrame(force: true)
     }
 
     override func update(_ currentTime: TimeInterval) {
         let deltaTime = lastUpdateTime.map { currentTime - $0 } ?? (1.0 / 30.0)
         lastUpdateTime = currentTime
-        let stoppedIDs = Set(members.values.compactMap { member -> UUID? in
-            if activeBubbles[member.id] != nil { return member.id }
-            switch member.presence {
-            case .away, .offline, .reconnecting: return member.id
-            case .online, .typing: return nil
-            }
-        })
+        let stoppedIDs = PixelMovementPolicy.stoppedMemberIDs(in: members.values)
+        let geometry = trackGeometry
         var orderedAgents = agents.values.sorted { $0.id.uuidString < $1.id.uuidString }
         PixelMovementSimulation.step(
             agents: &orderedAgents,
             deltaTime: deltaTime,
-            bounds: frame,
+            geometry: geometry,
             avoidanceRects: composerAvoidanceRects,
             stoppedIDs: stoppedIDs
         )
 
         for var agent in orderedAgents {
-            if !stoppedIDs.contains(agent.id), agent.position.distance(to: agent.target) < 3 {
+            if !stoppedIDs.contains(agent.id), abs(agent.trackPosition - agent.target) < 3 {
                 agent.idleRemaining = 0.8 + stableUnit(
                     roomID: currentRoomID,
                     userID: agent.id,
@@ -297,30 +404,55 @@ final class PixelWorldScene: SKScene {
             }
             agents[agent.id] = agent
             guard let node = characterNodes[agent.id], let member = members[agent.id] else { continue }
-            node.position = agent.position
-            let moving = agent.velocity.length > 2 && agent.idleRemaining <= 0 && !stoppedIDs.contains(agent.id)
-            node.updateMotion(member: member, moving: moving, hasMessageBubble: activeBubbles[agent.id] != nil)
+            node.position = geometry.point(for: agent.trackPosition)
+            let moving = abs(agent.velocity) > 2 && agent.idleRemaining <= 0 && !stoppedIDs.contains(agent.id)
+            node.updateMotion(member: member, moving: moving)
+            node.updatePresentationLayout(
+                tangentPosition: agent.trackPosition,
+                tangentLength: geometry.tangentLength,
+                edge: edge
+            )
+        }
+        if currentTime - lastHotspotReportTime >= 1.0 / 15.0 {
+            lastHotspotReportTime = currentTime
+            reportCurrentUserFrame(force: false)
         }
     }
 
     var nodeIDs: Set<UUID> { Set(characterNodes.keys) }
     var agentStates: [PixelMovementAgent] { agents.values.sorted { $0.id.uuidString < $1.id.uuidString } }
+    var trackGeometry: EdgeTrackGeometry { EdgeTrackGeometry(bounds: frame, edge: edge) }
+
+    func renderedCharacterID(for memberID: UUID) -> String? {
+        characterNodes[memberID]?.characterID
+    }
+
+    func renderedBubbleBody(for memberID: UUID) -> String? {
+        characterNodes[memberID]?.bubbleBody
+    }
+
+    func renderedBubbleIsTyping(for memberID: UUID) -> Bool {
+        characterNodes[memberID]?.bubbleIsTyping ?? false
+    }
+
+    func renderedVisualState(for memberID: UUID) -> PixelCharacterVisualState? {
+        characterNodes[memberID]?.visualState
+    }
 
     private var composerAvoidanceRects: [CGRect] {
-        guard edge == .bottom else { return [] }
+        guard composerVisible, edge == .bottom else { return [] }
         return [CGRect(x: size.width / 2 - 220, y: 0, width: 440, height: 76).intersection(frame)]
             .filter { !$0.isNull && !$0.isEmpty }
     }
 
-    private func stablePoint(roomID: UUID?, userID: UUID, salt: UInt64 = 0) -> CGPoint {
-        let safe = PixelMovementSimulation.safePlayableBounds(frame)
-        let x = stableUnit(roomID: roomID, userID: userID, salt: salt)
-        let y = stableUnit(roomID: roomID, userID: userID, salt: salt &+ 0x9E3779B97F4A7C15)
-        return CGPoint(x: safe.minX + safe.width * x, y: safe.minY + safe.height * y)
+    private func stableTrackPosition(roomID: UUID?, userID: UUID, salt: UInt64 = 0) -> CGFloat {
+        let range = trackGeometry.trackRange
+        return range.lowerBound + (range.upperBound - range.lowerBound)
+            * stableUnit(roomID: roomID, userID: userID, salt: salt)
     }
 
-    private func randomTarget(for userID: UUID, time: TimeInterval) -> CGPoint {
-        stablePoint(
+    private func randomTarget(for userID: UUID, time: TimeInterval) -> CGFloat {
+        stableTrackPosition(
             roomID: currentRoomID,
             userID: userID,
             salt: UInt64(max(0, time * 10)) &+ 0xD1B54A32D192ED03
@@ -346,29 +478,64 @@ final class PixelWorldScene: SKScene {
         return withUnsafeBytes(of: &value) { Array($0) }
     }
 
-    private func clamped(_ point: CGPoint, to rect: CGRect) -> CGPoint {
-        CGPoint(
-            x: min(max(point.x, rect.minX), rect.maxX),
-            y: min(max(point.y, rect.minY), rect.maxY)
+    private func reportCurrentUserFrame(force: Bool) {
+        guard let member = members.values.first(where: \.isCurrentUser),
+              let node = characterNodes[member.id]
+        else {
+            if lastHotspotFrame != nil || force {
+                lastHotspotFrame = nil
+                onCurrentUserFrameChanged?(nil)
+            }
+            return
+        }
+        let frame = CGRect(
+            x: node.position.x - EdgeTrackGeometry.hotspotPointSize / 2,
+            y: node.position.y - EdgeTrackGeometry.hotspotPointSize / 2,
+            width: EdgeTrackGeometry.hotspotPointSize,
+            height: EdgeTrackGeometry.hotspotPointSize
         )
+        let moved = lastHotspotFrame.map {
+            hypot($0.midX - frame.midX, $0.midY - frame.midY) >= 1
+        } ?? true
+        guard force || moved else { return }
+        lastHotspotFrame = frame
+        onCurrentUserFrameChanged?(frame)
     }
 }
 
 private final class PixelCharacterNode: SKNode {
-    private static let animationKey = "pixel-hamster-motion"
+    private static let animationKey = "pixel-character-motion"
     private let memberID: UUID
     private let presentation = SKNode()
-    private let sprite = SKSpriteNode(texture: PixelHamsterTextures.shared.idle[0])
-    private let nickname = SKLabelNode(fontNamed: "SFProRounded-Semibold")
+    private let sprite = SKSpriteNode()
+    private let nickname = SKLabelNode(fontNamed: "AppleSDGothicNeo-SemiBold")
     private let statusDot = SKShapeNode(circleOfRadius: 3)
-    private var bubbleNode: SKNode?
-    private var currentMotion: PixelHamsterMotion?
+    private let dozeLabel = SKLabelNode(fontNamed: "AppleSDGothicNeo-Bold")
+    private var bubbleNode: PixelBubbleNode?
+    private var currentMotion: PixelCharacterMotion?
+    private var currentBubbleKey: String?
+    private(set) var characterID: String
 
-    init(memberID: UUID) {
+    var bubbleBody: String? { bubbleNode?.body }
+    var bubbleIsTyping: Bool { bubbleNode?.isTyping ?? false }
+    var visualState: PixelCharacterVisualState? {
+        currentMotion.map {
+            PixelCharacterVisualState(
+                motion: $0,
+                alpha: sprite.alpha,
+                colorBlendFactor: sprite.colorBlendFactor,
+                showsDozeLabel: !dozeLabel.isHidden
+            )
+        }
+    }
+
+    init(memberID: UUID, characterID: String) {
         self.memberID = memberID
+        self.characterID = PixelCharacterCatalog.canonicalID(for: characterID)
         super.init()
         addChild(presentation)
         sprite.size = CGSize(width: 48, height: 48)
+        sprite.texture = PixelCharacterTextureStore.shared.textures(for: self.characterID).idle[0]
         sprite.texture?.filteringMode = .nearest
         presentation.addChild(sprite)
 
@@ -376,129 +543,289 @@ private final class PixelCharacterNode: SKNode {
         nickname.fontColor = .white
         nickname.verticalAlignmentMode = .center
         nickname.horizontalAlignmentMode = .center
-        nickname.position = CGPoint(x: 0, y: -32)
+        nickname.position = CGPoint(x: 0, y: 32)
+        nickname.zPosition = 12
         presentation.addChild(nickname)
 
         statusDot.strokeColor = .clear
-        statusDot.position = CGPoint(x: -30, y: -32)
+        statusDot.position = CGPoint(x: -30, y: 32)
+        statusDot.zPosition = 12
         presentation.addChild(statusDot)
+
+        dozeLabel.text = "z"
+        dozeLabel.fontSize = 11
+        dozeLabel.fontColor = .white
+        dozeLabel.position = CGPoint(x: 22, y: 20)
+        dozeLabel.zPosition = 14
+        dozeLabel.isHidden = true
+        presentation.addChild(dozeLabel)
     }
 
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func apply(member: PixelWorldMember, bubble: ActiveBubble?, presentationRotation: CGFloat) {
-        presentation.zRotation = presentationRotation
+    func apply(
+        member: PixelWorldMember,
+        bubble: ActiveBubble?,
+        edge: OverlayEdge,
+        tangentPosition: CGFloat,
+        tangentLength: CGFloat
+    ) {
+        let canonicalID = PixelCharacterCatalog.canonicalID(for: member.characterID)
+        if canonicalID != characterID {
+            characterID = canonicalID
+            currentMotion = nil
+            sprite.removeAction(forKey: Self.animationKey)
+        }
+        presentation.zRotation = edge.presentationRotation
         nickname.text = member.isCurrentUser ? "\(member.nickname) · 나" : member.nickname
         statusDot.fillColor = PresenceIndicatorTone.tone(for: member.presence).color
-        updateBubble(body: bubble?.body ?? (member.isTyping ? "…" : nil), isTyping: bubble == nil && member.isTyping)
-        updateMotion(member: member, moving: false, hasMessageBubble: bubble != nil)
+        updateBubble(
+            bubble: bubble,
+            isTyping: bubble == nil && member.isTyping,
+            tangentPosition: tangentPosition,
+            tangentLength: tangentLength,
+            edge: edge
+        )
+        updateMotion(member: member, moving: false)
     }
 
-    func updateMotion(member: PixelWorldMember, moving: Bool, hasMessageBubble: Bool) {
-        let requested: PixelHamsterMotion
+    func updateMotion(member: PixelWorldMember, moving: Bool) {
+        let requested: PixelCharacterMotion
         switch member.presence {
-        case .away, .offline:
-            requested = .sleep
+        case .away:
+            requested = .doze
+        case .offline:
+            requested = .offline
         case .reconnecting:
             requested = .stopped
         case .online, .typing:
-            requested = hasMessageBubble ? .idle : (moving ? .walk : .idle)
+            requested = moving ? .walk : .idle
         }
+
+        sprite.alpha = member.presence == .offline ? 0.75 : 1
+        sprite.color = .systemGray
+        sprite.colorBlendFactor = member.presence == .offline ? 0.58 : 0
+        setDozeVisible(member.presence == .away)
+
         guard requested != currentMotion else { return }
         currentMotion = requested
         sprite.removeAction(forKey: Self.animationKey)
+        let set = PixelCharacterTextureStore.shared.textures(for: characterID)
         let textures: [SKTexture]
         let duration: TimeInterval
         switch requested {
         case .idle:
-            textures = PixelHamsterTextures.shared.idle
+            textures = set.idle
             duration = 0.55
         case .walk:
-            textures = PixelHamsterTextures.shared.walk
+            textures = set.walk
             duration = 0.16
-        case .sleep:
-            textures = PixelHamsterTextures.shared.sleep
-            duration = 0.7
+        case .doze:
+            textures = set.doze
+            duration = 0.8
+        case .offline:
+            textures = set.offline
+            duration = 1.2
         case .stopped:
-            sprite.texture = PixelHamsterTextures.shared.idle[0]
+            sprite.texture = set.idle[0]
             return
         }
         textures.forEach { $0.filteringMode = .nearest }
         sprite.run(.repeatForever(.animate(with: textures, timePerFrame: duration)), withKey: Self.animationKey)
     }
 
-    private func updateBubble(body: String?, isTyping: Bool) {
-        bubbleNode?.removeFromParent()
-        bubbleNode = nil
-        guard let body else { return }
+    func updatePresentationLayout(tangentPosition: CGFloat, tangentLength: CGFloat, edge: OverlayEdge) {
+        guard let bubbleNode else { return }
+        bubbleNode.apply(layout: PixelBubbleLayout.make(
+            text: bubbleNode.body,
+            isTyping: bubbleNode.isTyping,
+            tangentPosition: tangentPosition,
+            tangentLength: tangentLength,
+            edge: edge
+        ))
+    }
 
-        let lineCount = max(1, min(8, Int(ceil(Double(body.count) / 18.0))))
-        let size = CGSize(width: isTyping ? 42 : 164, height: CGFloat(22 + lineCount * 14))
-        let background = SKShapeNode(rectOf: size, cornerRadius: 9)
-        background.fillColor = NSColor.white.withAlphaComponent(0.94)
-        background.strokeColor = NSColor.black.withAlphaComponent(0.12)
-        background.lineWidth = 1
-        background.position = CGPoint(x: 0, y: 50 + size.height / 2)
-        background.zPosition = 20
+    private func updateBubble(
+        bubble: ActiveBubble?,
+        isTyping: Bool,
+        tangentPosition: CGFloat,
+        tangentLength: CGFloat,
+        edge: OverlayEdge
+    ) {
+        let body = bubble?.body ?? (isTyping ? "." : nil)
+        let key = bubble.map { "message:\($0.messageID.uuidString)" } ?? (isTyping ? "typing" : nil)
+        guard let body, let key else {
+            bubbleNode?.removeFromParent()
+            bubbleNode = nil
+            currentBubbleKey = nil
+            return
+        }
 
-        let label = SKLabelNode(fontNamed: "SFProText-Medium")
-        label.text = body
-        label.fontSize = isTyping ? 16 : 11
-        label.fontColor = .labelColor
-        label.numberOfLines = lineCount
-        label.preferredMaxLayoutWidth = size.width - 16
-        label.verticalAlignmentMode = .center
-        label.horizontalAlignmentMode = .center
-        background.addChild(label)
-        presentation.addChild(background)
-        bubbleNode = background
+        let layout = PixelBubbleLayout.make(
+            text: body,
+            isTyping: isTyping,
+            tangentPosition: tangentPosition,
+            tangentLength: tangentLength,
+            edge: edge
+        )
+        if currentBubbleKey != key {
+            bubbleNode?.removeFromParent()
+            let node: PixelBubbleNode = isTyping
+                ? TypingIndicatorNode(layout: layout)
+                : MessageBubbleNode(body: body, layout: layout)
+            presentation.addChild(node)
+            bubbleNode = node
+            currentBubbleKey = key
+        } else {
+            bubbleNode?.apply(layout: layout)
+        }
+    }
+
+    private func setDozeVisible(_ visible: Bool) {
+        guard dozeLabel.isHidden == visible else { return }
+        dozeLabel.isHidden = !visible
+        dozeLabel.removeAllActions()
+        guard visible else { return }
+        dozeLabel.alpha = 0.35
+        dozeLabel.run(.repeatForever(.sequence([
+            .group([.fadeAlpha(to: 1, duration: 0.4), .moveBy(x: 1, y: 2, duration: 0.4)]),
+            .group([.fadeAlpha(to: 0.35, duration: 0.4), .moveBy(x: -1, y: -2, duration: 0.4)])
+        ])))
     }
 }
 
-private enum PixelHamsterMotion {
+enum PixelCharacterMotion {
     case idle
     case walk
-    case sleep
+    case doze
+    case offline
     case stopped
 }
 
-enum PixelHamsterAsset {
-    static let frameCount = 8
-    static let framePixelSize = CGSize(width: 24, height: 24)
+enum PixelBubbleStyle {
+    static let backgroundColor = NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.96)
+    static let textColor = NSColor(srgbRed: 0.11, green: 0.12, blue: 0.16, alpha: 1)
+    static let borderColor = NSColor(srgbRed: 0.08, green: 0.09, blue: 0.12, alpha: 0.16)
+}
 
-    static func url(bundle: Bundle = .main) -> URL? {
-        bundle.url(
-            forResource: "pixel_hamster",
-            withExtension: "png",
-            subdirectory: "Characters/PixelHamster"
-        ) ?? bundle.url(forResource: "pixel_hamster", withExtension: "png")
+class PixelBubbleNode: SKNode {
+    let body: String
+    let isTyping: Bool
+    fileprivate let background = SKShapeNode()
+    fileprivate let label = SKLabelNode(fontNamed: "AppleSDGothicNeo-Medium")
+    private var lastLayout: PixelBubbleLayout?
+
+    init(body: String, isTyping: Bool, layout: PixelBubbleLayout) {
+        self.body = body
+        self.isTyping = isTyping
+        super.init()
+        zPosition = 20
+        background.fillColor = PixelBubbleStyle.backgroundColor
+        background.strokeColor = PixelBubbleStyle.borderColor
+        background.lineWidth = 1
+        addChild(background)
+
+        label.text = body
+        label.fontSize = isTyping ? 16 : 10.5
+        // SpriteKit resolves dynamic AppKit colors against the scene's dark
+        // appearance, not against this white bubble. Use an explicit ink color
+        // so Korean text stays readable in both system appearances.
+        label.fontColor = PixelBubbleStyle.textColor
+        label.numberOfLines = 0
+        label.lineBreakMode = .byCharWrapping
+        label.verticalAlignmentMode = .center
+        label.horizontalAlignmentMode = .center
+        addChild(label)
+        apply(layout: layout)
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(layout: PixelBubbleLayout) {
+        guard layout != lastLayout else { return }
+        lastLayout = layout
+        position = CGPoint(x: layout.localCenterX, y: 52 + layout.size.height / 2)
+        label.preferredMaxLayoutWidth = max(8, layout.size.width - 16)
+        let rect = CGRect(
+            x: -layout.size.width / 2,
+            y: -layout.size.height / 2,
+            width: layout.size.width,
+            height: layout.size.height
+        )
+        let path = CGMutablePath()
+        path.addRoundedRect(in: rect, cornerWidth: 9, cornerHeight: 9)
+        let halfBase: CGFloat = 6
+        let baseCenter = min(max(layout.tailTipX, rect.minX + 10), rect.maxX - 10)
+        path.move(to: CGPoint(x: baseCenter - halfBase, y: rect.minY + 1))
+        path.addLine(to: CGPoint(x: layout.tailTipX, y: rect.minY - 8))
+        path.addLine(to: CGPoint(x: baseCenter + halfBase, y: rect.minY + 1))
+        path.closeSubpath()
+        background.path = path
     }
 }
 
-private struct PixelHamsterTextures {
-    // SpriteKit scene and node mutation is main-thread confined by SKView.
-    @MainActor static let shared = PixelHamsterTextures()
+private final class MessageBubbleNode: PixelBubbleNode {
+    init(body: String, layout: PixelBubbleLayout) {
+        super.init(body: body, isTyping: false, layout: layout)
+        label.text = body
+    }
 
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+final class TypingIndicatorNode: PixelBubbleNode {
+    static let sequenceFrames = [".", "..", "..."]
+    static let frameInterval: TimeInterval = 0.35
+
+    init(layout: PixelBubbleLayout) {
+        super.init(body: ".", isTyping: true, layout: layout)
+        let sequence = SKAction.sequence([
+            .run { [weak self] in self?.label.text = Self.sequenceFrames[0] }, .wait(forDuration: Self.frameInterval),
+            .run { [weak self] in self?.label.text = Self.sequenceFrames[1] }, .wait(forDuration: Self.frameInterval),
+            .run { [weak self] in self?.label.text = Self.sequenceFrames[2] }, .wait(forDuration: Self.frameInterval)
+        ])
+        run(.repeatForever(sequence), withKey: "typing-dots")
+    }
+
+    required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+private struct PixelCharacterTextures {
     let idle: [SKTexture]
     let walk: [SKTexture]
-    let sleep: [SKTexture]
+    let doze: [SKTexture]
+    let offline: [SKTexture]
+}
 
-    init(bundle: Bundle = .main) {
+@MainActor
+private final class PixelCharacterTextureStore {
+    static let shared = PixelCharacterTextureStore()
+    private var cache: [String: PixelCharacterTextures] = [:]
+
+    func textures(for storedID: String, bundle: Bundle = .main) -> PixelCharacterTextures {
+        let definition = PixelCharacterCatalog.definition(for: storedID)
+        if let cached = cache[definition.id] { return cached }
         let sheet: SKTexture
-        if let url = PixelHamsterAsset.url(bundle: bundle), let image = NSImage(contentsOf: url) {
+        if let url = definition.assetURL(bundle: bundle), let image = NSImage(contentsOf: url) {
             sheet = SKTexture(image: image)
         } else {
-            sheet = SKTexture(image: Self.fallbackImage())
+            sheet = SKTexture(image: fallbackImage())
         }
         sheet.filteringMode = .nearest
-        let frames = (0..<PixelHamsterAsset.frameCount).map { index -> SKTexture in
+        let frames = (0..<PixelCharacterCatalog.frameCount).map { index -> SKTexture in
             let texture = SKTexture(
                 rect: CGRect(
-                    x: CGFloat(index) / CGFloat(PixelHamsterAsset.frameCount),
+                    x: CGFloat(index) / CGFloat(PixelCharacterCatalog.frameCount),
                     y: 0,
-                    width: 1 / CGFloat(PixelHamsterAsset.frameCount),
+                    width: 1 / CGFloat(PixelCharacterCatalog.frameCount),
                     height: 1
                 ),
                 in: sheet
@@ -506,61 +833,25 @@ private struct PixelHamsterTextures {
             texture.filteringMode = .nearest
             return texture
         }
-        idle = Array(frames[0...1])
-        walk = Array(frames[2...5])
-        sleep = Array(frames[6...7])
+        let contract = definition.frames
+        let result = PixelCharacterTextures(
+            idle: Array(frames[contract.idle]),
+            walk: Array(frames[contract.walk]),
+            doze: Array(frames[contract.doze]),
+            offline: Array(frames[contract.offline])
+        )
+        cache[definition.id] = result
+        return result
     }
 
-    private static func fallbackImage() -> NSImage {
-        let image = NSImage(size: CGSize(width: 192, height: 24))
+    private func fallbackImage() -> NSImage {
+        let image = NSImage(size: PixelCharacterCatalog.sheetPixelSize)
         image.lockFocus()
         NSColor.systemOrange.setFill()
-        NSBezierPath(rect: CGRect(x: 4, y: 4, width: 16, height: 16)).fill()
+        for frame in 0..<PixelCharacterCatalog.frameCount {
+            NSBezierPath(rect: CGRect(x: CGFloat(frame * 24 + 4), y: 3, width: 16, height: 17)).fill()
+        }
         image.unlockFocus()
         return image
-    }
-}
-
-private extension CGVector {
-    static func += (lhs: inout CGVector, rhs: CGVector) {
-        lhs = lhs + rhs
-    }
-
-    static func -= (lhs: inout CGVector, rhs: CGVector) {
-        lhs = lhs - rhs
-    }
-
-    static func *= (lhs: inout CGVector, rhs: CGFloat) {
-        lhs = lhs * rhs
-    }
-
-    static func + (lhs: CGVector, rhs: CGVector) -> CGVector {
-        CGVector(dx: lhs.dx + rhs.dx, dy: lhs.dy + rhs.dy)
-    }
-
-    static func - (lhs: CGVector, rhs: CGVector) -> CGVector {
-        CGVector(dx: lhs.dx - rhs.dx, dy: lhs.dy - rhs.dy)
-    }
-
-    static prefix func - (value: CGVector) -> CGVector {
-        CGVector(dx: -value.dx, dy: -value.dy)
-    }
-
-    static func * (lhs: CGVector, rhs: CGFloat) -> CGVector {
-        CGVector(dx: lhs.dx * rhs, dy: lhs.dy * rhs)
-    }
-
-    var length: CGFloat { sqrt(dx * dx + dy * dy) }
-
-    var normalized: CGVector {
-        let length = length
-        guard length > 0.0001 else { return .zero }
-        return self * (1 / length)
-    }
-}
-
-private extension CGPoint {
-    func distance(to other: CGPoint) -> CGFloat {
-        hypot(x - other.x, y - other.y)
     }
 }

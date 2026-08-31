@@ -86,7 +86,7 @@ fi
 mv "$SIDEY_STAGED_APP" "$SIDEY_EXPORT_APP"
 
 SIDEY_STAGED_ZIP="$SIDEY_STAGE_DIR/$(basename -- "$SIDEY_ZIP_PATH")"
-ditto -c -k --sequesterRsrc --keepParent "$SIDEY_EXPORT_APP" "$SIDEY_STAGED_ZIP"
+ditto -c -k --norsrc --noextattr --noqtn --noacl --keepParent "$SIDEY_EXPORT_APP" "$SIDEY_STAGED_ZIP"
 mkdir -p "$(dirname -- "$SIDEY_ZIP_PATH")"
 if [ -e "$SIDEY_ZIP_PATH" ]; then
 	mv "$SIDEY_ZIP_PATH" "$SIDEY_STAGE_DIR/previous-SIDEY.zip"

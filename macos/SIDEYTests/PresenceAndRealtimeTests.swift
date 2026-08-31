@@ -165,6 +165,39 @@ final class PresenceAndRealtimeTests: XCTestCase {
         XCTAssertEqual(model.pixelWorldMembers.map(\.nickname), ["온라인"])
     }
 
+    func testCurrentUserRemainsVisibleWhenOfflineMembersAreHidden() {
+        let userID = UUID()
+        let roomID = UUID()
+        let model = AppModel(preferences: .defaults)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(id: userID, nickname: "나", characterID: "pixel_cat"),
+                rooms: [Room(
+                    id: roomID,
+                    name: "친구들",
+                    ownerID: userID,
+                    members: [RoomMember(
+                        userID: userID,
+                        nickname: "나",
+                        characterID: "pixel_cat",
+                        presence: .offline
+                    )],
+                    inviteCodeHint: "AB••••",
+                    inviteVersion: 1
+                )]
+            ),
+            currentUserID: userID
+        )
+        model.preferences.showOfflineMembers = false
+        model.connectionState = .idle
+
+        XCTAssertEqual(model.pixelWorldMembers.count, 1)
+        XCTAssertTrue(model.pixelWorldMembers[0].isCurrentUser)
+        XCTAssertEqual(model.pixelWorldMembers[0].characterID, "pixel_cat")
+        XCTAssertEqual(model.selectedCharacterID, "pixel_cat")
+        XCTAssertEqual(model.preferences.selectedCharacterID, "pixel_cat")
+    }
+
     func testRealtimePlanCapsRoomsAndSwitchesActiveRoom() {
         let rooms = (0..<6).map { _ in UUID() }
         let existing = Set([rooms[0], UUID()])

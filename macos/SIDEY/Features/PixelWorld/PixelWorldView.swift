@@ -3,6 +3,8 @@ import SwiftUI
 
 struct PixelWorldView: View {
     @Bindable var model: AppModel
+    let composerVisible: Bool
+    let onCurrentUserFrameChanged: (CGRect?) -> Void
 
     var body: some View {
         PixelWorldRepresentable(
@@ -10,7 +12,9 @@ struct PixelWorldView: View {
             members: model.pixelWorldMembers,
             bubbles: model.activeBubbles,
             edge: model.preferences.overlayRegion.edge,
-            installationSeed: model.preferences.installationSeed
+            installationSeed: model.preferences.installationSeed,
+            composerVisible: composerVisible,
+            onCurrentUserFrameChanged: onCurrentUserFrameChanged
         )
     }
 }
@@ -21,6 +25,8 @@ private struct PixelWorldRepresentable: NSViewRepresentable {
     let bubbles: [ActiveBubble]
     let edge: OverlayEdge
     let installationSeed: UInt64
+    let composerVisible: Bool
+    let onCurrentUserFrameChanged: (CGRect?) -> Void
 
     func makeNSView(context: Context) -> SKView {
         let view = SKView(frame: .zero)
@@ -49,7 +55,9 @@ private struct PixelWorldRepresentable: NSViewRepresentable {
             members: members,
             bubbles: bubbles,
             edge: edge,
-            installationSeed: installationSeed
+            installationSeed: installationSeed,
+            composerVisible: composerVisible,
+            onCurrentUserFrameChanged: onCurrentUserFrameChanged
         )
     }
 }

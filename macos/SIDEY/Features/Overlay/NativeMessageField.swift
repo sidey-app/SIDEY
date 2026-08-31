@@ -24,6 +24,7 @@ final class VerticallyCenteredMessageTextView: NSTextView {
 struct NativeMessageField: NSViewRepresentable {
     @Binding var text: String
     let onSubmit: () -> Void
+    let onCancel: () -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -111,6 +112,10 @@ struct NativeMessageField: NSViewRepresentable {
         }
 
         func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
+                parent.onCancel()
+                return true
+            }
             guard commandSelector == #selector(NSResponder.insertNewline(_:)) else { return false }
             if NSApplication.shared.currentEvent?.modifierFlags.contains(.shift) == true {
                 let candidate = (textView.string as NSString).replacingCharacters(

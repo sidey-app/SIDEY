@@ -253,9 +253,11 @@ actor SideyBackend {
         let presenceChanges = channel.presenceChange()
         let statusChanges = channel.statusChange
 
-        try await channel.subscribeWithError()
+        // Start consuming status changes before subscribing. Starting this task
+        // afterwards can replay an older `.subscribing` event after
+        // `subscribeWithError()` has already succeeded, leaving the app stuck in
+        // the gray reconnecting state until another status event arrives.
         channels[roomID] = channel
-        connectionTracker.setSubscribed(true, roomID: roomID)
         channelTasks[roomID] = [
             Task { [weak self] in
                 for await payload in inserted { await self?.handleDatabaseBroadcast(roomID: roomID, payload: payload, event: "INSERT") }
@@ -284,6 +286,16 @@ actor SideyBackend {
                 }
             }
         ]
+        do {
+            try await channel.subscribeWithError()
+            connectionTracker.setSubscribed(true, roomID: roomID)
+        } catch {
+            channelTasks.removeValue(forKey: roomID)?.forEach { $0.cancel() }
+            channels.removeValue(forKey: roomID)
+            connectionTracker.setSubscribed(false, roomID: roomID)
+            await client.removeChannel(channel)
+            throw error
+        }
     }
 
     private func removeChannel(_ roomID: UUID) async {
