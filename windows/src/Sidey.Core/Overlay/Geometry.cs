@@ -91,16 +91,27 @@ public sealed class EdgeTrackGeometry
     public const int FootBaselinePixel = 3;
     public const double FootInset = (CharacterPointSize / 2d) - (FootBaselinePixel * 2d);
 
-    public EdgeTrackGeometry(RectD bounds, OverlayEdge edge)
+    private readonly double _tangentExtent;
+
+    public EdgeTrackGeometry(
+        RectD bounds,
+        OverlayEdge edge,
+        double tangentExtent = HotspotPointSize)
     {
+        if (!double.IsFinite(tangentExtent) || tangentExtent <= 0d)
+        {
+            throw new ArgumentOutOfRangeException(nameof(tangentExtent));
+        }
+
         Bounds = bounds;
         Edge = edge;
+        _tangentExtent = tangentExtent;
     }
 
     public RectD Bounds { get; }
     public OverlayEdge Edge { get; }
     public double TangentLength => Edge is OverlayEdge.Bottom or OverlayEdge.Top ? Bounds.Width : Bounds.Height;
-    public double TrackLowerBound => Math.Min(HotspotPointSize / 2d, Math.Max(0d, TangentLength / 2d));
+    public double TrackLowerBound => Math.Min(_tangentExtent / 2d, Math.Max(0d, TangentLength / 2d));
     public double TrackUpperBound => Math.Max(TrackLowerBound, TangentLength - TrackLowerBound);
 
     public double Clamp(double tangent)

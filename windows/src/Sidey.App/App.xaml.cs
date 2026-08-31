@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Sidey.Core.Domain;
 using Sidey.Overlay;
 using Sidey.Platform.Windows;
 
@@ -9,6 +10,7 @@ public partial class App : Application
     private Window? _window;
     private LocalHamsterSliceSession? _slice;
     private ComposerWindow? _composer;
+    private OverlayRegionPreference _preference = OverlayRegionPreference.Default;
 
     public App()
     {
@@ -27,15 +29,34 @@ public partial class App : Application
         var mainWindow = new MainWindow();
         _window = mainWindow;
         mainWindow.Closed += OnMainWindowClosed;
+        mainWindow.PresetRequested += OnPresetRequested;
         mainWindow.Activate();
+        StartSlice(mainWindow);
+    }
+
+    private void StartSlice(MainWindow mainWindow)
+    {
         try
         {
-            _slice = LocalHamsterSliceSession.Start(RequestComposer);
-            mainWindow.SetSliceReady();
+            _slice?.Dispose();
+            _slice = LocalHamsterSliceSession.Start(
+                _preference,
+                RequestComposer,
+                ReportRenderingFailure);
+            mainWindow.SetSliceReady(_preference);
         }
         catch (Exception exception)
         {
             mainWindow.SetSliceFailure(exception);
+        }
+    }
+
+    private void OnPresetRequested(OverlayRegionPreference preference)
+    {
+        _preference = preference;
+        if (_window is MainWindow mainWindow)
+        {
+            StartSlice(mainWindow);
         }
     }
 
@@ -58,6 +79,14 @@ public partial class App : Application
         _composer.ShowAndFocus();
     }
 
+    private void ReportRenderingFailure(Exception exception)
+    {
+        if (_window is MainWindow mainWindow)
+        {
+            mainWindow.DispatcherQueue.TryEnqueue(() => mainWindow.SetSliceFailure(exception));
+        }
+    }
+
     private void OnLocalSendRequested(string body)
     {
         _ = body;
@@ -69,7 +98,20 @@ public partial class App : Application
 
     private void OnMainWindowClosed(object sender, WindowEventArgs args)
     {
-        _slice?.Dispose();
+        if (_window is MainWindow mainWindow)
+        {
+            mainWindow.PresetRequested -= OnPresetRequested;
+        }
+
+        try
+        {
+            _slice?.Dispose();
+        }
+        catch (Exception exception)
+        {
+            System.Diagnostics.Trace.TraceError("SIDEY overlay shutdown failed: {0}", exception);
+        }
+
         _slice = null;
         if (_composer is not null)
         {

@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using Sidey.Core.Domain;
 using Windows.System;
+using Windows.UI.Core;
 
 namespace Sidey.App;
 
@@ -57,7 +58,7 @@ public sealed partial class ComposerWindow : Window
         }
 
         var shiftState = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift);
-        if ((shiftState & VirtualKeyStates.Down) != 0)
+        if ((shiftState & CoreVirtualKeyStates.Down) != 0)
         {
             if (MessageInput.Text.Count(character => character == '\n') + 1
                 >= MessageValidator.MaximumLines)

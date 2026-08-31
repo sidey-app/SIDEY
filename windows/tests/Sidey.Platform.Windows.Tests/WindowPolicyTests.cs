@@ -1,5 +1,7 @@
 namespace Sidey.Platform.Windows.Tests;
 
+using Sidey.Core.Domain;
+
 public sealed class WindowPolicyTests
 {
     private const uint Topmost = 0x00000008;
@@ -56,5 +58,79 @@ public sealed class WindowPolicyTests
         Assert.Equal(expected, new NativePixelRect(x, y, width, height).IsValid);
     }
 
+    [Theory]
+    [InlineData(OverlayEdge.Bottom, OverlaySpan.Full, -1920, 500, 1920, 300)]
+    [InlineData(OverlayEdge.Top, OverlaySpan.Half, -1440, -200, 960, 300)]
+    [InlineData(OverlayEdge.Left, OverlaySpan.Third, -1920, 133, 300, 333)]
+    [InlineData(OverlayEdge.Right, OverlaySpan.Full, -300, -200, 300, 1000)]
+    public void WindowsRegionLayoutUsesTopLeftPixelCoordinates(
+        OverlayEdge edge,
+        OverlaySpan span,
+        int x,
+        int y,
+        int width,
+        int height)
+    {
+        var workArea = new NativePixelRect(-1920, -200, 1920, 1000);
+
+        var frame = WindowsOverlayRegionLayout.Frame(
+            workArea,
+            120,
+            new OverlayRegionPreference(edge, span, null));
+
+        Assert.Equal(new NativePixelRect(x, y, width, height), frame);
+    }
+
+    [Fact]
+    public void AllTwelveWindowsPresetsStayInsideTheWorkAreaAndTouchTheSelectedEdge()
+    {
+        var workArea = new NativePixelRect(-1920, -200, 1920, 1000);
+
+        foreach (var edge in Enum.GetValues<OverlayEdge>())
+        {
+            foreach (var span in Enum.GetValues<OverlaySpan>())
+            {
+                var frame = WindowsOverlayRegionLayout.Frame(
+                    workArea,
+                    120,
+                    new OverlayRegionPreference(edge, span, null));
+
+                Assert.True(frame.IsValid);
+                Assert.InRange(frame.X, workArea.X, workArea.X + workArea.Width);
+                Assert.InRange(frame.Y, workArea.Y, workArea.Y + workArea.Height);
+                Assert.InRange(frame.X + frame.Width, workArea.X, workArea.X + workArea.Width);
+                Assert.InRange(frame.Y + frame.Height, workArea.Y, workArea.Y + workArea.Height);
+
+                if (edge is OverlayEdge.Bottom or OverlayEdge.Top)
+                {
+                    Assert.Equal(
+                        Round(workArea.Width * span.Fraction()),
+                        frame.Width);
+                    Assert.Equal(300, frame.Height);
+                    Assert.Equal(
+                        edge == OverlayEdge.Top
+                            ? workArea.Y
+                            : workArea.Y + workArea.Height,
+                        edge == OverlayEdge.Top ? frame.Y : frame.Y + frame.Height);
+                }
+                else
+                {
+                    Assert.Equal(300, frame.Width);
+                    Assert.Equal(
+                        Round(workArea.Height * span.Fraction()),
+                        frame.Height);
+                    Assert.Equal(
+                        edge == OverlayEdge.Left
+                            ? workArea.X
+                            : workArea.X + workArea.Width,
+                        edge == OverlayEdge.Left ? frame.X : frame.X + frame.Width);
+                }
+            }
+        }
+    }
+
     private static void AssertHas(uint style, uint flag) => Assert.Equal(flag, style & flag);
+
+    private static int Round(double value) =>
+        (int)Math.Round(value, MidpointRounding.AwayFromZero);
 }

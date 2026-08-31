@@ -1,6 +1,7 @@
 using Sidey.Core.Domain;
 using Sidey.Core.Overlay;
 using Sidey.Platform.Windows;
+using System.Diagnostics;
 
 namespace Sidey.Overlay;
 
@@ -19,7 +20,9 @@ internal sealed class LayeredHamsterRenderer : IDisposable
     private readonly int _spritePixelSize;
     private readonly int _hotspotPixelSize;
     private readonly double _footInsetPixels;
+    private readonly OverlayEdge _edge;
     private readonly Action<NativePixelRect> _hotspotMoved;
+    private readonly Action<Exception> _renderingFailed;
     private readonly Random _random = new(0x51DE7);
     private readonly EdgeTrackGeometry _geometry;
     private readonly PixelMovementAgent _agent;
@@ -29,23 +32,29 @@ internal sealed class LayeredHamsterRenderer : IDisposable
     private NativePixelRect? _lastHotspotBounds;
     private double _hotspotTrackingElapsed = double.PositiveInfinity;
     private long _tick;
+    private bool _faulted;
     private bool _disposed;
 
     internal LayeredHamsterRenderer(
         nint windowHandle,
         NativePixelRect trackBounds,
         uint dpi,
-        Action<NativePixelRect> hotspotMoved)
+        OverlayEdge edge,
+        Action<NativePixelRect> hotspotMoved,
+        Action<Exception> renderingFailed)
     {
         _trackBounds = trackBounds;
         _hotspotMoved = hotspotMoved;
+        _renderingFailed = renderingFailed;
+        _edge = edge;
         var scale = PixelScalePolicy.IntegerScale(dpi);
         _spritePixelSize = AuthoredFrameSize * scale;
         _hotspotPixelSize = Math.Max(1, DipToPixels(52, dpi));
         _footInsetPixels = EdgeTrackGeometry.FootInset * scale / 2d;
         _geometry = new EdgeTrackGeometry(
             new RectD(0, 0, trackBounds.Width, trackBounds.Height),
-            OverlayEdge.Bottom);
+            edge,
+            Math.Max(_spritePixelSize, _hotspotPixelSize));
         _agent = new PixelMovementAgent(
             Guid.Parse("51de7000-0000-0000-0000-000000000001"),
             _geometry.TangentLength / 2d,
@@ -74,12 +83,12 @@ internal sealed class LayeredHamsterRenderer : IDisposable
                     windowHandle,
                     _spritePixelSize,
                     _spritePixelSize,
-                    BuildFrame(sheet, frame, scale, flipHorizontally: false));
+                    BuildFrame(sheet, frame, scale, flipHorizontally: false, edge));
                 _frames[frame, 1] = new NativeLayeredBitmap(
                     windowHandle,
                     _spritePixelSize,
                     _spritePixelSize,
-                    BuildFrame(sheet, frame, scale, flipHorizontally: true));
+                    BuildFrame(sheet, frame, scale, flipHorizontally: true, edge));
             }
         }
         catch
@@ -92,7 +101,7 @@ internal sealed class LayeredHamsterRenderer : IDisposable
         {
             Present(frame: 0, flipHorizontally: false);
             _timer = new Timer(
-                static state => ((LayeredHamsterRenderer)state!).Tick(),
+                static state => ((LayeredHamsterRenderer)state!).TickSafely(),
                 this,
                 TimeSpan.FromSeconds(FixedDeltaTime),
                 TimeSpan.FromSeconds(FixedDeltaTime));
@@ -124,7 +133,7 @@ internal sealed class LayeredHamsterRenderer : IDisposable
     {
         lock (_gate)
         {
-            if (_disposed)
+            if (_disposed || _faulted)
             {
                 return;
             }
@@ -155,22 +164,55 @@ internal sealed class LayeredHamsterRenderer : IDisposable
         }
     }
 
+    private void TickSafely()
+    {
+        try
+        {
+            Tick();
+        }
+        catch (Exception exception)
+        {
+            lock (_gate)
+            {
+                if (_disposed || _faulted)
+                {
+                    return;
+                }
+
+                _faulted = true;
+                _timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            }
+
+            try
+            {
+                _renderingFailed(exception);
+            }
+            catch (Exception reportingException)
+            {
+                Trace.TraceError(
+                    "SIDEY renderer failure callback also failed. Renderer: {0}; callback: {1}",
+                    exception,
+                    reportingException);
+            }
+        }
+    }
+
     private void Present(int frame, bool flipHorizontally)
     {
-        var anchorY = _trackBounds.Height - _footInsetPixels;
-        var spriteX = _trackBounds.X + (int)Math.Round(
-            _agent.TrackPosition - (_spritePixelSize / 2d),
+        var (anchorX, anchorY) = Anchor(_agent.TrackPosition);
+        var spriteX = (int)Math.Round(
+            anchorX - (_spritePixelSize / 2d),
             MidpointRounding.AwayFromZero);
-        var spriteY = _trackBounds.Y + (int)Math.Round(
+        var spriteY = (int)Math.Round(
             anchorY - (_spritePixelSize / 2d),
             MidpointRounding.AwayFromZero);
         _frames[frame, flipHorizontally ? 1 : 0].Present(spriteX, spriteY);
 
         var hotspotBounds = new NativePixelRect(
-            _trackBounds.X + (int)Math.Round(
-                _agent.TrackPosition - (_hotspotPixelSize / 2d),
+            (int)Math.Round(
+                anchorX - (_hotspotPixelSize / 2d),
                 MidpointRounding.AwayFromZero),
-            _trackBounds.Y + (int)Math.Round(
+            (int)Math.Round(
                 anchorY - (_hotspotPixelSize / 2d),
                 MidpointRounding.AwayFromZero),
             _hotspotPixelSize,
@@ -189,20 +231,37 @@ internal sealed class LayeredHamsterRenderer : IDisposable
         _hotspotTrackingElapsed = 0d;
     }
 
-    private static byte[] BuildFrame(
+    internal static byte[] BuildFrame(
         ReadOnlySpan<byte> sheet,
         int frame,
         int scale,
-        bool flipHorizontally)
+        bool flipHorizontally,
+        OverlayEdge edge)
     {
+        if (sheet.Length != AuthoredSheetWidth * AuthoredFrameSize * BytesPerPixel)
+        {
+            throw new ArgumentException("The BGRA sheet dimensions do not match the hamster contract.", nameof(sheet));
+        }
+
+        if (frame is < 0 or >= 10)
+        {
+            throw new ArgumentOutOfRangeException(nameof(frame));
+        }
+
+        if (scale <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(scale));
+        }
+
         var outputSize = AuthoredFrameSize * scale;
         var output = new byte[checked(outputSize * outputSize * BytesPerPixel)];
         for (var outputY = 0; outputY < outputSize; outputY++)
         {
-            var sourceY = outputY / scale;
             for (var outputX = 0; outputX < outputSize; outputX++)
             {
-                var localSourceX = outputX / scale;
+                var rotatedX = outputX / scale;
+                var rotatedY = outputY / scale;
+                var (localSourceX, sourceY) = InverseRotate(rotatedX, rotatedY, edge);
                 if (flipHorizontally)
                 {
                     localSourceX = AuthoredFrameSize - 1 - localSourceX;
@@ -232,6 +291,32 @@ internal sealed class LayeredHamsterRenderer : IDisposable
 
     private static byte Premultiply(byte color, byte alpha) =>
         (byte)(((color * alpha) + 127) / 255);
+
+    private (double X, double Y) Anchor(double tangent) => _edge switch
+    {
+        OverlayEdge.Bottom => (
+            _trackBounds.X + tangent,
+            _trackBounds.Y + _trackBounds.Height - _footInsetPixels),
+        OverlayEdge.Top => (
+            _trackBounds.X + tangent,
+            _trackBounds.Y + _footInsetPixels),
+        OverlayEdge.Left => (
+            _trackBounds.X + _footInsetPixels,
+            _trackBounds.Y + tangent),
+        OverlayEdge.Right => (
+            _trackBounds.X + _trackBounds.Width - _footInsetPixels,
+            _trackBounds.Y + tangent),
+        _ => throw new ArgumentOutOfRangeException(),
+    };
+
+    private static (int X, int Y) InverseRotate(int x, int y, OverlayEdge edge) => edge switch
+    {
+        OverlayEdge.Bottom => (x, y),
+        OverlayEdge.Top => (AuthoredFrameSize - 1 - x, AuthoredFrameSize - 1 - y),
+        OverlayEdge.Left => (y, AuthoredFrameSize - 1 - x),
+        OverlayEdge.Right => (AuthoredFrameSize - 1 - y, x),
+        _ => throw new ArgumentOutOfRangeException(nameof(edge)),
+    };
 
     private static PointD Center(NativePixelRect rect) =>
         new(rect.X + (rect.Width / 2d), rect.Y + (rect.Height / 2d));

@@ -17,6 +17,7 @@ public sealed class NativeOverlayWindowThread : IDisposable
     private NativeOverlayWindow? _hotspotWindow;
     private IDisposable? _threadResource;
     private ExceptionDispatchInfo? _startupFailure;
+    private ExceptionDispatchInfo? _shutdownFailure;
     private bool _disposed;
 
     private NativeOverlayWindowThread(
@@ -62,7 +63,12 @@ public sealed class NativeOverlayWindowThread : IDisposable
             throw new TimeoutException("Timed out while creating SIDEY overlay windows.");
         }
 
-        owner._startupFailure?.Throw();
+        if (owner._startupFailure is { } startupFailure)
+        {
+            owner.Dispose();
+            startupFailure.Throw();
+        }
+
         return owner;
     }
 
@@ -86,6 +92,15 @@ public sealed class NativeOverlayWindowThread : IDisposable
         }
 
         _disposed = true;
+        try
+        {
+            Interlocked.Exchange(ref _threadResource, null)?.Dispose();
+        }
+        catch (Exception exception)
+        {
+            _shutdownFailure = ExceptionDispatchInfo.Capture(exception);
+        }
+
         _worldWindow?.Dispose();
         _hotspotWindow?.Dispose();
         if (_thread.IsAlive && !_thread.Join(ShutdownTimeout))
@@ -94,6 +109,7 @@ public sealed class NativeOverlayWindowThread : IDisposable
         }
 
         _started.Dispose();
+        _shutdownFailure?.Throw();
     }
 
     private NativeOverlayWindow RequiredWorldWindow =>
@@ -122,7 +138,15 @@ public sealed class NativeOverlayWindowThread : IDisposable
         }
         finally
         {
-            _threadResource?.Dispose();
+            try
+            {
+                Interlocked.Exchange(ref _threadResource, null)?.Dispose();
+            }
+            catch (Exception exception)
+            {
+                _shutdownFailure ??= ExceptionDispatchInfo.Capture(exception);
+            }
+
             _worldWindow?.Dispose();
             _hotspotWindow?.Dispose();
         }

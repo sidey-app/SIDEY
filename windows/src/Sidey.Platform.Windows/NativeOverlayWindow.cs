@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Windows.Win32;
 using Windows.Win32.Foundation;
@@ -212,7 +213,15 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
         if (message == PInvoke.WM_LBUTTONUP
             && Activations.TryGetValue((nint)window.Value, out var activated))
         {
-            activated();
+            try
+            {
+                activated();
+            }
+            catch (Exception exception)
+            {
+                Trace.TraceError("SIDEY hotspot callback failed: {0}", exception);
+            }
+
             return default;
         }
 

@@ -5,7 +5,24 @@
   <Grid Padding="32" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
     <StackPanel MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
       <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="SIDEY" />
-      <TextBlock Text="Windows 네이티브 햄스터 slice 준비 중" TextWrapping="Wrap" />
+      <TextBlock Text="Windows 네이티브 햄스터 플랫폼 slice" TextWrapping="Wrap" />
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <ComboBox x:Name="EdgeSelector" Header="가장자리" SelectedIndex="0">
+          <ComboBoxItem Content="아래" />
+          <ComboBoxItem Content="왼쪽" />
+          <ComboBoxItem Content="오른쪽" />
+          <ComboBoxItem Content="위" />
+        </ComboBox>
+        <ComboBox x:Name="SpanSelector" Header="길이" SelectedIndex="2">
+          <ComboBoxItem Content="1/3" />
+          <ComboBoxItem Content="1/2" />
+          <ComboBoxItem Content="전체" />
+        </ComboBox>
+        <Button
+            VerticalAlignment="Bottom"
+            Click="OnApplyPresetClicked"
+            Content="적용" />
+      </StackPanel>
       <InfoBar
           x:Name="StatusInfoBar"
           IsOpen="True"

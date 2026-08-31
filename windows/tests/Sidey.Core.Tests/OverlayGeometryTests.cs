@@ -122,4 +122,22 @@ public sealed class OverlayGeometryTests
             new PointD(101, 100),
             TimeSpan.FromMilliseconds(70)));
     }
+
+    [Theory]
+    [InlineData(52d, 26d, 974d)]
+    [InlineData(72d, 36d, 964d)]
+    [InlineData(104d, 52d, 948d)]
+    public void TrackEndpointsRespectTheRenderedPixelExtent(
+        double tangentExtent,
+        double expectedLower,
+        double expectedUpper)
+    {
+        var geometry = new EdgeTrackGeometry(
+            new RectD(0, 0, 1_000, 300),
+            OverlayEdge.Bottom,
+            tangentExtent);
+
+        Assert.Equal(expectedLower, geometry.TrackLowerBound, 8);
+        Assert.Equal(expectedUpper, geometry.TrackUpperBound, 8);
+    }
 }
