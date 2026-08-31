@@ -16,6 +16,7 @@ actor SideyBackend {
     private var channelsBeingAdded: Set<UUID> = []
     private var realtimeWatchdogTask: Task<Void, Never>?
     private var recoveryReconciliationTask: Task<Void, Never>?
+    private var structuralSnapshotTask: Task<Void, Never>?
     private var typingExpiryTasks: [String: Task<Void, Never>] = [:]
     private var activeRoomID: UUID?
     private var localPresence: PresenceState = .online
@@ -68,6 +69,7 @@ actor SideyBackend {
 
         for roomID in plan.removals {
             await removeChannel(roomID)
+            try? keychain.delete(account: inviteAccount(roomID: roomID))
         }
         for roomID in plan.additions {
             try await addChannel(roomID)
@@ -114,6 +116,8 @@ actor SideyBackend {
         realtimeWatchdogTask = nil
         recoveryReconciliationTask?.cancel()
         recoveryReconciliationTask = nil
+        structuralSnapshotTask?.cancel()
+        structuralSnapshotTask = nil
         for task in channelRecoveryTasks.values { task.cancel() }
         channelRecoveryTasks.removeAll()
         channelRecoveryAttempts.removeAll()
@@ -180,10 +184,8 @@ actor SideyBackend {
     }
 
     func createRoom(name: String) async throws -> CreatedRoom {
-        let normalized = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalized.isEmpty, normalized.count <= 20,
-              normalized.rangeOfCharacter(from: .newlines) == nil
-        else { throw SideyBackendError.invalidRoomName }
+        guard RoomNameValidator.isValid(name) else { throw SideyBackendError.invalidRoomName }
+        let normalized = RoomNameValidator.normalized(name)
         let rows: [CreateRoomRow] = try await client.rpc(
             "create_room",
             params: CreateRoomParameters(name: normalized)
@@ -214,6 +216,46 @@ actor SideyBackend {
             "leave_room",
             params: LeaveRoomParameters(roomID: roomID)
         ).execute().value
+        try? keychain.delete(account: inviteAccount(roomID: roomID))
+        if activeRoomID == roomID { activeRoomID = nil }
+        await removeChannel(roomID)
+    }
+
+    func renameRoom(_ roomID: UUID, name: String) async throws {
+        guard RoomNameValidator.isValid(name) else { throw SideyBackendError.invalidRoomName }
+        do {
+            _ = try await client.rpc(
+                "rename_room",
+                params: RenameRoomParameters(
+                    roomID: roomID,
+                    name: RoomNameValidator.normalized(name)
+                )
+            ).execute()
+        } catch {
+            throw SideyBackendError.normalized(error)
+        }
+    }
+
+    func removeRoomMember(_ roomID: UUID, userID: UUID) async throws {
+        do {
+            _ = try await client.rpc(
+                "remove_room_member",
+                params: RemoveRoomMemberParameters(roomID: roomID, userID: userID)
+            ).execute()
+        } catch {
+            throw SideyBackendError.normalized(error)
+        }
+    }
+
+    func deleteRoom(_ roomID: UUID) async throws {
+        do {
+            _ = try await client.rpc(
+                "delete_room",
+                params: DeleteRoomParameters(roomID: roomID)
+            ).execute()
+        } catch {
+            throw SideyBackendError.normalized(error)
+        }
         try? keychain.delete(account: inviteAccount(roomID: roomID))
         if activeRoomID == roomID { activeRoomID = nil }
         await removeChannel(roomID)
@@ -518,10 +560,28 @@ actor SideyBackend {
            let record = change["record"]?.objectValue,
            let message = try? record.decode(as: DatabaseMessage.self) {
             eventContinuation.yield(.message(message.domain))
-        } else if ["profiles", "rooms", "room_members"].contains(table),
-                  let snapshot = try? await loadSnapshot() {
-            eventContinuation.yield(.snapshot(snapshot))
+        } else if ["profiles", "rooms", "room_members"].contains(table) {
+            scheduleStructuralSnapshot()
         }
+    }
+
+    private func scheduleStructuralSnapshot() {
+        guard structuralSnapshotTask == nil, !isShuttingDown else { return }
+        structuralSnapshotTask = Task { [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(150))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            await self?.emitStructuralSnapshot()
+        }
+    }
+
+    private func emitStructuralSnapshot() async {
+        structuralSnapshotTask = nil
+        guard !isShuttingDown, let snapshot = try? await loadSnapshot() else { return }
+        eventContinuation.yield(.snapshot(snapshot))
     }
 
     private func handlePresence(roomID: UUID, action: any PresenceAction) {

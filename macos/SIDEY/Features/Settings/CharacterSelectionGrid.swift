@@ -77,7 +77,7 @@ private struct CharacterSelectionCard: View {
 }
 
 @MainActor
-private enum PixelCharacterPreviewImage {
+enum PixelCharacterPreviewImage {
     private static var cache: [String: NSImage] = [:]
 
     static func image(for definition: PixelCharacterDefinition) -> NSImage {

@@ -40,7 +40,9 @@ final class PixelWorldWindowController {
     private let model: AppModel
     private var hostingView: NSHostingView<PixelWorldView>?
     private var composerVisible = false
+    private var characterInteractionEnabled = false
     private var characterPulse: CharacterPulseEvent?
+    private var localActivityFrame: CGRect = .zero
     private let onCurrentUserFrameChanged: (CGRect?) -> Void
 
     init(
@@ -67,7 +69,11 @@ final class PixelWorldWindowController {
         panel.isReleasedWhenClosed = false
     }
 
-    func setFrame(_ frame: CGRect) { panel.setFrame(frame, display: true) }
+    func setLayout(renderFrame: CGRect, localActivityFrame: CGRect) {
+        self.localActivityFrame = localActivityFrame
+        panel.setFrame(renderFrame, display: true)
+        hostingView?.rootView = makeRootView()
+    }
 
     func orderFront() {
         if hostingView == nil {
@@ -81,6 +87,13 @@ final class PixelWorldWindowController {
     func setComposerVisible(_ visible: Bool) {
         guard composerVisible != visible else { return }
         composerVisible = visible
+        hostingView?.rootView = makeRootView()
+    }
+
+    func setCharacterInteractionEnabled(_ enabled: Bool) {
+        guard characterInteractionEnabled != enabled else { return }
+        characterInteractionEnabled = enabled
+        panel.ignoresMouseEvents = !enabled
         hostingView?.rootView = makeRootView()
     }
 
@@ -108,7 +121,9 @@ final class PixelWorldWindowController {
     private func makeRootView() -> PixelWorldView {
         PixelWorldView(
             model: model,
+            activityFrame: localActivityFrame,
             composerVisible: composerVisible,
+            characterInteractionEnabled: characterInteractionEnabled,
             characterPulse: characterPulse,
             onCurrentUserFrameChanged: onCurrentUserFrameChanged
         )

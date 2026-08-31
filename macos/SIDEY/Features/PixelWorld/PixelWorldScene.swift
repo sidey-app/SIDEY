@@ -79,6 +79,34 @@ struct EdgeTrackGeometry: Equatable, Sendable {
         )
     }
 
+    var inwardNormal: CGVector {
+        switch edge {
+        case .bottom: CGVector(dx: 0, dy: 1)
+        case .top: CGVector(dx: 0, dy: -1)
+        case .left: CGVector(dx: 1, dy: 0)
+        case .right: CGVector(dx: -1, dy: 0)
+        }
+    }
+
+    func tangent(for point: CGPoint) -> CGFloat {
+        clamped(edge.isHorizontal ? point.x - bounds.minX : point.y - bounds.minY)
+    }
+
+    func altitude(for point: CGPoint, tangent: CGFloat) -> CGFloat {
+        let ground = self.point(for: tangent)
+        let delta = CGVector(dx: point.x - ground.x, dy: point.y - ground.y)
+        return max(0, delta.dx * inwardNormal.dx + delta.dy * inwardNormal.dy)
+    }
+
+    func point(for tangent: CGFloat, altitude: CGFloat) -> CGPoint {
+        let ground = point(for: tangent)
+        let height = max(0, altitude.isFinite ? altitude : 0)
+        return CGPoint(
+            x: ground.x + inwardNormal.dx * height,
+            y: ground.y + inwardNormal.dy * height
+        )
+    }
+
     func worldFrame(for localFrame: CGRect, at tangent: CGFloat) -> CGRect {
         let anchor = point(for: tangent)
         let transform = CGAffineTransform(translationX: anchor.x, y: anchor.y)
@@ -89,6 +117,68 @@ struct EdgeTrackGeometry: Equatable, Sendable {
     func clamped(_ tangent: CGFloat) -> CGFloat {
         let finite = tangent.isFinite ? tangent : trackRange.lowerBound
         return min(max(finite, trackRange.lowerBound), trackRange.upperBound)
+    }
+}
+
+struct PixelCharacterDropState: Equatable, Sendable {
+    let id: UUID
+    var tangent: CGFloat
+    var altitude: CGFloat
+    var normalVelocity: CGFloat = 0
+    var bounceCount = 0
+}
+
+enum PixelCharacterDropSimulation {
+    static let gravity: CGFloat = 960
+    static let restitution: CGFloat = 0.46
+    static let minimumBounceImpactSpeed: CGFloat = 55
+    static let maximumBounceCount = 3
+
+    /// Returns true once the character has settled on the selected edge.
+    static func step(
+        state: inout PixelCharacterDropState,
+        deltaTime rawDeltaTime: TimeInterval,
+        geometry: EdgeTrackGeometry
+    ) -> Bool {
+        let deltaTime = CGFloat(min(max(rawDeltaTime, 0), 1.0 / 10.0))
+        state.tangent = geometry.clamped(state.tangent)
+        guard deltaTime > 0 else { return state.altitude <= 0 && state.normalVelocity == 0 }
+
+        state.normalVelocity -= gravity * deltaTime
+        state.altitude += state.normalVelocity * deltaTime
+        guard state.altitude <= 0 else { return false }
+
+        let impactSpeed = abs(state.normalVelocity)
+        state.altitude = 0
+        if state.bounceCount < maximumBounceCount,
+           impactSpeed >= minimumBounceImpactSpeed {
+            state.normalVelocity = impactSpeed * restitution
+            state.bounceCount += 1
+            return false
+        }
+
+        state.normalVelocity = 0
+        return true
+    }
+}
+
+enum PixelCharacterDragPolicy {
+    static let hitRadius: CGFloat = 30
+    static let sceneInset = EdgeTrackGeometry.hotspotPointSize / 2
+
+    static func clamped(_ point: CGPoint, to sceneFrame: CGRect) -> CGPoint {
+        let horizontalInset = min(sceneInset, max(0, sceneFrame.width / 2))
+        let verticalInset = min(sceneInset, max(0, sceneFrame.height / 2))
+        return CGPoint(
+            x: min(
+                max(point.x, sceneFrame.minX + horizontalInset),
+                sceneFrame.maxX - horizontalInset
+            ),
+            y: min(
+                max(point.y, sceneFrame.minY + verticalInset),
+                sceneFrame.maxY - verticalInset
+            )
+        )
     }
 }
 
@@ -118,19 +208,30 @@ enum PixelWorldAvoidanceLayout {
     static let composerSize = CGSize(width: 440, height: 76)
 
     static func composerRects(
-        worldSize: CGSize,
+        activityFrame: CGRect,
         edge: OverlayEdge,
         composerVisible: Bool
     ) -> [CGRect] {
         guard composerVisible, edge == .top else { return [] }
-        let worldFrame = CGRect(origin: .zero, size: worldSize)
         let rect = CGRect(
-            x: worldSize.width / 2 - composerSize.width / 2,
-            y: worldSize.height - composerSize.height,
+            x: activityFrame.midX - composerSize.width / 2,
+            y: activityFrame.maxY - composerSize.height,
             width: composerSize.width,
             height: composerSize.height
-        ).intersection(worldFrame)
+        ).intersection(activityFrame)
         return rect.isNull || rect.isEmpty ? [] : [rect]
+    }
+
+    static func composerRects(
+        worldSize: CGSize,
+        edge: OverlayEdge,
+        composerVisible: Bool
+    ) -> [CGRect] {
+        composerRects(
+            activityFrame: CGRect(origin: .zero, size: worldSize),
+            edge: edge,
+            composerVisible: composerVisible
+        )
     }
 }
 
@@ -477,10 +578,28 @@ struct PixelCharacterVisualState: Equatable {
     let showsDozeLabel: Bool
 }
 
+enum PixelDozeLabelStyle {
+    static let text = "Zzz"
+    static let fontSize: CGFloat = 14
+    static let outlineWidth: CGFloat = 2
+    static let restingAlpha: CGFloat = 0.55
+    static let floatingDistance: CGFloat = 3
+    static let fillColor = NSColor.systemOrange
+    static let outlineColor = NSColor(srgbRed: 0.08, green: 0.07, blue: 0.06, alpha: 0.92)
+
+    static let outlineOffsets: [CGPoint] = (0..<12).map { index in
+        let angle = CGFloat(index) * .pi * 2 / 12
+        return CGPoint(
+            x: cos(angle) * outlineWidth,
+            y: sin(angle) * outlineWidth
+        )
+    }
+}
+
 enum PixelCharacterPulseStyle {
-    static let peakScale: CGFloat = 4
-    static let growDuration: TimeInterval = 0.14
-    static let settleDuration: TimeInterval = 0.42
+    static let peakScale: CGFloat = 7
+    static let growDuration: TimeInterval = 0.20
+    static let settleDuration: TimeInterval = 0.60
     static let totalDuration = growDuration + settleDuration
 }
 
@@ -492,13 +611,18 @@ private struct CharacterPulseKey: Hashable {
 final class PixelWorldScene: SKScene {
     private var characterNodes: [UUID: PixelCharacterNode] = [:]
     private var agents: [UUID: PixelMovementAgent] = [:]
+    private var characterDrops: [UUID: PixelCharacterDropState] = [:]
     private var members: [UUID: PixelWorldMember] = [:]
     private var activeBubbles: [UUID: ActiveBubble] = [:]
     private var lastPulseEventIDs: [CharacterPulseKey: UUID] = [:]
     private var currentRoomID: UUID?
     private var installationSeed: UInt64 = 0
     private var edge: OverlayEdge = .bottom
+    private var activityFrame: CGRect?
     private var composerVisible = false
+    private var characterInteractionEnabled = false
+    private var draggedMemberID: UUID?
+    private var dragOffset = CGVector.zero
     private var lastUpdateTime: TimeInterval?
     private var lastHotspotReportTime: TimeInterval = 0
     private var lastHotspotFrame: CGRect?
@@ -540,21 +664,30 @@ final class PixelWorldScene: SKScene {
         members requestedMembers: [PixelWorldMember],
         bubbles: [ActiveBubble],
         edge: OverlayEdge,
+        activityFrame: CGRect? = nil,
         installationSeed: UInt64,
         composerVisible: Bool = false,
+        characterInteractionEnabled: Bool = false,
         characterPulse: CharacterPulseEvent? = nil,
         onCurrentUserFrameChanged: ((CGRect?) -> Void)? = nil
     ) {
         self.onCurrentUserFrameChanged = onCurrentUserFrameChanged
         let roomChanged = roomID != currentRoomID
+        let edgeChanged = self.edge != edge
         currentRoomID = roomID
         self.installationSeed = installationSeed
         self.edge = edge
+        let activityFrameChanged = self.activityFrame != activityFrame
+        self.activityFrame = activityFrame
         self.composerVisible = composerVisible
+        let interactionWasEnabled = self.characterInteractionEnabled
+        self.characterInteractionEnabled = characterInteractionEnabled
         if roomChanged {
             characterNodes.values.forEach { $0.removeFromParent() }
             characterNodes.removeAll()
             agents.removeAll()
+            characterDrops.removeAll()
+            draggedMemberID = nil
             lastHotspotFrame = nil
         }
 
@@ -563,6 +696,8 @@ final class PixelWorldScene: SKScene {
         for id in removedIDs {
             characterNodes.removeValue(forKey: id)?.removeFromParent()
             agents.removeValue(forKey: id)
+            characterDrops.removeValue(forKey: id)
+            if draggedMemberID == id { draggedMemberID = nil }
         }
 
         members = requestedByID
@@ -595,6 +730,25 @@ final class PixelWorldScene: SKScene {
                 tangentLength: geometry.tangentLength
             )
         }
+        if edgeChanged {
+            characterDrops.removeAll()
+            draggedMemberID = nil
+        }
+        if activityFrameChanged {
+            characterDrops.removeAll()
+            draggedMemberID = nil
+            let geometry = trackGeometry
+            for id in Array(agents.keys) {
+                guard var agent = agents[id] else { continue }
+                agent.trackPosition = geometry.clamped(agent.trackPosition)
+                agent.target = geometry.clamped(agent.target)
+                agents[id] = agent
+                characterNodes[id]?.position = geometry.point(for: agent.trackPosition)
+            }
+        }
+        if interactionWasEnabled, !characterInteractionEnabled {
+            endCharacterDrag(at: nil)
+        }
         if let characterPulse,
            characterPulse.roomID == roomID,
            let node = characterNodes[characterPulse.userID] {
@@ -611,6 +765,8 @@ final class PixelWorldScene: SKScene {
         let deltaTime = lastUpdateTime.map { currentTime - $0 } ?? (1.0 / 30.0)
         lastUpdateTime = currentTime
         let stoppedIDs = PixelMovementPolicy.stoppedMemberIDs(in: members.values)
+            .union(characterDrops.keys)
+            .union(draggedMemberID.map { [$0] } ?? [])
         let geometry = trackGeometry
         var orderedAgents = agents.values.sorted { $0.id.uuidString < $1.id.uuidString }
         PixelMovementSimulation.step(
@@ -623,6 +779,38 @@ final class PixelWorldScene: SKScene {
         )
 
         for var agent in orderedAgents {
+            guard let node = characterNodes[agent.id], let member = members[agent.id] else { continue }
+            if draggedMemberID == agent.id {
+                agents[agent.id] = agent
+                node.updateMotion(member: member, moving: false)
+                node.updatePresentationLayout(
+                    tangentPosition: agent.trackPosition,
+                    tangentLength: geometry.tangentLength,
+                    edge: edge
+                )
+                continue
+            }
+            if var drop = characterDrops[agent.id] {
+                let settled = PixelCharacterDropSimulation.step(
+                    state: &drop,
+                    deltaTime: deltaTime,
+                    geometry: geometry
+                )
+                agent.trackPosition = drop.tangent
+                agent.target = drop.tangent
+                agent.velocity = 0
+                agent.idleRemaining = max(agent.idleRemaining, 0.35)
+                agents[agent.id] = agent
+                node.position = geometry.point(for: drop.tangent, altitude: drop.altitude)
+                node.updateMotion(member: member, moving: false)
+                node.updatePresentationLayout(
+                    tangentPosition: drop.tangent,
+                    tangentLength: geometry.tangentLength,
+                    edge: edge
+                )
+                if settled { characterDrops.removeValue(forKey: agent.id) }
+                continue
+            }
             if !stoppedIDs.contains(agent.id), abs(agent.trackPosition - agent.target) < 3 {
                 agent.idleRemaining = 0.8 + stableUnit(
                     roomID: currentRoomID,
@@ -632,7 +820,6 @@ final class PixelWorldScene: SKScene {
                 agent.target = randomTarget(for: agent.id, time: currentTime)
             }
             agents[agent.id] = agent
-            guard let node = characterNodes[agent.id], let member = members[agent.id] else { continue }
             node.position = geometry.point(for: agent.trackPosition)
             let moving = abs(agent.velocity) > 2 && agent.idleRemaining <= 0 && !stoppedIDs.contains(agent.id)
             node.updateMotion(member: member, moving: moving)
@@ -650,7 +837,9 @@ final class PixelWorldScene: SKScene {
 
     var nodeIDs: Set<UUID> { Set(characterNodes.keys) }
     var agentStates: [PixelMovementAgent] { agents.values.sorted { $0.id.uuidString < $1.id.uuidString } }
-    var trackGeometry: EdgeTrackGeometry { EdgeTrackGeometry(bounds: frame, edge: edge) }
+    var trackGeometry: EdgeTrackGeometry {
+        EdgeTrackGeometry(bounds: effectiveActivityFrame, edge: edge)
+    }
     var messageBubbleTangentRanges: [UUID: ClosedRange<CGFloat>] {
         let geometry = trackGeometry
         return activeBubbles.reduce(into: [:]) { ranges, entry in
@@ -689,12 +878,103 @@ final class PixelWorldScene: SKScene {
         characterNodes[memberID]?.pulsePlayCount ?? 0
     }
 
+    func renderedCharacterPosition(for memberID: UUID) -> CGPoint? {
+        characterNodes[memberID]?.position
+    }
+
+    func dropState(for memberID: UUID) -> PixelCharacterDropState? {
+        characterDrops[memberID]
+    }
+
+    @discardableResult
+    func beginCharacterDrag(at point: CGPoint) -> UUID? {
+        guard characterInteractionEnabled else { return nil }
+        let candidate = characterNodes
+            .compactMap { id, node -> (UUID, CGFloat)? in
+                let distance = hypot(node.position.x - point.x, node.position.y - point.y)
+                return distance <= PixelCharacterDragPolicy.hitRadius ? (id, distance) : nil
+            }
+            .min { $0.1 < $1.1 }?
+            .0
+        guard let candidate, let node = characterNodes[candidate] else { return nil }
+
+        draggedMemberID = candidate
+        characterDrops.removeValue(forKey: candidate)
+        dragOffset = CGVector(dx: node.position.x - point.x, dy: node.position.y - point.y)
+        node.zPosition = 100
+        moveDraggedCharacter(to: point)
+        return candidate
+    }
+
+    func moveDraggedCharacter(to point: CGPoint) {
+        guard let id = draggedMemberID,
+              let node = characterNodes[id],
+              var agent = agents[id]
+        else { return }
+        let requested = CGPoint(x: point.x + dragOffset.dx, y: point.y + dragOffset.dy)
+        let bounded = PixelCharacterDragPolicy.clamped(requested, to: frame)
+        let geometry = trackGeometry
+        let tangent = geometry.tangent(for: bounded)
+        let altitude = geometry.altitude(for: bounded, tangent: tangent)
+        node.position = geometry.point(for: tangent, altitude: altitude)
+        agent.trackPosition = tangent
+        agent.target = tangent
+        agent.velocity = 0
+        agent.idleRemaining = max(agent.idleRemaining, 0.35)
+        agents[id] = agent
+    }
+
+    func endCharacterDrag(at point: CGPoint?) {
+        guard let id = draggedMemberID,
+              let node = characterNodes[id],
+              var agent = agents[id]
+        else { return }
+        if let point { moveDraggedCharacter(to: point) }
+
+        let geometry = trackGeometry
+        let tangent = geometry.tangent(for: node.position)
+        let altitude = geometry.altitude(for: node.position, tangent: tangent)
+        agent.trackPosition = tangent
+        agent.target = tangent
+        agent.velocity = 0
+        agent.idleRemaining = max(agent.idleRemaining, 0.35)
+        agents[id] = agent
+        characterDrops[id] = PixelCharacterDropState(
+            id: id,
+            tangent: tangent,
+            altitude: altitude
+        )
+        node.zPosition = 0
+        draggedMemberID = nil
+        dragOffset = .zero
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        _ = beginCharacterDrag(at: event.location(in: self))
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        moveDraggedCharacter(to: event.location(in: self))
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        endCharacterDrag(at: event.location(in: self))
+    }
+
     private var composerAvoidanceRects: [CGRect] {
         PixelWorldAvoidanceLayout.composerRects(
-            worldSize: size,
+            activityFrame: effectiveActivityFrame,
             edge: edge,
             composerVisible: composerVisible
         )
+    }
+
+    private var effectiveActivityFrame: CGRect {
+        guard let activityFrame,
+              activityFrame.width > 0,
+              activityFrame.height > 0
+        else { return frame }
+        return activityFrame
     }
 
     private func stableTrackPosition(roomID: UUID?, userID: UUID, salt: UInt64 = 0) -> CGFloat {
@@ -786,6 +1066,7 @@ private final class PixelCharacterNode: SKNode {
     private let nameplateBackground = SKShapeNode()
     private let nickname = SKLabelNode(fontNamed: "AppleSDGothicNeo-SemiBold")
     private let statusDot = SKShapeNode(circleOfRadius: PixelNameplateLayout.statusDotRadius)
+    private let dozeEffect = SKNode()
     private let dozeLabel = SKLabelNode(fontNamed: "AppleSDGothicNeo-Bold")
     private var bubbleNode: PixelBubbleNode?
     private var currentMotion: PixelCharacterMotion?
@@ -801,7 +1082,7 @@ private final class PixelCharacterNode: SKNode {
                 motion: $0,
                 alpha: sprite.alpha,
                 colorBlendFactor: sprite.colorBlendFactor,
-                showsDozeLabel: !dozeLabel.isHidden
+                showsDozeLabel: !dozeEffect.isHidden
             )
         }
     }
@@ -837,13 +1118,24 @@ private final class PixelCharacterNode: SKNode {
         statusDot.zPosition = 12
         presentation.addChild(statusDot)
 
-        dozeLabel.text = "z"
-        dozeLabel.fontSize = 11
-        dozeLabel.fontColor = .white
-        dozeLabel.position = CGPoint(x: 22, y: 20)
-        dozeLabel.zPosition = 14
-        dozeLabel.isHidden = true
-        presentation.addChild(dozeLabel)
+        dozeEffect.position = CGPoint(x: 26, y: 20)
+        dozeEffect.zPosition = 14
+        dozeEffect.isHidden = true
+        for offset in PixelDozeLabelStyle.outlineOffsets {
+            let outline = SKLabelNode(fontNamed: "AppleSDGothicNeo-Bold")
+            outline.text = PixelDozeLabelStyle.text
+            outline.fontSize = PixelDozeLabelStyle.fontSize
+            outline.fontColor = PixelDozeLabelStyle.outlineColor
+            outline.position = offset
+            outline.zPosition = 0
+            dozeEffect.addChild(outline)
+        }
+        dozeLabel.text = PixelDozeLabelStyle.text
+        dozeLabel.fontSize = PixelDozeLabelStyle.fontSize
+        dozeLabel.fontColor = PixelDozeLabelStyle.fillColor
+        dozeLabel.zPosition = 1
+        dozeEffect.addChild(dozeLabel)
+        presentation.addChild(dozeEffect)
     }
 
     required init?(coder aDecoder: NSCoder) {
@@ -990,14 +1282,21 @@ private final class PixelCharacterNode: SKNode {
     }
 
     private func setDozeVisible(_ visible: Bool) {
-        guard dozeLabel.isHidden == visible else { return }
-        dozeLabel.isHidden = !visible
-        dozeLabel.removeAllActions()
+        guard dozeEffect.isHidden == visible else { return }
+        dozeEffect.isHidden = !visible
+        dozeEffect.removeAllActions()
+        dozeEffect.position = CGPoint(x: 26, y: 20)
         guard visible else { return }
-        dozeLabel.alpha = 0.35
-        dozeLabel.run(.repeatForever(.sequence([
-            .group([.fadeAlpha(to: 1, duration: 0.4), .moveBy(x: 1, y: 2, duration: 0.4)]),
-            .group([.fadeAlpha(to: 0.35, duration: 0.4), .moveBy(x: -1, y: -2, duration: 0.4)])
+        dozeEffect.alpha = PixelDozeLabelStyle.restingAlpha
+        dozeEffect.run(.repeatForever(.sequence([
+            .group([
+                .fadeAlpha(to: 1, duration: 0.5),
+                .moveBy(x: 0, y: PixelDozeLabelStyle.floatingDistance, duration: 0.5)
+            ]),
+            .group([
+                .fadeAlpha(to: PixelDozeLabelStyle.restingAlpha, duration: 0.5),
+                .moveBy(x: 0, y: -PixelDozeLabelStyle.floatingDistance, duration: 0.5)
+            ])
         ])))
     }
 }

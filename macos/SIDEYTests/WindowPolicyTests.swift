@@ -44,6 +44,69 @@ final class WindowPolicyTests: XCTestCase {
         }
     }
 
+    func testAllTwelvePresetsKeepActivityTrackWhileExpandingAClampedRenderFrame() {
+        let screen = OverlayScreenGeometry(
+            identifier: "display:test",
+            legacySignature: "2400x1800@2.000",
+            name: "테스트",
+            visibleFrame: CGRect(x: 100, y: 40, width: 1200, height: 900)
+        )
+
+        for edge in OverlayEdge.allCases {
+            for span in OverlaySpan.allCases {
+                let frames = OverlayRegionLayout.frames(
+                    for: OverlayRegionPreference(
+                        edge: edge,
+                        span: span,
+                        screenIdentifier: screen.identifier
+                    ),
+                    on: screen
+                )
+                XCTAssertTrue(screen.visibleFrame.contains(frames.activityFrame), "activity \(edge) \(span)")
+                XCTAssertTrue(screen.visibleFrame.contains(frames.renderFrame), "render \(edge) \(span)")
+                XCTAssertTrue(frames.renderFrame.contains(frames.activityFrame), "contain \(edge) \(span)")
+                XCTAssertEqual(
+                    edge.isHorizontal ? frames.renderFrame.height : frames.renderFrame.width,
+                    OverlayRegionLayout.reactionRenderDepth,
+                    accuracy: 0.001
+                )
+
+                let local = frames.localActivityFrame
+                XCTAssertEqual(local.size, frames.activityFrame.size)
+                XCTAssertTrue(CGRect(origin: .zero, size: frames.renderFrame.size).contains(local))
+                if span != .full {
+                    let leadingMargin = edge.isHorizontal ? local.minX : local.minY
+                    let trailingMargin = edge.isHorizontal
+                        ? frames.renderFrame.width - local.maxX
+                        : frames.renderFrame.height - local.maxY
+                    XCTAssertEqual(
+                        leadingMargin,
+                        OverlayRegionLayout.reactionTangentMargin,
+                        accuracy: 0.001
+                    )
+                    XCTAssertEqual(
+                        trailingMargin,
+                        OverlayRegionLayout.reactionTangentMargin,
+                        accuracy: 0.001
+                    )
+                }
+            }
+        }
+    }
+
+    func testRenderLocalHotspotConvertsThroughRenderFrameOrigin() {
+        let frames = OverlayRegionFrames(
+            activityFrame: CGRect(x: 400, y: 40, width: 400, height: 240),
+            renderFrame: CGRect(x: 256, y: 40, width: 688, height: 360)
+        )
+        let localHotspot = CGRect(x: 300, y: 18, width: 52, height: 52)
+
+        XCTAssertEqual(
+            frames.screenFrame(forRenderLocalFrame: localHotspot),
+            CGRect(x: 556, y: 58, width: 52, height: 52)
+        )
+    }
+
     func testSmallScreenCapsRegionDepthAtOneThirdOfVerticalLength() {
         let screen = OverlayScreenGeometry(
             identifier: "display:small",
@@ -163,16 +226,25 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertEqual(group.interactionLevel, .floating)
         XCTAssertFalse(group.worldCanHide)
         XCTAssertTrue(group.worldIgnoresMouseEvents)
+        XCTAssertFalse(group.characterInteractionEnabled)
         XCTAssertFalse(group.interactionIgnoresMouseEvents)
         XCTAssertFalse(group.interactionIsVisible)
         XCTAssertFalse(group.interactionIsKeyWindow)
         XCTAssertEqual(group.interactionSize, CGSize(width: 400, height: 56))
-        XCTAssertEqual(group.worldSize, group.currentFrame.size)
+        XCTAssertEqual(group.worldSize, group.renderFrame.size)
+        XCTAssertTrue(group.renderFrame.contains(group.activityFrame))
         XCTAssertTrue(group.worldIsRendering)
         XCTAssertTrue(group.worldCollectionBehavior.contains(.canJoinAllSpaces))
         XCTAssertTrue(group.worldCollectionBehavior.contains(.fullScreenAuxiliary))
         XCTAssertTrue(group.interactionCollectionBehavior.contains(.canJoinAllSpaces))
         XCTAssertTrue(settings.window?.childWindows?.isEmpty ?? false)
+
+        group.setCharacterInteractionEnabled(true)
+        XCTAssertTrue(group.characterInteractionEnabled)
+        XCTAssertFalse(group.worldIgnoresMouseEvents)
+        group.setCharacterInteractionEnabled(false)
+        XCTAssertFalse(group.characterInteractionEnabled)
+        XCTAssertTrue(group.worldIgnoresMouseEvents)
 
         group.presentComposer()
         XCTAssertTrue(group.composerVisible)
@@ -428,6 +500,7 @@ final class WindowPolicyTests: XCTestCase {
         let controller = StatusItemController(onToggleOverlay: {}, onOpenSettings: {}, onQuit: {})
         controller.update(
             overlayVisible: true,
+            characterInteractionEnabled: true,
             rooms: rooms,
             activeRoomID: activeRoomID,
             unreadCounts: [otherRoomID: 3],
@@ -437,6 +510,7 @@ final class WindowPolicyTests: XCTestCase {
 
         let menu = controller.makeMenu()
         XCTAssertNotNil(menu.item(withTitle: "메시지 작성…"))
+        XCTAssertEqual(menu.item(withTitle: "캐릭터 이동 모드")?.state, .on)
         XCTAssertNotNil(menu.item(withTitle: "최근 기록…"))
         XCTAssertNil(menu.item(withTitle: "오버레이 잠금 해제"))
         XCTAssertNil(menu.item(withTitle: "오버레이 위치 초기화"))

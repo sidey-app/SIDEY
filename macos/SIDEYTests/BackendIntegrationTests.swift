@@ -19,7 +19,7 @@ final class BackendIntegrationTests: XCTestCase {
         let secondProbe = BackendEventProbe()
         let firstEvents = Task { await firstProbe.consume(first.events) }
         let secondEvents = Task { await secondProbe.consume(second.events) }
-        var createdRoomID: UUID?
+        var createdRoomIDs: Set<UUID> = []
 
         do {
             _ = try await first.boot()
@@ -27,7 +27,7 @@ final class BackendIntegrationTests: XCTestCase {
             _ = try await first.upsertProfile(nickname: "통합첫째")
             _ = try await second.upsertProfile(nickname: "통합둘째")
             let created = try await first.createRoom(name: "네이티브 통합 \(Int.random(in: 1000...9999))")
-            createdRoomID = created.roomID
+            createdRoomIDs.insert(created.roomID)
             let joinedRoomID = try await second.joinRoom(inviteCode: created.inviteCode)
             XCTAssertEqual(joinedRoomID, created.roomID)
             let creatorStoredCode = try await first.storedInviteCode(roomID: created.roomID)
@@ -41,6 +41,17 @@ final class BackendIntegrationTests: XCTestCase {
                 let firstConnected = await firstProbe.isConnected
                 let secondConnected = await secondProbe.isConnected
                 return firstConnected && secondConnected
+            }
+
+            let snapshotsBeforeRename = await secondProbe.snapshotCount
+            let renamedRoom = "이름 변경 \(Int.random(in: 1000...9999))"
+            try await first.renameRoom(created.roomID, name: renamedRoom)
+            try await waitUntil("두 번째 클라이언트 그룹 이름 변경 수신") {
+                await secondProbe.hasSnapshot(
+                    after: snapshotsBeforeRename,
+                    roomID: created.roomID,
+                    expectedName: renamedRoom
+                )
             }
 
             let body = "Swift 네이티브 통합 \(UUID().uuidString.prefix(8))"
@@ -100,13 +111,51 @@ final class BackendIntegrationTests: XCTestCase {
                 await secondProbe.characterPulseEventIDs.contains(recoveredPulseEventID)
             }
 
-            try await second.leaveRoom(created.roomID)
-            try await first.leaveRoom(created.roomID)
-            createdRoomID = nil
+            let deletionRoom = try await first.createRoom(name: "삭제 통합 \(Int.random(in: 1000...9999))")
+            createdRoomIDs.insert(deletionRoom.roomID)
+            _ = try await second.joinRoom(inviteCode: deletionRoom.inviteCode)
+            try await first.syncRealtime(
+                roomIDs: [created.roomID, deletionRoom.roomID],
+                activeRoomID: created.roomID
+            )
+            try await second.syncRealtime(
+                roomIDs: [created.roomID, deletionRoom.roomID],
+                activeRoomID: created.roomID
+            )
+
+            let snapshotsBeforeDeletion = await secondProbe.snapshotCount
+            try await first.deleteRoom(deletionRoom.roomID)
+            createdRoomIDs.remove(deletionRoom.roomID)
+            try await waitUntil("참가 클라이언트 그룹 삭제 수신") {
+                await secondProbe.hasSnapshot(
+                    after: snapshotsBeforeDeletion,
+                    roomID: deletionRoom.roomID,
+                    expectedName: nil
+                )
+            }
+            try await second.syncRealtime(roomIDs: [created.roomID], activeRoomID: created.roomID)
+            let deletedRoomStoredCode = try await second.storedInviteCode(roomID: deletionRoom.roomID)
+            XCTAssertNil(deletedRoomStoredCode)
+
+            let snapshotsBeforeRemoval = await secondProbe.snapshotCount
+            try await first.removeRoomMember(created.roomID, userID: secondUserID)
+            try await waitUntil("추방된 클라이언트 그룹 제거 수신") {
+                await secondProbe.hasSnapshot(
+                    after: snapshotsBeforeRemoval,
+                    roomID: created.roomID,
+                    expectedName: nil
+                )
+            }
+            try await second.syncRealtime(roomIDs: [], activeRoomID: nil)
+            let removedRoomStoredCode = try await second.storedInviteCode(roomID: created.roomID)
+            XCTAssertNil(removedRoomStoredCode)
+
+            try await first.deleteRoom(created.roomID)
+            createdRoomIDs.remove(created.roomID)
         } catch {
-            if let roomID = createdRoomID {
+            for roomID in createdRoomIDs {
                 try? await second.leaveRoom(roomID)
-                try? await first.leaveRoom(roomID)
+                try? await first.deleteRoom(roomID)
             }
             firstEvents.cancel()
             secondEvents.cancel()
@@ -150,10 +199,16 @@ private actor BackendEventProbe {
     private(set) var presence: [UUID: PresenceState] = [:]
     private(set) var presenceUpdateCounts: [UUID: Int] = [:]
     private(set) var disconnectedAfterConnectCount = 0
+    private(set) var snapshotCount = 0
+    private(set) var roomNames: [UUID: String] = [:]
     private var hasConnected = false
 
     func hasPresenceUpdate(userID: UUID, state: PresenceState, after count: Int) -> Bool {
         presence[userID] == state && presenceUpdateCounts[userID, default: 0] > count
+    }
+
+    func hasSnapshot(after count: Int, roomID: UUID, expectedName: String?) -> Bool {
+        snapshotCount > count && roomNames[roomID] == expectedName
     }
 
     func consume(_ events: AsyncStream<BackendEvent>) async {
@@ -175,8 +230,9 @@ private actor BackendEventProbe {
             case .presence(_, let userID, let state):
                 presence[userID] = state
                 presenceUpdateCounts[userID, default: 0] += 1
-            case .snapshot:
-                break
+            case .snapshot(let snapshot):
+                snapshotCount += 1
+                roomNames = Dictionary(uniqueKeysWithValues: snapshot.rooms.map { ($0.id, $0.name) })
             }
         }
     }

@@ -35,7 +35,11 @@ if [ "$SIDEY_CODE_SIGN_IDENTITY" != "-" ]; then
 		echo "SIDEY_DEVELOPMENT_TEAM is required for Developer ID signing" >&2
 		exit 64
 	fi
-	set -- "$@" CODE_SIGN_STYLE=Manual "DEVELOPMENT_TEAM=$SIDEY_DEVELOPMENT_TEAM" OTHER_CODE_SIGN_FLAGS=--timestamp
+	set -- "$@" \
+		CODE_SIGN_STYLE=Manual \
+		"DEVELOPMENT_TEAM=$SIDEY_DEVELOPMENT_TEAM" \
+		CODE_SIGN_INJECT_BASE_ENTITLEMENTS=NO \
+		OTHER_CODE_SIGN_FLAGS=--timestamp
 fi
 set -- "$@" build
 "$@"
@@ -54,6 +58,7 @@ SIDEY_LOGIN_APP="$SIDEY_STAGED_APP/Contents/Library/LoginItems/SIDEYLoginItem.ap
 SIDEY_LOGIN_EXECUTABLE="$SIDEY_LOGIN_APP/Contents/MacOS/SIDEYLoginItem"
 SIDEY_LOGIN_INFO_PLIST="$SIDEY_LOGIN_APP/Contents/Info.plist"
 SIDEY_SPARKLE_FRAMEWORK="$SIDEY_STAGED_APP/Contents/Frameworks/Sparkle.framework"
+SIDEY_SPARKLE_VERSION_ROOT="$SIDEY_SPARKLE_FRAMEWORK/Versions/B"
 
 for SIDEY_REQUIRED_PATH in \
 	"$SIDEY_MAIN_EXECUTABLE" \
@@ -66,6 +71,47 @@ for SIDEY_REQUIRED_PATH in \
 		exit 1
 	fi
 done
+
+if [ "$SIDEY_CODE_SIGN_IDENTITY" != "-" ]; then
+	codesign \
+		--force \
+		--sign "$SIDEY_CODE_SIGN_IDENTITY" \
+		--options runtime \
+		--timestamp \
+		"$SIDEY_SPARKLE_VERSION_ROOT/XPCServices/Installer.xpc"
+	codesign \
+		--force \
+		--sign "$SIDEY_CODE_SIGN_IDENTITY" \
+		--options runtime \
+		--timestamp \
+		--preserve-metadata=entitlements \
+		"$SIDEY_SPARKLE_VERSION_ROOT/XPCServices/Downloader.xpc"
+	codesign \
+		--force \
+		--sign "$SIDEY_CODE_SIGN_IDENTITY" \
+		--options runtime \
+		--timestamp \
+		"$SIDEY_SPARKLE_VERSION_ROOT/Autoupdate"
+	codesign \
+		--force \
+		--sign "$SIDEY_CODE_SIGN_IDENTITY" \
+		--options runtime \
+		--timestamp \
+		"$SIDEY_SPARKLE_VERSION_ROOT/Updater.app"
+	codesign \
+		--force \
+		--sign "$SIDEY_CODE_SIGN_IDENTITY" \
+		--options runtime \
+		--timestamp \
+		"$SIDEY_SPARKLE_FRAMEWORK"
+	codesign \
+		--force \
+		--sign "$SIDEY_CODE_SIGN_IDENTITY" \
+		--options runtime \
+		--timestamp \
+		--preserve-metadata=identifier,entitlements,requirements \
+		"$SIDEY_STAGED_APP"
+fi
 
 if [ "$(lipo -archs "$SIDEY_MAIN_EXECUTABLE")" != "arm64" ]; then
 	echo "SIDEY must contain only the arm64 architecture" >&2
@@ -115,8 +161,27 @@ if [ -n "$SIDEY_NOTARYTOOL_PROFILE" ]; then
 		exit 64
 	fi
 	SIDEY_NOTARY_ZIP="$SIDEY_STAGE_DIR/SIDEY-notary-submission.zip"
+	SIDEY_NOTARY_RESULT="$SIDEY_STAGE_DIR/notary-result.json"
 	ditto -c -k --norsrc --noextattr --noqtn --noacl --keepParent "$SIDEY_STAGED_APP" "$SIDEY_NOTARY_ZIP"
-	xcrun notarytool submit "$SIDEY_NOTARY_ZIP" --keychain-profile "$SIDEY_NOTARYTOOL_PROFILE" --wait
+	xcrun notarytool submit \
+		"$SIDEY_NOTARY_ZIP" \
+		--keychain-profile "$SIDEY_NOTARYTOOL_PROFILE" \
+		--wait \
+		--output-format json > "$SIDEY_NOTARY_RESULT"
+	cat "$SIDEY_NOTARY_RESULT"
+	SIDEY_NOTARY_STATUS=$(/usr/bin/plutil -extract status raw -o - "$SIDEY_NOTARY_RESULT")
+	if [ "$SIDEY_NOTARY_STATUS" != "Accepted" ]; then
+		SIDEY_NOTARY_ID=$(/usr/bin/plutil -extract id raw -o - "$SIDEY_NOTARY_RESULT")
+		SIDEY_NOTARY_LOG="$SIDEY_STAGE_DIR/notary-log.json"
+		if xcrun notarytool log \
+			"$SIDEY_NOTARY_ID" \
+			--keychain-profile "$SIDEY_NOTARYTOOL_PROFILE" \
+			"$SIDEY_NOTARY_LOG"; then
+			cat "$SIDEY_NOTARY_LOG" >&2
+		fi
+		echo "Apple notarization failed with status: $SIDEY_NOTARY_STATUS" >&2
+		exit 65
+	fi
 	xcrun stapler staple "$SIDEY_STAGED_APP"
 	xcrun stapler validate "$SIDEY_STAGED_APP"
 	codesign --verify --deep --strict "$SIDEY_STAGED_APP"

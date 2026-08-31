@@ -116,7 +116,7 @@ macOS 26과 Xcode 26 이상이 필요합니다. 기본 macOS 내보내기는 네
 ./scripts/package_macos_release.sh v0.2.0-alpha.3
 ```
 
-Developer ID 활성화 뒤 실제 배포본은 인증서 이름, Team ID, `notarytool` Keychain profile을 지정해 같은 스크립트로 서명·공증·staple까지 끝냅니다.
+Developer ID 활성화 뒤 실제 배포본은 인증서 이름, Team ID, `notarytool` Keychain profile을 지정해 같은 스크립트로 서명·공증·staple까지 끝냅니다. 신규 설치용 DMG에는 `SIDEY.app`과 `Applications` 바로가기가 들어가며, Sparkle 업데이트용 ZIP과 함께 각각 SHA-256 파일이 생성됩니다. 공증 profile을 지정하지 않은 ad-hoc 빌드는 ZIP만 만들고 배포용 DMG 생성을 거부합니다.
 
 ```sh
 SIDEY_CODE_SIGN_IDENTITY="Developer ID Application: YOUR NAME (TEAMID)" \

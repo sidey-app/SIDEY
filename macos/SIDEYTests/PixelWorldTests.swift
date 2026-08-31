@@ -690,8 +690,10 @@ final class PixelWorldTests: XCTestCase {
             characterPulse: CharacterPulseEvent(id: UUID(), roomID: roomID, userID: member.id)
         )
         XCTAssertEqual(scene.renderedPulseCount(for: member.id), 2)
-        XCTAssertEqual(PixelCharacterPulseStyle.peakScale, 4)
-        XCTAssertEqual(PixelCharacterPulseStyle.totalDuration, 0.56, accuracy: 0.001)
+        XCTAssertEqual(PixelCharacterPulseStyle.peakScale, 7)
+        XCTAssertEqual(PixelCharacterPulseStyle.growDuration, 0.20, accuracy: 0.001)
+        XCTAssertEqual(PixelCharacterPulseStyle.settleDuration, 0.60, accuracy: 0.001)
+        XCTAssertEqual(PixelCharacterPulseStyle.totalDuration, 0.80, accuracy: 0.001)
     }
 
     func testAwayOfflineAndReconnectHaveDistinctVisualStates() throws {
@@ -716,6 +718,11 @@ final class PixelWorldTests: XCTestCase {
         XCTAssertEqual(away.alpha, 1)
         XCTAssertEqual(away.colorBlendFactor, 0)
         XCTAssertTrue(away.showsDozeLabel)
+        XCTAssertEqual(PixelDozeLabelStyle.text, "Zzz")
+        XCTAssertEqual(PixelDozeLabelStyle.fontSize, 14)
+        XCTAssertEqual(PixelDozeLabelStyle.outlineWidth, 2)
+        XCTAssertEqual(PixelDozeLabelStyle.restingAlpha, 0.55, accuracy: 0.001)
+        XCTAssertEqual(PixelDozeLabelStyle.floatingDistance, 3)
 
         let offline = try XCTUnwrap(apply(.offline))
         XCTAssertEqual(offline.motion, .offline)
@@ -743,6 +750,136 @@ final class PixelWorldTests: XCTestCase {
             installationSeed: 1, onCurrentUserFrameChanged: { reported = $0 }
         )
         XCTAssertNil(reported)
+    }
+
+    func testExpandedRenderSceneKeepsTrackAndHotspotInActivityFrameForEveryEdge() throws {
+        let member = makeMember(isCurrentUser: true)
+        let cases: [(OverlayEdge, CGSize, CGRect)] = [
+            (.bottom, CGSize(width: 1_008, height: 360), CGRect(x: 144, y: 0, width: 720, height: 240)),
+            (.top, CGSize(width: 1_008, height: 360), CGRect(x: 144, y: 120, width: 720, height: 240)),
+            (.left, CGSize(width: 360, height: 1_008), CGRect(x: 0, y: 144, width: 240, height: 720)),
+            (.right, CGSize(width: 360, height: 1_008), CGRect(x: 120, y: 144, width: 240, height: 720))
+        ]
+
+        for (edge, renderSize, activityFrame) in cases {
+            var reported: CGRect?
+            let scene = PixelWorldScene(size: renderSize)
+            scene.apply(
+                roomID: UUID(),
+                members: [member],
+                bubbles: [],
+                edge: edge,
+                activityFrame: activityFrame,
+                installationSeed: 7,
+                onCurrentUserFrameChanged: { reported = $0 }
+            )
+
+            XCTAssertEqual(scene.trackGeometry.bounds, activityFrame, "\(edge)")
+            let hotspot = try XCTUnwrap(reported)
+            XCTAssertEqual(hotspot.size, CGSize(width: 52, height: 52))
+            let center = CGPoint(x: hotspot.midX, y: hotspot.midY)
+            if edge.isHorizontal {
+                XCTAssertTrue(activityFrame.minX...activityFrame.maxX ~= center.x, "\(edge)")
+            } else {
+                XCTAssertTrue(activityFrame.minY...activityFrame.maxY ~= center.y, "\(edge)")
+            }
+            let foot = scene.trackGeometry.footPoint(for: scene.agentStates[0].trackPosition)
+            switch edge {
+            case .bottom:
+                XCTAssertEqual(foot.y, activityFrame.minY, accuracy: 0.001)
+            case .top:
+                XCTAssertEqual(foot.y, activityFrame.maxY, accuracy: 0.001)
+            case .left:
+                XCTAssertEqual(foot.x, activityFrame.minX, accuracy: 0.001)
+            case .right:
+                XCTAssertEqual(foot.x, activityFrame.maxX, accuracy: 0.001)
+            }
+        }
+    }
+
+    func testDroppedCharacterBouncesAndSettlesOnEverySelectedEdge() {
+        for edge in OverlayEdge.allCases {
+            let bounds = edge.isHorizontal
+                ? CGRect(x: 100, y: 60, width: 720, height: 240)
+                : CGRect(x: 80, y: 100, width: 240, height: 720)
+            let geometry = EdgeTrackGeometry(bounds: bounds, edge: edge)
+            var state = PixelCharacterDropState(
+                id: UUID(),
+                tangent: geometry.trackRange.lowerBound + 140,
+                altitude: 190
+            )
+            var settled = false
+
+            for _ in 0..<360 where !settled {
+                settled = PixelCharacterDropSimulation.step(
+                    state: &state,
+                    deltaTime: 1.0 / 60.0,
+                    geometry: geometry
+                )
+                let position = geometry.point(for: state.tangent, altitude: state.altitude)
+                XCTAssertGreaterThanOrEqual(
+                    geometry.altitude(for: position, tangent: state.tangent),
+                    0,
+                    "\(edge)"
+                )
+            }
+
+            XCTAssertTrue(settled, "\(edge)")
+            XCTAssertEqual(state.bounceCount, PixelCharacterDropSimulation.maximumBounceCount, "\(edge)")
+            XCTAssertEqual(state.altitude, 0, accuracy: 0.001, "\(edge)")
+            XCTAssertEqual(state.normalVelocity, 0, accuracy: 0.001, "\(edge)")
+            let foot = geometry.footPoint(for: state.tangent)
+            switch edge {
+            case .bottom: XCTAssertEqual(foot.y, bounds.minY, accuracy: 0.001)
+            case .top: XCTAssertEqual(foot.y, bounds.maxY, accuracy: 0.001)
+            case .left: XCTAssertEqual(foot.x, bounds.minX, accuracy: 0.001)
+            case .right: XCTAssertEqual(foot.x, bounds.maxX, accuracy: 0.001)
+            }
+        }
+    }
+
+    func testInteractionModeCanDragCurrentAndFriendCharactersLocally() throws {
+        let current = makeMember(isCurrentUser: true)
+        let friend = makeMember(isCurrentUser: false)
+        let activityFrame = CGRect(x: 144, y: 0, width: 720, height: 240)
+        let scene = PixelWorldScene(size: CGSize(width: 1_008, height: 360))
+        scene.apply(
+            roomID: UUID(),
+            members: [current, friend],
+            bubbles: [],
+            edge: .bottom,
+            activityFrame: activityFrame,
+            installationSeed: 31,
+            characterInteractionEnabled: false
+        )
+
+        let currentStart = try XCTUnwrap(scene.renderedCharacterPosition(for: current.id))
+        XCTAssertNil(scene.beginCharacterDrag(at: currentStart))
+
+        scene.apply(
+            roomID: UUID(uuidString: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"),
+            members: [current, friend],
+            bubbles: [],
+            edge: .bottom,
+            activityFrame: activityFrame,
+            installationSeed: 31,
+            characterInteractionEnabled: true
+        )
+
+        for (index, member) in [current, friend].enumerated() {
+            let start = try XCTUnwrap(scene.renderedCharacterPosition(for: member.id))
+            XCTAssertEqual(scene.beginCharacterDrag(at: start), member.id)
+            let destination = CGPoint(
+                x: activityFrame.minX + CGFloat(140 + index * 280),
+                y: 300
+            )
+            scene.moveDraggedCharacter(to: destination)
+            scene.endCharacterDrag(at: destination)
+
+            let drop = try XCTUnwrap(scene.dropState(for: member.id))
+            XCTAssertEqual(drop.tangent, destination.x - activityFrame.minX, accuracy: 0.001)
+            XCTAssertGreaterThan(drop.altitude, 200)
+        }
     }
 
     private func makeMember(isCurrentUser: Bool = false) -> PixelWorldMember {

@@ -15,6 +15,19 @@ struct OverlayScreenGeometry: Equatable, Sendable {
     let visibleFrame: CGRect
 }
 
+struct OverlayRegionFrames: Equatable, Sendable {
+    let activityFrame: CGRect
+    let renderFrame: CGRect
+
+    var localActivityFrame: CGRect {
+        activityFrame.offsetBy(dx: -renderFrame.minX, dy: -renderFrame.minY)
+    }
+
+    func screenFrame(forRenderLocalFrame frame: CGRect) -> CGRect {
+        frame.offsetBy(dx: renderFrame.minX, dy: renderFrame.minY)
+    }
+}
+
 @MainActor
 protocol ComposerAutoDismissScheduling: AnyObject {
     func schedule(after delay: Duration, action: @escaping @MainActor () -> Void)
@@ -44,7 +57,9 @@ private final class TaskComposerAutoDismissScheduler: ComposerAutoDismissSchedul
 }
 
 enum OverlayRegionLayout {
-    static let preferredDepth: CGFloat = 240
+    static let preferredActivityDepth: CGFloat = 240
+    static let reactionRenderDepth: CGFloat = 360
+    static let reactionTangentMargin: CGFloat = 144
 
     static func screen(
         for preference: OverlayRegionPreference,
@@ -57,12 +72,16 @@ enum OverlayRegionLayout {
         }) ?? screens.first
     }
 
-    static func frame(
+    static func activityFrame(
         for preference: OverlayRegionPreference,
         on screen: OverlayScreenGeometry
     ) -> CGRect {
         let visible = screen.visibleFrame
-        let depth = min(preferredDepth, visible.height / 3)
+        let depth = min(
+            preferredActivityDepth,
+            visible.height / 3,
+            preference.edge.isHorizontal ? visible.height : visible.width
+        )
         if preference.edge.isHorizontal {
             let length = visible.width * preference.span.fraction
             return CGRect(
@@ -80,6 +99,57 @@ enum OverlayRegionLayout {
             width: depth,
             height: length
         )
+    }
+
+    static func renderFrame(
+        for activityFrame: CGRect,
+        edge: OverlayEdge,
+        in visibleFrame: CGRect
+    ) -> CGRect {
+        if edge.isHorizontal {
+            let minimumX = max(visibleFrame.minX, activityFrame.minX - reactionTangentMargin)
+            let maximumX = min(visibleFrame.maxX, activityFrame.maxX + reactionTangentMargin)
+            let depth = min(reactionRenderDepth, visibleFrame.height)
+            return CGRect(
+                x: minimumX,
+                y: edge == .bottom ? visibleFrame.minY : visibleFrame.maxY - depth,
+                width: max(0, maximumX - minimumX),
+                height: depth
+            )
+        }
+
+        let minimumY = max(visibleFrame.minY, activityFrame.minY - reactionTangentMargin)
+        let maximumY = min(visibleFrame.maxY, activityFrame.maxY + reactionTangentMargin)
+        let depth = min(reactionRenderDepth, visibleFrame.width)
+        return CGRect(
+            x: edge == .left ? visibleFrame.minX : visibleFrame.maxX - depth,
+            y: minimumY,
+            width: depth,
+            height: max(0, maximumY - minimumY)
+        )
+    }
+
+    static func frames(
+        for preference: OverlayRegionPreference,
+        on screen: OverlayScreenGeometry
+    ) -> OverlayRegionFrames {
+        let activity = activityFrame(for: preference, on: screen)
+        return OverlayRegionFrames(
+            activityFrame: activity,
+            renderFrame: renderFrame(
+                for: activity,
+                edge: preference.edge,
+                in: screen.visibleFrame
+            )
+        )
+    }
+
+    /// Compatibility surface for callers that only need the movement/activity area.
+    static func frame(
+        for preference: OverlayRegionPreference,
+        on screen: OverlayScreenGeometry
+    ) -> CGRect {
+        activityFrame(for: preference, on: screen)
     }
 }
 
@@ -108,7 +178,9 @@ final class OverlayWindowGroup {
         onClick: { [weak self] clickCount in self?.handleCharacterClick(clickCount: clickCount) }
     )
     private var screenObserver: ScreenObserverToken?
-    private(set) var currentFrame: CGRect = .zero
+    private(set) var activityFrame: CGRect = .zero
+    private(set) var renderFrame: CGRect = .zero
+    var currentFrame: CGRect { activityFrame }
     private(set) var currentScreenIdentifier: String?
     private var overlayVisible = false
     private(set) var composerVisible = false
@@ -156,12 +228,21 @@ final class OverlayWindowGroup {
         if visible {
             apply(preference: model.preferences.overlayRegion, persistFallback: true)
             worldWindow.orderFront()
-            hotspotWindow.setVisible(true)
+            hotspotWindow.setVisible(!model.characterInteractionEnabled)
         } else {
+            setCharacterInteractionEnabled(false)
             dismissComposer()
             hotspotWindow.setVisible(false)
             worldWindow.orderOut()
         }
+    }
+
+    func setCharacterInteractionEnabled(_ enabled: Bool) {
+        let resolved = enabled && overlayVisible && model.activeRoom != nil
+        if resolved { dismissComposer() }
+        model.characterInteractionEnabled = resolved
+        worldWindow.setCharacterInteractionEnabled(resolved)
+        hotspotWindow.setVisible(overlayVisible && !resolved)
     }
 
     func focusMessageField() {
@@ -232,6 +313,7 @@ final class OverlayWindowGroup {
     var worldSize: CGSize { worldWindow.size }
     var worldCanHide: Bool { worldWindow.canHide }
     var worldIgnoresMouseEvents: Bool { worldWindow.ignoresMouseEvents }
+    var characterInteractionEnabled: Bool { model.characterInteractionEnabled }
     var interactionIgnoresMouseEvents: Bool { interactionWindow.ignoresMouseEvents }
     var interactionIsKeyWindow: Bool { interactionWindow.isKeyWindow }
     var worldIsRendering: Bool { worldWindow.isRendering }
@@ -247,8 +329,15 @@ final class OverlayWindowGroup {
         })
         resolved.screenIdentifier = screen.identifier
         currentScreenIdentifier = screen.identifier
-        currentFrame = OverlayRegionLayout.frame(for: resolved, on: screen)
-        worldWindow.setFrame(currentFrame)
+        let frames = OverlayRegionLayout.frames(for: resolved, on: screen)
+        activityFrame = frames.activityFrame
+        renderFrame = frames.renderFrame
+        currentUserLocalFrame = nil
+        hotspotWindow.setFrame(nil)
+        worldWindow.setLayout(
+            renderFrame: frames.renderFrame,
+            localActivityFrame: frames.localActivityFrame
+        )
         interactionWindow.setScreenFrame(screen.visibleFrame)
         positionHotspot()
 
@@ -301,12 +390,10 @@ final class OverlayWindowGroup {
 
     private func positionHotspot() {
         guard let localFrame = currentUserLocalFrame else { return }
-        hotspotWindow.setFrame(CGRect(
-            x: currentFrame.minX + localFrame.minX,
-            y: currentFrame.minY + localFrame.minY,
-            width: localFrame.width,
-            height: localFrame.height
-        ))
+        hotspotWindow.setFrame(OverlayRegionFrames(
+            activityFrame: activityFrame,
+            renderFrame: renderFrame
+        ).screenFrame(forRenderLocalFrame: localFrame))
     }
 
     private var screenGeometries: [OverlayScreenGeometry] {

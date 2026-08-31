@@ -34,7 +34,10 @@ final class AppCoordinator {
             onCreateRoom: { [weak self] in self?.createRoom() },
             onJoinRoom: { [weak self] in self?.joinRoom() },
             onSelectRoom: { [weak self] roomID in self?.selectRoom(roomID) },
-            onCopyInviteCode: { [weak self] roomID in self?.copyInviteCode(roomID: roomID) }
+            onCopyInviteCode: { [weak self] roomID in self?.copyInviteCode(roomID: roomID) },
+            onRenameRoom: { [weak self] roomID, name in self?.renameRoom(roomID, name: name) },
+            onRemoveRoomMember: { [weak self] roomID, userID in self?.removeRoomMember(roomID, userID: userID) },
+            onDeleteRoom: { [weak self] roomID in self?.deleteRoom(roomID) }
         ),
         onClose: { [weak self] in self?.settingsDidClose() }
     )
@@ -44,6 +47,7 @@ final class AppCoordinator {
     )
     private lazy var statusItemController = StatusItemController(
         onToggleOverlay: { [weak self] in self?.toggleOverlay() },
+        onToggleCharacterInteraction: { [weak self] in self?.toggleCharacterInteraction() },
         onFocusMessage: { [weak self] in self?.focusMessageField() },
         onSelectRoom: { [weak self] roomID in self?.selectRoom(roomID) },
         onToggleQuietMode: { [weak self] in self?.setQuietMode(!(self?.model.preferences.quietModeEnabled ?? false)) },
@@ -216,6 +220,10 @@ final class AppCoordinator {
         setOverlayVisible(!model.overlayVisible)
     }
 
+    private func toggleCharacterInteraction() {
+        setCharacterInteractionEnabled(!model.characterInteractionEnabled)
+    }
+
     private func focusMessageField() {
         if !model.overlayVisible { setOverlayVisible(true) }
         overlayWindows.focusMessageField()
@@ -228,10 +236,18 @@ final class AppCoordinator {
     }
 
     private func setOverlayVisible(_ visible: Bool) {
+        if !visible { setCharacterInteractionEnabled(false) }
         model.setOverlayVisibility(OverlayVisibility(isVisible: visible))
         applyRequestedOverlayVisibility()
         refreshStatusItem()
         persistPreferences()
+    }
+
+    private func setCharacterInteractionEnabled(_ enabled: Bool) {
+        let resolved = enabled && model.overlayVisible && model.activeRoom != nil
+        model.characterInteractionEnabled = resolved
+        overlayWindows.setCharacterInteractionEnabled(resolved)
+        refreshStatusItem()
     }
 
     private func applyRequestedOverlayVisibility() {
@@ -304,6 +320,7 @@ final class AppCoordinator {
     private func refreshStatusItem() {
         statusItemController.update(
             overlayVisible: model.overlayVisible,
+            characterInteractionEnabled: model.characterInteractionEnabled,
             rooms: model.rooms,
             activeRoomID: model.activeRoom?.id,
             unreadCounts: model.unreadCounts,
@@ -426,6 +443,32 @@ final class AppCoordinator {
         }
     }
 
+    private func renameRoom(_ roomID: UUID, name: String) {
+        guard let backend else { return }
+        runMutation(successMessage: "그룹 이름을 변경했음") {
+            try await backend.renameRoom(roomID, name: name)
+        }
+    }
+
+    private func removeRoomMember(_ roomID: UUID, userID: UUID) {
+        guard let backend else { return }
+        let nickname = model.rooms
+            .first(where: { $0.id == roomID })?
+            .members.first(where: { $0.userID == userID })?
+            .nickname ?? "멤버"
+        runMutation(successMessage: "\(nickname)님을 그룹에서 내보냈음") {
+            try await backend.removeRoomMember(roomID, userID: userID)
+        }
+    }
+
+    private func deleteRoom(_ roomID: UUID) {
+        guard let backend else { return }
+        let roomName = model.rooms.first(where: { $0.id == roomID })?.name ?? "그룹"
+        runMutation(successMessage: "‘\(roomName)’ 그룹을 삭제했음") {
+            try await backend.deleteRoom(roomID)
+        }
+    }
+
     private func selectRoom(_ roomID: UUID) {
         overlayWindows.dismissComposer()
         typingChanged(false)
@@ -493,18 +536,25 @@ final class AppCoordinator {
         }
     }
 
-    private func runMutation(_ operation: @escaping @MainActor () async throws -> Void) {
-        guard let backend else { return }
+    private func runMutation(
+        successMessage: String? = nil,
+        _ operation: @escaping @MainActor () async throws -> Void
+    ) {
+        guard let backend, !model.isWorking else { return }
+        model.isWorking = true
+        model.errorMessage = nil
+        model.successMessage = nil
         Task { [weak self] in
             guard let self else { return }
-            model.isWorking = true
-            model.successMessage = nil
             defer { model.isWorking = false }
             do {
                 let wasOnboardingComplete = model.preferences.onboardingComplete
                 try await operation()
                 let snapshot = try await backend.loadSnapshot()
-                model.apply(snapshot: snapshot, currentUserID: await backend.currentUserID())
+                applyBackendSnapshot(
+                    snapshot,
+                    currentUserID: await backend.currentUserID()
+                )
                 try await backend.syncRealtime(
                     roomIDs: snapshot.rooms.map(\.id),
                     activeRoomID: model.activeRoom?.id
@@ -512,6 +562,7 @@ final class AppCoordinator {
                 try await loadActiveMessages(from: backend)
                 model.connectionState = .online
                 model.errorMessage = nil
+                model.successMessage = successMessage
                 if !wasOnboardingComplete && model.preferences.onboardingComplete {
                     model.activeSettingsPage = .groups
                     settingsWindow.transitionFromOnboardingToSettings()
@@ -520,15 +571,26 @@ final class AppCoordinator {
                 refreshStatusItem()
                 persistPreferences()
             } catch {
+                model.successMessage = nil
                 model.errorMessage = error.localizedDescription
             }
         }
     }
 
+    private func applyBackendSnapshot(_ snapshot: BackendSnapshot, currentUserID: UUID?) {
+        if let activeRoomID = model.activeRoom?.id,
+           !snapshot.rooms.contains(where: { $0.id == activeRoomID }) {
+            overlayWindows.dismissComposer()
+            typingChanged(false)
+            model.clearBubbles()
+        }
+        model.apply(snapshot: snapshot, currentUserID: currentUserID)
+    }
+
     private func handleBackendEvent(_ event: BackendEvent) {
         switch event {
         case .snapshot(let snapshot):
-            model.apply(snapshot: snapshot, currentUserID: model.currentUserID)
+            applyBackendSnapshot(snapshot, currentUserID: model.currentUserID)
             applyRequestedOverlayVisibility()
             refreshStatusItem()
             persistPreferences()

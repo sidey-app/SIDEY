@@ -3,7 +3,9 @@ import SwiftUI
 
 struct PixelWorldView: View {
     @Bindable var model: AppModel
+    let activityFrame: CGRect
     let composerVisible: Bool
+    let characterInteractionEnabled: Bool
     let characterPulse: CharacterPulseEvent?
     let onCurrentUserFrameChanged: (CGRect?) -> Void
 
@@ -13,8 +15,10 @@ struct PixelWorldView: View {
             members: model.pixelWorldMembers,
             bubbles: model.activeBubbles,
             edge: model.preferences.overlayRegion.edge,
+            activityFrame: activityFrame,
             installationSeed: model.preferences.installationSeed,
             composerVisible: composerVisible,
+            characterInteractionEnabled: characterInteractionEnabled,
             characterPulse: characterPulse,
             onCurrentUserFrameChanged: onCurrentUserFrameChanged
         )
@@ -26,8 +30,10 @@ private struct PixelWorldRepresentable: NSViewRepresentable {
     let members: [PixelWorldMember]
     let bubbles: [ActiveBubble]
     let edge: OverlayEdge
+    let activityFrame: CGRect
     let installationSeed: UInt64
     let composerVisible: Bool
+    let characterInteractionEnabled: Bool
     let characterPulse: CharacterPulseEvent?
     let onCurrentUserFrameChanged: (CGRect?) -> Void
 
@@ -58,8 +64,10 @@ private struct PixelWorldRepresentable: NSViewRepresentable {
             members: members,
             bubbles: bubbles,
             edge: edge,
+            activityFrame: activityFrame,
             installationSeed: installationSeed,
             composerVisible: composerVisible,
+            characterInteractionEnabled: characterInteractionEnabled,
             characterPulse: characterPulse,
             onCurrentUserFrameChanged: onCurrentUserFrameChanged
         )

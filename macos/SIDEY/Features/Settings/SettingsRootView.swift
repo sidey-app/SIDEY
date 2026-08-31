@@ -12,6 +12,9 @@ struct SettingsActions {
     var onJoinRoom: () -> Void
     var onSelectRoom: (UUID) -> Void
     var onCopyInviteCode: (UUID) -> Void
+    var onRenameRoom: (UUID, String) -> Void
+    var onRemoveRoomMember: (UUID, UUID) -> Void
+    var onDeleteRoom: (UUID) -> Void
 
     static let empty = SettingsActions(
         onOverlayVisibilityChanged: { _ in },
@@ -23,7 +26,10 @@ struct SettingsActions {
         onCreateRoom: {},
         onJoinRoom: {},
         onSelectRoom: { _ in },
-        onCopyInviteCode: { _ in }
+        onCopyInviteCode: { _ in },
+        onRenameRoom: { _, _ in },
+        onRemoveRoomMember: { _, _ in },
+        onDeleteRoom: { _ in }
     )
 }
 
@@ -141,6 +147,10 @@ private struct OnboardingView: View {
                 ErrorBanner(message: error) { model.errorMessage = nil }
                     .padding(20)
                     .frame(maxHeight: .infinity, alignment: .bottom)
+            } else if let success = model.successMessage {
+                SuccessBanner(message: success) { model.successMessage = nil }
+                    .padding(20)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
             }
         }
     }
@@ -223,8 +233,7 @@ private struct OnboardingView: View {
     }
 
     private var validRoomName: Bool {
-        let value = model.newRoomName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !value.isEmpty && value.count <= 20 && value.rangeOfCharacter(from: .newlines) == nil
+        RoomNameValidator.isValid(model.newRoomName)
     }
 
     private enum GroupPath: String, CaseIterable, Identifiable {
@@ -298,9 +307,16 @@ private struct GroupsSettingsView: View {
                     ForEach(model.rooms) { room in
                         RoomRow(
                             room: room,
+                            currentUserID: model.currentUserID,
                             isActive: room.id == model.activeRoom?.id,
+                            isWorking: model.isWorking,
                             onSelect: { actions.onSelectRoom(room.id) },
-                            onCopyInviteCode: { actions.onCopyInviteCode(room.id) }
+                            onCopyInviteCode: { actions.onCopyInviteCode(room.id) },
+                            onRename: { name in actions.onRenameRoom(room.id, name) },
+                            onRemoveMember: { userID in
+                                actions.onRemoveRoomMember(room.id, userID)
+                            },
+                            onDelete: { actions.onDeleteRoom(room.id) }
                         )
                         if room.id != model.rooms.last?.id { Divider() }
                     }
@@ -341,18 +357,78 @@ private struct GroupsSettingsView: View {
     }
 
     private var validRoomName: Bool {
-        let value = model.newRoomName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !value.isEmpty && value.count <= 20 && value.rangeOfCharacter(from: .newlines) == nil
+        RoomNameValidator.isValid(model.newRoomName)
     }
 }
 
 private struct RoomRow: View {
     let room: Room
+    let currentUserID: UUID?
     let isActive: Bool
+    let isWorking: Bool
     let onSelect: () -> Void
     let onCopyInviteCode: () -> Void
+    let onRename: (String) -> Void
+    let onRemoveMember: (UUID) -> Void
+    let onDelete: () -> Void
+
+    @State private var isExpanded = false
+    @State private var isRenaming = false
+    @State private var renameDraft = ""
+    @State private var removalCandidate: RoomMember?
+    @State private var showsDeleteConfirmation = false
 
     var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 12) {
+                if isRenaming {
+                    renameEditor
+                }
+                if room.members.isEmpty {
+                    Text("표시할 멤버 없음")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 48)
+                } else {
+                    ForEach(room.members) { member in
+                        memberRow(member)
+                    }
+                }
+            }
+            .padding(.top, 12)
+            .padding(.leading, 8)
+        } label: {
+            roomHeader
+        }
+        .padding(.vertical, 4)
+        .onChange(of: room.name) { _, newName in
+            if !isRenaming { renameDraft = newName }
+        }
+        .alert(
+            removalCandidate.map { "‘\($0.nickname)’님을 내보낼까?" } ?? "멤버 내보내기",
+            isPresented: Binding(
+                get: { removalCandidate != nil },
+                set: { if !$0 { removalCandidate = nil } }
+            )
+        ) {
+            Button("취소", role: .cancel) { removalCandidate = nil }
+            Button("내보내기", role: .destructive) {
+                guard let candidate = removalCandidate else { return }
+                removalCandidate = nil
+                onRemoveMember(candidate.userID)
+            }
+        } message: {
+            Text("이 멤버는 그룹과 기존 메시지에 접근할 수 없게 됨.")
+        }
+        .alert("‘\(room.name)’ 그룹을 삭제할까?", isPresented: $showsDeleteConfirmation) {
+            Button("취소", role: .cancel) {}
+            Button("그룹 삭제", role: .destructive, action: onDelete)
+        } message: {
+            Text("멤버와 모든 메시지가 영구 삭제되며 복구할 수 없음.")
+        }
+    }
+
+    private var roomHeader: some View {
         HStack(spacing: 14) {
             Image(systemName: isActive ? "person.3.fill" : "person.3")
                 .font(.title2)
@@ -370,13 +446,98 @@ private struct RoomRow: View {
                     .foregroundStyle(.mint)
             } else {
                 Button("이 그룹 보기", action: onSelect)
+                    .disabled(isWorking)
             }
             Button(action: onCopyInviteCode) {
                 Label("초대 코드 복사", systemImage: "doc.on.doc")
             }
+            .disabled(isWorking)
             .help("이 기기의 Keychain에 보관된 초대 코드 복사")
+            if RoomManagementPolicy.canManage(room, currentUserID: currentUserID) {
+                Menu {
+                    Button("이름 변경", systemImage: "pencil") {
+                        renameDraft = room.name
+                        isRenaming = true
+                        isExpanded = true
+                    }
+                    Divider()
+                    Button("그룹 삭제", systemImage: "trash", role: .destructive) {
+                        showsDeleteConfirmation = true
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .menuStyle(.borderlessButton)
+                .disabled(isWorking)
+                .help("그룹 관리")
+            }
         }
-        .padding(.vertical, 4)
+    }
+
+    private var renameEditor: some View {
+        HStack(spacing: 8) {
+            TextField("그룹 이름 1~20자", text: $renameDraft)
+                .textFieldStyle(.roundedBorder)
+                .onChange(of: renameDraft) { _, value in
+                    let limited = RoomNameValidator.limitedDraft(value)
+                    if value != limited { renameDraft = limited }
+                }
+            Button("저장") {
+                let value = renameDraft
+                isRenaming = false
+                onRename(value)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isWorking || !RoomNameValidator.isValid(renameDraft))
+            Button("취소") {
+                renameDraft = room.name
+                isRenaming = false
+            }
+            .disabled(isWorking)
+        }
+        .padding(.leading, 48)
+    }
+
+    @ViewBuilder
+    private func memberRow(_ member: RoomMember) -> some View {
+        HStack(spacing: 10) {
+            Image(nsImage: PixelCharacterPreviewImage.image(
+                for: PixelCharacterCatalog.definition(for: member.characterID)
+            ))
+            .interpolation(.none)
+            .resizable()
+            .frame(width: 36, height: 36)
+            .accessibilityHidden(true)
+
+            HStack(spacing: 6) {
+                if RoomManagementPolicy.isOwner(member, in: room) {
+                    Image(systemName: "crown.fill")
+                        .foregroundStyle(Color(red: 0.95, green: 0.68, blue: 0.12))
+                        .accessibilityLabel("방장")
+                }
+                Text(member.nickname)
+                if member.userID == currentUserID {
+                    Text("나")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(.quaternary, in: Capsule())
+                }
+            }
+            Spacer()
+            if RoomManagementPolicy.canRemove(
+                member,
+                from: room,
+                currentUserID: currentUserID
+            ) {
+                Button("내보내기", role: .destructive) {
+                    removalCandidate = member
+                }
+                .disabled(isWorking)
+            }
+        }
+        .padding(.leading, 48)
     }
 }
 

@@ -519,6 +519,49 @@ enum ProfileValidator {
     }
 }
 
+enum RoomNameValidator {
+    static let minimumCharacters = 1
+    static let maximumCharacters = 20
+
+    static func normalized(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func isValid(_ value: String) -> Bool {
+        let normalized = normalized(value)
+        return normalized.count >= minimumCharacters
+            && normalized.count <= maximumCharacters
+            && value.rangeOfCharacter(from: .newlines) == nil
+            && !value.contains("\t")
+    }
+
+    static func limitedDraft(_ value: String) -> String {
+        let singleLine = value.filter { !$0.isNewline && $0 != "\t" }
+        let normalized = normalized(singleLine)
+        guard normalized.count > maximumCharacters else { return singleLine }
+        return String(normalized.prefix(maximumCharacters))
+    }
+}
+
+enum RoomManagementPolicy {
+    static func isOwner(_ member: RoomMember, in room: Room) -> Bool {
+        room.ownerID == member.userID
+    }
+
+    static func canManage(_ room: Room, currentUserID: UUID?) -> Bool {
+        room.ownerID == currentUserID
+    }
+
+    static func canRemove(
+        _ member: RoomMember,
+        from room: Room,
+        currentUserID: UUID?
+    ) -> Bool {
+        canManage(room, currentUserID: currentUserID)
+            && member.userID != currentUserID
+    }
+}
+
 enum MessageValidator {
     static let maximumCharacters = 200
     static let maximumLines = 3
