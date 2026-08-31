@@ -120,7 +120,10 @@ final class AppCoordinator {
     }
 
     func handleManualReopen() {
-        guard model.preferences.hasShownNativeLanding else { return }
+        guard ManualReopenPolicy.shouldOpenSettings(
+            hasShownNativeLanding: model.preferences.hasShownNativeLanding,
+            composerVisible: overlayWindows.composerVisible
+        ) else { return }
         showSettings()
     }
 

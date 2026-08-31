@@ -20,6 +20,21 @@ final class LaunchRouterTests: XCTestCase {
         )
     }
 
+    func testManualReopenDoesNotOpenSettingsWhileComposerIsVisible() {
+        XCTAssertFalse(ManualReopenPolicy.shouldOpenSettings(
+            hasShownNativeLanding: true,
+            composerVisible: true
+        ))
+        XCTAssertTrue(ManualReopenPolicy.shouldOpenSettings(
+            hasShownNativeLanding: true,
+            composerVisible: false
+        ))
+        XCTAssertFalse(ManualReopenPolicy.shouldOpenSettings(
+            hasShownNativeLanding: false,
+            composerVisible: false
+        ))
+    }
+
     func testExistingUserWaitsForBackendBeforeOpeningOverlay() {
         XCTAssertEqual(
             FirstRunTransition.destination(

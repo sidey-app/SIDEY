@@ -16,6 +16,15 @@ enum LaunchRouter {
     }
 }
 
+enum ManualReopenPolicy {
+    static func shouldOpenSettings(
+        hasShownNativeLanding: Bool,
+        composerVisible: Bool
+    ) -> Bool {
+        hasShownNativeLanding && !composerVisible
+    }
+}
+
 enum OverlayMode: String, Codable, Sendable {
     case locked
     case editing
