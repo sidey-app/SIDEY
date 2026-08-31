@@ -302,7 +302,7 @@ E2EE는 현재 설계·구현·검증되지 않았다. 전송 암호화, Postgre
 3. Developer ID Application 인증서와 Hardened Runtime으로 앱·로그인 항목·Sparkle의 중첩 코드를 서명하고 Apple 공증 뒤 ticket을 staple한다.
 4. `scripts/package_macos_release.sh`로 버전·빌드 번호, arm64 아키텍처, 번들 메타데이터, 코드 서명, ZIP, SHA-256을 검증한다. `CFBundleVersion`은 이전 공개 빌드보다 반드시 커야 한다.
 5. 검증된 커밋을 `main`에 푸시하고 동일 커밋에 버전 태그와 GitHub pre-release 또는 release를 만든 뒤, 그 태그에 검증된 ZIP을 업로드한다.
-6. `scripts/macos/prepare_sparkle_appcast.sh`로 업로드한 것과 바이트가 같은 ZIP의 EdDSA 서명과 signed appcast를 생성한다. 이 도구가 Developer ID, Hardened Runtime, stapled notarization, 앱의 공개키·피드 URL·보안 플래그를 모두 통과해야 한다.
+6. `scripts/macos/prepare_sparkle_appcast.sh`로 ZIP의 EdDSA 서명과 signed appcast를 생성한다. 이 도구가 Developer ID, Hardened Runtime, stapled notarization, 앱의 공개키·피드 URL·보안 플래그를 모두 통과하고, GitHub Release에서 다시 받은 ZIP이 로컬 검증본과 바이트 단위로 같아야 한다.
 7. Release ZIP URL이 실제로 내려받아지는지 확인한 뒤 생성된 `updates/appcast.xml`을 커밋·푸시한다. appcast를 먼저 게시하면 클라이언트가 존재하지 않는 ZIP을 보게 되므로 순서를 바꾸지 않는다.
 8. 30분 장시간 기준을 통과하기 전에는 stable 배포로 표시하지 않는다.
 

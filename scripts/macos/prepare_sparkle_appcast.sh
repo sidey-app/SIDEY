@@ -8,6 +8,7 @@ SIDEY_SPARKLE_ACCOUNT=${SIDEY_SPARKLE_ACCOUNT:-sidey-app}
 SIDEY_APPCAST_OUTPUT=${SIDEY_APPCAST_OUTPUT:-$SIDEY_REPO_ROOT/updates/appcast.xml}
 SIDEY_ALLOW_AD_HOC=${SIDEY_ALLOW_AD_HOC_SPARKLE:-0}
 SIDEY_EXPECTED_FEED_URL=https://raw.githubusercontent.com/sidey-app/SIDEY/main/updates/appcast.xml
+SIDEY_RELEASE_DOWNLOAD_PREFIX="https://github.com/sidey-app/SIDEY/releases/download/$SIDEY_RELEASE_TAG/"
 SIDEY_TEMP_DIR=$(mktemp -d "${TMPDIR:-/tmp}/sidey-appcast.XXXXXX")
 
 cleanup() {
@@ -88,6 +89,15 @@ fi
 
 SIDEY_ARCHIVE_NAME=$(basename -- "$SIDEY_ARCHIVE_PATH")
 SIDEY_ARCHIVE_STEM=${SIDEY_ARCHIVE_NAME%.zip}
+SIDEY_RELEASE_DOWNLOAD_URL="$SIDEY_RELEASE_DOWNLOAD_PREFIX$SIDEY_ARCHIVE_NAME"
+if [ "$SIDEY_ALLOW_AD_HOC" != 1 ]; then
+	SIDEY_REMOTE_ARCHIVE="$SIDEY_TEMP_DIR/remote-$SIDEY_ARCHIVE_NAME"
+	curl --fail --location --retry 3 --output "$SIDEY_REMOTE_ARCHIVE" "$SIDEY_RELEASE_DOWNLOAD_URL"
+	cmp -s "$SIDEY_ARCHIVE_PATH" "$SIDEY_REMOTE_ARCHIVE" || {
+		echo "GitHub Release ZIP differs from the locally verified archive" >&2
+		exit 65
+	}
+fi
 SIDEY_APPCAST_WORK_DIR="$SIDEY_TEMP_DIR/appcast"
 mkdir -p "$SIDEY_APPCAST_WORK_DIR"
 cp "$SIDEY_ARCHIVE_PATH" "$SIDEY_APPCAST_WORK_DIR/$SIDEY_ARCHIVE_NAME"
@@ -104,7 +114,7 @@ fi
 
 "$SIDEY_SPARKLE_BIN_DIR/generate_appcast" \
 	--account "$SIDEY_SPARKLE_ACCOUNT" \
-	--download-url-prefix "https://github.com/sidey-app/SIDEY/releases/download/$SIDEY_RELEASE_TAG/" \
+	--download-url-prefix "$SIDEY_RELEASE_DOWNLOAD_PREFIX" \
 	--link "https://github.com/sidey-app/SIDEY/releases/tag/$SIDEY_RELEASE_TAG" \
 	--maximum-versions 5 \
 	--maximum-deltas 0 \
@@ -114,7 +124,7 @@ fi
 
 xmllint --noout "$SIDEY_APPCAST_WORK_DIR/appcast.xml"
 grep -F '<!-- sparkle-signatures:' "$SIDEY_APPCAST_WORK_DIR/appcast.xml" >/dev/null
-grep -F "https://github.com/sidey-app/SIDEY/releases/download/$SIDEY_RELEASE_TAG/$SIDEY_ARCHIVE_NAME" \
+grep -F "$SIDEY_RELEASE_DOWNLOAD_URL" \
 	"$SIDEY_APPCAST_WORK_DIR/appcast.xml" >/dev/null
 
 mkdir -p "$(dirname -- "$SIDEY_APPCAST_OUTPUT")"

@@ -18,7 +18,8 @@ SIDEY_RELEASE_NOTES=/path/to/release-notes.md \
 
 Commit and push the generated `appcast.xml` only after the ZIP URL is live. The script
 rejects ad-hoc builds by default and verifies the Developer ID signature, Hardened Runtime,
-stapled notarization ticket, embedded public key, feed URL, and signed-feed security flags.
+stapled notarization ticket, embedded public key, feed URL, signed-feed security flags, and
+that the already-uploaded GitHub Release ZIP is byte-for-byte identical to the local ZIP.
 
 For an isolated local pipeline test, `SIDEY_ALLOW_AD_HOC_SPARKLE=1` bypasses only the
 Developer ID and notarization requirement. Never publish an appcast generated in that mode.
