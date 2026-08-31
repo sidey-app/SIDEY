@@ -7,6 +7,8 @@ struct SettingsActions {
     var onShowOfflineMembersChanged: (Bool) -> Void
     var onQuietModeChanged: (Bool) -> Void
     var onLaunchAtLoginChanged: (Bool) -> Void
+    var onCheckForUpdates: () -> Void
+    var canCheckForUpdates: () -> Bool
     var onSaveProfile: () -> Void
     var onCreateRoom: () -> Void
     var onJoinRoom: () -> Void
@@ -22,6 +24,8 @@ struct SettingsActions {
         onShowOfflineMembersChanged: { _ in },
         onQuietModeChanged: { _ in },
         onLaunchAtLoginChanged: { _ in },
+        onCheckForUpdates: {},
+        canCheckForUpdates: { false },
         onSaveProfile: {},
         onCreateRoom: {},
         onJoinRoom: {},
@@ -74,8 +78,10 @@ struct SettingsRootView: View {
                         AppSettingsView(model: model, actions: actions)
                     }
                 }
+                .frame(maxWidth: 760, alignment: .topLeading)
                 .frame(maxWidth: .infinity, alignment: .topLeading)
-                .padding(36)
+                .padding(.horizontal, 44)
+                .padding(.vertical, 40)
             }
             .overlay(alignment: .bottom) {
                 if let error = model.errorMessage {
@@ -250,18 +256,31 @@ private struct ProfileSettingsView: View {
     let onSave: () -> Void
 
     var body: some View {
-        SettingsSection(title: "내 프로필", subtitle: "친구들에게 보이는 이름과 캐릭터") {
-            LabeledContent("닉네임") {
+        SettingsSection(
+            title: "내 프로필",
+            subtitle: "친구들에게 보이는 이름과 캐릭터를 설정함",
+            systemImage: "person.crop.circle"
+        ) {
+            SettingsControlRow(
+                title: "닉네임",
+                description: "친구들의 픽셀 월드와 메시지에 표시되는 이름 · 2~8자"
+            ) {
                 TextField("2~8자", text: $model.nickname)
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 320)
+                    .frame(width: 260)
                     .onChange(of: model.nickname) { _, value in
                         let limited = ProfileValidator.limitedNicknameDraft(value)
                         if limited != value { model.nickname = limited }
                     }
             }
-            Text("캐릭터")
-                .font(.headline)
+            Divider()
+            VStack(alignment: .leading, spacing: 6) {
+                Text("캐릭터")
+                    .font(.headline)
+                Text("친구 화면에서 나를 나타낼 픽셀 동물을 선택함")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
             CharacterSelectionGrid(
                 maximumColumns: 5,
                 selection: $model.selectedCharacterID
@@ -294,8 +313,12 @@ private struct GroupsSettingsView: View {
     let actions: SettingsActions
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 26) {
-            SettingsSection(title: "그룹", subtitle: "그룹당 최대 5명 · 사용자당 최대 5개") {
+        VStack(alignment: .leading, spacing: 34) {
+            SettingsSection(
+                title: "현재 그룹",
+                subtitle: "함께 표시할 친구와 활성 그룹을 관리함 · 그룹당 최대 5명",
+                systemImage: "person.3"
+            ) {
                 if model.rooms.isEmpty {
                     ContentUnavailableView(
                         "아직 연결된 그룹 없음",
@@ -323,13 +346,50 @@ private struct GroupsSettingsView: View {
                 }
             }
 
-            SettingsSection(title: "그룹 추가", subtitle: "서버에서 멤버십과 인원 제한을 다시 검증함") {
+            SettingsSection(
+                title: "새 그룹 만들기",
+                subtitle: "새 공간을 만들고 생성된 초대 코드를 친구에게 공유함",
+                systemImage: "plus.circle"
+            ) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("그룹 이름")
+                        .font(.headline)
+                    Text("1~20자의 이름을 입력해 새로운 비공개 그룹을 만듦")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
                 HStack {
                     TextField("새 그룹 이름", text: $model.newRoomName)
                         .textFieldStyle(.roundedBorder)
-                    Button("만들기", action: actions.onCreateRoom)
+                    Button("그룹 만들기", action: actions.onCreateRoom)
                         .buttonStyle(.glassProminent)
                         .disabled(model.isWorking || !validRoomName || !validNickname)
+                }
+
+                if let invite = model.lastCreatedInviteCode {
+                    Divider()
+                    SettingsControlRow(
+                        title: "방금 만든 그룹의 초대 코드",
+                        description: "이 코드를 전달받은 친구만 그룹에 참여할 수 있음"
+                    ) {
+                        Text(invite)
+                            .font(.system(.body, design: .monospaced).bold())
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+
+            SettingsSection(
+                title: "초대 코드로 참여",
+                subtitle: "친구에게 받은 코드를 입력해 기존 비공개 그룹에 들어감",
+                systemImage: "ticket"
+            ) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("초대 코드")
+                        .font(.headline)
+                    Text("공백을 제외한 초대 코드를 입력하면 서버에서 멤버십과 인원 제한을 확인함")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
                 HStack {
                     TextField("초대 코드", text: $model.inviteCode)
@@ -338,15 +398,9 @@ private struct GroupsSettingsView: View {
                             let uppercased = value.uppercased()
                             if value != uppercased { model.inviteCode = uppercased }
                         }
-                    Button("참여", action: actions.onJoinRoom)
+                    Button("코드로 참여", action: actions.onJoinRoom)
+                        .buttonStyle(.glassProminent)
                         .disabled(model.isWorking || model.inviteCode.trimmingCharacters(in: .whitespaces).isEmpty || !validNickname)
-                }
-                if let invite = model.lastCreatedInviteCode {
-                    LabeledContent("방금 만든 그룹의 초대 코드") {
-                        Text(invite)
-                            .font(.system(.body, design: .monospaced).bold())
-                            .textSelection(.enabled)
-                    }
                 }
             }
         }
@@ -581,55 +635,135 @@ private struct AppSettingsView: View {
     let actions: SettingsActions
 
     var body: some View {
-        SettingsSection(title: "앱 설정", subtitle: "픽셀 월드 영역과 시작 동작") {
-            Toggle("픽셀 월드 표시", isOn: Binding(
-                get: { model.overlayVisible },
-                set: { actions.onOverlayVisibilityChanged($0) }
-            ))
-            Toggle("로그인 시 자동 실행", isOn: Binding(
-                get: { model.launchAtLogin },
-                set: { actions.onLaunchAtLoginChanged($0) }
-            ))
-            Toggle("조용히 모드", isOn: Binding(
-                get: { model.preferences.quietModeEnabled },
-                set: { actions.onQuietModeChanged($0) }
-            ))
-            Toggle("오프라인 멤버 표시", isOn: Binding(
-                get: { model.preferences.showOfflineMembers },
-                set: { actions.onShowOfflineMembersChanged($0) }
-            ))
-            LabeledContent("가장자리") {
-                Picker("가장자리", selection: regionEdgeBinding) {
-                    ForEach(OverlayEdge.allCases) { edge in
-                        Text(edge.title).tag(edge)
-                    }
+        VStack(alignment: .leading, spacing: 34) {
+            SettingsSection(
+                title: "일반",
+                subtitle: "SIDEY의 기본 표시와 실행 방식을 설정함",
+                systemImage: "gearshape"
+            ) {
+                SettingsToggleRow(
+                    title: "픽셀 월드 표시",
+                    description: "선택한 화면 가장자리에 친구들의 픽셀 월드를 표시함",
+                    isOn: Binding(
+                        get: { model.overlayVisible },
+                        set: { actions.onOverlayVisibilityChanged($0) }
+                    )
+                )
+                Divider()
+                SettingsToggleRow(
+                    title: "로그인 시 자동 실행",
+                    description: "Mac에 로그인하면 SIDEY를 자동으로 시작함",
+                    isOn: Binding(
+                        get: { model.launchAtLogin },
+                        set: { actions.onLaunchAtLoginChanged($0) }
+                    )
+                )
+            }
+
+            SettingsSection(
+                title: "표시",
+                subtitle: "친구 상태와 메시지가 화면에 나타나는 방식을 조절함",
+                systemImage: "eye"
+            ) {
+                SettingsToggleRow(
+                    title: "조용히 모드",
+                    description: "메시지 본문 말풍선은 숨기고 타이핑 상태와 미확인 수는 유지함",
+                    isOn: Binding(
+                        get: { model.preferences.quietModeEnabled },
+                        set: { actions.onQuietModeChanged($0) }
+                    )
+                )
+                Divider()
+                SettingsToggleRow(
+                    title: "오프라인 멤버 표시",
+                    description: "접속하지 않은 친구도 잠든 캐릭터와 빨간 상태 점으로 남겨둠",
+                    isOn: Binding(
+                        get: { model.preferences.showOfflineMembers },
+                        set: { actions.onShowOfflineMembersChanged($0) }
+                    )
+                )
+            }
+
+            SettingsSection(
+                title: "업데이트",
+                subtitle: "서명된 공식 배포 채널에서 새로운 SIDEY 버전을 확인함",
+                systemImage: "arrow.triangle.2.circlepath"
+            ) {
+                SettingsControlRow(
+                    title: "업데이트 확인",
+                    description: "Sparkle이 현재 버전보다 새로운 공증 업데이트가 있는지 확인함"
+                ) {
+                    Button("지금 확인", action: actions.onCheckForUpdates)
+                        .buttonStyle(.glassProminent)
+                        .disabled(!actions.canCheckForUpdates())
                 }
-                .labelsHidden()
-                .frame(width: 180)
             }
-            LabeledContent("길이") {
-                Picker("길이", selection: regionSpanBinding) {
-                    ForEach(OverlaySpan.allCases) { span in
-                        Text(span.title).tag(span)
+
+            SettingsSection(
+                title: "월드 배치",
+                subtitle: "픽셀 월드를 표시할 모니터와 화면 가장자리 영역을 선택함",
+                systemImage: "rectangle.inset.filled"
+            ) {
+                SettingsControlRow(
+                    title: "가장자리",
+                    description: "캐릭터가 걸어 다닐 화면 방향"
+                ) {
+                    Picker("가장자리", selection: regionEdgeBinding) {
+                        ForEach(OverlayEdge.allCases) { edge in
+                            Text(edge.title).tag(edge)
+                        }
                     }
+                    .labelsHidden()
+                    .frame(width: 180)
                 }
-                .labelsHidden()
-                .frame(width: 180)
-            }
-            LabeledContent("모니터") {
-                Picker("모니터", selection: regionScreenBinding) {
-                    ForEach(model.availableScreens) { screen in
-                        Text(screen.name).tag(Optional(screen.id))
+                Divider()
+                SettingsControlRow(
+                    title: "영역 길이",
+                    description: "선택한 가장자리에서 월드가 차지할 범위"
+                ) {
+                    Picker("길이", selection: regionSpanBinding) {
+                        ForEach(OverlaySpan.allCases) { span in
+                            Text(span.title).tag(span)
+                        }
                     }
+                    .labelsHidden()
+                    .frame(width: 180)
                 }
-                .labelsHidden()
-                .frame(width: 240)
+                Divider()
+                SettingsControlRow(
+                    title: "모니터",
+                    description: "픽셀 월드와 메시지 입력창을 표시할 화면"
+                ) {
+                    Picker("모니터", selection: regionScreenBinding) {
+                        ForEach(model.availableScreens) { screen in
+                            Text(screen.name).tag(Optional(screen.id))
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 240)
+                }
             }
-            LabeledContent("설정 창 동작") {
-                Text("일반 macOS 창").foregroundStyle(.secondary)
-            }
-            LabeledContent("월드 동작") {
-                Text("항상 위 · 클릭 통과 · 30 FPS").foregroundStyle(.secondary)
+
+            SettingsSection(
+                title: "동작 정보",
+                subtitle: "현재 적용되는 창과 렌더링 정책",
+                systemImage: "info.circle"
+            ) {
+                SettingsControlRow(
+                    title: "설정 창",
+                    description: "다른 일반 앱 창과 동일한 레벨에서 열림"
+                ) {
+                    Text("일반 macOS 창")
+                        .foregroundStyle(.secondary)
+                }
+                Divider()
+                SettingsControlRow(
+                    title: "픽셀 월드",
+                    description: "기본 모드에서 뒤 앱의 포인터 입력을 방해하지 않음"
+                ) {
+                    Text("항상 위 · 클릭 통과 · 30 FPS")
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -732,23 +866,114 @@ private struct SuccessBanner: View {
 private struct SettingsSection<Content: View>: View {
     let title: String
     let subtitle: String
-    @ViewBuilder let content: Content
+    let systemImage: String?
+    let content: Content
+
+    init(
+        title: String,
+        subtitle: String,
+        systemImage: String? = nil,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.systemImage = systemImage
+        self.content = content()
+    }
 
     var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 18) { content }
-                .padding(.top, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title)
-                    .font(.title2.bold())
-                Text(subtitle)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 10) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.tint)
+                        .frame(width: 24, height: 24)
+                        .accessibilityHidden(true)
+                }
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(title)
+                        .font(.title2.bold())
+                    Text(subtitle)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+
+            VStack(alignment: .leading, spacing: 18) { content }
+                .padding(24)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    .thinMaterial,
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(.primary.opacity(0.06), lineWidth: 1)
+                }
+                .shadow(color: .black.opacity(0.035), radius: 12, y: 4)
         }
-        .groupBoxStyle(.automatic)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct SettingsToggleRow: View {
+    let title: String
+    let description: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 24) {
+            SettingsRowLabel(title: title, description: description)
+            Spacer(minLength: 16)
+            Toggle(title, isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.large)
+                .tint(.accentColor)
+        }
+        .contentShape(Rectangle())
+    }
+}
+
+private struct SettingsControlRow<Control: View>: View {
+    let title: String
+    let description: String
+    let control: Control
+
+    init(
+        title: String,
+        description: String,
+        @ViewBuilder control: () -> Control
+    ) {
+        self.title = title
+        self.description = description
+        self.control = control()
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 24) {
+            SettingsRowLabel(title: title, description: description)
+            Spacer(minLength: 16)
+            control
+        }
+    }
+}
+
+private struct SettingsRowLabel: View {
+    let title: String
+    let description: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title)
+                .font(.headline)
+            Text(description)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

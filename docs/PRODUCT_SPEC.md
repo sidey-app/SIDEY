@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.5
 - 최종 갱신: 2026-08-31
-- 상태: macOS `v0.2.0-alpha.4`(build 6) 배포, Windows 네이티브 햄스터 vertical slice 개발
+- 상태: macOS `v0.2.0-alpha.5`(build 7) 배포, Windows 네이티브 햄스터 vertical slice 개발
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 현재 개발 브랜치: `main`
 
@@ -247,6 +247,8 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 
 그룹 설정의 각 행은 펼침 여부, 이름 변경 draft, 삭제·추방 확인 대상을 로컬 UI 상태로 소유한다. 서버에서 읽은 방·멤버 배열을 행 상태로 복제하거나 mutation 성공을 가정해 임의 수정하지 않는다.
 
+macOS 설정 상세 화면은 가로 44pt·세로 40pt 바깥 여백과 카드 안 24pt 여백을 사용한다. 각 섹션은 아이콘·제목·설명을 카드 위에 표시하고, 카드의 토글·선택 항목은 왼쪽 제목 아래 효과 설명과 오른쪽 컨트롤을 한 행으로 대응시킨다. 그룹 화면은 현재 그룹, 새 그룹 만들기, 초대 코드로 참여를 독립 카드로 구성하며 각 카드는 기존 `AppModel` 상태와 `SettingsActions` mutation만 호출한다.
+
 Presence나 snapshot을 적용할 때 UUID 기준으로 추가·갱신·삭제하며 존재하는 캐릭터 노드의 위치를 초기화하지 않는다.
 
 `OverlayWindowGroup`은 composer 표시 상태와 내 캐릭터 단일·더블클릭 패널을 소유한다. `AppCoordinator`는 `character_pulse` 송수신과 캐릭터별 1초 쿨타임을 소유한다. `AppModel`에는 화면 좌표나 애니메이션 frame을 저장하지 않는다.
@@ -370,11 +372,13 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 8. `sidey-app/homebrew-tap`의 Cask를 해당 DMG의 고정 URL·SHA-256으로 갱신하고 audit·style·설치·실행·삭제를 검증한다.
 9. 30분 장시간 기준을 통과하기 전에는 stable 배포로 표시하지 않는다.
 
-Sparkle `2.9.6`이 production 앱에 내장되며 메뉴바 `업데이트 확인…`에서 수동 확인할 수 있다. 자동 확인은 Sparkle의 사용자 동의 흐름을 사용하고, 익명 system profiling은 활성화하지 않는다. appcast와 ZIP은 서로 다른 검증 대상이므로 둘 다 `sidey-app` EdDSA 키로 서명하며 `SURequireSignedFeed`와 `SUVerifyUpdateBeforeExtraction`을 강제한다. 피드는 GitHub raw HTTPS URL, 설치 파일은 GitHub Releases를 사용한다.
+Sparkle `2.9.6`이 production 앱에 내장되며 메뉴바 `업데이트 확인…`과 설정의 업데이트 카드에서 수동 확인할 수 있다. 설정 버튼은 production updater가 사용 가능한 동안에만 활성화한다. 자동 확인은 Sparkle의 사용자 동의 흐름을 사용하고, 익명 system profiling은 활성화하지 않는다. appcast와 ZIP은 서로 다른 검증 대상이므로 둘 다 `sidey-app` EdDSA 키로 서명하며 `SURequireSignedFeed`와 `SUVerifyUpdateBeforeExtraction`을 강제한다. 피드는 GitHub raw HTTPS URL, 설치 파일은 GitHub Releases를 사용한다.
 
 Sparkle이 없는 기존 alpha 사용자는 최신 공증 DMG로 한 번 수동 교체해야 하며, 이후 앱 내부 업데이트를 사용한다. 사용자 세션과 설정은 앱 번들 외부에 있어 교체·업데이트 후에도 유지된다. Sparkle 개인키는 저장소나 CI 로그에 넣지 않고 release operator의 로그인 Keychain과 암호화한 오프라인 백업에만 둔다.
 
 공개 배포본은 표시명 `SIDEY`, 채널 `production`을 사용한다. 로컬 개발본은 최신 Release 구성의 ad-hoc 빌드를 표시명 `Sidey-dev`, 채널 `development`로 만들어 `/Applications/Sidey-dev.app`에만 설치하며 Sparkle controller를 생성하지 않는다. 두 채널은 기존 익명 계정·그룹·설정을 이어 쓰기 위해 `app.sidey.desktop` bundle ID, login item ID, `com.sidey.desktop` Keychain service를 공유한다. 설치 스크립트는 정확한 dev 앱 경로만 교체한다.
+
+macOS가 로그인 세션 또는 그룹 초대 코드가 저장된 Keychain 항목 접근을 인증 UI로 확인할 때 SIDEY는 `LAContext.localizedReason`으로 `SIDEY는 로그인 세션과 그룹 초대 코드를 안전하게 불러오기 위해 macOS 키체인 접근이 필요합니다.`를 표시한다. 이는 특히 ad-hoc과 Developer ID 서명 사이의 최초 전환에서 사용자가 접근 목적을 확인하게 하기 위한 고지이며, 앱은 Mac 로그인 암호나 Apple 계정 암호를 직접 입력받거나 저장하지 않는다.
 
 신규 설치 기본 파일은 공증 DMG다. Homebrew third-party tap은 같은 DMG의 고정 URL·SHA-256, arm64·macOS 26+ 조건, `auto_updates true`, `SIDEY.app`과 안전한 종료 규칙을 사용하고 사용자 데이터 삭제용 `zap`은 선언하지 않는다. ZIP은 Sparkle 전용으로 유지한다.
 

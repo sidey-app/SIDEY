@@ -30,6 +30,8 @@ final class AppCoordinator {
             onShowOfflineMembersChanged: { [weak self] visible in self?.setShowOfflineMembers(visible) },
             onQuietModeChanged: { [weak self] enabled in self?.setQuietMode(enabled) },
             onLaunchAtLoginChanged: { [weak self] enabled in self?.setLaunchAtLogin(enabled) },
+            onCheckForUpdates: { [weak self] in self?.updateController.checkForUpdates() },
+            canCheckForUpdates: { [weak self] in self?.updateController.canCheckForUpdates ?? false },
             onSaveProfile: { [weak self] in self?.saveProfile() },
             onCreateRoom: { [weak self] in self?.createRoom() },
             onJoinRoom: { [weak self] in self?.joinRoom() },

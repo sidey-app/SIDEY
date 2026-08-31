@@ -1,12 +1,21 @@
 import Foundation
+import LocalAuthentication
 import Security
 import Supabase
 
 struct KeychainStore: Sendable {
-    let service: String
+    static let defaultOperationReason =
+        "SIDEY는 로그인 세션과 그룹 초대 코드를 안전하게 불러오기 위해 macOS 키체인 접근이 필요합니다."
 
-    init(service: String = "com.sidey.desktop") {
+    let service: String
+    let operationReason: String
+
+    init(
+        service: String = "com.sidey.desktop",
+        operationReason: String = Self.defaultOperationReason
+    ) {
         self.service = service
+        self.operationReason = operationReason
     }
 
     func read(account: String) throws -> Data? {
@@ -49,7 +58,8 @@ struct KeychainStore: Sendable {
     func deleteAll() throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service
+            kSecAttrService as String: service,
+            kSecUseAuthenticationContext as String: authenticationContext()
         ]
         let status = SecItemDelete(query as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
@@ -70,8 +80,15 @@ struct KeychainStore: Sendable {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
+            kSecUseAuthenticationContext as String: authenticationContext()
         ]
+    }
+
+    private func authenticationContext() -> LAContext {
+        let context = LAContext()
+        context.localizedReason = operationReason
+        return context
     }
 }
 

@@ -2,6 +2,13 @@ import XCTest
 @testable import SIDEY
 
 final class KeychainStoreTests: XCTestCase {
+    func testDefaultOperationReasonExplainsWhySIDEYUsesKeychain() {
+        XCTAssertEqual(
+            KeychainStore.defaultOperationReason,
+            "SIDEY는 로그인 세션과 그룹 초대 코드를 안전하게 불러오기 위해 macOS 키체인 접근이 필요합니다."
+        )
+    }
+
     func testKeychainRoundTripAndDeletion() throws {
         let store = KeychainStore(service: "app.sidey.desktop.tests.\(UUID().uuidString)")
         let account = "round-trip"
