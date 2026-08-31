@@ -108,6 +108,30 @@ final class SettingsInteractionTests: XCTestCase {
         }
     }
 
+    func testTwelveMemberGroupRendersAtCapacity() throws {
+        let roomID = UUID()
+        let members = (0..<ProductLimits.maximumRoomMembers).map { index in
+            RoomMember(
+                userID: UUID(),
+                nickname: "친구\(index + 1)",
+                characterID: "pixel_hamster",
+                presence: .online
+            )
+        }
+
+        let data = try renderSettings(
+            size: SettingsWindowController.settingsContentSize,
+            colorScheme: .light
+        ) { model in
+            model.activeSettingsPage = .groups
+            model.preferences.activeRoomID = roomID
+            model.rooms = [Self.room(id: roomID, name: "가득 찬 그룹", members: members)]
+        }
+
+        XCTAssertEqual(members.count, 12)
+        XCTAssertGreaterThan(data.count, 10_000)
+    }
+
     func testSettingsRenderAtMinimumAndDefaultSizesInLightAndDarkModes() throws {
         let snapshotSentinel = "/private/tmp/sidey-render-settings-snapshots"
         let configuredOutput = ProcessInfo.processInfo.environment["SIDEY_SETTINGS_SNAPSHOT_DIR"]
@@ -202,12 +226,12 @@ final class SettingsInteractionTests: XCTestCase {
         return try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
     }
 
-    private static func room(id: UUID, name: String) -> Room {
+    private static func room(id: UUID, name: String, members: [RoomMember] = []) -> Room {
         Room(
             id: id,
             name: name,
             ownerID: UUID(),
-            members: [],
+            members: members,
             inviteCodeHint: "••••-••AA",
             inviteVersion: 1
         )

@@ -7,8 +7,13 @@ struct OverlayHistoryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Label("최근 메시지", systemImage: "clock.arrow.circlepath")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 2) {
+                    Label("최근 메시지", systemImage: "clock.arrow.circlepath")
+                        .font(.headline)
+                    Text("메시지는 서버에서 \(ProductLimits.messageRetentionDays)일 후 자동 삭제됩니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
                 Button(action: onClose) {
                     Image(systemName: "xmark.circle.fill")

@@ -1,14 +1,14 @@
 # SIDEY 제품 기획서
 
 - 문서 버전: 0.6
-- 최종 갱신: 2026-08-31
+- 최종 갱신: 2026-09-01
 - 상태: macOS `v0.2.0-alpha.6`(build 8) 배포, Windows 네이티브 햄스터 vertical slice 개발
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 현재 개발 브랜치: `main`
 
 ## 1. 제품 정의
 
-`SIDEY`는 최대 5명의 가까운 친구가 2D 픽셀 동물로 사용자의 화면 가장자리에 머물며 상태, 타이핑, 짧은 메시지를 보여주는 초대 전용 데스크톱 ambient messenger다.
+`SIDEY`는 최대 12명의 가까운 친구가 2D 픽셀 동물로 사용자의 화면 가장자리에 머물며 상태, 타이핑, 짧은 메시지를 보여주는 초대 전용 데스크톱 ambient messenger다.
 
 각 캐릭터는 실제 친구 한 명을 나타낸다. 공개 커뮤니티, AI 캐릭터, 가상 반려동물, 게임형 성장 시스템은 제품 범위가 아니다. 제품명은 항상 `SIDEY`를 사용한다.
 
@@ -24,7 +24,7 @@
 
 - macOS 네이티브 클라이언트는 현재 alpha 기준 구현으로 유지한다.
 - 햄스터 vertical slice의 구조 위에 내장 픽셀 동물 5종을 제공한다.
-- 실제 그룹은 최대 5명이다. 렌더러 안정성은 별도 20노드 합성 스트레스 테스트로 검증한다.
+- 실제 그룹은 최대 12명이다. 렌더러 안정성은 별도 20노드 합성 스트레스 테스트로 검증한다.
 - macOS 코드·인증·설정 schema는 Windows 개발을 위해 재작성하지 않는다.
 - 기존 설치의 인증 세션과 설정을 잃지 않도록 Swift 기반 legacy migration 호환만 유지한다.
 
@@ -41,7 +41,7 @@
 - 내장 5종을 넘는 추가 동물
 - 모바일·웹 클라이언트
 - 공개 그룹·검색·발견
-- 5명을 넘는 그룹
+- 12명을 넘는 그룹
 - 이미지·파일 전송, 음성·영상 통화
 - 사용자 업로드 아바타와 캐릭터 커스터마이징
 - AI 동료
@@ -58,7 +58,7 @@
 ## 3. 그룹과 계정
 
 - 그룹은 초대 전용 비공개 방이다.
-- 방당 최대 5명이며 서버 함수가 트랜잭션 잠금 안에서 제한한다.
+- 방당 최대 12명이며 서버 함수가 트랜잭션 잠금 안에서 제한한다.
 - 사용자당 참여 가능한 방은 최대 5개다.
 - 오버레이에는 한 번에 활성 그룹 하나만 표시한다.
 - 닉네임은 줄바꿈 없는 2~8자로 제한한다. 닉네임과 캐릭터 선택은 같은 방에서 중복 가능하며 권한·식별은 UUID로 처리한다.
@@ -153,6 +153,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 ### 5.1 데이터 흐름
 
 - Postgres가 메시지 원본이다.
+- 메시지는 생성 후 7일이 지나면 서버의 일일 정리 작업으로 영구 삭제한다.
 - Presence는 연결·온라인·자리 비움 상태에 사용한다.
 - Broadcast는 SIDEY 입력창의 타이핑과 `character_pulse`처럼 저장하지 않는 이벤트에만 사용한다.
 - macOS 클라이언트는 5초마다 WebSocket과 각 방 채널의 실제 구독 상태를 확인한다. 비정상이 8초 이상 지속되면 채널 및 수신 스트림을 재생성하고, 실패가 이어지면 8초·16초·최대 30초 간격으로 재시도한다.
@@ -307,7 +308,7 @@ OverlayRegionPreference(
 
 ## 8. 서버 변경
 
-운영에 적용된 `20260829000000_sidey_core.sql`의 `join_room` 함수가 방 정원을 5명으로 강제한다. 새 캐릭터 ID는 기존 `character_id` 형식에 맞으므로 pixel-world 또는 캐릭터용 schema migration은 추가하지 않는다. 다음 계약은 그대로 유지한다.
+`20260831030000_expand_room_capacity_and_reduce_message_retention.sql`은 기존 `join_room`을 방 정원 12명으로 교체하고 메시지 보관 기간을 7일로 줄인다. migration 적용 시 이미 7일을 넘긴 메시지를 즉시 삭제하며, 기존 일일 cron은 교체된 정리 함수를 계속 호출한다. 이 변경에서는 운영 Supabase에 migration을 배포하지 않는다. 다음 계약은 그대로 유지한다.
 
 - 사용자당 최대 5개 방
 - 초대 코드 hash 비교와 rate limit
@@ -318,7 +319,7 @@ OverlayRegionPreference(
 - 메시지·Presence·Broadcast schema (`character_pulse`는 DB migration 없는 transient 이벤트)
 - `rename_room(uuid,text)`, `remove_room_member(uuid,uuid)`, 방장 전용 `delete_room(uuid) returns void`; 삭제는 기존 FK cascade로 방 멤버십과 메시지를 함께 제거
 
-임시로 방 정원을 20명으로 늘렸던 staging migration은 운영에 적용되지 않았고 `main`에서도 제거한다. 20명 조건은 렌더러 합성 부하 테스트에만 사용한다.
+임시로 방 정원을 20명으로 늘렸던 staging migration은 운영에 적용되지 않았고 `main`에서도 제거한다. 20명 조건은 렌더러 합성 부하 테스트에만 사용하며 제품 정원은 12명이다.
 
 Windows 개발은 별도 Supabase staging 프로젝트에 같은 migration·RLS·private Realtime 정책을 적용한다. Google provider와 `sidey://auth/callback` redirect allow-list는 staging에서 먼저 검증하고 Windows alpha 승격 직전 production에 추가한다. OAuth client secret·service-role key는 클라이언트·저장소·CI 산출물에 넣지 않는다. OAuth 사용자도 기존 `auth.users` UUID를 사용하므로 신규 DB schema나 membership migration을 추가하지 않는다.
 
@@ -354,14 +355,14 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 - 업데이트: production 채널에 Sparkle `2.9.6` 프레임워크·메뉴 항목·피드 URL·EdDSA 공개키가 번들에 포함되고 signed feed와 압축 해제 전 검증을 강제하며, 업데이트 진행 중에는 수동 확인 메뉴를 비활성화. development 채널은 Sparkle을 시작하지 않고 수동 확인 메뉴도 항상 비활성화
 - 에셋: 5개 시트의 240×24 RGBA·10프레임·공통 발 기준선·결정적 hash·Release 번들 포함, 메뉴 아이콘 1x·2x template/unread variant
 - 설정: 860×640 최소 크기와 1000×760 기본 크기의 라이트·다크 렌더, 옅은 카드 명도, 240pt 컨트롤 영역과 Picker·버튼·토글 오른쪽 정렬, `동작 정보` 제거, 두 사람 그룹 아이콘, 한글 IME 조합 확정 후 닉네임 저장
-- 그룹 설정: 0·1·5명 멤버 목록, 기본 접힘·제목 영역 및 오른쪽 단일 화살표 펼침, `그룹 참가` 문구, 생성·참여·전환별 진행 문구와 라이트·다크 대상 카드 강조, A→B→C 연속 선택에서 C만 commit, UUID 기반 방장 왕관과 펼친 목록 아래 방장 전용 이름 변경·삭제 버튼, 이름 변경 저장·취소, 대상 명시 추방 확인, 영구 삭제 2단계 확인, 활성·비활성·마지막 그룹 삭제 fallback, 초대 코드 복사 성공·실패와 3초 표시·재클릭 갱신·행 제거 취소
+- 그룹 설정: 0·1·12명 멤버 목록, 기본 접힘·제목 영역 및 오른쪽 단일 화살표 펼침, `그룹 참가` 문구, 생성·참여·전환별 진행 문구와 라이트·다크 대상 카드 강조, A→B→C 연속 선택에서 C만 commit, UUID 기반 방장 왕관과 펼친 목록 아래 방장 전용 이름 변경·삭제 버튼, 이름 변경 저장·취소, 대상 명시 추방 확인, 영구 삭제 2단계 확인, 활성·비활성·마지막 그룹 삭제 fallback, 초대 코드 복사 성공·실패와 3초 표시·재클릭 갱신·행 제거 취소
 - DMG: 660×420 배경, `SIDEY.app`, `/Applications` 심볼릭 링크, 기존 5종 idle 프레임, `.DS_Store`를 자동 생성·마운트 검증하고 Finder에서 아이콘 위치·안내 문구·nearest-neighbor 픽셀 선명도를 수동 확인
 - Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단
-- 서버: 5번째 성공, 6번째 `member_limit_reached`, 여섯 번째 방 거부, 비방장 이름 변경·추방·삭제 거부, 방장 성공·본인 추방 거부·삭제 cascade, RLS, 중복 닉네임·캐릭터 허용
+- 서버: 12번째 성공, 13번째 `member_limit_reached`, 여섯 번째 방 거부, 7일 초과 메시지 삭제와 최신 메시지 보존, 비방장 이름 변경·추방·삭제 거부, 방장 성공·본인 추방 거부·삭제 cascade, RLS, 중복 닉네임·캐릭터 허용
 
 ### 10.2 macOS 장시간 수동·계측 테스트
 
-최대 방 인원 5명을 표시한 실제 앱을 30분 이상 실행하고, 별도 20노드 합성 부하를 병행하며 다음을 모두 확인한다.
+최대 방 인원 12명을 표시한 실제 앱을 30분 이상 실행하고, 별도 20노드 합성 부하를 병행하며 다음을 모두 확인한다.
 
 - p95 frame time 40ms 이하
 - 100ms 이상 main-thread hang 없음
@@ -377,13 +378,13 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 1. 햄스터 1종 local slice에서 투명·최상위·외부 앱 클릭 통과·52×52 hotspot·composer 포커스·100/125/150/200% DPI를 Windows 11 25H2 x64 실기에서 통과한다.
 2. 연결형 햄스터 slice에서 Google PKCE 로그인, 프로필, 방, 메시지, Presence, typing lease, `character_pulse`를 staging의 기존 macOS 클라이언트와 양방향 확인한다.
 3. 이 두 게이트 전에는 나머지 4종 캐릭터와 전체 Windows 기능을 구현하지 않는다.
-4. 최종 5명 월드를 2시간, 20노드 합성 부하를 30분 실행해 p95 frame time 40ms 이하, 100ms 이상 UI-thread hang 없음, warm-up 후 working set 20MB 초과 증가 없음, GDI/USER handle·COM surface 지속 증가 없음을 확인한다.
+4. 최종 12명 월드를 2시간, 20노드 합성 부하를 30분 실행해 p95 frame time 40ms 이하, 100ms 이상 UI-thread hang 없음, warm-up 후 working set 20MB 초과 증가 없음, GDI/USER handle·COM surface 지속 증가 없음을 확인한다.
 5. 현재 보조 모니터 실기 검증은 공개 alpha 완료 조건에서 제외하되 합성 모니터 geometry 테스트는 통과시키고 release note에 mixed-DPI·연결 해제 실기 미검증을 명시한다.
 
 ### 10.4 macOS alpha 배포 절차
 
 1. 전체 macOS 단위·창 정책 테스트와 20노드 합성 부하를 통과한다.
-2. 로컬 Supabase에서 5명 제한과 SQL 테스트를 통과한다.
+2. 로컬 Supabase에서 12명 제한·7일 메시지 보관과 SQL 테스트를 통과한다.
 3. Developer ID Application 인증서와 Hardened Runtime으로 앱·로그인 항목·Sparkle의 중첩 코드를 서명하고 Apple 공증 뒤 ticket을 staple한다.
 4. `scripts/package_macos_release.sh`로 버전·빌드 번호, arm64 아키텍처, 번들 메타데이터, 코드 서명, 신규 설치용 DMG, Sparkle용 ZIP과 각 SHA-256을 검증한다. 로그인된 Finder 세션에서 쓰기 가능한 DMG를 마운트해 660×420 배경, 왼쪽 `SIDEY.app`, 오른쪽 `/Applications` 바로가기, 숨긴 toolbar·sidebar·status bar와 `.DS_Store`를 설정한 뒤 UDZO로 변환한다. 배경에는 `SIDEY 설치`, 드래그 안내, 좌→우 픽셀 화살표와 기존 5종 idle 프레임을 정수 nearest-neighbor로 넣는다. 변환본을 다시 마운트해 앱·심볼릭 링크·배경 크기·`.DS_Store`를 자동 검증하고, 별도로 Developer ID 서명·공증·staple을 통과해야 한다. `CFBundleVersion`은 이전 공개 빌드보다 반드시 커야 한다.
 5. 검증된 커밋을 `main`에 푸시하고 동일 커밋에 버전 태그와 GitHub pre-release 또는 release를 만든 뒤, 그 태그에 검증된 DMG와 ZIP을 업로드한다. 신규 설치 링크는 DMG를, Sparkle appcast는 ZIP을 가리킨다.

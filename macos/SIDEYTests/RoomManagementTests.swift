@@ -2,6 +2,15 @@ import XCTest
 @testable import SIDEY
 
 final class RoomManagementTests: XCTestCase {
+    func testProductLimitsMatchRoomAndMessagePolicies() {
+        XCTAssertEqual(ProductLimits.maximumRoomMembers, 12)
+        XCTAssertEqual(ProductLimits.messageRetentionDays, 7)
+        XCTAssertEqual(
+            SideyBackendError.memberLimitReached.localizedDescription,
+            "이 그룹은 이미 12명으로 가득 찼습니다."
+        )
+    }
+
     func testRoomNameValidatorNormalizesAndLimitsSingleLineNames() {
         XCTAssertEqual(RoomNameValidator.normalized("  친구 방  "), "친구 방")
         XCTAssertTrue(RoomNameValidator.isValid("친구 방"))

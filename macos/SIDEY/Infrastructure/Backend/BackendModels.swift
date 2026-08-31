@@ -348,7 +348,7 @@ enum SideyBackendError: LocalizedError, Equatable {
         case .invalidRoomName: "그룹 이름은 줄바꿈 없이 1~20자로 입력해 주세요."
         case .invalidInviteCode: "초대 코드를 다시 확인해 주세요."
         case .roomLimitReached: "한 사용자는 그룹을 최대 5개까지 사용할 수 있습니다."
-        case .memberLimitReached: "이 그룹은 이미 5명으로 가득 찼습니다."
+        case .memberLimitReached: "이 그룹은 이미 \(ProductLimits.maximumRoomMembers)명으로 가득 찼습니다."
         case .alreadyMember: "이미 참여 중인 그룹입니다."
         case .profileRequired: "프로필을 먼저 저장해 주세요."
         case .ownerRequired: "방장만 이 작업을 할 수 있습니다."

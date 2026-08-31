@@ -222,7 +222,8 @@ private struct OnboardingView: View {
                         if value != uppercased { model.inviteCode = uppercased }
                     }
                 HStack {
-                    Text("그룹에는 최대 5명까지 참여할 수 있습니다.").foregroundStyle(.secondary)
+                    Text("그룹에는 최대 \(ProductLimits.maximumRoomMembers)명까지 참여할 수 있습니다.")
+                        .foregroundStyle(.secondary)
                     Spacer()
                     Button(action: actions.onJoinRoom) {
                         OperationButtonLabel(
@@ -330,7 +331,7 @@ private struct GroupsSettingsView: View {
         VStack(alignment: .leading, spacing: 34) {
             SettingsSection(
                 title: "현재 그룹",
-                subtitle: "함께 표시할 친구와 활성 그룹을 관리할 수 있습니다. 그룹당 최대 5명까지 참여할 수 있습니다.",
+                subtitle: "함께 표시할 친구와 활성 그룹을 관리할 수 있습니다. 그룹당 최대 \(ProductLimits.maximumRoomMembers)명까지 참여할 수 있습니다.",
                 systemImage: "person.2"
             ) {
                 if model.rooms.isEmpty {
@@ -553,7 +554,7 @@ private struct RoomRow: View {
                         .frame(width: 34)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(room.name).font(.headline)
-                        Text("\(room.members.count)/5명 · 초대 코드 \(room.inviteCodeHint)")
+                        Text("\(room.members.count)/\(ProductLimits.maximumRoomMembers)명 · 초대 코드 \(room.inviteCodeHint)")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

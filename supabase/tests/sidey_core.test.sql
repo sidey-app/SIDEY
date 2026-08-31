@@ -93,7 +93,7 @@ declare
   number integer;
   code text := (select invite_code from test_rooms where label = 'main');
 begin
-  for number in 2..5 loop
+  for number in 2..12 loop
     perform set_config(
       'request.jwt.claim.sub',
       ('00000000-0000-0000-0000-' || lpad(number::text, 12, '0'))::uuid::text,
@@ -106,14 +106,14 @@ $$;
 
 select is(
   (select count(*)::integer from public.room_members where room_id = (select room_id from test_rooms where label = 'main')),
-  5,
-  'room accepts five members'
+  12,
+  'room accepts twelve members'
 );
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000006', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000013', true);
 select results_eq(
   $$select error_code from public.join_room((select invite_code from test_rooms where label = 'main'))$$,
   $$values ('member_limit_reached'::text)$$,
-  'sixth room member is rejected'
+  'thirteenth room member is rejected'
 );
 select is(
   (select count(distinct profiles.character_id)::integer
@@ -171,7 +171,7 @@ select is(
 );
 select is(
   (select count(*)::integer from public.profiles),
-  5,
+  12,
   'room member sees only profiles sharing a room'
 );
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000021', true);
@@ -294,7 +294,7 @@ select lives_ok(
 );
 select is(
   (select count(*)::integer from public.room_members where room_id = (select room_id from test_rooms where label = 'main')),
-  3,
+  10,
   'removed member no longer belongs to room'
 );
 
@@ -304,9 +304,9 @@ values (
   (select room_id from test_rooms where label = 'main'),
   '00000000-0000-0000-0000-000000000002',
   '오래된 메시지',
-  now() - interval '31 days'
+  now() - interval '8 days'
 );
-select is(private.delete_expired_messages(), 1::bigint, 'retention deletes messages older than 30 days');
+select is(private.delete_expired_messages(), 1::bigint, 'retention deletes messages older than 7 days');
 select is(
   (select count(*)::integer from public.messages where id = '10000000-0000-0000-0000-000000000001'),
   1,
