@@ -43,6 +43,7 @@ struct LegacySettingsMigrator: Sendable {
                 migrated.overlayScale = Self.number(overlay["scale"]) ?? migrated.overlayScale
                 if let signature = overlay["screen_signature"] as? String, !signature.isEmpty {
                     migrated.overlayScreenIdentifier = signature
+                    migrated.overlayRegion.screenIdentifier = signature
                 }
                 if let position = overlay["position"] as? [Any], position.count >= 2,
                    let x = Self.number(position[0]), let y = Self.number(position[1]) {
@@ -51,6 +52,9 @@ struct LegacySettingsMigrator: Sendable {
                     )
                 }
             }
+            migrated.schemaVersion = AppPreferences.currentSchemaVersion
+            migrated.overlayRegion.edge = .bottom
+            migrated.overlayRegion.span = .full
             migrated.onboardingComplete = localState["onboarding_complete"] as? Bool
                 ?? migrated.onboardingComplete
             store.save(migrated)

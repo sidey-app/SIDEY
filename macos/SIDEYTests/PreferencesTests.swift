@@ -7,6 +7,12 @@ final class PreferencesTests: XCTestCase {
         value.hasShownNativeLanding = true
         value.overlayVisible = false
         value.quietModeEnabled = true
+        value.showOfflineMembers = false
+        value.overlayRegion = OverlayRegionPreference(
+            edge: .right,
+            span: .half,
+            screenIdentifier: "display:42"
+        )
         value.overlayFrame = CodableRect(CGRect(x: 120, y: 80, width: 720, height: 360))
         value.overlayScreenIdentifier = "display:42"
 
@@ -26,6 +32,19 @@ final class PreferencesTests: XCTestCase {
         XCTAssertFalse(value.launchAtLogin)
         XCTAssertFalse(value.quietModeEnabled)
         XCTAssertNil(value.overlayScreenIdentifier)
+        XCTAssertEqual(value.schemaVersion, AppPreferences.currentSchemaVersion)
+        XCTAssertEqual(value.overlayRegion.edge, .bottom)
+        XCTAssertEqual(value.overlayRegion.span, .full)
+        XCTAssertTrue(value.showOfflineMembers)
         XCTAssertEqual(value.nickname, "민지")
+    }
+
+    func testLegacyScreenIdentifierMigratesIntoBottomFullRegion() throws {
+        let json = #"{"schemaVersion":4,"overlayScreenIdentifier":"2560x1440@2.000"}"#
+        let value = try JSONDecoder().decode(AppPreferences.self, from: Data(json.utf8))
+
+        XCTAssertEqual(value.overlayRegion.edge, .bottom)
+        XCTAssertEqual(value.overlayRegion.span, .full)
+        XCTAssertEqual(value.overlayRegion.screenIdentifier, "2560x1440@2.000")
     }
 }

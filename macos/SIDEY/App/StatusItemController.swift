@@ -3,18 +3,16 @@ import AppKit
 @MainActor
 final class StatusItemController: NSObject {
     private let onToggleOverlay: () -> Void
-    private let onToggleInteraction: () -> Void
     private let onFocusMessage: () -> Void
     private let onSelectRoom: (UUID) -> Void
     private let onToggleQuietMode: () -> Void
-    private let onResetOverlayPosition: () -> Void
+    private let onOpenHistory: () -> Void
     private let onToggleLaunchAtLogin: () -> Void
     private let onOpenGroupSettings: () -> Void
     private let onOpenSettings: () -> Void
     private let onQuit: () -> Void
     private var statusItem: NSStatusItem?
     private var overlayVisible = true
-    private var overlayMode: OverlayMode = .locked
     private var rooms: [Room] = []
     private var activeRoomID: UUID?
     private var unreadCounts: [UUID: Int] = [:]
@@ -23,22 +21,20 @@ final class StatusItemController: NSObject {
 
     init(
         onToggleOverlay: @escaping () -> Void,
-        onToggleInteraction: @escaping () -> Void,
         onFocusMessage: @escaping () -> Void = {},
         onSelectRoom: @escaping (UUID) -> Void = { _ in },
         onToggleQuietMode: @escaping () -> Void = {},
-        onResetOverlayPosition: @escaping () -> Void = {},
+        onOpenHistory: @escaping () -> Void = {},
         onToggleLaunchAtLogin: @escaping () -> Void = {},
         onOpenGroupSettings: @escaping () -> Void = {},
         onOpenSettings: @escaping () -> Void,
         onQuit: @escaping () -> Void
     ) {
         self.onToggleOverlay = onToggleOverlay
-        self.onToggleInteraction = onToggleInteraction
         self.onFocusMessage = onFocusMessage
         self.onSelectRoom = onSelectRoom
         self.onToggleQuietMode = onToggleQuietMode
-        self.onResetOverlayPosition = onResetOverlayPosition
+        self.onOpenHistory = onOpenHistory
         self.onToggleLaunchAtLogin = onToggleLaunchAtLogin
         self.onOpenGroupSettings = onOpenGroupSettings
         self.onOpenSettings = onOpenSettings
@@ -54,7 +50,6 @@ final class StatusItemController: NSObject {
 
     func update(
         overlayVisible: Bool,
-        overlayMode: OverlayMode,
         rooms: [Room] = [],
         activeRoomID: UUID? = nil,
         unreadCounts: [UUID: Int] = [:],
@@ -62,7 +57,6 @@ final class StatusItemController: NSObject {
         launchAtLogin: Bool = false
     ) {
         self.overlayVisible = overlayVisible
-        self.overlayMode = overlayMode
         self.rooms = rooms
         self.activeRoomID = activeRoomID
         self.unreadCounts = unreadCounts
@@ -87,14 +81,6 @@ final class StatusItemController: NSObject {
         message.isEnabled = !rooms.isEmpty
         menu.addItem(message)
 
-        let interaction = NSMenuItem(
-            title: overlayMode == .locked ? "오버레이 잠금 해제" : "오버레이 잠금",
-            action: #selector(toggleInteraction),
-            keyEquivalent: ""
-        )
-        interaction.target = self
-        interaction.isEnabled = overlayVisible
-        menu.addItem(interaction)
         menu.addItem(.separator())
 
         let groups = NSMenuItem(title: "활성 그룹", action: nil, keyEquivalent: "")
@@ -107,10 +93,10 @@ final class StatusItemController: NSObject {
         quiet.state = quietModeEnabled ? .on : .off
         menu.addItem(quiet)
 
-        let reset = NSMenuItem(title: "오버레이 위치 초기화", action: #selector(resetOverlayPosition), keyEquivalent: "")
-        reset.target = self
-        reset.isEnabled = overlayVisible
-        menu.addItem(reset)
+        let history = NSMenuItem(title: "최근 기록…", action: #selector(openHistory), keyEquivalent: "")
+        history.target = self
+        history.isEnabled = !rooms.isEmpty
+        menu.addItem(history)
 
         let groupSettings = NSMenuItem(title: "그룹 설정…", action: #selector(openGroupSettings), keyEquivalent: "")
         groupSettings.target = self
@@ -167,14 +153,13 @@ final class StatusItemController: NSObject {
     }
 
     @objc private func toggleOverlay() { onToggleOverlay() }
-    @objc private func toggleInteraction() { onToggleInteraction() }
     @objc private func focusMessage() { onFocusMessage() }
     @objc private func selectRoom(_ sender: NSMenuItem) {
         guard let rawID = sender.representedObject as? String, let roomID = UUID(uuidString: rawID) else { return }
         onSelectRoom(roomID)
     }
     @objc private func toggleQuietMode() { onToggleQuietMode() }
-    @objc private func resetOverlayPosition() { onResetOverlayPosition() }
+    @objc private func openHistory() { onOpenHistory() }
     @objc private func toggleLaunchAtLogin() { onToggleLaunchAtLogin() }
     @objc private func openGroupSettings() { onOpenGroupSettings() }
     @objc private func openSettings() { onOpenSettings() }

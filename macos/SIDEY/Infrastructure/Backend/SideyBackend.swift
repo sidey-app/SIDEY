@@ -123,7 +123,7 @@ actor SideyBackend {
                 return RoomMember(
                     userID: membership.userID,
                     nickname: peer?.nickname ?? "친구",
-                    characterID: peer?.characterID ?? "minty_pup",
+                    characterID: PixelCharacterCatalog.canonicalID(for: peer?.characterID ?? "pixel_hamster"),
                     presence: .offline
                 )
             }
@@ -140,7 +140,7 @@ actor SideyBackend {
     }
 
     @discardableResult
-    func upsertProfile(nickname: String, characterID: String = "minty_pup") async throws -> Profile {
+    func upsertProfile(nickname: String, characterID: String = "pixel_hamster") async throws -> Profile {
         let normalized = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
         guard normalized.count >= 2, normalized.count <= 12,
               normalized.rangeOfCharacter(from: .newlines) == nil

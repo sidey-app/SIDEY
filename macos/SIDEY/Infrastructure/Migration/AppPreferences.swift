@@ -18,10 +18,14 @@ struct CodableRect: Codable, Equatable, Sendable {
 }
 
 struct AppPreferences: Codable, Equatable, Sendable {
-    var schemaVersion = 4
+    static let currentSchemaVersion = 5
+
+    var schemaVersion = currentSchemaVersion
     var hasShownNativeLanding = false
     var onboardingComplete = false
     var overlayVisible = true
+    var overlayRegion = OverlayRegionPreference.defaultValue
+    var showOfflineMembers = true
     var overlayLocked = true
     var overlayScale = 1.5
     var quietModeEnabled = false
@@ -30,6 +34,7 @@ struct AppPreferences: Codable, Equatable, Sendable {
     var overlayScreenIdentifier: String?
     var nickname = "나"
     var activeRoomID: UUID?
+    var installationSeed = UInt64.random(in: UInt64.min...UInt64.max)
 
     static let defaults = AppPreferences()
 
@@ -38,6 +43,8 @@ struct AppPreferences: Codable, Equatable, Sendable {
         case hasShownNativeLanding
         case onboardingComplete
         case overlayVisible
+        case overlayRegion
+        case showOfflineMembers
         case overlayLocked
         case overlayScale
         case quietModeEnabled
@@ -46,24 +53,38 @@ struct AppPreferences: Codable, Equatable, Sendable {
         case overlayScreenIdentifier
         case nickname
         case activeRoomID
+        case installationSeed
     }
 
     init() {}
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
-        schemaVersion = try values.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        schemaVersion = Self.currentSchemaVersion
         hasShownNativeLanding = try values.decodeIfPresent(Bool.self, forKey: .hasShownNativeLanding) ?? false
         onboardingComplete = try values.decodeIfPresent(Bool.self, forKey: .onboardingComplete) ?? false
         overlayVisible = try values.decodeIfPresent(Bool.self, forKey: .overlayVisible) ?? true
+        showOfflineMembers = try values.decodeIfPresent(Bool.self, forKey: .showOfflineMembers) ?? true
+        // frame/lock/scale remain decodable for rollback compatibility, but the
+        // pixel world migrates them to the bottom/full region contract.
         overlayLocked = try values.decodeIfPresent(Bool.self, forKey: .overlayLocked) ?? true
         overlayScale = try values.decodeIfPresent(Double.self, forKey: .overlayScale) ?? 1.5
         quietModeEnabled = try values.decodeIfPresent(Bool.self, forKey: .quietModeEnabled) ?? false
         launchAtLogin = try values.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
         overlayFrame = try values.decodeIfPresent(CodableRect.self, forKey: .overlayFrame)
         overlayScreenIdentifier = try values.decodeIfPresent(String.self, forKey: .overlayScreenIdentifier)
+        overlayRegion = try values.decodeIfPresent(
+            OverlayRegionPreference.self,
+            forKey: .overlayRegion
+        ) ?? OverlayRegionPreference(
+            edge: .bottom,
+            span: .full,
+            screenIdentifier: overlayScreenIdentifier
+        )
         nickname = try values.decodeIfPresent(String.self, forKey: .nickname) ?? "나"
         activeRoomID = try values.decodeIfPresent(UUID.self, forKey: .activeRoomID)
+        installationSeed = try values.decodeIfPresent(UInt64.self, forKey: .installationSeed)
+            ?? UInt64.random(in: UInt64.min...UInt64.max)
     }
 }
 

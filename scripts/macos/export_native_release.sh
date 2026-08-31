@@ -13,7 +13,7 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-python3 "$SIDEY_REPO_ROOT/scripts/macos/verify_character_asset_lineage.py"
+"$SIDEY_REPO_ROOT/scripts/macos/verify_pixel_hamster.sh"
 
 xcodebuild \
 	-project "$SIDEY_REPO_ROOT/macos/SIDEY.xcodeproj" \

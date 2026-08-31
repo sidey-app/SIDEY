@@ -27,6 +27,9 @@ final class LegacySettingsMigratorTests: XCTestCase {
         XCTAssertEqual(migrated.overlayFrame?.x, 120)
         XCTAssertEqual(migrated.overlayFrame?.y, 240)
         XCTAssertEqual(migrated.overlayScreenIdentifier, "2560x1440@2.000")
+        XCTAssertEqual(migrated.overlayRegion.edge, .bottom)
+        XCTAssertEqual(migrated.overlayRegion.span, .full)
+        XCTAssertEqual(migrated.overlayRegion.screenIdentifier, "2560x1440@2.000")
         XCTAssertTrue(migrated.onboardingComplete)
 
         try Data(#"{"local_state":{"profile":{"nickname":"덮어쓰기"}}}"#.utf8).write(to: settingsURL)

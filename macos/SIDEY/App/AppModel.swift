@@ -8,12 +8,12 @@ final class AppModel {
     var preferences: AppPreferences
     var overlayVisibility: OverlayVisibility
     var overlayVisible: Bool { overlayVisibility.isVisible }
-    var overlayMode: OverlayMode
     var presence: PresenceState = .online
     var nickname: String
     var draft = ""
-    var latestMessage: String?
     private(set) var messageLedger = MessageLedger()
+    private(set) var bubbleLedger = ActiveBubbleLedger()
+    var availableScreens: [OverlayScreenOption] = []
     var activeSettingsPage: SettingsPage = .profile
     var connectionState: BackendConnectionState = .idle
     var rooms: [Room] = []
@@ -33,7 +33,6 @@ final class AppModel {
     init(preferences: AppPreferences) {
         self.preferences = preferences
         self.overlayVisibility = OverlayVisibility(isVisible: preferences.overlayVisible)
-        self.overlayMode = preferences.overlayLocked ? .locked : .editing
         self.nickname = preferences.nickname
         self.launchAtLogin = preferences.launchAtLogin
     }
@@ -41,11 +40,6 @@ final class AppModel {
     func setOverlayVisibility(_ visibility: OverlayVisibility) {
         overlayVisibility = visibility
         preferences.overlayVisible = visibility.isVisible
-    }
-
-    func setOverlayMode(_ mode: OverlayMode) {
-        overlayMode = mode
-        preferences.overlayLocked = mode == .locked
     }
 
     func acceptDraft() -> String? {
@@ -106,19 +100,7 @@ final class AppModel {
         preferences.onboardingComplete = snapshot.profile != nil && !rooms.isEmpty
     }
 
-    var displayedMember: RoomMember? {
-        guard let activeRoom else { return nil }
-        return activeRoom.members.first(where: { $0.userID != currentUserID }) ?? activeRoom.members.first
-    }
-
-    var avatarPresence: PresenceState {
-        guard let displayedMember else { return effectiveLocalPresence }
-        return displayedMember.userID == currentUserID
-            ? effectiveLocalPresence
-            : displayedMember.presence
-    }
-
-    private var effectiveLocalPresence: PresenceState {
+    var effectiveLocalPresence: PresenceState {
         switch connectionState {
         case .online:
             presence
@@ -128,6 +110,29 @@ final class AppModel {
             .offline
         }
     }
+
+    var pixelWorldMembers: [PixelWorldMember] {
+        guard let activeRoom else { return [] }
+        return activeRoom.members.compactMap { member in
+            let key = MemberPresenceKey(roomID: activeRoom.id, userID: member.userID)
+            let isCurrentUser = member.userID == currentUserID
+            let isTyping = typingMembers.contains(key)
+            let baseState = isCurrentUser
+                ? effectiveLocalPresence
+                : (basePresence[key] ?? (member.presence == .typing ? .online : member.presence))
+            guard preferences.showOfflineMembers || baseState != .offline else { return nil }
+            return PixelWorldMember(
+                id: member.userID,
+                nickname: member.nickname,
+                characterID: PixelCharacterCatalog.canonicalID(for: member.characterID),
+                presence: baseState,
+                isTyping: isTyping,
+                isCurrentUser: isCurrentUser
+            )
+        }
+    }
+
+    var activeBubbles: [ActiveBubble] { bubbleLedger.bubbles }
 
     var totalUnreadCount: Int {
         unreadCounts.values.reduce(0, +)
@@ -194,31 +199,56 @@ final class AppModel {
         }
     }
 
-    func stageMessage(id: UUID, roomID: UUID, body: String, revealLatest: Bool = true) {
-        messageLedger.stage(id: id, roomID: roomID, body: body)
-        if revealLatest { refreshLatestMessage() }
+    func stageMessage(
+        id: UUID,
+        roomID: UUID,
+        senderID: UUID,
+        body: String,
+        revealBubble: Bool = true,
+        now: Date = .now
+    ) {
+        messageLedger.stage(id: id, roomID: roomID, senderID: senderID, body: body, createdAt: now)
+        if revealBubble, roomID == activeRoom?.id {
+            bubbleLedger.show(
+                senderID: senderID,
+                messageID: id,
+                body: body,
+                expiresAt: now.addingTimeInterval(ActiveBubbleLedger.defaultLifetime)
+            )
+        }
     }
 
     @discardableResult
-    func confirmMessage(_ message: ChatMessage, revealLatest: Bool = true) -> Bool {
+    func confirmMessage(_ message: ChatMessage, revealBubble: Bool = true) -> Bool {
         let isNew = messageLedger.confirm(message)
-        if revealLatest { refreshLatestMessage() }
+        if isNew, revealBubble, message.roomID == activeRoom?.id {
+            bubbleLedger.show(
+                senderID: message.senderID,
+                messageID: message.id,
+                body: message.body,
+                expiresAt: message.createdAt.addingTimeInterval(ActiveBubbleLedger.defaultLifetime)
+            )
+            bubbleLedger.prune()
+        }
         return isNew
     }
 
-    func failMessage(id: UUID, revealLatest: Bool = true) -> String? {
+    func failMessage(id: UUID) -> String? {
         let body = messageLedger.fail(id: id)
-        if revealLatest { refreshLatestMessage() }
+        bubbleLedger.remove(messageID: id)
         return body
     }
 
-    func replaceMessages(roomID: UUID, with messages: [ChatMessage], revealLatest: Bool = true) {
+    func replaceMessages(roomID: UUID, with messages: [ChatMessage]) {
         messageLedger.replaceConfirmed(roomID: roomID, with: messages)
-        if revealLatest { refreshLatestMessage() }
     }
 
-    func refreshLatestMessage() {
-        latestMessage = activeRoom.map { messageLedger.latest(in: $0.id)?.body } ?? nil
+    func clearBubbles() {
+        bubbleLedger.removeAll()
+    }
+
+    func dismissExpiredBubbles(at date: Date = .now) {
+        bubbleLedger.prune(at: date)
     }
 }
 

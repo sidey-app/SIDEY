@@ -3,8 +3,8 @@ import SwiftUI
 @MainActor
 struct SettingsActions {
     var onOverlayVisibilityChanged: (Bool) -> Void
-    var onOverlayModeChanged: (OverlayMode) -> Void
-    var onOverlayScaleChanged: (Double) -> Void
+    var onOverlayRegionChanged: (OverlayRegionPreference) -> Void
+    var onShowOfflineMembersChanged: (Bool) -> Void
     var onQuietModeChanged: (Bool) -> Void
     var onLaunchAtLoginChanged: (Bool) -> Void
     var onSaveProfile: () -> Void
@@ -15,8 +15,8 @@ struct SettingsActions {
 
     static let empty = SettingsActions(
         onOverlayVisibilityChanged: { _ in },
-        onOverlayModeChanged: { _ in },
-        onOverlayScaleChanged: { _ in },
+        onOverlayRegionChanged: { _ in },
+        onShowOfflineMembersChanged: { _ in },
         onQuietModeChanged: { _ in },
         onLaunchAtLoginChanged: { _ in },
         onSaveProfile: {},
@@ -114,7 +114,7 @@ private struct OnboardingView: View {
                     Text(model.hasProfile ? "친구와 연결하기" : "SIDEY에서 쓸 이름 정하기")
                         .font(.system(size: 34, weight: .bold, design: .rounded))
                     Text(model.hasProfile
-                         ? "그룹을 만들거나 받은 초대 코드로 참여하면 아바타가 나타남"
+                         ? "그룹을 만들거나 받은 초대 코드로 참여하면 픽셀 월드가 나타남"
                          : "나중에 설정에서 언제든 바꿀 수 있음")
                         .font(.title3)
                         .foregroundStyle(.secondary)
@@ -147,7 +147,7 @@ private struct OnboardingView: View {
 
     private var profileStep: some View {
         VStack(alignment: .leading, spacing: 22) {
-            Label("Minty Pup", systemImage: "pawprint.fill")
+            Label("아기 햄스터", systemImage: "pawprint.fill")
                 .font(.title2.bold())
                 .foregroundStyle(.mint)
             TextField("닉네임 2~12자", text: $model.nickname)
@@ -192,7 +192,7 @@ private struct OnboardingView: View {
                         if value != uppercased { model.inviteCode = uppercased }
                     }
                 HStack {
-                    Text("그룹당 최대 5명").foregroundStyle(.secondary)
+                    Text("그룹당 최대 20명").foregroundStyle(.secondary)
                     Spacer()
                     Button("코드로 참여", action: actions.onJoinRoom)
                         .buttonStyle(.glassProminent)
@@ -242,7 +242,7 @@ private struct ProfileSettingsView: View {
                     .frame(width: 320)
             }
             LabeledContent("캐릭터") {
-                Label("Minty Pup", systemImage: "pawprint.fill")
+                Label("아기 햄스터", systemImage: "pawprint.fill")
                     .foregroundStyle(.secondary)
             }
             HStack {
@@ -272,7 +272,7 @@ private struct GroupsSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 26) {
-            SettingsSection(title: "그룹", subtitle: "그룹당 최대 5명 · 사용자당 최대 5개") {
+            SettingsSection(title: "그룹", subtitle: "그룹당 최대 20명 · 사용자당 최대 5개") {
                 if model.rooms.isEmpty {
                     ContentUnavailableView(
                         "아직 연결된 그룹 없음",
@@ -346,7 +346,7 @@ private struct RoomRow: View {
                 .frame(width: 34)
             VStack(alignment: .leading, spacing: 3) {
                 Text(room.name).font(.headline)
-                Text("\(room.members.count)/5명 · 초대 코드 \(room.inviteCodeHint)")
+                Text("\(room.members.count)/20명 · 초대 코드 \(room.inviteCodeHint)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -371,14 +371,10 @@ private struct AppSettingsView: View {
     let actions: SettingsActions
 
     var body: some View {
-        SettingsSection(title: "앱 설정", subtitle: "오버레이와 시작 동작") {
-            Toggle("아바타 오버레이 표시", isOn: Binding(
+        SettingsSection(title: "앱 설정", subtitle: "픽셀 월드 영역과 시작 동작") {
+            Toggle("픽셀 월드 표시", isOn: Binding(
                 get: { model.overlayVisible },
                 set: { actions.onOverlayVisibilityChanged($0) }
-            ))
-            Toggle("오버레이 잠금", isOn: Binding(
-                get: { model.overlayMode == .locked },
-                set: { actions.onOverlayModeChanged($0 ? .locked : .editing) }
             ))
             Toggle("로그인 시 자동 실행", isOn: Binding(
                 get: { model.launchAtLogin },
@@ -388,20 +384,77 @@ private struct AppSettingsView: View {
                 get: { model.preferences.quietModeEnabled },
                 set: { actions.onQuietModeChanged($0) }
             ))
-            LabeledContent("캐릭터 크기") {
-                Slider(value: Binding(
-                    get: { model.preferences.overlayScale },
-                    set: { actions.onOverlayScaleChanged($0) }
-                ), in: 1.5...2.0, step: 0.05)
-                    .frame(width: 260)
+            Toggle("오프라인 멤버 표시", isOn: Binding(
+                get: { model.preferences.showOfflineMembers },
+                set: { actions.onShowOfflineMembersChanged($0) }
+            ))
+            LabeledContent("가장자리") {
+                Picker("가장자리", selection: regionEdgeBinding) {
+                    ForEach(OverlayEdge.allCases) { edge in
+                        Text(edge.title).tag(edge)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 180)
+            }
+            LabeledContent("길이") {
+                Picker("길이", selection: regionSpanBinding) {
+                    ForEach(OverlaySpan.allCases) { span in
+                        Text(span.title).tag(span)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 180)
+            }
+            LabeledContent("모니터") {
+                Picker("모니터", selection: regionScreenBinding) {
+                    ForEach(model.availableScreens) { screen in
+                        Text(screen.name).tag(Optional(screen.id))
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 240)
             }
             LabeledContent("설정 창 동작") {
                 Text("일반 macOS 창").foregroundStyle(.secondary)
             }
-            LabeledContent("아바타 동작") {
-                Text("항상 위 · 기본 클릭 통과").foregroundStyle(.secondary)
+            LabeledContent("월드 동작") {
+                Text("항상 위 · 클릭 통과 · 30 FPS").foregroundStyle(.secondary)
             }
         }
+    }
+
+    private var regionEdgeBinding: Binding<OverlayEdge> {
+        Binding(
+            get: { model.preferences.overlayRegion.edge },
+            set: { edge in
+                var preference = model.preferences.overlayRegion
+                preference.edge = edge
+                actions.onOverlayRegionChanged(preference)
+            }
+        )
+    }
+
+    private var regionSpanBinding: Binding<OverlaySpan> {
+        Binding(
+            get: { model.preferences.overlayRegion.span },
+            set: { span in
+                var preference = model.preferences.overlayRegion
+                preference.span = span
+                actions.onOverlayRegionChanged(preference)
+            }
+        )
+    }
+
+    private var regionScreenBinding: Binding<String?> {
+        Binding(
+            get: { model.preferences.overlayRegion.screenIdentifier },
+            set: { screenIdentifier in
+                var preference = model.preferences.overlayRegion
+                preference.screenIdentifier = screenIdentifier
+                actions.onOverlayRegionChanged(preference)
+            }
+        )
     }
 }
 

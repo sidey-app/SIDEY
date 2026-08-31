@@ -62,13 +62,13 @@ final class PresenceAndRealtimeTests: XCTestCase {
 
         model.connectionState = .online
         model.presence = .online
-        XCTAssertEqual(model.avatarPresence, .online)
+        XCTAssertEqual(model.pixelWorldMembers.first?.presence, .online)
 
         model.presence = .away
-        XCTAssertEqual(model.avatarPresence, .away)
+        XCTAssertEqual(model.pixelWorldMembers.first?.presence, .away)
 
         model.connectionState = .connecting
-        XCTAssertEqual(model.avatarPresence, .reconnecting)
+        XCTAssertEqual(model.pixelWorldMembers.first?.presence, .reconnecting)
     }
 
     func testOfflinePresenceUsesRedIndicatorWhileReconnectRemainsGray() {
@@ -104,6 +104,65 @@ final class PresenceAndRealtimeTests: XCTestCase {
         XCTAssertEqual(model.rooms[0].members[0].presence, .typing)
         model.updateTyping(roomID: roomID, userID: friendID, active: false)
         XCTAssertEqual(model.rooms[0].members[0].presence, .away)
+    }
+
+    func testTypingKeepsBaseMotionAndUsesSeparateFlag() {
+        let roomID = UUID()
+        let friendID = UUID()
+        var preferences = AppPreferences.defaults
+        preferences.activeRoomID = roomID
+        let model = AppModel(preferences: preferences)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: nil,
+                rooms: [Room(
+                    id: roomID,
+                    name: "친구들",
+                    ownerID: friendID,
+                    members: [RoomMember(
+                        userID: friendID,
+                        nickname: "친구",
+                        characterID: "minty_pup",
+                        presence: .online
+                    )],
+                    inviteCodeHint: "AB••••",
+                    inviteVersion: 1
+                )]
+            ),
+            currentUserID: UUID()
+        )
+
+        model.updateTyping(roomID: roomID, userID: friendID, active: true)
+
+        XCTAssertEqual(model.pixelWorldMembers.first?.presence, .online)
+        XCTAssertEqual(model.pixelWorldMembers.first?.isTyping, true)
+        XCTAssertEqual(model.pixelWorldMembers.first?.characterID, "pixel_hamster")
+    }
+
+    func testOfflineMembersCanBeFilteredWithoutRemovingOnlineMembers() {
+        let roomID = UUID()
+        let model = AppModel(preferences: .defaults)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: nil,
+                rooms: [Room(
+                    id: roomID,
+                    name: "친구들",
+                    ownerID: UUID(),
+                    members: [
+                        RoomMember(userID: UUID(), nickname: "온라인", characterID: "pixel_hamster", presence: .online),
+                        RoomMember(userID: UUID(), nickname: "오프라인", characterID: "pixel_hamster", presence: .offline)
+                    ],
+                    inviteCodeHint: "AB••••",
+                    inviteVersion: 1
+                )]
+            ),
+            currentUserID: UUID()
+        )
+
+        XCTAssertEqual(model.pixelWorldMembers.count, 2)
+        model.preferences.showOfflineMembers = false
+        XCTAssertEqual(model.pixelWorldMembers.map(\.nickname), ["온라인"])
     }
 
     func testRealtimePlanCapsRoomsAndSwitchesActiveRoom() {

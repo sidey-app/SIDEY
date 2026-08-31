@@ -27,22 +27,24 @@ select
   '{"provider":"anonymous","providers":["anonymous"]}'::jsonb,
   '{}'::jsonb,
   true,
-  case when number = 8 then now() - interval '8 days' else now() end,
+  case when number = 23 then now() - interval '8 days' else now() end,
   now()
-from generate_series(1, 8) number;
+from generate_series(1, 23) number;
 
 do $$
 declare
-  names text[] := array['민트', '하늘', '모카', '단추', '여름', '별빛', '구름', '새벽'];
   number integer;
 begin
-  for number in 1..8 loop
+  for number in 1..23 loop
     perform set_config(
       'request.jwt.claim.sub',
       ('00000000-0000-0000-0000-' || lpad(number::text, 12, '0'))::uuid::text,
       true
     );
-    perform public.upsert_profile(names[number], 'minty_pup');
+    perform public.upsert_profile(
+      case when number = 1 then '민트' else '친구' || number::text end,
+      'pixel_hamster'
+    );
   end loop;
 end;
 $$;
@@ -91,7 +93,7 @@ declare
   number integer;
   code text := (select invite_code from test_rooms where label = 'main');
 begin
-  for number in 2..5 loop
+  for number in 2..20 loop
     perform set_config(
       'request.jwt.claim.sub',
       ('00000000-0000-0000-0000-' || lpad(number::text, 12, '0'))::uuid::text,
@@ -104,14 +106,14 @@ $$;
 
 select is(
   (select count(*)::integer from public.room_members where room_id = (select room_id from test_rooms where label = 'main')),
-  5,
-  'room accepts five members'
+  20,
+  'room accepts twenty members'
 );
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000006', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000021', true);
 select results_eq(
   $$select error_code from public.join_room((select invite_code from test_rooms where label = 'main'))$$,
   $$values ('member_limit_reached'::text)$$,
-  'sixth room member is rejected'
+  'twenty-first room member is rejected'
 );
 select is(
   (select count(distinct profiles.character_id)::integer
@@ -124,15 +126,15 @@ select is(
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
 select lives_ok(
-  $$select public.upsert_profile(' 민 트 ', 'minty_pup')$$,
+  $$select public.upsert_profile(' 민 트 ', 'pixel_hamster')$$,
   'duplicate nickname is allowed in the same room'
 );
 select lives_ok(
   $$
     do $body$
     begin
-      perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000006', true);
-      perform public.upsert_profile('민트', 'minty_pup');
+      perform set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000021', true);
+      perform public.upsert_profile('민트', 'pixel_hamster');
       perform public.create_room('다른 민트 그룹');
     end;
     $body$
@@ -159,10 +161,10 @@ select is(
 );
 select is(
   (select count(*)::integer from public.profiles),
-  5,
+  20,
   'room member sees only profiles sharing a room'
 );
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000006', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000021', true);
 select is(
   (select count(*)::integer from public.messages where room_id = (select room_id from test_rooms where label = 'main')),
   0,
@@ -179,7 +181,7 @@ select throws_like(
     values (
       '10000000-0000-0000-0000-000000000099',
       (select room_id from test_rooms where label = 'main'),
-      '00000000-0000-0000-0000-000000000006',
+      '00000000-0000-0000-0000-000000000021',
       '권한 없음'
     )$$,
   '%permission denied for table messages%',
@@ -282,7 +284,7 @@ select lives_ok(
 );
 select is(
   (select count(*)::integer from public.room_members where room_id = (select room_id from test_rooms where label = 'main')),
-  3,
+  18,
   'removed member no longer belongs to room'
 );
 
@@ -311,7 +313,7 @@ select ok(
 select ok(
   not private.can_access_room_topic(
     'room:' || (select room_id::text from test_rooms where label = 'main'),
-    '00000000-0000-0000-0000-000000000006'
+    '00000000-0000-0000-0000-000000000021'
   ),
   'outsider cannot access private Realtime topic'
 );
@@ -324,7 +326,7 @@ select ok(
   'Realtime private channel insert policy exists'
 );
 
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000008', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000023', true);
 do $$
 begin
   for attempt in 1..10 loop
@@ -338,13 +340,13 @@ select results_eq(
   'invite attempts are rate limited'
 );
 select is(
-  (select count(*)::integer from private.invite_attempts where user_id = '00000000-0000-0000-0000-000000000008'),
+  (select count(*)::integer from private.invite_attempts where user_id = '00000000-0000-0000-0000-000000000023'),
   10,
   'failed invite attempts persist for rate limiting'
 );
 select is(private.delete_stale_anonymous_users(), 1::bigint, 'stale groupless anonymous user is cleaned up');
 select is(
-  (select count(*)::integer from auth.users where id = '00000000-0000-0000-0000-000000000008'),
+  (select count(*)::integer from auth.users where id = '00000000-0000-0000-0000-000000000023'),
   0,
   'stale anonymous user row is removed'
 );

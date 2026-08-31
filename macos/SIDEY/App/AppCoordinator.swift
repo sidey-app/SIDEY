@@ -17,18 +17,15 @@ final class AppCoordinator {
         model: model,
         onSend: { [weak self] body in self?.sendMessage(body) },
         onTypingChanged: { [weak self] active in self?.typingChanged(active) },
-        onOpenSettings: { [weak self] in self?.showSettings() },
-        onOverlayModeChanged: { [weak self] mode in self?.setOverlayMode(mode) },
-        onScaleChanged: { [weak self] scale in self?.setOverlayScale(scale) },
-        onMoveEnded: { [weak self] in self?.persistPreferences() },
-        onHistoryOpened: { [weak self] in self?.markActiveRoomRead() }
+        onRegionChanged: { [weak self] in self?.persistPreferences() }
     )
+    private lazy var historyWindow = HistoryWindowController(model: model)
     private lazy var settingsWindow = SettingsWindowController(
         model: model,
         actions: SettingsActions(
             onOverlayVisibilityChanged: { [weak self] visible in self?.setOverlayVisible(visible) },
-            onOverlayModeChanged: { [weak self] mode in self?.setOverlayMode(mode) },
-            onOverlayScaleChanged: { [weak self] scale in self?.setOverlayScale(scale) },
+            onOverlayRegionChanged: { [weak self] preference in self?.setOverlayRegion(preference) },
+            onShowOfflineMembersChanged: { [weak self] visible in self?.setShowOfflineMembers(visible) },
             onQuietModeChanged: { [weak self] enabled in self?.setQuietMode(enabled) },
             onLaunchAtLoginChanged: { [weak self] enabled in self?.setLaunchAtLogin(enabled) },
             onSaveProfile: { [weak self] in self?.saveProfile() },
@@ -45,11 +42,10 @@ final class AppCoordinator {
     )
     private lazy var statusItemController = StatusItemController(
         onToggleOverlay: { [weak self] in self?.toggleOverlay() },
-        onToggleInteraction: { [weak self] in self?.toggleInteraction() },
         onFocusMessage: { [weak self] in self?.focusMessageField() },
         onSelectRoom: { [weak self] roomID in self?.selectRoom(roomID) },
         onToggleQuietMode: { [weak self] in self?.setQuietMode(!(self?.model.preferences.quietModeEnabled ?? false)) },
-        onResetOverlayPosition: { [weak self] in self?.resetOverlayPosition() },
+        onOpenHistory: { [weak self] in self?.showHistory() },
         onToggleLaunchAtLogin: { [weak self] in self?.setLaunchAtLogin(!(self?.model.launchAtLogin ?? false)) },
         onOpenGroupSettings: { [weak self] in self?.showGroupSettings() },
         onOpenSettings: { [weak self] in self?.showSettings() },
@@ -59,7 +55,7 @@ final class AppCoordinator {
     private var backendTask: Task<Void, Never>?
     private var backendEventTask: Task<Void, Never>?
     private var typingTask: Task<Void, Never>?
-    private var messageDismissTask: Task<Void, Never>?
+    private var bubbleExpiryTask: Task<Void, Never>?
     private var landingDidComplete = false
     private var didCompleteFirstRunTransition = false
     private var backendBootstrapState: BackendBootstrapState = .pending
@@ -97,10 +93,7 @@ final class AppCoordinator {
     func start() {
         mainThreadProbe.start()
         statusItemController.install()
-        overlayWindows.restore(
-            frame: model.preferences.overlayFrame,
-            screenIdentifier: model.preferences.overlayScreenIdentifier
-        )
+        overlayWindows.restore(preference: model.preferences.overlayRegion)
         model.launchAtLogin = launchAtLoginController.isEnabled
         model.preferences.launchAtLogin = model.launchAtLogin
 
@@ -134,7 +127,7 @@ final class AppCoordinator {
         backendTask?.cancel()
         backendEventTask?.cancel()
         typingTask?.cancel()
-        messageDismissTask?.cancel()
+        bubbleExpiryTask?.cancel()
         activityMonitor.stop()
         mainThreadProbe.stop()
         if let backend { Task { await backend.shutdown() } }
@@ -212,18 +205,9 @@ final class AppCoordinator {
         setOverlayVisible(!model.overlayVisible)
     }
 
-    private func toggleInteraction() {
-        setOverlayMode(model.overlayMode == .locked ? .editing : .locked)
-    }
-
     private func focusMessageField() {
         if !model.overlayVisible { setOverlayVisible(true) }
         overlayWindows.focusMessageField()
-    }
-
-    private func resetOverlayPosition() {
-        overlayWindows.resetPosition()
-        persistPreferences()
     }
 
     private func markActiveRoomRead() {
@@ -247,21 +231,19 @@ final class AppCoordinator {
         ))
     }
 
-    private func setOverlayMode(_ mode: OverlayMode) {
-        model.setOverlayMode(mode)
-        overlayWindows.setMode(mode)
-        refreshStatusItem()
+    private func setOverlayRegion(_ preference: OverlayRegionPreference) {
+        overlayWindows.setRegionPreference(preference)
         persistPreferences()
     }
 
-    private func setOverlayScale(_ scale: Double) {
-        model.preferences.overlayScale = min(max(scale, 1.5), 2.0)
+    private func setShowOfflineMembers(_ visible: Bool) {
+        model.preferences.showOfflineMembers = visible
         persistPreferences()
     }
 
     private func setQuietMode(_ enabled: Bool) {
         model.preferences.quietModeEnabled = enabled
-        if enabled { model.latestMessage = nil }
+        if enabled { model.clearBubbles() }
         refreshStatusItem()
         persistPreferences()
     }
@@ -311,7 +293,6 @@ final class AppCoordinator {
     private func refreshStatusItem() {
         statusItemController.update(
             overlayVisible: model.overlayVisible,
-            overlayMode: model.overlayMode,
             rooms: model.rooms,
             activeRoomID: model.activeRoom?.id,
             unreadCounts: model.unreadCounts,
@@ -321,9 +302,14 @@ final class AppCoordinator {
     }
 
     private func persistPreferences() {
-        model.preferences.overlayFrame = CodableRect(overlayWindows.currentFrame)
-        model.preferences.overlayScreenIdentifier = overlayWindows.currentScreenIdentifier
         preferencesStore.save(model.preferences)
+    }
+
+    private func showHistory() {
+        markActiveRoomRead()
+        NSApplication.shared.setActivationPolicy(.regular)
+        historyWindow.show()
+        NSApplication.shared.activate(ignoringOtherApps: true)
     }
 
     private func startBackend() {
@@ -421,11 +407,7 @@ final class AppCoordinator {
         typingChanged(false)
         model.preferences.activeRoomID = roomID
         model.markRoomRead(roomID)
-        if model.preferences.quietModeEnabled {
-            model.latestMessage = nil
-        } else {
-            model.refreshLatestMessage()
-        }
+        model.clearBubbles()
         refreshStatusItem()
         persistPreferences()
         if let backend {
@@ -443,15 +425,11 @@ final class AppCoordinator {
 
     private func loadActiveMessages(from backend: SideyBackend) async throws {
         guard let roomID = model.activeRoom?.id else {
-            model.latestMessage = nil
+            model.clearBubbles()
             return
         }
         let messages = try await backend.recentMessages(roomID: roomID)
-        model.replaceMessages(
-            roomID: roomID,
-            with: messages,
-            revealLatest: !model.preferences.quietModeEnabled
-        )
+        model.replaceMessages(roomID: roomID, with: messages)
     }
 
     private func sendMessage(_ body: String) {
@@ -460,19 +438,30 @@ final class AppCoordinator {
             model.draft = body
             return
         }
+        guard let senderID = model.currentUserID else {
+            model.errorMessage = "현재 사용자 정보를 확인하지 못했음"
+            model.draft = body
+            return
+        }
         let messageID = UUID()
         let revealMessage = !model.preferences.quietModeEnabled
-        model.stageMessage(id: messageID, roomID: roomID, body: body, revealLatest: revealMessage)
-        if revealMessage { scheduleMessageDismiss() }
+        model.stageMessage(
+            id: messageID,
+            roomID: roomID,
+            senderID: senderID,
+            body: body,
+            revealBubble: revealMessage
+        )
+        if revealMessage { scheduleBubbleExpiry() }
         Task { [weak self] in
             guard let self else { return }
             do {
                 let message = try await backend.sendMessage(roomID: roomID, body: body, id: messageID)
-                model.confirmMessage(message, revealLatest: revealMessage)
+                model.confirmMessage(message, revealBubble: revealMessage)
                 model.errorMessage = nil
             } catch {
                 model.errorMessage = "전송 실패: \(error.localizedDescription)"
-                model.draft = model.failMessage(id: messageID, revealLatest: revealMessage) ?? body
+                model.draft = model.failMessage(id: messageID) ?? body
             }
         }
     }
@@ -533,12 +522,12 @@ final class AppCoordinator {
         case .message(let message):
             let isActiveRoom = message.roomID == model.activeRoom?.id
             let revealMessage = isActiveRoom && !model.preferences.quietModeEnabled
-            let isNew = model.confirmMessage(message, revealLatest: revealMessage)
+            let isNew = model.confirmMessage(message, revealBubble: revealMessage)
             guard isNew else { return }
             if message.senderID != model.currentUserID && (!isActiveRoom || model.preferences.quietModeEnabled) {
                 model.incrementUnread(in: message.roomID)
             }
-            if revealMessage { scheduleMessageDismiss() }
+            if revealMessage { scheduleBubbleExpiry() }
             refreshStatusItem()
         case .presence(let roomID, let userID, let state):
             model.updatePresence(roomID: roomID, userID: userID, state: state)
@@ -550,12 +539,15 @@ final class AppCoordinator {
         }
     }
 
-    private func scheduleMessageDismiss() {
-        messageDismissTask?.cancel()
-        messageDismissTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(10))
-            guard !Task.isCancelled else { return }
-            self?.model.latestMessage = nil
+    private func scheduleBubbleExpiry() {
+        bubbleExpiryTask?.cancel()
+        bubbleExpiryTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled, let self else { return }
+                model.dismissExpiredBubbles()
+                if model.activeBubbles.isEmpty { return }
+            }
         }
     }
 
@@ -569,6 +561,9 @@ final class AppCoordinator {
     }
 
     private func typingChanged(_ active: Bool) {
+        if let roomID = model.activeRoom?.id, let userID = model.currentUserID {
+            model.updateTyping(roomID: roomID, userID: userID, active: active)
+        }
         guard let backend else { return }
         let actions = typingLease.update(active: active, roomID: model.activeRoom?.id)
         for action in actions {

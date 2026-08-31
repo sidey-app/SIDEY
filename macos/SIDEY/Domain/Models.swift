@@ -32,6 +32,78 @@ enum OverlayVisibility: String, Codable, Sendable {
     var isVisible: Bool { self == .visible }
 }
 
+enum OverlayEdge: String, Codable, CaseIterable, Identifiable, Sendable {
+    case bottom
+    case left
+    case right
+    case top
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .bottom: "하단"
+        case .left: "좌측"
+        case .right: "우측"
+        case .top: "상단"
+        }
+    }
+
+    var isHorizontal: Bool { self == .bottom || self == .top }
+
+    /// Pixel art is authored feet-down. Rotate the complete presentation so
+    /// the feet point toward the selected screen edge.
+    var presentationRotation: CGFloat {
+        switch self {
+        case .bottom: 0
+        case .left: -.pi / 2
+        case .right: .pi / 2
+        case .top: .pi
+        }
+    }
+}
+
+enum OverlaySpan: String, Codable, CaseIterable, Identifiable, Sendable {
+    case third
+    case half
+    case full
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .third: "1/3"
+        case .half: "1/2"
+        case .full: "전체"
+        }
+    }
+
+    var fraction: CGFloat {
+        switch self {
+        case .third: 1.0 / 3.0
+        case .half: 1.0 / 2.0
+        case .full: 1
+        }
+    }
+}
+
+struct OverlayRegionPreference: Codable, Equatable, Sendable {
+    var edge: OverlayEdge
+    var span: OverlaySpan
+    var screenIdentifier: String?
+
+    static let defaultValue = OverlayRegionPreference(
+        edge: .bottom,
+        span: .full,
+        screenIdentifier: nil
+    )
+}
+
+struct OverlayScreenOption: Equatable, Identifiable, Sendable {
+    let id: String
+    let name: String
+}
+
 enum BackendBootstrapState: Equatable, Sendable {
     case pending
     case ready
@@ -142,6 +214,7 @@ enum MessageDeliveryState: Equatable, Sendable {
 struct MessageLedgerEntry: Equatable, Identifiable, Sendable {
     let id: UUID
     let roomID: UUID
+    let senderID: UUID
     var body: String
     var createdAt: Date
     var state: MessageDeliveryState
@@ -150,11 +223,18 @@ struct MessageLedgerEntry: Equatable, Identifiable, Sendable {
 struct MessageLedger: Equatable, Sendable {
     private(set) var entries: [MessageLedgerEntry] = []
 
-    mutating func stage(id: UUID, roomID: UUID, body: String, createdAt: Date = .now) {
+    mutating func stage(
+        id: UUID,
+        roomID: UUID,
+        senderID: UUID,
+        body: String,
+        createdAt: Date = .now
+    ) {
         guard !entries.contains(where: { $0.id == id }) else { return }
         entries.append(MessageLedgerEntry(
             id: id,
             roomID: roomID,
+            senderID: senderID,
             body: body,
             createdAt: createdAt,
             state: .pending
@@ -172,6 +252,7 @@ struct MessageLedger: Equatable, Sendable {
             entries.append(MessageLedgerEntry(
                 id: message.id,
                 roomID: message.roomID,
+                senderID: message.senderID,
                 body: message.body,
                 createdAt: message.createdAt,
                 state: .confirmed
@@ -200,6 +281,77 @@ struct MessageLedger: Equatable, Sendable {
 
     func latest(in roomID: UUID) -> MessageLedgerEntry? {
         entries.last(where: { $0.roomID == roomID })
+    }
+}
+
+struct ActiveBubble: Equatable, Identifiable, Sendable {
+    var id: UUID { messageID }
+    let senderID: UUID
+    let messageID: UUID
+    let body: String
+    let expiresAt: Date
+}
+
+struct ActiveBubbleLedger: Equatable, Sendable {
+    static let maximumVisible = 4
+    static let defaultLifetime: TimeInterval = 10
+
+    private(set) var bubbles: [ActiveBubble] = []
+
+    mutating func show(
+        senderID: UUID,
+        messageID: UUID,
+        body: String,
+        expiresAt: Date = .now.addingTimeInterval(Self.defaultLifetime)
+    ) {
+        bubbles.removeAll { $0.senderID == senderID || $0.messageID == messageID }
+        bubbles.append(ActiveBubble(
+            senderID: senderID,
+            messageID: messageID,
+            body: body,
+            expiresAt: expiresAt
+        ))
+        bubbles.sort { lhs, rhs in
+            lhs.expiresAt == rhs.expiresAt
+                ? lhs.messageID.uuidString < rhs.messageID.uuidString
+                : lhs.expiresAt < rhs.expiresAt
+        }
+        if bubbles.count > Self.maximumVisible {
+            bubbles.removeFirst(bubbles.count - Self.maximumVisible)
+        }
+    }
+
+    mutating func remove(messageID: UUID) {
+        bubbles.removeAll { $0.messageID == messageID }
+    }
+
+    mutating func removeAll() {
+        bubbles.removeAll()
+    }
+
+    mutating func prune(at date: Date = .now) {
+        bubbles.removeAll { $0.expiresAt <= date }
+    }
+}
+
+struct PixelWorldMember: Equatable, Identifiable, Sendable {
+    let id: UUID
+    let nickname: String
+    let characterID: String
+    let presence: PresenceState
+    let isTyping: Bool
+    let isCurrentUser: Bool
+}
+
+enum PixelCharacterCatalog {
+    static let pixelHamsterID = "pixel_hamster"
+    static let legacyMintyPupID = "minty_pup"
+
+    static func canonicalID(for storedID: String) -> String {
+        switch storedID {
+        case pixelHamsterID, legacyMintyPupID: pixelHamsterID
+        default: pixelHamsterID
+        }
     }
 }
 

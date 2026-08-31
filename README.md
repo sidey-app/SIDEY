@@ -9,7 +9,7 @@
 
 # SIDEY
 
-화면 한켠의 3D 캐릭터로 가까운 친구의 상태와 짧은 메시지를 보여주는 데스크톱 오버레이 메신저입니다.
+화면 가장자리의 2D 픽셀 동물로 가까운 친구의 상태와 짧은 메시지를 보여주는 데스크톱 오버레이 메신저입니다.
 
 [![macOS 26+](https://img.shields.io/badge/macOS_26%2B-Native-3182F6?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/sidey-app/SIDEY/releases)
 ![Apple Silicon](https://img.shields.io/badge/Architecture-Apple_Silicon_arm64-191F28?style=for-the-badge)
@@ -19,10 +19,10 @@
 
 ## SIDEY에서 할 수 있는 것
 
-- 최대 5명의 가까운 친구와 비공개 그룹 만들기
-- 친구별 3D 캐릭터로 온라인·자리 비움·오프라인 상태 확인
+- 최대 20명의 가까운 친구와 초대 전용 비공개 그룹 만들기
+- 친구별 픽셀 동물로 온라인·자리 비움·오프라인 상태 확인
 - SIDEY 입력창의 타이핑 상태와 최대 200자의 짧은 메시지 공유
-- 평소에는 클릭을 뒤 앱으로 통과시키고, 필요할 때만 오버레이 편집
+- 화면 가장자리 12개 프리셋 중 하나에 월드를 배치하고 평소 클릭은 뒤 앱으로 통과
 - macOS 로그인 시 자동 실행 설정
 
 ## macOS 설치
@@ -54,7 +54,7 @@ shasum -a 256 SIDEY-macOS-arm64.zip
 ## 기술 구성
 
 - macOS 앱과 UI: Swift 6, SwiftUI, AppKit
-- 3D 오버레이: SceneKit + USDZ, RealityKit 로더 호환성 테스트
+- 2D 픽셀 월드: SpriteKit, 24×24 스프라이트의 nearest-neighbor 확대
 - 사용자·그룹·메시지·실시간 상태: Supabase
 
 메시지는 Postgres를 원본으로 저장하고, Presence는 접속 상태, Broadcast는 타이핑 같은 일시 이벤트에만 사용합니다.
@@ -65,7 +65,7 @@ SIDEY는 화면 내용, 실행 중인 앱 목록, 다른 앱에서 입력한 키
 
 현재 종단간 암호화(E2EE)는 제공하지 않습니다. 보안 화면, DRM 앱, 권한이 더 높은 앱 또는 모든 독점 전체화면 게임 위에 항상 표시된다고 보장하지도 않습니다.
 
-Windows는 목표 플랫폼이지만 이번 alpha Release에는 포함되지 않습니다.
+Windows는 목표 플랫폼이지만 현재 픽셀 월드 vertical slice에는 포함되지 않습니다. 기존 3D alpha 구현은 `archive/native-3d-alpha` 브랜치에 비교·롤백용으로 보존합니다.
 
 ## 개발·빌드
 
@@ -88,7 +88,7 @@ macOS 26과 Xcode 26 이상이 필요합니다. 기본 macOS 내보내기는 네
 
 로컬 백엔드 구성을 덮어쓸 때는 `SIDEY_SUPABASE_URL`과 `SIDEY_SUPABASE_PUBLISHABLE_KEY`를 반드시 함께 설정합니다. secret 또는 service-role 키는 클라이언트에 넣으면 안 됩니다.
 
-기존 Godot macOS 빌드는 비교·회귀용으로 보존되어 있으며 기본 배포 경로가 아닙니다.
+기존 Godot macOS 빌드는 비교·회귀용일 뿐 기본 배포 경로가 아닙니다.
 
 ```sh
 ./scripts/export_godot_macos.sh

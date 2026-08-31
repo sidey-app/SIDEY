@@ -1,0 +1,12 @@
+{
+  "character_id": "pixel_hamster",
+  "legacy_aliases": ["minty_pup"],
+  "frame_pixel_size": [24, 24],
+  "render_point_size": [48, 48],
+  "filtering": "nearest",
+  "animations": {
+    "idle": [0, 1],
+    "walk": [2, 3, 4, 5],
+    "sleep": [6, 7]
+  }
+}
