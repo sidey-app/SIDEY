@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.6
 - 최종 갱신: 2026-09-01
-- 상태: macOS `v0.2.0-alpha.6`(build 8) 배포, Windows 네이티브 햄스터 vertical slice 개발
+- 상태: macOS `v0.2.0-alpha.7`(build 9) 배포, Windows 네이티브 햄스터 vertical slice 개발
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 현재 개발 브랜치: `main`
 
@@ -308,7 +308,7 @@ OverlayRegionPreference(
 
 ## 8. 서버 변경
 
-`20260831030000_expand_room_capacity_and_reduce_message_retention.sql`은 기존 `join_room`을 방 정원 12명으로 교체하고 메시지 보관 기간을 7일로 줄인다. migration 적용 시 이미 7일을 넘긴 메시지를 즉시 삭제하며, 기존 일일 cron은 교체된 정리 함수를 계속 호출한다. 이 변경에서는 운영 Supabase에 migration을 배포하지 않는다. 다음 계약은 그대로 유지한다.
+`20260831030000_expand_room_capacity_and_reduce_message_retention.sql`은 기존 `join_room`을 방 정원 12명으로 교체하고 메시지 보관 기간을 7일로 줄인다. migration 적용 시 이미 7일을 넘긴 메시지를 즉시 삭제하며, 기존 일일 cron은 교체된 정리 함수를 계속 호출한다. 이 migration은 운영 Supabase에도 적용한다. 다음 계약은 그대로 유지한다.
 
 - 사용자당 최대 5개 방
 - 초대 코드 hash 비교와 rate limit
