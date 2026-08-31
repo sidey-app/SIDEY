@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SIDEY — 화면 가장자리의 친구들</title>
+    <meta
+      name="description"
+      content="가까운 친구의 상태와 짧은 메시지를 픽셀 동물로 보여주는 macOS 데스크톱 오버레이 메신저 SIDEY."
+    >
+    <meta name="theme-color" content="#f7f7ff">
+    <link rel="canonical" href="https://sidey-app.github.io/SIDEY/">
+    <link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/">
+    <link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/">
+    <link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/">
+    <link rel="icon" type="image/png" href="./assets/app-icon.png">
+    <link rel="stylesheet" href="./assets/styles.css">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="SIDEY">
+    <meta property="og:locale" content="ko_KR">
+    <meta property="og:locale:alternate" content="en_US">
+    <meta property="og:url" content="https://sidey-app.github.io/SIDEY/">
+    <meta property="og:title" content="SIDEY — 친구들이 화면 한쪽에, 늘 가볍게.">
+    <meta
+      property="og:description"
+      content="가까운 친구의 상태와 짧은 메시지를 픽셀 동물로 만나는 데스크톱 오버레이 메신저."
+    >
+    <meta property="og:image" content="https://sidey-app.github.io/SIDEY/assets/og.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="화면 가장자리에 다섯 픽셀 동물이 나란히 있는 SIDEY 소셜 카드">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="SIDEY — 친구들이 화면 한쪽에, 늘 가볍게.">
+    <meta
+      name="twitter:description"
+      content="가까운 친구의 상태와 짧은 메시지를 픽셀 동물로 만나는 데스크톱 오버레이 메신저."
+    >
+    <meta name="twitter:image" content="https://sidey-app.github.io/SIDEY/assets/og.png">
+    <meta name="twitter:image:alt" content="화면 가장자리에 다섯 픽셀 동물이 나란히 있는 SIDEY 소셜 카드">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "SIDEY",
+        "applicationCategory": "CommunicationApplication",
+        "operatingSystem": "macOS 26 or later",
+        "softwareVersion": "0.2.0-alpha.5",
+        "inLanguage": "ko",
+        "url": "https://sidey-app.github.io/SIDEY/",
+        "downloadUrl": "https://github.com/sidey-app/SIDEY/releases/download/v0.2.0-alpha.5/SIDEY-macOS-arm64-v0.2.0-alpha.5.dmg",
+        "description": "가까운 친구의 상태와 짧은 메시지를 픽셀 동물로 보여주는 데스크톱 오버레이 메신저"
+      }
+    </script>
+    <script src="./assets/script.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">본문으로 건너뛰기</a>
+
+    <header class="site-header">
+      <nav class="nav-shell" aria-label="주요 메뉴">
+        <a class="brand-link" href="./" aria-label="SIDEY 홈">
+          <img src="./assets/app-icon.png" alt="" width="36" height="36">
+          <span>SIDEY</span>
+        </a>
+        <ul class="nav-links">
+          <li class="nav-secondary"><a href="#features">기능</a></li>
+          <li class="nav-secondary"><a href="#download">다운로드</a></li>
+          <li class="nav-secondary">
+            <a href="https://github.com/sidey-app/SIDEY">GitHub</a>
+          </li>
+          <li><a class="language-link" href="./en/" lang="en" hreflang="en">EN</a></li>
+        </ul>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow">Private ambient messenger · Alpha</p>
+          <h1 id="hero-title">친구들이 화면 한쪽에, 늘 가볍게.</h1>
+          <p>
+            최대 다섯 명의 가까운 친구가 작은 픽셀 동물이 되어 머뭅니다. 상태와 타이핑,
+            짧은 메시지만 자연스럽게 보이고 평소 작업 흐름은 방해하지 않습니다.
+          </p>
+          <div class="hero-actions" aria-label="다운로드 선택">
+            <a
+              class="button button-primary"
+              href="https://github.com/sidey-app/SIDEY/releases/download/v0.2.0-alpha.5/SIDEY-macOS-arm64-v0.2.0-alpha.5.dmg"
+            >
+              <span class="button-icon" aria-hidden="true">↓</span>
+              macOS 다운로드
+            </a>
+            <button class="button button-secondary" type="button" disabled aria-describedby="windows-hero-status">
+              Windows 다운로드
+            </button>
+          </div>
+          <p class="requirements">
+            <span>macOS 26+ · Apple Silicon · Alpha</span>
+            <span class="pending" id="windows-hero-status">Windows 11 25H2 x64 · 개발 중</span>
+          </p>
+        </div>
+
+        <figure class="hero-visual">
+          <img class="app-icon-large" src="./assets/app-icon.png" alt="" width="124" height="124">
+          <div class="desktop-scene" aria-hidden="true">
+            <div class="desktop-topbar"><i></i><i></i><i></i></div>
+            <div class="desktop-body">
+              <div class="fake-sidebar">
+                <div class="fake-avatar"></div>
+                <div class="fake-line"></div>
+                <div class="fake-line short"></div>
+                <div class="fake-line"></div>
+              </div>
+              <div class="fake-main">
+                <div class="fake-heading"></div>
+                <div class="fake-subheading"></div>
+                <div class="fake-card-grid">
+                  <div class="fake-card"></div>
+                  <div class="fake-card"></div>
+                </div>
+              </div>
+            </div>
+            <span class="speech-bubble">저녁 7시에 볼까?</span>
+            <span class="typing-bubble">...</span>
+            <span class="character character-hamster"></span>
+            <span class="character character-cat"></span>
+            <span class="character character-puppy"></span>
+            <span class="character character-rabbit"></span>
+            <span class="status-pill">친구 4명 온라인</span>
+            <span class="scene-edge"></span>
+          </div>
+          <figcaption class="visually-hidden">
+            일반 작업 화면의 아래쪽 가장자리를 따라 픽셀 동물 친구들과 짧은 말풍선이 보이는 SIDEY 장면
+          </figcaption>
+        </figure>
+      </section>
+
+      <section class="section" id="features" aria-labelledby="features-title">
+        <div class="section-heading">
+          <p class="section-kicker">가까운 연결</p>
+          <h2 id="features-title">채팅창을 열지 않아도, 필요한 만큼만.</h2>
+          <p>친구의 존재를 조용히 보여주고, 대화가 필요할 때만 짧게 이어 줍니다.</p>
+        </div>
+
+        <div class="feature-grid">
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">●</span>
+            <h3>상태가 모습으로 보여요</h3>
+            <p>온라인이면 산책하고, 자리를 비우면 졸고, 오프라인이면 웅크려 잠듭니다. 점 색상도 함께 바뀝니다.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">•••</span>
+            <h3>타이핑과 짧은 메시지</h3>
+            <p>SIDEY 입력창에서 쓰는 동안 말풍선 점이 나타나고, 전송한 메시지는 캐릭터 위에 잠깐 머뭅니다.</p>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">↘</span>
+            <h3>평소에는 클릭 통과</h3>
+            <p>기본 오버레이는 포인터 입력을 뒤 앱으로 통과시킵니다. 내 캐릭터와 입력창만 명시적으로 상호작용합니다.</p>
+          </article>
+        </div>
+
+        <figure class="world-strip">
+          <figcaption class="world-copy">
+            <strong>다섯 친구, 한쪽 가장자리.</strong>
+            <span>24×24 픽셀 캐릭터를 정수 배율로 또렷하게 표시합니다.</span>
+          </figcaption>
+          <span class="speech-bubble" aria-hidden="true">오늘도 수고했어!</span>
+          <span class="character character-hamster" aria-hidden="true"></span>
+          <span class="character character-cat" aria-hidden="true"></span>
+          <span class="character character-puppy" aria-hidden="true"></span>
+          <span class="character character-rabbit" aria-hidden="true"></span>
+          <span class="character character-penguin" aria-hidden="true"></span>
+          <span class="scene-edge" aria-hidden="true"></span>
+        </figure>
+      </section>
+
+      <section class="section download-section" id="download" aria-labelledby="download-title">
+        <div class="section-heading">
+          <p class="section-kicker">다운로드</p>
+          <h2 id="download-title">macOS Alpha를 바로 시작해 보세요.</h2>
+          <p>공증된 DMG로 직접 설치하거나 Homebrew Cask를 사용할 수 있습니다.</p>
+        </div>
+
+        <div class="download-grid">
+          <article class="download-card primary-card">
+            <span class="platform-label">macOS</span>
+            <h3>SIDEY v0.2.0-alpha.5</h3>
+            <p>Developer ID로 서명하고 Apple 공증과 ticket staple을 완료한 Apple Silicon 전용 빌드입니다.</p>
+            <div class="download-actions">
+              <a
+                class="button button-primary"
+                href="https://github.com/sidey-app/SIDEY/releases/download/v0.2.0-alpha.5/SIDEY-macOS-arm64-v0.2.0-alpha.5.dmg"
+              >
+                <span class="button-icon" aria-hidden="true">↓</span>
+                DMG 다운로드
+              </a>
+              <a class="button button-secondary" href="https://github.com/sidey-app/SIDEY/releases/tag/v0.2.0-alpha.5">
+                릴리스 정보
+              </a>
+            </div>
+            <p class="system-note">지원: macOS 26 이상 · Apple Silicon(arm64) · Alpha</p>
+
+            <div class="install-box">
+              <strong>Homebrew로 설치</strong>
+              <div class="code-row">
+                <code id="brew-command">brew install --cask sidey-app/tap/sidey</code>
+                <button
+                  class="copy-button"
+                  type="button"
+                  data-copy-target="brew-command"
+                  data-copy-status="copy-status"
+                  data-copy-success="완료"
+                  data-copy-failure="실패"
+                  data-copy-announcement="Homebrew 설치 명령을 복사했습니다."
+                  data-copy-failure-announcement="복사하지 못했습니다. 명령을 직접 선택해 주세요."
+                  aria-label="Homebrew 설치 명령 복사"
+                >복사</button>
+              </div>
+              <span class="visually-hidden" id="copy-status" role="status" aria-live="polite"></span>
+            </div>
+          </article>
+
+          <article class="download-card">
+            <span class="platform-label">Windows</span>
+            <h3>Windows 네이티브판</h3>
+            <p>Windows 11 25H2 x64용 햄스터 한 종 vertical slice를 먼저 검증 중입니다. 아직 공개 설치 파일은 없습니다.</p>
+            <span class="development-badge" id="windows-card-status">개발 중</span>
+            <div class="download-actions">
+              <button class="button button-secondary" type="button" disabled aria-describedby="windows-card-status">
+                Windows 다운로드
+              </button>
+            </div>
+            <p class="system-note">예정 환경: Windows 11 25H2 이상 · x64</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" id="privacy" aria-labelledby="privacy-title">
+        <div class="privacy-panel">
+          <div>
+            <p class="section-kicker">개인정보 경계</p>
+            <h2 id="privacy-title">친구의 존재만. 화면 속 내용은 보지 않아요.</h2>
+            <p>
+              전역 활동 신호는 마지막 시스템 입력 후 경과 시간과 화면 잠금 상태만 사용합니다.
+              타이핑 상태는 SIDEY 입력창에서만 발생합니다.
+            </p>
+          </div>
+          <ul class="privacy-list" aria-label="수집하지 않는 정보">
+            <li>화면 내용</li>
+            <li>활성 앱 목록</li>
+            <li>다른 앱에서 누른 키</li>
+            <li>마우스 좌표</li>
+            <li>파일 내용</li>
+            <li>마이크·카메라 데이터</li>
+          </ul>
+        </div>
+        <aside class="alpha-panel" aria-labelledby="alpha-title">
+          <span class="alpha-mark" aria-hidden="true">!</span>
+          <div>
+            <h3 id="alpha-title">Alpha에서 알아둘 점</h3>
+            <p>
+              현재 E2EE는 제공하지 않습니다. 보안 화면, DRM 앱, 권한이 높은 앱 또는 모든 독점 전체화면 게임 위에
+              항상 표시되는 것도 보장하지 않습니다.
+            </p>
+          </div>
+        </aside>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-row">
+        <div class="footer-brand">
+          <img src="./assets/app-icon.png" alt="" width="38" height="38">
+          <div>
+            <strong>SIDEY</strong>
+            <span>macOS Alpha v0.2.0-alpha.5</span>
+          </div>
+        </div>
+        <div class="footer-links">
+          <a href="https://github.com/sidey-app/SIDEY">GitHub</a>
+          <a href="./en/" lang="en" hreflang="en">English</a>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

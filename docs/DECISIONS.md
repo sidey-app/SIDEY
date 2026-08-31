@@ -12,6 +12,7 @@
 | --- | --- | --- |
 | 제품명 | `SIDEY` | 공식 제품명이다. `같이온`·`같이ON`은 제품 문구, 코드, 식별자에 사용하지 않는다. |
 | 제품 형태 | 최대 5명의 실제 친구가 2D 픽셀 동물로 화면 가장자리에서 함께 움직이는 초대 전용 데스크톱 ambient messenger | 고정형 채팅 목록보다 친구의 존재와 짧은 대화가 자연스럽게 보이는 경험에 집중한다. AI 동료나 가상 반려동물 제품은 아니다. |
+| 공식 다운로드 웹사이트 | GitHub 프로젝트 Pages `https://sidey-app.github.io/SIDEY/`를 한국어 기본·`/en/` 영어 정적 랜딩으로 운영하고 `website/`만 GitHub Actions로 배포. macOS는 현재 공증 DMG와 `sidey-app/tap/sidey` Homebrew Cask를 제공하고 Windows는 공개 파일이 생길 때까지 링크 없는 비활성 버튼으로 표시 | 앱 클라이언트나 별도 웹 기능을 추가하지 않고 공식 설치 경로·지원 환경·개인정보 경계·Alpha 제한을 한곳에서 정확히 안내한다. 릴리스가 바뀌면 고정 DMG URL과 웹사이트 버전을 같은 배포 작업에서 갱신한다. |
 | 현재 구현 범위 | macOS 네이티브 alpha와 Windows 네이티브 개발 | macOS Swift/SpriteKit 앱은 유지하고 Windows에서 햄스터 vertical slice를 먼저 검증한 뒤 기능·행동 동등판으로 확장한다. |
 | 플랫폼 순서 | macOS alpha를 기준 구현으로 유지하고 Windows 11 25H2+ x64를 후속 개발 | 이미 배포된 macOS 코드를 재작성하지 않고 Windows 고유 창·DPI·전원·IME 리스크를 별도로 검증한다. |
 | macOS 클라이언트 | SwiftUI + AppKit + SpriteKit | 일반 창은 SwiftUI/AppKit, 창 정책은 AppKit, 픽셀 월드는 SpriteKit이 담당한다. |
