@@ -28,6 +28,7 @@ struct LegacySettingsMigrator: Sendable {
             let localState = root["local_state"] as? [String: Any] ?? root
 
             var migrated = current
+            migrated.keychainTransitionComplete = false
             if let profile = localState["profile"] as? [String: Any] {
                 migrated.nickname = profile["nickname"] as? String ?? migrated.nickname
                 if let characterID = profile["character_id"] as? String {

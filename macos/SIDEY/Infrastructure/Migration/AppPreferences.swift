@@ -18,10 +18,12 @@ struct CodableRect: Codable, Equatable, Sendable {
 }
 
 struct AppPreferences: Codable, Equatable, Sendable {
-    static let currentSchemaVersion = 6
+    static let currentSchemaVersion = 7
 
     var schemaVersion = currentSchemaVersion
     var hasShownNativeLanding = false
+    /// 새 설치는 안내가 필요 없고, schema 6 이하에서 올라온 설치만 false로 디코딩된다.
+    var keychainTransitionComplete = true
     var onboardingComplete = false
     var overlayVisible = true
     var overlayRegion = OverlayRegionPreference.defaultValue
@@ -42,6 +44,7 @@ struct AppPreferences: Codable, Equatable, Sendable {
     enum CodingKeys: String, CodingKey {
         case schemaVersion
         case hasShownNativeLanding
+        case keychainTransitionComplete
         case onboardingComplete
         case overlayVisible
         case overlayRegion
@@ -62,8 +65,13 @@ struct AppPreferences: Codable, Equatable, Sendable {
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedSchemaVersion = try values.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
         schemaVersion = Self.currentSchemaVersion
         hasShownNativeLanding = try values.decodeIfPresent(Bool.self, forKey: .hasShownNativeLanding) ?? false
+        keychainTransitionComplete = try values.decodeIfPresent(
+            Bool.self,
+            forKey: .keychainTransitionComplete
+        ) ?? (decodedSchemaVersion >= Self.currentSchemaVersion)
         onboardingComplete = try values.decodeIfPresent(Bool.self, forKey: .onboardingComplete) ?? false
         overlayVisible = try values.decodeIfPresent(Bool.self, forKey: .overlayVisible) ?? true
         showOfflineMembers = try values.decodeIfPresent(Bool.self, forKey: .showOfflineMembers) ?? true

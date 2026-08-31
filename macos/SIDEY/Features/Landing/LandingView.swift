@@ -50,10 +50,10 @@ struct LandingView: View {
                     .font(.system(size: 58, weight: .black, design: .rounded))
                     .tracking(5)
                     .foregroundStyle(.black.opacity(0.88))
-                Text("친구들이 화면 곁에 도착했음")
+                Text("친구들이 화면 곁에 도착했습니다.")
                     .font(.title3.weight(.medium))
                     .foregroundStyle(.black.opacity(0.58))
-                Text(isRestoringSession ? "기존 세션 복원 중…" : "클릭해서 바로 시작")
+                Text(isRestoringSession ? "기존 세션을 복원하고 있습니다…" : "클릭해서 바로 시작해 주세요.")
                     .font(.callout)
                     .foregroundStyle(.black.opacity(0.38))
             }

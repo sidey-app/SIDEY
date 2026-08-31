@@ -233,20 +233,20 @@ enum SideyBackendError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .invalidProfile: "닉네임은 줄바꿈 없이 2~8자로 입력해줘"
-        case .invalidRoomName: "그룹 이름은 줄바꿈 없이 1~20자로 입력해줘"
-        case .invalidInviteCode: "초대 코드를 다시 확인해줘"
-        case .roomLimitReached: "한 사용자는 그룹을 최대 5개까지 사용할 수 있음"
-        case .memberLimitReached: "이 그룹은 이미 5명으로 가득 참"
-        case .alreadyMember: "이미 참여 중인 그룹임"
-        case .profileRequired: "프로필을 먼저 저장해야 함"
-        case .ownerRequired: "방장만 이 작업을 할 수 있음"
-        case .memberNotFound: "내보낼 멤버를 찾지 못했음"
-        case .membershipRequired: "이 그룹의 멤버만 이 작업을 할 수 있음"
-        case .ownerCannotRemoveSelf: "방장 본인은 내보낼 수 없음"
-        case .noActiveRoom: "메시지를 보낼 그룹이 없음"
-        case .malformedResponse: "서버 응답 형식을 해석하지 못했음"
-        case .sessionRecoveryFailed: "기존 로그인 세션을 복구하지 못했음. 새 계정은 만들지 않았으니 다시 로그인하거나 지원을 요청해줘"
+        case .invalidProfile: "닉네임은 줄바꿈 없이 2~8자로 입력해 주세요."
+        case .invalidRoomName: "그룹 이름은 줄바꿈 없이 1~20자로 입력해 주세요."
+        case .invalidInviteCode: "초대 코드를 다시 확인해 주세요."
+        case .roomLimitReached: "한 사용자는 그룹을 최대 5개까지 사용할 수 있습니다."
+        case .memberLimitReached: "이 그룹은 이미 5명으로 가득 찼습니다."
+        case .alreadyMember: "이미 참여 중인 그룹입니다."
+        case .profileRequired: "프로필을 먼저 저장해 주세요."
+        case .ownerRequired: "방장만 이 작업을 할 수 있습니다."
+        case .memberNotFound: "내보낼 멤버를 찾지 못했습니다."
+        case .membershipRequired: "이 그룹의 멤버만 이 작업을 할 수 있습니다."
+        case .ownerCannotRemoveSelf: "방장 본인은 내보낼 수 없습니다."
+        case .noActiveRoom: "메시지를 보낼 그룹이 없습니다."
+        case .malformedResponse: "서버 응답 형식을 해석하지 못했습니다."
+        case .sessionRecoveryFailed: "기존 로그인 세션을 복구하지 못했습니다. 새 계정은 만들지 않았으니 다시 로그인하거나 지원을 요청해 주세요."
         case .remote(let message): message
         }
     }

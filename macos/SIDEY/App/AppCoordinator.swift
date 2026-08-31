@@ -9,8 +9,10 @@ final class AppCoordinator {
     private let preferencesStore: PreferencesStore
     private let legacyMigrator: LegacySettingsMigrator
     private let updateController: any AppUpdateChecking
-    private let backend: SideyBackend?
+    private var backend: SideyBackend?
+    private let runtimeConfiguration: RuntimeConfiguration?
     private let configurationError: Error?
+    private let keychainAccessSession: KeychainAccessSession
     private let launchReason: LaunchReason
     private let onLandingFirstFrame: () -> Void
     private let launchAtLoginController = LaunchAtLoginController()
@@ -36,7 +38,9 @@ final class AppCoordinator {
             onCreateRoom: { [weak self] in self?.createRoom() },
             onJoinRoom: { [weak self] in self?.joinRoom() },
             onSelectRoom: { [weak self] roomID in self?.selectRoom(roomID) },
-            onCopyInviteCode: { [weak self] roomID in self?.copyInviteCode(roomID: roomID) },
+            onCopyInviteCode: { [weak self] roomID in
+                await self?.copyInviteCode(roomID: roomID) ?? false
+            },
             onRenameRoom: { [weak self] roomID, name in self?.renameRoom(roomID, name: name) },
             onRemoveRoomMember: { [weak self] roomID, userID in self?.removeRoomMember(roomID, userID: userID) },
             onDeleteRoom: { [weak self] roomID in self?.deleteRoom(roomID) }
@@ -79,12 +83,14 @@ final class AppCoordinator {
         updateController: any AppUpdateChecking,
         preferencesStore: PreferencesStore = .live,
         legacyMigrator: LegacySettingsMigrator = .live,
+        keychainAccessSession: KeychainAccessSession = .shared,
         arguments: [String] = ProcessInfo.processInfo.arguments,
         onLandingFirstFrame: @escaping () -> Void = {}
     ) {
         self.updateController = updateController
         self.preferencesStore = preferencesStore
         self.legacyMigrator = legacyMigrator
+        self.keychainAccessSession = keychainAccessSession
         self.onLandingFirstFrame = onLandingFirstFrame
         let preferences = legacyMigrator.migrateIfNeeded(preferencesStore)
         self.launchReason = LaunchRouter.reason(
@@ -94,15 +100,32 @@ final class AppCoordinator {
         self.model = AppModel(preferences: preferences)
         do {
             let configuration = try RuntimeConfiguration.resolve()
-            self.backend = SideyBackend(configuration: configuration)
+            self.runtimeConfiguration = configuration
             self.configurationError = nil
         } catch {
-            self.backend = nil
+            self.runtimeConfiguration = nil
             self.configurationError = error
         }
     }
 
     func start() {
+        keychainAccessSession.setAccessDeniedHandler { _ in
+            Task { @MainActor in
+                NSApplication.shared.terminate(nil)
+            }
+        }
+        if !model.preferences.keychainTransitionComplete,
+           !KeychainTransitionNotice.present() {
+            keychainAccessSession.denyFurtherAccess()
+            return
+        }
+        if let runtimeConfiguration {
+            backend = SideyBackend(
+                configuration: runtimeConfiguration,
+                keychain: KeychainStore(session: keychainAccessSession)
+            )
+        }
+
         mainThreadProbe.start()
         statusItemController.install()
         overlayWindows.restore(preference: model.preferences.overlayRegion)
@@ -147,6 +170,7 @@ final class AppCoordinator {
         activityMonitor.stop()
         mainThreadProbe.stop()
         if let backend { Task { await backend.shutdown() } }
+        keychainAccessSession.setAccessDeniedHandler(nil)
         persistPreferences()
     }
 
@@ -274,35 +298,38 @@ final class AppCoordinator {
             persistPreferences()
         } catch {
             model.launchAtLogin = launchAtLoginController.isEnabled
-            model.errorMessage = "로그인 자동 실행을 변경하지 못했음: \(error.localizedDescription)"
+            model.errorMessage = "로그인 자동 실행을 변경하지 못했습니다: \(error.localizedDescription)"
             refreshStatusItem()
         }
     }
 
-    private func copyInviteCode(roomID: UUID) {
+    private func copyInviteCode(roomID: UUID) async -> Bool {
         guard let backend else {
             model.successMessage = nil
-            model.errorMessage = "초대 코드를 읽을 서버 구성이 없음"
-            return
+            model.errorMessage = "초대 코드를 읽을 서버 구성이 없습니다."
+            return false
         }
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                guard let inviteCode = try await backend.storedInviteCode(roomID: roomID),
-                      !inviteCode.isEmpty
-                else {
-                    model.successMessage = nil
-                    model.errorMessage = "이 기기에 이 그룹의 초대 코드 원문이 없음. 보안상 DB의 해시에서는 복구할 수 없음"
-                    return
-                }
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(inviteCode, forType: .string)
-                model.errorMessage = nil
-                model.successMessage = "초대 코드를 클립보드에 복사했음"
-            } catch {
+        do {
+            guard let inviteCode = try await backend.storedInviteCode(roomID: roomID),
+                  !inviteCode.isEmpty
+            else {
                 model.successMessage = nil
-                model.errorMessage = "초대 코드를 읽지 못했음: \(error.localizedDescription)"
+                model.errorMessage = "이 기기에 이 그룹의 초대 코드 원문이 없습니다. 보안상 데이터베이스의 해시에서는 복구할 수 없습니다."
+                return false
             }
+            NSPasteboard.general.clearContents()
+            guard NSPasteboard.general.setString(inviteCode, forType: .string) else {
+                model.successMessage = nil
+                model.errorMessage = "초대 코드를 클립보드에 복사하지 못했습니다."
+                return false
+            }
+            model.errorMessage = nil
+            model.successMessage = nil
+            return true
+        } catch {
+            model.successMessage = nil
+            model.errorMessage = "초대 코드를 읽지 못했습니다: \(error.localizedDescription)"
+            return false
         }
     }
 
@@ -372,6 +399,7 @@ final class AppCoordinator {
                 model.connectionState = .online
                 model.errorMessage = nil
                 backendBootstrapState = .ready
+                model.preferences.keychainTransitionComplete = true
                 applyRequestedOverlayVisibility()
                 refreshStatusItem()
                 persistPreferences()
@@ -433,7 +461,7 @@ final class AppCoordinator {
 
     private func renameRoom(_ roomID: UUID, name: String) {
         guard let backend else { return }
-        runMutation(successMessage: "그룹 이름을 변경했음") {
+        runMutation(successMessage: "그룹 이름을 변경했습니다.") {
             try await backend.renameRoom(roomID, name: name)
         }
     }
@@ -444,7 +472,7 @@ final class AppCoordinator {
             .first(where: { $0.id == roomID })?
             .members.first(where: { $0.userID == userID })?
             .nickname ?? "멤버"
-        runMutation(successMessage: "\(nickname)님을 그룹에서 내보냈음") {
+        runMutation(successMessage: "\(nickname)님을 그룹에서 내보냈습니다.") {
             try await backend.removeRoomMember(roomID, userID: userID)
         }
     }
@@ -452,7 +480,7 @@ final class AppCoordinator {
     private func deleteRoom(_ roomID: UUID) {
         guard let backend else { return }
         let roomName = model.rooms.first(where: { $0.id == roomID })?.name ?? "그룹"
-        runMutation(successMessage: "‘\(roomName)’ 그룹을 삭제했음") {
+        runMutation(successMessage: "‘\(roomName)’ 그룹을 삭제했습니다.") {
             try await backend.deleteRoom(roomID)
         }
     }
@@ -495,7 +523,7 @@ final class AppCoordinator {
             return
         }
         guard let senderID = model.currentUserID else {
-            model.errorMessage = "현재 사용자 정보를 확인하지 못했음"
+            model.errorMessage = "현재 사용자 정보를 확인하지 못했습니다."
             model.draft = body
             overlayWindows.presentComposer()
             return

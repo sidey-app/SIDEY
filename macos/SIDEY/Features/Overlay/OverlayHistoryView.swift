@@ -22,7 +22,7 @@ struct OverlayHistoryView: View {
                 ContentUnavailableView(
                     "아직 메시지 없음",
                     systemImage: "bubble.left.and.bubble.right",
-                    description: Text("이 그룹의 최근 메시지가 여기에 표시됨")
+                    description: Text("이 그룹의 최근 메시지가 여기에 표시됩니다.")
                 )
             } else {
                 ScrollView {

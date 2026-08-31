@@ -263,7 +263,7 @@ actor SideyBackend {
 
     func sendMessage(roomID: UUID, body: String, id: UUID = UUID()) async throws -> ChatMessage {
         let normalized = MessageValidator.normalized(body)
-        guard MessageValidator.isValid(normalized) else { throw SideyBackendError.remote("메시지는 200자·3줄 이하여야 함") }
+        guard MessageValidator.isValid(normalized) else { throw SideyBackendError.remote("메시지는 200자·3줄 이하로 입력해 주세요.") }
         let value: DatabaseMessage = try await client.rpc(
             "send_message",
             params: SendMessageParameters(id: id, roomID: roomID, body: normalized)
@@ -313,7 +313,7 @@ actor SideyBackend {
     }
 
     private func addChannel(_ roomID: UUID) async throws {
-        guard let userID = client.auth.currentUser?.id else { throw SideyBackendError.remote("인증 세션이 없음") }
+        guard let userID = client.auth.currentUser?.id else { throw SideyBackendError.remote("인증 세션이 없습니다.") }
         channelsBeingAdded.insert(roomID)
         defer { channelsBeingAdded.remove(roomID) }
         let channel = client.channel("room:\(roomID.uuidString.lowercased())") { config in

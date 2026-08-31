@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.6
 - 최종 갱신: 2026-08-31
-- 상태: macOS `v0.2.0-alpha.5`(build 7) 배포, Windows 네이티브 햄스터 vertical slice 개발
+- 상태: macOS `v0.2.0-alpha.6`(build 8) 배포, Windows 네이티브 햄스터 vertical slice 개발
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 현재 개발 브랜치: `main`
 
@@ -254,9 +254,11 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 오버레이 영역, 모니터, 오프라인 표시 등 환경설정
 - 편집 중인 `selectedCharacterID`
 
-그룹 설정의 각 행은 펼침 여부, 이름 변경 draft, 삭제·추방 확인 대상을 로컬 UI 상태로 소유한다. 서버에서 읽은 방·멤버 배열을 행 상태로 복제하거나 mutation 성공을 가정해 임의 수정하지 않는다.
+그룹 설정의 각 행은 펼침 여부, 이름 변경 draft, 삭제·추방 확인 대상과 초대 코드 복사 피드백을 로컬 UI 상태로 소유한다. 복사 성공 시 해당 행의 버튼만 초록 `checkmark.circle.fill`과 `복사 완료`를 3초 동안 표시하고, 3초 안 재클릭하면 타이머를 다시 시작하며 행 제거 시 취소한다. 성공 전역 배너는 표시하지 않고 실패만 기존 오류 배너를 사용한다. 실제 Keychain 읽기와 클립보드 처리는 `AppCoordinator`가 담당한다. 서버에서 읽은 방·멤버 배열을 행 상태로 복제하거나 mutation 성공을 가정해 임의 수정하지 않는다.
 
-macOS 설정 상세 화면은 가로 44pt·세로 40pt 바깥 여백과 카드 안 24pt 여백을 사용한다. 각 섹션은 아이콘·제목·설명을 카드 위에 표시하고, 카드의 토글·선택 항목은 왼쪽 제목 아래 효과 설명과 오른쪽 컨트롤을 한 행으로 대응시킨다. 그룹 화면은 현재 그룹, 새 그룹 만들기, 초대 코드로 참여를 독립 카드로 구성하며 각 카드는 기존 `AppModel` 상태와 `SettingsActions` mutation만 호출한다.
+macOS 설정 상세 화면은 가로 44pt·세로 40pt 바깥 여백과 카드 안 24pt 여백을 사용한다. 각 섹션은 아이콘·제목·설명을 카드 위에 표시하고, 카드는 `Color.primary.opacity(0.025)` 기반 배경과 각각 약 0.05·0.025의 테두리·그림자를 사용한다. 카드의 토글·선택 항목은 왼쪽 제목 아래 효과 설명과 240pt 오른쪽 컨트롤 영역을 한 행으로 대응시키며 Picker·버튼·토글의 보이는 오른쪽 끝을 맞춘다. 토글은 macOS 26 네이티브 switch를 유지하고 개발 세부 정보인 `동작 정보`는 표시하지 않는다. 그룹 화면은 폭이 짧은 `person.2` 아이콘을 사용하고 현재 그룹, 새 그룹 만들기, 초대 코드로 참여를 독립 카드로 구성하며 각 카드는 기존 `AppModel` 상태와 `SettingsActions` mutation만 호출한다.
+
+닉네임 저장 버튼은 현재 macOS 필드 에디터에 한글 IME 조합 문자열이 남아 있으면 이를 먼저 확정하고 포커스를 내린 뒤 다음 메인 런루프에서 `SettingsActions.onSaveProfile`을 호출한다. 온보딩과 일반 프로필 설정 모두 같은 순서를 사용해 마지막 조합 글자가 누락되지 않게 한다.
 
 Presence나 snapshot을 적용할 때 UUID 기준으로 추가·갱신·삭제하며 존재하는 캐릭터 노드의 위치를 초기화하지 않는다.
 
@@ -276,7 +278,7 @@ OverlayRegionPreference(
 )
 ```
 
-환경설정 스키마를 올리고 과거 frame, lock, scale, screen 값은 디코딩만 지원한다. 마이그레이션 결과는 기존 화면 식별자를 가능한 경우 유지한 `하단·전체`다.
+환경설정 schema 7은 기존 Keychain 전환 완료 여부를 추가한다. schema 6 이하 파일은 닉네임·방·오버레이 등 기존 값을 유지하면서 전환 미완료로 읽고, 새 설치 기본값은 완료 상태로 시작한다. 과거 frame, lock, scale, screen 값은 디코딩만 지원하며 마이그레이션 결과는 기존 화면 식별자를 가능한 경우 유지한 `하단·전체`다.
 
 ### 7.3 렌더링 기본값
 
@@ -345,7 +347,9 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 - 창: 월드 항상 위·전체 클릭 통과, 내 캐릭터 52×52 hotspot, composer의 선택 모니터 상단 중앙·노치 아래 10pt 배치와 왼쪽 `×`·Esc·외부 클릭 닫기, 단일·더블클릭 분기와 캐릭터별 1초 리액션 쿨타임, composer 초기 숨김·열기·마지막 전송 뒤 5초 자동 닫힘·타이머 갱신·실패 복구, 기록 일반 창
 - 업데이트: production 채널에 Sparkle `2.9.6` 프레임워크·메뉴 항목·피드 URL·EdDSA 공개키가 번들에 포함되고 signed feed와 압축 해제 전 검증을 강제하며, 업데이트 진행 중에는 수동 확인 메뉴를 비활성화. development 채널은 Sparkle을 시작하지 않고 수동 확인 메뉴도 항상 비활성화
 - 에셋: 5개 시트의 240×24 RGBA·10프레임·공통 발 기준선·결정적 hash·Release 번들 포함, 메뉴 아이콘 1x·2x template/unread variant
-- 그룹 설정: 0·1·5명 멤버 목록, 기본 접힘·제목 영역 및 오른쪽 단일 화살표 펼침, `그룹 참가` 문구, UUID 기반 방장 왕관과 펼친 목록 아래 방장 전용 이름 변경·삭제 버튼, 이름 변경 저장·취소, 대상 명시 추방 확인, 영구 삭제 2단계 확인, 활성·비활성·마지막 그룹 삭제 fallback
+- 설정: 860×640 최소 크기와 1000×760 기본 크기의 라이트·다크 렌더, 옅은 카드 명도, 240pt 컨트롤 영역과 Picker·버튼·토글 오른쪽 정렬, `동작 정보` 제거, 두 사람 그룹 아이콘, 한글 IME 조합 확정 후 닉네임 저장
+- 그룹 설정: 0·1·5명 멤버 목록, 기본 접힘·제목 영역 및 오른쪽 단일 화살표 펼침, `그룹 참가` 문구, UUID 기반 방장 왕관과 펼친 목록 아래 방장 전용 이름 변경·삭제 버튼, 이름 변경 저장·취소, 대상 명시 추방 확인, 영구 삭제 2단계 확인, 활성·비활성·마지막 그룹 삭제 fallback, 초대 코드 복사 성공·실패와 3초 표시·재클릭 갱신·행 제거 취소
+- Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단
 - 서버: 5번째 성공, 6번째 `member_limit_reached`, 여섯 번째 방 거부, 비방장 이름 변경·추방·삭제 거부, 방장 성공·본인 추방 거부·삭제 cascade, RLS, 중복 닉네임·캐릭터 허용
 
 ### 10.2 macOS 장시간 수동·계측 테스트
@@ -387,7 +391,9 @@ Sparkle이 없는 기존 alpha 사용자는 최신 공증 DMG로 한 번 수동 
 
 공개 배포본은 표시명 `SIDEY`, 채널 `production`을 사용한다. 로컬 개발본은 최신 Release 구성의 ad-hoc 빌드를 표시명 `Sidey-dev`, 채널 `development`로 만들어 `/Applications/Sidey-dev.app`에만 설치하며 Sparkle controller를 생성하지 않는다. 두 채널은 기존 익명 계정·그룹·설정을 이어 쓰기 위해 `app.sidey.desktop` bundle ID, login item ID, `com.sidey.desktop` Keychain service를 공유한다. 설치 스크립트는 정확한 dev 앱 경로만 교체한다.
 
-macOS가 로그인 세션 또는 그룹 초대 코드가 저장된 Keychain 항목 접근을 인증 UI로 확인할 때 SIDEY는 `LAContext.localizedReason`으로 `SIDEY는 로그인 세션과 그룹 초대 코드를 안전하게 불러오기 위해 macOS 키체인 접근이 필요합니다.`를 표시한다. 이는 특히 ad-hoc과 Developer ID 서명 사이의 최초 전환에서 사용자가 접근 목적을 확인하게 하기 위한 고지이며, 앱은 Mac 로그인 암호나 Apple 계정 암호를 직접 입력받거나 저장하지 않는다.
+schema 6 이하 기존 설치가 alpha.6에서 처음 Keychain 정보를 읽기 전에는 SIDEY 자체 안내창을 먼저 표시한다. 안내창은 로그인 상태와 그룹 초대 코드를 macOS 키체인에 안전하게 보관·조회한다는 목적, 이전 버전 정보를 처음 불러올 때 Mac 로그인 암호를 요청할 수 있다는 점, 다음부터 묻지 않게 하려면 macOS 창에서 `항상 허용`을 선택해야 한다는 점, `허용`은 같은 실행이나 다음 실행에서 창을 반복시킬 수 있다는 점, SIDEY가 암호를 확인하거나 저장하지 않는다는 점을 설명한다. 버튼은 `계속`과 `SIDEY 종료`다. 신규 설치는 안내를 생략하고 새 항목을 만든다.
+
+Keychain 접근은 앱 실행 동안 하나의 `LAContext`를 공유하고 `localizedReason`은 앱 이름을 제외한 `로그인 상태와 그룹 초대 코드를 안전하게 불러옵니다.`로 고정한다. 같은 service/account 읽기는 성공과 없음 결과를 메모리에 캐시하고, 캐시된 데이터와 같은 저장은 Security API 호출을 생략한다. `errSecUserCanceled` 또는 `errSecAuthFailed`가 한 번 발생하거나 자체 안내창에서 종료를 선택하면 프로세스 전역 거부 상태를 기록하고 후속 Security API를 호출하지 않은 채 앱을 종료한다. 기존 설치는 세션 복구에 성공한 뒤에만 schema 7 전환 완료 상태를 저장한다.
 
 신규 설치 기본 파일은 공증 DMG다. Homebrew third-party tap은 같은 DMG의 고정 URL·SHA-256, arm64·macOS 26+ 조건, `auto_updates true`, `SIDEY.app`과 안전한 종료 규칙을 사용하고 사용자 데이터 삭제용 `zap`은 선언하지 않는다. ZIP은 Sparkle 전용으로 유지한다.
 

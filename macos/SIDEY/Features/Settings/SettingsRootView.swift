@@ -9,11 +9,11 @@ struct SettingsActions {
     var onLaunchAtLoginChanged: (Bool) -> Void
     var onCheckForUpdates: () -> Void
     var canCheckForUpdates: () -> Bool
-    var onSaveProfile: () -> Void
+    var onSaveProfile: @MainActor @Sendable () -> Void
     var onCreateRoom: () -> Void
     var onJoinRoom: () -> Void
     var onSelectRoom: (UUID) -> Void
-    var onCopyInviteCode: (UUID) -> Void
+    var onCopyInviteCode: (UUID) async -> Bool
     var onRenameRoom: (UUID, String) -> Void
     var onRemoveRoomMember: (UUID, UUID) -> Void
     var onDeleteRoom: (UUID) -> Void
@@ -30,7 +30,7 @@ struct SettingsActions {
         onCreateRoom: {},
         onJoinRoom: {},
         onSelectRoom: { _ in },
-        onCopyInviteCode: { _ in },
+        onCopyInviteCode: { _ in false },
         onRenameRoom: { _, _ in },
         onRemoveRoomMember: { _, _ in },
         onDeleteRoom: { _ in }
@@ -126,8 +126,8 @@ private struct OnboardingView: View {
                     Text(model.hasProfile ? "친구와 연결하기" : "SIDEY에서 쓸 이름 정하기")
                         .font(.system(size: 34, weight: .bold, design: .rounded))
                     Text(model.hasProfile
-                         ? "그룹을 만들거나 받은 초대 코드로 참여하면 픽셀 월드가 나타남"
-                         : "나중에 설정에서 언제든 바꿀 수 있음")
+                         ? "그룹을 만들거나 받은 초대 코드로 참여하면 픽셀 월드가 나타납니다."
+                         : "나중에 설정에서 언제든 바꿀 수 있습니다.")
                         .font(.title3)
                         .foregroundStyle(.secondary)
                 }
@@ -177,11 +177,13 @@ private struct OnboardingView: View {
                     if limited != value { model.nickname = limited }
                 }
             HStack {
-                Text("같은 그룹에서 캐릭터와 닉네임이 겹쳐도 괜찮음")
+                Text("같은 그룹에서 캐릭터와 닉네임이 겹쳐도 괜찮습니다.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("다음", action: actions.onSaveProfile)
+                Button("다음") {
+                    PendingTextInputCommitter.commitThen(actions.onSaveProfile)
+                }
                     .buttonStyle(.glassProminent)
                     .disabled(model.isWorking || !validNickname)
             }
@@ -201,7 +203,7 @@ private struct OnboardingView: View {
                 TextField("새 그룹 이름", text: $model.newRoomName)
                     .textFieldStyle(.roundedBorder)
                 HStack {
-                    Text("직접 그룹 만들기").foregroundStyle(.secondary)
+                    Text("새 비공개 그룹을 직접 만들 수 있습니다.").foregroundStyle(.secondary)
                     Spacer()
                     Button("그룹 만들기", action: actions.onCreateRoom)
                         .buttonStyle(.glassProminent)
@@ -215,7 +217,7 @@ private struct OnboardingView: View {
                         if value != uppercased { model.inviteCode = uppercased }
                     }
                 HStack {
-                    Text("그룹당 최대 5명").foregroundStyle(.secondary)
+                    Text("그룹에는 최대 5명까지 참여할 수 있습니다.").foregroundStyle(.secondary)
                     Spacer()
                     Button("코드로 참여", action: actions.onJoinRoom)
                         .buttonStyle(.glassProminent)
@@ -253,12 +255,12 @@ private struct OnboardingView: View {
 
 private struct ProfileSettingsView: View {
     @Bindable var model: AppModel
-    let onSave: () -> Void
+    let onSave: @MainActor @Sendable () -> Void
 
     var body: some View {
         SettingsSection(
             title: "내 프로필",
-            subtitle: "친구들에게 보이는 이름과 캐릭터를 설정함",
+            subtitle: "친구들에게 보이는 이름과 캐릭터를 설정할 수 있습니다.",
             systemImage: "person.crop.circle"
         ) {
             SettingsControlRow(
@@ -267,7 +269,7 @@ private struct ProfileSettingsView: View {
             ) {
                 TextField("2~8자", text: $model.nickname)
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 260)
+                    .frame(maxWidth: .infinity)
                     .onChange(of: model.nickname) { _, value in
                         let limited = ProfileValidator.limitedNicknameDraft(value)
                         if limited != value { model.nickname = limited }
@@ -277,7 +279,7 @@ private struct ProfileSettingsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("캐릭터")
                     .font(.headline)
-                Text("친구 화면에서 나를 나타낼 픽셀 동물을 선택함")
+                Text("친구 화면에서 나를 나타낼 픽셀 동물을 선택할 수 있습니다.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -285,19 +287,21 @@ private struct ProfileSettingsView: View {
                 maximumColumns: 5,
                 selection: $model.selectedCharacterID
             )
-            Text("캐릭터와 닉네임은 그룹 안에서 중복 선택 가능")
+            Text("캐릭터와 닉네임은 그룹 안에서 중복해서 선택할 수 있습니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             HStack {
                 Spacer()
-                Button("프로필 저장", action: onSave)
+                Button("프로필 저장") {
+                    PendingTextInputCommitter.commitThen(onSave)
+                }
                     .buttonStyle(.glassProminent)
                     .disabled(model.isWorking || !validNickname)
             }
         }
 
         if !model.preferences.onboardingComplete {
-            Label("프로필 저장 후 그룹을 만들거나 초대 코드로 참여하면 준비 완료", systemImage: "sparkles")
+            Label("프로필을 저장한 뒤 그룹을 만들거나 초대 코드로 참여해 주세요.", systemImage: "sparkles")
                 .foregroundStyle(.secondary)
                 .padding(.top, 18)
         }
@@ -316,14 +320,14 @@ private struct GroupsSettingsView: View {
         VStack(alignment: .leading, spacing: 34) {
             SettingsSection(
                 title: "현재 그룹",
-                subtitle: "함께 표시할 친구와 활성 그룹을 관리함 · 그룹당 최대 5명",
-                systemImage: "person.3"
+                subtitle: "함께 표시할 친구와 활성 그룹을 관리할 수 있습니다. 그룹당 최대 5명까지 참여할 수 있습니다.",
+                systemImage: "person.2"
             ) {
                 if model.rooms.isEmpty {
                     ContentUnavailableView(
                         "아직 연결된 그룹 없음",
-                        systemImage: "person.3",
-                        description: Text("새 그룹을 만들거나 친구의 초대 코드를 입력해줘")
+                        systemImage: "person.2",
+                        description: Text("새 그룹을 만들거나 친구에게 받은 초대 코드를 입력해 주세요.")
                     )
                     .frame(maxWidth: .infinity, minHeight: 150)
                 } else {
@@ -334,7 +338,7 @@ private struct GroupsSettingsView: View {
                             isActive: room.id == model.activeRoom?.id,
                             isWorking: model.isWorking,
                             onSelect: { actions.onSelectRoom(room.id) },
-                            onCopyInviteCode: { actions.onCopyInviteCode(room.id) },
+                            onCopyInviteCode: { await actions.onCopyInviteCode(room.id) },
                             onRename: { name in actions.onRenameRoom(room.id, name) },
                             onRemoveMember: { userID in
                                 actions.onRemoveRoomMember(room.id, userID)
@@ -348,13 +352,13 @@ private struct GroupsSettingsView: View {
 
             SettingsSection(
                 title: "새 그룹 만들기",
-                subtitle: "새 공간을 만들고 생성된 초대 코드를 친구에게 공유함",
+                subtitle: "새 공간을 만들고 생성된 초대 코드를 친구에게 공유할 수 있습니다.",
                 systemImage: "plus.circle"
             ) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("그룹 이름")
                         .font(.headline)
-                    Text("1~20자의 이름을 입력해 새로운 비공개 그룹을 만듦")
+                    Text("1~20자의 이름을 입력해 새로운 비공개 그룹을 만들 수 있습니다.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -370,7 +374,7 @@ private struct GroupsSettingsView: View {
                     Divider()
                     SettingsControlRow(
                         title: "방금 만든 그룹의 초대 코드",
-                        description: "이 코드를 전달받은 친구만 그룹에 참여할 수 있음"
+                        description: "이 코드를 전달받은 친구만 그룹에 참여할 수 있습니다."
                     ) {
                         Text(invite)
                             .font(.system(.body, design: .monospaced).bold())
@@ -381,13 +385,13 @@ private struct GroupsSettingsView: View {
 
             SettingsSection(
                 title: "초대 코드로 참여",
-                subtitle: "친구에게 받은 코드를 입력해 기존 비공개 그룹에 들어감",
+                subtitle: "친구에게 받은 코드를 입력해 기존 비공개 그룹에 참여할 수 있습니다.",
                 systemImage: "ticket"
             ) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("초대 코드")
                         .font(.headline)
-                    Text("공백을 제외한 초대 코드를 입력하면 서버에서 멤버십과 인원 제한을 확인함")
+                    Text("초대 코드를 입력하면 서버에서 멤버십과 인원 제한을 확인합니다.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -421,7 +425,7 @@ private struct RoomRow: View {
     let isActive: Bool
     let isWorking: Bool
     let onSelect: () -> Void
-    let onCopyInviteCode: () -> Void
+    let onCopyInviteCode: () async -> Bool
     let onRename: (String) -> Void
     let onRemoveMember: (UUID) -> Void
     let onDelete: () -> Void
@@ -431,6 +435,9 @@ private struct RoomRow: View {
     @State private var renameDraft = ""
     @State private var removalCandidate: RoomMember?
     @State private var showsDeleteConfirmation = false
+    @State private var inviteCopyFeedback = InviteCopyFeedbackState()
+    @State private var inviteCopyTask: Task<Void, Never>?
+    @State private var inviteCopyResetTask: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -444,8 +451,13 @@ private struct RoomRow: View {
         .onChange(of: room.name) { _, newName in
             if !isRenaming { renameDraft = newName }
         }
+        .onDisappear {
+            inviteCopyTask?.cancel()
+            inviteCopyResetTask?.cancel()
+            inviteCopyFeedback.cancel()
+        }
         .alert(
-            removalCandidate.map { "‘\($0.nickname)’님을 내보낼까?" } ?? "멤버 내보내기",
+            removalCandidate.map { "‘\($0.nickname)’님을 내보낼까요?" } ?? "멤버 내보내기",
             isPresented: Binding(
                 get: { removalCandidate != nil },
                 set: { if !$0 { removalCandidate = nil } }
@@ -458,20 +470,20 @@ private struct RoomRow: View {
                 onRemoveMember(candidate.userID)
             }
         } message: {
-            Text("이 멤버는 그룹과 기존 메시지에 접근할 수 없게 됨.")
+            Text("이 멤버는 그룹과 기존 메시지에 접근할 수 없게 됩니다.")
         }
-        .alert("‘\(room.name)’ 그룹을 삭제할까?", isPresented: $showsDeleteConfirmation) {
+        .alert("‘\(room.name)’ 그룹을 삭제할까요?", isPresented: $showsDeleteConfirmation) {
             Button("취소", role: .cancel) {}
             Button("그룹 삭제", role: .destructive, action: onDelete)
         } message: {
-            Text("멤버와 모든 메시지가 영구 삭제되며 복구할 수 없음.")
+            Text("멤버와 모든 메시지가 영구 삭제되며 복구할 수 없습니다.")
         }
     }
 
     private var expandedContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             if room.members.isEmpty {
-                Text("표시할 멤버 없음")
+                Text("표시할 멤버가 없습니다.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .padding(.leading, 48)
@@ -499,7 +511,7 @@ private struct RoomRow: View {
         HStack(spacing: 10) {
             Button(action: toggleExpansion) {
                 HStack(spacing: 14) {
-                    Image(systemName: isActive ? "person.3.fill" : "person.3")
+                    Image(systemName: isActive ? "person.2.fill" : "person.2")
                         .font(.title2)
                         .foregroundStyle(isActive ? .mint : .secondary)
                         .frame(width: 34)
@@ -523,11 +535,17 @@ private struct RoomRow: View {
                 Button("그룹 참가", action: onSelect)
                     .disabled(isWorking)
             }
-            Button(action: onCopyInviteCode) {
-                Label("초대 코드 복사", systemImage: "doc.on.doc")
+            Button(action: copyInviteCode) {
+                Label(
+                    inviteCopyFeedback.showsConfirmation ? "복사 완료" : "초대 코드 복사",
+                    systemImage: inviteCopyFeedback.showsConfirmation
+                        ? "checkmark.circle.fill"
+                        : "doc.on.doc"
+                )
+                .foregroundStyle(inviteCopyFeedback.showsConfirmation ? .green : .primary)
             }
             .disabled(isWorking)
-            .help("이 기기의 Keychain에 보관된 초대 코드 복사")
+            .help("이 기기의 키체인에 보관된 초대 코드를 복사합니다.")
 
             Button(action: toggleExpansion) {
                 Image(systemName: "chevron.right")
@@ -560,6 +578,27 @@ private struct RoomRow: View {
     private func toggleExpansion() {
         withAnimation(.easeInOut(duration: 0.18)) {
             isExpanded.toggle()
+        }
+    }
+
+    private func copyInviteCode() {
+        inviteCopyTask?.cancel()
+        inviteCopyTask = Task {
+            let succeeded = await onCopyInviteCode()
+            guard !Task.isCancelled,
+                  let generation = inviteCopyFeedback.recordResult(succeeded)
+            else { return }
+
+            inviteCopyResetTask?.cancel()
+            inviteCopyResetTask = Task {
+                do {
+                    try await Task.sleep(for: InviteCopyFeedbackState.confirmationDuration)
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+                inviteCopyFeedback.clear(generation: generation)
+            }
         }
     }
 
@@ -638,12 +677,12 @@ private struct AppSettingsView: View {
         VStack(alignment: .leading, spacing: 34) {
             SettingsSection(
                 title: "일반",
-                subtitle: "SIDEY의 기본 표시와 실행 방식을 설정함",
+                subtitle: "SIDEY의 기본 표시와 실행 방식을 설정할 수 있습니다.",
                 systemImage: "gearshape"
             ) {
                 SettingsToggleRow(
                     title: "픽셀 월드 표시",
-                    description: "선택한 화면 가장자리에 친구들의 픽셀 월드를 표시함",
+                    description: "선택한 화면 가장자리에 친구들의 픽셀 월드를 표시합니다.",
                     isOn: Binding(
                         get: { model.overlayVisible },
                         set: { actions.onOverlayVisibilityChanged($0) }
@@ -652,7 +691,7 @@ private struct AppSettingsView: View {
                 Divider()
                 SettingsToggleRow(
                     title: "로그인 시 자동 실행",
-                    description: "Mac에 로그인하면 SIDEY를 자동으로 시작함",
+                    description: "Mac에 로그인하면 SIDEY를 자동으로 시작합니다.",
                     isOn: Binding(
                         get: { model.launchAtLogin },
                         set: { actions.onLaunchAtLoginChanged($0) }
@@ -662,12 +701,12 @@ private struct AppSettingsView: View {
 
             SettingsSection(
                 title: "표시",
-                subtitle: "친구 상태와 메시지가 화면에 나타나는 방식을 조절함",
+                subtitle: "친구 상태와 메시지가 화면에 나타나는 방식을 조절할 수 있습니다.",
                 systemImage: "eye"
             ) {
                 SettingsToggleRow(
                     title: "조용히 모드",
-                    description: "메시지 본문 말풍선은 숨기고 타이핑 상태와 미확인 수는 유지함",
+                    description: "메시지 본문 말풍선은 숨기고 타이핑 상태와 미확인 수는 유지합니다.",
                     isOn: Binding(
                         get: { model.preferences.quietModeEnabled },
                         set: { actions.onQuietModeChanged($0) }
@@ -676,7 +715,7 @@ private struct AppSettingsView: View {
                 Divider()
                 SettingsToggleRow(
                     title: "오프라인 멤버 표시",
-                    description: "접속하지 않은 친구도 잠든 캐릭터와 빨간 상태 점으로 남겨둠",
+                    description: "접속하지 않은 친구도 잠든 캐릭터와 빨간 상태 점으로 표시합니다.",
                     isOn: Binding(
                         get: { model.preferences.showOfflineMembers },
                         set: { actions.onShowOfflineMembersChanged($0) }
@@ -686,12 +725,12 @@ private struct AppSettingsView: View {
 
             SettingsSection(
                 title: "업데이트",
-                subtitle: "서명된 공식 배포 채널에서 새로운 SIDEY 버전을 확인함",
+                subtitle: "새로운 SIDEY 버전이 있는지 확인할 수 있습니다.",
                 systemImage: "arrow.triangle.2.circlepath"
             ) {
                 SettingsControlRow(
                     title: "업데이트 확인",
-                    description: "Sparkle이 현재 버전보다 새로운 공증 업데이트가 있는지 확인함"
+                    description: "새 버전이 있으면 안전하게 내려받아 설치할 수 있습니다."
                 ) {
                     Button("지금 확인", action: actions.onCheckForUpdates)
                         .buttonStyle(.glassProminent)
@@ -701,12 +740,12 @@ private struct AppSettingsView: View {
 
             SettingsSection(
                 title: "월드 배치",
-                subtitle: "픽셀 월드를 표시할 모니터와 화면 가장자리 영역을 선택함",
+                subtitle: "픽셀 캐릭터를 표시할 화면과 위치를 선택할 수 있습니다.",
                 systemImage: "rectangle.inset.filled"
             ) {
                 SettingsControlRow(
                     title: "가장자리",
-                    description: "캐릭터가 걸어 다닐 화면 방향"
+                    description: "캐릭터가 걸어 다닐 화면 방향을 선택합니다."
                 ) {
                     Picker("가장자리", selection: regionEdgeBinding) {
                         ForEach(OverlayEdge.allCases) { edge in
@@ -714,12 +753,12 @@ private struct AppSettingsView: View {
                         }
                     }
                     .labelsHidden()
-                    .frame(width: 180)
+                    .frame(width: 180, alignment: .trailing)
                 }
                 Divider()
                 SettingsControlRow(
                     title: "영역 길이",
-                    description: "선택한 가장자리에서 월드가 차지할 범위"
+                    description: "선택한 가장자리에서 월드가 차지할 범위를 선택합니다."
                 ) {
                     Picker("길이", selection: regionSpanBinding) {
                         ForEach(OverlaySpan.allCases) { span in
@@ -727,12 +766,12 @@ private struct AppSettingsView: View {
                         }
                     }
                     .labelsHidden()
-                    .frame(width: 180)
+                    .frame(width: 180, alignment: .trailing)
                 }
                 Divider()
                 SettingsControlRow(
                     title: "모니터",
-                    description: "픽셀 월드와 메시지 입력창을 표시할 화면"
+                    description: "픽셀 월드와 메시지 입력창을 표시할 화면을 선택합니다."
                 ) {
                     Picker("모니터", selection: regionScreenBinding) {
                         ForEach(model.availableScreens) { screen in
@@ -740,31 +779,10 @@ private struct AppSettingsView: View {
                         }
                     }
                     .labelsHidden()
-                    .frame(width: 240)
+                    .frame(width: 240, alignment: .trailing)
                 }
             }
 
-            SettingsSection(
-                title: "동작 정보",
-                subtitle: "현재 적용되는 창과 렌더링 정책",
-                systemImage: "info.circle"
-            ) {
-                SettingsControlRow(
-                    title: "설정 창",
-                    description: "다른 일반 앱 창과 동일한 레벨에서 열림"
-                ) {
-                    Text("일반 macOS 창")
-                        .foregroundStyle(.secondary)
-                }
-                Divider()
-                SettingsControlRow(
-                    title: "픽셀 월드",
-                    description: "기본 모드에서 뒤 앱의 포인터 입력을 방해하지 않음"
-                ) {
-                    Text("항상 위 · 클릭 통과 · 30 FPS")
-                        .foregroundStyle(.secondary)
-                }
-            }
         }
     }
 
@@ -905,14 +923,14 @@ private struct SettingsSection<Content: View>: View {
                 .padding(24)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
-                    .thinMaterial,
+                    Color.primary.opacity(0.025),
                     in: RoundedRectangle(cornerRadius: 16, style: .continuous)
                 )
                 .overlay {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(.primary.opacity(0.06), lineWidth: 1)
+                        .stroke(.primary.opacity(0.05), lineWidth: 1)
                 }
-                .shadow(color: .black.opacity(0.035), radius: 12, y: 4)
+                .shadow(color: .black.opacity(0.025), radius: 12, y: 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -932,7 +950,9 @@ private struct SettingsToggleRow: View {
                 .toggleStyle(.switch)
                 .controlSize(.large)
                 .tint(.accentColor)
+                .frame(width: 240, alignment: .trailing)
         }
+        .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
     }
 }
@@ -957,7 +977,9 @@ private struct SettingsControlRow<Control: View>: View {
             SettingsRowLabel(title: title, description: description)
             Spacer(minLength: 16)
             control
+                .frame(width: 240, alignment: .trailing)
         }
+        .frame(maxWidth: .infinity)
     }
 }
 

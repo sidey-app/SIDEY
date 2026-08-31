@@ -43,9 +43,9 @@ enum RuntimeConfigurationError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .incompleteEnvironment:
-            "SIDEY_SUPABASE_URL과 SIDEY_SUPABASE_PUBLISHABLE_KEY를 둘 다 설정해야 함"
+            "SIDEY_SUPABASE_URL과 SIDEY_SUPABASE_PUBLISHABLE_KEY를 모두 설정해야 합니다."
         case .secretKeyNotAllowed:
-            "클라이언트에 Supabase secret/service-role 키를 사용할 수 없음"
+            "클라이언트에 Supabase secret/service-role 키를 사용할 수 없습니다."
         }
     }
 }

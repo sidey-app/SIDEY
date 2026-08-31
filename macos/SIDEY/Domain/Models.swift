@@ -179,7 +179,7 @@ enum SettingsPage: String, CaseIterable, Identifiable, Sendable {
     var systemImage: String {
         switch self {
         case .profile: "person.crop.circle"
-        case .groups: "person.3"
+        case .groups: "person.2"
         case .app: "gearshape"
         }
     }

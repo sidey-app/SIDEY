@@ -34,6 +34,7 @@ final class PreferencesTests: XCTestCase {
         XCTAssertFalse(value.quietModeEnabled)
         XCTAssertNil(value.overlayScreenIdentifier)
         XCTAssertEqual(value.schemaVersion, AppPreferences.currentSchemaVersion)
+        XCTAssertFalse(value.keychainTransitionComplete)
         XCTAssertEqual(value.overlayRegion.edge, .bottom)
         XCTAssertEqual(value.overlayRegion.span, .full)
         XCTAssertTrue(value.showOfflineMembers)
@@ -48,5 +49,28 @@ final class PreferencesTests: XCTestCase {
         XCTAssertEqual(value.overlayRegion.edge, .bottom)
         XCTAssertEqual(value.overlayRegion.span, .full)
         XCTAssertEqual(value.overlayRegion.screenIdentifier, "2560x1440@2.000")
+        XCTAssertFalse(value.keychainTransitionComplete)
+    }
+
+    func testVersionSixPreferencesPreserveValuesAndRequireOneKeychainTransition() throws {
+        let roomID = "A33009C1-B56D-4DEB-9CF2-ECEB778B658F"
+        let json = #"{"schemaVersion":6,"hasShownNativeLanding":true,"onboardingComplete":true,"overlayVisible":false,"quietModeEnabled":true,"nickname":"민지","selectedCharacterID":"pixel_penguin","activeRoomID":"\#(roomID)"}"#
+
+        let value = try JSONDecoder().decode(AppPreferences.self, from: Data(json.utf8))
+
+        XCTAssertEqual(value.schemaVersion, 7)
+        XCTAssertFalse(value.keychainTransitionComplete)
+        XCTAssertTrue(value.hasShownNativeLanding)
+        XCTAssertTrue(value.onboardingComplete)
+        XCTAssertFalse(value.overlayVisible)
+        XCTAssertTrue(value.quietModeEnabled)
+        XCTAssertEqual(value.nickname, "민지")
+        XCTAssertEqual(value.selectedCharacterID, "pixel_penguin")
+        XCTAssertEqual(value.activeRoomID?.uuidString, roomID)
+    }
+
+    func testFreshInstallSkipsLegacyKeychainTransitionNotice() {
+        XCTAssertEqual(AppPreferences.defaults.schemaVersion, 7)
+        XCTAssertTrue(AppPreferences.defaults.keychainTransitionComplete)
     }
 }
