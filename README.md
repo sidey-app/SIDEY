@@ -95,5 +95,5 @@ macOS 26과 Xcode 26 이상이 필요합니다. 기본 macOS 내보내기는 네
 버전 태그와 일치하는 검증된 Release ZIP을 만들려면 다음 명령을 사용합니다.
 
 ```sh
-./scripts/package_macos_release.sh v0.2.0-alpha.2
+./scripts/package_macos_release.sh v0.2.0-alpha.3
 ```

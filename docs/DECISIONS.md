@@ -50,7 +50,7 @@
 | 코드베이스 기준 | `main`에는 SwiftUI·AppKit·SpriteKit 2D 네이티브 앱만 유지하고 Godot·3D 런타임, 브리지, 에셋 파이프라인, 테스트를 제거 | 사용하지 않는 두 런타임을 함께 유지하는 비용과 잘못된 배포 경로를 없앤다. 기존 사용자 세션·설정을 읽는 Swift migration 호환 계층은 데이터 손실 방지를 위해 유지한다. |
 | 서버 계약 | 운영에 적용된 `20260829000000_sidey_core.sql`이 방당 5명과 사용자당 5개 방을 이미 강제하며 pixel-world 전용 schema migration은 추가하지 않음 | 운영과 `main`의 최종 계약이 같으므로 임시 20명 staging migration을 승격하지 않는다. |
 | alpha 업데이트 | GitHub Releases의 새 ZIP을 수동으로 내려받아 `/Applications/SIDEY.app`을 교체하며 사용자 데이터는 유지 | 현재 ad-hoc ZIP 배포에는 앱 내부 자동 업데이트가 없다. 자동 업데이트 프레임워크는 서명·공증 방식과 함께 별도 결정한다. |
-| 배포 채널 | 버전 `0.2.0`, 빌드 `4`의 Apple Silicon 앱을 `v0.2.0-alpha.2` GitHub pre-release로 배포 | 닉네임·상태 점과 composer 유지 시간을 고친 alpha 패치다. Developer ID 서명·공증과 장시간 수동 검증 전에는 정식 stable로 오인시키지 않는다. |
+| 배포 채널 | 버전 `0.2.0`, 빌드 `5`의 Apple Silicon 앱을 `v0.2.0-alpha.3` GitHub pre-release로 배포 | 픽셀 월드 상호작용·캐릭터 리액션·앱 아이콘을 다듬고 composer 자동 닫힘을 5초로 조정한 alpha 패치다. Developer ID 서명·공증과 장시간 수동 검증 전에는 정식 stable로 오인시키지 않는다. |
 
 ## 현재 검증 기준
 
