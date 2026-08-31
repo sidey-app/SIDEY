@@ -22,8 +22,9 @@ on run arguments
         end tell
         set position of item "SIDEY.app" of targetFolder to {165, 205}
         set position of item "Applications" of targetFolder to {495, 205}
-        update targetFolder without registering applications
         delay 1
-        close targetWindow
+        ignoring application responses
+            close targetWindow
+        end ignoring
     end tell
 end run

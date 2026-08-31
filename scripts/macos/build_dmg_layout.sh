@@ -7,8 +7,13 @@ SIDEY_REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && /bin/pwd -P)
 SIDEY_DMG_STAGE=$(mktemp -d "${TMPDIR:-/tmp}/sidey-dmg-layout.XXXXXX")
 SIDEY_DMG_MOUNT="$SIDEY_DMG_STAGE/mount"
 SIDEY_DMG_ATTACHED=0
+SIDEY_FINDER_PID=
 
 cleanup() {
+	if [ -n "$SIDEY_FINDER_PID" ] && kill -0 "$SIDEY_FINDER_PID" >/dev/null 2>&1; then
+		kill "$SIDEY_FINDER_PID" >/dev/null 2>&1 || true
+		wait "$SIDEY_FINDER_PID" >/dev/null 2>&1 || true
+	fi
 	if [ "$SIDEY_DMG_ATTACHED" = 1 ]; then
 		hdiutil detach "$SIDEY_DMG_MOUNT" >/dev/null 2>&1 || \
 			hdiutil detach -force "$SIDEY_DMG_MOUNT" >/dev/null 2>&1 || true
@@ -76,18 +81,30 @@ SIDEY_DMG_ATTACHED=1
 
 osascript \
 	"$SIDEY_REPO_ROOT/scripts/macos/configure_dmg_window.applescript" \
-	"$SIDEY_DMG_MOUNT"
+	"$SIDEY_DMG_MOUNT" &
+SIDEY_FINDER_PID=$!
 
-sync
 SIDEY_DS_STORE_ATTEMPTS=0
-while [ ! -f "$SIDEY_DMG_MOUNT/.DS_Store" ] && [ "$SIDEY_DS_STORE_ATTEMPTS" -lt 20 ]; do
+while [ ! -f "$SIDEY_DMG_MOUNT/.DS_Store" ] && \
+	kill -0 "$SIDEY_FINDER_PID" >/dev/null 2>&1 && \
+	[ "$SIDEY_DS_STORE_ATTEMPTS" -lt 40 ]; do
 	sleep 0.25
 	SIDEY_DS_STORE_ATTEMPTS=$((SIDEY_DS_STORE_ATTEMPTS + 1))
 done
+if [ -f "$SIDEY_DMG_MOUNT/.DS_Store" ]; then
+	sleep 1
+fi
+if kill -0 "$SIDEY_FINDER_PID" >/dev/null 2>&1; then
+	kill "$SIDEY_FINDER_PID" >/dev/null 2>&1 || true
+fi
+wait "$SIDEY_FINDER_PID" >/dev/null 2>&1 || true
+SIDEY_FINDER_PID=
+
 if [ ! -f "$SIDEY_DMG_MOUNT/.DS_Store" ]; then
 	echo "Finder did not write the DMG .DS_Store layout" >&2
 	exit 69
 fi
+sync
 
 hdiutil detach "$SIDEY_DMG_MOUNT" >/dev/null
 SIDEY_DMG_ATTACHED=0
