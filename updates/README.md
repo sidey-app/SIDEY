@@ -9,10 +9,10 @@ repository README, upload that exact ZIP to its GitHub Release, then regenerate 
 with the release's committed notes file:
 
 ```sh
-SIDEY_RELEASE_NOTES=docs/releases/v1.0.2.md \
+SIDEY_RELEASE_NOTES=docs/releases/v1.0.3.md \
   ./scripts/macos/prepare_sparkle_appcast.sh \
-  v1.0.2 \
-  build/releases/v1.0.2/SIDEY-macOS-arm64-v1.0.2.zip
+  v1.0.3 \
+  build/releases/v1.0.3/SIDEY-macOS-arm64-v1.0.3.zip
 ```
 
 Commit and push the generated `appcast.xml` only after the ZIP URL is live. The script
