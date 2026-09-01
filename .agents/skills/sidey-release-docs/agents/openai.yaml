@@ -1,0 +1,7 @@
+interface:
+  display_name: "SIDEY Release Docs"
+  short_description: "Write user-facing SIDEY release updates"
+  default_prompt: "Use $sidey-release-docs to prepare concise, verified README and release-note updates for the next SIDEY version."
+
+policy:
+  allow_implicit_invocation: true
