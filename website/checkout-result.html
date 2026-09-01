@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <meta name="robots" content="noindex, nofollow">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'self'">
+    <title>결제 결과 · SIDEY</title>
+    <meta name="theme-color" content="#f7f7ff">
+    <link rel="icon" type="image/png" href="./assets/app-icon.png">
+    <link rel="stylesheet" href="./assets/styles.css">
+    <script src="./assets/checkout-result.js" defer></script>
+  </head>
+  <body class="checkout-body">
+    <main class="checkout-shell">
+      <a class="checkout-brand" href="./" aria-label="SIDEY 홈">
+        <img src="./assets/app-icon.png" alt="" width="38" height="38">
+        <span>SIDEY</span>
+      </a>
+      <section class="checkout-card checkout-result-card" aria-labelledby="result-title">
+        <div class="checkout-state">
+          <span id="result-icon" class="checkout-state-icon" aria-hidden="true">✦</span>
+          <h1 id="result-title">결제 결과를 확인했어요.</h1>
+          <p id="result-message">이제 이 창을 닫고 SIDEY로 돌아가도 됩니다.</p>
+          <a class="button button-secondary checkout-result-link" href="./store.html">상품 안내 보기</a>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

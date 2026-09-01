@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <meta name="robots" content="noindex, nofollow">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' https://js.tosspayments.com; style-src 'self'; img-src 'self'; connect-src https://whtejsviizgejauasqqt.supabase.co https://api.tosspayments.com https://*.tosspayments.com; frame-src https://*.tosspayments.com; form-action 'none'; base-uri 'self'"
+    >
+    <title>별빛 우파루파 결제 · SIDEY</title>
+    <meta name="theme-color" content="#f7f7ff">
+    <link rel="icon" type="image/png" href="./assets/app-icon.png">
+    <link rel="stylesheet" href="./assets/styles.css">
+    <script src="https://js.tosspayments.com/v2/standard" defer></script>
+    <script src="./assets/checkout.js" defer></script>
+  </head>
+  <body class="checkout-body">
+    <main
+      class="checkout-shell"
+      data-checkout-endpoint="https://whtejsviizgejauasqqt.supabase.co/functions/v1/commerce-checkout"
+    >
+      <a class="checkout-brand" href="./" aria-label="SIDEY 홈">
+        <img src="./assets/app-icon.png" alt="" width="38" height="38">
+        <span>SIDEY</span>
+      </a>
+
+      <section class="checkout-card" aria-labelledby="checkout-title">
+        <div id="checkout-loading" class="checkout-state" role="status">
+          <span class="checkout-state-icon" aria-hidden="true">✦</span>
+          <h1 id="checkout-title">주문을 확인하고 있어요.</h1>
+          <p>잠시만 기다려주세요.</p>
+        </div>
+
+        <div id="checkout-error" class="checkout-state" role="alert" hidden>
+          <span class="checkout-state-icon checkout-state-warning" aria-hidden="true">!</span>
+          <h1>결제창을 열 수 없어요.</h1>
+          <p id="checkout-error-message">이 창을 닫고 SIDEY 상점에서 다시 시도해주세요.</p>
+        </div>
+
+        <div id="checkout-product" hidden>
+          <p class="section-kicker">SIDEY 꾸미기·상점</p>
+          <div class="checkout-product-row">
+            <div class="checkout-sprite-frame" aria-hidden="true">
+              <img src="./assets/characters/pixel_starlight_upalupa.png" alt="">
+            </div>
+            <div>
+              <h1 id="checkout-order-name">별빛 우파루파</h1>
+              <p class="checkout-price"><span id="checkout-amount">990</span>원</p>
+              <p class="checkout-meta">부가세 포함 · 1회 구매 · 테스트 결제</p>
+            </div>
+          </div>
+          <p class="checkout-note">
+            결제 승인 뒤 SIDEY 서버가 금액과 결제 상태를 다시 확인해야 캐릭터가 계정에 귀속됩니다.
+            현재 테스트 키를 사용하므로 실제 금액은 청구되지 않습니다.
+          </p>
+          <a class="checkout-policy" href="./store.html" target="_blank" rel="noopener">
+            상품·환불·개인정보 안내 확인
+          </a>
+          <button id="checkout-pay" class="button button-primary checkout-pay" type="button">
+            결제창 열기
+          </button>
+          <p id="checkout-status" class="checkout-status" role="status"></p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
