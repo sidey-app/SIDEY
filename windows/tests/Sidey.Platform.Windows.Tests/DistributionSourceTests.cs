@@ -16,13 +16,18 @@ public sealed class DistributionSourceTests
         Assert.Equal("true", Value(project, "IncludeAllContentForSelfExtract"));
         Assert.Equal("false", Value(project, "PublishTrimmed"));
 
-        var characterContent = project
-            .Descendants("Content")
+        var characterAssets = project
+            .Descendants("None")
             .Single(element => ((string?)element.Attribute("Include"))?.Contains(
                 "Assets/Characters",
                 StringComparison.Ordinal) == true);
-        Assert.Equal("true", characterContent.Element("ExcludeFromSingleFile")?.Value);
-        Assert.Equal("PreserveNewest", characterContent.Element("CopyToPublishDirectory")?.Value);
+        Assert.Equal("true", characterAssets.Element("ExcludeFromSingleFile")?.Value);
+        Assert.Equal("PreserveNewest", characterAssets.Element("CopyToPublishDirectory")?.Value);
+        Assert.DoesNotContain(
+            project.Descendants("Content"),
+            element => ((string?)element.Attribute("Include"))?.Contains(
+                "Assets/Characters",
+                StringComparison.Ordinal) == true);
     }
 
     [Fact]

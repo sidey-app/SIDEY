@@ -30,10 +30,10 @@
     <ProjectReference Include="../Sidey.Platform.Windows/Sidey.Platform.Windows.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="../Sidey.Overlay/Assets/Characters/*" Link="Assets/Characters/%(Filename)%(Extension)">
+    <None Include="../Sidey.Overlay/Assets/Characters/*" Link="Assets/Characters/%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
-    </Content>
+    </None>
   </ItemGroup>
 </Project>
