@@ -196,7 +196,23 @@ final class WindowPolicyTests: XCTestCase {
         settings.transitionFromOnboardingToSettings()
 
         XCTAssertEqual(model.activeSettingsPage, .groups)
-        XCTAssertEqual(settings.contentSize, SettingsWindowController.settingsContentSize)
+        let actualContentSize = settings.contentSize
+        let requestedContentSize = SettingsWindowController.settingsContentSize
+        XCTAssertLessThanOrEqual(actualContentSize.width, requestedContentSize.width)
+        XCTAssertLessThanOrEqual(actualContentSize.height, requestedContentSize.height)
+        XCTAssertGreaterThanOrEqual(actualContentSize.width, 860)
+        XCTAssertGreaterThanOrEqual(actualContentSize.height, 640)
+
+        if let window = settings.window,
+           let screen = window.screen {
+            let requestedFrame = window.frameRect(
+                forContentRect: CGRect(origin: .zero, size: requestedContentSize)
+            )
+            if screen.visibleFrame.width >= requestedFrame.width,
+               screen.visibleFrame.height >= requestedFrame.height {
+                XCTAssertEqual(actualContentSize, requestedContentSize)
+            }
+        }
     }
 
     func testWindowLevelsClickPolicyAndFixedComposerSize() {
