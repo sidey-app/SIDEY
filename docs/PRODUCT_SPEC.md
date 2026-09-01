@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.7
 - 최종 갱신: 2026-09-02
-- 상태: macOS `v1.0.3`(build 14) 정식 공개(최근 기록 개선), Windows 네이티브 햄스터 vertical slice 개발
+- 상태: macOS `v1.0.3`(build 14) 정식판 위에 상점·Google 연결·별빛 우파루파 개발, Windows 네이티브판 별도 개발
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
 
@@ -27,6 +27,7 @@
 - 실제 그룹은 최대 12명이다. 렌더러 안정성은 별도 20노드 합성 스트레스 테스트로 검증한다.
 - macOS 코드·인증·설정 schema는 Windows 개발을 위해 재작성하지 않는다.
 - 기존 설치의 인증 세션과 설정을 잃지 않도록 Swift 기반 legacy migration 호환만 유지한다.
+- macOS 설정과 메뉴바에서 첫 유료 캐릭터 상점을 제공하고, 기존 익명 계정을 Google identity에 연결한 뒤 브라우저 결제를 시작한다.
 
 ### 2.2 Windows 구현 목표
 
@@ -38,7 +39,7 @@
 
 ### 2.3 명시적 제외
 
-- 내장 5종을 넘는 추가 동물
+- 승인된 catalog 상품 외의 추가 동물
 - 모바일·웹 클라이언트
 - 공개 그룹·검색·발견
 - 12명을 넘는 그룹
@@ -146,6 +147,8 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 | `pixel_rabbit` | 아기 토끼 | 아이보리·피치·라벤더 |
 | `pixel_penguin` | 아기 펭귄 | 네이비·크림·민트 |
 
+첫 유료 catalog 상품은 `pixel_starlight_upalupa` 별빛 우파루파다. macOS 선택 목록에는 무료 5종과 현재 계정이 활성 소유권을 가진 유료 캐릭터만 표시한다. 환불 또는 소유권 만료 시 로컬 선택을 햄스터로 되돌리며, 다른 사용자의 유료 캐릭터 렌더링에는 보는 사람의 소유권을 요구하지 않는다.
+
 - 논리 프레임: 24×24 픽셀
 - 화면 크기: 2배 정수 확대, 약 48pt
 - 필터: nearest-neighbor
@@ -232,13 +235,23 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 활성 그룹과 그룹별 미확인 수
 - 조용히 모드
 - 최근 기록
+- 꾸미기·상점
 - 그룹 설정
 - 로그인 시 실행
 - 업데이트 확인
 - 설정
 - 종료
 
-### 6.4 Windows 창과 트레이
+### 6.4 macOS 꾸미기·상점
+
+- 설정과 메뉴바의 `꾸미기·상점`은 같은 화면을 열고 판매 상품을 등록 순서대로 2열 그리드에 표시한다.
+- 화면에는 외부 상점 섹션 카드와 별도의 미리보기 카드 배경을 두지 않고 `StoreProductCard` 한 단계만 사용한다.
+- 각 상품 카드는 최대 210pt의 배경 없는 미리보기 영역 안에 96pt 캐릭터를 최대 1.45배로 표시한다. 좌상단에는 상태 배지, 우상단에는 `hand.tap` 아이콘 미리보기 버튼을 overlay하며 버튼은 보이는 텍스트 없이 접근성 라벨과 도움말을 제공한다.
+- 이름과 서버 가격은 같은 행에 배치하고 설명·오류·상태별 구매 action을 아래에 둔다. `1회 구매`, 카드별 `부가세 포함`, 텍스트 `반응 미리보기`, 소유권 배지와 중복되는 비활성 `보유 중` 버튼은 표시하지 않는다.
+- 부가세 포함, Google 연결 필요, 결제 승인과 서버 소유권 확인, 만 14세 이상, 7일 환불 안내는 그리드 아래 공통 설명으로 한 번만 표시한다.
+- 카드별 미리보기 scale·effect generation·취소 가능한 Task는 `StoreProductCard`가 소유하고 상품 ID별 정렬된 서버 상태와 구매 action은 `AppModel`·`AppCoordinator`·`SideyBackend`가 소유한다.
+
+### 6.5 Windows 창과 트레이
 
 - 월드는 WinUI XAML 창에 투명 표현을 위임하지 않고 `WS_POPUP` 기반 전용 Win32 HWND가 소유한다. 첫 local slice는 24px 원본에서 정수 nearest-neighbor로 미리 만든 premultiplied BGRA frame을 `UpdateLayeredWindow`로 표시하며 tick마다 bitmap이나 surface를 새로 할당하지 않는다.
 - 월드 HWND는 작업 표시줄·Alt-Tab에 나타나지 않고 활성화되지 않으며 외부 앱으로 포인터를 통과시킨다.
@@ -271,6 +284,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 오버레이 영역, 모니터, 오프라인 표시 등 환경설정
 - 편집 중인 `selectedCharacterID`
 - 연결 상태와 분리된 현재 `GroupOperation`
+- 상품 ID별 commerce 상태, Google 연결 여부와 활성 소유권
 
 macOS 최근 기록의 페이지·cursor·최초 및 추가 로딩 상태는 창 수명에 묶인 `MessageHistoryStore`가 소유한다. `AppModel`의 방별 50개 confirmed ledger와 outbox 계약은 바꾸지 않으며, 화면에 표시할 때만 페이지 결과·실시간 신규 메시지·pending·failed 항목을 UUID로 병합한다. `SideyBackend`는 RLS가 적용된 페이지 조회만 담당하고 offset이나 별도 서버 schema를 추가하지 않는다.
 
@@ -334,6 +348,8 @@ OverlayRegionPreference(
 - 7일 초과·프로필 없음·방 없음인 미완성 익명 가입만 삭제
 - `rename_room(uuid,text)`, `remove_room_member(uuid,uuid)`, 방장 전용 `delete_room(uuid) returns void`; 삭제는 기존 FK cascade로 방 멤버십과 메시지를 함께 제거
 
+`20260901010000_starlight_upalupa_commerce.sql`은 상품·가격·주문·결제 시도·소유권·환불 기록과 RLS를 추가한다. 클라이언트는 서버 catalog 가격과 활성 소유권만 사용하며 checkout 생성, 결제 승인·재조회, webhook, 환불은 Edge Functions가 서비스 권한으로 검증한다. 공개 callback 함수는 일회용 주문 token과 공급자 서명을 확인하고 임의 사용자·금액·소유권을 신뢰하지 않는다.
+
 기존 짧은 초대 코드는 migration에서 비활성화한다. 방장은 새 macOS 클라이언트에서 한 번 재발급해야 하며 public room 조회와 Realtime payload 어디에도 invite hash·version이 포함되지 않는다. macOS hotfix와 migration은 호환 순서로 배포하고 구버전의 기존 topic 계약은 유지하지 않는다.
 
 임시로 방 정원을 20명으로 늘렸던 staging migration은 운영에 적용되지 않았고 `main`에서도 제거한다. 20명 조건은 렌더러 합성 부하 테스트에만 사용하며 제품 정원은 12명이다.
@@ -358,6 +374,8 @@ E2EE는 현재 설계·구현·검증되지 않았다. 전송 암호화, Postgre
 
 Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity를 처리하지만 SIDEY 클라이언트는 이 값을 닉네임·캐릭터·친구 노출 정보로 복사하지 않는다. 로컬 로그에는 access/refresh token, OAuth callback query, 메시지 본문, 평문 초대 코드를 남기지 않는다.
 
+macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀키, service-role key, 일회용 주문 token, 전체 결제 식별자를 남기지 않는다. 결제 성공 redirect만으로 소유권을 지급하지 않고 토스 승인·재조회와 Postgres 기록이 모두 일치해야 한다.
+
 ## 10. 검증과 승격 기준
 
 ### 10.1 자동화 테스트
@@ -372,6 +390,7 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 - 업데이트: production 채널에 Sparkle `2.9.6` 프레임워크·메뉴 항목·피드 URL·EdDSA 공개키가 번들에 포함되고 signed feed와 압축 해제 전 검증을 강제하며, 업데이트 진행 중에는 수동 확인 메뉴를 비활성화. development 채널은 Sparkle을 시작하지 않고 수동 확인 메뉴도 항상 비활성화
 - 에셋: 5개 시트의 240×24 RGBA·10프레임·공통 발 기준선·결정적 hash·Release 번들 포함, 메뉴 아이콘 1x·2x template/unread variant
 - 설정: 860×640 최소 크기와 1000×760 기본 크기의 라이트·다크 렌더, 옅은 카드 명도, 240pt 컨트롤 영역과 Picker·버튼·토글 오른쪽 정렬, `동작 정보` 제거, 두 사람 그룹 아이콘, 한글 IME 조합 확정 후 닉네임 저장
+- 상점: 2열 상품 카드의 독립 상태·정렬, 소유권·환불 fallback, Google callback scheme 분리, 최소·기본 크기와 라이트·다크 렌더, 한 단계 카드 구조, 상태 배지와 아이콘 미리보기 접근성, 공통 부가세·환불 안내를 검증한다.
 - 그룹 설정: 0·1·12명 멤버 목록, 기본 접힘·제목 영역 및 오른쪽 단일 화살표 펼침, `그룹 참가` 문구, 생성·참여·전환별 진행 문구와 라이트·다크 대상 카드 강조, A→B→C 연속 선택에서 C만 commit, UUID 기반 방장 왕관과 펼친 목록 아래 방장 전용 이름 변경·삭제 버튼, 이름 변경 저장·취소, 대상 명시 추방 확인, 영구 삭제 2단계 확인, 활성·비활성·마지막 그룹 삭제 fallback, 초대 코드 복사 성공·실패와 3초 표시·재클릭 갱신·행 제거 취소
 - DMG: 660×420 배경, `SIDEY.app`, `/Applications` 심볼릭 링크, 기존 5종 idle 프레임, `.DS_Store`를 자동 생성·마운트 검증하고 Finder에서 아이콘 위치·안내 문구·nearest-neighbor 픽셀 선명도를 수동 확인
 - Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단
