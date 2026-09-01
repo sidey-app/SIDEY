@@ -39,6 +39,9 @@
     <None Include="../../installer/Sidey.Msi/Package.wxs" Link="TestAssets/Sidey.Msi.Package.wxs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="../../installer/Sidey.Msi/Sidey.Msi.wixproj" Link="TestAssets/Sidey.Msi.wixproj.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="../../installer/Sidey.Bundle/Bundle.wxs" Link="TestAssets/Sidey.Bundle.Bundle.wxs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

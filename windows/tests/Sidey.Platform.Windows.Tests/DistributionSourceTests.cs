@@ -77,6 +77,14 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
+    public void MsiSuppressesOnlyTheDocumentedSingleFileAndCommonMenuIceRules()
+    {
+        var project = XDocument.Load(AssetPath("Sidey.Msi.wixproj.xml"));
+
+        Assert.Equal("ICE03;ICE38;ICE43;ICE57", Value(project, "SuppressIces"));
+    }
+
+    [Fact]
     public void BurnLaunchesTheProgramFilesExecutable()
     {
         var document = XDocument.Load(AssetPath("Sidey.Bundle.Bundle.wxs"));
