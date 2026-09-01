@@ -2,7 +2,7 @@
 
 Windows 11 25H2(build 26200)+ x64용 네이티브 클라이언트입니다. 첫 기능 빌드부터 `pixel_hamster`, `pixel_cat`, `pixel_puppy`, `pixel_rabbit`, `pixel_penguin` 5종을 같은 catalog 기반 renderer로 다룹니다. 햄스터 1종 검증은 별도 제품 구현이 아니라 같은 renderer의 Debug 제한 모드입니다.
 
-아직 공개 alpha나 공개 Setup.exe가 없으며, Windows 실기·장시간 검증이 완료되지 않았습니다.
+Windows 실기·장시간 검증 전 테스트용 pre-release이며 공개 준비 완료판이 아닙니다.
 
 ## 필수 환경
 
@@ -72,14 +72,14 @@ dotnet run --project ./windows/src/Sidey.App/Sidey.App.csproj --configuration De
 
 ## Setup.exe 후보 생성
 
-`PublishSingleFile`은 사용하지 않습니다. self-contained WinUI publish 폴더 전체를 사용자별 MSI에 넣고, WiX Toolset `6.0.2` Burn이 MSI와 payload를 내장한 오프라인 Setup.exe를 만듭니다.
+unpackaged·self-contained WinUI 앱을 `PublishSingleFile=true`로 게시합니다. .NET·Windows App SDK·앱 코드는 `SIDEY.exe`에 묶여 첫 실행 때 사용자 임시 폴더로 내부 추출되고, 캐릭터 5종의 PNG·BGRA·manifest 15개만 `Assets\Characters`에 외부 파일로 남습니다. WiX Toolset `6.0.2` Burn은 머신 단위 MSI와 이 payload를 내장한 오프라인 Setup.exe를 만듭니다.
 
 `package.ps1`의 숫자 4부 `BundleVersion`은 앞 세 자리를 표시 SemVer와 맞추고, 네 번째 값을 prerelease 순번으로 사용합니다. 이 값에서 MSI의 숫자 build를 파생하므로 다음 alpha는 반드시 더 큰 값을 써야 합니다(`alpha.1` → `0.3.0.1`, `alpha.2` → `0.3.0.2`; stable 예약값은 `999`). Burn과 MSI가 함께 downgrade를 차단하려면 이 순서를 거꾸로 재사용하면 안 됩니다.
 
 ```powershell
 dotnet publish ./windows/src/Sidey.App/Sidey.App.csproj `
   -c Release -r win-x64 --self-contained true `
-  -p:PublishSingleFile=false -p:Version=0.3.0-alpha.1 `
+  -p:PublishSingleFile=true -p:Version=0.3.0-alpha.2 `
   -o ./build/windows/publish
 
 pwsh ./scripts/windows/package.ps1 `
@@ -89,20 +89,24 @@ pwsh ./scripts/windows/package.ps1 `
 
 공개 후보는 다음 두 파일입니다.
 
-- `SIDEY-Windows-x64-v0.3.0-alpha.1-Setup.exe`
-- `SIDEY-Windows-x64-v0.3.0-alpha.1-Setup.exe.sha256`
+- `SIDEY-Windows-x64-v0.3.0-alpha.2-Setup.exe`
+- `SIDEY-Windows-x64-v0.3.0-alpha.2-Setup.exe.sha256`
 
-내부 MSI는 CI 검증에만 사용합니다. ZIP·직접 MSI·MSIX는 공개하지 않습니다. Setup은 관리자 권한 없이 `%LOCALAPPDATA%\Programs\SIDEY`에 설치하고 시작 메뉴만 추가합니다. 바탕화면 바로가기와 설치 중 로그인 자동 실행은 만들지 않습니다.
+내부 MSI는 CI 검증에만 사용합니다. ZIP·직접 MSI·MSIX는 공개하지 않습니다. Setup은 관리자 승인 뒤 `C:\Program Files\SIDEY`에 설치하고 공용 시작 메뉴만 추가합니다. 바탕화면 바로가기와 설치 중 로그인 자동 실행은 만들지 않습니다.
+
+기존 v0.3.0-alpha.1은 사용자별 MSI라 머신 단위 alpha.2로 자동 major upgrade할 수 없습니다. 새 Setup이 기존 설치를 감지하면 중단하므로 Windows 설정에서 alpha.1을 먼저 제거한 뒤 다시 설치해야 합니다. `%LOCALAPPDATA%\SIDEY` 설정과 Credential Manager 세션은 제거하지 않습니다.
 
 GitHub pre-release에 Setup과 `.sha256`을 올린 뒤에는 로컬 CI 후보와 Release에서 다시 받은 바이트가 같은지 확인합니다. 이 명령이 성공하기 전에는 웹사이트 Windows CTA나 업데이트 manifest를 활성화하면 안 됩니다.
 
 ```powershell
 ./scripts/windows/verify-release.ps1 `
-  -Version 0.3.0-alpha.1 `
-  -CandidateSetup ./build/windows/artifacts/SIDEY-Windows-x64-v0.3.0-alpha.1-Setup.exe
+  -Version 0.3.0-alpha.2 `
+  -CandidateSetup ./build/windows/artifacts/SIDEY-Windows-x64-v0.3.0-alpha.2-Setup.exe
 ```
 
 clean install, 시작 메뉴·성공 화면 실행, repair, 실행 중 major upgrade, downgrade 차단, uninstall/reinstall 후 설정·Credential Manager 세션 보존을 Windows에서 검증하기 전에는 공개 준비 완료로 표시하지 않습니다.
+
+시작 직후 종료되거나 오류창이 나타나면 `%LOCALAPPDATA%\SIDEY\Logs\startup.log`를 확인합니다. 이 로그에는 시작 단계와 예외 유형·HRESULT·stack만 남기며 token·메시지 본문·초대 코드는 기록하지 않습니다.
 
 ## 미서명 alpha 경고와 SHA-256
 
@@ -111,7 +115,7 @@ clean install, 시작 메뉴·성공 화면 실행, repair, 실행 중 major upg
 Release의 `.sha256`과 다음 결과를 파일명·hash 모두 비교합니다.
 
 ```powershell
-Get-FileHash .\SIDEY-Windows-x64-v0.3.0-alpha.1-Setup.exe -Algorithm SHA256
+Get-FileHash .\SIDEY-Windows-x64-v0.3.0-alpha.2-Setup.exe -Algorithm SHA256
 ```
 
 실제 GitHub Release에 파일을 올리고 다시 내려받은 Setup.exe의 hash가 후보와 일치하기 전에는 웹사이트 Windows 다운로드 버튼과 업데이트 manifest를 활성화하지 않습니다. 앱은 새 버전을 확인하면 공식 GitHub Release 페이지만 열고, Setup.exe를 직접 다운로드하거나 실행하지 않습니다.

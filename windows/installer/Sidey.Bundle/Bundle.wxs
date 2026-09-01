@@ -4,7 +4,7 @@
       Name="SIDEY $(DisplayVersion)"
       Manufacturer="SIDEY"
       Version="$(BundleVersion)"
-      UpgradeCode="B1438BBE-BB61-470B-A4DB-7C8FC2E11DA2"
+      UpgradeCode="E806500D-491D-4CFF-B29A-41F7936D9BFE"
       Compressed="yes">
     <BootstrapperApplication>
       <bal:WixStandardBootstrapperApplication
@@ -13,7 +13,7 @@
           ShowVersion="yes"
           SuppressOptionsUI="yes"
           SuppressDowngradeFailure="no"
-          LaunchTarget="[LocalAppDataFolder]Programs\SIDEY\SIDEY.exe" />
+          LaunchTarget="[ProgramFiles64Folder]SIDEY\SIDEY.exe" />
     </BootstrapperApplication>
     <Chain>
       <MsiPackage

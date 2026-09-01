@@ -30,5 +30,14 @@
     <None Include="../../src/Sidey.Infrastructure/SupabaseRealtimeTransport.cs" Link="TestAssets/SupabaseRealtimeTransport.cs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="../../src/Sidey.App/Sidey.App.csproj" Link="TestAssets/Sidey.App.csproj.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="../../installer/Sidey.Msi/Package.wxs" Link="TestAssets/Sidey.Msi.Package.wxs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="../../installer/Sidey.Bundle/Bundle.wxs" Link="TestAssets/Sidey.Bundle.Bundle.wxs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>

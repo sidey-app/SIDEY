@@ -15,24 +15,63 @@ public partial class App : Application
 
     public App()
     {
-        InitializeComponent();
+        StartupDiagnostics.BeginSession();
+        AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+        try
+        {
+            InitializeComponent();
+            UnhandledException += OnXamlUnhandledException;
+            StartupDiagnostics.Stage("xaml-initialized");
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.Fatal("app-xaml-initialization", exception, showDialog: true);
+            throw;
+        }
     }
 
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
     {
+        try
+        {
+            await LaunchAsync(args);
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.Fatal("launch", exception, showDialog: _mainWindow is null);
+            if (_mainWindow is not null)
+            {
+                _mainWindow.ShowFatalError(new InvalidOperationException(
+                    "SIDEY 시작 중 오류가 발생했습니다. 앱을 종료한 뒤 다시 실행해 주세요.",
+                    exception));
+                return;
+            }
+
+            await DisposeAfterFailedLaunchAsync();
+            Exit();
+        }
+    }
+
+    private async Task LaunchAsync(LaunchActivatedEventArgs args)
+    {
         _ = args;
+        StartupDiagnostics.Stage("launch-entered");
         _singleInstance = SingleInstanceGuard.Acquire();
         if (!_singleInstance.IsPrimary)
         {
+            StartupDiagnostics.Stage("secondary-instance-exit");
             Exit();
             return;
         }
+        StartupDiagnostics.Stage("single-instance-acquired");
 
         if (!WindowsVersionGuard.IsSupported())
         {
             _window = new UnsupportedWindowsWindow();
             _window.Closed += OnWindowClosed;
             _window.Activate();
+            StartupDiagnostics.Stage("unsupported-window-activated");
             return;
         }
 
@@ -47,17 +86,86 @@ public partial class App : Application
         _window = _mainWindow;
         _mainWindow.Closed += OnWindowClosed;
         _mainWindow.Activate();
-        _tray = TrayIconService.Start();
-        _tray.CommandInvoked += OnTrayCommandInvoked;
-        _tray.RoomSelected += OnTrayRoomSelected;
+        StartupDiagnostics.Stage("main-window-activated");
         try
         {
-            await _coordinator.InitializeAsync();
+            _tray = TrayIconService.Start();
+            _tray.CommandInvoked += OnTrayCommandInvoked;
+            _tray.RoomSelected += OnTrayRoomSelected;
+            _mainWindow.SetTrayAvailable(true);
+            StartupDiagnostics.Stage("tray-started");
         }
         catch (Exception exception)
         {
+            StartupDiagnostics.NonFatal("tray-start", exception);
+            _mainWindow.ShowFatalError(new InvalidOperationException(
+                "트레이 아이콘을 시작하지 못했습니다. 창을 닫으면 SIDEY가 종료됩니다.",
+                exception));
+        }
+        try
+        {
+            await _coordinator.InitializeAsync();
+            StartupDiagnostics.Stage("coordinator-initialized");
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal("coordinator-initialize", exception);
             _mainWindow.ShowFatalError(exception);
         }
+    }
+
+    private async Task DisposeAfterFailedLaunchAsync()
+    {
+        try
+        {
+            _tray?.Dispose();
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal("failed-launch-tray-dispose", exception);
+        }
+        _tray = null;
+
+        if (_coordinator is not null)
+        {
+            try
+            {
+                await _coordinator.DisposeAsync();
+            }
+            catch (Exception exception)
+            {
+                StartupDiagnostics.NonFatal("failed-launch-coordinator-dispose", exception);
+            }
+            _coordinator = null;
+        }
+
+        _singleInstance?.Dispose();
+        _singleInstance = null;
+    }
+
+    private static void OnXamlUnhandledException(
+        object sender,
+        Microsoft.UI.Xaml.UnhandledExceptionEventArgs args)
+    {
+        _ = sender;
+        StartupDiagnostics.Fatal("xaml-unhandled", args.Exception, showDialog: true);
+    }
+
+    private static void OnDomainUnhandledException(
+        object sender,
+        System.UnhandledExceptionEventArgs args)
+    {
+        _ = sender;
+        var exception = args.ExceptionObject as Exception
+            ?? new InvalidOperationException("A non-Exception object reached the unhandled exception boundary.");
+        StartupDiagnostics.Fatal("app-domain-unhandled", exception, showDialog: true);
+    }
+
+    private static void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs args)
+    {
+        _ = sender;
+        StartupDiagnostics.NonFatal("unobserved-task", args.Exception);
+        args.SetObserved();
     }
 
     private void RequestComposer()
@@ -270,7 +378,14 @@ public partial class App : Application
         {
             _tray.CommandInvoked -= OnTrayCommandInvoked;
             _tray.RoomSelected -= OnTrayRoomSelected;
-            _tray.Dispose();
+            try
+            {
+                _tray.Dispose();
+            }
+            catch (Exception exception)
+            {
+                StartupDiagnostics.NonFatal("shutdown-tray-dispose", exception);
+            }
             _tray = null;
         }
         if (_composer is not null)
@@ -288,11 +403,19 @@ public partial class App : Application
             _coordinator.RenderingFailed -= OnRenderingFailed;
             _coordinator.GroupSetupRequested -= OnGroupSetupRequested;
             _coordinator.StateChanged -= OnCoordinatorStateChanged;
-            await _coordinator.DisposeAsync();
+            try
+            {
+                await _coordinator.DisposeAsync();
+            }
+            catch (Exception exception)
+            {
+                StartupDiagnostics.NonFatal("shutdown-coordinator-dispose", exception);
+            }
             _coordinator = null;
         }
         _singleInstance?.Dispose();
         _singleInstance = null;
+        StartupDiagnostics.Stage("shutdown-complete");
         Exit();
     }
 }

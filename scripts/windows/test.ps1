@@ -19,8 +19,13 @@ try {
         --runtime win-x64 `
         --self-contained true `
         --no-restore `
-        -p:PublishSingleFile=false `
+        -p:PublishSingleFile=true `
         --output (Join-Path $repositoryRoot 'build/windows/publish-smoke')
+    & (Join-Path $repositoryRoot 'scripts/windows/smoke-launch.ps1') `
+        -PublishDir (Join-Path $repositoryRoot 'build/windows/publish-smoke')
+    if ($LASTEXITCODE -ne 0) {
+        throw "SIDEY 게시 실행 스모크 테스트 실패"
+    }
 }
 finally {
     Pop-Location

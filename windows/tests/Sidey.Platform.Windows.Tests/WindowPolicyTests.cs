@@ -43,6 +43,12 @@ public sealed class WindowPolicyTests
         Assert.Equal(26200, WindowsVersionGuard.MinimumBuild);
     }
 
+    [Fact]
+    public void CurrentWindowsCandidateIsSecondAlpha()
+    {
+        Assert.Equal("0.3.0-alpha.2", WindowsUpdateService.CurrentVersion);
+    }
+
     [Theory]
     [InlineData(0, 0, 52, 52, true)]
     [InlineData(-100, -100, 52, 52, true)]

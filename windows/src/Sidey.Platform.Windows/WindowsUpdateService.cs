@@ -9,7 +9,7 @@ public sealed record WindowsUpdateManifest(string Channel, string Version, strin
 
 public sealed partial class WindowsUpdateService(HttpClient? httpClient = null)
 {
-    public const string CurrentVersion = "0.3.0-alpha.1";
+    public const string CurrentVersion = "0.3.0-alpha.2";
     public static readonly Uri ManifestUri = new(
         "https://sidey-app.github.io/SIDEY/windows/update.json");
     public static readonly Uri ReleasesUri = new(

@@ -12,6 +12,7 @@ public sealed partial class MainWindow : Window
     private CoordinatorState _state = CoordinatorState.Initial;
     private bool _applyingState;
     private bool _allowClose;
+    private bool _trayAvailable;
 #if DEBUG
     private readonly DispatcherTimer _validationMetricsTimer = new()
     {
@@ -134,6 +135,8 @@ public sealed partial class MainWindow : Window
         Close();
     }
 
+    public void SetTrayAvailable(bool available) => _trayAvailable = available;
+
     public void CheckForUpdates() => _ = CheckForUpdatesAsync();
 
     private void OnAppWindowClosing(
@@ -141,7 +144,7 @@ public sealed partial class MainWindow : Window
         Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
     {
         _ = sender;
-        if (!_allowClose)
+        if (!_allowClose && _trayAvailable)
         {
             args.Cancel = true;
             AppWindow.Hide();

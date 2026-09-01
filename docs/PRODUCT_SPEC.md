@@ -236,6 +236,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 내 캐릭터 상호작용 52×52 hotspot은 별도 HWND가 소유하고 최대 15Hz·1 DIP 임계값으로 위치를 갱신한다. 전역 마우스 hook·전역 좌표 수집은 금지한다.
 - composer는 400×56 DIP 별도 WinUI 창이며, 내 캐릭터 클릭·트레이 `메시지 작성`만 이 창을 활성화한다.
 - 트레이 메뉴는 macOS 메뉴바의 제품 행동을 같게 제공하되 Windows alpha에서는 `업데이트 확인`을 제외하고 `로그아웃`을 제공한다.
+- 시작 단계와 예외 유형·HRESULT·stack은 `%LOCALAPPDATA%\SIDEY\Logs\startup.log`에 기록하되 token·메시지 본문·평문 초대 코드는 기록하지 않는다. WinUI 창 생성 전 실패하면 네이티브 오류창으로 로그 경로를 알리고, 트레이 아이콘 초기화만 실패한 경우 설정창은 계속 유지하며 창을 닫으면 앱을 종료한다.
 - 보안 화면·DRM·관리자 권한 앱·모든 독점 전체화면 위 표시는 보장하지 않는다.
 
 ## 7. 클라이언트 구조
@@ -364,6 +365,7 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 - DMG: 660×420 배경, `SIDEY.app`, `/Applications` 심볼릭 링크, 기존 5종 idle 프레임, `.DS_Store`를 자동 생성·마운트 검증하고 Finder에서 아이콘 위치·안내 문구·nearest-neighbor 픽셀 선명도를 수동 확인
 - Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단
 - 서버: 실제 anon/authenticated role의 RLS, 12번째 성공·13번째 거부와 여섯 번째 방 경합, 병렬 초대 제한, invite hash API 비노출, current epoch topic 권한, client Broadcast INSERT 봉쇄, transient event whitelist·rate, 메시지 멱등성·rate, 7일 retention, 비방장 관리 거부와 cascade를 SQL 테스트한다.
+- Windows 설치기: clean install, `C:\Program Files\SIDEY`, 시작 메뉴와 Burn 성공 화면 실행, 게시된 EXE 시작 스모크, repair, 실행 중 upgrade의 정상 종료 요청, downgrade 차단, uninstall/reinstall 뒤 `%LOCALAPPDATA%\SIDEY` 설정과 Credential Manager 세션 보존을 Windows CI·실기에서 확인한다. per-user alpha.1이 있으면 자동 교차-scope upgrade하지 않고 먼저 제거하라는 안내로 중단한다.
 
 ### 10.2 macOS 장시간 수동·계측 테스트
 
@@ -416,6 +418,11 @@ Keychain 접근은 앱 실행 동안 하나의 `LAContext`를 공유하고 `loca
 
 1. Windows 전체 단위·계약·창 정책 테스트와 10.3의 실기·장시간 기준을 통과한다.
 2. staging Google OAuth·RLS·private Realtime을 통과한 뒤 같은 Google provider·redirect를 production에 적용하고 다시 확인한다.
-3. CI에서 .NET·Windows App SDK 런타임을 포함한 `win-x64` self-contained 산출물을 만들고 `SIDEY-Windows-x64-0.3.0-alpha.1.zip`·SHA-256을 검증한다.
-4. 검증된 커밋에 `v0.3.0-alpha.1` 태그와 GitHub pre-release를 만들고 미서명 SmartScreen 경고, 수동 업데이트, ARM64·MSIX·다중 모니터 실기 미검증을 명시한다.
-5. Windows 자동 업데이트·코드 서명·MSIX를 구현했다고 표현하지 않는다.
+3. CI에서 `win-x64` unpackaged·self-contained 단일 파일을 게시한다. `PublishSingleFile=true`, `IncludeAllContentForSelfExtract=true`, `PublishTrimmed=false`를 사용하고 진입점 `SIDEY.exe` 외에는 `Assets\Characters`의 5개 PNG·BGRA·manifest 세트만 외부 파일로 허용한다. 게시한 EXE를 실제 시작해 main 또는 미지원 OS 창 활성화 로그가 남고 프로세스가 유지되는지 확인한다.
+4. WiX Toolset `6.0.2`로 머신 단위 내부 MSI와 모든 payload를 내장한 Burn `SIDEY-Windows-x64-v0.3.0-alpha.2-Setup.exe`를 만든다. 내부 MSI는 CI 검증에만 쓰고 공개하지 않으며 Setup.exe와 `.sha256`만 후보로 남긴다.
+5. clean install·시작 메뉴·성공 화면 실행·repair·실행 중 upgrade·downgrade 차단·uninstall/reinstall 보존을 확인하고, 검증된 커밋에 `v0.3.0-alpha.2` 태그와 GitHub pre-release를 만든다. alpha.1 사용자별 설치가 있으면 먼저 제거해야 하고 데이터는 보존된다는 점, 미서명 SmartScreen 경고가 버전마다 반복될 수 있고 Smart App Control 등 일부 PC에서는 실행 자체가 막힐 수 있음, 수동 업데이트, ARM64·MSIX 제외, 미완료 실기 항목을 명시한다.
+6. Windows 자동 업데이트·코드 서명·MSIX를 구현했다고 표현하지 않는다.
+
+공개 Setup은 관리자 승인 뒤 모든 사용자용으로 `C:\Program Files\SIDEY`에 설치하고 공용 시작 메뉴 바로가기만 만든다. 기존 alpha.1은 사용자별 context라 자동 upgrade할 수 없으므로 새 Setup이 감지하면 먼저 Windows 설정에서 제거하도록 안내하고 설치를 중단한다. uninstall은 앱 파일·시작 메뉴·현재 사용자의 로그인 실행 registry만 제거하며 `%LOCALAPPDATA%\SIDEY` 설정과 Credential Manager 세션은 보존한다.
+
+SHA-256은 PowerShell에서 `Get-FileHash .\SIDEY-Windows-x64-v0.3.0-alpha.2-Setup.exe -Algorithm SHA256`으로 계산해 Release의 `.sha256`과 비교한다.

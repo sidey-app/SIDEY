@@ -57,8 +57,12 @@ jobs:
           --runtime win-x64
           --self-contained true
           --no-restore
-          -p:Version=0.3.0-alpha.1
+          -p:Version=0.3.0-alpha.2
+          -p:PublishSingleFile=true
           --output build/windows/publish
+
+      - name: Smoke-launch published SIDEY.exe
+        run: ./scripts/windows/smoke-launch.ps1 -PublishDir ./build/windows/publish
 
       - name: Build offline Setup.exe and SHA-256
         run: >-
@@ -77,16 +81,16 @@ jobs:
       - name: Upload Windows Setup candidate
         uses: actions/upload-artifact@v4
         with:
-          name: SIDEY-Windows-x64-v0.3.0-alpha.1-Setup-candidate
+          name: SIDEY-Windows-x64-v0.3.0-alpha.2-Setup-candidate
           path: |
-            build/windows/artifacts/SIDEY-Windows-x64-v0.3.0-alpha.1-Setup.exe
-            build/windows/artifacts/SIDEY-Windows-x64-v0.3.0-alpha.1-Setup.exe.sha256
+            build/windows/artifacts/SIDEY-Windows-x64-v0.3.0-alpha.2-Setup.exe
+            build/windows/artifacts/SIDEY-Windows-x64-v0.3.0-alpha.2-Setup.exe.sha256
           if-no-files-found: error
 
       - name: Upload CI-only MSI
         uses: actions/upload-artifact@v4
         with:
-          name: SIDEY-Windows-x64-v0.3.0-alpha.1-internal-msi
+          name: SIDEY-Windows-x64-v0.3.0-alpha.2-internal-msi
           path: build/windows/artifacts/internal/*.msi
           if-no-files-found: error
 
@@ -103,7 +107,7 @@ jobs:
       - name: Download verified Setup candidate
         uses: actions/download-artifact@v4
         with:
-          name: SIDEY-Windows-x64-v0.3.0-alpha.1-Setup-candidate
+          name: SIDEY-Windows-x64-v0.3.0-alpha.2-Setup-candidate
           path: release-assets
 
       - name: Publish Windows testing pre-release
@@ -111,21 +115,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          $tag = 'v0.3.0-alpha.1'
-          $setup = './release-assets/SIDEY-Windows-x64-v0.3.0-alpha.1-Setup.exe'
+          $tag = 'v0.3.0-alpha.2'
+          $setup = './release-assets/SIDEY-Windows-x64-v0.3.0-alpha.2-Setup.exe'
           $checksum = "$setup.sha256"
           $notes = @'
           Windows 11 25H2(build 26200)+ x64 기기 테스트용 pre-release입니다.
 
           - 코드 서명이 없는 alpha입니다. SmartScreen 경고가 버전마다 반복될 수 있고 Smart App Control 또는 조직 정책이 실행을 차단할 수 있습니다.
           - Windows 실기 30분, 12명 2시간, 20노드 30분, macOS↔Windows 상호운용 및 설치 수명주기 검증은 아직 완료되지 않았습니다. 공개 준비 완료판이 아닙니다.
-          - 사용자별로 `%LOCALAPPDATA%\Programs\SIDEY`에 설치하며 관리자 권한을 요구하지 않습니다.
-          - SHA-256 확인: `Get-FileHash .\SIDEY-Windows-x64-v0.3.0-alpha.1-Setup.exe -Algorithm SHA256`
+          - 모든 사용자용으로 `C:\Program Files\SIDEY`에 설치하며 설치·복구·제거 시 관리자 승인이 필요합니다.
+          - v0.3.0-alpha.1 사용자별 설치본은 Windows 설정에서 먼저 제거해야 합니다. `%LOCALAPPDATA%\SIDEY` 설정과 Credential Manager 세션은 보존됩니다.
+          - SHA-256 확인: `Get-FileHash .\SIDEY-Windows-x64-v0.3.0-alpha.2-Setup.exe -Algorithm SHA256`
           '@
 
           gh release create $tag $setup $checksum `
             --target $env:GITHUB_SHA `
-            --title 'SIDEY Windows v0.3.0-alpha.1 — Device Test' `
+            --title 'SIDEY Windows v0.3.0-alpha.2 — Device Test' `
             --notes $notes `
             --prerelease
           if ($LASTEXITCODE -ne 0) {

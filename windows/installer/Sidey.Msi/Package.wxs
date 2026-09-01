@@ -4,8 +4,8 @@
       Name="SIDEY"
       Manufacturer="SIDEY"
       Version="$(ProductVersion)"
-      UpgradeCode="A9C7A0DA-7C57-4BBE-A7C4-DB29B20301F1"
-      Scope="perUser"
+      UpgradeCode="E744D02B-C3CF-41CE-A4C9-9BA1EB10C6B9"
+      Scope="perMachine"
       Compressed="yes">
 
     <SummaryInformation Description="SIDEY Windows alpha" Manufacturer="SIDEY" />
@@ -14,13 +14,22 @@
         DowngradeErrorMessage="A newer version of SIDEY is already installed."
         Schedule="afterInstallInitialize" />
     <MediaTemplate EmbedCab="yes" />
+    <Property Id="LEGACYUSERINSTALLVERSION">
+      <RegistrySearch
+          Id="LegacyPerUserInstallSearch"
+          Root="HKCU"
+          Key="Software\SIDEY\Installer"
+          Name="InstalledVersion"
+          Type="raw" />
+    </Property>
     <Launch Condition="VersionNT64" Message="SIDEY requires 64-bit Windows." />
+    <Launch
+        Condition="NOT LEGACYUSERINSTALLVERSION OR Installed"
+        Message="The per-user SIDEY alpha must be uninstalled before installing this all-users version. Your SIDEY settings and session will be preserved." />
     <util:RestartResource ProcessName="SIDEY.exe" />
 
-    <StandardDirectory Id="LocalAppDataFolder">
-      <Directory Id="LocalProgramsFolder" Name="Programs">
-        <Directory Id="INSTALLFOLDER" Name="SIDEY" />
-      </Directory>
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="SIDEY" />
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramMenuFolder">
@@ -34,7 +43,7 @@
       <ComponentRef Id="ApplicationShortcuts" />
     </Feature>
 
-    <Component Id="ApplicationShortcuts" Directory="ApplicationProgramsFolder" Guid="EBC05657-6AC6-4E27-9E1D-F2131284B6F2">
+    <Component Id="ApplicationShortcuts" Directory="ApplicationProgramsFolder" Guid="DF80A2D7-20D7-4C1C-B448-F17D27073657">
       <Shortcut
           Id="StartMenuShortcut"
           Name="SIDEY"
@@ -43,7 +52,7 @@
           WorkingDirectory="INSTALLFOLDER" />
       <RemoveFolder Id="RemoveApplicationProgramsFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
       <RegistryValue
-          Root="HKCU"
+          Root="HKLM"
           Key="Software\SIDEY\Installer"
           Name="InstalledVersion"
           Type="string"
