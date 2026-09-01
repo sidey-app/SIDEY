@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.6
 - 최종 갱신: 2026-09-01
-- 상태: macOS `v0.2.0`(build 10) 정식 배포, Windows 네이티브 햄스터 vertical slice 개발
+- 상태: macOS `v1.0.0`(build 11) 정식 배포 준비, 현재 공개본 `v0.2.0`(build 10), Windows 네이티브 햄스터 vertical slice 개발
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 현재 개발 브랜치: `main`
 
