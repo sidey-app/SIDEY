@@ -84,7 +84,7 @@ if [ "$SIDEY_HAS_DMG" = 1 ]; then
 	mv -f "$SIDEY_TEMP_DMG.sha256" "$SIDEY_RELEASE_DIR/$SIDEY_DMG_CHECKSUM_NAME"
 fi
 
-echo "Created native macOS alpha release artifacts:"
+echo "Created native macOS release artifacts:"
 echo "  $SIDEY_RELEASE_DIR/$SIDEY_ARCHIVE_NAME"
 echo "  $SIDEY_RELEASE_DIR/$SIDEY_CHECKSUM_NAME"
 if [ "$SIDEY_HAS_DMG" = 1 ]; then

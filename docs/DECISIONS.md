@@ -12,9 +12,9 @@
 | --- | --- | --- |
 | 제품명 | `SIDEY` | 공식 제품명이다. `같이온`·`같이ON`은 제품 문구, 코드, 식별자에 사용하지 않는다. |
 | 제품 형태 | 최대 12명의 실제 친구가 2D 픽셀 동물로 화면 가장자리에서 함께 움직이는 초대 전용 데스크톱 ambient messenger | 고정형 채팅 목록보다 친구의 존재와 짧은 대화가 자연스럽게 보이는 경험에 집중한다. AI 동료나 가상 반려동물 제품은 아니다. |
-| 공식 다운로드 웹사이트 | GitHub 프로젝트 Pages `https://sidey-app.github.io/SIDEY/`를 한국어 기본·`/en/` 영어 정적 랜딩으로 운영하고 `website/`만 GitHub Actions로 배포. macOS는 현재 공증 DMG와 `sidey-app/tap/sidey` Homebrew Cask를 제공하고 Windows는 공개 파일이 생길 때까지 링크 없는 비활성 버튼으로 표시 | 앱 클라이언트나 별도 웹 기능을 추가하지 않고 공식 설치 경로·지원 환경·개인정보 경계·Alpha 제한을 한곳에서 정확히 안내한다. 릴리스가 바뀌면 고정 DMG URL과 웹사이트 버전을 같은 배포 작업에서 갱신한다. |
-| 현재 구현 범위 | macOS 네이티브 alpha와 Windows 네이티브 개발 | macOS Swift/SpriteKit 앱은 유지하고 Windows에서 햄스터 vertical slice를 먼저 검증한 뒤 기능·행동 동등판으로 확장한다. |
-| 플랫폼 순서 | macOS alpha를 기준 구현으로 유지하고 Windows 11 25H2+ x64를 후속 개발 | 이미 배포된 macOS 코드를 재작성하지 않고 Windows 고유 창·DPI·전원·IME 리스크를 별도로 검증한다. |
+| 공식 다운로드 웹사이트 | GitHub 프로젝트 Pages `https://sidey-app.github.io/SIDEY/`를 한국어 기본·`/en/` 영어 정적 랜딩으로 운영하고 `website/`만 GitHub Actions로 배포. macOS는 현재 공증 DMG와 `sidey-app/tap/sidey` Homebrew Cask를 제공하고 Windows는 공개 파일이 생길 때까지 링크 없는 비활성 버튼으로 표시 | 앱 클라이언트나 별도 웹 기능을 추가하지 않고 공식 설치 경로·지원 환경·개인정보 경계·플랫폼 제한을 한곳에서 정확히 안내한다. 릴리스가 바뀌면 고정 DMG URL과 웹사이트 버전을 같은 배포 작업에서 갱신한다. |
+| 현재 구현 범위 | macOS 네이티브 정식판과 Windows 네이티브 개발 | macOS Swift/SpriteKit 앱은 유지하고 Windows에서 햄스터 vertical slice를 먼저 검증한 뒤 기능·행동 동등판으로 확장한다. |
+| 플랫폼 순서 | macOS 정식판을 기준 구현으로 유지하고 Windows 11 25H2+ x64를 후속 개발 | 이미 배포된 macOS 코드를 재작성하지 않고 Windows 고유 창·DPI·전원·IME 리스크를 별도로 검증한다. |
 | macOS 클라이언트 | SwiftUI + AppKit + SpriteKit | 일반 창은 SwiftUI/AppKit, 창 정책은 AppKit, 픽셀 월드는 SpriteKit이 담당한다. |
 | Windows 클라이언트 | Windows 11 25H2(build 26200)+ x64, C#/.NET 10 LTS + WinUI 3/Windows App SDK 2.4.0 + Win32 | 일반 창은 WinUI 3, 투명 월드는 전용 Win32 HWND가 담당한다. 첫 햄스터 local slice는 사전 생성한 BGRA frame과 `UpdateLayeredWindow`로 창·DPI·클릭 통과·GDI handle 안정성을 먼저 검증한다. 트레이·모니터·활동 감지는 Win32 플랫폼 서비스가 담당하며 WPF·Electron·WebView·Godot은 사용하지 않는다. |
 | 클라이언트 공통화 | 플랫폼별 네이티브 코드베이스와 공통 서버 계약 | Godot 공통 런타임은 폐기하고 서버 schema·Realtime payload·제품 행동 규칙을 동등성 계약으로 삼는다. |
@@ -30,7 +30,7 @@
 | 방향 | 캐릭터의 발이 선택한 가장자리를 향하며 닉네임·상태 점·말풍선도 같은 각도로 회전 | 하단 0°, 좌우 ±90°, 상단 180°로 월드 자체의 방향을 일관되게 유지한다. |
 | 모니터 | 월드와 입력창은 선택한 모니터 한 대에만 표시하며, 제거되면 주 화면으로 복귀하고 설정도 갱신 | 사라진 화면 좌표를 계속 복원하는 오류를 막는다. |
 | 멤버 표시 | 내 캐릭터를 포함한 활성 그룹 전체를 기본 표시 | 오프라인 멤버는 수면·빨간 점으로 남기며 `오프라인 멤버 표시` 설정을 끄면 숨긴다. |
-| 상태 표현 | 온라인=`산책/idle + 초록`, 자리 비움=`선 채 졸기 + 주황 점 + 14pt 주황 Z→Zz→Zzz(각 0.45초 반복)·약 2pt 어두운 외곽선·0.55↔1 alpha·3pt 부유`, 오프라인=`웅크린 잠 + 빨강 + 저채도·75% alpha`, 재연결=`정지 + 회색` | 자리 비움과 오프라인을 포즈·채도·보조 효과까지 다르게 표시한다. 자리 비움 해제 시 텍스트 action을 취소하고 `Z`로 초기화한다. |
+| 상태 표현 | 온라인=`산책/idle + 초록`, 자리 비움=`선 채 졸기 + 주황 점 + 고정 14pt 주황 Zzz·약 2pt 어두운 외곽선·0.55↔1 alpha·3pt 부유`, 오프라인=`웅크린 잠 + 빨강 + 저채도·75% alpha`, 재연결=`정지 + 회색` | 자리 비움과 오프라인을 포즈·채도·보조 효과까지 다르게 표시한다. `Zzz` 글자 수는 순환시키지 않고 라벨 전체의 부유·alpha만 반복한다. |
 | 타이핑 표현 | 현재 행동을 유지하고 `.`→`..`→`...`을 0.35초마다 순환하는 말풍선 표시 | 점 애니메이션은 로컬 SpriteKit action이며 Broadcast 빈도·schema는 바꾸지 않는다. 실제 메시지가 우선하고 만료 뒤 타이핑 중이면 다시 나타난다. |
 | 캐릭터 리액션 | 내 캐릭터를 더블클릭하면 스프라이트가 발 위치를 기준으로 0.20초 동안 7배까지 커지고 0.60초 동안 복귀하며, 같은 방에 `character_pulse` Broadcast로 공유. 캐릭터별 1초 쿨타임 | 저장할 필요 없는 가벼운 상호작용이므로 Postgres나 Presence가 아니라 transient Broadcast가 맡는다. 이벤트 UUID로 중복 재생을 막고 수신 측도 1초 제한을 적용한다. 닉네임·상태 점·말풍선은 확대하지 않는다. |
 | 이동 | 선택한 가장자리와 평행한 1차원 track에서 로컬 랜덤 산책, 간헐적 idle, 부드러운 상호 회피. 캐릭터가 겹치면 목표 방향으로 빠르게 통과하고, 실제 메시지 말풍선 본문이 겹치면 idle을 즉시 끝내고 반대 방향으로 분리 이동 | 일반 이동은 최대 22pt/s다. 메시지 말풍선 분리는 240pt/s² 가속·최대 72pt/s로 본문 사이 8pt 여유까지 유지하고, 해소 뒤 기존 목표와 일반 속도 제한으로 복귀한다. 타이핑 말풍선은 제외하며, 막힌 쪽 힘은 가능한 상대에게 배분하고 다중 충돌은 진입 순서를 유지한 채 쌍별 힘을 합산한다. 발 기준선·track 범위·finite 좌표를 지키고 순간이동이나 위치 전송은 하지 않으며 혼잡 시 겹침을 허용한다. |
@@ -65,7 +65,7 @@
 | Homebrew 배포 | 공개 third-party tap `sidey-app/homebrew-tap`의 `sidey` Cask가 버전 고정 공증 DMG와 SHA-256을 사용. arm64·macOS 26+만 허용하고 `auto_updates true`, 안전한 앱 종료, `SIDEY.app` 설치를 선언하며 사용자 데이터 `zap`은 두지 않음 | `brew install --cask sidey-app/tap/sidey`를 재현 가능하게 제공하면서 uninstall이 계정·설정을 임의 삭제하지 않게 한다. 공식 `homebrew/cask` 등록은 별도 결정 전까지 범위 밖이다. |
 | macOS 로컬 개발 설치 | 최신 Release 구성의 ad-hoc 앱을 `Sidey-dev`·`development`로 빌드해 `/Applications/Sidey-dev.app`에만 설치. bundle ID `app.sidey.desktop`, login item ID, `com.sidey.desktop` Keychain service는 배포본과 공유하고 development 채널은 Sparkle을 시작하지 않으며 업데이트 메뉴를 비활성화 | 운영 데이터와 설정을 이어 쓰되 로컬 빌드가 공개 업데이트를 받거나 배포본으로 오인되는 것을 막는다. 설치 스크립트는 정확한 dev 경로만 교체한다. |
 | 업데이트 전환 | Sparkle이 없는 기존 alpha는 최신 공증 DMG로 한 번 수동 교체하고, Sparkle 내장 production 빌드부터 앱 내부 업데이트를 사용 | 기존 설치에 프레임워크를 원격으로 소급 탑재할 수 없고, ad-hoc development 자동 업데이트는 Gatekeeper·코드 서명 연속성을 깨뜨릴 수 있다. |
-| 배포 채널 | 버전 `0.2.0`, 빌드 `9`의 Developer ID 서명·Hardened Runtime·Apple 공증 Apple Silicon 앱을 `v0.2.0-alpha.7` GitHub pre-release로 배포 | 마지막 선택 우선 그룹 전환과 Realtime 복구 안정화, 방 정원 12명, 메시지 7일 보관, 검증 가능한 DMG 레이아웃을 묶은 alpha 패치다. 30분 장시간 기준 전에는 stable로 표시하지 않는다. |
+| 배포 채널 | 버전 `0.2.0`, 빌드 `10`의 Developer ID 서명·Hardened Runtime·Apple 공증 Apple Silicon 앱을 `v0.2.0` GitHub 정식 release로 배포 | 포커스·입력창 외부 클릭 닫기를 실기 확인하고 전체 macOS 자동화 테스트를 통과한 상태에서 제품 결정으로 stable 채널에 승격한다. 고정 `Zzz`, 방 정원 12명, 메시지 7일 보관과 alpha.7까지의 안정화 작업을 모두 포함한다. 12명 30분 장시간 계측은 정식판의 지속 검증 항목으로 유지한다. |
 | Windows 인증 | Google OAuth + PKCE, `sidey://auth/callback`, Credential Locker | Windows에서는 시스템 브라우저로 로그인하고 callback·refresh token·평문 초대 코드를 로컬 일반 설정이 아닌 보안 저장소에 보관한다. Google 이름·사진은 SIDEY 닉네임으로 복사하지 않는다. |
 | Windows alpha 배포 | `v0.3.0-alpha.1`, self-contained x64 ZIP + SHA-256, GitHub pre-release | 첫 공개본은 미서명 수동 교체 배포로 제한하고 SmartScreen 경고·자동 업데이트 없음·다중 모니터 실기 미검증을 명시한다. MSIX·서명·ARM64는 후속 결정이다. |
 

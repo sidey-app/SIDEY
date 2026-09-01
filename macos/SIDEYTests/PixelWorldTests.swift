@@ -718,8 +718,7 @@ final class PixelWorldTests: XCTestCase {
         XCTAssertEqual(away.alpha, 1)
         XCTAssertEqual(away.colorBlendFactor, 0)
         XCTAssertTrue(away.showsDozeLabel)
-        XCTAssertEqual(PixelDozeLabelStyle.texts, ["Z", "Zz", "Zzz"])
-        XCTAssertEqual(PixelDozeLabelStyle.frameDuration, 0.45, accuracy: 0.001)
+        XCTAssertEqual(PixelDozeLabelStyle.text, "Zzz")
         XCTAssertEqual(PixelDozeLabelStyle.fontSize, 14)
         XCTAssertEqual(PixelDozeLabelStyle.outlineWidth, 2)
         XCTAssertEqual(PixelDozeLabelStyle.restingAlpha, 0.55, accuracy: 0.001)
@@ -736,13 +735,7 @@ final class PixelWorldTests: XCTestCase {
         XCTAssertFalse(reconnecting.showsDozeLabel)
     }
 
-    func testDozeLabelCyclesAtBoundariesAndResetsWhenAwayEnds() throws {
-        XCTAssertEqual(PixelDozeLabelStyle.text(atElapsed: 0), "Z")
-        XCTAssertEqual(PixelDozeLabelStyle.text(atElapsed: 0.449), "Z")
-        XCTAssertEqual(PixelDozeLabelStyle.text(atElapsed: 0.45), "Zz")
-        XCTAssertEqual(PixelDozeLabelStyle.text(atElapsed: 0.90), "Zzz")
-        XCTAssertEqual(PixelDozeLabelStyle.text(atElapsed: 1.35), "Z")
-
+    func testDozeLabelStaysStaticAndStopsAnimatingWhenAwayEnds() throws {
         let scene = PixelWorldScene(size: CGSize(width: 720, height: 240))
         let roomID = UUID()
         let memberID = UUID()
@@ -758,10 +751,10 @@ final class PixelWorldTests: XCTestCase {
         }
 
         apply(.away)
-        XCTAssertEqual(scene.renderedDozeText(for: memberID), "Z")
+        XCTAssertEqual(scene.renderedDozeText(for: memberID), "Zzz")
         XCTAssertTrue(scene.hasRenderedDozeActions(for: memberID))
         apply(.online)
-        XCTAssertEqual(scene.renderedDozeText(for: memberID), "Z")
+        XCTAssertEqual(scene.renderedDozeText(for: memberID), "Zzz")
         XCTAssertFalse(scene.hasRenderedDozeActions(for: memberID))
     }
 

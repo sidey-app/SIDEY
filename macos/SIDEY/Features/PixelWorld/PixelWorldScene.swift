@@ -489,21 +489,13 @@ struct PixelCharacterVisualState: Equatable {
 }
 
 enum PixelDozeLabelStyle {
-    static let texts = ["Z", "Zz", "Zzz"]
-    static let initialText = texts[0]
-    static let frameDuration: TimeInterval = 0.45
+    static let text = "Zzz"
     static let fontSize: CGFloat = 14
     static let outlineWidth: CGFloat = 2
     static let restingAlpha: CGFloat = 0.55
     static let floatingDistance: CGFloat = 3
     static let fillColor = NSColor.systemOrange
     static let outlineColor = NSColor(srgbRed: 0.08, green: 0.07, blue: 0.06, alpha: 0.92)
-
-    static func text(atElapsed elapsed: TimeInterval) -> String {
-        guard elapsed.isFinite, elapsed >= 0 else { return initialText }
-        let index = Int(elapsed / frameDuration) % texts.count
-        return texts[index]
-    }
 
     static let outlineOffsets: [CGPoint] = (0..<12).map { index in
         let angle = CGFloat(index) * .pi * 2 / 12
@@ -849,7 +841,6 @@ private final class PixelCharacterNode: SKNode {
     private static let animationKey = "pixel-character-motion"
     private static let pulseAnimationKey = "pixel-character-pulse"
     private static let dozeMotionKey = "pixel-character-doze-motion"
-    private static let dozeTextKey = "pixel-character-doze-text"
     private let memberID: UUID
     private let presentation = SKNode()
     private let spritePulseAnchor = SKNode()
@@ -859,7 +850,6 @@ private final class PixelCharacterNode: SKNode {
     private let statusDot = SKShapeNode(circleOfRadius: PixelNameplateLayout.statusDotRadius)
     private let dozeEffect = SKNode()
     private let dozeLabel = SKLabelNode(fontNamed: "AppleSDGothicNeo-Bold")
-    private var dozeOutlineLabels: [SKLabelNode] = []
     private var bubbleNode: PixelBubbleNode?
     private var currentMotion: PixelCharacterMotion?
     private var currentBubbleKey: String?
@@ -871,7 +861,6 @@ private final class PixelCharacterNode: SKNode {
     var dozeText: String? { dozeLabel.text }
     var hasDozeActions: Bool {
         dozeEffect.action(forKey: Self.dozeMotionKey) != nil
-            || dozeEffect.action(forKey: Self.dozeTextKey) != nil
     }
     var visualState: PixelCharacterVisualState? {
         currentMotion.map {
@@ -920,15 +909,14 @@ private final class PixelCharacterNode: SKNode {
         dozeEffect.isHidden = true
         for offset in PixelDozeLabelStyle.outlineOffsets {
             let outline = SKLabelNode(fontNamed: "AppleSDGothicNeo-Bold")
-            outline.text = PixelDozeLabelStyle.initialText
+            outline.text = PixelDozeLabelStyle.text
             outline.fontSize = PixelDozeLabelStyle.fontSize
             outline.fontColor = PixelDozeLabelStyle.outlineColor
             outline.position = offset
             outline.zPosition = 0
             dozeEffect.addChild(outline)
-            dozeOutlineLabels.append(outline)
         }
-        dozeLabel.text = PixelDozeLabelStyle.initialText
+        dozeLabel.text = PixelDozeLabelStyle.text
         dozeLabel.fontSize = PixelDozeLabelStyle.fontSize
         dozeLabel.fontColor = PixelDozeLabelStyle.fillColor
         dozeLabel.zPosition = 1
@@ -1084,7 +1072,6 @@ private final class PixelCharacterNode: SKNode {
         dozeEffect.isHidden = !visible
         dozeEffect.removeAllActions()
         dozeEffect.position = CGPoint(x: 26, y: 20)
-        setDozeText(PixelDozeLabelStyle.initialText)
         guard visible else { return }
         dozeEffect.alpha = PixelDozeLabelStyle.restingAlpha
         dozeEffect.run(.repeatForever(.sequence([
@@ -1097,21 +1084,6 @@ private final class PixelCharacterNode: SKNode {
                 .moveBy(x: 0, y: -PixelDozeLabelStyle.floatingDistance, duration: 0.5)
             ])
         ])), withKey: Self.dozeMotionKey)
-        let textFrames = PixelDozeLabelStyle.texts.flatMap { text in
-            [
-                SKAction.run { [weak self] in self?.setDozeText(text) },
-                SKAction.wait(forDuration: PixelDozeLabelStyle.frameDuration)
-            ]
-        }
-        dozeEffect.run(
-            .repeatForever(.sequence(textFrames)),
-            withKey: Self.dozeTextKey
-        )
-    }
-
-    private func setDozeText(_ text: String) {
-        dozeLabel.text = text
-        for outline in dozeOutlineLabels { outline.text = text }
     }
 }
 

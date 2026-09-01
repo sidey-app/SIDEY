@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.6
 - 최종 갱신: 2026-09-01
-- 상태: macOS `v0.2.0-alpha.7`(build 9) 배포, Windows 네이티브 햄스터 vertical slice 개발
+- 상태: macOS `v0.2.0`(build 10) 정식 배포, Windows 네이티브 햄스터 vertical slice 개발
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 현재 개발 브랜치: `main`
 
@@ -22,7 +22,7 @@
 
 ### 2.1 현재 macOS slice
 
-- macOS 네이티브 클라이언트는 현재 alpha 기준 구현으로 유지한다.
+- macOS 네이티브 클라이언트는 현재 정식판 기준 구현으로 유지한다.
 - 햄스터 vertical slice의 구조 위에 내장 픽셀 동물 5종을 제공한다.
 - 실제 그룹은 최대 12명이다. 렌더러 안정성은 별도 20노드 합성 스트레스 테스트로 검증한다.
 - macOS 코드·인증·설정 schema는 Windows 개발을 위해 재작성하지 않는다.
@@ -52,7 +52,7 @@
 - `website/`의 정적 HTML·CSS·최소 JavaScript만 배포한다. 이 사이트는 제품 소개와 다운로드 안내만 담당하며 로그인·그룹·메시지 기능을 제공하는 웹 클라이언트가 아니다.
 - macOS 기본 CTA는 현재 공개 버전의 고정 공증 DMG를 직접 가리키고 `brew install --cask sidey-app/tap/sidey`를 함께 제공한다. 다음 공개 릴리스에서는 버전 표기와 고정 DMG URL을 같은 배포 작업에서 갱신한다.
 - Windows 공개 설치 파일이 없는 동안 다운로드 요소는 링크와 클릭 동작이 없는 비활성 버튼과 `개발 중` 상태로 표시한다.
-- 첫 화면에서 플랫폼·아키텍처·Alpha 상태를 밝히고, 개인정보 수집 경계, E2EE 미지원, 보안 화면·DRM·권한 상승 앱·모든 독점 전체화면 위 표시를 보장하지 않는다는 제한을 숨기지 않는다.
+- 첫 화면에서 플랫폼·아키텍처·정식 배포 상태를 밝히고, 개인정보 수집 경계, E2EE 미지원, 보안 화면·DRM·권한 상승 앱·모든 독점 전체화면 위 표시를 보장하지 않는다는 제한을 숨기지 않는다.
 - `main`의 웹 파일 또는 Pages 워크플로가 바뀌면 GitHub Actions가 `website/`만 Pages artifact로 올리고 `github-pages` 환경에 배포한다. custom domain과 별도 Sites 호스팅은 사용하지 않는다.
 
 ## 3. 그룹과 계정
@@ -99,13 +99,13 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 | 논리 상태 | 행동 | 점 색상 |
 | --- | --- | --- |
 | 온라인 | 산책 또는 idle | 초록 |
-| 자리 비움 | 선 채 눈을 감고 고개를 떨어뜨리는 졸기, 14pt 주황 `Z` → `Zz` → `Zzz`를 각각 0.45초씩 반복하고 약 2pt 어두운 외곽선·0.55↔1 alpha·3pt 부유 유지, 원래 채도 | 주황 |
+| 자리 비움 | 선 채 눈을 감고 고개를 떨어뜨리는 졸기, 고정 14pt 주황 `Zzz`와 약 2pt 어두운 외곽선·0.55↔1 alpha·3pt 부유 유지, 원래 채도 | 주황 |
 | 오프라인 | 옆으로 웅크린 잠, 저채도, 약 75% 불투명도 | 빨강 |
 | 재연결 | 정지 | 회색 |
 
 타이핑은 캐릭터 모션을 바꾸지 않는다. `TypingIndicatorNode`가 `.` → `..` → `...`을 0.35초 간격으로 반복한다. 같은 캐릭터에 실제 메시지 말풍선이 있으면 타이핑 action을 중단하고 메시지를 우선하며, 메시지 만료 뒤 여전히 타이핑 중이면 점 애니메이션을 다시 시작한다. Broadcast 빈도와 schema는 바꾸지 않는다.
 
-자리 비움이 해제되면 Z 텍스트와 부유·alpha action을 모두 취소하고 텍스트를 `Z`로 초기화한다.
+자리 비움이 해제되면 부유·alpha action을 취소한다. `Zzz` 글자 수는 상태가 유지되는 동안 순환하지 않는다.
 
 닉네임 상태 점은 고정 x 좌표를 사용하지 않는다. 실제 닉네임 label frame의 왼쪽에서 점 반지름과 5pt 간격만큼 떨어진 위치를 계산해 최대 8자 이름과 `· 나` 표식에서도 겹치지 않게 한다. 흰색 닉네임 뒤에는 여백이 있는 반투명 검정 캡슐을 렌더하며, 뒤 애플리케이션의 실제 픽셀은 읽지 않는다.
 
@@ -347,7 +347,7 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 
 - 영역: 4개 가장자리 × 3개 길이의 240pt activity frame과 최대 360pt render frame, 접선 144pt 여유, 중앙 정렬, 회전, visible frame, 깊이 제한, hotspot 원점 변환, 모니터 fallback
 - 이동: 20개 합성 노드가 3,000 tick 동안 1차원 track과 발 기준선을 유지하고 finite 좌표, 입력창·상호 회피, 겹침 시 idle 해제·가속 통과, 실제 메시지 말풍선의 240pt/s² 분리 가속·72pt/s 상한·8pt 해소·경계 힘 재배분·혼잡 시 안정적인 겹침·일반 목표 복귀
-- 상태: 온라인·자리 비움 doze와 0.45초 `Z`→`Zz`→`Zzz` 순환·해제 시 action 정리, 오프라인 curled sleep·재연결·타이핑, 내 캐릭터 항상 표시, 오프라인 숨김, 방 전환 UUID diff, 최대 8자 닉네임·반투명 배경과 상태 점 5pt 간격, 발 기준 7배·0.8초 리액션과 이벤트 UUID 중복 제거
+- 상태: 온라인·자리 비움 doze와 고정 `Zzz`의 부유·alpha 반복·해제 시 action 정리, 오프라인 curled sleep·재연결·타이핑, 내 캐릭터 항상 표시, 오프라인 숨김, 방 전환 UUID diff, 최대 8자 닉네임·반투명 배경과 상태 점 5pt 간격, 발 기준 7배·0.8초 리액션과 이벤트 UUID 중복 제거
 - Realtime: backoff와 구조 snapshot coalescing, Presence publication 최대 동시 실행 수 1과 최신 전체 상태 우선 적용을 검증하고, 실서버 2클라이언트에서 한쪽 WebSocket 강제 단절 뒤 자동 재구독·메시지·Presence·`character_pulse` 재수신, 이름 변경·추방·삭제의 재실행 없는 snapshot 반영과 채널 정리를 검증
 - 메시지: 발신자별 교체, 최대 4개 eviction, 10초 만료, 이동 중 말풍선 추적, 낙관적 성공·실패, 조용히 모드, 미확인 수, 소수 3·6자리·소수 없는 `created_at`과 `Z`·UTC offset 해석, 잘못된 시각 거부, 서버 시각 기반 기록 정렬
 - 말풍선: 1자·200자·3줄·프리셋 양 끝·4방향에서 본문과 꼬리 누적 frame이 캔버스 안에 유지하고 실제 메시지 본문만 접선 충돌 범위에 포함하며 타이핑 말풍선은 제외
@@ -381,7 +381,7 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 4. 최종 12명 월드를 2시간, 20노드 합성 부하를 30분 실행해 p95 frame time 40ms 이하, 100ms 이상 UI-thread hang 없음, warm-up 후 working set 20MB 초과 증가 없음, GDI/USER handle·COM surface 지속 증가 없음을 확인한다.
 5. 현재 보조 모니터 실기 검증은 공개 alpha 완료 조건에서 제외하되 합성 모니터 geometry 테스트는 통과시키고 release note에 mixed-DPI·연결 해제 실기 미검증을 명시한다.
 
-### 10.4 macOS alpha 배포 절차
+### 10.4 macOS 배포 절차
 
 1. 전체 macOS 단위·창 정책 테스트와 20노드 합성 부하를 통과한다.
 2. 로컬 Supabase에서 12명 제한·7일 메시지 보관과 SQL 테스트를 통과한다.
@@ -391,7 +391,7 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 6. `scripts/macos/prepare_sparkle_appcast.sh`로 ZIP의 EdDSA 서명과 signed appcast를 생성한다. 이 도구가 Developer ID, Hardened Runtime, stapled notarization, 앱의 `SIDEY` 표시명·`production` 채널·공개키·피드 URL·보안 플래그를 모두 통과하고, GitHub Release에서 다시 받은 ZIP이 로컬 검증본과 바이트 단위로 같아야 한다.
 7. Release ZIP URL이 실제로 내려받아지는지 확인한 뒤 생성된 `updates/appcast.xml`을 커밋·푸시한다. appcast를 먼저 게시하면 클라이언트가 존재하지 않는 ZIP을 보게 되므로 순서를 바꾸지 않는다.
 8. `sidey-app/homebrew-tap`의 Cask를 해당 DMG의 고정 URL·SHA-256으로 갱신하고 audit·style·설치·실행·삭제를 검증한다.
-9. 30분 장시간 기준을 통과하기 전에는 stable 배포로 표시하지 않는다.
+9. stable 승격 여부와 근거를 `docs/DECISIONS.md`에 기록한다. `v0.2.0`은 포커스·외부 클릭 닫기 실기 확인과 전체 자동화 테스트 통과를 근거로 제품 결정에 따라 승격하며, 12명 30분 장시간 계측은 이후에도 지속 검증한다.
 
 Sparkle `2.9.6`이 production 앱에 내장되며 메뉴바 `업데이트 확인…`과 설정의 업데이트 카드에서 수동 확인할 수 있다. 설정 버튼은 production updater가 사용 가능한 동안에만 활성화한다. 자동 확인은 Sparkle의 사용자 동의 흐름을 사용하고, 익명 system profiling은 활성화하지 않는다. appcast와 ZIP은 서로 다른 검증 대상이므로 둘 다 `sidey-app` EdDSA 키로 서명하며 `SURequireSignedFeed`와 `SUVerifyUpdateBeforeExtraction`을 강제한다. 피드는 GitHub raw HTTPS URL, 설치 파일은 GitHub Releases를 사용한다.
 
@@ -405,7 +405,7 @@ Keychain 접근은 앱 실행 동안 하나의 `LAContext`를 공유하고 `loca
 
 신규 설치 기본 파일은 공증 DMG다. Homebrew third-party tap은 같은 DMG의 고정 URL·SHA-256, arm64·macOS 26+ 조건, `auto_updates true`, `SIDEY.app`과 안전한 종료 규칙을 사용하고 사용자 데이터 삭제용 `zap`은 선언하지 않는다. ZIP은 Sparkle 전용으로 유지한다.
 
-자동화 테스트와 alpha 배포가 장시간 수동 기준이나 정식 배포 조건을 통과했다는 뜻은 아니다.
+자동화 테스트와 공개 배포는 장시간 수동 기준을 대신하지 않는다. 수행하지 않은 장시간 항목을 통과했다고 기록하지 않고 정식판에서도 지속 검증한다.
 
 ### 10.5 Windows alpha 배포 절차
 
