@@ -5,8 +5,7 @@
       Manufacturer="SIDEY"
       Version="$(BundleVersion)"
       UpgradeCode="B1438BBE-BB61-470B-A4DB-7C8FC2E11DA2"
-      Compressed="yes"
-      Scope="perUser">
+      Compressed="yes">
     <BootstrapperApplication>
       <bal:WixStandardBootstrapperApplication
           Theme="hyperlinkLicense"
