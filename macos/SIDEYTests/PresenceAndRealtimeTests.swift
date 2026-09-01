@@ -139,6 +139,75 @@ final class PresenceAndRealtimeTests: XCTestCase {
         XCTAssertEqual(model.pixelWorldMembers.first?.characterID, "pixel_hamster")
     }
 
+    func testPresenceAndTypingArrivingBeforeNewRoomSnapshotAreRetained() {
+        let roomID = UUID()
+        let friendID = UUID()
+        let model = AppModel(preferences: .defaults)
+
+        model.updatePresence(roomID: roomID, userID: friendID, state: .online)
+        model.updateTyping(roomID: roomID, userID: friendID, active: true)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: nil,
+                rooms: [Room(
+                    id: roomID,
+                    name: "새 그룹",
+                    ownerID: friendID,
+                    members: [RoomMember(
+                        userID: friendID,
+                        nickname: "친구",
+                        characterID: "pixel_cat",
+                        presence: .offline
+                    )],
+                    inviteCodeHint: "AB••••",
+                    inviteVersion: 1
+                )]
+            ),
+            currentUserID: UUID()
+        )
+
+        XCTAssertEqual(model.rooms[0].members[0].presence, .typing)
+        XCTAssertEqual(model.pixelWorldMembers.first?.presence, .online)
+        XCTAssertEqual(model.pixelWorldMembers.first?.isTyping, true)
+    }
+
+    func testJoinedRoomIsResolvedAgainstFreshSnapshotForRealtimePublication() {
+        let previousRoomID = UUID()
+        let joinedRoomID = UUID()
+        var preferences = AppPreferences.defaults
+        preferences.activeRoomID = previousRoomID
+        let model = AppModel(preferences: preferences)
+        let previousRoom = Room(
+            id: previousRoomID,
+            name: "기존 그룹",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "AB••••",
+            inviteVersion: 1
+        )
+        let joinedRoom = Room(
+            id: joinedRoomID,
+            name: "참여한 그룹",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "CD••••",
+            inviteVersion: 1
+        )
+        model.apply(
+            snapshot: BackendSnapshot(profile: nil, rooms: [previousRoom]),
+            currentUserID: UUID()
+        )
+
+        model.preferences.activeRoomID = joinedRoomID
+
+        XCTAssertEqual(model.activeRoom?.id, previousRoomID)
+        XCTAssertEqual(
+            model.resolvedActiveRoomID(in: [previousRoom, joinedRoom]),
+            joinedRoomID
+        )
+        XCTAssertEqual(model.resolvedActiveRoomID(in: [joinedRoom]), joinedRoomID)
+    }
+
     func testOfflineMembersCanBeFilteredWithoutRemovingOnlineMembers() {
         let roomID = UUID()
         let model = AppModel(preferences: .defaults)

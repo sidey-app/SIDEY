@@ -63,7 +63,15 @@ final class AppModel {
 
     var realtimeActiveRoomID: UUID? {
         if case .switching(let roomID) = groupOperation { return roomID }
-        return activeRoom?.id
+        return resolvedActiveRoomID(in: rooms)
+    }
+
+    func resolvedActiveRoomID(in availableRooms: [Room]) -> UUID? {
+        if let preferredRoomID = preferences.activeRoomID,
+           availableRooms.contains(where: { $0.id == preferredRoomID }) {
+            return preferredRoomID
+        }
+        return availableRooms.first?.id
     }
 
     var groupMutationsDisabled: Bool {
@@ -112,9 +120,7 @@ final class AppModel {
             selectedCharacterID = PixelCharacterCatalog.canonicalID(for: profile.characterID)
             preferences.selectedCharacterID = selectedCharacterID
         }
-        if activeRoom == nil || !rooms.contains(where: { $0.id == preferences.activeRoomID }) {
-            preferences.activeRoomID = rooms.first?.id
-        }
+        preferences.activeRoomID = resolvedActiveRoomID(in: rooms)
         preferences.onboardingComplete = snapshot.profile != nil && !rooms.isEmpty
     }
 
@@ -173,27 +179,30 @@ final class AppModel {
     }
 
     func updatePresence(roomID: UUID, userID: UUID, state: PresenceState) {
-        guard let roomIndex = rooms.firstIndex(where: { $0.id == roomID }),
-              let memberIndex = rooms[roomIndex].members.firstIndex(where: { $0.userID == userID })
-        else { return }
         let key = MemberPresenceKey(roomID: roomID, userID: userID)
         basePresence[key] = state
         if state == .offline {
             typingMembers.remove(key)
         }
+        guard let roomIndex = rooms.firstIndex(where: { $0.id == roomID }),
+              let memberIndex = rooms[roomIndex].members.firstIndex(where: { $0.userID == userID })
+        else { return }
         rooms[roomIndex].members[memberIndex].presence = typingMembers.contains(key) ? .typing : state
     }
 
     func updateTyping(roomID: UUID, userID: UUID, active: Bool) {
-        guard let roomIndex = rooms.firstIndex(where: { $0.id == roomID }),
-              let memberIndex = rooms[roomIndex].members.firstIndex(where: { $0.userID == userID })
-        else { return }
         let key = MemberPresenceKey(roomID: roomID, userID: userID)
         if active {
             typingMembers.insert(key)
-            rooms[roomIndex].members[memberIndex].presence = .typing
         } else {
             typingMembers.remove(key)
+        }
+        guard let roomIndex = rooms.firstIndex(where: { $0.id == roomID }),
+              let memberIndex = rooms[roomIndex].members.firstIndex(where: { $0.userID == userID })
+        else { return }
+        if active {
+            rooms[roomIndex].members[memberIndex].presence = .typing
+        } else {
             rooms[roomIndex].members[memberIndex].presence = basePresence[key] ?? .online
         }
     }

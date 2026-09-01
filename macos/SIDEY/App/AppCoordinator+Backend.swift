@@ -252,7 +252,7 @@ extension AppCoordinator {
                 let snapshot = try await backend.loadSnapshot()
                 let reconciliation = try await backend.syncRealtime(
                     rooms: snapshot.rooms,
-                    activeRoomID: model.realtimeActiveRoomID
+                    activeRoomID: model.resolvedActiveRoomID(in: snapshot.rooms)
                 )
                 applyBackendReconciliation(reconciliation)
                 model.connectionState = .online

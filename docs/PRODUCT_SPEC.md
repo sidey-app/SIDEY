@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.7
 - 최종 갱신: 2026-09-01
-- 상태: macOS `v1.0.1`(build 12) 정식 공개(보안 hotfix), Windows 네이티브 햄스터 vertical slice 개발
+- 상태: macOS `v1.0.2`(build 13) 정식 공개(Presence hotfix), Windows 네이티브 햄스터 vertical slice 개발
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 현재 개발 브랜치: `main`
 
@@ -396,7 +396,7 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 6. `scripts/macos/prepare_sparkle_appcast.sh`로 ZIP의 EdDSA 서명과 signed appcast를 생성한다. 이 도구가 Developer ID, Hardened Runtime, stapled notarization, 앱의 `SIDEY` 표시명·`production` 채널·공개키·피드 URL·보안 플래그를 모두 통과하고, GitHub Release에서 다시 받은 ZIP이 로컬 검증본과 바이트 단위로 같아야 한다.
 7. Release ZIP URL이 실제로 내려받아지는지 확인한 뒤 생성된 `updates/appcast.xml`을 커밋·푸시한다. appcast를 먼저 게시하면 클라이언트가 존재하지 않는 ZIP을 보게 되므로 순서를 바꾸지 않는다.
 8. `sidey-app/homebrew-tap`의 Cask를 해당 DMG의 고정 URL·SHA-256으로 갱신하고 audit·style·설치·실행·삭제를 검증한다.
-9. stable 또는 hotfix 승격 여부와 근거를 `docs/DECISIONS.md`에 기록한다. 현재 공개본은 `v1.0.1`이며 12명 30분 장시간 계측은 이후에도 지속 검증한다.
+9. stable 또는 hotfix 승격 여부와 근거를 `docs/DECISIONS.md`에 기록한다. 현재 공개본은 `v1.0.2`이며 12명 30분 장시간 계측은 이후에도 지속 검증한다.
 
 Sparkle `2.9.6`이 production 앱에 내장되며 메뉴바 `업데이트 확인…`과 설정의 업데이트 카드에서 수동 확인할 수 있다. 설정 버튼은 production updater가 사용 가능한 동안에만 활성화한다. 자동 확인은 Sparkle의 사용자 동의 흐름을 사용하고, 익명 system profiling은 활성화하지 않는다. appcast와 ZIP은 서로 다른 검증 대상이므로 둘 다 `sidey-app` EdDSA 키로 서명하며 `SURequireSignedFeed`와 `SUVerifyUpdateBeforeExtraction`을 강제한다. 피드는 GitHub raw HTTPS URL, 설치 파일은 GitHub Releases를 사용한다.
 

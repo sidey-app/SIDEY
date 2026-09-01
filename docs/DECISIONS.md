@@ -66,7 +66,7 @@
 | Homebrew 배포 | 공개 third-party tap `sidey-app/homebrew-tap`의 `sidey` Cask가 버전 고정 공증 DMG와 SHA-256을 사용. arm64·macOS 26+만 허용하고 `auto_updates true`, 안전한 앱 종료, `SIDEY.app` 설치를 선언하며 사용자 데이터 `zap`은 두지 않음 | `brew install --cask sidey-app/tap/sidey`를 재현 가능하게 제공하면서 uninstall이 계정·설정을 임의 삭제하지 않게 한다. 공식 `homebrew/cask` 등록은 별도 결정 전까지 범위 밖이다. |
 | macOS 로컬 개발 설치 | 최신 Release 구성의 ad-hoc 앱을 `Sidey-dev`·`development`로 빌드해 `/Applications/Sidey-dev.app`에만 설치. bundle ID `app.sidey.desktop`, login item ID, `com.sidey.desktop` Keychain service는 배포본과 공유하고 development 채널은 Sparkle을 시작하지 않으며 업데이트 메뉴를 비활성화 | 운영 데이터와 설정을 이어 쓰되 로컬 빌드가 공개 업데이트를 받거나 배포본으로 오인되는 것을 막는다. 설치 스크립트는 정확한 dev 경로만 교체한다. |
 | 업데이트 전환 | Sparkle이 없는 기존 alpha는 최신 공증 DMG로 한 번 수동 교체하고, Sparkle 내장 production 빌드부터 앱 내부 업데이트를 사용 | 기존 설치에 프레임워크를 원격으로 소급 탑재할 수 없고, ad-hoc development 자동 업데이트는 Gatekeeper·코드 서명 연속성을 깨뜨릴 수 있다. |
-| 배포 채널 | 현재 공개본은 버전 `1.0.1`, 빌드 `12`의 `v1.0.1` GitHub 정식 hotfix release다 | epoch 기반 Realtime, private invite HMAC, 메시지 outbox·재연결 복구와 설정 UI 수정까지 포함해 macOS 앱과 forward-only DB migration을 조율 배포한다. 기존 짧은 초대 코드는 비활성화하고 방장이 새 코드를 1회 재발급해야 한다. 12명 30분 장시간 계측은 지속 검증한다. |
+| 배포 채널 | 현재 공개본은 버전 `1.0.2`, 빌드 `13`의 `v1.0.2` GitHub 정식 hotfix release다 | 그룹 참여 중 snapshot보다 먼저 도착한 Presence·typing 이벤트를 보존하고, 새 snapshot에서 해석한 활성 그룹에 Presence를 게시해 온라인 사용자가 오프라인으로 고착되는 문제를 수정한다. 서버 계약은 바꾸지 않으며 12명 30분 장시간 계측은 지속 검증한다. |
 | Windows 인증 | Google OAuth + PKCE, `sidey://auth/callback`, Credential Locker | Windows에서는 시스템 브라우저로 로그인하고 callback·refresh token·평문 초대 코드를 로컬 일반 설정이 아닌 보안 저장소에 보관한다. Google 이름·사진은 SIDEY 닉네임으로 복사하지 않는다. |
 | Windows alpha 배포 | `v0.3.0-alpha.1`, self-contained x64 ZIP + SHA-256, GitHub pre-release | 첫 공개본은 미서명 수동 교체 배포로 제한하고 SmartScreen 경고·자동 업데이트 없음·다중 모니터 실기 미검증을 명시한다. MSIX·서명·ARM64는 후속 결정이다. |
 
