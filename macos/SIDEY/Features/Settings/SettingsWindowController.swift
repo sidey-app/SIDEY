@@ -21,7 +21,8 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         )
         super.init(window: window)
         window.title = "SIDEY 설정"
-        window.titlebarAppearsTransparent = true
+        window.titlebarAppearsTransparent = false
+        window.titlebarSeparatorStyle = .automatic
         window.isReleasedWhenClosed = false
         window.level = .normal
         window.minSize = NSSize(width: 860, height: 640)

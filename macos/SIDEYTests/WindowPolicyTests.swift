@@ -222,6 +222,9 @@ final class WindowPolicyTests: XCTestCase {
         group.setVisible(true)
 
         XCTAssertEqual(settings.window?.level, .normal)
+        XCTAssertTrue(settings.window?.styleMask.contains(.fullSizeContentView) ?? false)
+        XCTAssertFalse(settings.window?.titlebarAppearsTransparent ?? true)
+        XCTAssertEqual(settings.window?.titlebarSeparatorStyle, .automatic)
         XCTAssertEqual(group.worldLevel, .floating)
         XCTAssertEqual(group.interactionLevel, .floating)
         XCTAssertFalse(group.worldCanHide)

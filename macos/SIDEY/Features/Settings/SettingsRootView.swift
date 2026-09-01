@@ -166,7 +166,7 @@ private struct OnboardingView: View {
             Text("내 캐릭터")
                 .font(.title2.bold())
             CharacterSelectionGrid(
-                maximumColumns: 3,
+                maximumColumns: 4,
                 selection: $model.selectedCharacterID
             )
             TextField("닉네임 2~8자", text: $model.nickname)
