@@ -123,6 +123,19 @@ public sealed class OverlayGeometryTests
             TimeSpan.FromMilliseconds(70)));
     }
 
+    [Fact]
+    public void ActivityAndRenderFramesStaySeparateForReactionOverflow()
+    {
+        var workArea = new RectD(0, 0, 1_920, 1_080);
+        var preference = new OverlayRegionPreference(OverlayEdge.Bottom, OverlaySpan.Half, null);
+
+        var frames = OverlayRegionLayout.Frames(preference, workArea);
+
+        Assert.Equal(new RectD(480, 0, 960, 240), frames.ActivityFrame);
+        Assert.Equal(new RectD(336, 0, 1_248, 360), frames.RenderFrame);
+        Assert.Equal(frames.ActivityFrame, OverlayRegionLayout.Frame(preference, workArea));
+    }
+
     [Theory]
     [InlineData(52d, 26d, 974d)]
     [InlineData(72d, 36d, 964d)]

@@ -2,6 +2,7 @@
 param()
 
 $ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $true
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $solution = Join-Path $repositoryRoot 'windows/SIDEY.Windows.slnx'
 $testProject = Join-Path $repositoryRoot 'windows/tests/Sidey.Core.Tests/Sidey.Core.Tests.csproj'
@@ -13,6 +14,13 @@ try {
     dotnet test $testProject --configuration Release --no-restore
     dotnet test $platformTestProject --configuration Release --no-restore
     dotnet build $solution --configuration Release --no-restore
+    dotnet publish (Join-Path $repositoryRoot 'windows/src/Sidey.App/Sidey.App.csproj') `
+        --configuration Release `
+        --runtime win-x64 `
+        --self-contained true `
+        --no-restore `
+        -p:PublishSingleFile=false `
+        --output (Join-Path $repositoryRoot 'build/windows/publish-smoke')
 }
 finally {
     Pop-Location

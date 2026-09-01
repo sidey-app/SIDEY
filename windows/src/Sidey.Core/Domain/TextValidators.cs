@@ -80,3 +80,49 @@ public static class MessageValidator
 
     private static int LineCount(string value) => value.Count(character => character == '\n') + 1;
 }
+
+public static class RoomNameValidator
+{
+    public const int MinimumCharacters = 1;
+    public const int MaximumCharacters = 20;
+
+    public static string Normalize(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        return value.Trim();
+    }
+
+    public static bool IsValid(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        var normalized = Normalize(value);
+        var count = ProfileValidator.TextElementCount(normalized);
+        return count is >= MinimumCharacters and <= MaximumCharacters
+            && !normalized.Any(character => character is '\r' or '\n' or '\t');
+    }
+}
+
+public static class PostgresTimestampParser
+{
+    public static DateTimeOffset Parse(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        if (value.AsSpan().Trim().SequenceEqual(value.AsSpan())
+            && (value.EndsWith('Z') || HasExplicitOffset(value))
+            && DateTimeOffset.TryParse(
+                value,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.None,
+                out var parsed))
+        {
+            return parsed;
+        }
+
+        throw new FormatException("Postgres timestamp must be ISO-8601 with an explicit UTC offset.");
+    }
+
+    private static bool HasExplicitOffset(string value) =>
+        value.Length >= 6
+        && value[^3] == ':'
+        && value[^6] is '+' or '-';
+}

@@ -13,6 +13,7 @@ public sealed class NativeOverlayWindowThread : IDisposable
     private readonly Thread _thread;
     private readonly Func<nint, IDisposable?>? _initializeWorld;
     private readonly Action? _hotspotActivated;
+    private readonly Action? _hotspotDoubleClicked;
     private NativeOverlayWindow? _worldWindow;
     private NativeOverlayWindow? _hotspotWindow;
     private IDisposable? _threadResource;
@@ -24,12 +25,14 @@ public sealed class NativeOverlayWindowThread : IDisposable
         NativePixelRect initialWorldBounds,
         NativePixelRect initialHotspotBounds,
         Func<nint, IDisposable?>? initializeWorld,
-        Action? hotspotActivated)
+        Action? hotspotActivated,
+        Action? hotspotDoubleClicked)
     {
         _initialWorldBounds = initialWorldBounds;
         _initialHotspotBounds = initialHotspotBounds;
         _initializeWorld = initializeWorld;
         _hotspotActivated = hotspotActivated;
+        _hotspotDoubleClicked = hotspotDoubleClicked;
         _thread = new Thread(Run)
         {
             IsBackground = true,
@@ -45,7 +48,8 @@ public sealed class NativeOverlayWindowThread : IDisposable
         NativePixelRect initialWorldBounds,
         NativePixelRect initialHotspotBounds,
         Func<nint, IDisposable?>? initializeWorld = null,
-        Action? hotspotActivated = null)
+        Action? hotspotActivated = null,
+        Action? hotspotDoubleClicked = null)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -56,7 +60,8 @@ public sealed class NativeOverlayWindowThread : IDisposable
             initialWorldBounds,
             initialHotspotBounds,
             initializeWorld,
-            hotspotActivated);
+            hotspotActivated,
+            hotspotDoubleClicked);
         owner._thread.Start();
         if (!owner._started.Wait(StartupTimeout))
         {
@@ -126,7 +131,8 @@ public sealed class NativeOverlayWindowThread : IDisposable
             _hotspotWindow = NativeOverlayWindow.Create(
                 NativeOverlayWindowRole.Hotspot,
                 _initialHotspotBounds,
-                _hotspotActivated);
+                _hotspotActivated,
+                _hotspotDoubleClicked);
             _threadResource = _initializeWorld?.Invoke(_worldWindow.Handle);
             _started.Set();
             NativeMessageLoop.Run();

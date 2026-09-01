@@ -4,11 +4,15 @@ public sealed record PixelCharacterDefinition(
     string Id,
     string DisplayName,
     string SpriteSheetResource,
+    string RawBgraResource,
+    string ManifestResource,
+    string SpriteSheetSha256,
     int FrameWidth,
     int FrameHeight,
     int FrameCount,
     int FootBaselinePixel,
-    PixelCharacterFrameContract Frames);
+    PixelCharacterFrameContract Frames,
+    IReadOnlyList<string> CompatibleAliases);
 
 public sealed record PixelCharacterFrameContract(
     Range Idle,
@@ -23,23 +27,79 @@ public sealed record PixelCharacterFrameContract(
         8..10);
 }
 
-public static class VerticalSliceCharacterCatalog
+/// <summary>
+/// The only product catalog for built-in Windows characters. Rendering code
+/// resolves this data by id and never branches on a species.
+/// </summary>
+public static class PixelCharacterCatalog
 {
-    public const string HamsterId = "pixel_hamster";
+    public const string FallbackId = "pixel_hamster";
 
-    public static PixelCharacterDefinition Hamster { get; } = new(
-        HamsterId,
-        "햄스터",
-        "Characters/pixel_hamster.png",
-        FrameWidth: 24,
-        FrameHeight: 24,
-        FrameCount: 10,
-        FootBaselinePixel: 3,
-        Frames: PixelCharacterFrameContract.Standard);
+    private static readonly PixelCharacterDefinition[] Definitions =
+    [
+        Create(
+            FallbackId,
+            "아기 햄스터",
+            "43171c1dd614629058b6d593c57ca0e5841b0be03a04a05181dfda67c53a7f45",
+            ["minty_pup"]),
+        Create(
+            "pixel_cat",
+            "아기 고양이",
+            "d8b370c03b5cf0ede6aa0d9fa6210030e164b015a920622e89ae86f835e018b2"),
+        Create(
+            "pixel_puppy",
+            "아기 강아지",
+            "8f56a5fda51a224802f41d6d1c359a138c83036b7da3e0a35777f9f4ed38d5f7"),
+        Create(
+            "pixel_rabbit",
+            "아기 토끼",
+            "f8e53749200a284f7729ea9baac3237a9fac0caf8efedf9102dcee065e521342"),
+        Create(
+            "pixel_penguin",
+            "아기 펭귄",
+            "f171503f8ffb938732583a4b6f42443e7a69120bb17496f6e8d34372da2ea886"),
+    ];
 
-    public static string NormalizeId(string? characterId) => characterId switch
+    private static readonly IReadOnlyDictionary<string, PixelCharacterDefinition> ById =
+        Definitions.ToDictionary(definition => definition.Id, StringComparer.Ordinal);
+
+    private static readonly IReadOnlyDictionary<string, string> AliasToId = Definitions
+        .SelectMany(definition => definition.CompatibleAliases.Select(alias => (alias, definition.Id)))
+        .ToDictionary(pair => pair.alias, pair => pair.Id, StringComparer.Ordinal);
+
+    public static IReadOnlyList<PixelCharacterDefinition> All => Definitions;
+
+    public static PixelCharacterDefinition Fallback => ById[FallbackId];
+
+    public static string NormalizeId(string? characterId)
     {
-        HamsterId or "minty_pup" => HamsterId,
-        _ => HamsterId,
-    };
+        if (characterId is not null && ById.ContainsKey(characterId))
+        {
+            return characterId;
+        }
+
+        return characterId is not null && AliasToId.TryGetValue(characterId, out var canonical)
+            ? canonical
+            : FallbackId;
+    }
+
+    public static PixelCharacterDefinition Get(string? characterId) => ById[NormalizeId(characterId)];
+
+    private static PixelCharacterDefinition Create(
+        string id,
+        string displayName,
+        string spriteSheetSha256,
+        IReadOnlyList<string>? aliases = null) => new(
+            id,
+            displayName,
+            $"Characters/{id}.png",
+            $"Characters/{id}.bgra",
+            $"Characters/{id}_manifest.json",
+            spriteSheetSha256,
+            FrameWidth: 24,
+            FrameHeight: 24,
+            FrameCount: 10,
+            FootBaselinePixel: 3,
+            Frames: PixelCharacterFrameContract.Standard,
+            CompatibleAliases: aliases ?? Array.Empty<string>());
 }

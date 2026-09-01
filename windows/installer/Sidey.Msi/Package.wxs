@@ -1,0 +1,60 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Package
+      Name="SIDEY"
+      Manufacturer="SIDEY"
+      Version="$(ProductVersion)"
+      UpgradeCode="A9C7A0DA-7C57-4BBE-A7C4-DB29B20301F1"
+      Scope="perUser"
+      Compressed="yes">
+
+    <SummaryInformation Description="SIDEY Windows alpha" Manufacturer="SIDEY" />
+    <MajorUpgrade
+        AllowDowngrades="no"
+        DowngradeErrorMessage="A newer version of SIDEY is already installed."
+        Schedule="afterInstallInitialize" />
+    <MediaTemplate EmbedCab="yes" />
+    <Launch Condition="VersionNT64" Message="SIDEY requires 64-bit Windows." />
+    <util:RestartResource ProcessName="SIDEY.exe" />
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="LocalProgramsFolder" Name="Programs">
+        <Directory Id="INSTALLFOLDER" Name="SIDEY" />
+      </Directory>
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="SIDEY" />
+    </StandardDirectory>
+
+    <Feature Id="MainFeature" Title="SIDEY" Level="1">
+      <Files Directory="INSTALLFOLDER" Include="$(PublishDir)\**">
+        <Exclude Files="$(PublishDir)\**\*.pdb" />
+      </Files>
+      <ComponentRef Id="ApplicationShortcuts" />
+    </Feature>
+
+    <Component Id="ApplicationShortcuts" Directory="ApplicationProgramsFolder" Guid="EBC05657-6AC6-4E27-9E1D-F2131284B6F2">
+      <Shortcut
+          Id="StartMenuShortcut"
+          Name="SIDEY"
+          Description="SIDEY ambient messenger"
+          Target="[INSTALLFOLDER]SIDEY.exe"
+          WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="RemoveApplicationProgramsFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
+      <RemoveRegistryValue
+          Id="RemoveLegacyStartupValue"
+          Root="HKCU"
+          Key="Software\Microsoft\Windows\CurrentVersion\Run"
+          Name="SIDEY"
+          On="uninstall" />
+      <RegistryValue
+          Root="HKCU"
+          Key="Software\SIDEY\Installer"
+          Name="InstalledVersion"
+          Type="string"
+          Value="$(DisplayVersion)"
+          KeyPath="yes" />
+    </Component>
+  </Package>
+</Wix>

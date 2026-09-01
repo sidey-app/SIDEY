@@ -17,10 +17,19 @@
     <ProjectReference Include="../../src/Sidey.Core/Sidey.Core.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="../../src/Sidey.Overlay/Assets/Characters/pixel_hamster.png" Link="TestAssets/pixel_hamster.png">
+    <None Include="../../src/Sidey.Overlay/Assets/Characters/*.png" Link="TestAssets/%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="../../src/Sidey.Overlay/Assets/Characters/pixel_hamster.bgra" Link="TestAssets/pixel_hamster.bgra">
+    <None Include="../../src/Sidey.Overlay/Assets/Characters/*.bgra" Link="TestAssets/%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="../../src/Sidey.Overlay/Assets/Characters/*.json" Link="TestAssets/%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="../../src/Sidey.Overlay/LayeredPixelWorldRenderer.cs" Link="TestAssets/LayeredPixelWorldRenderer.cs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="../../src/Sidey.Overlay/PixelCharacterFrameCache.cs" Link="TestAssets/PixelCharacterFrameCache.cs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

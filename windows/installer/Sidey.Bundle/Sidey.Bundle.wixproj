@@ -1,0 +1,11 @@
+<Project Sdk="WixToolset.Sdk/6.0.2">
+  <PropertyGroup>
+    <OutputType>Bundle</OutputType>
+    <OutputName>SIDEY-Windows-x64-v$(DisplayVersion)-Setup</OutputName>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <DefineConstants>MsiPath=$(MsiPath);BundleVersion=$(BundleVersion);DisplayVersion=$(DisplayVersion)</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="WixToolset.BootstrapperApplications.wixext" />
+  </ItemGroup>
+</Project>

@@ -26,6 +26,7 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
     private static readonly object RegistrationLock = new();
     private static readonly ConcurrentDictionary<nint, NativeOverlayWindowRole> Roles = new();
     private static readonly ConcurrentDictionary<nint, Action> Activations = new();
+    private static readonly ConcurrentDictionary<nint, Action> DoubleClickActivations = new();
     private static readonly ConcurrentDictionary<nint, uint> OwnerThreads = new();
     private static readonly ConcurrentDictionary<uint, int> ThreadWindowCounts = new();
     private static readonly WNDPROC WindowProcedureCallback = WindowProcedure;
@@ -36,7 +37,11 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
     private readonly uint _ownerThreadId;
     private bool _disposed;
 
-    private NativeOverlayWindow(HWND handle, NativeOverlayWindowRole role, Action? activated)
+    private NativeOverlayWindow(
+        HWND handle,
+        NativeOverlayWindowRole role,
+        Action? activated,
+        Action? doubleClicked)
     {
         _handle = handle;
         Role = role;
@@ -47,6 +52,10 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
         if (activated is not null)
         {
             Activations[handleValue] = activated;
+        }
+        if (doubleClicked is not null)
+        {
+            DoubleClickActivations[handleValue] = doubleClicked;
         }
         OwnerThreads[handleValue] = ownerThread;
         ThreadWindowCounts.AddOrUpdate(ownerThread, 1, static (_, count) => count + 1);
@@ -62,7 +71,8 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
     public static unsafe NativeOverlayWindow Create(
         NativeOverlayWindowRole role,
         NativePixelRect initialBounds,
-        Action? activated = null)
+        Action? activated = null,
+        Action? doubleClicked = null)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -107,7 +117,7 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "SetLayeredWindowAttributes failed.");
         }
 
-        var window = new NativeOverlayWindow(handle, role, activated);
+        var window = new NativeOverlayWindow(handle, role, activated, doubleClicked);
         window.SetBounds(initialBounds, visible: true);
         return window;
     }
@@ -155,6 +165,7 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
         {
             Roles.TryRemove((nint)handle.Value, out _);
             Activations.TryRemove((nint)handle.Value, out _);
+            DoubleClickActivations.TryRemove((nint)handle.Value, out _);
             if (PInvoke.GetCurrentThreadId() == _ownerThreadId)
             {
                 PInvoke.DestroyWindow(handle);
@@ -180,6 +191,7 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
             {
                 var windowClass = new WNDCLASSW
                 {
+                    style = (WNDCLASS_STYLES)0x0008, // CS_DBLCLKS
                     lpfnWndProc = WindowProcedureCallback,
                     hInstance = new HINSTANCE(module.DangerousGetHandle()),
                     hCursor = PInvoke.LoadCursor(HINSTANCE.Null, PInvoke.IDC_ARROW),
@@ -225,6 +237,21 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
             return default;
         }
 
+        if (message == 0x0203 // WM_LBUTTONDBLCLK
+            && DoubleClickActivations.TryGetValue((nint)window.Value, out var doubleClicked))
+        {
+            try
+            {
+                doubleClicked();
+            }
+            catch (Exception exception)
+            {
+                Trace.TraceError("SIDEY hotspot double-click callback failed: {0}", exception);
+            }
+
+            return default;
+        }
+
         if (message == PInvoke.WM_CLOSE)
         {
             PInvoke.DestroyWindow(window);
@@ -236,6 +263,7 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
             var handle = (nint)window.Value;
             Roles.TryRemove(handle, out _);
             Activations.TryRemove(handle, out _);
+            DoubleClickActivations.TryRemove(handle, out _);
             if (OwnerThreads.TryRemove(handle, out var ownerThread))
             {
                 var remaining = ThreadWindowCounts.AddOrUpdate(

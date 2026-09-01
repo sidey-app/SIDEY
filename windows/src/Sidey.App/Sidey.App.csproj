@@ -13,6 +13,7 @@
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>false</PublishSingleFile>
+    <AssemblyName>SIDEY</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" />
@@ -25,11 +26,7 @@
     <ProjectReference Include="../Sidey.Platform.Windows/Sidey.Platform.Windows.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="../Sidey.Overlay/Assets/Characters/pixel_hamster.png" Link="Assets/Characters/pixel_hamster.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
-    <Content Include="../Sidey.Overlay/Assets/Characters/pixel_hamster.bgra" Link="Assets/Characters/pixel_hamster.bgra">
+    <Content Include="../Sidey.Overlay/Assets/Characters/*" Link="Assets/Characters/%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </Content>

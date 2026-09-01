@@ -52,6 +52,50 @@ public sealed class MessageLedgerTests
     }
 
     [Fact]
+    public void ServerDeletionRemovesOnlyTheMatchingRoomMessage()
+    {
+        var roomId = Guid.NewGuid();
+        var messageId = Guid.NewGuid();
+        var otherMessageId = Guid.NewGuid();
+        var ledger = new MessageLedger();
+        ledger.Confirm(new ChatMessage(
+            messageId, roomId, Guid.NewGuid(), "삭제 대상", DateTimeOffset.UtcNow));
+        ledger.Confirm(new ChatMessage(
+            otherMessageId, Guid.NewGuid(), Guid.NewGuid(), "다른 방", DateTimeOffset.UtcNow));
+
+        Assert.True(ledger.Remove(roomId, messageId));
+        Assert.Single(ledger.Entries);
+        Assert.Equal(otherMessageId, ledger.Entries[0].Id);
+        Assert.False(ledger.Remove(roomId, messageId));
+    }
+
+    [Fact]
+    public void ConfirmedHistoryIsBoundedPerRoomAndPendingRowsSurvivePruning()
+    {
+        var roomId = Guid.NewGuid();
+        var senderId = Guid.NewGuid();
+        var ledger = new MessageLedger();
+        var start = DateTimeOffset.UtcNow.AddMinutes(-2);
+        for (var index = 0; index < 51; index++)
+        {
+            ledger.Confirm(new ChatMessage(
+                Guid.NewGuid(),
+                roomId,
+                senderId,
+                $"메시지 {index}",
+                start.AddSeconds(index)));
+        }
+        var pendingId = Guid.NewGuid();
+        ledger.Stage(pendingId, roomId, senderId, "전송 중");
+
+        ledger.PruneConfirmed();
+
+        Assert.Equal(MessageLedger.MaximumConfirmedPerRoom + 1, ledger.Entries.Count);
+        Assert.Contains(ledger.Entries, entry =>
+            entry.Id == pendingId && entry.State == MessageDeliveryState.Pending);
+    }
+
+    [Fact]
     public void ActiveBubblesReplacePerSenderEvictOldestAndExpireIndependently()
     {
         var ledger = new ActiveBubbleLedger();

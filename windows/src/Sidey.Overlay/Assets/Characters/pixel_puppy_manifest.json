@@ -1,0 +1,13 @@
+{
+  "character_id": "pixel_puppy",
+  "display_name": "아기 강아지",
+  "legacy_aliases": [],
+  "frame_pixel_size": [24, 24],
+  "render_dip_size": [48, 48],
+  "sheet_pixel_size": [240, 24],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": { "idle": [0, 1], "walk": [2, 3, 4, 5], "doze": [6, 7], "offline": [8, 9] },
+  "sha256": "8f56a5fda51a224802f41d6d1c359a138c83036b7da3e0a35777f9f4ed38d5f7",
+  "runtime_bgra": { "byte_order": "BGRA", "alpha": "straight", "byte_length": 23040, "sha256": "c9a12602afefb3e72f3e13dcd36b5889883a7835cb4bebddc031d1fa50412ab2" }
+}

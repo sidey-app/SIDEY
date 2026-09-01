@@ -10,8 +10,8 @@ namespace Sidey.Platform.Windows;
 
 /// <summary>
 /// Owns one premultiplied BGRA DIB and presents it through UpdateLayeredWindow.
-/// Instances are intentionally small and immutable so animation frames can be
-/// prepared once instead of allocating or scaling on every 30 FPS tick.
+/// The DIB itself is allocated once. A world renderer can update its pixels
+/// without allocating another bitmap or surface on a 30 FPS tick.
 /// </summary>
 public sealed unsafe class NativeLayeredBitmap : IDisposable
 {
@@ -22,6 +22,8 @@ public sealed unsafe class NativeLayeredBitmap : IDisposable
     private readonly HDC _memoryDeviceContext;
     private readonly HBITMAP _bitmap;
     private readonly HGDIOBJ _previousObject;
+    private readonly nint _destination;
+    private readonly int _byteCount;
     private bool _disposed;
 
     public NativeLayeredBitmap(
@@ -119,6 +121,8 @@ public sealed unsafe class NativeLayeredBitmap : IDisposable
             _memoryDeviceContext = memoryDeviceContext;
             _bitmap = bitmap;
             _previousObject = previousObject;
+            _destination = (nint)destination;
+            _byteCount = expectedByteCount;
         }
         catch
         {
@@ -142,6 +146,22 @@ public sealed unsafe class NativeLayeredBitmap : IDisposable
 
     public int Width { get; }
     public int Height { get; }
+
+    public void UpdatePixels(ReadOnlySpan<byte> premultipliedBgra)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (premultipliedBgra.Length != _byteCount)
+        {
+            throw new ArgumentException(
+                $"Expected {_byteCount} BGRA bytes but received {premultipliedBgra.Length}.",
+                nameof(premultipliedBgra));
+        }
+
+        fixed (byte* source = premultipliedBgra)
+        {
+            Buffer.MemoryCopy(source, (void*)_destination, _byteCount, _byteCount);
+        }
+    }
 
     public void Present(int screenX, int screenY)
     {

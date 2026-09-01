@@ -16,6 +16,9 @@ public sealed record MessageLedgerEntry(
 
 public sealed class MessageLedger
 {
+    public const int MaximumConfirmedPerRoom = 50;
+    public static readonly TimeSpan ConfirmedRetention = TimeSpan.FromDays(7);
+
     private readonly List<MessageLedgerEntry> _entries = [];
 
     public IReadOnlyList<MessageLedgerEntry> Entries => _entries;
@@ -65,6 +68,7 @@ public sealed class MessageLedger
         }
 
         SortEntries();
+        PruneConfirmed();
         return !wasKnown;
     }
 
@@ -90,8 +94,35 @@ public sealed class MessageLedger
         return body;
     }
 
+    public bool Remove(Guid roomId, Guid messageId) =>
+        _entries.RemoveAll(entry => entry.RoomId == roomId && entry.Id == messageId) > 0;
+
     public MessageLedgerEntry? LatestIn(Guid roomId) =>
         _entries.LastOrDefault(entry => entry.RoomId == roomId);
+
+    public void PruneConfirmed(DateTimeOffset? now = null)
+    {
+        var cutoff = (now ?? DateTimeOffset.UtcNow) - ConfirmedRetention;
+        _entries.RemoveAll(entry =>
+            entry.State == MessageDeliveryState.Confirmed && entry.CreatedAt < cutoff);
+        foreach (var room in _entries
+            .Where(entry => entry.State == MessageDeliveryState.Confirmed)
+            .GroupBy(entry => entry.RoomId)
+            .ToArray())
+        {
+            var excess = room.Count() - MaximumConfirmedPerRoom;
+            if (excess <= 0)
+            {
+                continue;
+            }
+
+            var remove = room.Take(excess).Select(entry => entry.Id).ToHashSet();
+            _entries.RemoveAll(entry =>
+                entry.RoomId == room.Key
+                && entry.State == MessageDeliveryState.Confirmed
+                && remove.Contains(entry.Id));
+        }
+    }
 
     private void SortEntries() => _entries.Sort(static (left, right) =>
     {

@@ -129,6 +129,33 @@ public sealed class WindowPolicyTests
         }
     }
 
+    [Fact]
+    public void RenderFrameAddsReactionRoomWithoutChangingTheActivityPreset()
+    {
+        var workArea = new NativePixelRect(0, 0, 1920, 1080);
+        var preference = new OverlayRegionPreference(OverlayEdge.Bottom, OverlaySpan.Half, null);
+
+        var frames = WindowsOverlayRegionLayout.Frames(workArea, 96, preference);
+
+        Assert.Equal(new NativePixelRect(480, 840, 960, 240), frames.ActivityFrame);
+        Assert.Equal(new NativePixelRect(336, 720, 1248, 360), frames.RenderFrame);
+        Assert.Equal(frames.ActivityFrame, WindowsOverlayRegionLayout.Frame(workArea, 96, preference));
+    }
+
+    [Theory]
+    [InlineData("0.3.0-alpha.2", "0.3.0-alpha.1", true)]
+    [InlineData("0.3.0-alpha.10", "0.3.0-alpha.2", true)]
+    [InlineData("0.3.0", "0.3.0-alpha.10", true)]
+    [InlineData("0.2.0", "0.3.0-alpha.1", false)]
+    [InlineData("0.3.0-alpha.1", "0.3.0-alpha.1", false)]
+    public void UpdateComparisonNeverOffersSameVersionOrDowngrade(
+        string candidate,
+        string current,
+        bool expected)
+    {
+        Assert.Equal(expected, WindowsUpdateService.IsNewerVersion(candidate, current));
+    }
+
     private static void AssertHas(uint style, uint flag) => Assert.Equal(flag, style & flag);
 
     private static int Round(double value) =>

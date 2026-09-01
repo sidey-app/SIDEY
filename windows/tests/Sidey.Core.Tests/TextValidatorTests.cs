@@ -32,4 +32,16 @@ public sealed class TextValidatorTests
         Assert.False(MessageValidator.IsValid(new string('가', 201)));
         Assert.False(MessageValidator.IsValid(string.Empty));
     }
+
+    [Theory]
+    [InlineData("2026-09-01T12:34:56Z")]
+    [InlineData("2026-09-01T12:34:56.123456+09:00")]
+    public void PostgresTimestampRequiresAndPreservesExplicitOffset(string value)
+    {
+        var parsed = PostgresTimestampParser.Parse(value);
+
+        Assert.Equal(2026, parsed.Year);
+        Assert.Throws<FormatException>(() =>
+            PostgresTimestampParser.Parse("2026-09-01T12:34:56"));
+    }
 }

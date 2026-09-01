@@ -6,17 +6,6 @@ namespace Sidey.Core.Tests;
 public sealed class RealtimePolicyTests
 {
     [Fact]
-    public void RoomPlanCapsDesiredSubscriptionsAtFive()
-    {
-        var requested = Enumerable.Range(0, 6).Select(_ => Guid.NewGuid()).ToArray();
-
-        var plan = RealtimeRoomPlan.Create(new HashSet<Guid>(), requested, requested[5]);
-
-        Assert.Equal(5, plan.Desired.Count);
-        Assert.Null(plan.ActiveRoomId);
-    }
-
-    [Fact]
     public void ConnectionRequiresEveryDesiredRoomAndDropsRemovedRooms()
     {
         var first = Guid.NewGuid();
@@ -83,9 +72,20 @@ public sealed class RealtimePolicyTests
         var cooldown = new CharacterPulseCooldown();
 
         Assert.True(cooldown.Accept(roomId, userId, TimeSpan.FromSeconds(100)));
-        Assert.False(cooldown.Accept(roomId, userId, TimeSpan.FromSeconds(109.999)));
-        Assert.True(cooldown.Accept(roomId, userId, TimeSpan.FromSeconds(110)));
+        Assert.False(cooldown.Accept(roomId, userId, TimeSpan.FromSeconds(100.999)));
+        Assert.True(cooldown.Accept(roomId, userId, TimeSpan.FromSeconds(101)));
         Assert.True(cooldown.Accept(roomId, Guid.NewGuid(), TimeSpan.FromSeconds(101)));
         Assert.False(cooldown.Accept(roomId, userId, TimeSpan.FromSeconds(-1)));
+    }
+
+    [Theory]
+    [InlineData(1, 8)]
+    [InlineData(2, 16)]
+    [InlineData(3, 30)]
+    [InlineData(99, 30)]
+    public void RealtimeBackoffMatchesTheMacContract(int attempt, int seconds)
+    {
+        Assert.Equal(TimeSpan.FromSeconds(seconds), RealtimeRecoveryPolicy.DelayForAttempt(attempt));
+        Assert.Equal(TimeSpan.FromSeconds(5), RealtimeRecoveryPolicy.WatchdogInterval);
     }
 }

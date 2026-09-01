@@ -1,0 +1,30 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:bal="http://wixtoolset.org/schemas/v4/wxs/bal">
+  <Bundle
+      Name="SIDEY $(DisplayVersion)"
+      Manufacturer="SIDEY"
+      Version="$(BundleVersion)"
+      UpgradeCode="B1438BBE-BB61-470B-A4DB-7C8FC2E11DA2"
+      Compressed="yes"
+      Scope="perUser">
+    <BootstrapperApplication>
+      <bal:WixStandardBootstrapperApplication
+          Theme="hyperlinkLicense"
+          LicenseUrl=""
+          ShowVersion="yes"
+          SuppressOptionsUI="yes"
+          SuppressDowngradeFailure="no"
+          LaunchTarget="[LocalAppDataFolder]Programs\SIDEY\SIDEY.exe" />
+    </BootstrapperApplication>
+    <Chain>
+      <MsiPackage
+          SourceFile="$(MsiPath)"
+          Compressed="yes"
+          Visible="no"
+          Vital="yes"
+          bal:DisplayFilesInUseDialogCondition="1">
+        <MsiProperty Name="MSIRESTARTMANAGERCONTROL" Value="Enable" />
+      </MsiPackage>
+    </Chain>
+  </Bundle>
+</Wix>

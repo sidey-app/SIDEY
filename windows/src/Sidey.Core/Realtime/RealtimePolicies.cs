@@ -2,26 +2,6 @@ using Sidey.Core.Domain;
 
 namespace Sidey.Core.Realtime;
 
-public sealed record RealtimeRoomPlan(
-    IReadOnlySet<Guid> Desired,
-    IReadOnlySet<Guid> Additions,
-    IReadOnlySet<Guid> Removals,
-    Guid? ActiveRoomId)
-{
-    public static RealtimeRoomPlan Create(
-        IReadOnlySet<Guid> existing,
-        IEnumerable<Guid> requested,
-        Guid? activeRoomId)
-    {
-        var desired = requested.Take(5).ToHashSet();
-        return new RealtimeRoomPlan(
-            desired,
-            desired.Except(existing).ToHashSet(),
-            existing.Except(desired).ToHashSet(),
-            activeRoomId is { } candidate && desired.Contains(candidate) ? candidate : null);
-    }
-}
-
 public sealed class RealtimeConnectionTracker
 {
     private HashSet<Guid> _desiredRoomIds = [];
@@ -119,7 +99,7 @@ public sealed class TypingLease
 
 public sealed class CharacterPulseCooldown
 {
-    public static readonly TimeSpan Duration = TimeSpan.FromSeconds(10);
+    public static readonly TimeSpan Duration = TimeSpan.FromSeconds(1);
 
     private readonly Dictionary<(Guid RoomId, Guid UserId), TimeSpan> _lastAcceptedUptime = [];
 
@@ -139,4 +119,141 @@ public sealed class CharacterPulseCooldown
         _lastAcceptedUptime[key] = uptime;
         return true;
     }
+}
+
+public static class RealtimeRecoveryPolicy
+{
+    public static readonly TimeSpan WatchdogInterval = TimeSpan.FromSeconds(5);
+
+    public static TimeSpan DelayForAttempt(int attempt) => attempt switch
+    {
+        <= 0 => TimeSpan.Zero,
+        1 => TimeSpan.FromSeconds(8),
+        2 => TimeSpan.FromSeconds(16),
+        _ => TimeSpan.FromSeconds(30),
+    };
+}
+
+/// <summary>
+/// Serializes complete Presence batches and coalesces work that has not begun
+/// yet. Intermediate callers complete with the latest full publication.
+/// </summary>
+public sealed class CoalescingPublicationQueue<T>(Func<T, CancellationToken, Task> publish)
+    : IAsyncDisposable
+{
+    private readonly object _gate = new();
+    private readonly Func<T, CancellationToken, Task> _publish = publish
+        ?? throw new ArgumentNullException(nameof(publish));
+    private readonly CancellationTokenSource _shutdown = new();
+    private Pending? _latest;
+    private Task? _worker;
+
+    public Task SubmitAsync(T state, CancellationToken cancellationToken = default)
+    {
+        var completion = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        lock (_gate)
+        {
+            if (_latest is { } superseded)
+            {
+                superseded.Completions.Add(completion);
+                _latest = new Pending(
+                    state,
+                    superseded.Completions,
+                    cancellationToken);
+            }
+            else
+            {
+                _latest = new Pending(
+                    state,
+                    [completion],
+                    cancellationToken);
+            }
+            _worker ??= Task.Run(DrainAsync, CancellationToken.None);
+        }
+
+        return completion.Task;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _shutdown.Cancel();
+        Task? worker;
+        lock (_gate)
+        {
+            if (_latest is { } latest)
+            {
+                Complete(latest.Completions, completion => completion.TrySetCanceled());
+            }
+            _latest = null;
+            worker = _worker;
+        }
+
+        if (worker is not null)
+        {
+            try
+            {
+                await worker.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+
+        _shutdown.Dispose();
+    }
+
+    private async Task DrainAsync()
+    {
+        while (!_shutdown.IsCancellationRequested)
+        {
+            Pending? pending;
+            lock (_gate)
+            {
+                pending = _latest;
+                _latest = null;
+                if (pending is null)
+                {
+                    _worker = null;
+                    return;
+                }
+            }
+
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+                _shutdown.Token,
+                pending.CancellationToken);
+            try
+            {
+                await _publish(pending.State, linked.Token).ConfigureAwait(false);
+                Complete(pending.Completions, completion => completion.TrySetResult());
+            }
+            catch (OperationCanceledException) when (linked.IsCancellationRequested)
+            {
+                Complete(
+                    pending.Completions,
+                    completion => completion.TrySetCanceled(linked.Token));
+            }
+            catch (Exception exception)
+            {
+                Complete(
+                    pending.Completions,
+                    completion => completion.TrySetException(exception));
+            }
+        }
+    }
+
+    private static void Complete(
+        IEnumerable<TaskCompletionSource> completions,
+        Action<TaskCompletionSource> complete)
+    {
+        foreach (var completion in completions)
+        {
+            complete(completion);
+        }
+    }
+
+    private sealed record Pending(
+        T State,
+        List<TaskCompletionSource> Completions,
+        CancellationToken CancellationToken);
 }

@@ -13,6 +13,8 @@ public sealed partial class ComposerWindow : Window
     private const int ComposerWidth = 400;
     private const int ComposerHeight = 56;
 
+    private CancellationTokenSource? _autoClose;
+
     public ComposerWindow()
     {
         InitializeComponent();
@@ -27,20 +29,33 @@ public sealed partial class ComposerWindow : Window
             presenter.IsResizable = false;
             presenter.SetBorderAndTitleBar(false, false);
         }
+        Activated += OnWindowActivated;
     }
 
     public event Action<string>? SendRequested;
+    public event Action<bool>? TypingChanged;
 
-    public void ShowAndFocus()
+    public void ShowAndFocus(string? monitorIdentifier)
     {
         Activate();
-        ResizeAndCenter();
+        ResizeAndCenter(monitorIdentifier);
         MessageInput.Focus(FocusState.Programmatic);
     }
 
     public void HideComposer()
     {
+        CancelAutoClose();
+        TypingChanged?.Invoke(false);
         AppWindow.Hide();
+    }
+
+    public void RestoreDraftAndFocus(string body)
+    {
+        CancelAutoClose();
+        MessageInput.Text = body;
+        Activate();
+        MessageInput.Focus(FocusState.Programmatic);
+        MessageInput.SelectionStart = MessageInput.Text.Length;
     }
 
     private void OnMessageInputKeyDown(object sender, KeyRoutedEventArgs args)
@@ -79,20 +94,64 @@ public sealed partial class ComposerWindow : Window
 
         SendRequested?.Invoke(body);
         MessageInput.Text = string.Empty;
-        HideComposer();
+        TypingChanged?.Invoke(false);
+        ScheduleAutoClose();
     }
 
-    private void ResizeAndCenter()
+    private void OnMessageInputTextChanged(object sender, TextChangedEventArgs args)
     {
-        var scale = ComposerRoot.XamlRoot?.RasterizationScale ?? 1d;
+        _ = sender;
+        _ = args;
+        TypingChanged?.Invoke(!string.IsNullOrWhiteSpace(MessageInput.Text));
+    }
+
+    private void OnWindowActivated(object sender, WindowActivatedEventArgs args)
+    {
+        _ = sender;
+        if (args.WindowActivationState == WindowActivationState.Deactivated
+            && AppWindow.IsVisible)
+        {
+            HideComposer();
+        }
+    }
+
+    private void ScheduleAutoClose()
+    {
+        CancelAutoClose();
+        _autoClose = new CancellationTokenSource();
+        _ = CloseAfterDelayAsync(_autoClose.Token);
+    }
+
+    private async Task CloseAfterDelayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+            DispatcherQueue.TryEnqueue(HideComposer);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private void CancelAutoClose()
+    {
+        _autoClose?.Cancel();
+        _autoClose?.Dispose();
+        _autoClose = null;
+    }
+
+    private void ResizeAndCenter(string? monitorIdentifier)
+    {
+        var monitor = WindowsMonitorService.Select(monitorIdentifier);
+        var scale = monitor.Dpi / 96d;
         var width = (int)Math.Round(ComposerWidth * scale, MidpointRounding.AwayFromZero);
         var height = (int)Math.Round(ComposerHeight * scale, MidpointRounding.AwayFromZero);
         AppWindow.Resize(new Windows.Graphics.SizeInt32(width, height));
 
-        var displayArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary);
-        var workArea = displayArea.WorkArea;
+        var workArea = monitor.WorkAreaPixels;
         AppWindow.Move(new Windows.Graphics.PointInt32(
             workArea.X + ((workArea.Width - width) / 2),
-            workArea.Y + workArea.Height - height - (int)Math.Round(80 * scale)));
+            workArea.Y + (int)Math.Round(10 * scale)));
     }
 }

@@ -8,7 +8,9 @@
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageVersion Include="Microsoft.Windows.CsWin32" Version="0.3.321" />
     <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
-    <PackageVersion Include="Supabase" Version="1.6.2" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK.Runtime" Version="2.4.0" />
+    <PackageVersion Include="WixToolset.BootstrapperApplications.wixext" Version="6.0.2" />
+    <PackageVersion Include="WixToolset.Util.wixext" Version="6.0.2" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
   </ItemGroup>

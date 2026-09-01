@@ -2,33 +2,192 @@
     x:Class="Sidey.App.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <Grid Padding="32" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-    <StackPanel MaxWidth="480" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
-      <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="SIDEY" />
-      <TextBlock Text="Windows 네이티브 햄스터 플랫폼 slice" TextWrapping="Wrap" />
-      <StackPanel Orientation="Horizontal" Spacing="8">
-        <ComboBox x:Name="EdgeSelector" Header="가장자리" SelectedIndex="0">
-          <ComboBoxItem Content="아래" />
-          <ComboBoxItem Content="왼쪽" />
-          <ComboBoxItem Content="오른쪽" />
-          <ComboBoxItem Content="위" />
-        </ComboBox>
-        <ComboBox x:Name="SpanSelector" Header="길이" SelectedIndex="2">
-          <ComboBoxItem Content="1/3" />
-          <ComboBoxItem Content="1/2" />
-          <ComboBoxItem Content="전체" />
-        </ComboBox>
-        <Button
-            VerticalAlignment="Bottom"
-            Click="OnApplyPresetClicked"
-            Content="적용" />
-      </StackPanel>
-      <InfoBar
-          x:Name="StatusInfoBar"
-          IsOpen="True"
-          IsClosable="False"
-          Severity="Informational"
-          Message="이 빌드는 내부 플랫폼 검증용이며 아직 공개 alpha가 아님." />
-    </StackPanel>
+  <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <InfoBar
+        x:Name="StatusInfoBar"
+        Margin="16,12,16,0"
+        IsOpen="False"
+        IsClosable="True"
+        Severity="Informational" />
+
+    <NavigationView
+        x:Name="RootNavigation"
+        Grid.Row="1"
+        Margin="0,8,0,0"
+        IsBackButtonVisible="Collapsed"
+        IsSettingsVisible="False"
+        PaneDisplayMode="Left"
+        SelectionChanged="OnNavigationSelectionChanged">
+      <NavigationView.MenuItems>
+        <NavigationViewItem Content="시작" Icon="Home" Tag="home" />
+        <NavigationViewItem Content="그룹" Icon="People" Tag="groups" />
+        <NavigationViewItem Content="최근 기록" Icon="Clock" Tag="history" />
+        <NavigationViewItem Content="설정" Icon="Setting" Tag="settings" />
+      </NavigationView.MenuItems>
+
+      <Grid Padding="36,24" MaxWidth="900" HorizontalAlignment="Stretch">
+        <ScrollViewer x:Name="HomePage">
+          <StackPanel Spacing="18">
+            <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="SIDEY" />
+            <TextBlock
+                MaxWidth="680"
+                HorizontalAlignment="Left"
+                Text="가까운 친구들이 작은 픽셀 동물이 되어 화면 가장자리에 함께 머무는 데스크톱 메신저입니다."
+                TextWrapping="Wrap" />
+
+            <Border Padding="24" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+              <StackPanel Spacing="12">
+                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="프로필" />
+                <TextBlock Text="닉네임은 2~8자이며 같은 그룹에서 중복할 수 있습니다." TextWrapping="Wrap" />
+                <TextBox x:Name="NicknameInput" Header="닉네임" MaxLength="8" PlaceholderText="예: 다람" />
+                <ComboBox
+                    x:Name="CharacterSelector"
+                    Header="캐릭터"
+                    DisplayMemberPath="DisplayName"
+                    SelectedValuePath="Id" />
+                <Button Click="OnSaveProfileClicked" Content="프로필 저장" HorizontalAlignment="Left" />
+              </StackPanel>
+            </Border>
+
+            <Border Padding="24" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+              <StackPanel Spacing="10">
+                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="시작하기" />
+                <TextBlock Text="프로필을 저장한 뒤 비공개 그룹을 만들거나 초대 코드로 참여하세요." TextWrapping="Wrap" />
+                <Button Click="OnOpenGroupsClicked" Content="그룹 설정 열기" HorizontalAlignment="Left" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+
+        <ScrollViewer x:Name="GroupsPage" Visibility="Collapsed">
+          <StackPanel Spacing="18">
+            <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="그룹" />
+            <TextBlock Text="최대 5개 그룹, 그룹당 최대 12명입니다. 제한과 방장 권한은 서버에서도 강제됩니다." TextWrapping="Wrap" />
+
+            <Border Padding="24" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+              <StackPanel Spacing="12">
+                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="내 그룹" />
+                <ListView
+                    x:Name="RoomList"
+                    Height="170"
+                    DisplayMemberPath="Name"
+                    SelectionChanged="OnRoomSelectionChanged" />
+                <TextBlock x:Name="ActiveRoomDetails" Text="그룹이 없습니다." TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button x:Name="CopyInviteButton" Click="OnCopyInviteClicked" Content="초대 코드 복사" />
+                  <Button x:Name="RotateInviteButton" Click="OnRotateInviteClicked" Content="새 초대 코드 발급" />
+                  <Button Click="OnComposeClicked" Content="메시지 작성" />
+                  <Button Click="OnLeaveRoomClicked" Content="그룹 나가기" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+
+            <Grid ColumnSpacing="16">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <Border Padding="24" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <StackPanel Spacing="10">
+                  <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="새 그룹 만들기" />
+                  <TextBox x:Name="CreateRoomInput" Header="그룹 이름" MaxLength="20" />
+                  <Button Click="OnCreateRoomClicked" Content="그룹 만들기" HorizontalAlignment="Left" />
+                </StackPanel>
+              </Border>
+              <Border Grid.Column="1" Padding="24" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <StackPanel Spacing="10">
+                  <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="초대 코드로 참여" />
+                  <TextBox x:Name="InviteCodeInput" Header="초대 코드" />
+                  <Button Click="OnJoinRoomClicked" Content="참여" HorizontalAlignment="Left" />
+                </StackPanel>
+              </Border>
+            </Grid>
+
+            <Border x:Name="OwnerManagementCard" Padding="24" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+              <StackPanel Spacing="12">
+                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="방장 관리" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBox x:Name="RenameRoomInput" Width="260" Header="새 그룹 이름" MaxLength="20" />
+                  <Button Click="OnRenameRoomClicked" Content="이름 변경" VerticalAlignment="Bottom" />
+                </StackPanel>
+                <ListView x:Name="MemberList" Height="150" DisplayMemberPath="Nickname" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Click="OnRemoveMemberClicked" Content="선택 멤버 추방" />
+                  <Button Click="OnDeleteRoomClicked" Content="그룹 삭제" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+
+        <ScrollViewer x:Name="HistoryPage" Visibility="Collapsed">
+          <StackPanel Spacing="18">
+            <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="최근 기록" />
+            <TextBlock Text="Postgres에 남아 있는 최근 메시지를 표시합니다. 메시지는 생성 후 7일이 지나면 서버에서 삭제됩니다." TextWrapping="Wrap" />
+            <ListView x:Name="HistoryList" MinHeight="360" DisplayMemberPath="Body" />
+          </StackPanel>
+        </ScrollViewer>
+
+        <ScrollViewer x:Name="SettingsPage" Visibility="Collapsed">
+          <StackPanel Spacing="18">
+            <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="설정" />
+            <Border Padding="24" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+              <StackPanel Spacing="14">
+                <ToggleSwitch x:Name="OverlayToggle" Header="오버레이 표시" Toggled="OnOverlayToggled" />
+                <ToggleSwitch x:Name="QuietModeToggle" Header="조용히 모드" OffContent="메시지 표시" OnContent="본문 숨김" Toggled="OnQuietModeToggled" />
+                <ToggleSwitch x:Name="ShowOfflineToggle" Header="오프라인 멤버 표시" Toggled="OnShowOfflineToggled" />
+                <ToggleSwitch x:Name="StartupToggle" Header="로그인 시 실행" Toggled="OnStartupToggled" />
+              </StackPanel>
+            </Border>
+            <Border Padding="24" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+              <StackPanel Spacing="12">
+                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="오버레이 영역" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <ComboBox x:Name="MonitorSelector" Width="190" Header="모니터" DisplayMemberPath="Name" SelectedValuePath="Identifier" />
+                  <ComboBox x:Name="EdgeSelector" Header="가장자리" SelectedIndex="0">
+                    <ComboBoxItem Content="하단" />
+                    <ComboBoxItem Content="좌측" />
+                    <ComboBoxItem Content="우측" />
+                    <ComboBoxItem Content="상단" />
+                  </ComboBox>
+                  <ComboBox x:Name="SpanSelector" Header="길이" SelectedIndex="2">
+                    <ComboBoxItem Content="1/3" />
+                    <ComboBoxItem Content="1/2" />
+                    <ComboBoxItem Content="전체" />
+                  </ComboBox>
+                  <Button Click="OnApplyRegionClicked" Content="적용" VerticalAlignment="Bottom" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
+            <Border Padding="24" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+              <StackPanel Spacing="8">
+                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="업데이트" />
+                <TextBlock Text="새 버전이 있으면 공식 GitHub Release 페이지를 엽니다. 앱이 설치 파일을 자동 다운로드하거나 실행하지 않습니다." TextWrapping="Wrap" />
+                <Button x:Name="UpdateButton" Click="OnCheckUpdateClicked" Content="업데이트 확인" HorizontalAlignment="Left" />
+              </StackPanel>
+            </Border>
+            <Border
+                x:Name="ValidationCard"
+                Padding="24"
+                CornerRadius="12"
+                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                Visibility="Collapsed">
+              <StackPanel Spacing="8">
+                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="내부 renderer 계측" />
+                <TextBlock Text="Debug 햄스터 제한 모드입니다. 내보내기는 수동 통과 판정을 기록하지 않습니다." TextWrapping="Wrap" />
+                <TextBlock x:Name="ValidationMetricsText" TextWrapping="Wrap" />
+                <TextBlock x:Name="ValidationPathText" TextWrapping="Wrap" />
+                <Button Click="OnExportValidationMetricsClicked" Content="현재 계측 JSON 내보내기" HorizontalAlignment="Left" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </Grid>
+    </NavigationView>
   </Grid>
 </Window>

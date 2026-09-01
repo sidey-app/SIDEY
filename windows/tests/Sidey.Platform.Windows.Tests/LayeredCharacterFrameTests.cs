@@ -3,7 +3,7 @@ using Sidey.Overlay;
 
 namespace Sidey.Platform.Windows.Tests;
 
-public sealed class LayeredHamsterFrameTests
+public sealed class LayeredCharacterFrameTests
 {
     [Fact]
     public void FrameBuilderPremultipliesAndRepeatsPixelsAtIntegerScale()
@@ -11,8 +11,9 @@ public sealed class LayeredHamsterFrameTests
         var sheet = EmptySheet();
         SetPixel(sheet, frame: 0, x: 0, y: 0, b: 100, g: 50, r: 20, a: 128);
 
-        var frame = LayeredHamsterRenderer.BuildFrame(
+        var frame = PremultipliedBgraFrameBuilder.BuildFrame(
             sheet,
+            PixelCharacterCatalog.Fallback,
             frame: 0,
             scale: 2,
             flipHorizontally: false,
@@ -35,8 +36,9 @@ public sealed class LayeredHamsterFrameTests
         var sheet = EmptySheet();
         SetPixel(sheet, frame: 0, x: 2, y: 3, b: 255, g: 0, r: 0, a: 255);
 
-        var frame = LayeredHamsterRenderer.BuildFrame(
+        var frame = PremultipliedBgraFrameBuilder.BuildFrame(
             sheet,
+            PixelCharacterCatalog.Fallback,
             frame: 0,
             scale: 1,
             flipHorizontally: false,
@@ -51,8 +53,9 @@ public sealed class LayeredHamsterFrameTests
         var sheet = EmptySheet();
         SetPixel(sheet, frame: 0, x: 2, y: 3, b: 255, g: 0, r: 0, a: 255);
 
-        var frame = LayeredHamsterRenderer.BuildFrame(
+        var frame = PremultipliedBgraFrameBuilder.BuildFrame(
             sheet,
+            PixelCharacterCatalog.Fallback,
             frame: 0,
             scale: 1,
             flipHorizontally: true,

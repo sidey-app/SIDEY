@@ -54,7 +54,7 @@ jobs:
           -p:Version=0.3.0-alpha.1
           --output build/windows/publish
 
-      - name: Package ZIP and SHA-256
+      - name: Build offline Setup.exe and SHA-256
         run: >-
           ./scripts/windows/package.ps1
           -PublishDir ./build/windows/publish
@@ -68,9 +68,18 @@ jobs:
           path: windows/tests/**/TestResults/*.trx
           if-no-files-found: warn
 
-      - name: Upload internal Windows artifact
+      - name: Upload Windows Setup candidate
         uses: actions/upload-artifact@v4
         with:
-          name: SIDEY-Windows-x64-0.3.0-alpha.1-internal
-          path: build/windows/artifacts/*
+          name: SIDEY-Windows-x64-v0.3.0-alpha.1-Setup-candidate
+          path: |
+            build/windows/artifacts/SIDEY-Windows-x64-v0.3.0-alpha.1-Setup.exe
+            build/windows/artifacts/SIDEY-Windows-x64-v0.3.0-alpha.1-Setup.exe.sha256
+          if-no-files-found: error
+
+      - name: Upload CI-only MSI
+        uses: actions/upload-artifact@v4
+        with:
+          name: SIDEY-Windows-x64-v0.3.0-alpha.1-internal-msi
+          path: build/windows/artifacts/internal/*.msi
           if-no-files-found: error

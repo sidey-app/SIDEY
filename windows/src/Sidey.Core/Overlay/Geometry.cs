@@ -21,6 +21,9 @@ public readonly record struct RectD(double X, double Y, double Width, double Hei
 
     public RectD Inset(double dx, double dy) =>
         new(X + dx, Y + dy, Width - (2d * dx), Height - (2d * dy));
+
+    public bool Intersects(RectD other) =>
+        MinX < other.MaxX && MaxX > other.MinX && MinY < other.MaxY && MaxY > other.MinY;
 }
 
 public sealed record MonitorGeometry(
@@ -33,6 +36,8 @@ public sealed record MonitorGeometry(
 public static class OverlayRegionLayout
 {
     public const double PreferredDepth = 240d;
+    public const double MaximumRenderDepth = 360d;
+    public const double MaximumTangentRenderPadding = 144d;
 
     public static MonitorGeometry? SelectMonitor(
         OverlayRegionPreference preference,
@@ -56,26 +61,51 @@ public static class OverlayRegionLayout
     }
 
     public static RectD Frame(OverlayRegionPreference preference, RectD workArea)
+        => Frames(preference, workArea).ActivityFrame;
+
+    public static OverlayRegionFrames Frames(OverlayRegionPreference preference, RectD workArea)
     {
         var depth = Math.Min(PreferredDepth, workArea.Height / 3d);
         if (preference.Edge is OverlayEdge.Bottom or OverlayEdge.Top)
         {
             var length = workArea.Width * preference.Span.Fraction();
-            return new RectD(
+            var activity = new RectD(
                 workArea.MidX - (length / 2d),
                 preference.Edge == OverlayEdge.Bottom ? workArea.MinY : workArea.MaxY - depth,
                 length,
                 depth);
+            var padding = Math.Min(
+                MaximumTangentRenderPadding,
+                Math.Min(activity.MinX - workArea.MinX, workArea.MaxX - activity.MaxX));
+            var renderDepth = Math.Min(MaximumRenderDepth, workArea.Height);
+            var render = new RectD(
+                activity.X - padding,
+                preference.Edge == OverlayEdge.Bottom ? workArea.MinY : workArea.MaxY - renderDepth,
+                activity.Width + (padding * 2d),
+                renderDepth);
+            return new OverlayRegionFrames(activity, render);
         }
 
         var verticalLength = workArea.Height * preference.Span.Fraction();
-        return new RectD(
+        var verticalActivity = new RectD(
             preference.Edge == OverlayEdge.Left ? workArea.MinX : workArea.MaxX - depth,
             workArea.MidY - (verticalLength / 2d),
             depth,
             verticalLength);
+        var verticalPadding = Math.Min(
+            MaximumTangentRenderPadding,
+            Math.Min(verticalActivity.MinY - workArea.MinY, workArea.MaxY - verticalActivity.MaxY));
+        var horizontalRenderDepth = Math.Min(MaximumRenderDepth, workArea.Width);
+        var verticalRender = new RectD(
+            preference.Edge == OverlayEdge.Left ? workArea.MinX : workArea.MaxX - horizontalRenderDepth,
+            verticalActivity.Y - verticalPadding,
+            horizontalRenderDepth,
+            verticalActivity.Height + (verticalPadding * 2d));
+        return new OverlayRegionFrames(verticalActivity, verticalRender);
     }
 }
+
+public sealed record OverlayRegionFrames(RectD ActivityFrame, RectD RenderFrame);
 
 public static class PixelScalePolicy
 {

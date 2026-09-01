@@ -1,0 +1,685 @@
+using Sidey.Core.Abstractions;
+using Sidey.Core.Domain;
+using Sidey.Core.Realtime;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading.Channels;
+
+namespace Sidey.Infrastructure;
+
+public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
+{
+    private static readonly TimeSpan StructuralCoalescingWindow = TimeSpan.FromMilliseconds(150);
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
+    private readonly SupabaseRuntimeConfiguration _configuration;
+    private readonly ICredentialStore _credentials;
+    private readonly IAuthSessionAccessor _sessions;
+    private readonly HttpClient _httpClient;
+    private readonly bool _ownsHttpClient;
+    private readonly SupabaseRealtimeTransport _realtime;
+    private IReadOnlyDictionary<Guid, long> _roomEpochs = new Dictionary<Guid, long>();
+    private Guid? _activeRoomId;
+
+    public SupabaseBackendGateway(
+        SupabaseRuntimeConfiguration configuration,
+        SupabaseAnonymousAuthService auth,
+        ICredentialStore credentials,
+        HttpClient? httpClient = null)
+    {
+        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        _sessions = auth ?? throw new ArgumentNullException(nameof(auth));
+        _credentials = credentials ?? throw new ArgumentNullException(nameof(credentials));
+        _httpClient = httpClient ?? new HttpClient();
+        _ownsHttpClient = httpClient is null;
+        _realtime = new SupabaseRealtimeTransport(configuration, auth);
+    }
+
+    public async Task<BackendSnapshot> FetchSnapshotAsync(CancellationToken cancellationToken = default)
+    {
+        var session = await RequiredSessionAsync(cancellationToken).ConfigureAwait(false);
+        var profileTask = GetAsync<DatabaseProfile[]>(
+            $"/rest/v1/profiles?id=eq.{session.UserId:D}&select=*",
+            cancellationToken);
+        var roomsTask = GetAsync<DatabaseRoom[]>(
+            "/rest/v1/rooms?select=*&order=created_at.asc",
+            cancellationToken);
+        var membershipsTask = GetAsync<DatabaseMembership[]>(
+            "/rest/v1/room_members?select=*&order=joined_at.asc",
+            cancellationToken);
+        var profilesTask = GetAsync<DatabaseProfile[]>(
+            "/rest/v1/profiles?select=*",
+            cancellationToken);
+
+        await Task.WhenAll(profileTask, roomsTask, membershipsTask, profilesTask)
+            .ConfigureAwait(false);
+        var peers = (await profilesTask.ConfigureAwait(false)).ToDictionary(profile => profile.Id);
+        var memberships = (await membershipsTask.ConfigureAwait(false))
+            .GroupBy(membership => membership.RoomId)
+            .ToDictionary(group => group.Key, group => group.ToArray());
+        var rooms = (await roomsTask.ConfigureAwait(false)).Select(room => new Room(
+            room.Id,
+            room.Name,
+            room.OwnerId,
+            memberships.GetValueOrDefault(room.Id, [])
+                .Select(membership =>
+                {
+                    peers.TryGetValue(membership.UserId, out var peer);
+                    return new RoomMember(
+                        membership.UserId,
+                        peer?.Nickname ?? "친구",
+                        PixelCharacterCatalog.NormalizeId(peer?.CharacterId),
+                        PresenceState.Offline);
+                })
+                .ToArray(),
+            room.InviteCodeHint,
+            room.InviteCodeReady,
+            room.RealtimeEpoch)).ToArray();
+        foreach (var room in rooms.Where(room => !room.InviteCodeReady))
+        {
+            await _credentials.DeleteInviteCodeAsync(room.Id, cancellationToken).ConfigureAwait(false);
+        }
+        var profile = (await profileTask.ConfigureAwait(false)).FirstOrDefault();
+        return new BackendSnapshot(
+            profile is null
+                ? null
+                : new Profile(
+                    profile.Id,
+                    profile.Nickname,
+                    PixelCharacterCatalog.NormalizeId(profile.CharacterId)),
+            rooms,
+            session.UserId);
+    }
+
+    public async Task<Profile> SaveProfileAsync(
+        string nickname,
+        string characterId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!ProfileValidator.IsValidNickname(nickname))
+        {
+            throw new ArgumentException("닉네임은 줄바꿈 없는 2~8자여야 합니다.", nameof(nickname));
+        }
+
+        var row = await RpcSingleAsync<DatabaseProfile>(
+            "upsert_profile",
+            new
+            {
+                p_nickname = ProfileValidator.NormalizeNickname(nickname),
+                p_character_id = PixelCharacterCatalog.NormalizeId(characterId),
+            },
+            cancellationToken).ConfigureAwait(false);
+        return new Profile(row.Id, row.Nickname, PixelCharacterCatalog.NormalizeId(row.CharacterId));
+    }
+
+    public async Task<CreateRoomResult> CreateRoomAsync(
+        string name,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateRoomName(name);
+        var row = await RpcSingleAsync<CreateRoomRow>(
+            "create_room",
+            new { p_name = RoomNameValidator.Normalize(name) },
+            cancellationToken).ConfigureAwait(false);
+        await _credentials.WriteInviteCodeAsync(row.RoomId, row.InviteCode, cancellationToken)
+            .ConfigureAwait(false);
+        var snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        var room = snapshot.Rooms.SingleOrDefault(room => room.Id == row.RoomId)
+            ?? throw new InvalidDataException("생성된 그룹이 서버 snapshot에 없습니다.");
+        return new CreateRoomResult(room, row.InviteCode);
+    }
+
+    public async Task<Room> JoinRoomAsync(
+        string inviteCode,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = inviteCode.Trim().ToUpperInvariant();
+        if (normalized.Length == 0)
+        {
+            throw new ArgumentException("초대 코드를 입력해야 합니다.", nameof(inviteCode));
+        }
+
+        var row = await RpcSingleAsync<JoinRoomRow>(
+            "join_room",
+            new { p_invite_code = normalized },
+            cancellationToken).ConfigureAwait(false);
+        if (!string.IsNullOrEmpty(row.ErrorCode))
+        {
+            throw new InvalidOperationException($"그룹 참여 실패: {row.ErrorCode}");
+        }
+
+        if (row.RoomId is not { } roomId)
+        {
+            throw new InvalidDataException("그룹 참여 응답에 room_id가 없습니다.");
+        }
+
+        await _credentials.WriteInviteCodeAsync(roomId, normalized, cancellationToken)
+            .ConfigureAwait(false);
+        var snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        return snapshot.Rooms.SingleOrDefault(room => room.Id == roomId)
+            ?? throw new InvalidDataException("참여한 그룹이 서버 snapshot에 없습니다.");
+    }
+
+    public async Task LeaveRoomAsync(Guid roomId, CancellationToken cancellationToken = default)
+    {
+        await RpcNoResultAsync("leave_room", new { p_room_id = roomId }, cancellationToken)
+            .ConfigureAwait(false);
+        await _credentials.DeleteInviteCodeAsync(roomId, cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task RenameRoomAsync(
+        Guid roomId,
+        string name,
+        CancellationToken cancellationToken = default)
+    {
+        ValidateRoomName(name);
+        return RpcNoResultAsync(
+            "rename_room",
+            new { p_room_id = roomId, p_name = RoomNameValidator.Normalize(name) },
+            cancellationToken);
+    }
+
+    public async Task<string> RotateInviteCodeAsync(
+        Guid roomId,
+        CancellationToken cancellationToken = default)
+    {
+        var inviteCode = await RpcSingleAsync<string>(
+            "rotate_invite_code",
+            new { p_room_id = roomId },
+            cancellationToken).ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(inviteCode))
+        {
+            throw new InvalidDataException("새 초대 코드가 비어 있습니다.");
+        }
+
+        await _credentials.WriteInviteCodeAsync(roomId, inviteCode, cancellationToken)
+            .ConfigureAwait(false);
+        return inviteCode;
+    }
+
+    public Task RemoveRoomMemberAsync(
+        Guid roomId,
+        Guid userId,
+        CancellationToken cancellationToken = default) =>
+        RpcNoResultAsync(
+            "remove_room_member",
+            new { p_room_id = roomId, p_user_id = userId },
+            cancellationToken);
+
+    public async Task DeleteRoomAsync(Guid roomId, CancellationToken cancellationToken = default)
+    {
+        await RpcNoResultAsync("delete_room", new { p_room_id = roomId }, cancellationToken)
+            .ConfigureAwait(false);
+        await _credentials.DeleteInviteCodeAsync(roomId, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<IReadOnlyList<ChatMessage>> FetchRecentMessagesAsync(
+        Guid roomId,
+        CancellationToken cancellationToken = default)
+    {
+        var rows = await GetAsync<DatabaseMessage[]>(
+            $"/rest/v1/messages?room_id=eq.{roomId:D}&select=*&order=created_at.desc&limit=50",
+            cancellationToken).ConfigureAwait(false);
+        return rows.Reverse().Select(MapMessage).ToArray();
+    }
+
+    public async Task<ChatMessage> SendMessageAsync(
+        Guid id,
+        Guid roomId,
+        string body,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = MessageValidator.Normalize(body);
+        if (!MessageValidator.IsValid(normalized))
+        {
+            throw new ArgumentException("메시지는 1~200자, 최대 3줄이어야 합니다.", nameof(body));
+        }
+
+        var row = await RpcSingleAsync<DatabaseMessage>(
+            "send_message",
+            new { p_id = id, p_room_id = roomId, p_body = normalized },
+            cancellationToken).ConfigureAwait(false);
+        return MapMessage(row);
+    }
+
+    public Task PublishPresenceAsync(
+        Guid roomId,
+        PresenceState state,
+        CancellationToken cancellationToken = default) =>
+        _realtime.PublishPresenceAsync(roomId, state, cancellationToken);
+
+    public async Task BroadcastTypingAsync(
+        Guid roomId,
+        bool active,
+        bool keepalive,
+        CancellationToken cancellationToken = default)
+    {
+        _ = keepalive;
+        await BroadcastRoomEventAsync(
+            roomId,
+            active ? "typing_start" : "typing_stop",
+            eventId: null,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task BroadcastCharacterPulseAsync(
+        Guid roomId,
+        Guid eventId,
+        CancellationToken cancellationToken = default)
+    {
+        await BroadcastRoomEventAsync(
+            roomId,
+            "character_pulse",
+            eventId,
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task SynchronizeRealtimeRoomsAsync(
+        IReadOnlyDictionary<Guid, long> roomEpochs,
+        Guid? activeRoomId,
+        PresenceState localPresence,
+        CancellationToken cancellationToken = default)
+    {
+        await _realtime.SynchronizeAsync(
+            roomEpochs,
+            activeRoomId,
+            localPresence,
+            cancellationToken).ConfigureAwait(false);
+        _roomEpochs = roomEpochs.ToDictionary(pair => pair.Key, pair => pair.Value);
+        _activeRoomId = activeRoomId is { } id && roomEpochs.ContainsKey(id) ? id : null;
+    }
+
+    public async IAsyncEnumerable<BackendEvent> SubscribeAsync(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var output = Channel.CreateBounded<BackendEvent>(new BoundedChannelOptions(256)
+        {
+            FullMode = BoundedChannelFullMode.Wait,
+            SingleReader = true,
+            SingleWriter = false,
+        });
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var pump = PumpEventsAsync(output.Writer, linked.Token);
+        try
+        {
+            await foreach (var backendEvent in output.Reader.ReadAllAsync(cancellationToken))
+            {
+                yield return backendEvent;
+            }
+        }
+        finally
+        {
+            linked.Cancel();
+            try
+            {
+                await pump.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        await _realtime.DisposeAsync().ConfigureAwait(false);
+        if (_ownsHttpClient)
+        {
+            _httpClient.Dispose();
+        }
+    }
+
+    private async Task PumpEventsAsync(
+        ChannelWriter<BackendEvent> output,
+        CancellationToken cancellationToken)
+    {
+        CancellationTokenSource? structuralDelay = null;
+        try
+        {
+            await foreach (var backendEvent in _realtime.ReadEventsAsync(cancellationToken))
+            {
+                if (backendEvent is BackendEvent.MessageChanged change)
+                {
+                    try
+                    {
+                        await HandleMessageChangeAsync(change, output, cancellationToken)
+                            .ConfigureAwait(false);
+                    }
+                    catch (Exception exception) when (exception is not OperationCanceledException)
+                    {
+                        await output.WriteAsync(
+                            new BackendEvent.TechnicalError(
+                                $"메시지를 RLS로 재확인하지 못했습니다: {exception.Message}"),
+                            cancellationToken).ConfigureAwait(false);
+                    }
+                    continue;
+                }
+
+                if (backendEvent is BackendEvent.MessagesInvalidated invalidated)
+                {
+                    try
+                    {
+                        var messages = await FetchRecentMessagesAsync(
+                            invalidated.RoomId,
+                            cancellationToken).ConfigureAwait(false);
+                        await output.WriteAsync(
+                            new BackendEvent.MessagesReplaced(invalidated.RoomId, messages),
+                            cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (Exception exception) when (exception is not OperationCanceledException)
+                    {
+                        await output.WriteAsync(
+                            new BackendEvent.TechnicalError(
+                                $"만료 메시지 목록을 다시 읽지 못했습니다: {exception.Message}"),
+                            cancellationToken).ConfigureAwait(false);
+                    }
+                    continue;
+                }
+
+                if (backendEvent is BackendEvent.RoomStructureChanged)
+                {
+                    structuralDelay?.Cancel();
+                    structuralDelay?.Dispose();
+                    structuralDelay = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    _ = EmitCoalescedSnapshotAsync(output, structuralDelay.Token);
+                    continue;
+                }
+
+                if (backendEvent is BackendEvent.ReconciliationRequired)
+                {
+                    await EmitReconciliationWithRetryAsync(output, cancellationToken)
+                        .ConfigureAwait(false);
+                    continue;
+                }
+
+                if (backendEvent is BackendEvent.ConnectionChanged { Connected: true })
+                {
+                    await EmitReconciliationWithRetryAsync(output, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
+                await output.WriteAsync(backendEvent, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            structuralDelay?.Cancel();
+            structuralDelay?.Dispose();
+            output.TryComplete();
+        }
+    }
+
+    private async Task EmitReconciliationWithRetryAsync(
+        ChannelWriter<BackendEvent> output,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            try
+            {
+                await EmitReconciliationAsync(output, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                await output.WriteAsync(
+                    new BackendEvent.TechnicalError(
+                        $"Realtime 상태 재동기화에 실패했습니다: {exception.Message}"),
+                    cancellationToken).ConfigureAwait(false);
+                await output.WriteAsync(
+                    new BackendEvent.ConnectionChanged(false),
+                    cancellationToken).ConfigureAwait(false);
+                await Task.Delay(
+                    RealtimeRecoveryPolicy.DelayForAttempt(attempt + 1),
+                    cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task EmitReconciliationAsync(
+        ChannelWriter<BackendEvent> output,
+        CancellationToken cancellationToken)
+    {
+        var snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        await output.WriteAsync(
+            new BackendEvent.SnapshotReceived(snapshot),
+            cancellationToken).ConfigureAwait(false);
+        if (_activeRoomId is { } activeRoomId
+            && snapshot.Rooms.Any(room => room.Id == activeRoomId))
+        {
+            await output.WriteAsync(
+                new BackendEvent.MessagesReplaced(
+                    activeRoomId,
+                    await FetchRecentMessagesAsync(activeRoomId, cancellationToken)
+                        .ConfigureAwait(false)),
+                cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task HandleMessageChangeAsync(
+        BackendEvent.MessageChanged change,
+        ChannelWriter<BackendEvent> output,
+        CancellationToken cancellationToken)
+    {
+        if (change.Operation == "DELETE")
+        {
+            await output.WriteAsync(
+                new BackendEvent.MessageDeleted(change.RoomId, change.MessageId),
+                cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (change.Operation is not ("INSERT" or "UPDATE"))
+        {
+            return;
+        }
+
+        var rows = await GetAsync<DatabaseMessage[]>(
+            $"/rest/v1/messages?room_id=eq.{change.RoomId:D}&id=eq.{change.MessageId:D}&select=*&limit=1",
+            cancellationToken).ConfigureAwait(false);
+        if (rows.FirstOrDefault() is { } row)
+        {
+            await output.WriteAsync(
+                new BackendEvent.MessageReceived(MapMessage(row)),
+                cancellationToken).ConfigureAwait(false);
+        }
+        else
+        {
+            await output.WriteAsync(
+                new BackendEvent.MessageDeleted(change.RoomId, change.MessageId),
+                cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private async Task EmitCoalescedSnapshotAsync(
+        ChannelWriter<BackendEvent> output,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(StructuralCoalescingWindow, cancellationToken).ConfigureAwait(false);
+            var snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            await output.WriteAsync(new BackendEvent.SnapshotReceived(snapshot), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            output.TryWrite(new BackendEvent.TechnicalError(
+                $"그룹 snapshot을 다시 읽지 못했습니다: {exception.Message}"));
+        }
+    }
+
+    private async Task<T> GetAsync<T>(string relativePath, CancellationToken cancellationToken)
+    {
+        using var request = await CreateRequestAsync(HttpMethod.Get, relativePath, cancellationToken)
+            .ConfigureAwait(false);
+        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        return await ReadRequiredAsync<T>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<T> RpcSingleAsync<T>(
+        string function,
+        object body,
+        CancellationToken cancellationToken)
+    {
+        using var request = await CreateRequestAsync(
+            HttpMethod.Post,
+            $"/rest/v1/rpc/{function}",
+            cancellationToken).ConfigureAwait(false);
+        request.Headers.TryAddWithoutValidation("Prefer", "return=representation");
+        request.Content = JsonContent.Create(body, options: JsonOptions);
+        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using var document = await ReadDocumentAsync(response, cancellationToken).ConfigureAwait(false);
+        var root = document.RootElement;
+        var element = root.ValueKind == JsonValueKind.Array
+            ? root.GetArrayLength() == 0
+                ? throw new InvalidDataException($"RPC {function} returned no rows.")
+                : root[0]
+            : root;
+        return element.Deserialize<T>(JsonOptions)
+            ?? throw new InvalidDataException($"RPC {function} returned an invalid row.");
+    }
+
+    private async Task RpcNoResultAsync(
+        string function,
+        object body,
+        CancellationToken cancellationToken)
+    {
+        using var request = await CreateRequestAsync(
+            HttpMethod.Post,
+            $"/rest/v1/rpc/{function}",
+            cancellationToken).ConfigureAwait(false);
+        request.Content = JsonContent.Create(body, options: JsonOptions);
+        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"Supabase RPC {function} failed with HTTP {(int)response.StatusCode}.");
+        }
+    }
+
+    private Task BroadcastRoomEventAsync(
+        Guid roomId,
+        string eventName,
+        Guid? eventId,
+        CancellationToken cancellationToken)
+    {
+        if (!_roomEpochs.TryGetValue(roomId, out var realtimeEpoch))
+        {
+            throw new InvalidOperationException("구독 중인 그룹의 Realtime epoch를 찾을 수 없습니다.");
+        }
+
+        return RpcNoResultAsync(
+            "broadcast_room_event",
+            new
+            {
+                p_room_id = roomId,
+                p_realtime_epoch = realtimeEpoch,
+                p_event = eventName,
+                p_event_id = eventId,
+            },
+            cancellationToken);
+    }
+
+    private async Task<HttpRequestMessage> CreateRequestAsync(
+        HttpMethod method,
+        string relativePath,
+        CancellationToken cancellationToken)
+    {
+        var session = await RequiredSessionAsync(cancellationToken).ConfigureAwait(false);
+        var request = new HttpRequestMessage(method, new Uri(_configuration.Url, relativePath));
+        request.Headers.Add("apikey", _configuration.PublishableKey);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
+        return request;
+    }
+
+    private async ValueTask<StoredSupabaseSession> RequiredSessionAsync(
+        CancellationToken cancellationToken) =>
+        await _sessions.GetStoredSessionAsync(cancellationToken).ConfigureAwait(false)
+        ?? throw new InvalidOperationException("Supabase 세션이 없습니다.");
+
+    private static async Task<T> ReadRequiredAsync<T>(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"Supabase REST request failed with HTTP {(int)response.StatusCode}.");
+        }
+
+        return await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken)
+            .ConfigureAwait(false)
+            ?? throw new InvalidDataException("Supabase REST response was empty.");
+    }
+
+    private static async Task<JsonDocument> ReadDocumentAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException($"Supabase RPC failed with HTTP {(int)response.StatusCode}.");
+        }
+
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken)
+            .ConfigureAwait(false);
+        return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static ChatMessage MapMessage(DatabaseMessage row) => new(
+        row.Id,
+        row.RoomId,
+        row.SenderId,
+        row.Body,
+        PostgresTimestampParser.Parse(row.CreatedAt));
+
+    private static void ValidateRoomName(string name)
+    {
+        if (!RoomNameValidator.IsValid(name))
+        {
+            throw new ArgumentException("그룹 이름은 줄바꿈 없는 1~20자여야 합니다.", nameof(name));
+        }
+    }
+
+    private sealed record DatabaseProfile(
+        Guid Id,
+        string Nickname,
+        [property: JsonPropertyName("character_id")] string CharacterId);
+
+    private sealed record DatabaseRoom(
+        Guid Id,
+        string Name,
+        [property: JsonPropertyName("owner_id")] Guid OwnerId,
+        [property: JsonPropertyName("invite_code_hint")] string InviteCodeHint,
+        [property: JsonPropertyName("invite_code_ready")] bool InviteCodeReady,
+        [property: JsonPropertyName("realtime_epoch")] long RealtimeEpoch);
+
+    private sealed record DatabaseMembership(
+        [property: JsonPropertyName("room_id")] Guid RoomId,
+        [property: JsonPropertyName("user_id")] Guid UserId);
+
+    private sealed record DatabaseMessage(
+        Guid Id,
+        [property: JsonPropertyName("room_id")] Guid RoomId,
+        [property: JsonPropertyName("sender_id")] Guid SenderId,
+        string Body,
+        [property: JsonPropertyName("created_at")] string CreatedAt);
+
+    private sealed record CreateRoomRow(
+        [property: JsonPropertyName("room_id")] Guid RoomId,
+        [property: JsonPropertyName("invite_code")] string InviteCode);
+
+    private sealed record JoinRoomRow(
+        [property: JsonPropertyName("room_id")] Guid? RoomId,
+        [property: JsonPropertyName("error_code")] string? ErrorCode);
+}

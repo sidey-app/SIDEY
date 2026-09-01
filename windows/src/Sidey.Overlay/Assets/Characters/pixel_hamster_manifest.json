@@ -1,5 +1,6 @@
 {
   "character_id": "pixel_hamster",
+  "display_name": "아기 햄스터",
   "legacy_aliases": ["minty_pup"],
   "frame_pixel_size": [24, 24],
   "render_dip_size": [48, 48],
