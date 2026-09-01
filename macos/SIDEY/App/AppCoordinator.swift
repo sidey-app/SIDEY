@@ -21,7 +21,7 @@ final class AppCoordinator {
         onCharacterDoubleClick: { [weak self] in self?.characterDoubleClicked() },
         onRegionChanged: { [weak self] in self?.persistPreferences() }
     )
-    private lazy var historyWindow = HistoryWindowController(model: model)
+    private lazy var historyWindow = makeHistoryWindow()
     lazy var settingsWindow = SettingsWindowController(
         model: model,
         actions: SettingsActions(
@@ -388,6 +388,22 @@ final class AppCoordinator {
 
     func persistPreferences() {
         preferencesStore.save(model.preferences)
+    }
+
+    private func makeHistoryWindow() -> HistoryWindowController {
+        HistoryWindowController(
+            model: model,
+            loadPage: { [weak self] roomID, cursor, pageSize in
+                guard let backend = self?.backend else {
+                    throw SideyBackendError.realtimeUnavailable
+                }
+                return try await backend.historyPage(
+                    roomID: roomID,
+                    before: cursor,
+                    pageSize: pageSize
+                )
+            }
+        )
     }
 
     private func showHistory() {

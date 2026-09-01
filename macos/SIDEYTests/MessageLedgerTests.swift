@@ -51,7 +51,15 @@ final class MessageLedgerTests: XCTestCase {
         ledger.confirm(older)
 
         XCTAssertNotEqual(older.createdAt, newer.createdAt)
-        XCTAssertEqual(OverlayHistoryView.recentEntries(in: ledger, roomID: roomID).map(\.body), ["최신", "이전"])
+        XCTAssertEqual(
+            MessageHistoryMerge.entries(
+                pagedMessages: [],
+                ledger: ledger,
+                outbox: MessageOutbox(),
+                roomID: roomID
+            ).map(\.body),
+            ["최신", "이전"]
+        )
     }
 
     func testOptimisticMessagePreservesSenderAndConfirmsWithoutDuplicate() {
@@ -79,7 +87,7 @@ final class MessageLedgerTests: XCTestCase {
     }
 
     @MainActor
-    func testHistoryOrdersNewestMessageFirstAndCapsAtTwenty() {
+    func testHistoryOrdersNewestMessageFirstWithoutLegacyTwentyRowCap() {
         let roomID = UUID()
         let now = Date()
         var ledger = MessageLedger()
@@ -93,10 +101,15 @@ final class MessageLedgerTests: XCTestCase {
             ), now: now)
         }
 
-        let entries = OverlayHistoryView.recentEntries(in: ledger, roomID: roomID)
-        XCTAssertEqual(entries.count, 20)
+        let entries = MessageHistoryMerge.entries(
+            pagedMessages: [],
+            ledger: ledger,
+            outbox: MessageOutbox(),
+            roomID: roomID
+        )
+        XCTAssertEqual(entries.count, 24)
         XCTAssertEqual(entries.first?.body, "메시지 23")
-        XCTAssertEqual(entries.last?.body, "메시지 4")
+        XCTAssertEqual(entries.last?.body, "메시지 0")
     }
 
     func testActiveBubblesReplacePerSenderEvictOldestAndExpireIndependently() {

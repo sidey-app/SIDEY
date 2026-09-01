@@ -354,6 +354,35 @@ actor SideyBackend {
         return try rows.reversed().map { try $0.domain }
     }
 
+    func historyPage(
+        roomID: UUID,
+        before cursor: MessageHistoryCursor?,
+        pageSize: Int
+    ) async throws -> MessageHistoryPage {
+        let boundedPageSize = min(max(pageSize, 1), 50)
+        let cutoff = PostgresTimestampEncoder.encode(
+            Date().addingTimeInterval(-MessageLedger.retentionInterval)
+        )
+        let query = client.from("messages")
+            .select()
+            .eq("room_id", value: roomID.uuidString)
+            .gte("created_at", value: cutoff)
+
+        if let cursor {
+            _ = try PostgresTimestampDecoder.decode(cursor.rawCreatedAt)
+            _ = query.or(
+                "created_at.lt.\(cursor.rawCreatedAt),and(created_at.eq.\(cursor.rawCreatedAt),id.lt.\(cursor.id.uuidString))"
+            )
+        }
+
+        let rows: [DatabaseMessage] = try await query
+            .order("created_at", ascending: false)
+            .order("id", ascending: false)
+            .limit(boundedPageSize + 1)
+            .execute().value
+        return try MessageHistoryPageMapper.page(from: rows, pageSize: boundedPageSize)
+    }
+
     func currentUserID() -> UUID? {
         client.auth.currentUser?.id
     }

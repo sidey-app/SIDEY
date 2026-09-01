@@ -11,6 +11,16 @@ struct BackendReconciliation: Equatable, Sendable {
     let activeMessages: [ChatMessage]
 }
 
+struct MessageHistoryCursor: Equatable, Sendable {
+    let rawCreatedAt: String
+    let id: UUID
+}
+
+struct MessageHistoryPage: Equatable, Sendable {
+    let messages: [ChatMessage]
+    let nextCursor: MessageHistoryCursor?
+}
+
 enum BackendEvent: Sendable {
     case snapshot(BackendSnapshot)
     case message(ChatMessage)
@@ -128,6 +138,23 @@ struct DatabaseMessage: Codable, Sendable {
     }
 }
 
+enum MessageHistoryPageMapper {
+    static func page(
+        from orderedRows: [DatabaseMessage],
+        pageSize: Int
+    ) throws -> MessageHistoryPage {
+        let boundedPageSize = min(max(pageSize, 1), 50)
+        let visibleRows = Array(orderedRows.prefix(boundedPageSize))
+        let messages = try visibleRows.map { try $0.domain }
+        let nextCursor = orderedRows.count > boundedPageSize
+            ? visibleRows.last.map {
+                MessageHistoryCursor(rawCreatedAt: $0.createdAt, id: $0.id)
+            }
+            : nil
+        return MessageHistoryPage(messages: messages, nextCursor: nextCursor)
+    }
+}
+
 enum PostgresTimestampDecoder {
     private static let shape = try! NSRegularExpression(
         pattern: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$"#
@@ -226,6 +253,15 @@ enum PostgresTimestampDecoder {
             result = (result * 10) + Int(byte - Character("0").asciiValue!)
         }
         return result
+    }
+}
+
+enum PostgresTimestampEncoder {
+    static func encode(_ value: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        return formatter.string(from: value)
     }
 }
 

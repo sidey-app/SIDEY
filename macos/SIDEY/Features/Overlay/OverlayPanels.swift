@@ -316,10 +316,25 @@ final class CharacterHotspotWindowController {
 @MainActor
 final class HistoryWindowController: NSWindowController, NSWindowDelegate {
     static let contentSize = CGSize(width: 560, height: 420)
-    private let onClose: () -> Void
+    private let model: AppModel
+    private(set) var historyStore: MessageHistoryStore
 
-    init(model: AppModel, onClose: @escaping () -> Void = {}) {
-        self.onClose = onClose
+    convenience init(model: AppModel) {
+        self.init(
+            model: model,
+            loadPage: { _, _, _ in
+                MessageHistoryPage(messages: [], nextCursor: nil)
+            }
+        )
+    }
+
+    init(
+        model: AppModel,
+        loadPage: @escaping MessageHistoryPageLoader
+    ) {
+        self.model = model
+        let historyStore = MessageHistoryStore(loadPage: loadPage)
+        self.historyStore = historyStore
         let window = NSWindow(
             contentRect: CGRect(origin: .zero, size: Self.contentSize),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -333,7 +348,14 @@ final class HistoryWindowController: NSWindowController, NSWindowDelegate {
         window.minSize = CGSize(width: 440, height: 300)
         window.center()
         window.contentView = NSHostingView(
-            rootView: OverlayHistoryView(model: model, onClose: { window.orderOut(nil) })
+            rootView: OverlayHistoryView(
+                model: model,
+                history: historyStore,
+                onClose: { [weak window] in
+                    historyStore.deactivate()
+                    window?.orderOut(nil)
+                }
+            )
         )
         super.init(window: window)
         window.delegate = self
@@ -343,9 +365,14 @@ final class HistoryWindowController: NSWindowController, NSWindowDelegate {
         fatalError("init(coder:) has not been implemented")
     }
 
-    func show() { window?.makeKeyAndOrderFront(nil) }
+    func show() {
+        historyStore.activate(roomID: model.realtimeActiveRoomID)
+        window?.makeKeyAndOrderFront(nil)
+    }
 
-    func windowWillClose(_ notification: Notification) { onClose() }
+    func windowWillClose(_ notification: Notification) {
+        historyStore.deactivate()
+    }
 }
 
 private extension NSView {
