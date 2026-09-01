@@ -9,6 +9,43 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <description>Signed macOS updates for SIDEY</description>
         <language>ko</language>
         <item>
+            <title>1.0.0</title>
+            <pubDate>Tue, 01 Sep 2026 10:25:39 +0900</pubDate>
+            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.0</link>
+            <sparkle:version>11</sparkle:version>
+            <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.0
+
+`1.0.0` build `11` · macOS 26+ · Apple Silicon(arm64) · stable release
+
+## 설치
+
+- Homebrew: `brew install --cask sidey-app/tap/sidey`
+- 직접 설치: Release의 DMG를 열고 `SIDEY.app`을 Applications로 이동
+
+새 설치에는 공증된 DMG를 사용합니다. ZIP은 앱 내 업데이트용이며 DMG와 ZIP의 SHA-256 파일을 같은 Release에서 제공합니다.
+
+## 주요 기능
+
+- 최대 12명의 가까운 친구가 참여하는 초대 전용 비공개 그룹을 제공합니다.
+- 온라인·자리 비움·오프라인 상태와 SIDEY 입력창의 타이핑 상태를 픽셀 동물로 표시합니다.
+- 최대 200자의 짧은 메시지를 화면 가장자리 말풍선과 최근 기록으로 확인할 수 있습니다.
+- 자리 비움 상태는 글자 수가 순환하지 않는 고정 `Zzz`와 부유·투명도 연출로 표시합니다.
+- 메시지는 서버에 7일간 보관한 뒤 일일 정리 작업으로 자동 삭제합니다.
+- 끊어진 Realtime 채널을 자동 복구하고 Presence·멤버·메시지를 다시 동기화합니다.
+
+## 제한 사항
+
+- macOS 26 이상 Apple Silicon Mac만 지원합니다.
+- E2EE는 제공하지 않습니다.
+- 보안 화면, DRM 앱, 권한이 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
+- Windows 개발 파일은 이 macOS 배포에 포함되지 않습니다.
+]]></description>
+            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.0/SIDEY-macOS-arm64-v1.0.0.zip" length="5148115" type="application/octet-stream" sparkle:edSignature="9Cc3iZqjK5cZ6Yl+BdUaJjBUWIsB3uSeA0U/7g4XKnA/EJxuZrl902FGoWX60W75tfLMHbVHC0yNxF3RfrFABQ=="/>
+        </item>
+        <item>
             <title>0.2.0</title>
             <pubDate>Tue, 01 Sep 2026 09:10:30 +0900</pubDate>
             <link>https://github.com/sidey-app/SIDEY/releases/tag/v0.2.0</link>
@@ -159,45 +196,9 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
 ]]></description>
             <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v0.2.0-alpha.5/SIDEY-macOS-arm64-v0.2.0-alpha.5.zip" length="5083952" type="application/octet-stream" sparkle:edSignature="G4VnEZKvq/jg8Qx8WdTlYCayjGOY4fmcwmTSepOCORZFN3zejLu13VcJ4s5Yxl1mdErznvpu0xH3Blioz8O8Dg=="/>
         </item>
-        <item>
-            <title>0.2.0</title>
-            <pubDate>Mon, 31 Aug 2026 18:34:01 +0900</pubDate>
-            <link>https://github.com/sidey-app/SIDEY/releases/tag/v0.2.0-alpha.4</link>
-            <sparkle:version>6</sparkle:version>
-            <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# SIDEY v0.2.0-alpha.4
-
-`0.2.0` build `6` · macOS 26+ · Apple Silicon(arm64) · pre-release
-
-## 설치
-
-- Homebrew: `brew install --cask sidey-app/tap/sidey`
-- 직접 설치: Release의 DMG를 열고 `SIDEY.app`을 Applications로 이동
-
-새 설치에는 공증된 DMG를 사용합니다. ZIP은 Sparkle 업데이트용이며 DMG와 ZIP의 SHA-256 파일을 같은 Release에서 제공합니다.
-
-## 변경 사항
-
-- 끊어진 Realtime 채널을 감지해 Presence, 메시지, 그룹 snapshot과 `character_pulse` 수신을 재실행 없이 복구합니다.
-- 그룹 카드를 단순화하고 방장 전용 그룹 이름 변경, 멤버 추방, 그룹 영구 삭제 흐름을 추가했습니다.
-- 입력창 포커스·draft·타이핑 종료 처리를 다듬고, 오버레이 영역의 직접 드래그를 제거해 프리셋 배치를 일관되게 유지합니다.
-- 배포본을 Developer ID Application과 Hardened Runtime으로 서명하고 Apple 공증·ticket staple을 적용했습니다.
-- 로컬 개발본은 `Sidey-dev`·`development` 채널로 분리하고 Sparkle 자동·수동 업데이트를 비활성화했습니다.
-
-## 제한 사항
-
-- 아직 alpha이며 macOS 26 이상 Apple Silicon Mac만 지원합니다.
-- E2EE는 제공하지 않습니다.
-- 보안 화면, DRM 앱, 권한이 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
-- Windows 개발 파일은 이 macOS 배포에 포함되지 않습니다.
-]]></description>
-            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v0.2.0-alpha.4/SIDEY-macOS-arm64-v0.2.0-alpha.4.zip" length="5063287" type="application/octet-stream" sparkle:edSignature="JSb3/aLEPQXdNmzpHeoAsvoPw9K8d8dtjxwToN3ODfK12OcV3tMbQwuQcSyzE1wZqUZFbstAVo+bkLMWl/hXAQ=="/>
-        </item>
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: yB6hRtQATIF/KJMpqLRY5TQV/JzqCQvfYca64IExOIib0nBK/GEjwoglQOZleZlmUGTWlNAtMOq0ppRfbYRTDw==
-length: 12646
+edSignature: z8D+kW2etfVCOOKnKQpatZuf5Dlx/On7QoCn7NKzjCXfkDQSzZAk6FjZ/VK/B6hD0QVsdRp/9+dN6uHAzgeWAQ==
+length: 12556
 -->
