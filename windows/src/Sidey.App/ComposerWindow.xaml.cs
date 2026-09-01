@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Sidey.Core.Domain;
+using Sidey.Platform.Windows;
 using Windows.System;
 
 namespace Sidey.App;

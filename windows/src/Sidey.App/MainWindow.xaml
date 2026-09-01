@@ -108,20 +108,25 @@
               </Border>
             </Grid>
 
-            <Border x:Name="OwnerManagementCard" Padding="24" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
-              <StackPanel Spacing="12">
-                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="방장 관리" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <TextBox x:Name="RenameRoomInput" Width="260" Header="새 그룹 이름" MaxLength="20" />
-                  <Button Click="OnRenameRoomClicked" Content="이름 변경" VerticalAlignment="Bottom" />
+            <ContentControl
+                x:Name="OwnerManagementCard"
+                HorizontalContentAlignment="Stretch"
+                IsTabStop="False">
+              <Border Padding="24" CornerRadius="12" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}">
+                <StackPanel Spacing="12">
+                  <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="방장 관리" />
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBox x:Name="RenameRoomInput" Width="260" Header="새 그룹 이름" MaxLength="20" />
+                    <Button Click="OnRenameRoomClicked" Content="이름 변경" VerticalAlignment="Bottom" />
+                  </StackPanel>
+                  <ListView x:Name="MemberList" Height="150" DisplayMemberPath="Nickname" />
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Click="OnRemoveMemberClicked" Content="선택 멤버 추방" />
+                    <Button Click="OnDeleteRoomClicked" Content="그룹 삭제" />
+                  </StackPanel>
                 </StackPanel>
-                <ListView x:Name="MemberList" Height="150" DisplayMemberPath="Nickname" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
-                  <Button Click="OnRemoveMemberClicked" Content="선택 멤버 추방" />
-                  <Button Click="OnDeleteRoomClicked" Content="그룹 삭제" />
-                </StackPanel>
-              </StackPanel>
-            </Border>
+              </Border>
+            </ContentControl>
           </StackPanel>
         </ScrollViewer>
 
