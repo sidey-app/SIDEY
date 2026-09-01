@@ -4,7 +4,13 @@
     <OutputName>SIDEY-Windows-x64-v$(DisplayVersion)-internal</OutputName>
     <InstallerPlatform>x64</InstallerPlatform>
     <DefineConstants>PublishDir=$(PublishDir);ProductVersion=$(ProductVersion);DisplayVersion=$(DisplayVersion)</DefineConstants>
-    <SuppressIces>ICE38;ICE64;ICE91</SuppressIces>
+    <!--
+      WiX dynamic Files harvesting reads the full multi-language version resource
+      from a few self-contained .NET runtime binaries. That exceeds MSI's legacy
+      File.Language field even though the payload itself is valid and required.
+      The remaining ICEs are the documented per-user harvesting exceptions.
+    -->
+    <SuppressIces>ICE03;ICE38;ICE64;ICE91</SuppressIces>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="WixToolset.Util.wixext" />
