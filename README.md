@@ -13,6 +13,10 @@
 
 공식 웹사이트: [sidey-app.github.io/SIDEY](https://sidey-app.github.io/SIDEY/)
 
+![SIDEY 하단 오버레이 사용 예시 — 작업 화면 아래에서 상태와 짧은 메시지를 보여주는 픽셀 동물 친구들](docs/assets/sidey-overlay-preview.png)
+
+실제 런타임 캐릭터 스프라이트를 사용한 하단 오버레이 예시입니다.
+
 [![macOS 26+](https://img.shields.io/badge/macOS_26%2B-Native-3182F6?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/sidey-app/SIDEY/releases)
 ![Apple Silicon](https://img.shields.io/badge/Architecture-Apple_Silicon_arm64-191F28?style=for-the-badge)
 ![Stable](https://img.shields.io/badge/Status-Stable-2EA043?style=for-the-badge)
