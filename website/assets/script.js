@@ -26,7 +26,6 @@
   }
 
   copyButtons.forEach((button) => {
-    const defaultLabel = button.textContent;
     let resetTimer;
 
     button.addEventListener("click", async () => {
@@ -38,22 +37,29 @@
       }
 
       window.clearTimeout(resetTimer);
+      button.dataset.copyState = "idle";
+      if (status) {
+        status.textContent = "";
+      }
 
       try {
         await copyText(target.textContent.trim());
-        button.textContent = button.dataset.copySuccess;
+        button.dataset.copyState = "success";
         if (status) {
           status.textContent = button.dataset.copyAnnouncement;
         }
       } catch (_error) {
-        button.textContent = button.dataset.copyFailure;
+        button.dataset.copyState = "failure";
         if (status) {
           status.textContent = button.dataset.copyFailureAnnouncement;
         }
       }
 
       resetTimer = window.setTimeout(() => {
-        button.textContent = defaultLabel;
+        button.dataset.copyState = "idle";
+        if (status) {
+          status.textContent = "";
+        }
       }, 2000);
     });
   });

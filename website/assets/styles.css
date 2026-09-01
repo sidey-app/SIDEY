@@ -542,47 +542,6 @@ main {
   transform: rotate(45deg);
 }
 
-.typing-bubble {
-  position: absolute;
-  z-index: 6;
-  right: 7%;
-  bottom: 77px;
-  min-width: 38px;
-  padding: 5px 10px 7px;
-  border-radius: 999px;
-  color: var(--brand-dark);
-  background: #fff;
-  box-shadow: 0 9px 22px rgba(49, 48, 91, 0.13);
-  font-size: 0.88rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-}
-
-.status-pill {
-  position: absolute;
-  z-index: 7;
-  right: 20px;
-  bottom: 18px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 9px;
-  border-radius: 999px;
-  color: #4c4d62;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 7px 20px rgba(49, 48, 91, 0.1);
-  font-size: 0.68rem;
-  font-weight: 760;
-}
-
-.status-pill::before {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--green);
-  content: "";
-}
-
 @keyframes float-character {
   0%,
   100% {
@@ -964,6 +923,7 @@ main {
 }
 
 .code-row code {
+  flex: 1 1 auto;
   min-width: 0;
   overflow-x: auto;
   color: #f7f7ff;
@@ -974,22 +934,60 @@ main {
 }
 
 .copy-button {
+  display: inline-grid;
   flex: 0 0 auto;
-  min-width: 60px;
+  width: 34px;
+  min-width: 34px;
   min-height: 34px;
-  padding: 4px 10px;
+  margin-left: auto;
+  padding: 0;
+  place-items: center;
   border: 0;
   border-radius: 9px;
   color: #fff;
   background: rgba(255, 255, 255, 0.13);
-  font: inherit;
-  font-size: 0.75rem;
-  font-weight: 760;
   cursor: pointer;
 }
 
 .copy-button:hover {
   background: rgba(255, 255, 255, 0.22);
+}
+
+.copy-button-icon {
+  display: inline-flex;
+  grid-area: 1 / 1;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.copy-button-icon svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.9;
+}
+
+.copy-button-icon-success {
+  opacity: 0;
+  transform: scale(0.72);
+}
+
+.copy-button[data-copy-state="success"] .copy-button-icon-default {
+  opacity: 0;
+  transform: scale(0.72);
+}
+
+.copy-button[data-copy-state="success"] .copy-button-icon-success {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.copy-button[data-copy-state="failure"] {
+  color: #ffb4c1;
 }
 
 .site-footer {
@@ -1158,14 +1156,6 @@ main {
     left: 25%;
   }
 
-  .typing-bubble {
-    bottom: 64px;
-  }
-
-  .status-pill {
-    display: none;
-  }
-
   .section {
     padding: 78px 0;
   }
@@ -1231,14 +1221,6 @@ main {
     display: none;
   }
 
-  .code-row {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .copy-button {
-    align-self: flex-end;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -123,12 +123,10 @@
               </div>
             </div>
             <span class="speech-bubble">Meet at seven?</span>
-            <span class="typing-bubble">...</span>
             <span class="character character-hamster"></span>
             <span class="character character-cat"></span>
             <span class="character character-puppy"></span>
             <span class="character character-rabbit"></span>
-            <span class="status-pill">4 friends online</span>
             <span class="scene-edge"></span>
           </div>
           <figcaption class="visually-hidden">
@@ -230,12 +228,23 @@
                   type="button"
                   data-copy-target="brew-command"
                   data-copy-status="copy-status"
-                  data-copy-success="Copied"
-                  data-copy-failure="Failed"
+                  data-copy-state="idle"
                   data-copy-announcement="Homebrew install command copied."
                   data-copy-failure-announcement="Could not copy. Please select the command manually."
                   aria-label="Copy Homebrew install command"
-                >Copy</button>
+                >
+                  <span class="copy-button-icon copy-button-icon-default" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <rect x="8" y="8" width="11" height="11" rx="2"></rect>
+                      <path d="M16 8V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h1"></path>
+                    </svg>
+                  </span>
+                  <span class="copy-button-icon copy-button-icon-success" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <path d="m6.5 12.5 3.5 3.5 7.5-8"></path>
+                    </svg>
+                  </span>
+                </button>
               </div>
               <span class="visually-hidden" id="copy-status" role="status" aria-live="polite"></span>
             </div>
