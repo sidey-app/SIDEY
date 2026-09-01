@@ -37,6 +37,7 @@ extension AppCoordinator {
                 let userID = await backend.currentUserID()
                 guard !Task.isCancelled else { return }
                 model.apply(snapshot: snapshot, currentUserID: userID)
+                refreshCommerceState()
                 let reconciliation = try await backend.syncRealtime(
                     rooms: snapshot.rooms,
                     activeRoomID: model.activeRoom?.id
@@ -66,6 +67,11 @@ extension AppCoordinator {
     func saveProfile() {
         guard let backend else { return }
         let characterID = PixelCharacterCatalog.canonicalID(for: model.selectedCharacterID)
+        guard model.isCharacterSelectable(characterID) else {
+            model.errorMessage = "보유한 캐릭터만 프로필에 선택할 수 있습니다."
+            model.selectedCharacterID = PixelCharacterCatalog.pixelHamsterID
+            return
+        }
         runMutation {
             _ = try await backend.upsertProfile(
                 nickname: self.model.nickname,
@@ -78,6 +84,10 @@ extension AppCoordinator {
         guard let backend else { return }
         let roomName = model.newRoomName
         let characterID = PixelCharacterCatalog.canonicalID(for: model.selectedCharacterID)
+        guard model.isCharacterSelectable(characterID) else {
+            model.errorMessage = "보유한 캐릭터만 프로필에 선택할 수 있습니다."
+            return
+        }
         runMutation(groupOperation: .creating) {
             _ = try await backend.upsertProfile(
                 nickname: self.model.nickname,
@@ -97,6 +107,10 @@ extension AppCoordinator {
         guard let backend else { return }
         let inviteCode = model.inviteCode
         let characterID = PixelCharacterCatalog.canonicalID(for: model.selectedCharacterID)
+        guard model.isCharacterSelectable(characterID) else {
+            model.errorMessage = "보유한 캐릭터만 프로필에 선택할 수 있습니다."
+            return
+        }
         runMutation(groupOperation: .joining) {
             _ = try await backend.upsertProfile(
                 nickname: self.model.nickname,
@@ -422,5 +436,145 @@ extension AppCoordinator {
         overlayWindows.playCharacterPulse(event)
         guard let backend else { return }
         Task { try? await backend.broadcastCharacterPulse(roomID: room.id, eventID: event.id) }
+    }
+
+    func refreshCommerceState(productID: String? = nil) {
+        guard let backend else { return }
+        let productIDs = productID.map { [$0] } ?? model.commerceProducts.map(\.id)
+
+        for productID in productIDs {
+            guard model.commerceProduct(id: productID) != nil,
+                  commerceProductTasks[productID] == nil
+            else { continue }
+
+            model.setCommerceWorking(true, productID: productID)
+            commerceProductTasks[productID] = Task { [weak self] in
+                guard let self else { return }
+                defer {
+                    model.setCommerceWorking(false, productID: productID)
+                    commerceProductTasks[productID] = nil
+                }
+                do {
+                    let state = try await backend.commerceState(productID: productID)
+                    model.apply(commerceState: state)
+                } catch is CancellationError {
+                    return
+                } catch {
+                    model.setCommercePurchaseState(
+                        .error("상점 상태를 불러오지 못했습니다."),
+                        productID: productID
+                    )
+                }
+            }
+        }
+    }
+
+    private func connectGoogleForCommerce(productID: String) {
+        guard let backend,
+              model.commerceProduct(id: productID) != nil,
+              commerceProductTasks[productID] == nil,
+              googleConnectionProductID == nil || googleConnectionProductID == productID
+        else { return }
+
+        googleConnectionProductID = productID
+        model.setCommerceWorking(true, productID: productID)
+        model.errorMessage = nil
+        commerceProductTasks[productID] = Task { [weak self] in
+            guard let self else { return }
+            var didOpenBrowser = false
+            defer {
+                if !didOpenBrowser {
+                    googleConnectionProductID = nil
+                }
+                model.setCommerceWorking(false, productID: productID)
+                commerceProductTasks[productID] = nil
+            }
+            do {
+                let url = try await backend.googleIdentityLinkURL()
+                guard NSWorkspace.shared.open(url) else {
+                    throw SideyBackendError.remote("기본 브라우저를 열지 못했습니다.")
+                }
+                didOpenBrowser = true
+                model.successMessage = "브라우저에서 Google 계정 연결을 완료해 주세요."
+            } catch is CancellationError {
+                return
+            } catch {
+                model.setCommercePurchaseState(
+                    .error("Google 연결을 시작하지 못했습니다."),
+                    productID: productID
+                )
+                model.errorMessage = "Google 계정 연결 실패: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func purchase(productID: String) {
+        guard let backend,
+              let productState = model.commerceProduct(id: productID),
+              commerceProductTasks[productID] == nil,
+              productState.purchaseState != .owned
+        else { return }
+
+        if productState.purchaseState == .googleConnectionRequired {
+            connectGoogleForCommerce(productID: productID)
+            return
+        }
+        guard productState.purchaseState == .available
+                || productState.purchaseState == .refunded
+        else { return }
+
+        let product = productState.product
+        model.setCommerceWorking(true, productID: productID)
+        model.setCommercePurchaseState(.openingCheckout, productID: productID)
+        model.errorMessage = nil
+        commerceProductTasks[productID] = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                model.setCommerceWorking(false, productID: productID)
+                commerceProductTasks[productID] = nil
+            }
+            do {
+                let checkout = try await backend.createCommerceOrder(productID: productID)
+                guard NSWorkspace.shared.open(checkout.checkoutURL) else {
+                    throw SideyBackendError.remote("기본 브라우저를 열지 못했습니다.")
+                }
+                model.setCommercePurchaseState(.confirming, productID: productID)
+
+                for _ in 0..<90 {
+                    try Task.checkCancellation()
+                    try await Task.sleep(for: .seconds(2))
+                    let state = try await backend.commerceState(productID: productID)
+                    if state.purchaseState == .owned {
+                        model.apply(commerceState: state)
+                        let snapshot = try await backend.loadSnapshot()
+                        applyBackendSnapshot(snapshot, currentUserID: model.currentUserID)
+                        model.successMessage = "\(product.displayName) 구매가 완료되었습니다."
+                        model.errorMessage = nil
+                        persistPreferences()
+                        return
+                    }
+                    if state.latestOrderStatus == "failed" || state.latestOrderStatus == "canceled" {
+                        model.apply(commerceState: state)
+                        model.setCommercePurchaseState(
+                            .error("결제가 완료되지 않았습니다. 다시 시도해 주세요."),
+                            productID: productID
+                        )
+                        return
+                    }
+                }
+                model.setCommercePurchaseState(
+                    .error("결제 승인 확인 시간이 초과되었습니다. 상점 상태를 다시 확인해 주세요."),
+                    productID: productID
+                )
+            } catch is CancellationError {
+                return
+            } catch {
+                model.setCommercePurchaseState(
+                    .error("결제 상태를 확인하지 못했습니다."),
+                    productID: productID
+                )
+                model.errorMessage = "\(product.displayName) 구매 처리 실패: \(error.localizedDescription)"
+            }
+        }
     }
 }

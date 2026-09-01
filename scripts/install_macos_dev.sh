@@ -50,6 +50,7 @@ xcodebuild \
 	ONLY_ACTIVE_ARCH=YES \
 	CODE_SIGN_IDENTITY=- \
 	ENABLE_HARDENED_RUNTIME=NO \
+	SIDEY_AUTH_URL_SCHEME=sidey-dev \
 	SIDEY_DISPLAY_NAME=Sidey-dev \
 	SIDEY_RELEASE_CHANNEL=development \
 	build
@@ -86,6 +87,11 @@ if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$SIDEY_INFO_PLI
 fi
 if [ "$(/usr/libexec/PlistBuddy -c 'Print :SIDEYReleaseChannel' "$SIDEY_INFO_PLIST")" != development ]; then
 	echo "Development app must use the development release channel" >&2
+	exit 65
+fi
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :SIDEYAuthURLScheme' "$SIDEY_INFO_PLIST")" != sidey-dev ] \
+	|| [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:0:CFBundleURLSchemes:0' "$SIDEY_INFO_PLIST")" != sidey-dev ]; then
+	echo "Development app must use the sidey-dev OAuth callback scheme" >&2
 	exit 65
 fi
 if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$SIDEY_INFO_PLIST")" != "$SIDEY_VERSION" ]; then
@@ -162,6 +168,29 @@ mv "$SIDEY_STAGED_APP" "$SIDEY_TARGET_APP"
 codesign --verify --deep --strict "$SIDEY_TARGET_APP"
 SIDEY_INSTALL_COMPLETE=1
 
-open "$SIDEY_TARGET_APP"
+open -n "$SIDEY_TARGET_APP"
+SIDEY_LAUNCH_WAIT_COUNT=0
+SIDEY_RUNNING_PIDS=
+while [ "$SIDEY_LAUNCH_WAIT_COUNT" -lt 50 ]; do
+	SIDEY_RUNNING_PIDS=$(
+		ps -axo pid=,command= \
+			| awk -v executable="$SIDEY_TARGET_EXECUTABLE" '$2 == executable { print $1 }'
+	)
+	[ -n "$SIDEY_RUNNING_PIDS" ] && break
+	sleep 0.1
+	SIDEY_LAUNCH_WAIT_COUNT=$((SIDEY_LAUNCH_WAIT_COUNT + 1))
+done
+if [ -z "$SIDEY_RUNNING_PIDS" ]; then
+	echo "Installed Sidey-dev but macOS did not launch its exact executable path" >&2
+	exit 65
+fi
+SIDEY_PRODUCTION_PIDS=$(
+	ps -axo pid=,command= \
+		| awk -v executable="$SIDEY_PRODUCTION_EXECUTABLE" '$2 == executable { print $1 }'
+)
+if [ -n "$SIDEY_PRODUCTION_PIDS" ]; then
+	echo "Production SIDEY launched while starting Sidey-dev; refusing a false-success result" >&2
+	exit 65
+fi
 echo "Installed and launched $SIDEY_TARGET_APP"
 echo "SIDEY $SIDEY_VERSION build $SIDEY_BUILD_NUMBER · development · ad-hoc · arm64"

@@ -9,11 +9,12 @@ final class PixelHamsterAssetTests: XCTestCase {
         "pixel_cat": "d8b370c03b5cf0ede6aa0d9fa6210030e164b015a920622e89ae86f835e018b2",
         "pixel_puppy": "8f56a5fda51a224802f41d6d1c359a138c83036b7da3e0a35777f9f4ed38d5f7",
         "pixel_rabbit": "f8e53749200a284f7729ea9baac3237a9fac0caf8efedf9102dcee065e521342",
-        "pixel_penguin": "f171503f8ffb938732583a4b6f42443e7a69120bb17496f6e8d34372da2ea886"
+        "pixel_penguin": "f171503f8ffb938732583a4b6f42443e7a69120bb17496f6e8d34372da2ea886",
+        "pixel_starlight_upalupa": "d180810a8796280077f3f70f6da681888c583c2f8d74776d0f5d300e943a079a"
     ]
 
     func testAllRuntimeSheetsAreTen24PixelFramesWithAlphaAndStableHashes() throws {
-        XCTAssertEqual(PixelCharacterCatalog.all.count, 5)
+        XCTAssertEqual(PixelCharacterCatalog.all.count, 6)
         for character in PixelCharacterCatalog.all {
             let url = try XCTUnwrap(character.assetURL(), character.id)
             let data = try Data(contentsOf: url)
@@ -71,8 +72,38 @@ final class PixelHamsterAssetTests: XCTestCase {
 
     func testCatalogAndFallbackContracts() {
         XCTAssertEqual(PixelCharacterCatalog.all.map(\.id), [
-            "pixel_hamster", "pixel_cat", "pixel_puppy", "pixel_rabbit", "pixel_penguin"
+            "pixel_hamster", "pixel_cat", "pixel_puppy", "pixel_rabbit", "pixel_penguin",
+            "pixel_starlight_upalupa"
         ])
+        XCTAssertEqual(PixelCharacterCatalog.free.count, 5)
+        XCTAssertFalse(PixelCharacterCatalog.canSelect(
+            PixelCharacterCatalog.pixelStarlightUpalupaID,
+            entitlementKeys: []
+        ))
+        XCTAssertTrue(PixelCharacterCatalog.canSelect(
+            PixelCharacterCatalog.pixelStarlightUpalupaID,
+            entitlementKeys: [PixelCharacterCatalog.starlightUpalupaEntitlementKey]
+        ))
+        XCTAssertEqual(PixelCharacterCatalog.definition(
+            for: PixelCharacterCatalog.pixelStarlightUpalupaID
+        ).sparkleEffect, .starlight)
+        XCTAssertTrue(PixelCharacterCatalog.definition(
+            for: PixelCharacterCatalog.pixelStarlightUpalupaID
+        ).mirrorsToMovementDirection)
+        XCTAssertTrue(PixelCharacterCatalog.free.allSatisfy {
+            !$0.mirrorsToMovementDirection
+        })
+        XCTAssertEqual(PixelSparkleEffect.starlight.ambientDelay, 1.0...1.4)
+        XCTAssertEqual(PixelSparkleEffect.starlight.ambientDuration, 1.05)
+        XCTAssertEqual(PixelSparkleEffect.starlight.ambientCount, 4...6)
+        XCTAssertEqual(PixelSparkleEffect.starlight.ambientRadius, 2.6...4.0)
+        XCTAssertEqual(PixelSparkleEffect.starlight.centralFlashDuration, 0.32)
+        XCTAssertEqual(PixelSparkleEffect.starlight.centralFlashRadius, 34)
+        XCTAssertEqual(PixelSparkleEffect.starlight.pulseWaves.map(\.count), [18, 24])
+        XCTAssertEqual(PixelSparkleEffect.starlight.pulseWaves.map(\.distance), [126...168, 82...132])
+        XCTAssertEqual(PixelSparkleEffect.starlight.pulseWaves.map(\.radius), [8...13, 4.5...8])
+        XCTAssertEqual(PixelSparkleEffect.starlight.pulseCount, 42)
+        XCTAssertEqual(PixelSparkleEffect.starlight.pulseDuration, 0.84, accuracy: 0.001)
         XCTAssertEqual(PixelCharacterCatalog.canonicalID(for: "minty_pup"), "pixel_hamster")
         XCTAssertEqual(PixelCharacterCatalog.canonicalID(for: "pixel_cat"), "pixel_cat")
         XCTAssertEqual(PixelCharacterCatalog.canonicalID(for: "unknown"), "pixel_hamster")

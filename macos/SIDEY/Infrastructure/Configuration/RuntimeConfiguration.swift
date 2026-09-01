@@ -1,6 +1,36 @@
 import CryptoKit
 import Foundation
 
+enum SideyAuthCallback {
+    static let productionScheme = "sidey"
+
+    static var configuredScheme: String {
+        normalizedScheme(Bundle.main.object(forInfoDictionaryKey: "SIDEYAuthURLScheme") as? String)
+            ?? productionScheme
+    }
+
+    static func callbackURL(scheme: String? = nil) -> URL {
+        let resolvedScheme = normalizedScheme(scheme) ?? configuredScheme
+        return URL(string: "\(resolvedScheme)://auth/google")!
+    }
+
+    static func matches(_ url: URL, scheme: String? = nil) -> Bool {
+        let expectedScheme = normalizedScheme(scheme) ?? configuredScheme
+        return url.scheme?.lowercased() == expectedScheme
+            && url.host == "auth"
+            && url.path == "/google"
+    }
+
+    private static func normalizedScheme(_ value: String?) -> String? {
+        guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              !value.isEmpty,
+              value.first?.isLetter == true,
+              value.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "+" || $0 == "-" || $0 == "." })
+        else { return nil }
+        return value
+    }
+}
+
 struct RuntimeConfiguration: Equatable, Sendable {
     static let productionHost = "whtejsviizgejauasqqt.supabase.co"
     let supabaseURL: URL

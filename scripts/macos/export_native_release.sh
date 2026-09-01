@@ -127,6 +127,11 @@ if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SIDEY_INFO_PLIS
 	echo "Unexpected SIDEY bundle identifier" >&2
 	exit 1
 fi
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :SIDEYAuthURLScheme' "$SIDEY_INFO_PLIST")" != "sidey" ] \
+	|| [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleURLTypes:0:CFBundleURLSchemes:0' "$SIDEY_INFO_PLIST")" != "sidey" ]; then
+	echo "Release app must use the sidey OAuth callback scheme" >&2
+	exit 1
+fi
 if [ "$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$SIDEY_INFO_PLIST")" != "26.0" ]; then
 	echo "SIDEY must require macOS 26.0" >&2
 	exit 1

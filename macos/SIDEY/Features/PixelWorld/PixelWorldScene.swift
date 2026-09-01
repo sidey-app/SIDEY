@@ -43,6 +43,7 @@ struct PixelCharacterVisualState: Equatable {
     let alpha: CGFloat
     let colorBlendFactor: CGFloat
     let showsDozeLabel: Bool
+    let facingScale: CGFloat
 }
 
 enum PixelDozeLabelStyle {
@@ -68,6 +69,52 @@ enum PixelCharacterPulseStyle {
     static let growDuration: TimeInterval = 0.20
     static let settleDuration: TimeInterval = 0.60
     static let totalDuration = growDuration + settleDuration
+}
+
+enum PixelCharacterFacingPolicy {
+    static let movementThreshold: CGFloat = 2
+
+    static func scale(
+        mirrorsToMovementDirection: Bool,
+        velocity: CGFloat,
+        edge: OverlayEdge,
+        previousScale: CGFloat
+    ) -> CGFloat {
+        guard mirrorsToMovementDirection,
+              velocity.isFinite,
+              abs(velocity) > movementThreshold
+        else { return previousScale }
+
+        let positiveTangentScale: CGFloat = switch edge {
+        case .bottom, .right: 1
+        case .top, .left: -1
+        }
+        return velocity > 0 ? positiveTangentScale : -positiveTangentScale
+    }
+}
+
+enum PixelSparkleVisibilityPolicy {
+    static func showsAmbient(for presence: PresenceState) -> Bool {
+        presence == .online || presence == .typing
+    }
+}
+
+enum PixelSparkleStyle {
+    static let ambientActionKey = "pixel-character-ambient-sparkles"
+    static let pulseActionKey = "pixel-character-pulse-sparkles"
+    static func starPath() -> CGPath {
+        let path = CGMutablePath()
+        path.move(to: CGPoint(x: 0, y: 3))
+        path.addLine(to: CGPoint(x: 1, y: 1))
+        path.addLine(to: CGPoint(x: 3, y: 0))
+        path.addLine(to: CGPoint(x: 1, y: -1))
+        path.addLine(to: CGPoint(x: 0, y: -3))
+        path.addLine(to: CGPoint(x: -1, y: -1))
+        path.addLine(to: CGPoint(x: -3, y: 0))
+        path.addLine(to: CGPoint(x: -1, y: 1))
+        path.closeSubpath()
+        return path
+    }
 }
 
 private struct CharacterPulseKey: Hashable {
@@ -235,7 +282,7 @@ final class PixelWorldScene: SKScene {
             agents[agent.id] = agent
             node.position = geometry.point(for: agent.trackPosition)
             let moving = abs(agent.velocity) > 2 && agent.idleRemaining <= 0 && !stoppedIDs.contains(agent.id)
-            node.updateMotion(member: member, moving: moving)
+            node.updateMotion(member: member, moving: moving, velocity: agent.velocity, edge: edge)
             node.updatePresentationLayout(
                 tangentPosition: agent.trackPosition,
                 tangentLength: geometry.tangentLength,
@@ -297,6 +344,14 @@ final class PixelWorldScene: SKScene {
 
     func renderedPulseCount(for memberID: UUID) -> Int {
         characterNodes[memberID]?.pulsePlayCount ?? 0
+    }
+
+    func hasRenderedAmbientSparkles(for memberID: UUID) -> Bool {
+        characterNodes[memberID]?.hasAmbientSparkleAction ?? false
+    }
+
+    func renderedPulseSparkleCount(for memberID: UUID) -> Int {
+        characterNodes[memberID]?.pulseSparkleSpawnCount ?? 0
     }
 
     private var composerAvoidanceRects: [CGRect] {
@@ -402,6 +457,8 @@ private final class PixelCharacterNode: SKNode {
     private let presentation = SKNode()
     private let spritePulseAnchor = SKNode()
     private let sprite = SKSpriteNode()
+    private let ambientSparkleLayer = SKNode()
+    private let pulseSparkleLayer = SKNode()
     private let nameplateBackground = SKShapeNode()
     private let nickname = SKLabelNode(fontNamed: "AppleSDGothicNeo-SemiBold")
     private let statusDot = SKShapeNode(circleOfRadius: PixelNameplateLayout.statusDotRadius)
@@ -412,6 +469,8 @@ private final class PixelCharacterNode: SKNode {
     private var currentBubbleKey: String?
     private(set) var characterID: String
     private(set) var pulsePlayCount = 0
+    private(set) var pulseSparkleSpawnCount = 0
+    private var sparkleEffect: PixelSparkleEffect?
 
     var bubbleBody: String? { bubbleNode?.body }
     var bubbleIsTyping: Bool { bubbleNode?.isTyping ?? false }
@@ -419,13 +478,17 @@ private final class PixelCharacterNode: SKNode {
     var hasDozeActions: Bool {
         dozeEffect.action(forKey: Self.dozeMotionKey) != nil
     }
+    var hasAmbientSparkleAction: Bool {
+        ambientSparkleLayer.action(forKey: PixelSparkleStyle.ambientActionKey) != nil
+    }
     var visualState: PixelCharacterVisualState? {
         currentMotion.map {
             PixelCharacterVisualState(
                 motion: $0,
                 alpha: sprite.alpha,
                 colorBlendFactor: sprite.colorBlendFactor,
-                showsDozeLabel: !dozeEffect.isHidden
+                showsDozeLabel: !dozeEffect.isHidden,
+                facingScale: sprite.xScale
             )
         }
     }
@@ -433,6 +496,7 @@ private final class PixelCharacterNode: SKNode {
     init(memberID: UUID, characterID: String) {
         self.memberID = memberID
         self.characterID = PixelCharacterCatalog.canonicalID(for: characterID)
+        self.sparkleEffect = PixelCharacterCatalog.definition(for: characterID).sparkleEffect
         super.init()
         addChild(presentation)
         sprite.size = CGSize(width: 48, height: 48)
@@ -442,6 +506,10 @@ private final class PixelCharacterNode: SKNode {
         sprite.position = CGPoint(x: 0, y: EdgeTrackGeometry.footInset)
         presentation.addChild(spritePulseAnchor)
         spritePulseAnchor.addChild(sprite)
+        ambientSparkleLayer.zPosition = 8
+        pulseSparkleLayer.zPosition = 9
+        presentation.addChild(ambientSparkleLayer)
+        presentation.addChild(pulseSparkleLayer)
 
         nameplateBackground.fillColor = PixelNameplateLayout.backgroundColor
         nameplateBackground.strokeColor = .clear
@@ -495,8 +563,11 @@ private final class PixelCharacterNode: SKNode {
         let canonicalID = PixelCharacterCatalog.canonicalID(for: member.characterID)
         if canonicalID != characterID {
             characterID = canonicalID
+            sparkleEffect = PixelCharacterCatalog.definition(for: canonicalID).sparkleEffect
             currentMotion = nil
             sprite.removeAction(forKey: Self.animationKey)
+            sprite.xScale = 1
+            stopAmbientSparkles()
         }
         presentation.zRotation = edge.presentationRotation
         nickname.text = member.isCurrentUser ? "\(member.nickname) · 나" : member.nickname
@@ -517,7 +588,7 @@ private final class PixelCharacterNode: SKNode {
             tangentLength: tangentLength,
             edge: edge
         )
-        updateMotion(member: member, moving: false)
+        updateMotion(member: member, moving: false, velocity: 0, edge: edge)
     }
 
     func playPulse() {
@@ -530,9 +601,15 @@ private final class PixelCharacterNode: SKNode {
         let settle = SKAction.scale(to: 1, duration: PixelCharacterPulseStyle.settleDuration)
         settle.timingMode = .easeInEaseOut
         spritePulseAnchor.run(.sequence([grow, settle]), withKey: Self.pulseAnimationKey)
+        spawnPulseSparkles()
     }
 
-    func updateMotion(member: PixelWorldMember, moving: Bool) {
+    func updateMotion(
+        member: PixelWorldMember,
+        moving: Bool,
+        velocity: CGFloat,
+        edge: OverlayEdge
+    ) {
         let requested: PixelCharacterMotion
         switch member.presence {
         case .away:
@@ -548,7 +625,15 @@ private final class PixelCharacterNode: SKNode {
         sprite.alpha = member.presence == .offline ? 0.75 : 1
         sprite.color = .systemGray
         sprite.colorBlendFactor = member.presence == .offline ? 0.58 : 0
+        sprite.xScale = PixelCharacterFacingPolicy.scale(
+            mirrorsToMovementDirection: PixelCharacterCatalog.definition(for: characterID)
+                .mirrorsToMovementDirection,
+            velocity: velocity,
+            edge: edge,
+            previousScale: sprite.xScale
+        )
         setDozeVisible(member.presence == .away)
+        setAmbientSparklesActive(PixelSparkleVisibilityPolicy.showsAmbient(for: member.presence))
 
         guard requested != currentMotion else { return }
         currentMotion = requested
@@ -641,6 +726,144 @@ private final class PixelCharacterNode: SKNode {
                 .moveBy(x: 0, y: -PixelDozeLabelStyle.floatingDistance, duration: 0.5)
             ])
         ])), withKey: Self.dozeMotionKey)
+    }
+
+    private func setAmbientSparklesActive(_ active: Bool) {
+        guard active, let effect = sparkleEffect else {
+            stopAmbientSparkles()
+            return
+        }
+        guard ambientSparkleLayer.action(forKey: PixelSparkleStyle.ambientActionKey) == nil else {
+            return
+        }
+        let midpoint = (effect.ambientDelay.lowerBound + effect.ambientDelay.upperBound) / 2
+        let range = effect.ambientDelay.upperBound - effect.ambientDelay.lowerBound
+        ambientSparkleLayer.run(.repeatForever(.sequence([
+            .wait(forDuration: midpoint, withRange: range),
+            .run { [weak self] in self?.spawnAmbientSparkles() }
+        ])), withKey: PixelSparkleStyle.ambientActionKey)
+    }
+
+    private func stopAmbientSparkles() {
+        ambientSparkleLayer.removeAction(forKey: PixelSparkleStyle.ambientActionKey)
+        ambientSparkleLayer.removeAllChildren()
+    }
+
+    private func spawnAmbientSparkles() {
+        guard let effect = sparkleEffect else { return }
+        let count = Int.random(in: effect.ambientCount)
+        for index in 0..<count {
+            let color = effect.colors[(index + Int.random(in: 0..<effect.colors.count)) % effect.colors.count]
+            let radius = CGFloat.random(in: effect.ambientRadius)
+            let star = makeStar(color: color, radius: radius)
+            let targetScale = radius / 3
+            star.setScale(targetScale * 0.32)
+            star.position = CGPoint(
+                x: CGFloat.random(in: effect.ambientHorizontalPosition),
+                y: CGFloat.random(in: effect.ambientVerticalPosition)
+            )
+            ambientSparkleLayer.addChild(star)
+            let half = effect.ambientDuration / 2
+            star.run(.sequence([
+                .group([
+                    .fadeIn(withDuration: half),
+                    .scale(to: targetScale, duration: half),
+                    .moveBy(x: 0, y: effect.ambientRise / 2, duration: half)
+                ]),
+                .group([
+                    .fadeOut(withDuration: half),
+                    .scale(to: targetScale * 0.35, duration: half),
+                    .moveBy(x: 0, y: effect.ambientRise / 2, duration: half)
+                ]),
+                .removeFromParent()
+            ]))
+        }
+    }
+
+    private func spawnPulseSparkles() {
+        guard let effect = sparkleEffect else { return }
+        pulseSparkleSpawnCount += effect.pulseCount
+        pulseSparkleLayer.removeAction(forKey: PixelSparkleStyle.pulseActionKey)
+        pulseSparkleLayer.removeAllChildren()
+        spawnCentralFlash(effect: effect)
+        var colorOffset = 0
+        for (waveIndex, wave) in effect.pulseWaves.enumerated() {
+            for index in 0..<wave.count {
+                let angleOffset = waveIndex.isMultiple(of: 2)
+                    ? CGFloat.zero
+                    : .pi / CGFloat(max(1, wave.count))
+                let angle = (CGFloat(index) / CGFloat(wave.count)) * .pi * 2 + angleOffset
+                let progress = wave.count > 1 ? CGFloat(index) / CGFloat(wave.count - 1) : 0.5
+                let distance = interpolated(in: wave.distance, progress: progress)
+                let radius = index.isMultiple(of: 3)
+                    ? wave.radius.upperBound
+                    : interpolated(in: wave.radius, progress: 1 - progress)
+                let star = makeStar(
+                    color: effect.colors[(colorOffset + index) % effect.colors.count],
+                    radius: radius
+                )
+                star.alpha = 0
+                star.position = CGPoint(x: 0, y: EdgeTrackGeometry.footInset)
+                pulseSparkleLayer.addChild(star)
+                let move = SKAction.moveBy(
+                    x: cos(angle) * distance,
+                    y: sin(angle) * distance,
+                    duration: wave.duration
+                )
+                move.timingMode = .easeOut
+                let shrink = SKAction.scale(to: max(0.18, radius / 9), duration: wave.duration)
+                shrink.timingMode = .easeIn
+                star.run(.sequence([
+                    .wait(forDuration: wave.delay),
+                    .run { star.alpha = 1 },
+                    .group([
+                        move,
+                        .fadeOut(withDuration: wave.duration),
+                        .rotate(byAngle: .pi, duration: wave.duration),
+                        shrink
+                    ]),
+                    .removeFromParent()
+                ]))
+            }
+            colorOffset += wave.count
+        }
+        pulseSparkleLayer.run(
+            .wait(forDuration: effect.pulseDuration),
+            withKey: PixelSparkleStyle.pulseActionKey
+        )
+    }
+
+    private func spawnCentralFlash(effect: PixelSparkleEffect) {
+        guard let gold = effect.colors.last else { return }
+        let flash = makeStar(color: gold, radius: effect.centralFlashRadius)
+        let targetScale = effect.centralFlashRadius / 3
+        flash.alpha = 1
+        flash.setScale(targetScale * 0.12)
+        flash.position = CGPoint(x: 0, y: EdgeTrackGeometry.footInset)
+        pulseSparkleLayer.addChild(flash)
+        let half = effect.centralFlashDuration / 2
+        let expand = SKAction.scale(to: targetScale, duration: half)
+        expand.timingMode = .easeOut
+        let settle = SKAction.scale(to: targetScale * 0.36, duration: half)
+        settle.timingMode = .easeIn
+        flash.run(.sequence([
+            .group([expand, .fadeAlpha(to: 0.88, duration: half)]),
+            .group([settle, .fadeOut(withDuration: half)]),
+            .removeFromParent()
+        ]))
+    }
+
+    private func interpolated(in range: ClosedRange<CGFloat>, progress: CGFloat) -> CGFloat {
+        range.lowerBound + (range.upperBound - range.lowerBound) * progress
+    }
+
+    private func makeStar(color: PixelSparkleColor, radius: CGFloat) -> SKShapeNode {
+        let star = SKShapeNode(path: PixelSparkleStyle.starPath())
+        star.fillColor = NSColor(cgColor: color.cgColor) ?? .white
+        star.strokeColor = .clear
+        star.setScale(radius / 3)
+        star.alpha = 0
+        return star
     }
 }
 

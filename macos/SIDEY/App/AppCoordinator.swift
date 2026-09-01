@@ -32,6 +32,10 @@ final class AppCoordinator {
             onLaunchAtLoginChanged: { [weak self] enabled in self?.setLaunchAtLogin(enabled) },
             onCheckForUpdates: { [weak self] in self?.updateController.checkForUpdates() },
             canCheckForUpdates: { [weak self] in self?.updateController.canCheckForUpdates ?? false },
+            onPurchase: { [weak self] productID in self?.purchase(productID: productID) },
+            onRefreshCommerceState: { [weak self] productID in
+                self?.refreshCommerceState(productID: productID)
+            },
             onSaveProfile: { [weak self] in self?.saveProfile() },
             onCreateRoom: { [weak self] in self?.createRoom() },
             onJoinRoom: { [weak self] in self?.joinRoom() },
@@ -56,6 +60,7 @@ final class AppCoordinator {
         onSelectRoom: { [weak self] roomID in self?.selectRoom(roomID) },
         onToggleQuietMode: { [weak self] in self?.setQuietMode(!(self?.model.preferences.quietModeEnabled ?? false)) },
         onOpenHistory: { [weak self] in self?.showHistory() },
+        onOpenStore: { [weak self] in self?.showStore() },
         onToggleLaunchAtLogin: { [weak self] in self?.setLaunchAtLogin(!(self?.model.launchAtLogin ?? false)) },
         onOpenGroupSettings: { [weak self] in self?.showGroupSettings() },
         onCheckForUpdates: { [weak self] in self?.updateController.checkForUpdates() },
@@ -69,6 +74,9 @@ final class AppCoordinator {
     var backendEventTask: Task<Void, Never>?
     var typingTask: Task<Void, Never>?
     var bubbleExpiryTask: Task<Void, Never>?
+    var commerceProductTasks: [String: Task<Void, Never>] = [:]
+    var commerceAuthTask: Task<Void, Never>?
+    var googleConnectionProductID: String?
     private var landingDidComplete = false
     private var didCompleteFirstRunTransition = false
     var backendBootstrapState: BackendBootstrapState = .pending
@@ -192,6 +200,9 @@ final class AppCoordinator {
         backendEventTask?.cancel()
         typingTask?.cancel()
         bubbleExpiryTask?.cancel()
+        commerceProductTasks.values.forEach { $0.cancel() }
+        commerceProductTasks.removeAll()
+        commerceAuthTask?.cancel()
         roomSwitchPipeline.cancel()
         activityMonitor.stop()
         mainThreadProbe.stop()
@@ -261,6 +272,42 @@ final class AppCoordinator {
     private func showGroupSettings() {
         model.activeSettingsPage = .groups
         showSettings()
+    }
+
+    private func showStore() {
+        model.activeSettingsPage = .store
+        showSettings()
+    }
+
+    func handleOpenURL(_ url: URL) -> Bool {
+        guard SideyAuthCallback.matches(url),
+              let backend
+        else { return false }
+        showStore()
+        commerceAuthTask?.cancel()
+        let targetProductID = googleConnectionProductID
+        commerceAuthTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                googleConnectionProductID = nil
+                commerceAuthTask = nil
+            }
+            do {
+                try await backend.handleAuthCallback(url)
+                refreshCommerceState()
+                model.successMessage = "Google 계정을 연결했습니다."
+                model.errorMessage = nil
+            } catch {
+                if let targetProductID {
+                    model.setCommercePurchaseState(
+                        .error("Google 계정 연결을 확인하지 못했습니다."),
+                        productID: targetProductID
+                    )
+                }
+                model.errorMessage = "Google 계정 연결 실패: \(error.localizedDescription)"
+            }
+        }
+        return true
     }
 
     private func settingsDidClose() {

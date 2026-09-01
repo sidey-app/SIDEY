@@ -66,6 +66,7 @@ struct OnboardingView: View {
                 .font(.title2.bold())
             CharacterSelectionGrid(
                 maximumColumns: 4,
+                characters: model.selectableCharacters,
                 selection: $model.selectedCharacterID
             )
             TextField("닉네임 2~8자", text: $model.nickname)

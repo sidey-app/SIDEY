@@ -32,6 +32,7 @@ struct ProfileSettingsView: View {
             }
             CharacterSelectionGrid(
                 maximumColumns: 5,
+                characters: model.selectableCharacters,
                 selection: $model.selectedCharacterID
             )
             Text("캐릭터와 닉네임은 그룹 안에서 중복해서 선택할 수 있습니다.")

@@ -2,6 +2,16 @@ import XCTest
 @testable import SIDEY
 
 final class RuntimeConfigurationTests: XCTestCase {
+    func testAuthCallbackSeparatesProductionAndDevelopmentSchemes() {
+        let productionURL = SideyAuthCallback.callbackURL(scheme: "sidey")
+        let developmentURL = SideyAuthCallback.callbackURL(scheme: "sidey-dev")
+
+        XCTAssertEqual(productionURL.absoluteString, "sidey://auth/google")
+        XCTAssertEqual(developmentURL.absoluteString, "sidey-dev://auth/google")
+        XCTAssertTrue(SideyAuthCallback.matches(developmentURL, scheme: "sidey-dev"))
+        XCTAssertFalse(SideyAuthCallback.matches(productionURL, scheme: "sidey-dev"))
+    }
+
     func testAcceptsCompleteHTTPSPublishableConfiguration() throws {
         let configuration = try RuntimeConfiguration.resolve(environment: [
             "SIDEY_SUPABASE_URL": "https://example.supabase.co",

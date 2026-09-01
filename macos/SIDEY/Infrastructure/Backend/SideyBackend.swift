@@ -6,6 +6,7 @@ actor SideyBackend {
 
     private let client: SupabaseClient
     private let keychain: KeychainStore
+    private let authCallbackURL: URL
     private let legacyRefreshAccount: String
     private let inviteAccountPrefix: String
     private let eventContinuation: AsyncStream<BackendEvent>.Continuation
@@ -31,7 +32,11 @@ actor SideyBackend {
     private var isStateReconciled = false
     private var isShuttingDown = false
 
-    init(configuration: RuntimeConfiguration, keychain: KeychainStore = KeychainStore()) {
+    init(
+        configuration: RuntimeConfiguration,
+        keychain: KeychainStore = KeychainStore(),
+        authCallbackURL: URL = SideyAuthCallback.callbackURL()
+    ) {
         let eventPair = AsyncStream<BackendEvent>.makeStream(
             bufferingPolicy: .bufferingNewest(256)
         )
@@ -40,6 +45,7 @@ actor SideyBackend {
         let fingerprint = configuration.backendFingerprint
         let legacyRefreshAccount = "supabase-refresh:\(fingerprint):default"
         self.keychain = keychain
+        self.authCallbackURL = authCallbackURL
         self.legacyRefreshAccount = legacyRefreshAccount
         self.inviteAccountPrefix = "room-invite:\(fingerprint):default:"
 
@@ -148,10 +154,12 @@ actor SideyBackend {
         async let visibleProfiles: [DatabaseProfile] = client.from("profiles")
             .select()
             .execute().value
+        async let entitlementKeys = loadActiveEntitlementKeysIfAvailable()
 
-        let (profiles, rooms, memberships, peers) = try await (
-            profileRows, roomRows, membershipRows, visibleProfiles
+        let (profiles, rooms, memberships, peers, remoteEntitlementKeys) = try await (
+            profileRows, roomRows, membershipRows, visibleProfiles, entitlementKeys
         )
+        let profile = profiles.first
         let profileByID = Dictionary(uniqueKeysWithValues: peers.map { ($0.id, $0) })
         let membershipsByRoom = Dictionary(grouping: memberships, by: \.roomID)
         let mappedRooms = rooms.map { room in
@@ -175,7 +183,76 @@ actor SideyBackend {
                 realtimeEpoch: room.realtimeEpoch
             )
         }
-        return BackendSnapshot(profile: profiles.first?.domain, rooms: mappedRooms)
+        return BackendSnapshot(
+            profile: profile?.domain,
+            rooms: mappedRooms,
+            activeEntitlementKeys: CommerceEntitlementSnapshotPolicy.resolvedKeys(
+                remoteKeys: remoteEntitlementKeys,
+                profileCharacterID: profile?.characterID
+            )
+        )
+    }
+
+    /// Commerce is an optional feature boundary. A missing or temporarily
+    /// unavailable commerce schema must not turn the core messenger snapshot
+    /// into a connection failure.
+    private func loadActiveEntitlementKeysIfAvailable() async -> Set<String>? {
+        do {
+            let rows: [DatabaseCommerceEntitlement] = try await client
+                .from("commerce_entitlements")
+                .select("entitlement_key,status")
+                .eq("status", value: "active")
+                .execute().value
+            return Set(rows.map(\.entitlementKey))
+        } catch {
+            return nil
+        }
+    }
+
+    func commerceState(
+        productID: String = CommerceCatalog.starlightUpalupaProductID
+    ) async throws -> CommerceState {
+        let rows: [DatabaseCommerceState] = try await client.rpc(
+            "get_commerce_state",
+            params: CommerceStateParameters(productID: productID)
+        ).execute().value
+        guard let state = rows.first,
+              let registeredProduct = CommerceCatalog.product(id: productID),
+              state.productID == productID,
+              state.characterID == registeredProduct.characterID,
+              state.entitlementKey == registeredProduct.entitlementKey,
+              PixelCharacterCatalog.definition(for: state.characterID).id == state.characterID
+        else { throw SideyBackendError.malformedResponse }
+        return state.domain
+    }
+
+    func googleIdentityLinkURL() async throws -> URL {
+        let response = try await client.auth.getLinkIdentityURL(
+            provider: .google,
+            redirectTo: authCallbackURL
+        )
+        return response.url
+    }
+
+    func handleAuthCallback(_ url: URL) async throws {
+        guard SideyAuthCallback.matches(url, scheme: authCallbackURL.scheme) else {
+            throw SideyBackendError.remote("지원하지 않는 인증 응답입니다.")
+        }
+        let previousUserID = client.auth.currentUser?.id
+        let session = try await client.auth.session(from: url)
+        guard previousUserID == nil || session.user.id == previousUserID else {
+            throw SideyBackendError.remote("Google 연결 중 SIDEY 계정이 바뀌었습니다.")
+        }
+    }
+
+    func createCommerceOrder(
+        productID: String = CommerceCatalog.starlightUpalupaProductID
+    ) async throws -> CommerceCheckout {
+        let response: CommerceOrderResponse = try await client.functions.invoke(
+            "commerce-order",
+            options: FunctionInvokeOptions(body: CommerceOrderRequest(productID: productID))
+        )
+        return CommerceCheckout(orderID: response.orderID, checkoutURL: response.checkoutURL)
     }
 
     @discardableResult

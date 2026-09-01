@@ -192,6 +192,7 @@ enum PresenceState: String, Codable, CaseIterable, Sendable {
 enum SettingsPage: String, CaseIterable, Identifiable, Sendable {
     case profile
     case groups
+    case store
     case app
 
     var id: String { rawValue }
@@ -200,6 +201,7 @@ enum SettingsPage: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .profile: "내 프로필"
         case .groups: "그룹"
+        case .store: "꾸미기·상점"
         case .app: "앱 설정"
         }
     }
@@ -208,9 +210,99 @@ enum SettingsPage: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .profile: "person.crop.circle"
         case .groups: "person.2"
+        case .store: "sparkles"
         case .app: "gearshape"
         }
     }
+}
+
+enum CommerceCatalog {
+    static let starlightUpalupaProductID = "character_starlight_upalupa"
+    static let starlightUpalupaCharacterID = "pixel_starlight_upalupa"
+    static let starlightUpalupaEntitlementKey = "character:pixel_starlight_upalupa"
+    static let starlightUpalupaDescription = "진주빛 몸과 별빛 아가미를 가진 우파루파예요. 온라인일 때 별이 은은하게 따라다니고, 더블클릭하면 별무리가 두 겹으로 팡 터져요."
+
+    /// Product order is a presentation contract. Registering a future product
+    /// here is enough for the existing store grid to render it.
+    static let products: [CommerceProduct] = [.starlightUpalupa]
+
+    static func product(id: String) -> CommerceProduct? {
+        products.first { $0.id == id }
+    }
+}
+
+struct CommerceProduct: Equatable, Sendable {
+    let id: String
+    let displayName: String
+    let description: String
+    let characterID: String
+    let entitlementKey: String
+    let amountKRW: Int
+    let currency: String
+    let taxInclusive: Bool
+
+    static let starlightUpalupa = CommerceProduct(
+        id: CommerceCatalog.starlightUpalupaProductID,
+        displayName: "별빛 우파루파",
+        description: CommerceCatalog.starlightUpalupaDescription,
+        characterID: CommerceCatalog.starlightUpalupaCharacterID,
+        entitlementKey: CommerceCatalog.starlightUpalupaEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    var formattedPrice: String {
+        amountKRW.formatted(.number.grouping(.automatic)) + "원"
+    }
+}
+
+struct CommerceProductState: Equatable, Identifiable, Sendable {
+    var product: CommerceProduct
+    var purchaseState: CommercePurchaseState
+    var isWorking: Bool
+
+    var id: String { product.id }
+}
+
+enum CommercePurchaseState: Equatable, Sendable {
+    case available
+    case googleConnectionRequired
+    case openingCheckout
+    case confirming
+    case owned
+    case error(String)
+    case refunded
+
+    var label: String {
+        switch self {
+        case .available: "구매 가능"
+        case .googleConnectionRequired: "Google 연결 필요"
+        case .openingCheckout: "결제창 여는 중"
+        case .confirming: "확인 중"
+        case .owned: "보유 중"
+        case .error: "오류"
+        case .refunded: "환불됨"
+        }
+    }
+}
+
+struct CommerceState: Equatable, Sendable {
+    let product: CommerceProduct
+    let googleConnected: Bool
+    let entitlementStatus: String?
+    let latestOrderStatus: String?
+
+    var purchaseState: CommercePurchaseState {
+        if entitlementStatus == "active" { return .owned }
+        if entitlementStatus == "refunded" || latestOrderStatus == "refunded" { return .refunded }
+        return googleConnected ? .available : .googleConnectionRequired
+    }
+}
+
+struct CommerceCheckout: Equatable, Sendable {
+    let orderID: UUID
+    let checkoutURL: URL
 }
 
 struct Profile: Codable, Equatable, Sendable {

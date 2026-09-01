@@ -9,6 +9,8 @@ struct SettingsActions {
     var onLaunchAtLoginChanged: (Bool) -> Void
     var onCheckForUpdates: () -> Void
     var canCheckForUpdates: () -> Bool
+    var onPurchase: (String) -> Void
+    var onRefreshCommerceState: (String?) -> Void
     var onSaveProfile: @MainActor @Sendable () -> Void
     var onCreateRoom: () -> Void
     var onJoinRoom: () -> Void
@@ -27,6 +29,8 @@ struct SettingsActions {
         onLaunchAtLoginChanged: { _ in },
         onCheckForUpdates: {},
         canCheckForUpdates: { false },
+        onPurchase: { _ in },
+        onRefreshCommerceState: { _ in },
         onSaveProfile: {},
         onCreateRoom: {},
         onJoinRoom: {},
@@ -76,6 +80,8 @@ struct SettingsRootView: View {
                         ProfileSettingsView(model: model, onSave: actions.onSaveProfile)
                     case .groups:
                         GroupsSettingsView(model: model, actions: actions)
+                    case .store:
+                        StoreView(model: model, actions: actions)
                     case .app:
                         AppSettingsView(model: model, actions: actions)
                     }

@@ -28,6 +28,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let onSelectRoom: (UUID) -> Void
     private let onToggleQuietMode: () -> Void
     private let onOpenHistory: () -> Void
+    private let onOpenStore: () -> Void
     private let onToggleLaunchAtLogin: () -> Void
     private let onOpenGroupSettings: () -> Void
     private let onCheckForUpdates: () -> Void
@@ -48,6 +49,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         onSelectRoom: @escaping (UUID) -> Void = { _ in },
         onToggleQuietMode: @escaping () -> Void = {},
         onOpenHistory: @escaping () -> Void = {},
+        onOpenStore: @escaping () -> Void = {},
         onToggleLaunchAtLogin: @escaping () -> Void = {},
         onOpenGroupSettings: @escaping () -> Void = {},
         onCheckForUpdates: @escaping () -> Void = {},
@@ -60,6 +62,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         self.onSelectRoom = onSelectRoom
         self.onToggleQuietMode = onToggleQuietMode
         self.onOpenHistory = onOpenHistory
+        self.onOpenStore = onOpenStore
         self.onToggleLaunchAtLogin = onToggleLaunchAtLogin
         self.onOpenGroupSettings = onOpenGroupSettings
         self.onCheckForUpdates = onCheckForUpdates
@@ -126,6 +129,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         history.target = self
         history.isEnabled = !rooms.isEmpty
         menu.addItem(history)
+
+        let store = NSMenuItem(title: "상점…", action: #selector(openStore), keyEquivalent: "")
+        store.target = self
+        menu.addItem(store)
 
         let groupSettings = NSMenuItem(title: "그룹 설정…", action: #selector(openGroupSettings), keyEquivalent: "")
         groupSettings.target = self
@@ -195,6 +202,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
     @objc private func toggleQuietMode() { onToggleQuietMode() }
     @objc private func openHistory() { onOpenHistory() }
+    @objc private func openStore() { onOpenStore() }
     @objc private func toggleLaunchAtLogin() { onToggleLaunchAtLogin() }
     @objc private func openGroupSettings() { onOpenGroupSettings() }
     @objc private func checkForUpdates() { onCheckForUpdates() }

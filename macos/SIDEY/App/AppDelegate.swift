@@ -49,6 +49,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where coordinator?.handleOpenURL(url) == true {
+            return
+        }
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         coordinator?.shutdown()
     }
