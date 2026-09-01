@@ -11,11 +11,22 @@ struct StoreView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
-            SettingsSection(
-                title: "꾸미기·상점",
-                subtitle: "새로운 캐릭터를 만나보세요.",
-                systemImage: "sparkles"
-            ) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "sparkles")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.tint)
+                        .frame(width: 24, height: 24)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("꾸미기·상점")
+                            .font(.title2.bold())
+                        Text("새로운 캐릭터를 만나보세요.")
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 18) {
                     ForEach(model.commerceProducts) { productState in
                         StoreProductCard(productState: productState, actions: actions)
@@ -23,16 +34,17 @@ struct StoreView: View {
                 }
             }
 
-            Label(
-                "구매 전 Google 계정 연결이 필요합니다. 결제 완료는 토스 승인과 서버 소유권 지급이 모두 확인된 뒤에만 반영됩니다.",
-                systemImage: "lock.shield"
-            )
-            .font(.callout)
-            .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                Label(
+                    "표시된 가격은 부가세 포함 금액입니다. 구매 전 Google 계정 연결이 필요하며 결제 승인과 서버 소유권 확인 뒤에만 보유 상태로 반영됩니다.",
+                    systemImage: "lock.shield"
+                )
+                .font(.callout)
 
-            Text("구매자는 만 14세 이상이어야 합니다. 구매일로부터 7일 이내에는 사용 여부와 관계없이 전액 환불할 수 있습니다.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                Text("구매자는 만 14세 이상이어야 합니다. 구매일로부터 7일 이내에는 사용 여부와 관계없이 전액 환불할 수 있습니다.")
+                    .font(.caption)
+            }
+            .foregroundStyle(.secondary)
         }
         .onAppear { actions.onRefreshCommerceState(nil) }
     }
@@ -56,30 +68,30 @@ struct StoreProductCard: View {
                 .aspectRatio(1, contentMode: .fit)
                 .frame(maxWidth: StoreReactionPreviewStyle.cardSize)
                 .frame(maxWidth: .infinity)
+                .overlay(alignment: .topLeading) {
+                    CommerceStatusBadge(state: productState.purchaseState)
+                        .padding(10)
+                }
+                .overlay(alignment: .topTrailing) {
+                    reactionPreviewButton
+                        .padding(10)
+                }
 
-            CommerceStatusBadge(state: productState.purchaseState)
-
-            Text(productState.product.displayName)
-                .font(.title3.bold())
-                .fixedSize(horizontal: false, vertical: true)
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(productState.product.displayName)
+                    .font(.title3.bold())
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Text(productState.product.formattedPrice)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+            }
 
             Text(productState.product.description)
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-
-            VStack(alignment: .leading, spacing: 5) {
-                Label("1회 구매", systemImage: "checkmark.seal")
-                HStack(spacing: 6) {
-                    Text(productState.product.formattedPrice)
-                        .fontWeight(.semibold)
-                    if productState.product.taxInclusive {
-                        Text("· 부가세 포함")
-                    }
-                }
-            }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
 
             if case .error(let message) = productState.purchaseState {
                 Label(message, systemImage: "exclamationmark.triangle.fill")
@@ -89,14 +101,6 @@ struct StoreProductCard: View {
             }
 
             Spacer(minLength: 0)
-
-            Button(action: playReactionPreview) {
-                Label("반응 미리보기", systemImage: "sparkles")
-                    .frame(maxWidth: .infinity)
-                    .foregroundStyle(buttonForegroundColor)
-            }
-            .buttonStyle(.glass)
-            .foregroundStyle(buttonForegroundColor)
 
             purchaseButton
         }
@@ -118,14 +122,6 @@ struct StoreProductCard: View {
 
     private var animatedPreview: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [.pink.opacity(0.16), .purple.opacity(0.12), .mint.opacity(0.10)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
             if let effect = definition.sparkleEffect {
                 StoreAmbientSparkles(effect: effect)
                     .allowsHitTesting(false)
@@ -150,11 +146,20 @@ struct StoreProductCard: View {
                     .scaleEffect(previewScale, anchor: .bottom)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(.primary.opacity(0.08), lineWidth: 1)
+    }
+
+    private var reactionPreviewButton: some View {
+        Button(action: playReactionPreview) {
+            Image(systemName: "hand.tap")
+                .font(.system(size: 15, weight: .semibold))
+                .frame(width: 32, height: 32)
+                .contentShape(Circle())
         }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .foregroundStyle(buttonForegroundColor)
+        .accessibilityLabel("반응 미리보기")
+        .help("반응 미리보기")
     }
 
     @ViewBuilder
@@ -172,7 +177,7 @@ struct StoreProductCard: View {
             case .openingCheckout, .confirming:
                 disabledProgressButton(productState.purchaseState.label)
             case .owned:
-                fullWidthButton("보유 중", action: {}, disabled: true)
+                EmptyView()
             case .error:
                 fullWidthButton("상태 다시 확인") {
                     actions.onRefreshCommerceState(productState.id)
