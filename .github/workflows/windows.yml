@@ -109,6 +109,7 @@ jobs:
       - name: Publish Windows testing pre-release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           $tag = 'v0.3.0-alpha.1'
           $setup = './release-assets/SIDEY-Windows-x64-v0.3.0-alpha.1-Setup.exe'
