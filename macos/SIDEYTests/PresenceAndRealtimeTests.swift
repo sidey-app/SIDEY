@@ -282,7 +282,7 @@ final class PresenceAndRealtimeTests: XCTestCase {
         XCTAssertEqual(updates.filter { $0.userID == updatedUserID }.count, 1)
     }
 
-    func testReconnectStateRestoresLastPresence() {
+    func testReconnectRequiresFreshRemotePresenceInsteadOfRestoringStaleOnline() {
         let roomID = UUID()
         let friendID = UUID()
         let model = AppModel(preferences: .defaults)
@@ -309,7 +309,7 @@ final class PresenceAndRealtimeTests: XCTestCase {
         model.setRealtimeConnected(false)
         XCTAssertEqual(model.rooms[0].members[0].presence, .reconnecting)
         model.setRealtimeConnected(true)
-        XCTAssertEqual(model.rooms[0].members[0].presence, .online)
+        XCTAssertEqual(model.rooms[0].members[0].presence, .offline)
     }
 
     func testBroadcastTypingLeaseDoesNotRemainStuckAcrossReconnect() {
@@ -342,7 +342,7 @@ final class PresenceAndRealtimeTests: XCTestCase {
         model.setRealtimeConnected(false)
         XCTAssertEqual(model.rooms[0].members[0].presence, .reconnecting)
         model.setRealtimeConnected(true)
-        XCTAssertEqual(model.rooms[0].members[0].presence, .away)
+        XCTAssertEqual(model.rooms[0].members[0].presence, .offline)
     }
 
     func testTypingLeaseStartsOnceAndDoesNotRestartForEveryKeystroke() {

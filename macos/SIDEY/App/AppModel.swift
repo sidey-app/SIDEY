@@ -13,6 +13,7 @@ final class AppModel {
     var selectedCharacterID: String
     var draft = ""
     private(set) var messageLedger = MessageLedger()
+    private(set) var messageOutbox = MessageOutbox()
     private(set) var bubbleLedger = ActiveBubbleLedger()
     var availableScreens: [OverlayScreenOption] = []
     var activeSettingsPage: SettingsPage = .profile
@@ -87,6 +88,9 @@ final class AppModel {
             }
         }
         rooms = updatedRooms
+        let retainedRoomIDs = Set(updatedRooms.map(\.id))
+        messageLedger.retain(roomIDs: retainedRoomIDs)
+        messageOutbox.retain(roomIDs: retainedRoomIDs)
         unreadCounts = unreadCounts.filter { roomID, _ in
             updatedRooms.contains(where: { $0.id == roomID })
         }
@@ -208,6 +212,12 @@ final class AppModel {
                         : (basePresence[key] ?? .offline)
                 } else if member.presence != .offline {
                     rooms[roomIndex].members[memberIndex].presence = .reconnecting
+                    if member.userID != currentUserID {
+                        // Presence state is a lease on a specific socket. Never
+                        // resurrect a remote user's old online/away state after
+                        // reconnect; wait for a fresh join/sync instead.
+                        basePresence[key] = .offline
+                    }
                 }
             }
         }
@@ -221,7 +231,7 @@ final class AppModel {
         revealBubble: Bool = true,
         now: Date = .now
     ) {
-        messageLedger.stage(id: id, roomID: roomID, senderID: senderID, body: body, createdAt: now)
+        messageOutbox.stage(id: id, roomID: roomID, senderID: senderID, body: body, createdAt: now)
         if revealBubble, roomID == activeRoom?.id {
             bubbleLedger.show(
                 senderID: senderID,
@@ -234,7 +244,9 @@ final class AppModel {
 
     @discardableResult
     func confirmMessage(_ message: ChatMessage, revealBubble: Bool = true) -> Bool {
-        let isNew = messageLedger.confirm(message)
+        let wasOutgoing = messageOutbox.confirm(id: message.id, roomID: message.roomID)
+        let wasNewToLedger = messageLedger.confirm(message)
+        let isNew = wasNewToLedger && !wasOutgoing
         if isNew, revealBubble, message.roomID == activeRoom?.id {
             bubbleLedger.show(
                 senderID: message.senderID,
@@ -247,14 +259,22 @@ final class AppModel {
         return isNew
     }
 
-    func failMessage(id: UUID) -> String? {
-        let body = messageLedger.fail(id: id)
+    func failMessage(id: UUID, roomID: UUID) -> OutgoingMessage? {
+        let message = messageOutbox.fail(id: id, roomID: roomID)
         bubbleLedger.remove(messageID: id)
-        return body
+        return message
     }
 
     func replaceMessages(roomID: UUID, with messages: [ChatMessage]) {
         messageLedger.replaceConfirmed(roomID: roomID, with: messages)
+        for message in messages {
+            _ = messageOutbox.confirm(id: message.id, roomID: roomID)
+        }
+    }
+
+    func removeMessage(id: UUID, roomID: UUID) {
+        messageLedger.remove(id: id, roomID: roomID)
+        bubbleLedger.remove(messageID: id)
     }
 
     func clearBubbles() {
@@ -263,6 +283,7 @@ final class AppModel {
 
     func dismissExpiredBubbles(at date: Date = .now) {
         bubbleLedger.prune(at: date)
+        messageLedger.prune(now: date)
     }
 }
 

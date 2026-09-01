@@ -27,9 +27,9 @@ select
   '{"provider":"anonymous","providers":["anonymous"]}'::jsonb,
   '{}'::jsonb,
   true,
-  case when number = 23 then now() - interval '8 days' else now() end,
+  case when number = 24 then now() - interval '8 days' else now() end,
   now()
-from generate_series(1, 23) number;
+from generate_series(1, 24) number;
 
 do $$
 declare
@@ -220,28 +220,26 @@ select throws_ok(
   'invalid_message_body',
   '201-character message is rejected'
 );
-select throws_ok(
+select lives_ok(
   $$select public.send_message(
     '10000000-0000-0000-0000-000000000001',
     (select room_id from test_rooms where label = 'main'),
-    '재전송'
+    '안녕'
   )$$,
-  '23505',
-  'duplicate key value violates unique constraint "messages_pkey"',
-  'client message UUID deduplicates retransmission'
+  'same client message UUID makes retransmission idempotent'
 );
 
 update test_rooms
 set rotated_code = public.rotate_invite_code(room_id)
 where label = 'rotation';
 select is(
-  (select invite_version from public.rooms where id = (select room_id from test_rooms where label = 'rotation')),
+  (select code_version from private.room_invites where room_id = (select room_id from test_rooms where label = 'rotation')),
   2,
   'invite rotation increments version'
 );
 select isnt(
   (select private.hash_invite_code(invite_code) from test_rooms where label = 'rotation'),
-  (select invite_code_hash from public.rooms where id = (select room_id from test_rooms where label = 'rotation')),
+  (select code_hash from private.room_invites where room_id = (select room_id from test_rooms where label = 'rotation')),
   'invite rotation changes stored hash'
 );
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000007', true);
@@ -256,9 +254,9 @@ select results_eq(
   'new invite code joins the room'
 );
 select ok(
-  (select encode(invite_code_hash, 'hex') not like '%' || lower(invite_code) || '%'
-   from public.rooms
-   join test_rooms on test_rooms.room_id = rooms.id
+  (select encode(code_hash, 'hex') not like '%' || lower(invite_code) || '%'
+   from private.room_invites
+   join test_rooms on test_rooms.room_id = room_invites.room_id
    where test_rooms.label = 'rotation'),
   'invite plaintext is not stored'
 );
@@ -315,14 +313,16 @@ select is(
 
 select ok(
   private.can_access_room_topic(
-    'room:' || (select room_id::text from test_rooms where label = 'main'),
+    'room:' || (select id::text || ':' || realtime_epoch::text || ':db'
+                from public.rooms where id = (select room_id from test_rooms where label = 'main')),
     '00000000-0000-0000-0000-000000000002'
   ),
   'room member can access private Realtime topic'
 );
 select ok(
   not private.can_access_room_topic(
-    'room:' || (select room_id::text from test_rooms where label = 'main'),
+    'room:' || (select id::text || ':' || realtime_epoch::text || ':db'
+                from public.rooms where id = (select room_id from test_rooms where label = 'main')),
     '00000000-0000-0000-0000-000000000021'
   ),
   'outsider cannot access private Realtime topic'
@@ -356,16 +356,11 @@ select is(
 );
 select is(private.delete_stale_anonymous_users(), 1::bigint, 'stale groupless anonymous user is cleaned up');
 select is(
-  (select count(*)::integer from auth.users where id = '00000000-0000-0000-0000-000000000023'),
+  (select count(*)::integer from auth.users where id = '00000000-0000-0000-0000-000000000024'),
   0,
   'stale anonymous user row is removed'
 );
-select is(
-  (select data_type from information_schema.columns
-   where table_schema = 'public' and table_name = 'rooms' and column_name = 'invite_code_hash'),
-  'bytea',
-  'invite code is stored only as a binary hash'
-);
+select hasnt_column('public', 'rooms', 'invite_code_hash', 'invite hash is absent from the Data API table');
 select ok(not has_table_privilege('authenticated', 'public.messages', 'insert'), 'authenticated has no direct message insert grant');
 select ok(not has_table_privilege('anon', 'public.profiles', 'select'), 'unauthenticated role cannot read profiles');
 

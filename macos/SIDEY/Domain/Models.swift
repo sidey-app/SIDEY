@@ -225,7 +225,9 @@ struct Room: Codable, Equatable, Identifiable, Sendable {
     var ownerID: UUID
     var members: [RoomMember]
     var inviteCodeHint: String
-    var inviteVersion: Int
+    var inviteVersion: Int = 0
+    var inviteCodeReady: Bool = true
+    var realtimeEpoch: Int = 1
 }
 
 struct RoomMember: Codable, Equatable, Identifiable, Sendable {
@@ -247,6 +249,7 @@ struct ChatMessage: Codable, Equatable, Identifiable, Sendable {
 enum MessageDeliveryState: Equatable, Sendable {
     case pending
     case confirmed
+    case failed
 }
 
 struct MessageLedgerEntry: Equatable, Identifiable, Sendable {
@@ -259,33 +262,17 @@ struct MessageLedgerEntry: Equatable, Identifiable, Sendable {
 }
 
 struct MessageLedger: Equatable, Sendable {
+    static let maximumConfirmedPerRoom = 50
+    static let retentionInterval = TimeInterval(ProductLimits.messageRetentionDays * 24 * 60 * 60)
+
     private(set) var entries: [MessageLedgerEntry] = []
 
-    mutating func stage(
-        id: UUID,
-        roomID: UUID,
-        senderID: UUID,
-        body: String,
-        createdAt: Date = .now
-    ) {
-        guard !entries.contains(where: { $0.id == id }) else { return }
-        entries.append(MessageLedgerEntry(
-            id: id,
-            roomID: roomID,
-            senderID: senderID,
-            body: body,
-            createdAt: createdAt,
-            state: .pending
-        ))
-    }
-
     @discardableResult
-    mutating func confirm(_ message: ChatMessage) -> Bool {
+    mutating func confirm(_ message: ChatMessage, now: Date = .now) -> Bool {
         let wasKnown = entries.contains(where: { $0.id == message.id })
         if let index = entries.firstIndex(where: { $0.id == message.id }) {
             entries[index].body = message.body
             entries[index].createdAt = message.createdAt
-            entries[index].state = .confirmed
         } else {
             entries.append(MessageLedgerEntry(
                 id: message.id,
@@ -296,29 +283,120 @@ struct MessageLedger: Equatable, Sendable {
                 state: .confirmed
             ))
         }
-        entries.sort { lhs, rhs in
-            lhs.createdAt == rhs.createdAt ? lhs.id.uuidString < rhs.id.uuidString : lhs.createdAt < rhs.createdAt
-        }
+        sortAndPrune(now: now)
         return !wasKnown
     }
 
-    mutating func replaceConfirmed(roomID: UUID, with messages: [ChatMessage]) {
-        entries.removeAll { $0.roomID == roomID && $0.state == .confirmed }
+    mutating func replaceConfirmed(roomID: UUID, with messages: [ChatMessage], now: Date = .now) {
+        entries.removeAll { $0.roomID == roomID }
         for message in messages where message.roomID == roomID {
-            confirm(message)
+            confirm(message, now: now)
         }
+        sortAndPrune(now: now)
     }
 
-    @discardableResult
-    mutating func fail(id: UUID) -> String? {
-        guard let index = entries.firstIndex(where: { $0.id == id && $0.state == .pending }) else { return nil }
-        return entries.remove(at: index).body
+    mutating func remove(id: UUID, roomID: UUID) {
+        entries.removeAll { $0.id == id && $0.roomID == roomID }
+    }
+
+    mutating func retain(roomIDs: Set<UUID>) {
+        entries.removeAll { !roomIDs.contains($0.roomID) }
+    }
+
+    mutating func prune(now: Date = .now) {
+        sortAndPrune(now: now)
     }
 
     var latest: MessageLedgerEntry? { entries.last }
 
     func latest(in roomID: UUID) -> MessageLedgerEntry? {
         entries.last(where: { $0.roomID == roomID })
+    }
+
+    private mutating func sortAndPrune(now: Date) {
+        let cutoff = now.addingTimeInterval(-Self.retentionInterval)
+        entries.removeAll { $0.createdAt < cutoff }
+        entries.sort { lhs, rhs in
+            lhs.createdAt == rhs.createdAt ? lhs.id.uuidString < rhs.id.uuidString : lhs.createdAt < rhs.createdAt
+        }
+
+        let roomIDs = Set(entries.map(\.roomID))
+        for roomID in roomIDs {
+            let roomIndices = entries.indices.filter { entries[$0].roomID == roomID }
+            let overflow = roomIndices.count - Self.maximumConfirmedPerRoom
+            guard overflow > 0 else { continue }
+            let removedIDs = Set(roomIndices.prefix(overflow).map { entries[$0].id })
+            entries.removeAll { removedIDs.contains($0.id) }
+        }
+    }
+}
+
+enum OutgoingMessageState: Equatable, Sendable {
+    case pending
+    case failed
+}
+
+struct OutgoingMessage: Equatable, Identifiable, Sendable {
+    let id: UUID
+    let roomID: UUID
+    let senderID: UUID
+    let body: String
+    let createdAt: Date
+    var state: OutgoingMessageState
+}
+
+struct MessageOutbox: Equatable, Sendable {
+    static let maximumFailedPerRoom = 50
+
+    private(set) var entries: [OutgoingMessage] = []
+
+    mutating func stage(
+        id: UUID,
+        roomID: UUID,
+        senderID: UUID,
+        body: String,
+        createdAt: Date = .now
+    ) {
+        guard !entries.contains(where: { $0.id == id }) else { return }
+        entries.append(OutgoingMessage(
+            id: id,
+            roomID: roomID,
+            senderID: senderID,
+            body: body,
+            createdAt: createdAt,
+            state: .pending
+        ))
+    }
+
+    @discardableResult
+    mutating func confirm(id: UUID, roomID: UUID) -> Bool {
+        let previousCount = entries.count
+        entries.removeAll { $0.id == id && $0.roomID == roomID }
+        return entries.count != previousCount
+    }
+
+    mutating func retain(roomIDs: Set<UUID>) {
+        entries.removeAll { !roomIDs.contains($0.roomID) }
+    }
+
+    @discardableResult
+    mutating func fail(id: UUID, roomID: UUID) -> OutgoingMessage? {
+        guard let index = entries.firstIndex(where: {
+            $0.id == id && $0.roomID == roomID && $0.state == .pending
+        }) else { return nil }
+        entries[index].state = .failed
+        pruneFailed(roomID: roomID)
+        return entries.first(where: { $0.id == id && $0.roomID == roomID })
+    }
+
+    private mutating func pruneFailed(roomID: UUID) {
+        let failed = entries
+            .filter { $0.roomID == roomID && $0.state == .failed }
+            .sorted { $0.createdAt < $1.createdAt }
+        let overflow = failed.count - Self.maximumFailedPerRoom
+        guard overflow > 0 else { return }
+        let removedIDs = Set(failed.prefix(overflow).map(\.id))
+        entries.removeAll { removedIDs.contains($0.id) }
     }
 }
 

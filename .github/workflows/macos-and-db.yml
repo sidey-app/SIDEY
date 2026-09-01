@@ -1,0 +1,87 @@
+name: macOS and database
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'macos/**'
+      - 'supabase/**'
+      - 'scripts/macos/**'
+      - 'scripts/supabase/**'
+      - 'scripts/verify_release_consistency.sh'
+      - 'README.md'
+      - 'docs/DECISIONS.md'
+      - 'docs/PRODUCT_SPEC.md'
+      - 'updates/appcast.xml'
+      - 'website/**'
+      - '.github/workflows/macos-and-db.yml'
+  pull_request:
+    paths:
+      - 'macos/**'
+      - 'supabase/**'
+      - 'scripts/macos/**'
+      - 'scripts/supabase/**'
+      - 'scripts/verify_release_consistency.sh'
+      - 'README.md'
+      - 'docs/DECISIONS.md'
+      - 'docs/PRODUCT_SPEC.md'
+      - 'updates/appcast.xml'
+      - 'website/**'
+      - '.github/workflows/macos-and-db.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos-tests:
+    name: macOS native tests
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Run native test suite
+        run: ./scripts/macos/test_native.sh
+
+  database-tests:
+    name: Supabase reset and pgTAP
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.116.0
+
+      - name: Start local Supabase
+        run: supabase start
+
+      - name: Reset migrations from scratch
+        run: supabase db reset --local
+
+      - name: Run database tests
+        run: supabase test db
+
+      - name: Run concurrent transaction tests
+        run: ./scripts/supabase/test_concurrency.sh
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup
+
+  release-consistency:
+    name: Release metadata consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Verify version and download metadata
+        run: ./scripts/verify_release_consistency.sh

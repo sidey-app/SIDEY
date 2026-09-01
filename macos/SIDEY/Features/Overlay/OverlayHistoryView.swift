@@ -41,6 +41,9 @@ struct OverlayHistoryView: View {
                                     Text(entry.createdAt, style: .time)
                                     if entry.state == .pending {
                                         Label("전송 중", systemImage: "clock")
+                                    } else if entry.state == .failed {
+                                        Label("전송 실패", systemImage: "exclamationmark.triangle")
+                                            .foregroundStyle(.red)
                                     }
                                 }
                                 .font(.caption2)
@@ -61,10 +64,38 @@ struct OverlayHistoryView: View {
 
     private var entries: [MessageLedgerEntry] {
         guard let roomID = model.activeRoom?.id else { return [] }
-        return Self.recentEntries(in: model.messageLedger, roomID: roomID)
+        return Self.recentEntries(
+            in: model.messageLedger,
+            outbox: model.messageOutbox,
+            roomID: roomID
+        )
     }
 
-    static func recentEntries(in ledger: MessageLedger, roomID: UUID) -> [MessageLedgerEntry] {
-        Array(ledger.entries.filter { $0.roomID == roomID }.suffix(20).reversed())
+    static func recentEntries(
+        in ledger: MessageLedger,
+        outbox: MessageOutbox = MessageOutbox(),
+        roomID: UUID,
+        now: Date = .now
+    ) -> [MessageLedgerEntry] {
+        let cutoff = now.addingTimeInterval(-MessageLedger.retentionInterval)
+        let confirmed = ledger.entries.filter { $0.roomID == roomID && $0.createdAt >= cutoff }
+        let outgoing = outbox.entries
+            .filter { $0.roomID == roomID }
+            .map { message in
+                MessageLedgerEntry(
+                    id: message.id,
+                    roomID: message.roomID,
+                    senderID: message.senderID,
+                    body: message.body,
+                    createdAt: message.createdAt,
+                    state: message.state == .pending ? .pending : .failed
+                )
+            }
+        let ordered = (confirmed + outgoing).sorted { lhs, rhs in
+            lhs.createdAt == rhs.createdAt
+                ? lhs.id.uuidString < rhs.id.uuidString
+                : lhs.createdAt < rhs.createdAt
+        }
+        return Array(ordered.suffix(20).reversed())
     }
 }

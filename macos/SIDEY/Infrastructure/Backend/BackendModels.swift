@@ -5,9 +5,18 @@ struct BackendSnapshot: Equatable, Sendable {
     var rooms: [Room]
 }
 
+struct BackendReconciliation: Equatable, Sendable {
+    let snapshot: BackendSnapshot
+    let activeRoomID: UUID?
+    let activeMessages: [ChatMessage]
+}
+
 enum BackendEvent: Sendable {
     case snapshot(BackendSnapshot)
     case message(ChatMessage)
+    case messageDeleted(roomID: UUID, messageID: UUID)
+    case messagesInvalidated(roomID: UUID)
+    case messagesReplaced(roomID: UUID, messages: [ChatMessage])
     case presence(roomID: UUID, userID: UUID, state: PresenceState)
     case typing(roomID: UUID, userID: UUID, active: Bool)
     case characterPulse(CharacterPulseEvent)
@@ -18,6 +27,12 @@ enum BackendEvent: Sendable {
 struct CreatedRoom: Equatable, Sendable {
     let roomID: UUID
     let inviteCode: String
+    let storedInKeychain: Bool
+}
+
+struct JoinedRoom: Equatable, Sendable {
+    let roomID: UUID
+    let storedInKeychain: Bool
 }
 
 enum BackendConnectionState: Equatable, Sendable {
@@ -60,14 +75,16 @@ struct DatabaseRoom: Codable, Sendable {
     let name: String
     let ownerID: UUID
     let inviteCodeHint: String
-    let inviteVersion: Int
+    let inviteCodeReady: Bool
+    let realtimeEpoch: Int
     let createdAt: String
 
     enum CodingKeys: String, CodingKey {
         case id, name
         case ownerID = "owner_id"
         case inviteCodeHint = "invite_code_hint"
-        case inviteVersion = "invite_version"
+        case inviteCodeReady = "invite_code_ready"
+        case realtimeEpoch = "realtime_epoch"
         case createdAt = "created_at"
     }
 }
@@ -309,24 +326,65 @@ struct PresencePublicationIntent: Equatable, Sendable {
 }
 
 struct TypingPayload: Codable, Sendable {
+    let roomID: UUID
     let userID: UUID
-    enum CodingKeys: String, CodingKey { case userID = "user_id" }
+    enum CodingKeys: String, CodingKey {
+        case roomID = "room_id"
+        case userID = "user_id"
+    }
 }
 
 struct CharacterPulsePayload: Codable, Sendable {
+    let roomID: UUID
     let userID: UUID
     let eventID: UUID
 
     enum CodingKeys: String, CodingKey {
+        case roomID = "room_id"
         case userID = "user_id"
         case eventID = "event_id"
     }
+}
+
+struct DatabaseChangePayload: Codable, Sendable {
+    let roomID: UUID
+    let operation: String?
+    let messageID: UUID?
+    let entity: String?
+    let realtimeEpoch: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case operation, entity
+        case roomID = "room_id"
+        case messageID = "message_id"
+        case realtimeEpoch = "realtime_epoch"
+    }
+}
+
+struct BroadcastRoomEventParameters: Encodable, Sendable {
+    let roomID: UUID
+    let realtimeEpoch: Int
+    let event: String
+    let eventID: UUID?
+
+    enum CodingKeys: String, CodingKey {
+        case roomID = "p_room_id"
+        case realtimeEpoch = "p_realtime_epoch"
+        case event = "p_event"
+        case eventID = "p_event_id"
+    }
+}
+
+struct RotateInviteCodeParameters: Encodable, Sendable {
+    let roomID: UUID
+    enum CodingKeys: String, CodingKey { case roomID = "p_room_id" }
 }
 
 enum SideyBackendError: LocalizedError, Equatable {
     case invalidProfile
     case invalidRoomName
     case invalidInviteCode
+    case inviteRateLimited
     case roomLimitReached
     case memberLimitReached
     case alreadyMember
@@ -340,6 +398,7 @@ enum SideyBackendError: LocalizedError, Equatable {
     case invalidTimestamp
     case sessionRecoveryFailed
     case realtimeUnavailable
+    case staleRealtimeEpoch
     case remote(String)
 
     var errorDescription: String? {
@@ -347,6 +406,7 @@ enum SideyBackendError: LocalizedError, Equatable {
         case .invalidProfile: "닉네임은 줄바꿈 없이 2~8자로 입력해 주세요."
         case .invalidRoomName: "그룹 이름은 줄바꿈 없이 1~20자로 입력해 주세요."
         case .invalidInviteCode: "초대 코드를 다시 확인해 주세요."
+        case .inviteRateLimited: "초대 코드 시도가 너무 많습니다. 10분 뒤 다시 시도해 주세요."
         case .roomLimitReached: "한 사용자는 그룹을 최대 5개까지 사용할 수 있습니다."
         case .memberLimitReached: "이 그룹은 이미 \(ProductLimits.maximumRoomMembers)명으로 가득 찼습니다."
         case .alreadyMember: "이미 참여 중인 그룹입니다."
@@ -360,6 +420,7 @@ enum SideyBackendError: LocalizedError, Equatable {
         case .invalidTimestamp: "서버 메시지 시각을 해석하지 못했습니다."
         case .sessionRecoveryFailed: "기존 로그인 세션을 복구하지 못했습니다. 새 계정은 만들지 않았으니 다시 로그인하거나 지원을 요청해 주세요."
         case .realtimeUnavailable: "실시간 연결이 준비되지 않았습니다."
+        case .staleRealtimeEpoch: "그룹 권한이 변경되어 실시간 연결을 새로 고쳐야 합니다."
         case .remote(let message): message
         }
     }
@@ -367,6 +428,7 @@ enum SideyBackendError: LocalizedError, Equatable {
     static func business(code: String) -> Self {
         switch code {
         case "invalid_invite_code": .invalidInviteCode
+        case "invite_rate_limited": .inviteRateLimited
         case "room_limit_reached": .roomLimitReached
         case "member_limit_reached": .memberLimitReached
         case "already_a_member": .alreadyMember
@@ -376,6 +438,7 @@ enum SideyBackendError: LocalizedError, Equatable {
         case "membership_required": .membershipRequired
         case "owner_must_leave": .ownerCannotRemoveSelf
         case "invalid_room_name": .invalidRoomName
+        case "stale_realtime_epoch": .staleRealtimeEpoch
         default: .remote(code)
         }
     }

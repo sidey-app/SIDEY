@@ -33,5 +33,8 @@ xcodebuild \
 	-destination 'platform=macOS,arch=arm64' \
 	-derivedDataPath "$SIDEY_TEST_DIR" \
 	-disableAutomaticPackageResolution \
+	SIDEY_RUN_BACKEND_INTEGRATION="${SIDEY_RUN_BACKEND_INTEGRATION:-0}" \
+	SIDEY_SUPABASE_URL="${SIDEY_SUPABASE_URL:-}" \
+	SIDEY_SUPABASE_PUBLISHABLE_KEY="${SIDEY_SUPABASE_PUBLISHABLE_KEY:-}" \
 	test \
 	"$@"

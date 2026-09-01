@@ -1,8 +1,8 @@
 # SIDEY 제품 기획서
 
-- 문서 버전: 0.6
+- 문서 버전: 0.7
 - 최종 갱신: 2026-09-01
-- 상태: macOS `v1.0.0`(build 11) 정식 배포 준비, 현재 공개본 `v0.2.0`(build 10), Windows 네이티브 햄스터 vertical slice 개발
+- 상태: macOS `v1.0.1`(build 12) 정식 공개(보안 hotfix), Windows 네이티브 햄스터 vertical slice 개발
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 현재 개발 브랜치: `main`
 
@@ -23,7 +23,7 @@
 ### 2.1 현재 macOS slice
 
 - macOS 네이티브 클라이언트는 현재 정식판 기준 구현으로 유지한다.
-- 햄스터 vertical slice의 구조 위에 내장 픽셀 동물 5종을 제공한다.
+- 현재 내장 픽셀 동물 5종을 제공한다.
 - 실제 그룹은 최대 12명이다. 렌더러 안정성은 별도 20노드 합성 스트레스 테스트로 검증한다.
 - macOS 코드·인증·설정 schema는 Windows 개발을 위해 재작성하지 않는다.
 - 기존 설치의 인증 세션과 설정을 잃지 않도록 Swift 기반 legacy migration 호환만 유지한다.
@@ -62,7 +62,7 @@
 - 사용자당 참여 가능한 방은 최대 5개다.
 - 오버레이에는 한 번에 활성 그룹 하나만 표시한다.
 - 닉네임은 줄바꿈 없는 2~8자로 제한한다. 닉네임과 캐릭터 선택은 같은 방에서 중복 가능하며 권한·식별은 UUID로 처리한다.
-- 초대 코드는 방장이 재발급하기 전까지 유효하고 DB에는 해시만 저장한다.
+- 초대 코드는 128-bit 난수의 32자리 hex를 `8-8-8-8`로 표시한다. 방장이 재발급하기 전까지 유효하며 API 비노출 private schema에는 Vault pepper 기반 HMAC-SHA256만 저장한다. 보안 migration 전의 짧은 코드는 모두 비활성화하고 방장에게 재발급을 요구한다.
 - 사용자·프로필·방·메시지는 RLS를 통과해야 한다.
 - macOS 그룹 설정에서 모든 멤버는 기본 접힘 상태인 각 그룹 카드의 제목 영역 또는 오른쪽 끝의 좌우 10pt 여백을 둔 단일 화살표를 눌러 캐릭터·닉네임·`나` 표시를 펼쳐 볼 수 있다. 헤더 왼쪽 기본 disclosure 화살표와 별도 `…` 메뉴는 두지 않으며, 비활성 그룹 전환 버튼은 `그룹 참가`로 표시한다. 방장은 닉네임 바로 왼쪽의 금색 `crown.fill`로 표시하며 오버레이 이름표에는 왕관을 넣지 않는다.
 - 현재 `owner_id`인 방장만 펼친 멤버 목록 아래의 그룹 이름 변경·그룹 삭제 버튼과 본인을 제외한 멤버의 추방 버튼을 볼 수 있다. 이름은 앞뒤 공백을 제거한 줄바꿈·탭 없는 1~20자이며, 추방은 대상 닉네임을 표시한 확인을 거친다. 삭제는 멤버와 모든 메시지가 영구 삭제된다는 파괴적 2단계 확인을 거친 hard delete다.
@@ -103,7 +103,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 | 오프라인 | 옆으로 웅크린 잠, 저채도, 약 75% 불투명도 | 빨강 |
 | 재연결 | 정지 | 회색 |
 
-타이핑은 캐릭터 모션을 바꾸지 않는다. `TypingIndicatorNode`가 `.` → `..` → `...`을 0.35초 간격으로 반복한다. 같은 캐릭터에 실제 메시지 말풍선이 있으면 타이핑 action을 중단하고 메시지를 우선하며, 메시지 만료 뒤 여전히 타이핑 중이면 점 애니메이션을 다시 시작한다. Broadcast 빈도와 schema는 바꾸지 않는다.
+타이핑은 캐릭터 모션을 바꾸지 않는다. `TypingIndicatorNode`가 `.` → `..` → `...`을 0.35초 간격으로 반복한다. 같은 캐릭터에 실제 메시지 말풍선이 있으면 타이핑 action을 중단하고 메시지를 우선하며, 메시지 만료 뒤 여전히 타이핑 중이면 점 애니메이션을 다시 시작한다. 클라이언트는 Broadcast에 직접 쓰지 않고 인증 RPC가 방·epoch·사용자·event·rate를 검증한 뒤 ephemeral topic에 발행한다.
 
 자리 비움이 해제되면 부유·alpha action을 취소한다. `Zzz` 글자 수는 상태가 유지되는 동안 순환하지 않는다.
 
@@ -155,13 +155,14 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - Postgres가 메시지 원본이다.
 - 메시지는 생성 후 7일이 지나면 서버의 일일 정리 작업으로 영구 삭제한다.
 - Presence는 연결·온라인·자리 비움 상태에 사용한다.
-- Broadcast는 SIDEY 입력창의 타이핑과 `character_pulse`처럼 저장하지 않는 이벤트에만 사용한다.
+- Broadcast는 SIDEY 입력창의 타이핑과 `character_pulse`처럼 저장하지 않는 이벤트, 그리고 서버가 발행하는 DB 변경 식별자에만 사용한다. 클라이언트 직접 발행은 Presence만 허용한다.
+- 각 방은 멤버 변경마다 증가하는 `realtime_epoch`을 가지며 DB·ephemeral private topic을 분리한다. DB event에는 message UUID와 operation만 담고, macOS는 RLS를 거쳐 해당 row를 재조회한 뒤 확정한다.
 - macOS 클라이언트는 5초마다 WebSocket과 각 방 채널의 실제 구독 상태를 확인한다. 비정상이 8초 이상 지속되면 채널 및 수신 스트림을 재생성하고, 실패가 이어지면 8초·16초·최대 30초 간격으로 재시도한다.
 - 재구독 중에는 로컬 상태를 재연결로 표시한다. 성공하면 현재 Presence를 다시 publish하고 방·멤버 snapshot과 최근 메시지를 다시 읽어 단절 중 누락된 가입·메시지를 보정한다.
-- 메시지 ledger는 `senderID`를 보존한다.
+- confirmed message ledger는 `senderID`를 보존하며 방별 최근 50개·7일 범위로 제한한다. pending·failed 전송은 방별 outbox에 분리한다.
 - Postgres `created_at`은 소수 초 유무와 `Z` 또는 `+00:00` 같은 UTC offset이 있는 ISO-8601을 엄격히 해석한다. 기록 표시는 기존처럼 사용자 로컬 시간을 사용하고, 해석 실패를 현재 시각으로 대체하지 않으며 기술 오류로 노출한다.
-- 클라이언트가 UUID로 메시지를 낙관적으로 표시하고 동일 UUID의 저장·Realtime 결과와 중복 제거한다.
-- 저장 실패 시 낙관 기록과 말풍선을 제거하고 입력 원문을 복구한다.
+- 클라이언트가 UUID와 원래 `roomID`로 메시지를 낙관적으로 표시하고 동일 UUID의 저장·Realtime 결과와 중복 제거한다.
+- 확정 여부가 애매한 네트워크 실패는 같은 UUID를 RLS로 조회하고 같은 UUID로 한 번 재시도한다. 최종 실패는 원래 방 outbox에만 남기며 다른 방의 draft를 덮지 않는다.
 
 ### 5.2 말풍선 규칙
 
@@ -204,7 +205,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 캐릭터 또는 입력 패널 클릭으로 앱이 활성화될 때는 수동 앱 재열기로 처리하거나 설정창을 열지 않는다.
 - 왼쪽 `×`, 내 캐릭터 재클릭, Esc 또는 입력창 외부 클릭은 draft를 보존하고 닫으며 `typing_stop`을 보낸다. 외부 클릭은 전역 마우스 이벤트나 좌표를 수집하지 않고 입력 패널의 키 포커스 상실로 판정한다.
 - 유효한 메시지를 전송하면 입력창을 유지하고 마지막 전송 시점부터 5초 뒤 자동으로 닫는다. 5초 안에 다시 전송하면 타이머를 갱신한다.
-- 낙관적 전송 실패 시 예약 닫힘을 취소하고 원문을 복구한 뒤 입력창을 열어 포커스한다.
+- 낙관적 전송 실패 시 예약 닫힘을 취소하고 실패 항목을 원래 방 outbox에 보존한 뒤, 그 방이 아직 활성 방이면 입력창을 열어 포커스한다. 현재 draft는 실패 본문으로 덮지 않는다.
 - 오버레이 숨김, 활성 방 전환, 현재 사용자 노드 제거 시 입력창을 닫는다.
 
 월드 패널 전체는 `ignoresMouseEvents`로 클릭을 통과시킨다. 내 캐릭터 위의 52×52pt 투명 `NSPanel`만 최대 15Hz·1pt 임계값으로 위치를 따라가며 메시지·리액션 클릭을 받는다. 전역 마우스 좌표와 전역 이벤트 모니터는 사용하지 않는다.
@@ -256,7 +257,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 
 - 사용자, 방, 멤버 snapshot
 - Presence와 타이핑 상태
-- 메시지 ledger와 active bubble 목록
+- bounded confirmed message ledger, 방별 outbox와 active bubble 목록
 - 오버레이 영역, 모니터, 오프라인 표시 등 환경설정
 - 편집 중인 `selectedCharacterID`
 - 연결 상태와 분리된 현재 `GroupOperation`
@@ -271,7 +272,7 @@ Presence나 snapshot을 적용할 때 UUID 기준으로 추가·갱신·삭제�
 
 `OverlayWindowGroup`은 composer 표시 상태와 내 캐릭터 단일·더블클릭 패널을 소유한다. `AppCoordinator`는 `character_pulse` 송수신과 캐릭터별 1초 쿨타임을 소유한다. `AppModel`에는 화면 좌표나 애니메이션 frame을 저장하지 않는다.
 
-`AppCoordinator`의 방 전환 파이프라인은 150ms 마지막 선택 우선 처리, 직렬 네트워크 실행, 최종 대상 메시지의 명시적 `roomID` 조회, 성공 뒤 활성 그룹·기록 commit, 최종 실패 rollback을 소유한다. `SideyBackend`는 Realtime 채널·수신 task·Presence publish와 자동 복구 watchdog을 소유한다. snapshot·복구·방 전환이 요청하는 Presence는 하나의 직렬 publication queue가 최신 전체 방 상태로 coalesce해 동시에 `track`하지 않는다. 복구 성공 시 snapshot 이벤트만 상위로 보내며, `AppCoordinator`가 이를 적용하고 활성 방의 최근 메시지를 재조회한다. 방·멤버 구조의 연속 Broadcast는 150ms 동안 coalesce해 한 번만 snapshot을 읽고, 사라진 그룹의 Realtime 채널과 이 기기의 Keychain 초대 코드를 정리한다.
+`AppCoordinator`의 방 전환 파이프라인은 150ms 마지막 선택 우선 처리, 직렬 네트워크 실행, 최종 대상 메시지의 명시적 `roomID` 조회, 성공 뒤 활성 그룹·기록 commit, 최종 실패 rollback을 소유한다. `SideyBackend`는 epoch별 DB·ephemeral Realtime 채널, bounded 수신 stream, Presence publish와 자동 복구 watchdog을 소유한다. snapshot·복구·방 전환이 요청하는 Presence는 하나의 직렬 publication queue가 최신 전체 방 상태로 coalesce해 동시에 `track`하지 않는다. generation별 복구가 snapshot·활성 방 최근 메시지를 모두 맞춘 뒤에만 online을 확정하고, 사라진 그룹의 채널과 이 기기의 Keychain 초대 코드를 정리한다.
 
 ### 7.2 환경설정
 
@@ -308,16 +309,20 @@ OverlayRegionPreference(
 
 ## 8. 서버 변경
 
-`20260831030000_expand_room_capacity_and_reduce_message_retention.sql`은 기존 `join_room`을 방 정원 12명으로 교체하고 메시지 보관 기간을 7일로 줄인다. migration 적용 시 이미 7일을 넘긴 메시지를 즉시 삭제하며, 기존 일일 cron은 교체된 정리 함수를 계속 호출한다. 이 migration은 운영 Supabase에도 적용한다. 다음 계약은 그대로 유지한다.
+`20260831030000_expand_room_capacity_and_reduce_message_retention.sql`은 방 정원 12명과 메시지 7일 보관을 적용한다. `20260901000000_security_hardening.sql`은 적용된 migration을 수정하지 않는 forward-only 보정이며 다음 계약을 추가한다.
 
 - 사용자당 최대 5개 방
-- 초대 코드 hash 비교와 rate limit
-- 방 및 사용자 단위 트랜잭션 advisory lock
+- private invite HMAC 비교, 128-bit 코드와 사용자 단위 직렬 rate limit
+- 방 및 사용자 단위 transaction advisory lock
 - RLS와 함수 실행 권한
 - 중복 닉네임과 중복 캐릭터 선택 허용
 - 닉네임 2~8자 제한과 기존 9~12자 닉네임의 앞 8자 migration
-- 메시지·Presence·Broadcast schema (`character_pulse`는 DB migration 없는 transient 이벤트)
+- membership 변경 시 증가하는 `realtime_epoch`, 서버 전용 DB event와 RPC 검증 transient event
+- 메시지 UUID 멱등성과 서버 rate limit, 7일 retention의 방별 단일 invalidation event
+- 7일 초과·프로필 없음·방 없음인 미완성 익명 가입만 삭제
 - `rename_room(uuid,text)`, `remove_room_member(uuid,uuid)`, 방장 전용 `delete_room(uuid) returns void`; 삭제는 기존 FK cascade로 방 멤버십과 메시지를 함께 제거
+
+기존 짧은 초대 코드는 migration에서 비활성화한다. 방장은 새 macOS 클라이언트에서 한 번 재발급해야 하며 public room 조회와 Realtime payload 어디에도 invite hash·version이 포함되지 않는다. macOS hotfix와 migration은 호환 순서로 배포하고 구버전의 기존 topic 계약은 유지하지 않는다.
 
 임시로 방 정원을 20명으로 늘렸던 staging migration은 운영에 적용되지 않았고 `main`에서도 제거한다. 20명 조건은 렌더러 합성 부하 테스트에만 사용하며 제품 정원은 12명이다.
 
@@ -348,8 +353,8 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 - 영역: 4개 가장자리 × 3개 길이의 240pt activity frame과 최대 360pt render frame, 접선 144pt 여유, 중앙 정렬, 회전, visible frame, 깊이 제한, hotspot 원점 변환, 모니터 fallback
 - 이동: 20개 합성 노드가 3,000 tick 동안 1차원 track과 발 기준선을 유지하고 finite 좌표, 입력창·상호 회피, 겹침 시 idle 해제·가속 통과, 실제 메시지 말풍선의 240pt/s² 분리 가속·72pt/s 상한·8pt 해소·경계 힘 재배분·혼잡 시 안정적인 겹침·일반 목표 복귀
 - 상태: 온라인·자리 비움 doze와 고정 `Zzz`의 부유·alpha 반복·해제 시 action 정리, 오프라인 curled sleep·재연결·타이핑, 내 캐릭터 항상 표시, 오프라인 숨김, 방 전환 UUID diff, 최대 8자 닉네임·반투명 배경과 상태 점 5pt 간격, 발 기준 7배·0.8초 리액션과 이벤트 UUID 중복 제거
-- Realtime: backoff와 구조 snapshot coalescing, Presence publication 최대 동시 실행 수 1과 최신 전체 상태 우선 적용을 검증하고, 실서버 2클라이언트에서 한쪽 WebSocket 강제 단절 뒤 자동 재구독·메시지·Presence·`character_pulse` 재수신, 이름 변경·추방·삭제의 재실행 없는 snapshot 반영과 채널 정리를 검증
-- 메시지: 발신자별 교체, 최대 4개 eviction, 10초 만료, 이동 중 말풍선 추적, 낙관적 성공·실패, 조용히 모드, 미확인 수, 소수 3·6자리·소수 없는 `created_at`과 `Z`·UTC offset 해석, 잘못된 시각 거부, 서버 시각 기반 기록 정렬
+- Realtime: current epoch topic 접근, client DB형 Broadcast 거부, 다른 사용자·방 transient event 거부, bounded stream overflow 재동기화, backoff와 generation 기반 snapshot reconciliation, Presence publication 최대 동시 실행 수 1을 검증한다. 실서버 2클라이언트에서는 강제 단절과 추방 뒤 자동 재구독·메시지·Presence·`character_pulse` 격리를 확인한다.
+- 메시지: 발신자별 교체, 최대 4개 eviction, 10초 만료, 이동 중 말풍선 추적, 방별 outbox 낙관적 성공·실패, 응답 유실 시 동일 UUID 멱등성, 방 A 실패가 방 B draft를 건드리지 않음, confirmed 기록의 방별 50개·7일 cutoff, 조용히 모드, 미확인 수, 엄격한 서버 시각 해석
 - 말풍선: 1자·200자·3줄·프리셋 양 끝·4방향에서 본문과 꼬리 누적 frame이 캔버스 안에 유지하고 실제 메시지 본문만 접선 충돌 범위에 포함하며 타이핑 말풍선은 제외
 - 창: 월드 항상 위·전체 클릭 통과, 내 캐릭터 52×52 hotspot, composer의 선택 모니터 상단 중앙·노치 아래 10pt 배치와 왼쪽 `×`·Esc·외부 클릭 닫기, 단일·더블클릭 분기와 캐릭터별 1초 리액션 쿨타임, composer 초기 숨김·열기·마지막 전송 뒤 5초 자동 닫힘·타이머 갱신·실패 복구, 기록 일반 창
 - 업데이트: production 채널에 Sparkle `2.9.6` 프레임워크·메뉴 항목·피드 URL·EdDSA 공개키가 번들에 포함되고 signed feed와 압축 해제 전 검증을 강제하며, 업데이트 진행 중에는 수동 확인 메뉴를 비활성화. development 채널은 Sparkle을 시작하지 않고 수동 확인 메뉴도 항상 비활성화
@@ -358,7 +363,7 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 - 그룹 설정: 0·1·12명 멤버 목록, 기본 접힘·제목 영역 및 오른쪽 단일 화살표 펼침, `그룹 참가` 문구, 생성·참여·전환별 진행 문구와 라이트·다크 대상 카드 강조, A→B→C 연속 선택에서 C만 commit, UUID 기반 방장 왕관과 펼친 목록 아래 방장 전용 이름 변경·삭제 버튼, 이름 변경 저장·취소, 대상 명시 추방 확인, 영구 삭제 2단계 확인, 활성·비활성·마지막 그룹 삭제 fallback, 초대 코드 복사 성공·실패와 3초 표시·재클릭 갱신·행 제거 취소
 - DMG: 660×420 배경, `SIDEY.app`, `/Applications` 심볼릭 링크, 기존 5종 idle 프레임, `.DS_Store`를 자동 생성·마운트 검증하고 Finder에서 아이콘 위치·안내 문구·nearest-neighbor 픽셀 선명도를 수동 확인
 - Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단
-- 서버: 12번째 성공, 13번째 `member_limit_reached`, 여섯 번째 방 거부, 7일 초과 메시지 삭제와 최신 메시지 보존, 비방장 이름 변경·추방·삭제 거부, 방장 성공·본인 추방 거부·삭제 cascade, RLS, 중복 닉네임·캐릭터 허용
+- 서버: 실제 anon/authenticated role의 RLS, 12번째 성공·13번째 거부와 여섯 번째 방 경합, 병렬 초대 제한, invite hash API 비노출, current epoch topic 권한, client Broadcast INSERT 봉쇄, transient event whitelist·rate, 메시지 멱등성·rate, 7일 retention, 비방장 관리 거부와 cascade를 SQL 테스트한다.
 
 ### 10.2 macOS 장시간 수동·계측 테스트
 
@@ -391,7 +396,7 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 6. `scripts/macos/prepare_sparkle_appcast.sh`로 ZIP의 EdDSA 서명과 signed appcast를 생성한다. 이 도구가 Developer ID, Hardened Runtime, stapled notarization, 앱의 `SIDEY` 표시명·`production` 채널·공개키·피드 URL·보안 플래그를 모두 통과하고, GitHub Release에서 다시 받은 ZIP이 로컬 검증본과 바이트 단위로 같아야 한다.
 7. Release ZIP URL이 실제로 내려받아지는지 확인한 뒤 생성된 `updates/appcast.xml`을 커밋·푸시한다. appcast를 먼저 게시하면 클라이언트가 존재하지 않는 ZIP을 보게 되므로 순서를 바꾸지 않는다.
 8. `sidey-app/homebrew-tap`의 Cask를 해당 DMG의 고정 URL·SHA-256으로 갱신하고 audit·style·설치·실행·삭제를 검증한다.
-9. stable 승격 여부와 근거를 `docs/DECISIONS.md`에 기록한다. `v0.2.0`은 포커스·외부 클릭 닫기 실기 확인과 전체 자동화 테스트 통과를 근거로 제품 결정에 따라 승격하며, 12명 30분 장시간 계측은 이후에도 지속 검증한다.
+9. stable 또는 hotfix 승격 여부와 근거를 `docs/DECISIONS.md`에 기록한다. 현재 공개본은 `v1.0.1`이며 12명 30분 장시간 계측은 이후에도 지속 검증한다.
 
 Sparkle `2.9.6`이 production 앱에 내장되며 메뉴바 `업데이트 확인…`과 설정의 업데이트 카드에서 수동 확인할 수 있다. 설정 버튼은 production updater가 사용 가능한 동안에만 활성화한다. 자동 확인은 Sparkle의 사용자 동의 흐름을 사용하고, 익명 system profiling은 활성화하지 않는다. appcast와 ZIP은 서로 다른 검증 대상이므로 둘 다 `sidey-app` EdDSA 키로 서명하며 `SURequireSignedFeed`와 `SUVerifyUpdateBeforeExtraction`을 강제한다. 피드는 GitHub raw HTTPS URL, 설치 파일은 GitHub Releases를 사용한다.
 

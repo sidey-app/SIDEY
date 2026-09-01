@@ -4,13 +4,40 @@ import XCTest
 
 final class BackendIntegrationTests: XCTestCase {
     func testTwoNativeClientsMessageTypingPresenceAndCleanup() async throws {
-        let sentinel = "/private/tmp/sidey-run-backend-integration"
-        guard ProcessInfo.processInfo.environment["SIDEY_RUN_BACKEND_INTEGRATION"] == "1"
-                || FileManager.default.fileExists(atPath: sentinel) else {
-            throw XCTSkip("SIDEY_RUN_BACKEND_INTEGRATION=1일 때만 실서버 통합 테스트 실행")
+        var environment = ProcessInfo.processInfo.environment
+        let testBundle = Bundle(for: Self.self)
+        let integrationFlag = configuredValue(
+            environment: environment,
+            environmentKey: "SIDEY_RUN_BACKEND_INTEGRATION",
+            bundle: testBundle,
+            bundleKey: "SIDEYRunBackendIntegration"
+        )
+        guard integrationFlag == "1" else {
+            throw XCTSkip("명시적인 로컬·staging 환경에서만 통합 테스트 실행")
         }
-
-        let configuration = try RuntimeConfiguration.resolve(environment: [:])
+        environment["SIDEY_SUPABASE_URL"] = configuredValue(
+            environment: environment,
+            environmentKey: "SIDEY_SUPABASE_URL",
+            bundle: testBundle,
+            bundleKey: "SIDEYSupabaseURL"
+        )
+        environment["SIDEY_SUPABASE_PUBLISHABLE_KEY"] = configuredValue(
+            environment: environment,
+            environmentKey: "SIDEY_SUPABASE_PUBLISHABLE_KEY",
+            bundle: testBundle,
+            bundleKey: "SIDEYSupabasePublishableKey"
+        )
+        guard environment["SIDEY_SUPABASE_URL"]?.isEmpty == false,
+              environment["SIDEY_SUPABASE_PUBLISHABLE_KEY"]?.isEmpty == false
+        else {
+            XCTFail("통합 테스트에는 SIDEY_SUPABASE_URL과 SIDEY_SUPABASE_PUBLISHABLE_KEY가 필요합니다.")
+            return
+        }
+        let configuration = try RuntimeConfiguration.resolve(environment: environment)
+        guard !configuration.isProductionBackend else {
+            XCTFail("통합 테스트는 SIDEY production backend에서 실행할 수 없습니다.")
+            return
+        }
         let firstStore = KeychainStore(service: "app.sidey.desktop.integration.\(UUID().uuidString)")
         let secondStore = KeychainStore(service: "app.sidey.desktop.integration.\(UUID().uuidString)")
         let first = SideyBackend(configuration: configuration, keychain: firstStore)
@@ -28,15 +55,18 @@ final class BackendIntegrationTests: XCTestCase {
             _ = try await second.upsertProfile(nickname: "통합둘째")
             let created = try await first.createRoom(name: "네이티브 통합 \(Int.random(in: 1000...9999))")
             createdRoomIDs.insert(created.roomID)
-            let joinedRoomID = try await second.joinRoom(inviteCode: created.inviteCode)
-            XCTAssertEqual(joinedRoomID, created.roomID)
+            let joinedRoom = try await second.joinRoom(inviteCode: created.inviteCode)
+            XCTAssertEqual(joinedRoom.roomID, created.roomID)
+            XCTAssertTrue(joinedRoom.storedInKeychain)
             let creatorStoredCode = try await first.storedInviteCode(roomID: created.roomID)
             let joinerStoredCode = try await second.storedInviteCode(roomID: created.roomID)
             XCTAssertEqual(creatorStoredCode, created.inviteCode)
             XCTAssertEqual(joinerStoredCode, created.inviteCode)
 
-            try await first.syncRealtime(roomIDs: [created.roomID], activeRoomID: created.roomID)
-            try await second.syncRealtime(roomIDs: [created.roomID], activeRoomID: created.roomID)
+            let firstSnapshot = try await first.loadSnapshot()
+            let secondSnapshot = try await second.loadSnapshot()
+            _ = try await first.syncRealtime(rooms: firstSnapshot.rooms, activeRoomID: created.roomID)
+            _ = try await second.syncRealtime(rooms: secondSnapshot.rooms, activeRoomID: created.roomID)
             try await waitUntil("두 클라이언트 Realtime 구독") {
                 let firstConnected = await firstProbe.isConnected
                 let secondConnected = await secondProbe.isConnected
@@ -114,12 +144,14 @@ final class BackendIntegrationTests: XCTestCase {
             let deletionRoom = try await first.createRoom(name: "삭제 통합 \(Int.random(in: 1000...9999))")
             createdRoomIDs.insert(deletionRoom.roomID)
             _ = try await second.joinRoom(inviteCode: deletionRoom.inviteCode)
-            try await first.syncRealtime(
-                roomIDs: [created.roomID, deletionRoom.roomID],
+            let firstDeletionSnapshot = try await first.loadSnapshot()
+            let secondDeletionSnapshot = try await second.loadSnapshot()
+            _ = try await first.syncRealtime(
+                rooms: firstDeletionSnapshot.rooms,
                 activeRoomID: created.roomID
             )
-            try await second.syncRealtime(
-                roomIDs: [created.roomID, deletionRoom.roomID],
+            _ = try await second.syncRealtime(
+                rooms: secondDeletionSnapshot.rooms,
                 activeRoomID: created.roomID
             )
 
@@ -133,7 +165,8 @@ final class BackendIntegrationTests: XCTestCase {
                     expectedName: nil
                 )
             }
-            try await second.syncRealtime(roomIDs: [created.roomID], activeRoomID: created.roomID)
+            let afterDeletionSnapshot = try await second.loadSnapshot()
+            _ = try await second.syncRealtime(rooms: afterDeletionSnapshot.rooms, activeRoomID: created.roomID)
             let deletedRoomStoredCode = try await second.storedInviteCode(roomID: deletionRoom.roomID)
             XCTAssertNil(deletedRoomStoredCode)
 
@@ -146,7 +179,7 @@ final class BackendIntegrationTests: XCTestCase {
                     expectedName: nil
                 )
             }
-            try await second.syncRealtime(roomIDs: [], activeRoomID: nil)
+            _ = try await second.syncRealtime(rooms: [], activeRoomID: nil)
             let removedRoomStoredCode = try await second.storedInviteCode(roomID: created.roomID)
             XCTAssertNil(removedRoomStoredCode)
 
@@ -157,6 +190,8 @@ final class BackendIntegrationTests: XCTestCase {
                 try? await second.leaveRoom(roomID)
                 try? await first.deleteRoom(roomID)
             }
+            try? await first.deleteOwnAccountForTesting()
+            try? await second.deleteOwnAccountForTesting()
             firstEvents.cancel()
             secondEvents.cancel()
             await first.shutdown()
@@ -166,6 +201,8 @@ final class BackendIntegrationTests: XCTestCase {
             throw error
         }
 
+        try await first.deleteOwnAccountForTesting()
+        try await second.deleteOwnAccountForTesting()
         firstEvents.cancel()
         secondEvents.cancel()
         await first.shutdown()
@@ -187,6 +224,26 @@ final class BackendIntegrationTests: XCTestCase {
         }
         XCTFail("\(label): 통합 이벤트가 \(timeout) 안에 도착하지 않음")
         throw IntegrationTimeout()
+    }
+
+    private func configuredValue(
+        environment: [String: String],
+        environmentKey: String,
+        bundle: Bundle,
+        bundleKey: String
+    ) -> String? {
+        if let value = environment[environmentKey], !value.isEmpty {
+            return value
+        }
+        if let value = bundle.object(forInfoDictionaryKey: bundleKey) as? String,
+           !value.isEmpty
+        {
+            return value
+        }
+        if let value = bundle.object(forInfoDictionaryKey: bundleKey) as? NSNumber {
+            return value.stringValue
+        }
+        return nil
     }
 }
 
@@ -223,6 +280,12 @@ private actor BackendEventProbe {
                 isConnected = connected
             case .message(let message):
                 messageIDs.insert(message.id)
+            case .messageDeleted:
+                break
+            case .messagesInvalidated:
+                break
+            case .messagesReplaced(_, let messages):
+                messageIDs.formUnion(messages.map(\.id))
             case .typing(_, _, let active):
                 if active { typingStarted = true } else { typingStopped = true }
             case .characterPulse(let event):

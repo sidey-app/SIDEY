@@ -66,9 +66,11 @@ final class MessageLedgerTests: XCTestCase {
             createdAt: .now
         )
         var ledger = MessageLedger()
+        var outbox = MessageOutbox()
 
-        ledger.stage(id: id, roomID: roomID, senderID: senderID, body: "안녕")
-        XCTAssertFalse(ledger.confirm(message), "optimistic confirmation is not a new receive")
+        outbox.stage(id: id, roomID: roomID, senderID: senderID, body: "안녕")
+        XCTAssertTrue(outbox.confirm(id: id, roomID: roomID))
+        XCTAssertTrue(ledger.confirm(message))
         XCTAssertFalse(ledger.confirm(message), "Realtime echo must remain deduplicated")
 
         XCTAssertEqual(ledger.entries.count, 1)
@@ -79,6 +81,7 @@ final class MessageLedgerTests: XCTestCase {
     @MainActor
     func testHistoryOrdersNewestMessageFirstAndCapsAtTwenty() {
         let roomID = UUID()
+        let now = Date()
         var ledger = MessageLedger()
         for index in 0..<24 {
             _ = ledger.confirm(ChatMessage(
@@ -86,8 +89,8 @@ final class MessageLedgerTests: XCTestCase {
                 roomID: roomID,
                 senderID: UUID(),
                 body: "메시지 \(index)",
-                createdAt: Date(timeIntervalSince1970: TimeInterval(index))
-            ))
+                createdAt: now.addingTimeInterval(TimeInterval(index - 24))
+            ), now: now)
         }
 
         let entries = OverlayHistoryView.recentEntries(in: ledger, roomID: roomID)
@@ -171,8 +174,12 @@ final class MessageLedgerTests: XCTestCase {
         model.rooms = [Self.room(id: roomID, name: "활성")]
         model.stageMessage(id: id, roomID: roomID, senderID: senderID, body: "복구할 메시지")
 
-        XCTAssertEqual(model.failMessage(id: id), "복구할 메시지")
+        let failed = model.failMessage(id: id, roomID: roomID)
+        XCTAssertEqual(failed?.body, "복구할 메시지")
+        XCTAssertEqual(failed?.roomID, roomID)
+        XCTAssertEqual(failed?.state, .failed)
         XCTAssertTrue(model.messageLedger.entries.isEmpty)
+        XCTAssertEqual(model.messageOutbox.entries.count, 1)
         XCTAssertTrue(model.activeBubbles.isEmpty)
     }
 
@@ -200,13 +207,65 @@ final class MessageLedgerTests: XCTestCase {
             id: UUID(), roomID: roomID, senderID: UUID(), body: "서버 원본", createdAt: .now
         )
         var ledger = MessageLedger()
-        ledger.stage(id: pendingID, roomID: roomID, senderID: UUID(), body: "전송 중")
+        var outbox = MessageOutbox()
+        outbox.stage(id: pendingID, roomID: roomID, senderID: UUID(), body: "전송 중")
 
         ledger.replaceConfirmed(roomID: roomID, with: [confirmed, confirmed])
 
-        XCTAssertEqual(ledger.entries.count, 2)
-        XCTAssertEqual(ledger.entries.filter { $0.state == .pending }.map(\.id), [pendingID])
+        XCTAssertEqual(ledger.entries.count, 1)
         XCTAssertEqual(ledger.entries.filter { $0.state == .confirmed }.map(\.id), [confirmed.id])
+        XCTAssertEqual(outbox.entries.map(\.id), [pendingID])
+    }
+
+    @MainActor
+    func testFailureInRoomADoesNotOverwriteRoomBDraft() {
+        let roomA = UUID()
+        let roomB = UUID()
+        let messageID = UUID()
+        var preferences = AppPreferences.defaults
+        preferences.activeRoomID = roomA
+        let model = AppModel(preferences: preferences)
+        model.rooms = [Self.room(id: roomA, name: "A"), Self.room(id: roomB, name: "B")]
+        model.stageMessage(
+            id: messageID,
+            roomID: roomA,
+            senderID: UUID(),
+            body: "A의 비공개 메시지"
+        )
+
+        model.preferences.activeRoomID = roomB
+        model.draft = "B에서 작성 중"
+        _ = model.failMessage(id: messageID, roomID: roomA)
+
+        XCTAssertEqual(model.draft, "B에서 작성 중")
+        XCTAssertEqual(model.messageOutbox.entries.first?.roomID, roomA)
+        XCTAssertEqual(model.messageOutbox.entries.first?.state, .failed)
+    }
+
+    func testConfirmedLedgerAppliesSevenDayCutoffAndFiftyPerRoomLimit() {
+        let roomID = UUID()
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        var ledger = MessageLedger()
+        _ = ledger.confirm(ChatMessage(
+            id: UUID(),
+            roomID: roomID,
+            senderID: UUID(),
+            body: "만료",
+            createdAt: now.addingTimeInterval(-MessageLedger.retentionInterval - 1)
+        ), now: now)
+        for index in 0..<60 {
+            _ = ledger.confirm(ChatMessage(
+                id: UUID(),
+                roomID: roomID,
+                senderID: UUID(),
+                body: "최근 \(index)",
+                createdAt: now.addingTimeInterval(TimeInterval(index - 60))
+            ), now: now)
+        }
+
+        XCTAssertEqual(ledger.entries.count, 50)
+        XCTAssertFalse(ledger.entries.contains(where: { $0.body == "만료" }))
+        XCTAssertEqual(ledger.entries.first?.body, "최근 10")
     }
 
     private static func room(id: UUID, name: String) -> Room {
