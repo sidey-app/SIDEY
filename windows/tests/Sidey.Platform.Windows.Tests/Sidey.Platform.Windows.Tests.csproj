@@ -33,6 +33,9 @@
     <None Include="../../src/Sidey.App/Sidey.App.csproj" Link="TestAssets/Sidey.App.csproj.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="../../src/Sidey.Overlay/Sidey.Overlay.csproj" Link="TestAssets/Sidey.Overlay.csproj.xml">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="../../installer/Sidey.Msi/Package.wxs" Link="TestAssets/Sidey.Msi.Package.wxs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

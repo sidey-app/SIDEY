@@ -3,6 +3,7 @@ name: Windows native
 on:
   push:
     branches: [main]
+    tags: ['v0.3.0-alpha.2']
     paths:
       - 'windows/**'
       - 'scripts/windows/**'
@@ -95,7 +96,9 @@ jobs:
           if-no-files-found: error
 
   publish-pre-release:
-    if: github.event_name == 'workflow_dispatch' && inputs.publish_release
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.publish_release)
+      || github.ref == 'refs/tags/v0.3.0-alpha.2'
     needs: build-test-package
     runs-on: windows-2025
     permissions:

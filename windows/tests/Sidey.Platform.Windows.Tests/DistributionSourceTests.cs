@@ -26,6 +26,14 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
+    public void OverlaySupportsTheSingleFilePublishPropagatedFromTheApp()
+    {
+        var project = XDocument.Load(AssetPath("Sidey.Overlay.csproj.xml"));
+
+        Assert.Equal("true", Value(project, "EnableMsixTooling"));
+    }
+
+    [Fact]
     public void MsiInstallsPerMachineIntoNativeProgramFiles()
     {
         var document = XDocument.Load(AssetPath("Sidey.Msi.Package.wxs"));
