@@ -10,6 +10,45 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <language>ko</language>
         <item>
             <title>0.2.0</title>
+            <pubDate>Tue, 01 Sep 2026 09:10:30 +0900</pubDate>
+            <link>https://github.com/sidey-app/SIDEY/releases/tag/v0.2.0</link>
+            <sparkle:version>10</sparkle:version>
+            <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# SIDEY v0.2.0
+
+`0.2.0` build `10` · macOS 26+ · Apple Silicon(arm64) · stable release
+
+## 설치
+
+- Homebrew: `brew install --cask sidey-app/tap/sidey`
+- 직접 설치: Release의 DMG를 열고 `SIDEY.app`을 Applications로 이동
+
+새 설치에는 공증된 DMG를 사용합니다. ZIP은 앱 내 업데이트용이며 DMG와 ZIP의 SHA-256 파일을 같은 Release에서 제공합니다.
+
+## 변경 사항
+
+- macOS 배포 채널을 alpha에서 정식 버전으로 승격했습니다.
+- 자리 비움 표시는 글자 수가 순환하지 않는 고정 `Zzz`로 되돌리고 기존 부유·투명도 연출은 유지했습니다.
+- 캐릭터 클릭 시 입력창 포커스와 입력창 외부 클릭 시 닫기 동작을 실기 및 자동화 테스트로 확인했습니다.
+- 비공개 그룹의 최대 인원을 12명으로 늘리고 서버에서도 13번째 가입을 거부합니다.
+- 메시지는 서버에 7일간 보관한 뒤 일일 정리 작업으로 자동 삭제합니다.
+- 빠르게 여러 그룹을 선택해도 마지막 선택만 적용하고, Presence와 최근 메시지가 모두 준비된 뒤 화면을 전환합니다.
+- 끊어진 Realtime 채널을 자동으로 다시 만들고 Presence·멤버·메시지를 재동기화합니다.
+- 메시지 발신자 식별과 서버 시각 검증, DMG 설치 레이아웃과 검증 절차를 강화했습니다.
+
+## 제한 사항
+
+- macOS 26 이상 Apple Silicon Mac만 지원합니다.
+- E2EE는 제공하지 않습니다.
+- 보안 화면, DRM 앱, 권한이 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
+- Windows 개발 파일은 이 macOS 배포에 포함되지 않습니다.
+]]></description>
+            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v0.2.0/SIDEY-macOS-arm64-v0.2.0.zip" length="5148098" type="application/octet-stream" sparkle:edSignature="9KtNp51jkAo2rKOLbLXlPb3gdmRC7vi17EKATCeIDAIrP0ajfDxEpFzcnbjP9xoZNsJDxdoiVqIWis629MxYCA=="/>
+        </item>
+        <item>
+            <title>0.2.0</title>
             <pubDate>Tue, 01 Sep 2026 08:51:35 +0900</pubDate>
             <link>https://github.com/sidey-app/SIDEY/releases/tag/v0.2.0-alpha.7</link>
             <sparkle:version>9</sparkle:version>
@@ -159,6 +198,6 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: 1vRKDDvziQDbNyW7SVaWUFWIGHOJ5zUKHhkdIKAQQAw/nh9gEa46oEBxWFUWhJEfJ2GWXt+Nx4ESSWppwrRnDg==
-length: 10110
+edSignature: yB6hRtQATIF/KJMpqLRY5TQV/JzqCQvfYca64IExOIib0nBK/GEjwoglQOZleZlmUGTWlNAtMOq0ppRfbYRTDw==
+length: 12646
 -->
