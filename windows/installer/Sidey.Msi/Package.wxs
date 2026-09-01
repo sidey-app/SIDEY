@@ -42,12 +42,6 @@
           Target="[INSTALLFOLDER]SIDEY.exe"
           WorkingDirectory="INSTALLFOLDER" />
       <RemoveFolder Id="RemoveApplicationProgramsFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
-      <RemoveRegistryValue
-          Id="RemoveLegacyStartupValue"
-          Root="HKCU"
-          Key="Software\Microsoft\Windows\CurrentVersion\Run"
-          Name="SIDEY"
-          Action="removeOnUninstall" />
       <RegistryValue
           Root="HKCU"
           Key="Software\SIDEY\Installer"
@@ -56,5 +50,19 @@
           Value="$(DisplayVersion)"
           KeyPath="yes" />
     </Component>
+
+    <CustomAction
+        Id="RemoveStartupValue"
+        Directory="SystemFolder"
+        ExeCommand="&quot;[SystemFolder]reg.exe&quot; delete &quot;HKCU\Software\Microsoft\Windows\CurrentVersion\Run&quot; /v SIDEY /f"
+        Execute="deferred"
+        Impersonate="yes"
+        Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom
+          Action="RemoveStartupValue"
+          Before="RemoveFiles"
+          Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
   </Package>
 </Wix>
