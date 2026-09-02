@@ -51,14 +51,17 @@
           <p class="checkout-note">
             결제창 결과만으로 캐릭터를 지급하지 않습니다. SIDEY 서버가 PortOne에서 결제 금액과 상태를 다시 확인한 뒤 계정에 귀속합니다.
           </p>
-          <a class="checkout-policy" href="./store.html" target="_blank" rel="noopener">
-            상품·환불·개인정보 안내 확인
-          </a>
+          <p class="checkout-policy">
+            <a href="./store.html" target="_blank" rel="noopener">상품 안내</a> ·
+            <a href="./terms.html" target="_blank" rel="noopener">이용약관</a> ·
+            <a href="./privacy.html" target="_blank" rel="noopener">개인정보</a> ·
+            <a href="./refund.html" target="_blank" rel="noopener">환불 정책</a>
+          </p>
           <label class="checkout-consent">
             <input id="checkout-consent" type="checkbox">
             <span id="checkout-policy-notice">구매 조건과 환불 안내를 확인하고 동의합니다.</span>
           </label>
-          <button id="checkout-pay" class="button button-primary checkout-pay" type="button">
+          <button id="checkout-pay" class="button button-primary checkout-pay" type="button" disabled>
             동의하고 결제창 열기
           </button>
           <p id="checkout-status" class="checkout-status" role="status"></p>

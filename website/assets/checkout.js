@@ -118,6 +118,7 @@
       policyNotice.textContent = prepared.policy_notice;
       meta.textContent = `부가세 포함 · 1회 구매 · PortOne ${prepared.payment_environment === "test" ? "테스트" : "실결제"}`;
       payButton.textContent = `${amount.textContent}원 동의하고 결제창 열기`;
+      payButton.disabled = !consent.checked;
       loading.hidden = true;
       product.hidden = false;
     } catch (requestError) {
@@ -156,7 +157,7 @@
         redirectUrl: config.redirect_url,
       });
       if (response?.code !== undefined) {
-        payButton.disabled = false;
+        payButton.disabled = !consent.checked;
         status.textContent = response.message || "결제를 완료하지 않았습니다.";
         return;
       }
@@ -165,9 +166,13 @@
       await completePayment(config, response.paymentId);
     } catch (paymentError) {
       console.error(paymentError);
-      payButton.disabled = false;
+      payButton.disabled = !consent.checked;
       status.textContent = "결제 상태를 확인하지 못했습니다. 중복 결제하지 말고 상점 상태를 먼저 새로고침해 주세요.";
     }
+  });
+
+  consent.addEventListener("change", () => {
+    payButton.disabled = !consent.checked || prepared === null;
   });
 
   start();

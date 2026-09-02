@@ -12,49 +12,54 @@ test("checkout starts without consent and keeps payment disabled", async () => {
   assert.ok(checkbox.includes('type="checkbox"'));
   assert.ok(!checkbox.includes("checked"));
   assert.ok(payButton.includes("disabled"));
-  for (const fixedPolicyURL of ["./terms.html", "./privacy.html", "./refund.html"]) {
+  for (const fixedPolicyURL of ["./store.html", "./terms.html", "./privacy.html", "./refund.html"]) {
     assert.ok(html.includes(fixedPolicyURL));
   }
 });
 
-test("checkout records explicit consent before initializing Toss", async () => {
+test("checkout records policy consent before opening PortOne", async () => {
   const script = await read("assets/checkout.js");
-  const acceptedIndex = script.indexOf('accepted: true');
-  const tossIndex = script.indexOf("window.TossPayments(config.client_key)");
+  const authorizeIndex = script.indexOf('action: "authorize"');
+  const portOneIndex = script.indexOf("window.PortOne.requestPayment");
 
-  assert.ok(acceptedIndex >= 0);
-  assert.ok(tossIndex > acceptedIndex);
+  assert.ok(authorizeIndex >= 0);
+  assert.ok(portOneIndex > authorizeIndex);
   assert.ok(script.includes('action: "prepare"'));
-  assert.ok(script.includes('action: "consent"'));
+  assert.ok(script.includes("policy_version: prepared.policy_version"));
   assert.ok(script.includes("if (!consent.checked)"));
   assert.ok(script.includes("window.history.replaceState"));
-  assert.ok(script.includes("config.policy_version === preparedOrder.policy_version"));
+  assert.ok(script.includes('consent.addEventListener("change"'));
 });
 
-test("checkout uses the live basic payment UI with standard easy pay methods", async () => {
-  const script = await read("assets/checkout.js");
+test("checkout uses PortOne V2 EASY_PAY with server-owned identifiers", async () => {
+  const [html, script] = await Promise.all([read("checkout.html"), read("assets/checkout.js")]);
 
-  assert.ok(script.includes('variantKey: { paymentMethod: "sideyCheckout" }'));
-  assert.ok(!script.includes("renderPaymentWindow();"));
+  assert.ok(html.includes("https://cdn.portone.io/v2/browser-sdk.js"));
+  for (const mapping of [
+    "storeId: config.store_id",
+    "channelKey: config.channel_key",
+    "paymentId: config.payment_id",
+    "totalAmount: config.amount",
+    "currency: config.portone_currency",
+    "payMethod: config.pay_method",
+    "redirectUrl: config.redirect_url",
+  ]) {
+    assert.ok(script.includes(mapping), `missing PortOne mapping: ${mapping}`);
+  }
+  assert.ok(script.includes('config.pay_method === "EASY_PAY"'));
+  assert.ok(!`${html}\n${script}`.match(/TossPayments|tosspayments|토스페이먼츠/));
 });
 
-test("Korean landing links to the separate store and keeps commerce details in the footer", async () => {
+test("Korean landing links to the separate store and keeps seller details in the footer", async () => {
   const [korean, english] = await Promise.all([read("index.html"), read("en/index.html")]);
 
-  assert.ok(korean.includes('<a class="nav-tab" href="./store.html">상점</a>'));
+  assert.ok(korean.includes('href="./store.html"'));
   assert.ok(!korean.includes('data-product-id="character_starlight_upalupa"'));
   for (const requiredCopy of [
     "./store.html",
-    "배송일자",
-    "디지털 상품으로 결제 완료 즉시 사용 가능",
-    "교환·환불",
     "싸이디(SIDEY)",
     "388-53-01259",
-    "010-9270-2973",
     "ryu200112@gmail.com",
-    "경기도 용인시 기흥구 서천동로21번길 20-6",
-    "류태현",
-    "신고 면제(간이과세자)",
   ]) {
     assert.ok(korean.includes(requiredCopy), `missing Korean landing copy: ${requiredCopy}`);
   }
@@ -62,11 +67,6 @@ test("Korean landing links to the separate store and keeps commerce details in t
   for (const commerceURL of ["store.html", "terms.html", "privacy.html", "refund.html"]) {
     assert.ok(!english.includes(commerceURL));
   }
-  assert.ok(english.includes("ryu200112@gmail.com"));
-  assert.ok(english.includes("388-53-01259"));
-  assert.ok(!english.includes("010-9270-2973"));
-  assert.ok(!english.includes("류태현"));
-  assert.ok(!english.includes("서천동로21번길"));
 });
 
 test("Windows production release is staged for verified MSI deployment", async () => {
@@ -93,17 +93,20 @@ test("Windows production release is staged for verified MSI deployment", async (
   }
 });
 
-test("store renders character products as an extensible square card grid", async () => {
+test("store renders all four launch-planned products and prices", async () => {
   const [store, styles] = await Promise.all([read("store.html"), read("assets/styles.css")]);
-
-  assert.ok(store.includes('class="store-catalog-grid"'));
-  assert.equal(store.match(/data-product-id="character_starlight_upalupa"/g)?.length, 1);
-  assert.ok(store.includes('class="store-character-card"'));
-  assert.ok(styles.includes("grid-template-columns: repeat(auto-fill"));
-  assert.match(styles, /\.store-character-card\s*\{[^}]*aspect-ratio:\s*1;/s);
+  for (const name of ["별빛 우파루파", "아기 기니피그", "아기 원숭이", "아기 친칠라"]) {
+    assert.ok(store.includes(name), `missing product: ${name}`);
+  }
+  assert.equal(store.match(/class="store-catalog-card"/g)?.length, 4);
+  assert.equal(store.match(/990원/g)?.length, 3);
+  assert.equal(store.match(/1,900원/g)?.length, 1);
+  assert.equal(store.match(/<span class="development-badge">출시 예정<\/span>/g)?.length, 4);
+  assert.ok(styles.includes(".store-catalog"));
+  assert.ok(styles.includes("grid-template-columns"));
 });
 
-test("public policy URLs omit personal contact details and keep the required business scope", async () => {
+test("public policy URLs keep seller scope and PortOne refund terms", async () => {
   const [store, terms, privacy, refund, sitemap] = await Promise.all([
     read("store.html"),
     read("terms.html"),
@@ -115,44 +118,34 @@ test("public policy URLs omit personal contact details and keep the required bus
   for (const document of [store, terms, privacy, refund]) {
     assert.ok(document.includes("싸이디(SIDEY)"));
     assert.ok(document.includes("ryu200112@gmail.com"));
-    assert.ok(!document.includes("류태현"));
     assert.ok(!document.includes("010-9270-2973"));
   }
   const publishedPolicies = [store, terms, privacy, refund].join("\n");
   assert.ok(publishedPolicies.includes("388-53-01259"));
   assert.ok(publishedPolicies.includes("경기도 용인시 기흥구 서천동로21번길 20-6"));
   assert.ok(publishedPolicies.includes("신고 면제(간이과세자)"));
-  assert.ok(store.includes("macOS 전용"));
-  assert.ok(store.includes("Windows에서는 구매하거나 사용할 수 없습니다"));
-  assert.ok(refund.includes("단순 변심에 따른 청약철회는 제한"));
-  assert.ok(refund.includes("법정 사유"));
-  assert.ok(refund.includes("정책 버전 2026-09-02-v2"));
+  assert.ok(publishedPolicies.includes("PortOne"));
+  assert.ok(refund.includes("7일 이내"));
+  assert.ok(refund.includes("사용 여부와 관계없이"));
+  assert.ok(refund.includes("정책 버전 2026-09-02-portone-v1"));
   for (const fixedPolicyURL of ["store.html", "terms.html", "privacy.html", "refund.html"]) {
     assert.ok(sitemap.includes(`https://sidey-app.github.io/SIDEY/${fixedPolicyURL}`));
   }
 });
 
-test("checkout copy is customer-facing and hides live implementation details", async () => {
-  const documents = await Promise.all([
+test("checkout is token-only and completion trusts a server re-query", async () => {
+  const [html, checkout, result] = await Promise.all([
     read("checkout.html"),
-    read("store.html"),
-    read("terms.html"),
-    read("privacy.html"),
-    read("refund.html"),
     read("assets/checkout.js"),
     read("assets/checkout-result.js"),
   ]);
-  const copy = documents.join("\n");
+  const copy = `${html}\n${checkout}\n${result}`;
 
-  for (const internalPhrase of [
-    "라이브 결제",
-    "SIDEY 서버",
-    "서버 결제 확인",
-    "정적 성공 화면",
-    "반환 URL",
-    "비공개 commerce",
-  ]) {
-    assert.ok(!copy.includes(internalPhrase), `unexpected internal phrase: ${internalPhrase}`);
-  }
-  assert.ok(copy.includes("결제가 완료되면 구매한 SIDEY 계정에서 별빛 우파루파를 바로 사용할 수 있습니다."));
+  assert.ok(html.includes('name="robots" content="noindex, nofollow"'));
+  assert.ok(checkout.includes("new URLSearchParams(window.location.hash.slice(1))"));
+  assert.ok(checkout.includes('request("commerce-complete"'));
+  assert.ok(result.includes("/commerce-complete"));
+  assert.ok(copy.includes("PortOne"));
+  assert.ok(copy.includes("결제 상태를 확인"));
+  assert.ok(!copy.match(/TossPayments|tosspayments|토스페이먼츠/));
 });

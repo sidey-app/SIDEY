@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.8
 - 최종 갱신: 2026-09-02
-- 상태: macOS `v1.0.3`(build 14) 정식 공개, 그 위에 상점·Google 연결·별빛 우파루파 개발, Windows 네이티브 `v1.0.3` 정식 출시
+- 상태: macOS `v1.0.4`(build 15) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.0.3` 정식 출시
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
 
@@ -27,7 +27,7 @@
 - 실제 그룹은 최대 12명이다. 렌더러 안정성은 별도 20노드 합성 스트레스 테스트로 검증한다.
 - macOS 코드·인증·설정 schema는 Windows 개발을 위해 재작성하지 않는다.
 - 기존 설치의 인증 세션과 설정을 잃지 않도록 Swift 기반 legacy migration 호환만 유지한다.
-- macOS 설정과 메뉴바에서 첫 유료 캐릭터 상점을 제공하고, 기존 익명 계정을 Google identity에 연결한 뒤 브라우저 결제를 시작한다.
+- macOS 설정과 메뉴바에서 유료 캐릭터 4종 상점을 제공하되 production은 출시 예정 잠금으로 배포한다. 격리된 Sidey-dev만 Google identity를 연결한 뒤 PortOne 테스트 결제를 시작한다.
 
 ### 2.2 Windows 구현 목표
 
@@ -148,7 +148,9 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 | `pixel_rabbit` | 아기 토끼 | 아이보리·피치·라벤더 |
 | `pixel_penguin` | 아기 펭귄 | 네이비·크림·민트 |
 
-첫 유료 catalog 상품은 `pixel_starlight_upalupa` 별빛 우파루파다. macOS 선택 목록에는 무료 5종과 현재 계정이 활성 소유권을 가진 유료 캐릭터만 표시한다. 환불 또는 소유권 만료 시 로컬 선택을 햄스터로 되돌리며, macOS에서 다른 사용자의 유료 캐릭터를 렌더링할 때는 보는 사람의 소유권을 요구하지 않는다. 이번 Windows 릴리스는 별빛 우파루파 ID를 원격 렌더링하지 않고 기존 안전한 fallback을 사용한다.
+유료 catalog는 `pixel_starlight_upalupa` 별빛 우파루파(1,900원), `pixel_guinea_pig` 아기 기니피그(990원), `pixel_monkey` 아기 원숭이(990원), `pixel_chinchilla` 아기 친칠라(990원)다. macOS 선택 목록에는 무료 5종과 현재 계정이 활성 소유권을 가진 유료 캐릭터만 표시한다. 환불 또는 소유권 만료 시 로컬 선택을 햄스터로 되돌리며, 다른 사용자의 유료 캐릭터를 렌더링할 때는 보는 사람의 소유권을 요구하지 않는다. 친칠라의 canonical ID는 `pixel_chinchilla`이고 과거 `pixel_koala`는 호환 alias로만 정규화한다.
+
+전환 시 지정 활동 계정 5개(`9c169b9f-e95c-4a3e-b0e9-ab329a035c6f`, `e68ec90f-6f5a-4a93-be0a-364f6a3f378f`, `839ec4d5-ada1-466d-bb1d-2a100dea2185`, `b4877c8c-3147-46ef-b035-5dbb95e86d4f`, `f0462289-2465-4a27-b90d-d4820ccf4b8c`)에는 기니피그·원숭이·친칠라 complimentary entitlement를 각각 지급한다. 주문과 분리된 총 15개 지급이며 `grant_reference`로 감사 근거를 남긴다. Windows의 무료 5종 renderer와 구매 미지원 정책은 변경하지 않는다.
 
 - 논리 프레임: 24×24 픽셀
 - 화면 크기: 2배 정수 확대, 약 48pt
@@ -170,6 +172,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 각 방은 멤버 변경마다 증가하는 `realtime_epoch`을 가지며 DB·ephemeral private topic을 분리한다. DB event에는 message UUID와 operation만 담고, macOS는 RLS를 거쳐 해당 row를 재조회한 뒤 확정한다.
 - macOS 클라이언트는 5초마다 WebSocket과 각 방 채널의 실제 구독 상태를 확인한다. 비정상이 8초 이상 지속되면 채널 및 수신 스트림을 재생성하고, 실패가 이어지면 8초·16초·최대 30초 간격으로 재시도한다.
 - 재구독 중에는 로컬 상태를 재연결로 표시한다. 성공하면 현재 Presence를 다시 publish하고 방·멤버 snapshot과 최근 메시지를 다시 읽어 단절 중 누락된 가입·메시지를 보정한다.
+- macOS는 실제 채널 구독 상태인 `transportConnected`와 단절 복구 보정 상태인 `recoveryReconciled`를 별도로 관리한다. 원격 Presence 캐시는 실제 transport 단절에서만 폐기한다. 프로필·닉네임·방 이름 `structure_changed`는 연결 상태를 바꾸지 않고 metadata snapshot만 갱신하며, 조회 실패도 transport를 online으로 유지한 채 metadata 작업만 backoff 재시도한다.
 - confirmed message ledger는 `senderID`를 보존하며 방별 최근 50개·7일 범위로 제한한다. pending·failed 전송은 방별 outbox에 분리한다.
 - macOS 최근 기록은 최신순 카드 목록이며 각 카드에 40pt 슬롯 안의 24×24 무배율 픽셀 캐릭터, 닉네임·`나` 표식, 로컬 시각, 본문과 pending·failed 상태를 표시한다. 발신자 UUID가 현재 방 멤버 snapshot에 없으면 햄스터와 `알 수 없는 친구`로 표시한다.
 - 최근 기록의 최초·추가 조회는 RLS가 적용된 `messages`를 `created_at DESC, id DESC`로 51개 읽어 50개를 표시하고, 마지막 표시 row의 원본 `created_at` 문자열과 UUID를 keyset cursor로 사용한다. 하단 도달 시 자동으로 다음 페이지를 가져오며 서버 보관 정책과 같은 최근 7일 cutoff를 모든 조회에 적용한다.
@@ -248,13 +251,11 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 
 ### 6.4 macOS 꾸미기·상점
 
-- 설정과 메뉴바의 `꾸미기·상점`은 같은 화면을 열고 판매 상품을 등록 순서대로 2열 그리드에 표시한다.
-- 화면에는 외부 상점 섹션 카드와 별도의 미리보기 카드 배경을 두지 않고 `StoreProductCard` 한 단계만 사용한다.
-- 각 상품 카드는 최대 210pt의 배경 없는 미리보기 영역 안에 96pt 캐릭터를 최대 1.45배로 표시한다. 좌상단에는 상태 배지, 우상단에는 `hand.tap` 아이콘 미리보기 버튼을 overlay하며 버튼은 보이는 텍스트 없이 접근성 라벨과 도움말을 제공한다.
-- 이름과 서버 가격은 같은 행에 배치하고 설명·오류·상태별 구매 action을 아래에 둔다. `1회 구매`, 카드별 `부가세 포함`, 텍스트 `반응 미리보기`, 소유권 배지와 중복되는 비활성 `보유 중` 버튼은 표시하지 않는다.
-- 공통 안내는 상품 그리드 아래 가변 여백 다음에 가로 중앙 정렬한다. 내용이 짧으면 설정 상세 영역 하단, 창이 작으면 카드와 겹치지 않는 스크롤 끝에 표시한다.
-- 공통 안내는 부가세 포함·Google 연결 필요, 결제 승인과 서버 소유권 확인 뒤 즉시 디지털 사용권 제공 시작, 제공 시작 뒤 단순 변심 청약철회 제한, 미제공·계약 불일치·중복 또는 무단 결제 등 법정 사유 전액 환불을 한 번만 전달한다.
-- 카드별 미리보기 scale·effect generation·취소 가능한 Task는 `StoreProductCard`가 소유하고 상품 ID별 정렬된 서버 상태와 구매 action은 `AppModel`·`AppCoordinator`·`SideyBackend`가 소유한다.
+- 설정과 메뉴바의 `꾸미기·상점`은 같은 화면을 열고 우파루파·기니피그·원숭이·친칠라 4종을 등록 순서대로 2열 그리드에 표시한다. 구매 완료 상품도 목록에서 제거하지 않고 `보유 중` 상태로 표시한다.
+- `StoreAvailability`는 번들 배포 채널에서 결정한다. production은 `.comingSoon`, development는 `.enabled`이며 런타임 설정이나 원격 응답으로 production 잠금을 풀 수 없다.
+- production은 각 상품 카드 전체를 `Color.black.opacity(0.68)`로 덮고 흰 픽셀 자물쇠와 `추후 오픈 예정입니다.`만 접근성에 노출한다. 카드의 인터랙티브 콘텐츠는 접근성 트리에서 숨긴다.
+- production 잠금 경로는 구매 버튼, 상태 새로고침, Google 연결, 반응 미리보기, `TimelineView`, 별 애니메이션 Task를 생성하지 않는다. `AppCoordinator.purchase`도 production 채널 요청을 거부하고 운영 서버는 `sales_enabled=false`를 유지한다.
+- development는 오버레이 없이 실제 카드·상태 조회·Google 연결·PortOne 테스트 결제·반응 미리보기를 활성화한다. 상품별 상태와 구매 action은 `AppModel`·`AppCoordinator`·`SideyBackend`가 소유한다.
 
 ### 6.5 Windows 창과 트레이
 
@@ -354,24 +355,29 @@ OverlayRegionPreference(
 - 7일 초과·프로필 없음·방 없음인 미완성 익명 가입만 삭제
 - `rename_room(uuid,text)`, `remove_room_member(uuid,uuid)`, 방장 전용 `delete_room(uuid) returns void`; 삭제는 기존 FK cascade로 방 멤버십과 메시지를 함께 제거
 
-`20260901010000_starlight_upalupa_commerce.sql`은 상품·가격·주문·결제 시도·소유권·환불 기록과 RLS를 추가한다. 클라이언트는 서버 catalog 가격과 활성 소유권만 사용하며 checkout 생성, 결제 승인·재조회, webhook, 환불은 Edge Functions가 서비스 권한으로 검증한다. 공개 callback 함수는 일회용 주문 token과 공급자 서명을 확인하고 임의 사용자·금액·소유권을 신뢰하지 않는다.
+적용 완료된 과거 commerce migration과 Toss 거래는 감사 이력으로 보존하고 수정하지 않는다. 신규 forward-only `20260902050000_paid_characters_portone_v2.sql`은 다음 계약을 추가한다.
 
-`20260902000000_commerce_policy_consent_and_refunds.sql`은 적용된 commerce migration을 수정하지 않는 forward-only 보정이며 다음 계약을 추가한다.
+- migration 시작 단계에서 운영 판매를 `false`로 잠그고 legacy pending 주문을 취소한다.
+- 우파루파의 990원 가격은 비활성 이력으로 남기고 1,900원 활성 가격을 추가한다. 기니피그·원숭이·친칠라 상품과 각 990원 가격을 추가한다.
+- `commerce_entitlements.grant_kind`는 `purchase | complimentary`, `grant_reference`는 주문 없는 지급 근거를 기록한다. `upsert_profile`은 상품 등록된 4종 모두 활성 entitlement를 검사한다.
+- PortOne V2 결제 상태에는 payment ID, Store ID, Channel Key, V2, TEST/LIVE, 상태, KRW, 서버 주문 금액, `EASY_PAY` 일치를 요구한다. event ID와 payload hash를 함께 저장해 중복 웹훅과 상충 payload를 분리한다.
+- 직접 Toss 실행 RPC 권한, Edge Function, 웹 SDK·CSP·문구·시크릿을 제거한다. 과거 Toss payment row는 삭제하지 않는다.
 
-- singleton private runtime 설정의 판매 활성화 스위치는 기본 `false`이고 결제 환경은 `test` 또는 `live` 하나로 고정한다.
-- 주문은 정책 버전 `2026-09-02-v2`, 결제 당시 서버 고지 원문과 동의 시각을 함께 저장하며 셋 중 일부만 저장할 수 없다. 체크아웃에는 결제 환경·서버 검증·소유권 처리 같은 내부 구현 문구 대신 가격, 제공 시점, 청약철회 제한과 환불 조건만 사용자 언어로 표시한다.
-- `commerce-checkout`의 주문 준비는 상품·가격·정책만 반환한다. 기본 미선택 체크박스가 명시적 `accepted=true`와 현재 정책 버전을 보낸 뒤 서버 동의 기록이 성공해야만 토스 클라이언트 설정과 반환 URL을 반환한다.
-- 기존 `commerce_checkout_order`와 entitlement DB trigger는 동의 없는 결제 설정 조회와 활성 소유권 생성을 각각 차단한다. 반환 URL, 승인 RPC와 웹훅이 우회되어도 같은 DB 규칙을 통과해야 한다.
-- Toss client/secret 키는 `test`/`live` 환경과 `gck↔gsk` 또는 `ck↔sk` 세트가 모두 일치해야 하며 checkout·반환 URL·웹훅·운영 환불의 결제사 API 호출 전에 현재 private runtime 환경과 대조한다.
-- 운영 환불은 별도 ops key와 운영자 식별자, `not_provided`, `contract_mismatch`, `duplicate_payment`, `unauthorized_payment`, `minor_without_consent`, `other_statutory_reason` 중 하나를 요구한다. 단순 변심 코드는 허용하지 않고 사유·요청·결제사 상태·처리 결과를 `private.commerce_refund_operations`에 저장한다.
+Edge Functions는 책임을 다음처럼 분리한다.
 
-공개 웹사이트는 상품 `store.html`, 이용약관 `terms.html`, 개인정보 `privacy.html`, 환불 `refund.html`을 고정 URL로 제공한다. 한국어 랜딩 본문에는 상품을 표시하지 않고 모바일에서도 보이는 상단 `상점` 탭을 `store.html`로 연결한다. 상점 페이지는 macOS 앱과 같은 최소 300px·최대 360px adaptive 정사각형 캐릭터 카드 그리드를 사용한다. 현재 별빛 우파루파 1종을 표시하며 이후 캐릭터는 같은 목록에 카드를 추가한다. 랜딩 하단에는 배송일자를 `디지털 상품으로 결제 완료 즉시 사용 가능`으로 표시하고, 계정 귀속 상품의 교환·이전 불가, 즉시 제공 동의 뒤 단순 변심 청약철회 제한, 미제공·계약 불일치·중복 또는 무단 결제 등 법정 사유 전액 환불을 요약한다. 이어 판매자 싸이디(SIDEY), 대표 류태현, 사업자등록번호 388-53-01259, 경기도 용인시 기흥구 서천동로21번길 20-6, `010-9270-2973`, `ryu200112@gmail.com`, 통신판매업 신고 면제(간이과세자)를 작은 글씨로 표시한다. 사업자등록증의 생년월일·QR·동호수는 저장소나 웹사이트에 포함하지 않는다. 이번 Windows 릴리스는 구매와 별빛 우파루파 원격 렌더링을 지원하지 않는다.
+- `commerce-order`: 인증·Google 연결·상품·소유 여부를 확인하고 서버 가격의 PortOne `paymentId`와 256-bit checkout token hash를 생성한다.
+- `commerce-checkout`: token과 정책 동의를 확인한 뒤 `store_id`, `channel_key`, `payment_id`, 서버 가격, `CURRENCY_KRW`, `EASY_PAY`, redirect URL을 반환한다.
+- `commerce-complete`: PortOne API에서 결제를 재조회하고 모든 결제 사실이 일치할 때만 entitlement를 지급한다.
+- `commerce-webhook`: `jsr:@portone/server-sdk@0.19.0`으로 raw body 서명을 검증한 뒤 PortOne API를 다시 조회한다.
+- `commerce-refund`: 별도 운영 키와 멱등키를 요구하고 PortOne 전액 취소·재조회가 확인된 뒤 purchase entitlement만 회수한다.
+
+공개 웹사이트는 4종·가격·출시 예정 상태를 `store.html`에 표시한다. `checkout.html`과 `checkout-result.html`은 상품 ID별 이름·가격·이미지를 사용하고 공개 구매 링크로 노출하지 않으며 staging/dev 주문 token으로만 접근한다. 결제 카드 정보는 SIDEY가 수집하지 않고 PortOne을 통해 열린 실제 PG 결제창이 처리한다.
 
 기존 짧은 초대 코드는 migration에서 비활성화한다. 방장은 새 macOS 클라이언트에서 한 번 재발급해야 하며 public room 조회와 Realtime payload 어디에도 invite hash·version이 포함되지 않는다. macOS hotfix와 migration은 호환 순서로 배포하고 구버전의 기존 topic 계약은 유지하지 않는다.
 
 임시로 방 정원을 20명으로 늘렸던 staging migration은 운영에 적용되지 않았고 `main`에서도 제거한다. 20명 조건은 렌더러 합성 부하 테스트에만 사용하며 제품 정원은 12명이다.
 
-Windows 개발은 별도 Supabase staging 프로젝트에 같은 migration·RLS·private Realtime 정책을 적용한다. staging과 production 모두 익명 인증을 사용하고 일반 실행·설치본은 production publishable 구성을 기본 사용한다. 로컬 개발은 URL과 publishable key를 함께 덮어쓸 수 있지만 service-role·secret key는 클라이언트·저장소·CI 산출물에 넣지 않는다. 익명 사용자도 기존 `auth.users` UUID를 사용하므로 신규 DB schema나 membership migration을 추가하지 않는다.
+`SIDEY-staging`에는 production과 같은 migration·RLS·private Realtime 정책을 적용하되 별도 후속 SQL로 `sales_enabled=true`, `payment_environment=test`만 설정한다. PortOne test Store·Channel·Webhook은 staging 함수에만 연결한다. production은 판매 `false`와 PortOne 시크릿 미설정을 유지한다. 익명 사용자도 기존 `auth.users` UUID를 사용하므로 신규 membership schema는 추가하지 않는다.
 
 ## 9. 개인정보와 보안 경계
 
@@ -391,7 +397,7 @@ E2EE는 현재 설계·구현·검증되지 않았다. 전송 암호화, Postgre
 
 Windows는 Supabase 익명 인증만 사용하며 Google email·provider identity나 OAuth callback을 처리하지 않는다. 로컬 로그에는 access·refresh token, 메시지 본문, 평문 초대 코드를 남기지 않는다.
 
-macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀키, service-role key, 일회용 주문 token, 전체 결제 식별자를 남기지 않는다. 결제 성공 redirect만으로 소유권을 지급하지 않고 토스 승인·재조회, 결제 당시 정책 동의와 Postgres 기록이 모두 일치해야 한다. 카드 번호·결제 비밀번호는 SIDEY가 수집하지 않는다.
+macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀키, service-role key, 일회용 주문 token, 전체 결제 식별자를 남기지 않는다. 결제 성공 redirect만으로 소유권을 지급하지 않고 PortOne V2 재조회, 결제 당시 정책 동의와 Postgres 기록이 모두 일치해야 한다. 카드 번호·결제 비밀번호는 SIDEY가 수집하지 않는다.
 
 ## 10. 검증과 승격 기준
 
@@ -400,16 +406,16 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 - 영역: 4개 가장자리 × 3개 길이의 240pt activity frame과 최대 360pt render frame, 접선 144pt 여유, 중앙 정렬, 회전, visible frame, 깊이 제한, hotspot 원점 변환, 모니터 fallback
 - 이동: 20개 합성 노드가 3,000 tick 동안 1차원 track과 발 기준선을 유지하고 finite 좌표, 입력창·상호 회피, 겹침 시 idle 해제·가속 통과, 실제 메시지 말풍선의 240pt/s² 분리 가속·72pt/s 상한·8pt 해소·경계 힘 재배분·혼잡 시 안정적인 겹침·일반 목표 복귀
 - 상태: 온라인·자리 비움 doze와 고정 `Zzz`의 부유·alpha 반복·해제 시 action 정리, 오프라인 curled sleep·재연결·타이핑, 내 캐릭터 항상 표시, 오프라인 숨김, 방 전환 UUID diff, 최대 8자 닉네임·반투명 배경과 상태 점 5pt 간격, 발 기준 7배·0.8초 리액션과 이벤트 UUID 중복 제거
-- Realtime: current epoch topic 접근, client DB형 Broadcast 거부, 다른 사용자·방 transient event 거부, bounded stream overflow 재동기화, backoff와 generation 기반 snapshot reconciliation, Presence publication 최대 동시 실행 수 1을 검증한다. 실서버 2클라이언트에서는 강제 단절과 추방 뒤 자동 재구독·메시지·Presence·`character_pulse` 격리를 확인한다.
+- Realtime: current epoch topic 접근, client DB형 Broadcast 거부, 다른 사용자·방 transient event 거부, bounded stream overflow 재동기화, backoff와 generation 기반 snapshot reconciliation, Presence publication 최대 동시 실행 수 1을 검증한다. 실서버 2클라이언트에서는 프로필을 즉시·10초·30초 간격으로 연속 변경해 transport 단절 이벤트가 생기지 않는지 확인하고, 별도로 강제 단절과 추방 뒤 자동 재구독·메시지·Presence·`character_pulse` 격리를 확인한다.
 - 메시지: 발신자별 교체, 최대 4개 eviction, 10초 만료, 이동 중 말풍선 추적, 방별 outbox 낙관적 성공·실패, 응답 유실 시 동일 UUID 멱등성, 방 A 실패가 방 B draft를 건드리지 않음, confirmed ledger의 방별 50개·7일 cutoff, 최근 기록 0·1·20·50·51·120개 및 동일 timestamp keyset·페이지 중복 제거·실시간/pending/failed 병합·탈퇴 발신자 fallback·방 전환 취소·창 닫기 해제·추가 조회 실패와 재시도, 조용히 모드, 미확인 수, 엄격한 서버 시각 해석
 - 말풍선: 1자·200자·3줄·프리셋 양 끝·4방향에서 본문과 꼬리 누적 frame이 캔버스 안에 유지하고 실제 메시지 본문만 접선 충돌 범위에 포함하며 타이핑 말풍선은 제외
 - 창: 월드 항상 위·전체 클릭 통과, 내 캐릭터 52×52 hotspot, composer의 선택 모니터 상단 중앙·노치 아래 10pt 배치와 왼쪽 `×`·Esc·외부 클릭 닫기, 단일·더블클릭 분기와 캐릭터별 1초 리액션 쿨타임, composer 초기 숨김·열기·마지막 전송 뒤 5초 자동 닫힘·타이머 갱신·실패 복구, 기록 일반 창
 - 업데이트: production 채널에 Sparkle `2.9.6` 프레임워크·메뉴 항목·피드 URL·EdDSA 공개키가 번들에 포함되고 signed feed와 압축 해제 전 검증을 강제하며, 업데이트 진행 중에는 수동 확인 메뉴를 비활성화. development 채널은 Sparkle을 시작하지 않고 수동 확인 메뉴도 항상 비활성화
-- 에셋: 5개 시트의 240×24 RGBA·10프레임·공통 발 기준선·결정적 hash·Release 번들 포함, 메뉴 아이콘 1x·2x template/unread variant
+- 에셋: 무료 5종과 유료 4종 시트의 240×24 RGBA·10프레임·공통 발 기준선·결정적 hash·Release 번들 포함, 메뉴 아이콘 1x·2x template/unread variant
 - 설정: 860×640 최소 크기와 1000×760 기본 크기의 라이트·다크 렌더, 옅은 카드 명도, 240pt 컨트롤 영역과 Picker·버튼·토글 오른쪽 정렬, `동작 정보` 제거, 두 사람 그룹 아이콘, 한글 IME 조합 확정 후 닉네임 저장
 - 입력 필드: 200자 끝, 한글 조합, 영문 긴 단어, 이모지, Shift+Enter 3줄, 중간 커서 이동·전체 선택, undo·redo, 외부 draft와 잘못된 입력 복구에서 마지막 글자와 커서가 보이고 텍스트 손실·IME 중복 확정·가로 스크롤이 없는지 검증한다.
-- 상점: 2열 상품 카드의 독립 상태·정렬, 소유권·환불 fallback, Google callback scheme 분리, 최소·기본 크기와 라이트·다크 렌더, 한 단계 카드 구조, 상태 배지와 아이콘 미리보기 접근성, 넓은 창 중앙 하단·작은 창 스크롤 끝의 공통 정책 안내를 검증한다.
-- commerce 서버·웹: 판매 기본 잠금, 동의 멱등성, 정책 버전 불일치, 체크박스 미동의, 동의 없는 승인·소유권 차단, 만료 token, 위조 금액, 중복 승인·중복 클릭·반환 URL 재호출, 허용 법정 사유 환불과 private 결과 기록·햄스터 복귀, test/live 키 혼용 거부를 검증한다.
+- 상점: 2열 4종 카드의 독립 상태·정렬과 `보유 중` 유지, entitlement 선택 목록, Google callback·저장소 분리, 860×640·1000×760 라이트·다크 렌더를 검증한다. production은 action 호출과 animation Task가 0개이고 검정 68%·픽셀 자물쇠·잠금 안내만 접근성에 노출되어야 한다.
+- commerce 서버·웹: 활성 가격 1,900/990/990/990, 4종 프로필 소유권 검사, complimentary grant·RLS, 판매 기본 잠금, 만료 token, PortOne Store·Channel·V2·환경·상태·금액·통화·수단 불일치, 중복 웹훅·서명 오류, 전액 환불과 purchase/complimentary 격리를 검증한다.
 - 그룹 설정: 0·1·12명 멤버 목록, 기본 접힘·제목 영역 및 오른쪽 단일 화살표 펼침, `그룹 참가` 문구, 생성·참여·전환별 진행 문구와 라이트·다크 대상 카드 강조, A→B→C 연속 선택에서 C만 commit, UUID 기반 방장 왕관과 펼친 목록 아래 방장 전용 이름 변경·삭제 버튼, 이름 변경 저장·취소, 대상 명시 추방 확인, 영구 삭제 2단계 확인, 활성·비활성·마지막 그룹 삭제 fallback, 초대 코드 복사 성공·실패와 3초 표시·재클릭 갱신·행 제거 취소
 - DMG: 660×420 배경, `SIDEY.app`, `/Applications` 심볼릭 링크, 기존 5종 idle 프레임, `.DS_Store`를 자동 생성·마운트 검증하고 Finder에서 아이콘 위치·안내 문구·nearest-neighbor 픽셀 선명도를 수동 확인
 - Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단
@@ -439,25 +445,21 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 
 ### 10.4 macOS 배포 절차
 
-1. macOS·Supabase·웹·입력 수정 PR에서 전체 Swift 테스트·Release 빌드, pgTAP, 웹 계약 테스트와 20노드 합성 부하를 통과한다. 이 PR에서는 공개 다운로드와 앱 버전을 `v1.0.3` build 14로 유지한다.
-2. 검증된 PR을 `main`에 병합하고 `20260902000000_commerce_policy_consent_and_refunds.sql`과 commerce Edge Functions를 운영 Supabase에 배포하되 private 판매 스위치는 `false`로 유지한다.
-3. 이 지점에서 자동 작업을 멈추고 사용자가 토스 개발자센터에서 라이브 client·secret 키를 Supabase secret에 직접 입력하게 한다. 원문 키는 채팅·코드·셸 명령·로그에 남기지 않는다.
-4. 판매 스위치를 잠시 켜 라이브 990원 결제 1건으로 승인, 소유권 지급, 앱 재실행 복구, 허용 사유 운영 취소, 소유권 회수와 햄스터 복귀를 확인한 뒤 즉시 다시 잠근다.
-5. 즉시 제공·청약철회 제한·미성년자·통신판매업 신고 면제·판매자·개인정보 고지를 실제 운영 설정과 함께 법률 검토한다. 검토가 끝나지 않으면 판매와 릴리스를 진행하지 않는다.
-6. `v1.0.4` build 15 릴리스 브랜치에서 앱·웹 다운로드·릴리스 문서를 갱신한다. 이 단계 전에는 공개 버전을 미리 바꾸지 않는다.
-7. 이 지점에서 다시 작업을 멈추고 사용자가 p12를 로그인 Keychain에 설치하게 한다. Developer ID Application identity와 notary profile을 확인하되 인증서 원문과 비밀번호를 저장소·채팅·로그에 남기지 않는다.
-8. Developer ID Application 인증서와 Hardened Runtime으로 앱·로그인 항목·Sparkle 중첩 코드를 서명하고 Apple 공증 뒤 ticket을 staple한다.
-9. `scripts/package_macos_release.sh`로 버전·빌드 번호, arm64 아키텍처, 번들 메타데이터, 코드 서명, 신규 설치용 DMG, Sparkle용 ZIP과 각 SHA-256을 검증한다. 로그인된 Finder 세션에서 쓰기 가능한 DMG를 마운트해 660×420 배경, 왼쪽 `SIDEY.app`, 오른쪽 `/Applications` 바로가기, 숨긴 toolbar·sidebar·status bar와 `.DS_Store`를 설정한 뒤 UDZO로 변환한다. 변환본은 다시 마운트해 앱·심볼릭 링크·배경 크기·`.DS_Store`, Developer ID 서명·공증·staple을 모두 확인한다.
-10. 검증된 동일 커밋에 `v1.0.4` 태그와 GitHub Release를 만든 뒤 DMG와 ZIP을 업로드한다. GitHub에서 다시 받은 두 파일이 로컬 SHA-256과 같아야 한다.
-11. `scripts/macos/prepare_sparkle_appcast.sh`로 ZIP의 EdDSA 서명과 signed appcast를 만들고 Release ZIP URL이 실제 다운로드된 뒤에만 `updates/appcast.xml`을 게시한다. appcast를 먼저 게시하지 않는다.
-12. 웹 다운로드 링크를 같은 DMG로 갱신하고 `sidey-app/homebrew-tap` Cask를 동일 고정 URL·SHA-256으로 갱신해 audit·style·신규 설치·실행·삭제를 검증한다.
-13. 신규 설치, Sparkle 업데이트, Google 연결, 실제 결제 복구를 최종 확인한 뒤에만 판매 스위치를 `true`로 바꾸고 stable 승격 근거를 `docs/DECISIONS.md`에 기록한다. 현재 공개본은 여전히 macOS `v1.0.3`(build 14)이며 이 절차 완료 전에는 `v1.0.4`가 공개됐다고 표시하지 않는다.
+1. 운영 DB에 forward-only commerce migration을 먼저 적용해 `sales_enabled=false`, legacy pending 0건, 활성 가격 4개와 complimentary 15개를 확인한다.
+2. production에는 PortOne V2 Edge Functions를 배포하되 PortOne 시크릿은 설정하지 않고 실패 폐쇄를 확인한다. 예전 `commerce-return`과 Toss 시크릿은 제거한다.
+3. 전체 Swift 테스트, 로컬 2클라이언트 Realtime 통합 테스트, pgTAP, 웹 계약 테스트와 Release 빌드를 통과한다.
+4. Developer ID Application과 Hardened Runtime으로 앱·로그인 항목·Sparkle 중첩 코드를 서명하고 Apple 공증 뒤 ticket을 staple한다.
+5. `scripts/package_macos_release.sh`로 arm64·production 메타데이터, DMG·ZIP·SHA-256을 검증한다. production 카드 잠금과 구매 action 0회를 최종 확인한다.
+6. 검증된 동일 커밋에 `v1.0.4` 태그와 GitHub Release를 만든 뒤 DMG와 ZIP을 업로드하고, 다시 받은 파일이 로컬 SHA-256과 같은지 확인한다.
+7. Release ZIP이 실제 다운로드된 뒤에만 `scripts/macos/prepare_sparkle_appcast.sh`로 signed appcast를 게시한다. 이어 웹 다운로드 링크와 `sidey-app/homebrew-tap` Cask를 같은 DMG URL·SHA-256으로 갱신한다.
+8. `SIDEY-staging`이 준비되면 같은 migration·Google OAuth·PortOne test Store/Channel/Webhook을 구성하고 Sidey-dev로 주문→결제→지급→프로필 선택→전액 환불→회수를 실제 검증한다.
+9. 추후 실판매는 별도 결정과 법률·운영 검증 뒤 production 앱의 `StoreAvailability`를 여는 새 버전을 먼저 배포하고, 마지막 단계에서만 운영 `sales_enabled=true`와 live 시크릿을 설정한다.
 
 Sparkle `2.9.6`이 production 앱에 내장되며 메뉴바 `업데이트 확인…`과 설정의 업데이트 카드에서 수동 확인할 수 있다. 설정 버튼은 production updater가 사용 가능한 동안에만 활성화한다. 자동 확인은 Sparkle의 사용자 동의 흐름을 사용하고, 익명 system profiling은 활성화하지 않는다. appcast와 ZIP은 서로 다른 검증 대상이므로 둘 다 `sidey-app` EdDSA 키로 서명하며 `SURequireSignedFeed`와 `SUVerifyUpdateBeforeExtraction`을 강제한다. 피드는 GitHub raw HTTPS URL, 설치 파일은 GitHub Releases를 사용한다.
 
 Sparkle이 없는 기존 alpha 사용자는 최신 공증 DMG로 한 번 수동 교체해야 하며, 이후 앱 내부 업데이트를 사용한다. 사용자 세션과 설정은 앱 번들 외부에 있어 교체·업데이트 후에도 유지된다. Sparkle 개인키는 저장소나 CI 로그에 넣지 않고 release operator의 로그인 Keychain과 암호화한 오프라인 백업에만 둔다.
 
-공개 배포본은 표시명 `SIDEY`, 채널 `production`을 사용한다. 로컬 개발본은 최신 Release 구성의 ad-hoc 빌드를 표시명 `Sidey-dev`, 채널 `development`로 만들어 `/Applications/Sidey-dev.app`에만 설치하며 Sparkle controller를 생성하지 않는다. 두 채널은 기존 익명 계정·그룹·설정을 이어 쓰기 위해 `app.sidey.desktop` bundle ID, login item ID, `com.sidey.desktop` Keychain service를 공유한다. 설치 스크립트는 정확한 dev 앱 경로만 교체한다.
+공개 배포본은 표시명 `SIDEY`, 채널 `production`, bundle ID `app.sidey.desktop`, OAuth callback `sidey`를 사용한다. 로컬 개발본은 `Sidey-dev`, 채널 `development`, bundle ID `app.sidey.desktop.dev`, callback `sidey-dev`를 사용하고 login item ID·Keychain service·UserDefaults suite·Supabase 세션을 모두 production과 분리한다. dev 앱은 `SIDEY-staging` URL과 publishable key가 없거나 운영 ref `whtejsviizgejauasqqt`를 가리키면 빌드하지 않으며 Sparkle controller도 생성하지 않는다.
 
 schema 6 이하 기존 설치가 alpha.6에서 처음 Keychain 정보를 읽기 전에는 SIDEY 자체 안내창을 먼저 표시한다. 안내창은 로그인 상태와 그룹 초대 코드를 macOS 키체인에 안전하게 보관·조회한다는 목적, 이전 버전 정보를 처음 불러올 때 Mac 로그인 암호를 요청할 수 있다는 점, 다음부터 묻지 않게 하려면 macOS 창에서 `항상 허용`을 선택해야 한다는 점, `허용`은 같은 실행이나 다음 실행에서 창을 반복시킬 수 있다는 점, SIDEY가 암호를 확인하거나 저장하지 않는다는 점을 설명한다. 버튼은 `계속`과 `SIDEY 종료`다. 신규 설치는 안내를 생략하고 새 항목을 만든다.
 
