@@ -1383,43 +1383,27 @@ main {
   border-top: 1px solid var(--line);
 }
 
-.footer-row {
+.footer-details {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-}
-
-.footer-brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.footer-brand img {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-}
-
-.footer-brand strong {
-  display: block;
-  font-size: 0.88rem;
-  letter-spacing: 0.08em;
-}
-
-.footer-brand span,
-.footer-links {
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 28px;
+  margin: 0;
   color: var(--muted);
   font-size: 0.78rem;
 }
 
-.footer-links {
+.footer-details div {
   display: flex;
-  gap: 18px;
+  gap: 8px;
 }
 
-.footer-links a {
+.footer-details dt {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.footer-details a {
   text-underline-offset: 3px;
 }
 
@@ -1575,9 +1559,10 @@ main {
     right: 24%;
   }
 
-  .footer-row {
-    align-items: flex-start;
+  .footer-details {
+    align-items: stretch;
     flex-direction: column;
+    gap: 8px;
   }
 }
 
