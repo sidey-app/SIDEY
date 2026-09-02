@@ -91,14 +91,18 @@
               </span>
               Download for macOS
             </a>
-            <button class="button button-secondary" type="button" disabled aria-describedby="windows-hero-status">
+            <a
+              class="button button-secondary"
+              href="https://github.com/sidey-app/SIDEY/releases/download/windows-v0.3.0-alpha.7/SIDEY-Windows-x64-v0.3.0-alpha.7-Setup.exe"
+              aria-describedby="windows-hero-status"
+            >
               <span class="platform-icon platform-icon-windows" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
               Download for Windows
-            </button>
+            </a>
           </div>
           <p class="requirements">
             <span>macOS 26+ · Apple Silicon · Stable</span>
-            <span class="pending" id="windows-hero-status">Windows 11 25H2 x64 · In development</span>
+            <span class="pending" id="windows-hero-status">Windows 11 25H2 x64 · Test alpha</span>
           </p>
         </div>
 
@@ -196,8 +200,8 @@
       <section class="section download-section" id="download" aria-labelledby="download-title">
         <div class="section-heading">
           <p class="section-kicker">Download</p>
-          <h2 id="download-title">Start with the stable macOS release.</h2>
-          <p>Install the notarized DMG directly, or use the Homebrew Cask.</p>
+          <h2 id="download-title">Start SIDEY on your desktop platform.</h2>
+          <p>Choose the stable macOS release or the Windows device-test alpha.</p>
         </div>
 
         <div class="download-grid">
@@ -252,16 +256,23 @@
 
           <article class="download-card">
             <span class="platform-label">Windows</span>
-            <h3>Native Windows edition</h3>
-            <p>The native five-character alpha for Windows 11 25H2 x64 is in development and validation. No public Setup.exe is available yet.</p>
-            <span class="development-badge" id="windows-card-status">In development</span>
+            <h3>SIDEY v0.3.0-alpha.7</h3>
+            <p>A native Windows device-test alpha with five characters, messaging, and recent history.</p>
+            <span class="development-badge" id="windows-card-status">Test alpha</span>
             <div class="download-actions">
-              <button class="button button-secondary" type="button" disabled aria-describedby="windows-card-status">
+              <a
+                class="button button-secondary"
+                href="https://github.com/sidey-app/SIDEY/releases/download/windows-v0.3.0-alpha.7/SIDEY-Windows-x64-v0.3.0-alpha.7-Setup.exe"
+                aria-describedby="windows-card-status"
+              >
                 <span class="platform-icon platform-icon-windows" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-                Download for Windows
-              </button>
+                Download Setup
+              </a>
+              <a class="button button-secondary" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v0.3.0-alpha.7">
+                Release notes
+              </a>
             </div>
-            <p class="system-note">Planned requirement: Windows 11 25H2 or later · x64</p>
+            <p class="system-note">Requires Windows 11 25H2 or later · x64 · Self-signed test build that security policies may block</p>
           </article>
         </div>
       </section>

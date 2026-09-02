@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.8
 - 최종 갱신: 2026-09-02
-- 상태: macOS `v1.0.3`(build 14) 정식 공개, 그 위에 상점·Google 연결·별빛 우파루파 개발, Windows 네이티브 `0.3.0-alpha.7` 후보 별도 개발·검증
+- 상태: macOS `v1.0.3`(build 14) 정식 공개, 그 위에 상점·Google 연결·별빛 우파루파 개발, Windows 네이티브 `0.3.0-alpha.7` 기기 테스트용 pre-release 공개·검증 계속
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
 
@@ -52,8 +52,8 @@
 - 공식 주소는 GitHub 프로젝트 Pages `https://sidey-app.github.io/SIDEY/`다. 루트는 한국어, `/en/`은 영어이며 각 페이지에서 언어를 전환할 수 있다.
 - `website/`의 정적 HTML·CSS·최소 JavaScript만 배포한다. 이 사이트는 제품 소개와 다운로드 안내만 담당하며 로그인·그룹·메시지 기능을 제공하는 웹 클라이언트가 아니다.
 - macOS 기본 CTA는 현재 공개 버전의 고정 공증 DMG를 직접 가리키고 `brew install --cask sidey-app/tap/sidey`를 함께 제공한다. 다음 공개 릴리스에서는 버전 표기와 고정 DMG URL을 같은 배포 작업에서 갱신한다.
-- Windows 공개 설치 파일이 없는 동안 다운로드 요소는 링크와 클릭 동작이 없는 비활성 버튼과 `개발 중` 상태로 표시한다.
-- Windows 업데이트 채널은 macOS Release와 분리된 `windows-v<version>` 태그와 `website/windows-latest.json`을 사용한다. 호환 경로 `website/windows/update.json`은 같은 내용을 유지하며, 검증된 공개 Setup이 없거나 현재 버전과 같을 때 `installer_url`과 `sha256`은 `null`로 둔다.
+- Windows CTA는 `windows-v0.3.0-alpha.7` 기기 테스트용 pre-release의 고정 Setup.exe URL을 가리키고 자체 서명 테스트 알파, 지원 OS·아키텍처와 미완료 실기 검증을 함께 표시한다.
+- Windows 업데이트 채널은 macOS Release와 분리된 `windows-v<version>` 태그와 `website/windows-latest.json`을 사용한다. 호환 경로 `website/windows/update.json`은 같은 내용을 유지하며, 검증된 공개 Setup이 없거나 현재 버전과 같을 때 `installer_url`과 `sha256`은 `null`로 둘 수 있다. 공개 업데이트가 있으면 CI 후보와 Release 재다운로드 파일이 일치한 고정 URL과 SHA-256을 기록한다.
 - 첫 화면에서 플랫폼·아키텍처·정식 배포 상태를 밝히고, 개인정보 수집 경계, E2EE 미지원, 보안 화면·DRM·권한 상승 앱·모든 독점 전체화면 위 표시를 보장하지 않는다는 제한을 숨기지 않는다.
 - `main`의 웹 파일 또는 Pages 워크플로가 바뀌면 GitHub Actions가 `website/`만 Pages artifact로 올리고 `github-pages` 환경에 배포한다. custom domain과 별도 Sites 호스팅은 사용하지 않는다.
 
@@ -474,8 +474,11 @@ Keychain 접근은 앱 실행 동안 하나의 `LAContext`를 공유하고 `loca
 3. CI에서 `win-x64` unpackaged·multi-file self-contained 앱을 `PublishSingleFile=false`로 게시한다. 루트 `SIDEY.exe` 런처가 인수를 `Runtime\SIDEY.Host.exe`로 전달하고, 앱·.NET·Windows App SDK 런타임은 `Runtime`, 사용자 콘텐츠는 `Assets`, SIDEY 번역은 `Langs`에 둔다. 게시한 런처와 호스트를 실제 시작해 main 또는 미지원 OS 창 활성화 로그가 남고 프로세스가 유지되는지 확인한다.
 4. WiX Toolset `6.0.2`로 머신 단위 테스트 MSI와 전체 payload를 내장한 Burn `SIDEY-Windows-x64-v0.3.0-alpha.7-Setup.exe`를 만든다. 테스트 MSI와 `.sha256`은 CI artifact·직접 설치 검증에만 사용하고 GitHub Release에는 게시하지 않는다.
 5. 패키징 중 한 번 만든 `CN=SIDEY` 자체 서명 인증서로 SIDEY 제작 런처·호스트·DLL·내부 MSI·Setup.exe를 Authenticode 서명한다. 임시 PFX는 성공·실패와 관계없이 삭제하고 개인 키 없는 `SIDEY-SelfSigned-CodeSigning.cer`만 후보에 남기며 공급자 런타임의 기존 서명은 유지한다.
-6. clean install·시작 메뉴·성공 화면 실행·repair·실행 중 upgrade·downgrade 차단·uninstall/reinstall 보존을 확인하고, 검증된 커밋에 `windows-v0.3.0-alpha.7` 태그와 GitHub pre-release를 만든다. Release에는 Setup.exe, `.sha256`, 공개 CER만 게시한다. alpha.1 사용자별 설치는 먼저 제거해야 하고 데이터는 보존된다는 점, 자체 서명이 공인 신뢰나 SmartScreen 평판을 제공하지 않는다는 점, ARM64·MSIX·무인 자동 설치 제외와 미완료 실기 항목을 명시한다.
-7. GitHub에서 다시 받은 Setup.exe의 SHA-256이 후보와 같은 것을 확인한 뒤에만 `website/windows-latest.json`과 호환 경로 `website/windows/update.json`에 같은 `windows-v<version>` 태그·고정 Setup URL·64자리 SHA-256을 게시한다. 앱은 시작 시 한 번 새 버전을 확인하고 트레이·설정에서 수동 확인하며, 사용자 승인 뒤 다운로드·hash 검증을 통과한 설치기만 실행한다.
+6. 자동 검증을 통과한 커밋에 `windows-v0.3.0-alpha.7` 태그와 기기 테스트용 GitHub pre-release를 만들 수 있다. Release에는 Setup.exe, `.sha256`, 공개 CER만 게시하고 alpha.1 제거·데이터 보존, 자체 서명의 공인 신뢰 부재, ARM64·MSIX·무인 자동 설치 제외와 미완료 실기 항목을 명시한다. 이 공개는 10.3의 수동 승격 기준 통과나 공개 준비 완료를 뜻하지 않는다.
+7. GitHub에서 다시 받은 Setup.exe의 SHA-256이 CI 후보와 같은 것을 확인한 뒤에만 `website/windows-latest.json`과 호환 경로 `website/windows/update.json`에 같은 `windows-v<version>` 태그·고정 Setup URL·64자리 SHA-256을 게시한다. 앱은 시작 시 한 번 새 버전을 확인하고 트레이·설정에서 수동 확인하며, 사용자 승인 뒤 다운로드·hash 검증을 통과한 설치기만 실행한다.
+8. clean install·시작 메뉴·성공 화면 실행·repair·실행 중 upgrade·downgrade 차단·uninstall/reinstall 보존과 10.3의 실기·장시간·상호운용 기준을 통과하기 전에는 테스트 pre-release를 공개 준비 완료나 stable로 승격하지 않는다.
+
+`windows-v0.3.0-alpha.7`은 2026-09-02에 기기 테스트용 pre-release로 게시했다. CI 후보와 Release 재다운로드 Setup.exe의 SHA-256은 모두 `30af0b889ee56ff58934337f01b39275cf5c72a8ea5aa4b37a83eef7b11f9e81`로 일치했다.
 
 공개 Setup은 관리자 승인 뒤 모든 사용자용으로 `C:\Program Files\SIDEY`에 설치하고 공용 시작 메뉴 바로가기만 만든다. 기존 alpha.1은 사용자별 context라 자동 upgrade할 수 없으므로 새 Setup이 감지하면 먼저 Windows 설정에서 제거하도록 안내하고 설치를 중단한다. uninstall은 앱 파일·시작 메뉴·현재 사용자의 로그인 실행 registry만 제거하며 `%LOCALAPPDATA%\SIDEY` 설정과 Credential Manager 세션은 보존한다.
 
