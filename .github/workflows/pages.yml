@@ -43,6 +43,35 @@ jobs:
       - name: Test commerce pages
         run: node --test website/tests/*.test.mjs
 
+      - name: Test Windows release metadata preparation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $manifest = Get-Content ./website/windows-latest.json -Raw |
+            ConvertFrom-Json
+          $msiName = "SIDEY-Windows-x64-v$($manifest.version).msi"
+          New-Item -ItemType Directory -Path ./build/pages-test-release -Force |
+            Out-Null
+          Copy-Item ./website/windows-latest.json `
+            "./build/pages-test-release/$msiName"
+
+          ./scripts/website/prepare-windows-release.ps1 `
+            -WebsiteDir ./website `
+            -OutputDir ./build/pages-test-site `
+            -ReleaseMsi "./build/pages-test-release/$msiName"
+
+          $published = Get-Content ./build/pages-test-site/windows-latest.json -Raw |
+            ConvertFrom-Json
+          if ([string]$published.sha256 -notmatch '^[0-9a-f]{64}$') {
+            throw 'Generated Windows SHA-256 is invalid.'
+          }
+          foreach ($page in @('index.html', 'en/index.html')) {
+            $html = Get-Content "./build/pages-test-site/$page" -Raw
+            if ($html -notmatch '<a class="button button-secondary" id="windows-download-action"') {
+              throw "Generated Windows download link is missing: $page"
+            }
+          }
+
   deploy:
     if: >-
       github.event_name != 'pull_request'
