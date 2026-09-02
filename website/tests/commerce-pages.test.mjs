@@ -38,6 +38,21 @@ test("checkout uses the live basic payment UI with standard easy pay methods", a
   assert.ok(!script.includes("renderPaymentWindow();"));
 });
 
+test("landing pages hide commerce navigation and keep only minimal business support details", async () => {
+  const [korean, english] = await Promise.all([read("index.html"), read("en/index.html")]);
+
+  for (const landing of [korean, english]) {
+    for (const commerceURL of ["store.html", "terms.html", "privacy.html", "refund.html"]) {
+      assert.ok(!landing.includes(commerceURL));
+    }
+    assert.ok(landing.includes("ryu200112@gmail.com"));
+    assert.ok(landing.includes("388-53-01259"));
+    assert.ok(!landing.includes("010-9270-2973"));
+    assert.ok(!landing.includes("류태현"));
+    assert.ok(!landing.includes("서천동로21번길"));
+  }
+});
+
 test("public policy URLs contain seller details and macOS-only scope", async () => {
   const [store, terms, privacy, refund, sitemap] = await Promise.all([
     read("store.html"),
