@@ -30,6 +30,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Test commerce pages
+        run: node --test website/tests/*.test.mjs
+
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v6
 

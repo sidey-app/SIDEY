@@ -252,11 +252,26 @@ final class SettingsInteractionTests: XCTestCase {
                         configureState(model)
                     }
                     XCTAssertGreaterThan(data.count, 10_000)
+                    let placementData = try renderSettings(
+                        size: size,
+                        colorScheme: scheme,
+                        scrollToBottom: true,
+                        commerceProducts: products
+                    ) { model in
+                        model.activeSettingsPage = .store
+                        configureState(model)
+                    }
+                    XCTAssertGreaterThan(placementData.count, 10_000)
                     if let configuredOutput {
                         let mode = scheme == .light ? "light" : "dark"
                         try data.write(
                             to: configuredOutput.appending(
                                 path: "store-\(scenario)-\(sizeName)-\(mode).png"
+                            )
+                        )
+                        try placementData.write(
+                            to: configuredOutput.appending(
+                                path: "store-\(scenario)-\(sizeName)-\(mode)-placement.png"
                             )
                         )
                     }

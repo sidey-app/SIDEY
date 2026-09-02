@@ -1,4 +1,5 @@
 import {
+  assertRuntimePaymentConfiguration,
   jsonResponse,
   serviceRPC,
   sha256Hex,
@@ -20,6 +21,7 @@ Deno.serve(async (request) => {
 
     // General payment webhooks are not signed. Never trust their Payment body;
     // query Toss directly with the merchant secret and apply that response only.
+    await assertRuntimePaymentConfiguration();
     const verified = await tossRequest<TossPayment>(`/payments/${encodeURIComponent(candidate.paymentKey)}`);
     const transmissionID = request.headers.get("tosspayments-webhook-transmission-id");
     const eventID = (transmissionID && transmissionID.length <= 180)

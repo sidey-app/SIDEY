@@ -1,4 +1,5 @@
 import {
+  assertRuntimePaymentConfiguration,
   checkoutResultURL,
   redirectResponse,
   serviceRPC,
@@ -41,6 +42,7 @@ Deno.serve(async (request) => {
     if (!order || providerOrderID !== order.provider_order_id || amount !== order.amount_krw) {
       return resultRedirect("mismatch");
     }
+    await assertRuntimePaymentConfiguration();
 
     validatePayment(await tossRequest<TossPayment>("/payments/confirm", {
       method: "POST",

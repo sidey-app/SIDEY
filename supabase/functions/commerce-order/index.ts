@@ -3,13 +3,16 @@ import {
   authenticatedUser,
   checkoutPageURL,
   corsHeaders,
+  HttpError,
   jsonResponse,
   PRODUCT_ID,
   publicError,
   randomToken,
+  serviceRPC,
   sha256Hex,
   userRPC,
   type CommerceOrder,
+  type CommerceRuntimeConfiguration,
 } from "../_shared/commerce.ts";
 
 Deno.serve(async (request) => {
@@ -19,11 +22,20 @@ Deno.serve(async (request) => {
   try {
     const authorization = request.headers.get("authorization");
     await authenticatedUser(authorization);
-    assertCheckoutConfiguration();
     const payload = await request.json().catch(() => ({}));
     if (payload?.product_id !== PRODUCT_ID) {
       return jsonResponse({ error: "commerce_product_unavailable" }, 400);
     }
+
+    const runtimeRows = await serviceRPC<CommerceRuntimeConfiguration[]>(
+      "commerce_runtime_configuration",
+      {},
+    );
+    const runtime = runtimeRows[0];
+    if (!runtime?.sales_enabled) {
+      throw new HttpError(503, "commerce_sales_disabled", "현재 판매 준비 중입니다.");
+    }
+    assertCheckoutConfiguration(runtime.payment_environment);
 
     const checkoutToken = randomToken();
     const tokenHash = await sha256Hex(checkoutToken);

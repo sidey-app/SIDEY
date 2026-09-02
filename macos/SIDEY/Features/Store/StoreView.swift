@@ -40,23 +40,28 @@ struct StoreView: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 8) {
+            Spacer(minLength: StoreCardLayout.footerMinimumSpacing)
+
+            VStack(alignment: .center, spacing: 8) {
                 Label(
                     "표시 가격은 부가세 포함 금액입니다. 구매 전 Google 계정 연결이 필요합니다.",
                     systemImage: "lock.shield"
                 )
                 .font(.callout)
 
-                Text("결제 승인과 서버 소유권 확인 후 보유 상태에 반영됩니다.")
+                Text("결제 승인과 서버 소유권 확인이 끝나면 디지털 캐릭터 사용권 제공이 즉시 시작됩니다.")
                     .font(.caption)
 
-                Text("구매자는 만 14세 이상이어야 합니다. 구매일로부터 7일 이내에는 사용 여부와 관계없이 전액 환불할 수 있습니다.")
+                Text("사용권 제공이 시작된 뒤에는 단순 변심에 따른 청약철회가 제한됩니다. 미제공·계약 내용 불일치·중복 또는 무단 결제 등 법정 사유가 확인되면 전액 환불합니다.")
                     .font(.caption)
             }
             .foregroundStyle(.secondary)
-            .frame(maxWidth: StoreCardLayout.footerMaximumWidth, alignment: .leading)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: StoreCardLayout.footerMaximumWidth, alignment: .center)
             .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
         .onAppear { actions.onRefreshCommerceState(nil) }
     }
 }
@@ -304,6 +309,7 @@ enum StoreCardLayout {
     static let minimumWidth: CGFloat = 300
     static let maximumWidth: CGFloat = 360
     static let minimumPreviewHeight: CGFloat = 144
+    static let footerMinimumSpacing: CGFloat = 28
     static let footerMaximumWidth: CGFloat = 520
 }
 

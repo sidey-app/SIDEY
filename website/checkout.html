@@ -48,17 +48,27 @@
             <div>
               <h1 id="checkout-order-name">별빛 우파루파</h1>
               <p class="checkout-price"><span id="checkout-amount">990</span>원</p>
-              <p class="checkout-meta">부가세 포함 · 1회 구매 · 테스트 결제</p>
+              <p class="checkout-meta">부가세 포함 · 1회 구매 · <span id="checkout-environment">판매 준비 중</span></p>
             </div>
           </div>
           <p class="checkout-note">
             결제 승인 뒤 SIDEY 서버가 금액과 결제 상태를 다시 확인해야 캐릭터가 계정에 귀속됩니다.
-            현재 테스트 키를 사용하므로 실제 금액은 청구되지 않습니다.
+            승인 즉시 구매한 macOS SIDEY 계정에 디지털 캐릭터 사용권 제공이 시작됩니다.
           </p>
-          <a class="checkout-policy" href="./store.html" target="_blank" rel="noopener">
-            상품·환불·개인정보 안내 확인
-          </a>
-          <button id="checkout-pay" class="button button-primary checkout-pay" type="button">
+          <div class="checkout-disclosure">
+            <p id="checkout-policy-notice"></p>
+            <label class="checkout-consent-row" for="checkout-consent">
+              <input id="checkout-consent" type="checkbox">
+              <span>
+                위 결제 조건과
+                <a href="./terms.html" target="_blank" rel="noopener">이용약관</a>,
+                <a href="./privacy.html" target="_blank" rel="noopener">개인정보 처리 안내</a>,
+                <a href="./refund.html" target="_blank" rel="noopener">환불 정책</a>을 확인했고 사용권의 즉시 제공에 동의합니다.
+              </span>
+            </label>
+          </div>
+          <a class="checkout-policy" href="./store.html" target="_blank" rel="noopener">상품 상세 정보 확인</a>
+          <button id="checkout-pay" class="button button-primary checkout-pay" type="button" disabled>
             결제창 열기
           </button>
           <p id="checkout-status" class="checkout-status" role="status"></p>

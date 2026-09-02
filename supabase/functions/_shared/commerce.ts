@@ -31,6 +31,19 @@ export type CommerceOrder = {
   currency: string;
   checkout_token_expires_at?: string;
   customer_name?: string;
+  policy_version?: string;
+  policy_notice?: string;
+  policy_consented_at?: string | null;
+  payment_environment?: CommercePaymentEnvironment;
+};
+
+export type CommercePaymentEnvironment = "test" | "live";
+
+export type CommerceRuntimeConfiguration = {
+  sales_enabled: boolean;
+  payment_environment: CommercePaymentEnvironment;
+  policy_version: string;
+  policy_notice: string;
 };
 
 export type TossPayment = {
@@ -121,10 +134,48 @@ function tossSecretKey(): string {
   return requiredEnvironment("TOSS_PAYMENTS_SECRET_KEY");
 }
 
-export function assertCheckoutConfiguration(): void {
+function tossKeyDescriptor(
+  key: string,
+  kind: "client" | "secret",
+): { environment: CommercePaymentEnvironment; family: "widget" | "core" } | null {
+  const match = key.match(kind === "client"
+    ? /^(test|live)_(gck|ck)_/
+    : /^(test|live)_(gsk|sk)_/);
+  if (!match) return null;
+  return {
+    environment: match[1] as CommercePaymentEnvironment,
+    family: match[2].startsWith("g") ? "widget" : "core",
+  };
+}
+
+export function assertCheckoutConfiguration(
+  expectedEnvironment: CommercePaymentEnvironment,
+): void {
   functionURL("commerce-checkout");
-  tossClientKey();
-  tossSecretKey();
+  const client = tossKeyDescriptor(tossClientKey(), "client");
+  const secret = tossKeyDescriptor(tossSecretKey(), "secret");
+  if (
+    !client
+    || !secret
+    || client.environment !== secret.environment
+    || client.family !== secret.family
+    || client.environment !== expectedEnvironment
+  ) {
+    throw new CommerceConfigurationError("TOSS_PAYMENTS_KEY_PAIR");
+  }
+}
+
+export async function assertRuntimePaymentConfiguration(): Promise<CommerceRuntimeConfiguration> {
+  const rows = await serviceRPC<CommerceRuntimeConfiguration[]>(
+    "commerce_runtime_configuration",
+    {},
+  );
+  const runtime = rows[0];
+  if (!runtime || (runtime.payment_environment !== "test" && runtime.payment_environment !== "live")) {
+    throw new CommerceConfigurationError("COMMERCE_RUNTIME_SETTINGS");
+  }
+  assertCheckoutConfiguration(runtime.payment_environment);
+  return runtime;
 }
 
 export function jsonResponse(body: unknown, status = 200): Response {

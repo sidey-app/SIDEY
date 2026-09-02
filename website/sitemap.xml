@@ -3,16 +3,32 @@
         xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://sidey-app.github.io/SIDEY/</loc>
-    <lastmod>2026-08-31</lastmod>
+    <lastmod>2026-09-02</lastmod>
     <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/"/>
   </url>
   <url>
     <loc>https://sidey-app.github.io/SIDEY/en/</loc>
-    <lastmod>2026-08-31</lastmod>
+    <lastmod>2026-09-02</lastmod>
     <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/store.html</loc>
+    <lastmod>2026-09-02</lastmod>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/terms.html</loc>
+    <lastmod>2026-09-02</lastmod>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/privacy.html</loc>
+    <lastmod>2026-09-02</lastmod>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/refund.html</loc>
+    <lastmod>2026-09-02</lastmod>
   </url>
 </urlset>

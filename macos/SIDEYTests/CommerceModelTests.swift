@@ -63,6 +63,7 @@ final class CommerceModelTests: XCTestCase {
             StoreCardLayout.minimumPreviewHeight
         )
         XCTAssertEqual(StoreCardLayout.aspectRatio, 1)
+        XCTAssertGreaterThan(StoreCardLayout.footerMinimumSpacing, 0)
         XCTAssertNotEqual(StoreReactionPreviewStyle.peakScale, PixelCharacterPulseStyle.peakScale)
     }
 
