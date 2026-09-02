@@ -745,10 +745,6 @@ main {
   content: "";
 }
 
-.requirements .pending::before {
-  background: var(--orange);
-}
-
 .hero-visual {
   position: relative;
   isolation: isolate;
@@ -1312,16 +1308,16 @@ main {
   content: "";
 }
 
-.development-badge {
+.release-badge {
   display: inline-flex;
   align-items: center;
   min-height: 28px;
   margin-top: 20px;
   padding: 3px 10px;
-  border: 1px solid rgba(223, 121, 0, 0.18);
+  border: 1px solid rgba(76, 80, 207, 0.2);
   border-radius: 999px;
-  color: #985600;
-  background: #fff1d7;
+  color: var(--brand-deep);
+  background: rgba(235, 235, 255, 0.9);
   font-size: 0.74rem;
   font-weight: 780;
 }

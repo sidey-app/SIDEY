@@ -52,8 +52,8 @@
 - 공식 주소는 GitHub 프로젝트 Pages `https://sidey-app.github.io/SIDEY/`다. 루트는 한국어, `/en/`은 영어이며 각 페이지에서 언어를 전환할 수 있다.
 - `website/`의 정적 HTML·CSS·최소 JavaScript만 배포한다. 이 사이트는 제품 소개와 다운로드 안내만 담당하며 로그인·그룹·메시지 기능을 제공하는 웹 클라이언트가 아니다.
 - macOS 기본 CTA는 현재 공개 버전의 고정 공증 DMG를 직접 가리키고 `brew install --cask sidey-app/tap/sidey`를 함께 제공한다. 다음 공개 릴리스에서는 버전 표기와 고정 DMG URL을 같은 배포 작업에서 갱신한다.
-- Windows 공개 설치 파일이 없는 동안 다운로드 요소는 링크와 클릭 동작이 없는 비활성 버튼과 `개발 중` 상태로 표시한다.
-- Windows 업데이트 채널은 macOS Release와 분리된 `windows-v<version>` 태그와 `website/windows-latest.json`을 사용한다. 호환 경로 `website/windows/update.json`은 같은 내용을 유지하며, 검증된 공개 MSI가 없거나 현재 버전과 같을 때 `installer_url`과 `sha256`은 `null`로 둔다. 새 버전 값은 MSI URL과 SHA-256을 함께 게시할 수 있을 때만 올린다.
+- Windows 기본 CTA는 현재 정식 버전의 고정 MSI를 직접 가리킨다. 저장소의 다운로드 버튼은 Release 검증 전까지 비활성 상태로 두고, Pages Actions가 정식 Release의 단일 MSI를 확인한 배포 아티팩트에서만 링크로 활성화한다.
+- Windows 업데이트 채널은 macOS Release와 분리된 `windows-v<version>` 태그와 `website/windows-latest.json`을 사용한다. 호환 경로 `website/windows/update.json`은 같은 내용을 유지한다. 저장소 manifest의 `sha256`은 `null`로 두고, Pages Actions가 Release MSI를 다시 내려받아 계산한 64자리 SHA-256으로 두 배포 manifest를 완성한다. Release가 없거나 draft·pre-release이거나 MSI 외 자산이 있으면 기존 Pages를 교체하지 않는다.
 - 첫 화면에서 플랫폼·아키텍처·정식 배포 상태를 밝히고, 개인정보 수집 경계, E2EE 미지원, 보안 화면·DRM·권한 상승 앱·모든 독점 전체화면 위 표시를 보장하지 않는다는 제한을 숨기지 않는다.
 - `main`의 웹 파일 또는 Pages 워크플로가 바뀌면 GitHub Actions가 `website/`만 Pages artifact로 올리고 `github-pages` 환경에 배포한다. custom domain과 별도 Sites 호스팅은 사용하지 않는다.
 
@@ -475,7 +475,7 @@ Keychain 접근은 앱 실행 동안 하나의 `LAContext`를 공유하고 `loca
 4. WiX Toolset `6.0.2`로 전체 payload와 내부 cabinet을 포함한 머신 단위 `SIDEY-Windows-x64-v1.0.3.msi`를 만든다. Burn Setup EXE·ZIP·MSIX는 만들거나 공개하지 않는다.
 5. 자체 서명 인증서·임시 PFX·공개 CER를 만들지 않고 Release용 MSI와 내부 검증용 SHA-256만 생성한다. `.sha256` 파일은 Release 자산으로 게시하지 않는다.
 6. clean install·공용 시작 메뉴·repair·실행 중 upgrade·downgrade 차단·uninstall/reinstall 보존을 확인하고, 검증된 커밋에 `windows-v1.0.3` 태그와 GitHub 정식 Release를 만든다. Release에는 MSI 하나만 게시하며 기존 Windows 테스트 버전은 먼저 제거해야 하고 데이터는 보존된다는 점을 명시한다.
-7. GitHub에서 다시 받은 MSI의 SHA-256이 후보와 같은 것을 확인한 뒤에만 `website/windows-latest.json`과 호환 경로 `website/windows/update.json`에 `windows-v1.0.3` 태그·고정 MSI URL·64자리 SHA-256을 게시하고 Pages의 Windows 다운로드 버튼을 활성화한다. 앱은 시작 시 한 번 새 버전을 확인하고 트레이·설정에서 수동 확인하며, 사용자 승인 뒤 다운로드·hash 검증을 통과한 설치기만 실행한다.
+7. Windows Actions가 성공하면 Pages Actions가 GitHub 정식 Release의 단일 MSI를 다시 내려받아 SHA-256을 계산한다. 태그·고정 MSI URL·자산 구성이 모두 맞을 때 배포 아티팩트의 `website/windows-latest.json`과 호환 경로 `website/windows/update.json`에 64자리 SHA-256을 기록하고 Windows 다운로드 버튼을 활성화한다. 앱은 시작 시 한 번 새 버전을 확인하고 트레이·설정에서 수동 확인하며, 사용자 승인 뒤 다운로드·hash 검증을 통과한 설치기만 실행한다.
 
 공개 MSI는 관리자 승인 뒤 모든 사용자용으로 `C:\Program Files\SIDEY`에 설치하고 공용 시작 메뉴 바로가기만 만든다. 기존 per-user·Burn 테스트 설치는 등록 방식이 달라 자동 전환하지 않으며 먼저 Windows 설정에서 제거하도록 안내한다. uninstall은 앱 파일·시작 메뉴·현재 사용자의 로그인 실행 registry만 제거하며 `%LOCALAPPDATA%\SIDEY` 설정과 Credential Manager 세션은 보존한다.
 

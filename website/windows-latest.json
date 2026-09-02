@@ -1,7 +1,7 @@
 {
-  "channel": "alpha",
-  "version": "0.3.0-alpha.7",
-  "tag": "windows-v0.3.0-alpha.7",
-  "installer_url": null,
+  "channel": "production",
+  "version": "1.0.3",
+  "tag": "windows-v1.0.3",
+  "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.3/SIDEY-Windows-x64-v1.0.3.msi",
   "sha256": null
 }
