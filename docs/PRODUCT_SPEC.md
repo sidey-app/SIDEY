@@ -1,8 +1,8 @@
 # SIDEY 제품 기획서
 
-- 문서 버전: 0.7
+- 문서 버전: 0.8
 - 최종 갱신: 2026-09-02
-- 상태: macOS `v1.0.3`(build 14) 정식 공개, 그 위에 상점·Google 연결·별빛 우파루파 개발, Windows 네이티브판 별도 개발
+- 상태: macOS `v1.0.3`(build 14) 정식 공개, 그 위에 상점·Google 연결·별빛 우파루파 개발, Windows 네이티브 `0.3.0-alpha.7` 후보 별도 개발·검증
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
 
@@ -32,8 +32,8 @@
 ### 2.2 Windows 구현 목표
 
 - Windows 11 25H2(build 26200) 이상 x64 네이티브 클라이언트를 C#/.NET 10 LTS·WinUI 3·Win32로 구현한다.
-- 일반 창은 SIDEY 브랜드의 Windows Fluent UI로 만들고, 투명 월드는 전용 Win32 HWND가 소유한다. 첫 햄스터 local slice는 사전 생성한 premultiplied BGRA frame을 `UpdateLayeredWindow`로 표시해 창 정책과 자원 안정성을 검증하며, 최종 5캐릭터 렌더러는 이 실측 뒤 결정한다.
-- 햄스터 1종으로 창 정책·DPI·클릭 통과·hotspot·잠금·절전 복귀를 먼저 통과한 후 5종과 전체 기능으로 확장한다.
+- 일반 창은 SIDEY 브랜드의 Windows Fluent UI로 만들고, 투명 월드는 전용 Win32 HWND가 소유한다. 첫 기능 빌드부터 `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러가 무료 5종의 사전 생성 premultiplied BGRA frame을 표시한다.
+- 햄스터 1종 실기 계측은 같은 5종 렌더러의 입력 snapshot을 제한하는 Debug 전용 내부 모드로 수행한다. 햄스터 전용 제품 구현을 만들거나 이 모드를 Release에 노출하지 않으며, 나머지 4종 구현을 계측 뒤로 미루지 않는다.
 - 최종 목표는 macOS와 서버 계약·제품 행동이 동등한 Windows 판이며, 플랫폼 창·설정 UI는 Windows 관례를 따른다.
 - Godot·WPF·Electron·WebView는 사용하지 않는다.
 
@@ -53,13 +53,14 @@
 - `website/`의 정적 HTML·CSS·최소 JavaScript만 배포한다. 이 사이트는 제품 소개와 다운로드 안내만 담당하며 로그인·그룹·메시지 기능을 제공하는 웹 클라이언트가 아니다.
 - macOS 기본 CTA는 현재 공개 버전의 고정 공증 DMG를 직접 가리키고 `brew install --cask sidey-app/tap/sidey`를 함께 제공한다. 다음 공개 릴리스에서는 버전 표기와 고정 DMG URL을 같은 배포 작업에서 갱신한다.
 - Windows 공개 설치 파일이 없는 동안 다운로드 요소는 링크와 클릭 동작이 없는 비활성 버튼과 `개발 중` 상태로 표시한다.
+- Windows 업데이트 채널은 macOS Release와 분리된 `windows-v<version>` 태그와 `website/windows-latest.json`을 사용한다. 호환 경로 `website/windows/update.json`은 같은 내용을 유지하며, 검증된 공개 Setup이 없거나 현재 버전과 같을 때 `installer_url`과 `sha256`은 `null`로 둔다.
 - 첫 화면에서 플랫폼·아키텍처·정식 배포 상태를 밝히고, 개인정보 수집 경계, E2EE 미지원, 보안 화면·DRM·권한 상승 앱·모든 독점 전체화면 위 표시를 보장하지 않는다는 제한을 숨기지 않는다.
 - `main`의 웹 파일 또는 Pages 워크플로가 바뀌면 GitHub Actions가 `website/`만 Pages artifact로 올리고 `github-pages` 환경에 배포한다. custom domain과 별도 Sites 호스팅은 사용하지 않는다.
 
 ### 2.5 공개 업데이트 문서와 향후 계획
 
 - README는 짧은 제품 소개와 macOS·Windows 설치 안내를 유지하고, 그 아래에 플랫폼별 날짜·버전·최신 변경과 공통 향후 계획을 제공한다. 기술 스택·아키텍처·백엔드·개발·빌드 설명은 공개 README에 두지 않는다.
-- `docs/releases/*`와 GitHub Release 본문은 일반 사용자가 체감하는 결과를 짧은 문장으로 설명한다. 설치 행동과 지원 환경, 데이터 위험, 미서명 빌드 경고처럼 사용자가 알아야 하는 내용은 유지하되 DB·schema·API·클래스·파이프라인 세부는 제외한다.
+- `docs/releases/*`와 GitHub Release 본문은 일반 사용자가 체감하는 결과를 짧은 문장으로 설명한다. 설치 행동과 지원 환경, 데이터 위험, 자체 서명의 공인 신뢰 부재처럼 사용자가 알아야 하는 내용은 유지하되 DB·schema·API·클래스·파이프라인 세부는 제외한다.
 - 공개 향후 계획은 새로운 말풍선 디자인, Windows 기능 안정화, 캐릭터 드래그 앤 드롭, 캐릭터 효과음, macOS 이모지 입력 버그 개선, 다른 사람 캐릭터 클릭 이펙트다. 이는 완료 기능이나 일정 약속이 아니며 현재 MVP 범위를 바꾸지 않는다.
 - 캐릭터 드래그 앤 드롭은 현재 제거된 기능으로 유지한다. 기본 클릭 통과와 명시적 상호작용 모드를 보존하는 별도 제품 결정과 입력 설계가 확정된 뒤에만 다시 구현한다.
 
@@ -78,7 +79,7 @@
 - 그룹 선택은 150ms 동안 합쳐 마지막 대상만 남기며 이미 시작한 네트워크 작업은 직렬 실행한다. 최종 대상 Presence와 해당 `roomID`의 최근 메시지 조회가 모두 성공하기 전에는 현재 활성 그룹과 기록을 유지한다. 이전 요청의 성공·실패는 UI에 적용하지 않고, 최종 실패 시 이전 활성 그룹 Presence를 복구하며 복구도 실패한 경우에만 Realtime 연결 오류로 전환한다.
 - 관리 권한은 클라이언트 표시 여부와 별개로 서버 RPC에서 다시 검증한다. 활성 그룹이 추방·삭제로 사라지면 composer·typing·말풍선을 정리하고 가장 오래된 남은 그룹을 활성화한다. 마지막 그룹이 사라지면 오버레이를 숨기고 기존 프로필을 유지한 그룹 참여 화면으로 돌아간다.
 - macOS는 익명 인증과 기존 세션 복구 정책을 유지한다. 복구 실패를 새 익명 계정 생성으로 조용히 덮어쓰지 않는다.
-- Windows 신규 설치는 시스템 브라우저의 Google OAuth PKCE 로그인을 필수로 하고 `sidey://auth/callback`으로 복귀한다. Google 이름·사진은 프로필에 자동 복사하지 않는다.
+- Windows는 저장된 Supabase 익명 세션을 먼저 복구하고, 세션이 없는 신규 설치에서만 새 익명 계정을 만든다. access·refresh token과 평문 초대 코드는 Windows Credential Manager에 보관하며 Google OAuth·PKCE·callback은 사용하지 않는다.
 - Windows와 macOS의 서로 다른 사용자 UUID가 같은 방에 참가하는 것을 지원하며, Mac↔Windows 계정 이전은 범위 밖이다.
 
 ## 4. 픽셀 월드
@@ -257,11 +258,12 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 
 ### 6.5 Windows 창과 트레이
 
-- 월드는 WinUI XAML 창에 투명 표현을 위임하지 않고 `WS_POPUP` 기반 전용 Win32 HWND가 소유한다. 첫 local slice는 24px 원본에서 정수 nearest-neighbor로 미리 만든 premultiplied BGRA frame을 `UpdateLayeredWindow`로 표시하며 tick마다 bitmap이나 surface를 새로 할당하지 않는다.
+- 월드는 WinUI XAML 창에 투명 표현을 위임하지 않고 `WS_POPUP` 기반 전용 Win32 HWND가 소유한다. 무료 5종은 24px 원본에서 정수 nearest-neighbor로 미리 만든 premultiplied BGRA frame을 같은 `UpdateLayeredWindow` 렌더러로 표시하며 tick마다 bitmap이나 surface를 새로 할당하지 않는다.
 - 월드 HWND는 작업 표시줄·Alt-Tab에 나타나지 않고 활성화되지 않으며 외부 앱으로 포인터를 통과시킨다.
 - 내 캐릭터 상호작용 52×52 hotspot은 별도 HWND가 소유하고 최대 15Hz·1 DIP 임계값으로 위치를 갱신한다. 전역 마우스 hook·전역 좌표 수집은 금지한다.
 - composer는 400×56 DIP 별도 WinUI 창이며, 내 캐릭터 클릭·트레이 `메시지 작성`만 이 창을 활성화한다.
-- 트레이 메뉴는 macOS 메뉴바의 제품 행동을 같게 제공하되 Windows alpha에서는 `업데이트 확인`을 제외하고 `로그아웃`을 제공한다.
+- 트레이 메뉴는 macOS 메뉴바의 제품 행동에 맞춰 오버레이, 메시지 작성, 활성 그룹, 조용히 모드, 최근 기록, 상점, 그룹 설정, 로그인 실행, 업데이트 확인, 설정, 종료를 제공한다. 익명 세션을 사용하는 Windows alpha에는 로그아웃 메뉴를 두지 않는다.
+- 앱은 Pages의 Windows 전용 manifest를 시작 시 한 번 확인하고 트레이·설정에서 수동 확인도 제공한다. 새 버전의 고정 GitHub Release Setup URL과 SHA-256이 모두 유효할 때만 사용자 승인을 받아 내려받고 hash 검증 뒤 설치기를 실행하며 무인 자동 설치는 하지 않는다.
 - 시작 단계와 예외 유형·HRESULT·stack은 `%LOCALAPPDATA%\SIDEY\Logs\startup.log`에 기록하되 token·메시지 본문·평문 초대 코드는 기록하지 않는다. WinUI 창 생성 전 실패하면 네이티브 오류창으로 로그 경로를 알리고, 트레이 아이콘 초기화만 실패한 경우 설정창은 계속 유지하며 창을 닫으면 앱을 종료한다.
 - 보안 화면·DRM·관리자 권한 앱·모든 독점 전체화면 위 표시는 보장하지 않는다.
 
@@ -332,9 +334,9 @@ OverlayRegionPreference(
 - `Sidey.Core`는 프로필·방·Presence·message ledger·bubble ledger·이동 시뮬레이션·검증 규칙을 소유하고 WinUI·Win32·Supabase를 참조하지 않는다.
 - `Sidey.App`의 feature ViewModel은 화면에 표시할 상태와 사용자 명령만 소유한다. Supabase endpoint·Realtime payload·HWND를 직접 다루지 않는다.
 - `Sidey.Infrastructure`는 `IAuthService`·`IBackendGateway`·`ICredentialStore`·`IPreferencesStore`를 구현하고 community Supabase C# client를 교체 가능한 adapter 뒤에 격리한다.
-- `Sidey.Overlay`는 전용 Win32 message-loop thread와 30FPS 고정 step을 소유하고 불변 `WorldSnapshot`을 UUID diff로 반영한다. 위치·속도·animation frame은 앱 세션 상태에 저장하지 않는다. 첫 local slice의 GDI bitmap frame은 시작할 때만 만들고 종료 시 모두 해제한다.
-- `Sidey.Platform.Windows`는 창 정책·모니터·DPI·트레이·로그인 실행·입력 유휴·잠금·절전 이벤트를 소유한다.
-- Windows 일반 설정은 `%LOCALAPPDATA%\SIDEY\preferences.json`에 atomic replace로 저장하고, OAuth 세션·PKCE verifier·평문 초대 코드는 Credential Locker에만 저장한다.
+- `Sidey.Overlay`는 전용 Win32 message-loop thread와 30FPS 고정 step을 소유하고 불변 `WorldSnapshot`을 UUID diff로 반영한다. 위치·속도·animation frame은 앱 세션 상태에 저장하지 않는다. 무료 5종의 GDI bitmap frame은 시작할 때만 만들고 종료 시 모두 해제하며 Debug 검증 모드는 같은 렌더러의 캐릭터 목록만 햄스터로 제한한다.
+- `Sidey.Platform.Windows`는 창 정책·모니터·DPI·트레이·로그인 실행·입력 유휴·잠금·절전 이벤트와 Windows update manifest·다운로드 hash 검증을 소유한다.
+- Windows 일반 설정은 `%LOCALAPPDATA%\SIDEY\preferences.json`에 atomic replace로 저장하고, Supabase 익명 세션과 평문 초대 코드는 Windows Credential Manager에만 저장한다.
 - 24px sprite는 물리 픽셀 기준 `max(2, round-away-from-zero(2 × dpi / 96))` 정수 배율로 렌더한다.
 
 ## 8. 서버 변경
@@ -369,7 +371,7 @@ OverlayRegionPreference(
 
 임시로 방 정원을 20명으로 늘렸던 staging migration은 운영에 적용되지 않았고 `main`에서도 제거한다. 20명 조건은 렌더러 합성 부하 테스트에만 사용하며 제품 정원은 12명이다.
 
-Windows 개발은 별도 Supabase staging 프로젝트에 같은 migration·RLS·private Realtime 정책을 적용한다. Google provider와 `sidey://auth/callback` redirect allow-list는 staging에서 먼저 검증하고 Windows alpha 승격 직전 production에 추가한다. OAuth client secret·service-role key는 클라이언트·저장소·CI 산출물에 넣지 않는다. OAuth 사용자도 기존 `auth.users` UUID를 사용하므로 신규 DB schema나 membership migration을 추가하지 않는다.
+Windows 개발은 별도 Supabase staging 프로젝트에 같은 migration·RLS·private Realtime 정책을 적용한다. staging과 production 모두 익명 인증을 사용하고 일반 실행·설치본은 production publishable 구성을 기본 사용한다. 로컬 개발은 URL과 publishable key를 함께 덮어쓸 수 있지만 service-role·secret key는 클라이언트·저장소·CI 산출물에 넣지 않는다. 익명 사용자도 기존 `auth.users` UUID를 사용하므로 신규 DB schema나 membership migration을 추가하지 않는다.
 
 ## 9. 개인정보와 보안 경계
 
@@ -387,7 +389,7 @@ SIDEY가 사용할 수 있는 전역 활동 신호는 마지막 시스템 입력
 
 E2EE는 현재 설계·구현·검증되지 않았다. 전송 암호화, Postgres, RLS를 근거로 종단간 암호화라고 표현하면 안 된다.
 
-Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity를 처리하지만 SIDEY 클라이언트는 이 값을 닉네임·캐릭터·친구 노출 정보로 복사하지 않는다. 로컬 로그에는 access/refresh token, OAuth callback query, 메시지 본문, 평문 초대 코드를 남기지 않는다.
+Windows는 Supabase 익명 인증만 사용하며 Google email·provider identity나 OAuth callback을 처리하지 않는다. 로컬 로그에는 access·refresh token, 메시지 본문, 평문 초대 코드를 남기지 않는다.
 
 macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀키, service-role key, 일회용 주문 token, 전체 결제 식별자를 남기지 않는다. 결제 성공 redirect만으로 소유권을 지급하지 않고 토스 승인·재조회, 결제 당시 정책 동의와 Postgres 기록이 모두 일치해야 한다. 카드 번호·결제 비밀번호는 SIDEY가 수집하지 않는다.
 
@@ -412,7 +414,7 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 - DMG: 660×420 배경, `SIDEY.app`, `/Applications` 심볼릭 링크, 기존 5종 idle 프레임, `.DS_Store`를 자동 생성·마운트 검증하고 Finder에서 아이콘 위치·안내 문구·nearest-neighbor 픽셀 선명도를 수동 확인
 - Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단
 - 서버: 실제 anon/authenticated role의 RLS, 12번째 성공·13번째 거부와 여섯 번째 방 경합, 병렬 초대 제한, invite hash API 비노출, current epoch topic 권한, client Broadcast INSERT 봉쇄, transient event whitelist·rate, 메시지 멱등성·rate, 7일 retention, 비방장 관리 거부와 cascade를 SQL 테스트한다.
-- Windows 설치기: clean install, `C:\Program Files\SIDEY`, 시작 메뉴와 Burn 성공 화면 실행, 게시된 EXE 시작 스모크, repair, 실행 중 upgrade의 정상 종료 요청, downgrade 차단, uninstall/reinstall 뒤 `%LOCALAPPDATA%\SIDEY` 설정과 Credential Manager 세션 보존을 Windows CI·실기에서 확인한다. per-user alpha.1이 있으면 자동 교차-scope upgrade하지 않고 먼저 제거하라는 안내로 중단한다.
+- Windows 설치·업데이트: clean install, `C:\Program Files\SIDEY`, 시작 메뉴와 Burn 성공 화면 실행, 게시된 런처·호스트 시작 스모크, 자체 서명 대상과 공개 CER, repair, 실행 중 upgrade의 정상 종료 요청, downgrade 차단, uninstall/reinstall 뒤 `%LOCALAPPDATA%\SIDEY` 설정과 Credential Manager 세션 보존을 Windows CI·실기에서 확인한다. `windows-v<version>` manifest의 버전·태그·고정 Setup URL·SHA-256도 검증하며 per-user alpha.1이 있으면 자동 교차-scope upgrade하지 않고 먼저 제거하라는 안내로 중단한다.
 
 ### 10.2 macOS 장시간 수동·계측 테스트
 
@@ -429,9 +431,9 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 
 ### 10.3 Windows 승격 기준
 
-1. 햄스터 1종 local slice에서 투명·최상위·외부 앱 클릭 통과·52×52 hotspot·composer 포커스·100/125/150/200% DPI를 Windows 11 25H2 x64 실기에서 통과한다.
-2. 연결형 햄스터 slice에서 Google PKCE 로그인, 프로필, 방, 메시지, Presence, typing lease, `character_pulse`를 staging의 기존 macOS 클라이언트와 양방향 확인한다.
-3. 이 두 게이트 전에는 나머지 4종 캐릭터와 전체 Windows 기능을 구현하지 않는다.
+1. 첫 기능 빌드부터 무료 5종을 `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러로 제공하고 asset·frame·발 기준선·방향·fallback 계약을 자동 검증한다.
+2. 같은 렌더러를 햄스터 1종으로 제한하는 Debug 내부 모드에서 투명·최상위·외부 앱 클릭 통과·52×52 hotspot·composer 포커스·100/125/150/200% DPI를 Windows 11 25H2 x64 실기에서 통과한다. 이 모드는 Release에 노출하지 않는다.
+3. 연결형 검증에서 익명 세션 복구·생성, 프로필, 방, 메시지, Presence, typing lease, `character_pulse`를 staging의 기존 macOS 클라이언트와 양방향 확인한다.
 4. 최종 12명 월드를 2시간, 20노드 합성 부하를 30분 실행해 p95 frame time 40ms 이하, 100ms 이상 UI-thread hang 없음, warm-up 후 working set 20MB 초과 증가 없음, GDI/USER handle·COM surface 지속 증가 없음을 확인한다.
 5. 현재 보조 모니터 실기 검증은 공개 alpha 완료 조건에서 제외하되 합성 모니터 geometry 테스트는 통과시키고 release note에 mixed-DPI·연결 해제 실기 미검증을 명시한다.
 
@@ -467,13 +469,14 @@ Keychain 접근은 앱 실행 동안 하나의 `LAContext`를 공유하고 `loca
 
 ### 10.5 Windows alpha 배포 절차
 
-1. Windows 전체 단위·계약·창 정책 테스트와 10.3의 실기·장시간 기준을 통과한다.
-2. staging Google OAuth·RLS·private Realtime을 통과한 뒤 같은 Google provider·redirect를 production에 적용하고 다시 확인한다.
-3. CI에서 `win-x64` unpackaged·self-contained 단일 파일을 게시한다. `PublishSingleFile=true`, `IncludeAllContentForSelfExtract=true`, `PublishTrimmed=false`를 사용하고 진입점 `SIDEY.exe` 외에는 `Assets\Characters`의 5개 PNG·BGRA·manifest 세트만 외부 파일로 허용한다. 게시한 EXE를 실제 시작해 main 또는 미지원 OS 창 활성화 로그가 남고 프로세스가 유지되는지 확인한다.
-4. WiX Toolset `6.0.2`로 머신 단위 내부 MSI와 모든 payload를 내장한 Burn `SIDEY-Windows-x64-v0.3.0-alpha.2-Setup.exe`를 만든다. 내부 MSI는 CI 검증에만 쓰고 공개하지 않으며 Setup.exe와 `.sha256`만 후보로 남긴다.
-5. clean install·시작 메뉴·성공 화면 실행·repair·실행 중 upgrade·downgrade 차단·uninstall/reinstall 보존을 확인하고, 검증된 커밋에 `v0.3.0-alpha.2` 태그와 GitHub pre-release를 만든다. alpha.1 사용자별 설치가 있으면 먼저 제거해야 하고 데이터는 보존된다는 점, 미서명 SmartScreen 경고가 버전마다 반복될 수 있고 Smart App Control 등 일부 PC에서는 실행 자체가 막힐 수 있음, 수동 업데이트, ARM64·MSIX 제외, 미완료 실기 항목을 명시한다.
-6. Windows 자동 업데이트·코드 서명·MSIX를 구현했다고 표현하지 않는다.
+1. Windows 전체 단위·계약·창 정책·업데이트·배포 source 테스트와 10.3의 실기·장시간 기준을 통과한다.
+2. staging에서 익명 세션·RLS·private Realtime을 통과한 뒤 production publishable 구성에서도 다시 확인한다. service-role·secret key는 클라이언트·저장소·CI 산출물에 넣지 않는다.
+3. CI에서 `win-x64` unpackaged·multi-file self-contained 앱을 `PublishSingleFile=false`로 게시한다. 루트 `SIDEY.exe` 런처가 인수를 `Runtime\SIDEY.Host.exe`로 전달하고, 앱·.NET·Windows App SDK 런타임은 `Runtime`, 사용자 콘텐츠는 `Assets`, SIDEY 번역은 `Langs`에 둔다. 게시한 런처와 호스트를 실제 시작해 main 또는 미지원 OS 창 활성화 로그가 남고 프로세스가 유지되는지 확인한다.
+4. WiX Toolset `6.0.2`로 머신 단위 테스트 MSI와 전체 payload를 내장한 Burn `SIDEY-Windows-x64-v0.3.0-alpha.7-Setup.exe`를 만든다. 테스트 MSI와 `.sha256`은 CI artifact·직접 설치 검증에만 사용하고 GitHub Release에는 게시하지 않는다.
+5. 패키징 중 한 번 만든 `CN=SIDEY` 자체 서명 인증서로 SIDEY 제작 런처·호스트·DLL·내부 MSI·Setup.exe를 Authenticode 서명한다. 임시 PFX는 성공·실패와 관계없이 삭제하고 개인 키 없는 `SIDEY-SelfSigned-CodeSigning.cer`만 후보에 남기며 공급자 런타임의 기존 서명은 유지한다.
+6. clean install·시작 메뉴·성공 화면 실행·repair·실행 중 upgrade·downgrade 차단·uninstall/reinstall 보존을 확인하고, 검증된 커밋에 `windows-v0.3.0-alpha.7` 태그와 GitHub pre-release를 만든다. Release에는 Setup.exe, `.sha256`, 공개 CER만 게시한다. alpha.1 사용자별 설치는 먼저 제거해야 하고 데이터는 보존된다는 점, 자체 서명이 공인 신뢰나 SmartScreen 평판을 제공하지 않는다는 점, ARM64·MSIX·무인 자동 설치 제외와 미완료 실기 항목을 명시한다.
+7. GitHub에서 다시 받은 Setup.exe의 SHA-256이 후보와 같은 것을 확인한 뒤에만 `website/windows-latest.json`과 호환 경로 `website/windows/update.json`에 같은 `windows-v<version>` 태그·고정 Setup URL·64자리 SHA-256을 게시한다. 앱은 시작 시 한 번 새 버전을 확인하고 트레이·설정에서 수동 확인하며, 사용자 승인 뒤 다운로드·hash 검증을 통과한 설치기만 실행한다.
 
 공개 Setup은 관리자 승인 뒤 모든 사용자용으로 `C:\Program Files\SIDEY`에 설치하고 공용 시작 메뉴 바로가기만 만든다. 기존 alpha.1은 사용자별 context라 자동 upgrade할 수 없으므로 새 Setup이 감지하면 먼저 Windows 설정에서 제거하도록 안내하고 설치를 중단한다. uninstall은 앱 파일·시작 메뉴·현재 사용자의 로그인 실행 registry만 제거하며 `%LOCALAPPDATA%\SIDEY` 설정과 Credential Manager 세션은 보존한다.
 
-SHA-256은 PowerShell에서 `Get-FileHash .\SIDEY-Windows-x64-v0.3.0-alpha.2-Setup.exe -Algorithm SHA256`으로 계산해 Release의 `.sha256`과 비교한다.
+SHA-256은 PowerShell에서 `Get-FileHash .\SIDEY-Windows-x64-v0.3.0-alpha.7-Setup.exe -Algorithm SHA256`으로 계산해 Release의 `.sha256`과 비교한다. 자체 서명은 공인 코드 서명을 대체하지 않으며 SmartScreen·Smart App Control·조직 정책이 실행을 차단할 수 있다.
