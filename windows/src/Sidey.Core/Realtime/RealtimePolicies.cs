@@ -40,6 +40,46 @@ public static class PresencePublicationPlan
             : localPresence == PresenceState.Away ? PresenceState.Away : PresenceState.Online;
 }
 
+public static class LocalPresenceProjection
+{
+    public static PresenceState ForMember(
+        Guid memberId,
+        Guid currentUserId,
+        PresenceState remotePresence,
+        PresenceState localPresence) =>
+        memberId == currentUserId ? localPresence : remotePresence;
+
+    public static PresenceState ForSnapshotMember(
+        Guid memberId,
+        Guid currentUserId,
+        PresenceState snapshotPresence,
+        PresenceState? knownRemotePresence,
+        PresenceState localPresence) =>
+        memberId == currentUserId
+            ? localPresence
+            : knownRemotePresence ?? snapshotPresence;
+}
+
+public static class PresenceAggregatePlan
+{
+    public static PresenceState MostAvailable(IEnumerable<PresenceState> states)
+    {
+        var available = states.ToHashSet();
+        if (available.Contains(PresenceState.Online)
+            || available.Contains(PresenceState.Typing))
+        {
+            return PresenceState.Online;
+        }
+        if (available.Contains(PresenceState.Away))
+        {
+            return PresenceState.Away;
+        }
+        return available.Contains(PresenceState.Reconnecting)
+            ? PresenceState.Reconnecting
+            : PresenceState.Offline;
+    }
+}
+
 public sealed record PresenceUpdate(Guid UserId, PresenceState State);
 
 public static class PresenceChangePlan

@@ -1,12 +1,14 @@
-using Sidey.Core.Abstractions;
-using Sidey.Core.Domain;
-using Sidey.Core.Realtime;
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Channels;
+using Sidey.Core.Abstractions;
+using Sidey.Core.Domain;
+using Sidey.Core.Localization;
+using Sidey.Core.Realtime;
 
 namespace Sidey.Infrastructure;
 
@@ -35,6 +37,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
     private readonly CoalescingPublicationQueue<RealtimePresenceIntent> _presenceQueue;
     private readonly ConcurrentDictionary<(Guid RoomId, Guid UserId), CancellationTokenSource> _typingExpiries = [];
     private readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _pendingReplies = [];
+    private readonly ConcurrentDictionary<string, string> _joinReferences = [];
     private IReadOnlyDictionary<Guid, long> _desiredRoomEpochs = new Dictionary<Guid, long>();
     private Guid? _activeRoomId;
     private PresenceState _localPresence = PresenceState.Online;
@@ -92,7 +95,18 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             _activeRoomId = activeRoomId is { } id && desired.ContainsKey(id) ? id : null;
             _localPresence = localPresence;
             var openedNewSocket = _socket?.State != WebSocketState.Open;
-            await EnsureConnectedWithinGateAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await EnsureConnectedWithinGateAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (WebSocketException exception) when (!cancellationToken.IsCancellationRequested
+                && !_shutdown.IsCancellationRequested)
+            {
+                Emit(new BackendEvent.TechnicalError(ConnectionFailureMessage(exception)));
+                Emit(new BackendEvent.ConnectionChanged(false));
+                _ = RecoverAsync();
+                return;
+            }
             IEnumerable<RealtimeRoomDescriptor> leaves = openedNewSocket
                 ? Array.Empty<RealtimeRoomDescriptor>()
                 : delta.Leaves;
@@ -100,6 +114,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             {
                 await SendAsync(descriptor.PhoenixTopic, "phx_leave", new { }, cancellationToken)
                     .ConfigureAwait(false);
+                _joinReferences.TryRemove(descriptor.PhoenixTopic, out _);
             }
 
             IEnumerable<RealtimeRoomDescriptor> joins = openedNewSocket
@@ -157,6 +172,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             reply.TrySetCanceled();
         }
         _pendingReplies.Clear();
+        _joinReferences.Clear();
         await _presenceQueue.DisposeAsync().ConfigureAwait(false);
         var socket = Interlocked.Exchange(ref _socket, null);
         if (socket is not null)
@@ -200,11 +216,11 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             return;
         }
 
-        var session = await _sessions.GetStoredSessionAsync(cancellationToken).ConfigureAwait(false)
-            ?? throw new InvalidOperationException("Supabase 세션이 없습니다.");
+        _ = await _sessions.GetStoredSessionAsync(cancellationToken).ConfigureAwait(false)
+            ?? throw new InvalidOperationException(I18n.Get("auth.sessionMissing"));
         var socket = new ClientWebSocket();
-        socket.Options.SetRequestHeader("Authorization", $"Bearer {session.AccessToken}");
-        socket.Options.SetRequestHeader("apikey", _configuration.PublishableKey);
+        socket.Options.HttpVersion = HttpVersion.Version11;
+        socket.Options.HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact;
         var builder = new UriBuilder(_configuration.Url)
         {
             Scheme = "wss",
@@ -212,15 +228,37 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             Path = "/realtime/v1/websocket",
             Query = $"apikey={Uri.EscapeDataString(_configuration.PublishableKey)}&vsn=1.0.0",
         };
-        await socket.ConnectAsync(builder.Uri, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await socket.ConnectAsync(builder.Uri, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
+        }
 
         var previous = Interlocked.Exchange(ref _socket, socket);
         previous?.Abort();
         previous?.Dispose();
+        _joinReferences.Clear();
         var generation = Interlocked.Increment(ref _connectionGeneration);
         Volatile.Write(ref _lastReceiveTimestamp, Stopwatch.GetTimestamp());
         _receiveTask = Task.Run(() => ReceiveLoopAsync(socket, generation), CancellationToken.None);
         _watchdogTask ??= Task.Run(WatchdogLoopAsync, CancellationToken.None);
+    }
+
+    private static string ConnectionFailureMessage(Exception exception)
+    {
+        var current = exception;
+        while (current.InnerException is { } inner)
+        {
+            current = inner;
+        }
+        var detail = current is System.Net.Sockets.SocketException socket
+            ? $" socket={socket.SocketErrorCode} native={socket.NativeErrorCode}"
+            : string.Empty;
+        return $"Realtime WebSocket connection failed: {current.GetType().Name}{detail}";
     }
 
     private async Task JoinTopicAsync(
@@ -228,7 +266,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         var session = await _sessions.GetStoredSessionAsync(cancellationToken).ConfigureAwait(false)
-            ?? throw new InvalidOperationException("Supabase 세션이 없습니다.");
+            ?? throw new InvalidOperationException(I18n.Get("auth.sessionMissing"));
         var isEphemeral = descriptor.Kind == RealtimeTopicKind.Ephemeral;
         object config;
         if (isEphemeral)
@@ -236,7 +274,11 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             config = new
             {
                 broadcast = new { ack = false, self = false },
-                presence = new { key = session.UserId.ToString("D") },
+                presence = new
+                {
+                    key = session.UserId.ToString("D"),
+                    enabled = true,
+                },
                 postgres_changes = Array.Empty<object>(),
                 @private = true,
             };
@@ -261,9 +303,16 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             },
             cancellationToken,
             reply).ConfigureAwait(false);
+        _joinReferences[descriptor.PhoenixTopic] = reference;
         try
         {
             await reply.Task.WaitAsync(TimeSpan.FromSeconds(5), cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            _joinReferences.TryRemove(
+                new KeyValuePair<string, string>(descriptor.PhoenixTopic, reference));
+            throw;
         }
         finally
         {
@@ -276,7 +325,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         CancellationToken cancellationToken)
     {
         var session = await _sessions.GetStoredSessionAsync(cancellationToken).ConfigureAwait(false)
-            ?? throw new InvalidOperationException("Supabase 세션이 없습니다.");
+            ?? throw new InvalidOperationException(I18n.Get("auth.sessionMissing"));
         foreach (var room in intent.RoomEpochs.OrderBy(pair => pair.Key))
         {
             var state = PresencePublicationPlan.StateFor(
@@ -315,13 +364,17 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         var socket = _socket;
         if (socket?.State != WebSocketState.Open)
         {
-            throw new InvalidOperationException("Supabase Realtime 연결을 사용할 수 없습니다.");
+            throw new InvalidOperationException(I18n.Get("backend.realtimeUnavailable"));
         }
 
         var reference = Interlocked.Increment(ref _reference).ToString();
+        var joinReference = eventName == "phx_join"
+            ? reference
+            : _joinReferences.GetValueOrDefault(topic);
         var bytes = JsonSerializer.SerializeToUtf8Bytes(
             new
             {
+                join_ref = joinReference,
                 topic,
                 @event = eventName,
                 payload,
@@ -694,9 +747,15 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             && metas.ValueKind == JsonValueKind.Array
             && metas.GetArrayLength() > 0)
         {
-            value = metas[0];
+            return PresenceAggregatePlan.MostAvailable(
+                metas.EnumerateArray().Select(ParsePresenceMeta));
         }
 
+        return ParsePresenceMeta(value);
+    }
+
+    private static PresenceState ParsePresenceMeta(JsonElement value)
+    {
         return value.TryGetProperty("state", out var stateElement)
             && Enum.TryParse<PresenceState>(stateElement.GetString(), true, out var parsed)
                 ? parsed

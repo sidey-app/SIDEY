@@ -1,7 +1,7 @@
+using System.Diagnostics;
 using Sidey.Core.Abstractions;
 using Sidey.Core.Domain;
 using Sidey.Platform.Windows;
-using System.Diagnostics;
 
 namespace Sidey.Overlay;
 
@@ -15,16 +15,30 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
     private readonly NativeOverlayWindowThread _windows;
     private readonly LayeredPixelWorldRenderer _renderer;
     private readonly ValidationMetricsCollector? _metrics;
+    private readonly WindowsMonitorInfo _monitor;
+    private readonly OverlayEdge _edge;
+    private readonly Timer _taskbarTimer;
+    private int _topmostRefreshCountdown = 20;
+    private nint _yieldedShellSurface;
     private bool _disposed;
 
     private NativePixelWorldSession(
         NativeOverlayWindowThread windows,
         LayeredPixelWorldRenderer renderer,
-        ValidationMetricsCollector? metrics)
+        ValidationMetricsCollector? metrics,
+        WindowsMonitorInfo monitor,
+        OverlayEdge edge)
     {
         _windows = windows;
         _renderer = renderer;
         _metrics = metrics;
+        _monitor = monitor;
+        _edge = edge;
+        _taskbarTimer = new Timer(
+            static state => ((NativePixelWorldSession)state!).RefreshTaskbarInset(),
+            this,
+            TimeSpan.FromMilliseconds(50),
+            TimeSpan.FromMilliseconds(50));
     }
 
     public bool IsVisible { get; private set; } = true;
@@ -65,14 +79,22 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         }
 
         var monitor = WindowsMonitorService.Select(preference.MonitorIdentifier);
+        var initialTaskbarInset = WindowsTaskbarService.VisibleInset(
+            monitor.MonitorPixels,
+            monitor.MonitorPixels,
+            preference.Edge);
         var frames = WindowsOverlayRegionLayout.Frames(
-            monitor.WorkAreaPixels,
+            monitor.MonitorPixels,
             monitor.Dpi,
             preference);
         var hotspotSize = Math.Max(
             1,
             (int)Math.Round(52d * monitor.Dpi / 96d, MidpointRounding.AwayFromZero));
-        var initialHotspot = InitialHotspot(frames.ActivityFrame, preference.Edge, hotspotSize);
+        var initialHotspot = InitialHotspot(
+            frames.ActivityFrame,
+            preference.Edge,
+            hotspotSize,
+            initialTaskbarInset);
         var metrics = options.CollectValidationMetrics
             ? new ValidationMetricsCollector(
                 normalizedValidationIds?.ToArray() ?? PixelCharacterCatalog.All.Select(item => item.Id).ToArray(),
@@ -96,7 +118,8 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
                     bounds => windows?.SetHotspotBounds(bounds),
                     renderingFailed,
                     normalizedValidationIds,
-                    metrics);
+                    metrics,
+                    initialTaskbarInset);
                 return renderer;
             },
             requestComposer,
@@ -104,7 +127,9 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         return new NativePixelWorldSession(
             windows,
             renderer ?? throw new InvalidOperationException("SIDEY renderer did not initialize."),
-            metrics);
+            metrics,
+            monitor,
+            preference.Edge);
     }
 
     public ValueTask ApplyAsync(
@@ -138,6 +163,8 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         }
 
         _disposed = true;
+        _taskbarTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        _taskbarTimer.Dispose();
         _windows.Dispose();
         if (_metrics is not null)
         {
@@ -157,27 +184,98 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         CancellationToken cancellationToken) =>
         await metrics.ExportAsync(cancellationToken).ConfigureAwait(false);
 
+    private void RefreshTaskbarInset()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            _renderer.SetEdgeInset(WindowsTaskbarService.VisibleInset(
+                _monitor.MonitorPixels,
+                _monitor.MonitorPixels,
+                _edge));
+            nint shellSurface = WindowsShellSurfaceDetector.ForegroundSurface();
+            if (IsVisible && shellSurface != nint.Zero)
+            {
+                if (shellSurface != _yieldedShellSurface)
+                {
+                    _windows.YieldBehind(shellSurface);
+                    _yieldedShellSurface = shellSurface;
+                }
+            }
+            else if (IsVisible
+                && (_yieldedShellSurface != nint.Zero
+                    || Interlocked.Decrement(ref _topmostRefreshCountdown) <= 0))
+            {
+                Interlocked.Exchange(ref _topmostRefreshCountdown, 20);
+                _windows.EnsureTopmost();
+                _yieldedShellSurface = nint.Zero;
+            }
+        }
+        catch (ObjectDisposedException) when (_disposed)
+        {
+        }
+        catch (Exception exception)
+        {
+            Trace.TraceError("SIDEY taskbar tracking failed: {0}", exception);
+        }
+    }
+
     private static NativePixelRect InitialHotspot(
         NativePixelRect activity,
         OverlayEdge edge,
-        int hotspotSize)
+        int hotspotSize,
+        int edgeInset)
     {
         var tangent = edge is OverlayEdge.Bottom or OverlayEdge.Top
             ? activity.Width / 2d
             : activity.Height / 2d;
         var foot = edge switch
         {
-            OverlayEdge.Bottom => (X: activity.X + tangent, Y: (double)(activity.Y + activity.Height)),
-            OverlayEdge.Top => (X: activity.X + tangent, Y: (double)activity.Y),
-            OverlayEdge.Left => (X: (double)activity.X, Y: activity.Y + tangent),
-            OverlayEdge.Right => (X: (double)(activity.X + activity.Width), Y: activity.Y + tangent),
+            OverlayEdge.Bottom => (
+                X: activity.X + tangent,
+                Y: (double)(activity.Y + activity.Height - edgeInset)),
+            OverlayEdge.Top => (
+                X: activity.X + tangent,
+                Y: (double)(activity.Y + edgeInset)),
+            OverlayEdge.Left => (
+                X: (double)(activity.X + edgeInset),
+                Y: activity.Y + tangent),
+            OverlayEdge.Right => (
+                X: (double)(activity.X + activity.Width - edgeInset),
+                Y: activity.Y + tangent),
             _ => throw new ArgumentOutOfRangeException(nameof(edge)),
         };
-        return new NativePixelRect(
-            (int)Math.Round(foot.X - (hotspotSize / 2d), MidpointRounding.AwayFromZero),
-            (int)Math.Round(foot.Y - (hotspotSize / 2d), MidpointRounding.AwayFromZero),
-            hotspotSize,
-            hotspotSize);
+        var tangentOrigin = edge is OverlayEdge.Bottom or OverlayEdge.Top
+            ? (int)Math.Round(foot.X - (hotspotSize / 2d), MidpointRounding.AwayFromZero)
+            : (int)Math.Round(foot.Y - (hotspotSize / 2d), MidpointRounding.AwayFromZero);
+        return edge switch
+        {
+            OverlayEdge.Bottom => new NativePixelRect(
+                tangentOrigin,
+                (int)Math.Round(foot.Y, MidpointRounding.AwayFromZero) - hotspotSize,
+                hotspotSize,
+                hotspotSize),
+            OverlayEdge.Top => new NativePixelRect(
+                tangentOrigin,
+                (int)Math.Round(foot.Y, MidpointRounding.AwayFromZero),
+                hotspotSize,
+                hotspotSize),
+            OverlayEdge.Left => new NativePixelRect(
+                (int)Math.Round(foot.X, MidpointRounding.AwayFromZero),
+                tangentOrigin,
+                hotspotSize,
+                hotspotSize),
+            OverlayEdge.Right => new NativePixelRect(
+                (int)Math.Round(foot.X, MidpointRounding.AwayFromZero) - hotspotSize,
+                tangentOrigin,
+                hotspotSize,
+                hotspotSize),
+            _ => throw new ArgumentOutOfRangeException(nameof(edge)),
+        };
     }
 }
 

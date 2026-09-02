@@ -15,7 +15,7 @@ if ([System.IO.Path]::GetFileName($candidate) -ne $setupName) {
     throw "후보 파일 이름이 공개 계약과 다름: $setupName"
 }
 
-$tag = "v$Version"
+$tag = "windows-v$Version"
 $releaseRoot = "https://github.com/sidey-app/SIDEY/releases/download/$tag"
 $temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) "sidey-windows-release-$([Guid]::NewGuid().ToString('N'))"
 [System.IO.Directory]::CreateDirectory($temporaryRoot) | Out-Null

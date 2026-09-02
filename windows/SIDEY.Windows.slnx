@@ -4,6 +4,7 @@
     <Project Path="src/Sidey.Core/Sidey.Core.csproj" />
     <Project Path="src/Sidey.Infrastructure/Sidey.Infrastructure.csproj" />
     <Project Path="src/Sidey.Overlay/Sidey.Overlay.csproj" />
+    <Project Path="src/Sidey.Presentation/Sidey.Presentation.csproj" />
     <Project Path="src/Sidey.Platform.Windows/Sidey.Platform.Windows.csproj" />
   </Folder>
   <Folder Name="/tests/">

@@ -1,18 +1,21 @@
+using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Sidey.Core.Domain;
+using Microsoft.UI.Xaml.Media;
+using Sidey.Core.Localization;
 using Sidey.Platform.Windows;
+using Sidey.Presentation.Services;
+using Sidey.Presentation.ViewModels;
 
 namespace Sidey.App;
 
-public sealed partial class MainWindow : Window
+public sealed partial class MainWindow : Window, IMainWindowDialogService
 {
-    private readonly AppCoordinator _coordinator;
-    private readonly WindowsUpdateService _updates = new();
-    private CoordinatorState _state = CoordinatorState.Initial;
-    private bool _applyingState;
-    private bool _allowClose;
-    private bool _trayAvailable;
+    private readonly DispatcherTimer _statusDismissTimer = new()
+    {
+        Interval = TimeSpan.FromSeconds(4),
+    };
+
 #if DEBUG
     private readonly DispatcherTimer _validationMetricsTimer = new()
     {
@@ -20,113 +23,56 @@ public sealed partial class MainWindow : Window
     };
 #endif
 
+    private bool _allowClose;
+    private bool _trayAvailable;
+    private bool _enforcingMinimumSize;
+    private ResponsiveWindowSize _minimumWindowSize;
+
     public MainWindow(AppCoordinator coordinator)
     {
-        _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         InitializeComponent();
+        ViewModel = new MainWindowViewModel(coordinator, this, new WindowsUpdateServiceAdapter());
+        MainRoot.DataContext = ViewModel;
+        ViewModel.PrepareGroupsForPresentation();
         Title = "SIDEY";
-        CharacterSelector.ItemsSource = PixelCharacterCatalog.All;
-        CharacterSelector.SelectedValue = PixelCharacterCatalog.FallbackId;
-        MonitorSelector.ItemsSource = _coordinator.GetMonitors();
+        SideyWindowIcon.Apply(AppWindow);
         RootNavigation.SelectedItem = RootNavigation.MenuItems[0];
+        ApplyResponsiveSize();
+        ApplyBackdrop();
+        AppWindow.Changed += OnAppWindowChanged;
         AppWindow.Closing += OnAppWindowClosing;
+        Closed += OnWindowClosed;
+        ViewModel.NoticeRaised += OnNoticeRaised;
+        _statusDismissTimer.Tick += OnStatusDismissTimerTick;
 #if DEBUG
-        _validationMetricsTimer.Tick += (_, _) => RefreshValidationMetrics();
+        _validationMetricsTimer.Tick += OnValidationMetricsTimerTick;
         _validationMetricsTimer.Start();
 #endif
-        ApplyState(coordinator.State);
     }
 
-    public void ApplyState(CoordinatorState state)
-    {
-        _applyingState = true;
-        try
-        {
-            _state = state;
-            if (state.Profile is { } profile)
-            {
-                NicknameInput.Text = profile.Nickname;
-                CharacterSelector.SelectedValue = PixelCharacterCatalog.NormalizeId(profile.CharacterId);
-            }
+    public MainWindowViewModel ViewModel { get; }
 
-            var selectedRoomId = (RoomList.SelectedItem as Room)?.Id ?? state.ActiveRoomId;
-            RoomList.ItemsSource = state.Rooms;
-            RoomList.SelectedItem = state.Rooms.FirstOrDefault(room => room.Id == selectedRoomId)
-                ?? state.Rooms.FirstOrDefault(room => room.Id == state.ActiveRoomId);
-            var active = ActiveRoom();
-            MemberList.ItemsSource = active?.Members;
-            ActiveRoomDetails.Text = active is null
-                ? "아직 참여한 그룹이 없습니다."
-                : active.InviteCodeReady
-                    ? $"{active.Name} · {active.Members.Count}/12명"
-                    : $"{active.Name} · {active.Members.Count}/12명 · 이전 초대 코드 폐기됨";
-            CopyInviteButton.IsEnabled = active?.InviteCodeReady == true;
-            RotateInviteButton.IsEnabled = active is not null
-                && active.OwnerId == state.Profile?.Id
-                && state.GroupOperation == GroupOperation.Idle;
-            OwnerManagementCard.IsEnabled = active is not null
-                && active.OwnerId == state.Profile?.Id
-                && state.GroupOperation == GroupOperation.Idle;
-            HistoryList.ItemsSource = state.ActiveRoomId is { } roomId
-                ? state.Messages.Where(message => message.RoomId == roomId).ToArray()
-                : Array.Empty<MessageLedgerEntry>();
+    public bool ShouldExitOnClose => _allowClose || !_trayAvailable;
 
-            OverlayToggle.IsOn = state.Preferences.OverlayVisible;
-            QuietModeToggle.IsOn = state.Preferences.QuietMode;
-            ShowOfflineToggle.IsOn = state.Preferences.ShowOfflineMembers;
-            StartupToggle.IsOn = state.Preferences.StartAtLogin;
-            EdgeSelector.SelectedIndex = (int)state.Preferences.OverlayRegion.Edge;
-            SpanSelector.SelectedIndex = (int)state.Preferences.OverlayRegion.Span;
-            MonitorSelector.SelectedValue = state.Preferences.OverlayRegion.MonitorIdentifier
-                ?? _coordinator.GetMonitors().FirstOrDefault(monitor => monitor.IsPrimary)?.Identifier;
+    public void ApplyState(CoordinatorState state) => ViewModel.ApplyState(state);
 
-#if DEBUG
-            ValidationCard.Visibility = _coordinator.IsValidationMode
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-            ValidationPathText.Text = _coordinator.ValidationMetricsPath is { } path
-                ? $"내보내기 경로: {path}"
-                : "계측 renderer가 시작되지 않았습니다.";
-            RefreshValidationMetrics();
-#endif
-
-            if (!string.IsNullOrWhiteSpace(state.ErrorMessage))
-            {
-                StatusInfoBar.Severity = InfoBarSeverity.Warning;
-                StatusInfoBar.Message = state.ErrorMessage;
-                StatusInfoBar.IsOpen = true;
-            }
-            else if (state.Connected)
-            {
-                StatusInfoBar.Severity = InfoBarSeverity.Success;
-                StatusInfoBar.Message = "SIDEY 서버와 연결되었습니다.";
-                StatusInfoBar.IsOpen = true;
-            }
-        }
-        finally
-        {
-            _applyingState = false;
-        }
-    }
-
-    public void ShowFatalError(Exception exception)
-    {
-        StatusInfoBar.Severity = InfoBarSeverity.Error;
-        StatusInfoBar.Message = exception.Message;
-        StatusInfoBar.IsOpen = true;
-    }
+    public void ShowFatalError(Exception exception) => ViewModel.ReportError(exception);
 
     public void ShowPage(string tag)
     {
-        var item = RootNavigation.MenuItems
+        ViewModel.PrepareGroupsForPresentation();
+        NavigationViewItem? item = RootNavigation.MenuItems
             .OfType<NavigationViewItem>()
-            .FirstOrDefault(candidate => StringComparer.Ordinal.Equals(candidate.Tag as string, tag));
+            .FirstOrDefault(candidate =>
+                StringComparer.Ordinal.Equals(candidate.Tag as string, tag));
         if (item is not null)
         {
             RootNavigation.SelectedItem = item;
         }
+
         AppWindow.Show();
         Activate();
+        SideyWindowActivation.BringToForeground(this);
     }
 
     public void CloseForExit()
@@ -137,18 +83,118 @@ public sealed partial class MainWindow : Window
 
     public void SetTrayAvailable(bool available) => _trayAvailable = available;
 
-    public void CheckForUpdates() => _ = CheckForUpdatesAsync();
+    public void CheckForUpdates()
+    {
+        if (ViewModel.CheckForUpdatesCommand.CanExecute(null))
+        {
+            ViewModel.CheckForUpdatesCommand.Execute(null);
+        }
+    }
+
+    public async Task<bool> ConfirmInviteCodeRotationAsync()
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = I18n.Get("dialogs.rotateInviteTitle"),
+            Content = I18n.Get("dialogs.rotateInviteBody"),
+            PrimaryButtonText = I18n.Get("dialogs.rotateInvitePrimary"),
+            CloseButtonText = I18n.Get("common.cancel"),
+            DefaultButton = ContentDialogButton.Close,
+        };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+    }
+
+    public async Task<string?> PromptForRoomNameAsync(string currentName)
+    {
+        var input = new TextBox
+        {
+            Text = currentName,
+            MaxLength = 20,
+            PlaceholderText = I18n.Get("dialogs.roomNamePlaceholder"),
+        };
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = I18n.Get("groups.renameDialogTitle"),
+            Content = input,
+            PrimaryButtonText = I18n.Get("common.save"),
+            CloseButtonText = I18n.Get("common.cancel"),
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary
+            ? input.Text
+            : null;
+    }
+
+    public async Task<bool> ConfirmMemberRemovalAsync(string nickname)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = I18n.Format("dialogs.removeMemberTitle", nickname),
+            Content = I18n.Format("dialogs.removeMemberBody", nickname),
+            PrimaryButtonText = I18n.Get("dialogs.removeMemberPrimary"),
+            CloseButtonText = I18n.Get("common.cancel"),
+            DefaultButton = ContentDialogButton.Close,
+        };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+    }
+
+    public async Task<bool> ConfirmRoomDeletionAsync(string roomName)
+    {
+        var impactDialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = I18n.Format("dialogs.deleteRoomTitle", roomName),
+            Content = I18n.Get("dialogs.deleteRoomBody"),
+            PrimaryButtonText = I18n.Get("dialogs.deleteRoomContinue"),
+            CloseButtonText = I18n.Get("common.cancel"),
+            DefaultButton = ContentDialogButton.Close,
+        };
+        if (await impactDialog.ShowAsync() != ContentDialogResult.Primary)
+        {
+            return false;
+        }
+
+        var finalDialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = I18n.Get("dialogs.deleteRoomFinalTitle"),
+            Content = I18n.Format("dialogs.deleteRoomFinalBody", roomName),
+            PrimaryButtonText = I18n.Get("common.delete"),
+            CloseButtonText = I18n.Get("common.cancel"),
+            DefaultButton = ContentDialogButton.Close,
+        };
+        return await finalDialog.ShowAsync() == ContentDialogResult.Primary;
+    }
+
+    public async Task<bool> ConfirmUpdateDownloadAsync(string version)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = I18n.Get("dialogs.updateTitle"),
+            Content = I18n.Format("dialogs.updateBody", version),
+            PrimaryButtonText = I18n.Get("dialogs.download"),
+            CloseButtonText = I18n.Get("dialogs.later"),
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+    }
 
     private void OnAppWindowClosing(
         Microsoft.UI.Windowing.AppWindow sender,
         Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
     {
         _ = sender;
-        if (!_allowClose && _trayAvailable)
+        if (_allowClose || !_trayAvailable)
         {
-            args.Cancel = true;
-            AppWindow.Hide();
+            return;
         }
+
+        args.Cancel = true;
+        AppWindow.Hide();
     }
 
     private void OnNavigationSelectionChanged(
@@ -156,307 +202,154 @@ public sealed partial class MainWindow : Window
         NavigationViewSelectionChangedEventArgs args)
     {
         _ = sender;
-        var tag = (args.SelectedItemContainer?.Tag as string) ?? "home";
-        HomePage.Visibility = tag == "home" ? Visibility.Visible : Visibility.Collapsed;
+        string tag = (args.SelectedItemContainer?.Tag as string) ?? "profile";
+        if (tag == "groups")
+        {
+            ViewModel.PrepareGroupsForPresentation();
+        }
+
+        HomePage.Visibility = tag == "profile" ? Visibility.Visible : Visibility.Collapsed;
         GroupsPage.Visibility = tag == "groups" ? Visibility.Visible : Visibility.Collapsed;
-        HistoryPage.Visibility = tag == "history" ? Visibility.Visible : Visibility.Collapsed;
+        StorePage.Visibility = tag == "store" ? Visibility.Visible : Visibility.Collapsed;
         SettingsPage.Visibility = tag == "settings" ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void OnOpenGroupsClicked(object sender, RoutedEventArgs args)
+    private void OnNavigationPaneOpened(NavigationView sender, object args)
     {
         _ = sender;
         _ = args;
-        RootNavigation.SelectedItem = RootNavigation.MenuItems[1];
+        CompactConnectionDot.Visibility = Visibility.Collapsed;
     }
 
-    private async void OnSaveProfileClicked(object sender, RoutedEventArgs args) =>
-        await RunCommandAsync(
-            () => _coordinator.SaveProfileAsync(
-                NicknameInput.Text,
-                CharacterSelector.SelectedValue as string ?? PixelCharacterCatalog.FallbackId),
-            "프로필을 저장했습니다.");
-
-    private async void OnCreateRoomClicked(object sender, RoutedEventArgs args) =>
-        await RunCommandAsync(
-            () => _coordinator.CreateRoomAsync(CreateRoomInput.Text),
-            "그룹을 만들었습니다.");
-
-    private async void OnJoinRoomClicked(object sender, RoutedEventArgs args) =>
-        await RunCommandAsync(
-            () => _coordinator.JoinRoomAsync(InviteCodeInput.Text),
-            "그룹에 참여했습니다.");
-
-    private async void OnRoomSelectionChanged(object sender, SelectionChangedEventArgs args)
+    private void OnNavigationPaneClosed(NavigationView sender, object args)
     {
         _ = sender;
         _ = args;
-        if (_applyingState || RoomList.SelectedItem is not Room room || room.Id == _state.ActiveRoomId)
-        {
-            return;
-        }
-
-        await RunCommandAsync(() => _coordinator.SwitchRoomAsync(room.Id), "활성 그룹을 바꿨습니다.");
+        CompactConnectionDot.Visibility = Visibility.Visible;
     }
 
-    private async void OnCopyInviteClicked(object sender, RoutedEventArgs args)
+    private void OnCharacterSelectorLoaded(object sender, RoutedEventArgs args)
     {
-        var active = ActiveRoom();
-        if (active is null)
-        {
-            return;
-        }
-
-        await RunCommandAsync(async () =>
-        {
-            if (!await _coordinator.CopyInviteCodeAsync(active.Id))
-            {
-                throw new InvalidOperationException("이 기기에 저장된 초대 코드가 없습니다.");
-            }
-        }, "초대 코드를 복사했습니다.");
+        _ = sender;
+        _ = args;
+        UpdateCharacterSelectorColumns();
     }
 
-    private async void OnRotateInviteClicked(object sender, RoutedEventArgs args)
+    private void OnCharacterSelectorSizeChanged(object sender, SizeChangedEventArgs args)
     {
-        var active = ActiveRoom();
-        if (active is null || active.OwnerId != _state.Profile?.Id)
+        _ = sender;
+        _ = args;
+        UpdateCharacterSelectorColumns();
+    }
+
+    private void UpdateCharacterSelectorColumns()
+    {
+        if (CharacterSelector.ItemsPanelRoot is not ItemsWrapGrid panel
+            || CharacterSelector.ActualWidth <= 0)
         {
-            ShowStatus("방장만 새 초대 코드를 발급할 수 있습니다.", InfoBarSeverity.Warning);
             return;
         }
 
-        var dialog = new ContentDialog
+        panel.ItemWidth = Math.Max(96, Math.Floor((CharacterSelector.ActualWidth - 24d) / 5d));
+    }
+
+    private void OnNoticeRaised(NoticeMessage notice)
+    {
+        _statusDismissTimer.Stop();
+        StatusInfoBar.Message = notice.Message;
+        StatusInfoBar.Severity = notice.Kind switch
         {
-            XamlRoot = Content.XamlRoot,
-            Title = "새 초대 코드를 발급할까요?",
-            Content = "기존 코드는 즉시 폐기되며 되돌릴 수 없습니다.",
-            PrimaryButtonText = "새 코드 발급",
-            CloseButtonText = "취소",
-            DefaultButton = ContentDialogButton.Close,
+            NoticeKind.Success => InfoBarSeverity.Success,
+            NoticeKind.Warning => InfoBarSeverity.Warning,
+            NoticeKind.Error => InfoBarSeverity.Error,
+            _ => InfoBarSeverity.Informational,
         };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+        StatusInfoBar.IsOpen = true;
+        if (notice.Kind is NoticeKind.Success or NoticeKind.Informational)
         {
-            return;
+            _statusDismissTimer.Start();
         }
-
-        await RunCommandAsync(
-            () => _coordinator.RotateInviteCodeAsync(active.Id),
-            "새 초대 코드를 발급해 이 기기의 Credential Manager에 저장했습니다.");
     }
 
-    private void OnComposeClicked(object sender, RoutedEventArgs args)
+    private void OnStatusDismissTimerTick(object? sender, object args)
     {
         _ = sender;
         _ = args;
-        _coordinator.RequestComposer();
+        _statusDismissTimer.Stop();
+        StatusInfoBar.IsOpen = false;
     }
 
-    private async void OnLeaveRoomClicked(object sender, RoutedEventArgs args)
+    private void ApplyBackdrop()
     {
-        var active = ActiveRoom();
-        if (active is null)
+        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)
+            && MicaController.IsSupported())
+        {
+            SystemBackdrop = new MicaBackdrop { Kind = MicaKind.Base };
+        }
+    }
+
+    private void ApplyResponsiveSize()
+    {
+        WindowsMonitorInfo monitor = WindowsMonitorService.Select(identifier: null);
+        ResponsiveWindowSize size = ResponsiveWindowSizePolicy.Calculate(
+            monitor,
+            SideyWindowKind.Settings);
+        _minimumWindowSize = size;
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(size.Width, size.Height));
+        AppWindow.Move(new Windows.Graphics.PointInt32(
+            monitor.WorkAreaPixels.X + ((monitor.WorkAreaPixels.Width - size.Width) / 2),
+            monitor.WorkAreaPixels.Y + ((monitor.WorkAreaPixels.Height - size.Height) / 2)));
+    }
+
+    private void OnAppWindowChanged(
+        Microsoft.UI.Windowing.AppWindow sender,
+        Microsoft.UI.Windowing.AppWindowChangedEventArgs args)
+    {
+        if (!args.DidSizeChange || _enforcingMinimumSize)
         {
             return;
         }
-        await RunCommandAsync(() => _coordinator.LeaveRoomAsync(active.Id), "그룹에서 나왔습니다.");
-    }
 
-    private async void OnRenameRoomClicked(object sender, RoutedEventArgs args)
-    {
-        var active = ActiveRoom();
-        if (active is null)
+        int width = Math.Max(sender.Size.Width, _minimumWindowSize.Width);
+        int height = Math.Max(sender.Size.Height, _minimumWindowSize.Height);
+        if (width == sender.Size.Width && height == sender.Size.Height)
         {
             return;
         }
-        await RunCommandAsync(
-            () => _coordinator.RenameRoomAsync(active.Id, RenameRoomInput.Text),
-            "그룹 이름을 바꿨습니다.");
-    }
 
-    private async void OnRemoveMemberClicked(object sender, RoutedEventArgs args)
-    {
-        var active = ActiveRoom();
-        if (active is null || MemberList.SelectedItem is not RoomMember member)
-        {
-            return;
-        }
-        if (member.UserId == active.OwnerId)
-        {
-            ShowStatus("방장은 자신을 추방할 수 없습니다.", InfoBarSeverity.Warning);
-            return;
-        }
-        await RunCommandAsync(
-            () => _coordinator.RemoveRoomMemberAsync(active.Id, member.UserId),
-            "멤버를 그룹에서 내보냈습니다.");
-    }
-
-    private async void OnDeleteRoomClicked(object sender, RoutedEventArgs args)
-    {
-        var active = ActiveRoom();
-        if (active is null)
-        {
-            return;
-        }
-        var dialog = new ContentDialog
-        {
-            XamlRoot = Content.XamlRoot,
-            Title = "그룹을 삭제할까요?",
-            Content = "멤버십과 메시지가 서버에서 함께 삭제되며 되돌릴 수 없습니다.",
-            PrimaryButtonText = "삭제",
-            CloseButtonText = "취소",
-            DefaultButton = ContentDialogButton.Close,
-        };
-        if (await dialog.ShowAsync() != ContentDialogResult.Primary)
-        {
-            return;
-        }
-        await RunCommandAsync(() => _coordinator.DeleteRoomAsync(active.Id), "그룹을 삭제했습니다.");
-    }
-
-    private async void OnOverlayToggled(object sender, RoutedEventArgs args)
-    {
-        if (!_applyingState)
-        {
-            await RunCommandAsync(
-                () => _coordinator.SetOverlayVisibleAsync(OverlayToggle.IsOn),
-                null);
-        }
-    }
-
-    private async void OnQuietModeToggled(object sender, RoutedEventArgs args)
-    {
-        if (!_applyingState)
-        {
-            await RunCommandAsync(
-                () => _coordinator.SetQuietModeAsync(QuietModeToggle.IsOn),
-                null);
-        }
-    }
-
-    private async void OnShowOfflineToggled(object sender, RoutedEventArgs args)
-    {
-        if (!_applyingState)
-        {
-            await RunCommandAsync(
-                () => _coordinator.SetShowOfflineMembersAsync(ShowOfflineToggle.IsOn),
-                null);
-        }
-    }
-
-    private async void OnStartupToggled(object sender, RoutedEventArgs args)
-    {
-        if (!_applyingState)
-        {
-            await RunCommandAsync(
-                () => _coordinator.SetStartAtLoginAsync(StartupToggle.IsOn),
-                null);
-        }
-    }
-
-    private async void OnApplyRegionClicked(object sender, RoutedEventArgs args)
-    {
-        var edge = (OverlayEdge)Math.Clamp(EdgeSelector.SelectedIndex, 0, 3);
-        var span = (OverlaySpan)Math.Clamp(SpanSelector.SelectedIndex, 0, 2);
-        await RunCommandAsync(
-            () => _coordinator.SetRegionAsync(new OverlayRegionPreference(
-                edge,
-                span,
-                MonitorSelector.SelectedValue as string)),
-            "오버레이 영역을 적용했습니다.");
-    }
-
-    private async void OnCheckUpdateClicked(object sender, RoutedEventArgs args)
-    {
-        _ = sender;
-        _ = args;
-        await CheckForUpdatesAsync();
-    }
-
-    private async Task CheckForUpdatesAsync()
-    {
-        UpdateButton.IsEnabled = false;
+        _enforcingMinimumSize = true;
         try
         {
-            var update = await _updates.CheckAsync();
-            if (update is null)
-            {
-                ShowStatus("현재 버전이 최신입니다.", InfoBarSeverity.Success);
-                return;
-            }
-
-            ShowStatus($"새 버전 {update.Version}이 있습니다. 공식 Release 페이지를 엽니다.", InfoBarSeverity.Informational);
-            _updates.OpenOfficialReleasesPage();
-        }
-        catch (Exception exception)
-        {
-            ShowStatus($"업데이트 확인 실패: {exception.Message}", InfoBarSeverity.Error);
+            sender.Resize(new Windows.Graphics.SizeInt32(width, height));
         }
         finally
         {
-            UpdateButton.IsEnabled = true;
+            _enforcingMinimumSize = false;
         }
     }
 
-    private async void OnExportValidationMetricsClicked(object sender, RoutedEventArgs args)
+    private void OnWindowClosed(object sender, WindowEventArgs args)
     {
         _ = sender;
         _ = args;
-        try
-        {
-            var path = await _coordinator.ExportValidationMetricsAsync();
-            if (path is null)
-            {
-                ShowStatus("계측 renderer가 실행 중이 아닙니다.", InfoBarSeverity.Warning);
-                return;
-            }
-
-            ValidationPathText.Text = $"내보내기 경로: {path}";
-            ShowStatus("현재 계측 JSON을 내보냈습니다. 수동 결과는 not_run 상태입니다.", InfoBarSeverity.Success);
-        }
-        catch (Exception exception)
-        {
-            ShowStatus($"계측 내보내기 실패: {exception.Message}", InfoBarSeverity.Error);
-        }
-    }
-
-    private async Task RunCommandAsync(Func<Task> action, string? successMessage)
-    {
-        try
-        {
-            await action();
-            if (!string.IsNullOrWhiteSpace(successMessage))
-            {
-                ShowStatus(successMessage, InfoBarSeverity.Success);
-            }
-        }
-        catch (Exception exception)
-        {
-            ShowStatus(exception.Message, InfoBarSeverity.Error);
-        }
-    }
-
-    private Room? ActiveRoom() => _state.ActiveRoomId is { } roomId
-        ? _state.Rooms.FirstOrDefault(room => room.Id == roomId)
-        : null;
-
-    private void ShowStatus(string message, InfoBarSeverity severity)
-    {
-        StatusInfoBar.Message = message;
-        StatusInfoBar.Severity = severity;
-        StatusInfoBar.IsOpen = true;
+        AppWindow.Changed -= OnAppWindowChanged;
+        AppWindow.Closing -= OnAppWindowClosing;
+        Closed -= OnWindowClosed;
+        ViewModel.NoticeRaised -= OnNoticeRaised;
+        _statusDismissTimer.Stop();
+        _statusDismissTimer.Tick -= OnStatusDismissTimerTick;
+#if DEBUG
+        _validationMetricsTimer.Stop();
+        _validationMetricsTimer.Tick -= OnValidationMetricsTimerTick;
+#endif
     }
 
 #if DEBUG
-    private void RefreshValidationMetrics()
+    private void OnValidationMetricsTimerTick(object? sender, object args)
     {
-        var summary = _coordinator.ValidationMetricsSummary;
-        ValidationMetricsText.Text = summary is null
-            ? "계측 sample 없음"
-            : $"경과 {summary.ElapsedSeconds:F0}s · sample {summary.SampleCount} · "
-                + $"최대 frame {summary.MaximumFrameMilliseconds:F2}ms · "
-                + $"working set {summary.CurrentWorkingSetBytes / 1_048_576d:F1}MB "
-                + $"(peak {summary.PeakWorkingSetBytes / 1_048_576d:F1}MB) · "
-                + $"GDI {summary.MaximumGdiHandles} · USER {summary.MaximumUserHandles}";
+        _ = sender;
+        _ = args;
+        ViewModel.RefreshDiagnostics();
     }
 #endif
 }

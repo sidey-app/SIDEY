@@ -89,6 +89,18 @@ public sealed class NativeOverlayWindowThread : IDisposable
         RequiredHotspotWindow.SetVisible(visible);
     }
 
+    public void EnsureTopmost()
+    {
+        RequiredWorldWindow.EnsureTopmost();
+        RequiredHotspotWindow.EnsureTopmost();
+    }
+
+    public void YieldBehind(nint window)
+    {
+        RequiredWorldWindow.YieldBehind(window);
+        RequiredHotspotWindow.YieldBehind(window);
+    }
+
     public void Dispose()
     {
         if (_disposed)

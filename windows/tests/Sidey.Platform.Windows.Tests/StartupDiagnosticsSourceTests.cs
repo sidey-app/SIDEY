@@ -1,0 +1,56 @@
+namespace Sidey.Platform.Windows.Tests;
+
+public sealed class StartupDiagnosticsSourceTests
+{
+    [Fact]
+    public void SessionLogsUseTimestampedStartupAndRunningFiles()
+    {
+        string source = ReadRepositoryFile("windows", "src", "Sidey.App", "StartupDiagnostics.cs");
+        string app = ReadRepositoryFile("windows", "src", "Sidey.App", "App.xaml.cs");
+
+        Assert.Contains("yyyyMMdd-HHmmssfff", source, StringComparison.Ordinal);
+        Assert.Contains("_logKind = \"startup\"", source, StringComparison.Ordinal);
+        Assert.Contains("_logKind = \"running\"", source, StringComparison.Ordinal);
+        Assert.Contains("StartupDiagnostics.MarkRunning();", app, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LogRetentionIsBoundedByAgeSizeAndCount()
+    {
+        string source = ReadRepositoryFile("windows", "src", "Sidey.App", "StartupDiagnostics.cs");
+
+        Assert.Contains("MaximumLogFileBytes = 4L * 1024 * 1024", source, StringComparison.Ordinal);
+        Assert.Contains("MaximumLogDirectoryBytes = 32L * 1024 * 1024", source, StringComparison.Ordinal);
+        Assert.Contains("MaximumLogFileCount = 100", source, StringComparison.Ordinal);
+        Assert.Contains("TimeSpan.FromDays(30)", source, StringComparison.Ordinal);
+        Assert.Contains("TimeSpan.FromHours(6)", source, StringComparison.Ordinal);
+        Assert.Contains("file.LastWriteTimeUtc < retentionThreshold", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CachedSettingsLoadBeforeTheSettingsWindowIsConstructed()
+    {
+        string app = ReadRepositoryFile("windows", "src", "Sidey.App", "App.xaml.cs");
+
+        int loadCache = app.IndexOf("await _coordinator.LoadCachedStateAsync();", StringComparison.Ordinal);
+        int createWindow = app.IndexOf("_mainWindow = new MainWindow(_coordinator);", StringComparison.Ordinal);
+
+        Assert.True(loadCache >= 0, "The local settings cache must be loaded during launch.");
+        Assert.True(createWindow > loadCache, "The settings window must start from cached values.");
+    }
+
+    private static string ReadRepositoryFile(params string[] pathSegments) =>
+        File.ReadAllText(RepositoryPath(pathSegments));
+
+    private static string RepositoryPath(params string[] pathSegments)
+    {
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "windows", "src")))
+        {
+            root = root.Parent;
+        }
+
+        Assert.NotNull(root);
+        return Path.Combine([root.FullName, .. pathSegments]);
+    }
+}

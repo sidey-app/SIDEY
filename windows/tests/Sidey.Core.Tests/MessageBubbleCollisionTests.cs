@@ -35,4 +35,41 @@ public sealed class MessageBubbleCollisionTests
             0,
             MessageBubbleCollisionResolver.MaximumSeparationSpeed));
     }
+
+    [Fact]
+    public void ReusableScratchAvoidsPerFrameCollisionAllocations()
+    {
+        var firstId = Guid.NewGuid();
+        var secondId = Guid.NewGuid();
+        var geometry = new EdgeTrackGeometry(
+            new RectD(0, 0, 500, 240),
+            Sidey.Core.Domain.OverlayEdge.Bottom);
+        var agents = new List<PixelMovementAgent>
+        {
+            new(firstId, 220, 400),
+            new(secondId, 240, 40),
+        };
+        var bubbles = new List<MessageBubbleTrackBounds>
+        {
+            new(firstId, 180, 260),
+            new(secondId, 220, 300),
+        };
+        var scratch = new MessageBubbleCollisionScratch();
+
+        for (var index = 0; index < 100; index++)
+        {
+            MessageBubbleCollisionResolver.Apply(
+                agents, bubbles, 1d / 30d, geometry, scratch);
+        }
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var index = 0; index < 1_000; index++)
+        {
+            MessageBubbleCollisionResolver.Apply(
+                agents, bubbles, 1d / 30d, geometry, scratch);
+        }
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.InRange(allocated, 0, 4_096);
+    }
 }

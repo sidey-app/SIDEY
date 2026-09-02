@@ -40,13 +40,28 @@ public sealed class WindowPolicyTests
     [Fact]
     public void ProductMinimumOsIsWindowsElevenTwentyFiveH2()
     {
-        Assert.Equal(26200, WindowsVersionGuard.MinimumBuild);
+        Assert.Equal(17763, WindowsVersionGuard.MinimumBuild);
+    }
+
+    [Theory]
+    [InlineData("true", "1", true)]
+    [InlineData("TRUE", "1", true)]
+    [InlineData("false", "1", false)]
+    [InlineData(null, "1", false)]
+    [InlineData("true", "0", false)]
+    [InlineData("true", null, false)]
+    public void StartupSmokeOverrideRequiresCiAndExplicitOptIn(
+        string? ci,
+        string? startupSmoke,
+        bool expected)
+    {
+        Assert.Equal(expected, WindowsVersionGuard.IsCiStartupSmokeOverride(ci, startupSmoke));
     }
 
     [Fact]
-    public void CurrentWindowsCandidateIsSecondAlpha()
+    public void CurrentWindowsCandidateIsSeventhAlpha()
     {
-        Assert.Equal("0.3.0-alpha.2", WindowsUpdateService.CurrentVersion);
+        Assert.Equal("0.3.0-alpha.7", WindowsUpdateService.CurrentVersion);
     }
 
     [Theory]
@@ -146,6 +161,66 @@ public sealed class WindowPolicyTests
         Assert.Equal(new NativePixelRect(480, 840, 960, 240), frames.ActivityFrame);
         Assert.Equal(new NativePixelRect(336, 720, 1248, 360), frames.RenderFrame);
         Assert.Equal(frames.ActivityFrame, WindowsOverlayRegionLayout.Frame(workArea, 96, preference));
+    }
+
+    [Fact]
+    public void ShownAutoHideTaskbarMovesTheBottomTrackAboveIt()
+    {
+        var monitor = new NativePixelRect(0, 0, 1920, 1080);
+        var fullScreenWorkArea = monitor;
+
+        Assert.Equal(
+            48,
+            WindowsTaskbarService.AdditionalInset(
+                monitor,
+                fullScreenWorkArea,
+                OverlayEdge.Bottom,
+                [new NativePixelRect(0, 1032, 1920, 48)]));
+        Assert.Equal(
+            0,
+            WindowsTaskbarService.AdditionalInset(
+                monitor,
+                fullScreenWorkArea,
+                OverlayEdge.Bottom,
+                [new NativePixelRect(0, 1078, 1920, 2)]));
+    }
+
+    [Fact]
+    public void WorkAreaThatAlreadyReservesTheTaskbarDoesNotGetInsetTwice()
+    {
+        var monitor = new NativePixelRect(0, 0, 1920, 1080);
+
+        Assert.Equal(
+            0,
+            WindowsTaskbarService.AdditionalInset(
+                monitor,
+                new NativePixelRect(0, 0, 1920, 1032),
+                OverlayEdge.Bottom,
+                [new NativePixelRect(0, 1032, 1920, 48)]));
+    }
+
+    [Fact]
+    public void HorizontalTaskbarNeverCreatesLeftOrRightMargin()
+    {
+        var monitor = new NativePixelRect(0, 0, 2560, 1600);
+        var taskbar = new NativePixelRect(0, 1540, 2560, 60);
+
+        Assert.Equal(0, WindowsTaskbarService.AdditionalInset(
+            monitor, monitor, OverlayEdge.Left, [taskbar]));
+        Assert.Equal(0, WindowsTaskbarService.AdditionalInset(
+            monitor, monitor, OverlayEdge.Right, [taskbar]));
+    }
+
+    [Fact]
+    public void VerticalTaskbarOnlyInsetsItsOwnEdge()
+    {
+        var monitor = new NativePixelRect(0, 0, 2560, 1600);
+        var taskbar = new NativePixelRect(0, 0, 72, 1600);
+
+        Assert.Equal(72, WindowsTaskbarService.AdditionalInset(
+            monitor, monitor, OverlayEdge.Left, [taskbar]));
+        Assert.Equal(0, WindowsTaskbarService.AdditionalInset(
+            monitor, monitor, OverlayEdge.Bottom, [taskbar]));
     }
 
     [Theory]

@@ -3,8 +3,9 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using Sidey.Core.Domain;
+using Sidey.Core.Localization;
 using Sidey.Platform.Windows;
+using Sidey.Presentation.ViewModels;
 using Windows.System;
 
 namespace Sidey.App;
@@ -13,13 +14,18 @@ public sealed partial class ComposerWindow : Window
 {
     private const int ComposerWidth = 400;
     private const int ComposerHeight = 56;
+    private const int FocusAttemptCount = 3;
 
-    private CancellationTokenSource? _autoClose;
+    private bool _focusRequested;
+    private int _focusRequestId;
 
-    public ComposerWindow()
+    public ComposerWindow(ComposerViewModel viewModel)
     {
+        ViewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         InitializeComponent();
-        Title = "SIDEY 메시지";
+        ComposerRoot.DataContext = ViewModel;
+        Title = I18n.Get("window.composerTitle");
+        SideyWindowIcon.Apply(AppWindow);
         ExtendsContentIntoTitleBar = true;
         AppWindow.IsShownInSwitchers = false;
         if (AppWindow.Presenter is OverlappedPresenter presenter)
@@ -30,41 +36,46 @@ public sealed partial class ComposerWindow : Window
             presenter.IsResizable = false;
             presenter.SetBorderAndTitleBar(false, false);
         }
+
+        ViewModel.CloseRequested += OnCloseRequested;
         Activated += OnWindowActivated;
+        Closed += OnWindowClosed;
     }
 
-    public event Action<string>? SendRequested;
-    public event Action<bool>? TypingChanged;
+    public ComposerViewModel ViewModel { get; }
 
     public void ShowAndFocus(string? monitorIdentifier)
     {
-        Activate();
+        ViewModel.OnShown();
         ResizeAndCenter(monitorIdentifier);
-        MessageInput.Focus(FocusState.Programmatic);
+        AppWindow.Show();
+        Activate();
+        RequestMessageInputFocus();
     }
 
     public void HideComposer()
     {
-        CancelAutoClose();
-        TypingChanged?.Invoke(false);
+        _focusRequestId++;
+        _focusRequested = false;
+        ViewModel.OnHidden();
         AppWindow.Hide();
     }
 
     public void RestoreDraftAndFocus(string body)
     {
-        CancelAutoClose();
-        MessageInput.Text = body;
+        ViewModel.RestoreDraft(body);
+        AppWindow.Show();
         Activate();
-        MessageInput.Focus(FocusState.Programmatic);
-        MessageInput.SelectionStart = MessageInput.Text.Length;
+        RequestMessageInputFocus();
     }
 
-    private void OnMessageInputKeyDown(object sender, KeyRoutedEventArgs args)
+    private void OnMessageInputPreviewKeyDown(object sender, KeyRoutedEventArgs args)
     {
+        _ = sender;
         if (args.Key == VirtualKey.Escape)
         {
             args.Handled = true;
-            HideComposer();
+            ViewModel.CloseCommand.Execute(null);
             return;
         }
 
@@ -73,11 +84,11 @@ public sealed partial class ComposerWindow : Window
             return;
         }
 
-        var shiftState = InputKeyboardSource.GetKeyStateForCurrentThread(VirtualKey.Shift);
+        Windows.UI.Core.CoreVirtualKeyStates shiftState = InputKeyboardSource.GetKeyStateForCurrentThread(
+            VirtualKey.Shift);
         if ((shiftState & Windows.UI.Core.CoreVirtualKeyStates.Down) != 0)
         {
-            if (MessageInput.Text.Count(character => character == '\n') + 1
-                >= MessageValidator.MaximumLines)
+            if (!ViewModel.CanAddLine)
             {
                 args.Handled = true;
             }
@@ -86,71 +97,85 @@ public sealed partial class ComposerWindow : Window
         }
 
         args.Handled = true;
-        var body = MessageValidator.Normalize(MessageInput.Text);
-        if (!MessageValidator.IsValid(body))
+        if (ViewModel.SendCommand.CanExecute(null))
         {
-            MessageInput.PlaceholderText = "1~200자, 최대 3줄까지만 보낼 수 있음";
-            return;
+            ViewModel.SendCommand.Execute(null);
+            RequestMessageInputFocus();
         }
-
-        SendRequested?.Invoke(body);
-        MessageInput.Text = string.Empty;
-        TypingChanged?.Invoke(false);
-        ScheduleAutoClose();
-    }
-
-    private void OnMessageInputTextChanged(object sender, TextChangedEventArgs args)
-    {
-        _ = sender;
-        _ = args;
-        TypingChanged?.Invoke(!string.IsNullOrWhiteSpace(MessageInput.Text));
     }
 
     private void OnWindowActivated(object sender, WindowActivatedEventArgs args)
     {
         _ = sender;
-        if (args.WindowActivationState == WindowActivationState.Deactivated
-            && AppWindow.IsVisible)
+        if (args.WindowActivationState == WindowActivationState.Deactivated)
         {
-            HideComposer();
+            if (!_focusRequested && AppWindow.IsVisible)
+            {
+                HideComposer();
+            }
+
+            return;
+        }
+
+        if (AppWindow.IsVisible)
+        {
+            RequestMessageInputFocus();
         }
     }
 
-    private void ScheduleAutoClose()
+    private void OnCloseRequested() => DispatcherQueue.TryEnqueue(HideComposer);
+
+    private void OnWindowClosed(object sender, WindowEventArgs args)
     {
-        CancelAutoClose();
-        _autoClose = new CancellationTokenSource();
-        _ = CloseAfterDelayAsync(_autoClose.Token);
+        _ = sender;
+        _ = args;
+        ViewModel.CloseRequested -= OnCloseRequested;
+        ViewModel.Dispose();
     }
 
-    private async Task CloseAfterDelayAsync(CancellationToken cancellationToken)
+    private void RequestMessageInputFocus()
     {
-        try
-        {
-            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
-            DispatcherQueue.TryEnqueue(HideComposer);
-        }
-        catch (OperationCanceledException)
-        {
-        }
+        _focusRequested = true;
+        int requestId = ++_focusRequestId;
+        QueueMessageInputFocus(requestId, FocusAttemptCount);
     }
 
-    private void CancelAutoClose()
+    private void QueueMessageInputFocus(int requestId, int attemptsRemaining)
     {
-        _autoClose?.Cancel();
-        _autoClose?.Dispose();
-        _autoClose = null;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (requestId != _focusRequestId || !AppWindow.IsVisible)
+            {
+                return;
+            }
+
+            if (MessageInput.Focus(FocusState.Programmatic))
+            {
+                MessageInput.SelectionStart = MessageInput.Text.Length;
+                _focusRequested = false;
+                return;
+            }
+
+            if (attemptsRemaining > 0)
+            {
+                QueueMessageInputFocus(requestId, attemptsRemaining - 1);
+            }
+            else
+            {
+                _focusRequested = false;
+            }
+        });
     }
 
     private void ResizeAndCenter(string? monitorIdentifier)
     {
-        var monitor = WindowsMonitorService.Select(monitorIdentifier);
-        var scale = monitor.Dpi / 96d;
-        var width = (int)Math.Round(ComposerWidth * scale, MidpointRounding.AwayFromZero);
-        var height = (int)Math.Round(ComposerHeight * scale, MidpointRounding.AwayFromZero);
+        WindowsMonitorInfo monitor = WindowsMonitorService.Select(monitorIdentifier);
+        double scale = monitor.Dpi / 96d;
+        int width = (int)Math.Round(ComposerWidth * scale, MidpointRounding.AwayFromZero);
+        int height = (int)Math.Round(ComposerHeight * scale, MidpointRounding.AwayFromZero);
         AppWindow.Resize(new Windows.Graphics.SizeInt32(width, height));
 
-        var workArea = monitor.WorkAreaPixels;
+        NativePixelRect workArea = monitor.WorkAreaPixels;
         AppWindow.Move(new Windows.Graphics.PointInt32(
             workArea.X + ((workArea.Width - width) / 2),
             workArea.Y + (int)Math.Round(10 * scale)));

@@ -1,0 +1,447 @@
+using System.Collections.ObjectModel;
+using System.Globalization;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Sidey.Core.Abstractions;
+using Sidey.Core.Domain;
+using Sidey.Core.Localization;
+using Sidey.Presentation.Services;
+
+namespace Sidey.Presentation.ViewModels;
+
+public sealed record HistoryEntryViewModel(
+    Guid Id,
+    string SenderName,
+    string Body,
+    string LocalTimeText,
+    string CharacterId,
+    bool IsCurrentUser,
+    bool IsPending,
+    bool IsFailed,
+    DateTimeOffset CreatedAt);
+
+public sealed partial class HistoryWindowViewModel : ObservableObject, IDisposable
+{
+    private const int PageSize = 50;
+
+    private readonly ISideyCoordinator _coordinator;
+    private readonly Dictionary<Guid, ChatMessage> _pagedMessages = [];
+    private CoordinatorState _state;
+    private Guid? _loadedRoomId;
+    private MessageHistoryCursor? _nextCursor;
+    private CancellationTokenSource? _requestCancellation;
+    private long _requestGeneration;
+    private bool _hasMore;
+    private bool _isActive;
+    private bool _disposed;
+
+    [ObservableProperty]
+    public partial string Title { get; set; } = I18n.Get("history.recentTitle");
+
+    [ObservableProperty]
+    public partial string EmptyMessage { get; set; } = I18n.Get("history.empty");
+
+    [ObservableProperty]
+    public partial string EmptyDescription { get; set; } = I18n.Get("history.emptyDescription");
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEmptyStateVisible))]
+    public partial bool IsInitialLoading { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsEmptyStateVisible))]
+    public partial bool IsInitialFailureVisible { get; set; }
+
+    [ObservableProperty]
+    public partial string InitialErrorMessage { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool IsLoadingMore { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsLoadMoreFailureVisible { get; set; }
+
+    [ObservableProperty]
+    public partial string LoadMoreErrorMessage { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool IsExhaustedVisible { get; set; }
+
+    public HistoryWindowViewModel(ISideyCoordinator coordinator)
+    {
+        _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
+        _state = coordinator.State;
+    }
+
+    public ObservableCollection<HistoryEntryViewModel> Items { get; } = [];
+
+    public CoordinatorState CurrentState => _state;
+
+    public bool IsEmptyStateVisible =>
+        Items.Count == 0 && !IsInitialLoading && !IsInitialFailureVisible;
+
+    public void ApplyState(CoordinatorState state)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        bool roomChanged = state.ActiveRoomId != _state.ActiveRoomId;
+        _state = state;
+        if (!_isActive)
+        {
+            return;
+        }
+
+        if (roomChanged)
+        {
+            _ = ReloadAsync();
+        }
+        else
+        {
+            RebuildEntries();
+        }
+    }
+
+    public async Task ActivateAsync()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _isActive = true;
+        if (_loadedRoomId != _state.ActiveRoomId)
+        {
+            await ReloadAsync();
+        }
+        else
+        {
+            RebuildEntries();
+        }
+    }
+
+    public void Deactivate()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _isActive = false;
+        CancelRequest();
+        ResetLoadedHistory(roomId: null);
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task ReloadAsync()
+    {
+        if (!_isActive || _disposed)
+        {
+            return;
+        }
+
+        Guid? roomId = _state.ActiveRoomId;
+        CancelRequest();
+        ResetLoadedHistory(roomId);
+        Title = ActiveRoom() is { } room
+            ? I18n.Format("history.roomTitle", room.Name)
+            : I18n.Get("history.recentTitle");
+        if (roomId is null)
+        {
+            UpdateEmptyState();
+            return;
+        }
+
+        IsInitialLoading = true;
+        (long generation, CancellationToken cancellationToken) = StartRequest();
+        try
+        {
+            MessageHistoryPage page = await _coordinator.FetchMessagePageAsync(
+                roomId.Value,
+                before: null,
+                PageSize,
+                cancellationToken);
+            if (!IsCurrentRequest(roomId.Value, generation))
+            {
+                return;
+            }
+
+            MergePage(page.Messages, roomId.Value);
+            _nextCursor = page.NextCursor;
+            _hasMore = page.NextCursor is not null;
+            RebuildEntries();
+            IsExhaustedVisible = !_hasMore && Items.Count > 0;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (IsCurrentRequest(roomId.Value, generation))
+            {
+                InitialErrorMessage = exception.Message;
+                IsInitialFailureVisible = true;
+            }
+        }
+        finally
+        {
+            if (IsCurrentRequest(roomId.Value, generation))
+            {
+                IsInitialLoading = false;
+                CompleteRequest();
+                UpdateEmptyState();
+            }
+        }
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task LoadMoreAsync()
+    {
+        if (!_isActive
+            || _disposed
+            || IsInitialLoading
+            || IsLoadingMore
+            || !_hasMore
+            || _nextCursor is not { } cursor
+            || _loadedRoomId is not { } roomId)
+        {
+            return;
+        }
+
+        IsLoadingMore = true;
+        IsLoadMoreFailureVisible = false;
+        LoadMoreErrorMessage = string.Empty;
+        (long generation, CancellationToken cancellationToken) = StartRequest();
+        try
+        {
+            MessageHistoryPage page = await _coordinator.FetchMessagePageAsync(
+                roomId,
+                cursor,
+                PageSize,
+                cancellationToken);
+            if (!IsCurrentRequest(roomId, generation))
+            {
+                return;
+            }
+
+            MergePage(page.Messages, roomId);
+            _nextCursor = page.NextCursor;
+            _hasMore = page.NextCursor is not null && page.NextCursor != cursor;
+            IsExhaustedVisible = !_hasMore;
+            RebuildEntries();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (IsCurrentRequest(roomId, generation))
+            {
+                LoadMoreErrorMessage = exception.Message;
+                IsLoadMoreFailureVisible = true;
+            }
+        }
+        finally
+        {
+            if (IsCurrentRequest(roomId, generation))
+            {
+                IsLoadingMore = false;
+                CompleteRequest();
+            }
+        }
+    }
+
+    [RelayCommand]
+    private async Task RetryInitialAsync()
+    {
+        if (IsInitialFailureVisible)
+        {
+            await ReloadAsync();
+        }
+    }
+
+    [RelayCommand]
+    private async Task RetryLoadMoreAsync()
+    {
+        if (IsLoadMoreFailureVisible)
+        {
+            IsLoadMoreFailureVisible = false;
+            await LoadMoreAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _isActive = false;
+        CancelRequest();
+        _pagedMessages.Clear();
+        Items.Clear();
+    }
+
+    private void MergePage(IEnumerable<ChatMessage> messages, Guid roomId)
+    {
+        foreach (ChatMessage message in messages.Where(message => message.RoomId == roomId))
+        {
+            _pagedMessages[message.Id] = message;
+        }
+    }
+
+    private void RebuildEntries()
+    {
+        if (_loadedRoomId is not { } roomId)
+        {
+            Items.Clear();
+            UpdateEmptyState();
+            return;
+        }
+
+        var cutoff = DateTimeOffset.UtcNow - MessageLedger.ConfirmedRetention;
+        var entriesById = _pagedMessages.Values
+            .Where(message => message.RoomId == roomId && message.CreatedAt >= cutoff)
+            .ToDictionary(
+                message => message.Id,
+                message => new MessageLedgerEntry(
+                    message.Id,
+                    message.RoomId,
+                    message.SenderId,
+                    message.Body,
+                    message.CreatedAt,
+                    MessageDeliveryState.Confirmed));
+        foreach (MessageLedgerEntry entry in _state.Messages.Where(
+            entry => entry.RoomId == roomId && entry.CreatedAt >= cutoff))
+        {
+            entriesById[entry.Id] = entry;
+        }
+
+        HistoryEntryViewModel[] desired = entriesById.Values
+            .OrderByDescending(entry => entry.CreatedAt)
+            .ThenByDescending(entry => entry.Id.ToString("D"), StringComparer.Ordinal)
+            .Select(ToViewModel)
+            .ToArray();
+        ReplaceItems(desired);
+        UpdateEmptyState();
+    }
+
+    private void ReplaceItems(IReadOnlyList<HistoryEntryViewModel> desired)
+    {
+        for (int index = Items.Count - 1; index >= 0; index--)
+        {
+            if (desired.All(item => item.Id != Items[index].Id))
+            {
+                Items.RemoveAt(index);
+            }
+        }
+
+        for (int index = 0; index < desired.Count; index++)
+        {
+            HistoryEntryViewModel item = desired[index];
+            int existingIndex = IndexOf(item.Id);
+            if (existingIndex < 0)
+            {
+                Items.Insert(index, item);
+                continue;
+            }
+
+            if (existingIndex != index)
+            {
+                Items.Move(existingIndex, index);
+            }
+
+            if (Items[index] != item)
+            {
+                Items[index] = item;
+            }
+        }
+    }
+
+    private int IndexOf(Guid id)
+    {
+        for (int index = 0; index < Items.Count; index++)
+        {
+            if (Items[index].Id == id)
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private HistoryEntryViewModel ToViewModel(MessageLedgerEntry entry)
+    {
+        RoomMember? member = ActiveRoom()?.Members.FirstOrDefault(
+            candidate => candidate.UserId == entry.SenderId);
+        return new HistoryEntryViewModel(
+            entry.Id,
+            member?.Nickname ?? I18n.Get("history.unknownUser"),
+            entry.Body,
+            entry.CreatedAt.ToLocalTime().ToString("g", CultureInfo.CurrentCulture),
+            PixelCharacterCatalog.NormalizeId(member?.CharacterId),
+            entry.SenderId == _state.Profile?.Id,
+            entry.State == MessageDeliveryState.Pending,
+            entry.State == MessageDeliveryState.Failed,
+            entry.CreatedAt);
+    }
+
+    private Room? ActiveRoom() => _loadedRoomId is { } roomId
+        ? _state.Rooms.FirstOrDefault(room => room.Id == roomId)
+        : null;
+
+    private (long Generation, CancellationToken CancellationToken) StartRequest()
+    {
+        _requestCancellation = new CancellationTokenSource();
+        long generation = ++_requestGeneration;
+        return (generation, _requestCancellation.Token);
+    }
+
+    private void CompleteRequest()
+    {
+        _requestCancellation?.Dispose();
+        _requestCancellation = null;
+    }
+
+    private void CancelRequest()
+    {
+        _requestGeneration++;
+        _requestCancellation?.Cancel();
+        _requestCancellation?.Dispose();
+        _requestCancellation = null;
+        IsInitialLoading = false;
+        IsLoadingMore = false;
+    }
+
+    private bool IsCurrentRequest(Guid roomId, long generation) =>
+        _isActive
+        && !_disposed
+        && _loadedRoomId == roomId
+        && _requestGeneration == generation;
+
+    private void ResetLoadedHistory(Guid? roomId)
+    {
+        _loadedRoomId = roomId;
+        _pagedMessages.Clear();
+        _nextCursor = null;
+        _hasMore = false;
+        Items.Clear();
+        IsInitialFailureVisible = false;
+        InitialErrorMessage = string.Empty;
+        IsLoadMoreFailureVisible = false;
+        LoadMoreErrorMessage = string.Empty;
+        IsExhaustedVisible = false;
+    }
+
+    private void UpdateEmptyState()
+    {
+        if (Items.Count == 0 && !IsInitialLoading && !IsInitialFailureVisible)
+        {
+            EmptyMessage = _loadedRoomId is null
+                ? I18n.Get("history.noActiveRoom")
+                : I18n.Get("history.empty");
+            EmptyDescription = _loadedRoomId is null
+                ? I18n.Get("history.joinPrompt")
+                : I18n.Get("history.emptyDescription");
+        }
+
+        OnPropertyChanged(nameof(IsEmptyStateVisible));
+    }
+}
