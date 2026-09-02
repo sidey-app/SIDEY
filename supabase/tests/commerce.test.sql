@@ -82,7 +82,7 @@ select is(
   'valid staging checkout token can be prepared'
 );
 select lives_ok(
-  $$select * from public.commerce_record_policy_consent(repeat('a', 64), '2026-09-02-portone-v1')$$,
+  $$select * from public.commerce_record_policy_consent(repeat('a', 64), '2026-09-03-portone-v2')$$,
   'canonical purchase policy consent is recorded'
 );
 select ok(

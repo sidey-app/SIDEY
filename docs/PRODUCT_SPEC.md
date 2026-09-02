@@ -150,6 +150,8 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 
 유료 catalog는 `pixel_starlight_upalupa` 별빛 우파루파(1,900원), `pixel_guinea_pig` 아기 기니피그(990원), `pixel_monkey` 아기 원숭이(990원), `pixel_chinchilla` 아기 친칠라(990원)다. macOS 선택 목록에는 무료 5종과 현재 계정이 활성 소유권을 가진 유료 캐릭터만 표시한다. 환불 또는 소유권 만료 시 로컬 선택을 햄스터로 되돌리며, 다른 사용자의 유료 캐릭터를 렌더링할 때는 보는 사람의 소유권을 요구하지 않는다. 친칠라의 canonical ID는 `pixel_chinchilla`이고 과거 `pixel_koala`는 호환 alias로만 정규화한다.
 
+결제 확인과 동시에 디지털 캐릭터 사용권 제공을 시작한다. 제공 시작 뒤 단순 변심에 따른 청약철회와 환불은 허용하지 않으며, 사용권 미제공·표시 또는 계약 내용 불일치·중복 결제·본인이 승인하지 않은 결제 등 관련 법령상 사유가 확인된 경우에만 전액 환불한다. 환불은 PortOne 취소 상태를 다시 확인한 뒤 구매 entitlement를 회수하며, 법이 보장하는 취소·피해구제 권리는 제한하지 않는다.
+
 전환 시 지정 활동 계정 5개(`9c169b9f-e95c-4a3e-b0e9-ab329a035c6f`, `e68ec90f-6f5a-4a93-be0a-364f6a3f378f`, `839ec4d5-ada1-466d-bb1d-2a100dea2185`, `b4877c8c-3147-46ef-b035-5dbb95e86d4f`, `f0462289-2465-4a27-b90d-d4820ccf4b8c`)에는 기니피그·원숭이·친칠라 complimentary entitlement를 각각 지급한다. 주문과 분리된 총 15개 지급이며 `grant_reference`로 감사 근거를 남긴다. Windows의 무료 5종 renderer와 구매 미지원 정책은 변경하지 않는다.
 
 - 논리 프레임: 24×24 픽셀
@@ -363,6 +365,8 @@ OverlayRegionPreference(
 - PortOne V2 결제 상태에는 payment ID, Store ID, Channel Key, V2, TEST/LIVE, 상태, KRW, 서버 주문 금액, `EASY_PAY` 일치를 요구한다. event ID와 payload hash를 함께 저장해 중복 웹훅과 상충 payload를 분리한다.
 - 직접 Toss 실행 RPC 권한, Edge Function, 웹 SDK·CSP·문구·시크릿을 제거한다. 과거 Toss payment row는 삭제하지 않는다.
 
+forward-only `20260903000000_commerce_refund_policy_v2.sql`은 기존 주문에 저장된 결제 당시 동의 원문을 바꾸지 않고, 새 checkout의 정책 버전을 `2026-09-03-portone-v2`로 올려 제공 시작 뒤 단순 변심 환불 불가와 관련 법령상 환불 사유를 명시한다.
+
 Edge Functions는 책임을 다음처럼 분리한다.
 
 - `commerce-order`: 인증·Google 연결·상품·소유 여부를 확인하고 서버 가격의 PortOne `paymentId`와 256-bit checkout token hash를 생성한다.
@@ -371,7 +375,7 @@ Edge Functions는 책임을 다음처럼 분리한다.
 - `commerce-webhook`: `jsr:@portone/server-sdk@0.19.0`으로 raw body 서명을 검증한 뒤 PortOne API를 다시 조회한다.
 - `commerce-refund`: 별도 운영 키와 멱등키를 요구하고 PortOne 전액 취소·재조회가 확인된 뒤 purchase entitlement만 회수한다.
 
-공개 웹사이트는 4종·가격·macOS 앱 내 구매 경로·구매와 환불 조건을 `store.html`에 고정형 사용자 문구로 표시한다. 상품 소개에는 production·staging·Sidey-dev·테스트 채널·출시 준비 상태 같은 내부 운영 정보를 노출하지 않는다. `checkout.html`과 `checkout-result.html`은 상품 ID별 이름·가격·이미지를 사용하고 공개 구매 링크로 노출하지 않으며 staging/dev 주문 token으로만 접근한다. 결제 카드 정보는 SIDEY가 수집하지 않고 PortOne을 통해 열린 실제 PG 결제창이 처리한다.
+공개 웹사이트는 4종·가격·macOS 앱 내 구매 경로·구매와 환불 조건을 `store.html`에 고정형 사용자 문구로 표시한다. 상점은 결제·개인정보 설명 카드와 랜딩 하단에 이미 있는 판매자 정보를 반복하지 않고 관련 정책 링크만 제공한다. 한국어 제목과 본문에는 적절한 폭과 `word-break: keep-all`, `text-wrap`을 적용해 한 글자만 다음 줄에 남는 줄바꿈을 막고, 상점 타이포그래피는 홈 랜딩보다 작은 페이지 전용 크기를 사용한다. 상품 소개에는 production·staging·Sidey-dev·테스트 채널·출시 준비 상태 같은 내부 운영 정보를 노출하지 않는다. `checkout.html`과 `checkout-result.html`은 상품 ID별 이름·가격·이미지를 사용하고 공개 구매 링크로 노출하지 않으며 staging/dev 주문 token으로만 접근한다. 결제 카드 정보는 SIDEY가 수집하지 않고 PortOne을 통해 열린 실제 PG 결제창이 처리한다.
 
 기존 짧은 초대 코드는 migration에서 비활성화한다. 방장은 새 macOS 클라이언트에서 한 번 재발급해야 하며 public room 조회와 Realtime payload 어디에도 invite hash·version이 포함되지 않는다. macOS hotfix와 migration은 호환 순서로 배포하고 구버전의 기존 topic 계약은 유지하지 않는다.
 
@@ -415,7 +419,7 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 - 설정: 860×640 최소 크기와 1000×760 기본 크기의 라이트·다크 렌더, 옅은 카드 명도, 240pt 컨트롤 영역과 Picker·버튼·토글 오른쪽 정렬, `동작 정보` 제거, 두 사람 그룹 아이콘, 한글 IME 조합 확정 후 닉네임 저장
 - 입력 필드: 200자 끝, 한글 조합, 영문 긴 단어, 이모지, Shift+Enter 3줄, 중간 커서 이동·전체 선택, undo·redo, 외부 draft와 잘못된 입력 복구에서 마지막 글자와 커서가 보이고 텍스트 손실·IME 중복 확정·가로 스크롤이 없는지 검증한다.
 - 상점: 2열 4종 카드의 독립 상태·정렬과 `보유 중` 유지, entitlement 선택 목록, Google callback·저장소 분리, 860×640·1000×760 라이트·다크 렌더를 검증한다. production은 action 호출과 animation Task가 0개이고 검정 68%·픽셀 자물쇠·잠금 안내만 접근성에 노출되어야 한다.
-- commerce 서버·웹: 활성 가격 1,900/990/990/990, 4종 프로필 소유권 검사, complimentary grant·RLS, 판매 기본 잠금, 만료 token, PortOne Store·Channel·V2·환경·상태·금액·통화·수단 불일치, 중복 웹훅·서명 오류, 전액 환불과 purchase/complimentary 격리를 검증한다.
+- commerce 서버·웹: 활성 가격 1,900/990/990/990, 4종 프로필 소유권 검사, complimentary grant·RLS, 판매 기본 잠금, 만료 token, 최신 정책 버전과 단순 변심 환불 불가 동의, PortOne Store·Channel·V2·환경·상태·금액·통화·수단 불일치, 중복 웹훅·서명 오류, 법정 사유 전액 환불과 purchase/complimentary 격리를 검증한다.
 - 그룹 설정: 0·1·12명 멤버 목록, 기본 접힘·제목 영역 및 오른쪽 단일 화살표 펼침, `그룹 참가` 문구, 생성·참여·전환별 진행 문구와 라이트·다크 대상 카드 강조, A→B→C 연속 선택에서 C만 commit, UUID 기반 방장 왕관과 펼친 목록 아래 방장 전용 이름 변경·삭제 버튼, 이름 변경 저장·취소, 대상 명시 추방 확인, 영구 삭제 2단계 확인, 활성·비활성·마지막 그룹 삭제 fallback, 초대 코드 복사 성공·실패와 3초 표시·재클릭 갱신·행 제거 취소
 - DMG: 660×420 배경, `SIDEY.app`, `/Applications` 심볼릭 링크, 기존 5종 idle 프레임, `.DS_Store`를 자동 생성·마운트 검증하고 Finder에서 아이콘 위치·안내 문구·nearest-neighbor 픽셀 선명도를 수동 확인
 - Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단

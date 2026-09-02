@@ -93,7 +93,7 @@ test("Windows production release is staged for verified MSI deployment", async (
   }
 });
 
-test("store renders a stable four-product catalog and aligned seller details", async () => {
+test("store renders a stable four-product catalog without duplicated footer details", async () => {
   const [store, styles] = await Promise.all([read("store.html"), read("assets/styles.css")]);
   for (const name of ["별빛 우파루파", "아기 기니피그", "아기 원숭이", "아기 친칠라"]) {
     assert.ok(store.includes(name), `missing product: ${name}`);
@@ -103,44 +103,56 @@ test("store renders a stable four-product catalog and aligned seller details", a
   assert.equal(store.match(/1,900원/g)?.length, 1);
   assert.ok(store.includes("macOS SIDEY 앱"));
   assert.ok(store.includes("꾸미기·상점"));
-  assert.ok(store.includes("판매자 정보"));
-  assert.equal(store.match(/<dt>/g)?.length, 5);
-  for (const label of ["상호", "사업자등록번호", "주소", "통신판매업", "고객지원"]) {
-    assert.ok(store.includes(`<dt>${label}</dt>`), `missing seller label: ${label}`);
-  }
+  assert.ok(!store.includes('id="privacy"'));
+  assert.ok(!store.includes("판매자 정보"));
+  assert.equal(store.match(/<dt>/g)?.length ?? 0, 0);
+  assert.ok(store.includes('class="store-page"'));
+  assert.ok(store.includes("단순 변심 환불 불가"));
   for (const internalCopy of ["출시 예정", "production", "Sidey-dev", "SIDEY-staging", "테스트 채널"]) {
     assert.ok(!store.includes(internalCopy), `store exposes internal rollout copy: ${internalCopy}`);
   }
   assert.ok(styles.includes(".store-catalog"));
+  assert.ok(styles.includes(".store-page .section h2"));
+  assert.ok(styles.includes("word-break: keep-all"));
+  assert.ok(styles.includes("text-wrap: balance"));
   assert.ok(styles.includes(".seller-details > div"));
   assert.ok(styles.includes("grid-template-columns: 132px minmax(0, 1fr)"));
   assert.ok(styles.includes("grid-template-columns: 104px minmax(0, 1fr)"));
 });
 
 test("public policy URLs keep seller scope and PortOne refund terms", async () => {
-  const [store, terms, privacy, refund, sitemap] = await Promise.all([
+  const [landing, store, terms, privacy, refund, sitemap, migration] = await Promise.all([
+    read("index.html"),
     read("store.html"),
     read("terms.html"),
     read("privacy.html"),
     read("refund.html"),
     read("sitemap.xml"),
+    read("../supabase/migrations/20260903000000_commerce_refund_policy_v2.sql"),
   ]);
 
-  for (const document of [store, terms, privacy, refund]) {
+  for (const document of [terms, privacy, refund]) {
     assert.ok(document.includes("싸이디(SIDEY)"));
     assert.ok(document.includes("ryu200112@gmail.com"));
     assert.ok(!document.includes("010-9270-2973"));
   }
-  const publishedPolicies = [store, terms, privacy, refund].join("\n");
+  assert.ok(!store.includes("싸이디(SIDEY)"));
+  assert.ok(!store.includes("ryu200112@gmail.com"));
+  const publishedPolicies = [landing, terms, privacy, refund].join("\n");
   assert.ok(publishedPolicies.includes("388-53-01259"));
   assert.ok(publishedPolicies.includes("경기도 용인시 기흥구 서천동로21번길 20-6"));
   assert.ok(publishedPolicies.includes("신고 면제(간이과세자)"));
-  assert.ok(publishedPolicies.includes("PortOne"));
+  assert.ok(`${terms}\n${refund}`.includes("PortOne"));
   assert.ok(terms.includes("macOS SIDEY 앱의 꾸미기·상점"));
   assert.ok(!terms.includes("production 판매"));
-  assert.ok(refund.includes("7일 이내"));
-  assert.ok(refund.includes("사용 여부와 관계없이"));
-  assert.ok(refund.includes("정책 버전 2026-09-02-portone-v1"));
+  for (const document of [landing, store, terms, refund]) {
+    assert.ok(!document.includes("7일 이내"));
+    assert.ok(!document.includes("사용 여부와 관계없이"));
+  }
+  assert.ok(refund.includes("제공 시작 후 단순 변심 환불 불가"));
+  assert.ok(refund.includes("정책 버전 2026-09-03-portone-v2"));
+  assert.ok(migration.includes("policy_version = '2026-09-03-portone-v2'"));
+  assert.ok(migration.includes("제공 시작 뒤 단순 변심에 따른 청약철회와 환불은 불가합니다"));
   for (const fixedPolicyURL of ["store.html", "terms.html", "privacy.html", "refund.html"]) {
     assert.ok(sitemap.includes(`https://sidey-app.github.io/SIDEY/${fixedPolicyURL}`));
   }
