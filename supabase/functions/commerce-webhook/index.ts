@@ -1,49 +1,64 @@
+import { Webhook } from "jsr:@portone/server-sdk@0.19.0";
 import {
-  assertRuntimePaymentConfiguration,
+  applyPortOnePayment,
+  HttpError,
   jsonResponse,
+  portOneRequest,
+  portOneWebhookSecret,
+  publicError,
   serviceRPC,
   sha256Hex,
-  tossRequest,
-  type TossPayment,
+  type CommerceOrder,
+  type PortOnePayment,
 } from "../_shared/commerce.ts";
 
 Deno.serve(async (request) => {
   if (request.method !== "POST") return jsonResponse({ error: "method_not_allowed" }, 405);
   try {
     const rawBody = await request.text();
-    const payloadHash = await sha256Hex(rawBody);
-    const event = JSON.parse(rawBody);
-    const eventType = typeof event?.eventType === "string" ? event.eventType : "UNKNOWN";
-    const candidate = event?.data;
-    if (eventType !== "PAYMENT_STATUS_CHANGED" || typeof candidate?.paymentKey !== "string") {
-      return jsonResponse({ accepted: true, ignored: true });
+    const secret = portOneWebhookSecret();
+    let webhook: { type?: string; data?: { paymentId?: string } };
+    try {
+      webhook = await Webhook.verify(
+        secret,
+        rawBody,
+        Object.fromEntries(request.headers.entries()),
+      ) as typeof webhook;
+    } catch {
+      throw new HttpError(400, "invalid_webhook_signature", "웹훅 서명이 올바르지 않습니다.");
     }
 
-    // General payment webhooks are not signed. Never trust their Payment body;
-    // query Toss directly with the merchant secret and apply that response only.
-    await assertRuntimePaymentConfiguration();
-    const verified = await tossRequest<TossPayment>(`/payments/${encodeURIComponent(candidate.paymentKey)}`);
-    const transmissionID = request.headers.get("tosspayments-webhook-transmission-id");
-    const eventID = (transmissionID && transmissionID.length <= 180)
-      ? `toss:${transmissionID}`
-      : `toss:${payloadHash}`;
-    const status = await serviceRPC<string>("commerce_record_provider_state", {
-      p_event_id: eventID,
-      p_event_type: eventType,
-      p_payload_sha256_hex: payloadHash,
-      p_provider_order_id: verified.orderId,
-      p_payment_key: verified.paymentKey,
-      p_amount_krw: verified.totalAmount,
-      p_balance_amount_krw: verified.balanceAmount,
-      p_currency: verified.currency,
-      p_provider_status: verified.status,
-      p_provider_transaction_key: verified.lastTransactionKey ?? null,
-      p_verified_at: new Date().toISOString(),
+    const paymentID = webhook.data?.paymentId;
+    if (typeof paymentID !== "string") {
+      return jsonResponse({ accepted: true, ignored: true });
+    }
+    const orders = await serviceRPC<CommerceOrder[]>("commerce_portone_order_by_payment_id", {
+      p_payment_id: paymentID,
     });
+    const order = orders[0];
+    if (!order) return jsonResponse({ accepted: true, ignored: true });
+
+    const payment = await portOneRequest<PortOnePayment>(
+      `/payments/${encodeURIComponent(paymentID)}`,
+    );
+    if (!["PAID", "FAILED", "CANCELLED", "PARTIAL_CANCELLED"].includes(payment.status)) {
+      return jsonResponse({ accepted: true, ignored: true, status: payment.status });
+    }
+
+    const webhookID = request.headers.get("webhook-id");
+    if (!webhookID || webhookID.length > 180) throw new HttpError(400, "invalid_webhook_id");
+    const status = await applyPortOnePayment(
+      order,
+      payment,
+      `portone:${webhookID}`,
+      webhook.type ?? "UNKNOWN",
+      await sha256Hex(rawBody),
+    );
     return jsonResponse({ accepted: true, status });
   } catch (error) {
-    console.error(error);
-    // Non-2xx makes Toss retry transient failures.
-    return jsonResponse({ accepted: false, error: "webhook_processing_failed" }, 500);
+    const response = publicError(error);
+    return response.status >= 500
+      ? jsonResponse({ accepted: false, error: "webhook_processing_failed" }, 500)
+      : response;
   }
 });

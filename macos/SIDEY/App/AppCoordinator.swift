@@ -7,13 +7,14 @@ final class AppCoordinator {
     private let preferencesStore: PreferencesStore
     private let legacyMigrator: LegacySettingsMigrator
     private let updateController: any AppUpdateChecking
+    let releaseChannel: AppReleaseChannel
     var backend: SideyBackend?
     private let runtimeConfiguration: RuntimeConfiguration?
     let configurationError: Error?
     private let keychainAccessSession: KeychainAccessSession
     let launchReason: LaunchReason
     private let onLandingFirstFrame: () -> Void
-    private let launchAtLoginController = LaunchAtLoginController()
+    private let launchAtLoginController: LaunchAtLoginController
     lazy var overlayWindows = OverlayWindowGroup(
         model: model,
         onSend: { [weak self] body in self?.sendMessage(body) },
@@ -82,6 +83,7 @@ final class AppCoordinator {
     var backendBootstrapState: BackendBootstrapState = .pending
     var typingLease = TypingLease()
     var characterPulseCooldown = CharacterPulseCooldown()
+    var backendConnectionStatus: BackendConnectionStatus?
     private lazy var activityMonitor = SystemActivityMonitor { [weak self] state in
         self?.localPresenceChanged(state)
     }
@@ -92,10 +94,15 @@ final class AppCoordinator {
         preferencesStore: PreferencesStore = .live,
         legacyMigrator: LegacySettingsMigrator = .live,
         keychainAccessSession: KeychainAccessSession = .shared,
+        releaseChannel: AppReleaseChannel = .resolve(),
         arguments: [String] = ProcessInfo.processInfo.arguments,
         onLandingFirstFrame: @escaping () -> Void = {}
     ) {
         self.updateController = updateController
+        self.releaseChannel = releaseChannel
+        self.launchAtLoginController = LaunchAtLoginController(
+            helperIdentifier: releaseChannel.loginItemIdentifier
+        )
         self.preferencesStore = preferencesStore
         self.legacyMigrator = legacyMigrator
         self.keychainAccessSession = keychainAccessSession
@@ -107,7 +114,7 @@ final class AppCoordinator {
         )
         self.model = AppModel(preferences: preferences)
         do {
-            let configuration = try RuntimeConfiguration.resolve()
+            let configuration = try RuntimeConfiguration.resolve(releaseChannel: releaseChannel)
             self.runtimeConfiguration = configuration
             self.configurationError = nil
         } catch {
@@ -155,7 +162,10 @@ final class AppCoordinator {
         if let runtimeConfiguration {
             backend = SideyBackend(
                 configuration: runtimeConfiguration,
-                keychain: KeychainStore(session: keychainAccessSession)
+                keychain: KeychainStore(
+                    service: releaseChannel.keychainService,
+                    session: keychainAccessSession
+                )
             )
         }
 
@@ -280,7 +290,8 @@ final class AppCoordinator {
     }
 
     func handleOpenURL(_ url: URL) -> Bool {
-        guard SideyAuthCallback.matches(url),
+        guard releaseChannel.storeAvailability.allowsCommerceActions,
+              SideyAuthCallback.matches(url),
               let backend
         else { return false }
         showStore()

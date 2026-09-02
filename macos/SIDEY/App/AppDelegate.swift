@@ -15,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             || NSClassFromString("XCTest.XCTestCase") != nil {
             return
         }
+        let releaseChannel = AppReleaseChannel.resolve()
         let coordinator: AppCoordinator
         if let suiteName = environment["SIDEY_PREFERENCES_SUITE"],
            let defaults = UserDefaults(suiteName: suiteName) {
@@ -22,6 +23,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 updateController: updateController,
                 preferencesStore: .userDefaults(defaults),
                 legacyMigrator: .none,
+                releaseChannel: releaseChannel,
+                onLandingFirstFrame: { [weak launchProbe] in
+                    launchProbe?.markFirstFrame()
+                }
+            )
+        } else if let suiteName = releaseChannel.preferencesSuiteName,
+                  let defaults = UserDefaults(suiteName: suiteName) {
+            coordinator = AppCoordinator(
+                updateController: updateController,
+                preferencesStore: .userDefaults(defaults),
+                legacyMigrator: .none,
+                releaseChannel: releaseChannel,
                 onLandingFirstFrame: { [weak launchProbe] in
                     launchProbe?.markFirstFrame()
                 }
@@ -29,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             coordinator = AppCoordinator(
                 updateController: updateController,
+                releaseChannel: releaseChannel,
                 onLandingFirstFrame: { [weak launchProbe] in
                     launchProbe?.markFirstFrame()
                 }

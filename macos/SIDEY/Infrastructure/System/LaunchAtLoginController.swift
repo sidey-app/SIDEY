@@ -3,10 +3,14 @@ import ServiceManagement
 
 @MainActor
 struct LaunchAtLoginController {
-    static let helperIdentifier = "app.sidey.desktop.login-item"
+    let helperIdentifier: String
+
+    init(helperIdentifier: String = AppReleaseChannel.resolve().loginItemIdentifier) {
+        self.helperIdentifier = helperIdentifier
+    }
 
     private var service: SMAppService {
-        SMAppService.loginItem(identifier: Self.helperIdentifier)
+        SMAppService.loginItem(identifier: helperIdentifier)
     }
 
     var isEnabled: Bool {

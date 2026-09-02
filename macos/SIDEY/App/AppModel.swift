@@ -138,6 +138,23 @@ final class AppModel {
         preferences.onboardingComplete = snapshot.profile != nil && !rooms.isEmpty
     }
 
+    func apply(profile: Profile) {
+        guard currentUserID == profile.id else { return }
+        hasProfile = true
+        nickname = profile.nickname
+        preferences.nickname = profile.nickname
+        selectedCharacterID = PixelCharacterCatalog.canonicalID(for: profile.characterID)
+        preferences.selectedCharacterID = selectedCharacterID
+        for roomIndex in rooms.indices {
+            guard let memberIndex = rooms[roomIndex].members.firstIndex(where: {
+                $0.userID == profile.id
+            }) else { continue }
+            rooms[roomIndex].members[memberIndex].nickname = profile.nickname
+            rooms[roomIndex].members[memberIndex].characterID = selectedCharacterID
+        }
+        enforceSelectableCurrentCharacter()
+    }
+
     var selectableCharacters: [PixelCharacterDefinition] {
         PixelCharacterCatalog.selectableDefinitions(entitlementKeys: activeEntitlementKeys)
     }

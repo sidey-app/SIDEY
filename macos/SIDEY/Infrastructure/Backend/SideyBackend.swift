@@ -19,6 +19,7 @@ actor SideyBackend {
     private var recoveryReconciliationGeneration = 0
     private var recoveryReconciliationAttempt = 0
     private var structuralSnapshotTask: Task<Void, Never>?
+    private var structuralSnapshotAttempt = 0
     private var typingExpiryTasks: [String: Task<Void, Never>] = [:]
     private var activeRoomID: UUID?
     private var localPresence: PresenceState = .online
@@ -28,8 +29,8 @@ actor SideyBackend {
         try await self.performPresencePublication(intent)
     }
     private var connectionTracker = RealtimeConnectionTracker()
-    private var lastEmittedConnectionState: Bool?
-    private var isStateReconciled = false
+    private var lastEmittedConnectionStatus: BackendConnectionStatus?
+    private var recoveryReconciled = false
     private var isShuttingDown = false
 
     init(
@@ -496,13 +497,25 @@ actor SideyBackend {
     }
 
     private func configureChannels(rooms: [Room], activeRoomID: UUID?) async throws {
-        isStateReconciled = false
-        emitConnectionState()
         let requestedRooms = Array(rooms.prefix(5))
         let requestedByID = Dictionary(uniqueKeysWithValues: requestedRooms.map { ($0.id, $0) })
         let desiredRoomIDs = Set(requestedByID.keys)
-        self.activeRoomID = activeRoomID.flatMap { desiredRoomIDs.contains($0) ? $0 : nil }
+        let requestedTopology = RealtimeTopology(rooms: requestedRooms)
+        let currentTopology = RealtimeTopology(channelEpochs: Dictionary(
+            uniqueKeysWithValues: channels.map { ($0.key, $0.value.epoch) }
+        ))
+        let resolvedActiveRoomID = activeRoomID.flatMap {
+            desiredRoomIDs.contains($0) ? $0 : nil
+        }
+        let topologyChanged = requestedTopology != currentTopology
+        let activeRoomChanged = self.activeRoomID != resolvedActiveRoomID
+
+        self.activeRoomID = resolvedActiveRoomID
         connectionTracker.replaceDesiredRoomIDs(desiredRoomIDs)
+        if topologyChanged {
+            recoveryReconciled = false
+        }
+        emitConnectionState()
 
         for roomID in Set(channels.keys).subtracting(desiredRoomIDs) {
             await removeChannel(roomID)
@@ -516,7 +529,9 @@ actor SideyBackend {
                 try await addChannel(roomID: room.id, epoch: room.realtimeEpoch)
             }
         }
-        try await publishPresence()
+        if topologyChanged || activeRoomChanged {
+            try await publishPresence()
+        }
         startRealtimeWatchdogIfNeeded()
     }
 
@@ -655,12 +670,14 @@ actor SideyBackend {
             emitConnectionState()
         case .unsubscribed:
             connectionTracker.setSubscribed(false, roomID: roomID)
+            recoveryReconciled = false
             emitConnectionState()
             if !channelsBeingAdded.contains(roomID) {
                 scheduleChannelRecovery(roomID: roomID)
             }
         case .subscribing, .unsubscribing:
             connectionTracker.setSubscribed(false, roomID: roomID)
+            recoveryReconciled = false
             emitConnectionState()
         }
     }
@@ -753,6 +770,7 @@ actor SideyBackend {
                 && channels[roomID]?.ephemeral.status == .subscribed
             connectionTracker.setSubscribed(subscribed, roomID: roomID)
             if !subscribed, !channelsBeingAdded.contains(roomID) {
+                recoveryReconciled = false
                 scheduleChannelRecovery(roomID: roomID)
             }
         }
@@ -815,7 +833,7 @@ actor SideyBackend {
 
     private func scheduleRecoveryReconciliation() {
         guard !isShuttingDown else { return }
-        isStateReconciled = false
+        recoveryReconciled = false
         emitConnectionState()
         recoveryReconciliationGeneration += 1
         recoveryReconciliationAttempt = 1
@@ -882,21 +900,21 @@ actor SideyBackend {
             activeMessages: messages
         )
         if emitEvents {
-            emit(.snapshot(snapshot))
-            if let reconciledActiveRoomID {
-                emit(.messagesReplaced(roomID: reconciledActiveRoomID, messages: messages))
-            }
+            emit(.reconciliation(reconciliation))
         }
-        isStateReconciled = true
+        recoveryReconciled = true
         emitConnectionState()
         return reconciliation
     }
 
     private func emitConnectionState() {
-        let connected = connectionTracker.isConnected && isStateReconciled
-        guard lastEmittedConnectionState != connected else { return }
-        lastEmittedConnectionState = connected
-        emit(.connection(connected))
+        let status = BackendConnectionStatus(
+            transportConnected: connectionTracker.isConnected,
+            recoveryReconciled: recoveryReconciled
+        )
+        guard lastEmittedConnectionStatus != status else { return }
+        lastEmittedConnectionStatus = status
+        emit(.connection(status))
     }
 
     private func handleDatabaseBroadcast(roomID: UUID, payload: JSONObject, event: String) async {
@@ -941,11 +959,13 @@ actor SideyBackend {
 
     private func scheduleStructuralSnapshot() {
         guard structuralSnapshotTask == nil, !isShuttingDown else { return }
-        isStateReconciled = false
-        emitConnectionState()
+        let attempt = structuralSnapshotAttempt
+        let delay: Duration = attempt == 0
+            ? .milliseconds(150)
+            : .seconds(RealtimeRecoveryPolicy.delay(forAttempt: attempt))
         structuralSnapshotTask = Task { [weak self] in
             do {
-                try await Task.sleep(for: .milliseconds(150))
+                try await Task.sleep(for: delay)
             } catch {
                 return
             }
@@ -957,24 +977,28 @@ actor SideyBackend {
     private func emitStructuralSnapshot() async {
         structuralSnapshotTask = nil
         guard !isShuttingDown else { return }
-        recoveryReconciliationGeneration += 1
-        let generation = recoveryReconciliationGeneration
         do {
-            _ = try await reconcileCurrentState(emitEvents: true)
+            let snapshot = try await loadSnapshot()
+            let snapshotTopology = RealtimeTopology(rooms: snapshot.rooms)
+            let channelTopology = RealtimeTopology(channelEpochs: Dictionary(
+                uniqueKeysWithValues: channels.map { ($0.key, $0.value.epoch) }
+            ))
+            structuralSnapshotAttempt = 0
+            if snapshotTopology == channelTopology {
+                emit(.snapshot(snapshot))
+            } else {
+                try await configureChannels(
+                    rooms: snapshot.rooms,
+                    activeRoomID: activeRoomID
+                )
+                _ = try await reconcileCurrentState(emitEvents: true)
+            }
         } catch {
-            recoveryReconciliationAttempt = 1
             emit(.technicalError("그룹 상태 재동기화 실패: \(error.localizedDescription)"))
-            recoveryReconciliationTask?.cancel()
-            recoveryReconciliationTask = Task { [weak self] in
-                do {
-                    try await Task.sleep(for: .seconds(
-                        RealtimeRecoveryPolicy.delay(forAttempt: 1)
-                    ))
-                } catch {
-                    return
-                }
-                guard !Task.isCancelled else { return }
-                await self?.reconcileAfterRealtimeRecovery(generation: generation)
+            structuralSnapshotAttempt += 1
+            scheduleStructuralSnapshot()
+            if !recoveryReconciled {
+                scheduleRecoveryReconciliation()
             }
         }
     }

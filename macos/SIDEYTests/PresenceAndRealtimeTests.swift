@@ -300,6 +300,107 @@ final class PresenceAndRealtimeTests: XCTestCase {
         XCTAssertTrue(tracker.isConnected)
     }
 
+    func testConnectionStatusSeparatesTransportFromRecoveryReadiness() {
+        XCTAssertFalse(BackendConnectionStatus(
+            transportConnected: false,
+            recoveryReconciled: true
+        ).isReady)
+        XCTAssertFalse(BackendConnectionStatus(
+            transportConnected: true,
+            recoveryReconciled: false
+        ).isReady)
+        XCTAssertTrue(BackendConnectionStatus(
+            transportConnected: true,
+            recoveryReconciled: true
+        ).isReady)
+    }
+
+    func testProfileApplyChangesIdentityWithoutDiscardingFriendPresence() {
+        let roomID = UUID()
+        let userID = UUID()
+        let friendID = UUID()
+        var preferences = AppPreferences.defaults
+        preferences.activeRoomID = roomID
+        let model = AppModel(preferences: preferences)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(id: userID, nickname: "이전닉", characterID: "pixel_hamster"),
+                rooms: [Room(
+                    id: roomID,
+                    name: "친구들",
+                    ownerID: userID,
+                    members: [
+                        RoomMember(
+                            userID: userID,
+                            nickname: "이전닉",
+                            characterID: "pixel_hamster",
+                            presence: .offline
+                        ),
+                        RoomMember(
+                            userID: friendID,
+                            nickname: "친구",
+                            characterID: "pixel_cat",
+                            presence: .offline
+                        )
+                    ],
+                    inviteCodeHint: "AB••••"
+                )]
+            ),
+            currentUserID: userID
+        )
+        model.connectionState = .online
+        model.updatePresence(roomID: roomID, userID: friendID, state: .online)
+
+        model.apply(profile: Profile(
+            id: userID,
+            nickname: "새닉네임",
+            characterID: "pixel_penguin"
+        ))
+
+        XCTAssertEqual(model.connectionState, .online)
+        XCTAssertEqual(model.nickname, "새닉네임")
+        XCTAssertEqual(model.selectedCharacterID, "pixel_penguin")
+        XCTAssertEqual(
+            model.rooms[0].members.first(where: { $0.userID == userID })?.nickname,
+            "새닉네임"
+        )
+        XCTAssertEqual(
+            model.rooms[0].members.first(where: { $0.userID == friendID })?.presence,
+            .online
+        )
+    }
+
+    func testProfileAndRoomNameChangesDoNotChangeRealtimeTopology() {
+        let roomID = UUID()
+        let original = Room(
+            id: roomID,
+            name: "이전 이름",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "AB••••",
+            realtimeEpoch: 7
+        )
+        var metadataOnly = original
+        metadataOnly.name = "새 이름"
+        metadataOnly.members = [RoomMember(
+            userID: UUID(),
+            nickname: "새 프로필",
+            characterID: "pixel_penguin",
+            presence: .offline
+        )]
+        var newEpoch = metadataOnly
+        newEpoch.realtimeEpoch = 8
+
+        XCTAssertEqual(
+            RealtimeTopology(rooms: [original]),
+            RealtimeTopology(rooms: [metadataOnly])
+        )
+        XCTAssertNotEqual(
+            RealtimeTopology(rooms: [original]),
+            RealtimeTopology(rooms: [newEpoch])
+        )
+    }
+
     func testRealtimeRecoveryBackoffStartsAtEightSecondsAndCapsAtThirty() {
         XCTAssertEqual(RealtimeRecoveryPolicy.watchdogInterval, 5)
         XCTAssertEqual(RealtimeRecoveryPolicy.delay(forAttempt: 1), 8)

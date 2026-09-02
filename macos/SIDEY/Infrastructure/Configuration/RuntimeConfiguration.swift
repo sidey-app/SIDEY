@@ -41,9 +41,24 @@ struct RuntimeConfiguration: Equatable, Sendable {
         return digest.prefix(8).map { String(format: "%02x", $0) }.joined()
     }
 
-    static func resolve(environment: [String: String] = ProcessInfo.processInfo.environment) throws -> Self {
+    static func resolve(
+        releaseChannel: AppReleaseChannel = .resolve(),
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        bundleInfo: [String: Any] = Bundle.main.infoDictionary ?? [:]
+    ) throws -> Self {
+        if releaseChannel == .production {
+            return Self(
+                supabaseURL: URL(string: "https://\(productionHost)")!,
+                supabasePublishableKey: "sb_publishable_kkASOI4rRTX8Drob21hkCw_VwUex63Y"
+            )
+        }
+
         let environmentURL = environment["SIDEY_SUPABASE_URL"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         let environmentKey = environment["SIDEY_SUPABASE_PUBLISHABLE_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let bundledURL = (bundleInfo["SIDEYSupabaseURL"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let bundledKey = (bundleInfo["SIDEYSupabasePublishableKey"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
 
         if environmentURL != nil || environmentKey != nil {
             guard let rawURL = environmentURL, !rawURL.isEmpty,
@@ -51,15 +66,21 @@ struct RuntimeConfiguration: Equatable, Sendable {
                   let url = URL(string: rawURL), Self.isAllowedBackendURL(url)
             else { throw RuntimeConfigurationError.incompleteEnvironment }
             guard !Self.looksLikeSecretKey(key) else { throw RuntimeConfigurationError.secretKeyNotAllowed }
+            guard url.host?.lowercased() != Self.productionHost else {
+                throw RuntimeConfigurationError.productionBackendNotAllowedInDevelopment
+            }
             return Self(supabaseURL: url, supabasePublishableKey: key)
         }
 
-        // Supabase publishable keys are client identifiers, not server secrets. These values
-        // match the existing alpha client so a native migration keeps the same backend contract.
-        return Self(
-            supabaseURL: URL(string: "https://\(productionHost)")!,
-            supabasePublishableKey: "sb_publishable_kkASOI4rRTX8Drob21hkCw_VwUex63Y"
-        )
+        guard let rawURL = bundledURL, !rawURL.isEmpty,
+              let key = bundledKey, !key.isEmpty,
+              let url = URL(string: rawURL), Self.isAllowedBackendURL(url)
+        else { throw RuntimeConfigurationError.missingDevelopmentConfiguration }
+        guard !Self.looksLikeSecretKey(key) else { throw RuntimeConfigurationError.secretKeyNotAllowed }
+        guard url.host?.lowercased() != Self.productionHost else {
+            throw RuntimeConfigurationError.productionBackendNotAllowedInDevelopment
+        }
+        return Self(supabaseURL: url, supabasePublishableKey: key)
     }
 
     var isProductionBackend: Bool {
@@ -94,6 +115,8 @@ struct RuntimeConfiguration: Equatable, Sendable {
 enum RuntimeConfigurationError: LocalizedError, Equatable {
     case incompleteEnvironment
     case secretKeyNotAllowed
+    case missingDevelopmentConfiguration
+    case productionBackendNotAllowedInDevelopment
 
     var errorDescription: String? {
         switch self {
@@ -101,6 +124,10 @@ enum RuntimeConfigurationError: LocalizedError, Equatable {
             "SIDEY_SUPABASE_URL과 SIDEY_SUPABASE_PUBLISHABLE_KEY를 모두 설정해야 합니다."
         case .secretKeyNotAllowed:
             "클라이언트에 Supabase secret/service-role 키를 사용할 수 없습니다."
+        case .missingDevelopmentConfiguration:
+            "Sidey-dev에는 SIDEY-staging URL과 publishable key가 필요합니다."
+        case .productionBackendNotAllowedInDevelopment:
+            "Sidey-dev는 production Supabase 프로젝트에 연결할 수 없습니다."
         }
     }
 }

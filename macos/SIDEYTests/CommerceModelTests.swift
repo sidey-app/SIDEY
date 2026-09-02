@@ -6,7 +6,12 @@ final class CommerceModelTests: XCTestCase {
     func testCatalogProvidesRenderableProductsInDisplayOrder() throws {
         XCTAssertEqual(
             CommerceCatalog.products.map(\.id),
-            [CommerceCatalog.starlightUpalupaProductID]
+            [
+                CommerceCatalog.starlightUpalupaProductID,
+                CommerceCatalog.guineaPigProductID,
+                CommerceCatalog.monkeyProductID,
+                CommerceCatalog.chinchillaProductID,
+            ]
         )
         for product in CommerceCatalog.products {
             XCTAssertEqual(PixelCharacterCatalog.definition(for: product.characterID).id, product.characterID)
@@ -15,6 +20,15 @@ final class CommerceModelTests: XCTestCase {
                 product.entitlementKey
             )
         }
+    }
+
+    func testReleaseChannelHardCodesStoreAvailabilityAndIsolationIdentifiers() {
+        XCTAssertFalse(AppReleaseChannel.production.storeAvailability.allowsCommerceActions)
+        XCTAssertTrue(AppReleaseChannel.development.storeAvailability.allowsCommerceActions)
+        XCTAssertNotEqual(AppReleaseChannel.production.keychainService, AppReleaseChannel.development.keychainService)
+        XCTAssertNotEqual(AppReleaseChannel.production.loginItemIdentifier, AppReleaseChannel.development.loginItemIdentifier)
+        XCTAssertNil(AppReleaseChannel.production.preferencesSuiteName)
+        XCTAssertEqual(AppReleaseChannel.development.preferencesSuiteName, "app.sidey.desktop.dev")
     }
 
     func testTwoProductsKeepOrderAndUpdateStateIndependently() throws {

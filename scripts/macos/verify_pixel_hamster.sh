@@ -12,6 +12,9 @@ EXPECTED_HASHES[pixel_cat]="d8b370c03b5cf0ede6aa0d9fa6210030e164b015a920622e89ae
 EXPECTED_HASHES[pixel_puppy]="8f56a5fda51a224802f41d6d1c359a138c83036b7da3e0a35777f9f4ed38d5f7"
 EXPECTED_HASHES[pixel_rabbit]="f8e53749200a284f7729ea9baac3237a9fac0caf8efedf9102dcee065e521342"
 EXPECTED_HASHES[pixel_penguin]="f171503f8ffb938732583a4b6f42443e7a69120bb17496f6e8d34372da2ea886"
+EXPECTED_HASHES[pixel_guinea_pig]="1a0bf85dae86f2e6bb460e8b0b852c2bd010d5ff6f7efd1477cbd6986da64f5b"
+EXPECTED_HASHES[pixel_monkey]="515fe377f5344dd4cbaa2b0faf58de3ce72fdc62be5aff6a9d9de683983c783b"
+EXPECTED_HASHES[pixel_chinchilla]="c0009e007a7a63029fb58ad6f94d2b9a8c9ae7a55f139dd4892050f11614c5d4"
 
 typeset -A DIRECTORIES
 DIRECTORIES[pixel_hamster]="PixelHamster"
@@ -19,8 +22,11 @@ DIRECTORIES[pixel_cat]="PixelCat"
 DIRECTORIES[pixel_puppy]="PixelPuppy"
 DIRECTORIES[pixel_rabbit]="PixelRabbit"
 DIRECTORIES[pixel_penguin]="PixelPenguin"
+DIRECTORIES[pixel_guinea_pig]="PixelGuineaPig"
+DIRECTORIES[pixel_monkey]="PixelMonkey"
+DIRECTORIES[pixel_chinchilla]="PixelChinchilla"
 
-for CHARACTER_ID in pixel_hamster pixel_cat pixel_puppy pixel_rabbit pixel_penguin; do
+for CHARACTER_ID in pixel_hamster pixel_cat pixel_puppy pixel_rabbit pixel_penguin pixel_guinea_pig pixel_monkey pixel_chinchilla; do
   ASSET="$CHARACTERS_ROOT/${DIRECTORIES[$CHARACTER_ID]}/$CHARACTER_ID.png"
   [[ -f "$ASSET" ]] || { print -u2 "Missing character sheet: $ASSET"; exit 1; }
 

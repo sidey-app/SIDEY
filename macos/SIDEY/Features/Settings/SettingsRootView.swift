@@ -46,6 +46,17 @@ struct SettingsActions {
 struct SettingsRootView: View {
     @Bindable var model: AppModel
     let actions: SettingsActions
+    let storeAvailability: StoreAvailability
+
+    init(
+        model: AppModel,
+        actions: SettingsActions,
+        storeAvailability: StoreAvailability = AppReleaseChannel.resolve().storeAvailability
+    ) {
+        self.model = model
+        self.actions = actions
+        self.storeAvailability = storeAvailability
+    }
 
     var body: some View {
         Group {
@@ -73,39 +84,37 @@ struct SettingsRootView: View {
                     .padding(16)
             }
         } detail: {
-            GeometryReader { geometry in
-                ScrollView {
-                    Group {
-                        switch model.activeSettingsPage {
-                        case .profile:
-                            ProfileSettingsView(model: model, onSave: actions.onSaveProfile)
-                        case .groups:
-                            GroupsSettingsView(model: model, actions: actions)
-                        case .store:
-                            StoreView(model: model, actions: actions)
-                                .frame(
-                                    minHeight: max(0, geometry.size.height - 80),
-                                    alignment: .top
-                                )
-                        case .app:
-                            AppSettingsView(model: model, actions: actions)
-                        }
+            ScrollView {
+                Group {
+                    switch model.activeSettingsPage {
+                    case .profile:
+                        ProfileSettingsView(model: model, onSave: actions.onSaveProfile)
+                    case .groups:
+                        GroupsSettingsView(model: model, actions: actions)
+                    case .store:
+                        StoreView(
+                            model: model,
+                            actions: actions,
+                            availability: storeAvailability
+                        )
+                    case .app:
+                        AppSettingsView(model: model, actions: actions)
                     }
-                    .frame(maxWidth: 760, alignment: .topLeading)
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    .padding(.horizontal, 44)
-                    .padding(.vertical, 40)
                 }
-                .overlay(alignment: .bottom) {
-                    if let error = model.errorMessage {
-                        ErrorBanner(message: error) { model.errorMessage = nil }
-                            .padding(20)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    } else if let success = model.successMessage {
-                        SuccessBanner(message: success) { model.successMessage = nil }
-                            .padding(20)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
-                    }
+                .frame(maxWidth: 760, alignment: .topLeading)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                .padding(.horizontal, 44)
+                .padding(.vertical, 40)
+            }
+            .overlay(alignment: .bottom) {
+                if let error = model.errorMessage {
+                    ErrorBanner(message: error) { model.errorMessage = nil }
+                        .padding(20)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else if let success = model.successMessage {
+                    SuccessBanner(message: success) { model.successMessage = nil }
+                        .padding(20)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
         }

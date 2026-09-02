@@ -43,6 +43,10 @@
 	<true/>
 	<key>SIDEYReleaseChannel</key>
 	<string>$(SIDEY_RELEASE_CHANNEL)</string>
+	<key>SIDEYSupabaseURL</key>
+	<string>$(SIDEY_SUPABASE_URL)</string>
+	<key>SIDEYSupabasePublishableKey</key>
+	<string>$(SIDEY_SUPABASE_PUBLISHABLE_KEY)</string>
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/sidey-app/SIDEY/main/updates/appcast.xml</string>
 	<key>SUPublicEDKey</key>

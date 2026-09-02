@@ -4,6 +4,10 @@ import XCTest
 
 final class BackendIntegrationTests: XCTestCase {
     func testTwoNativeClientsMessageTypingPresenceAndCleanup() async throws {
+        // This scenario intentionally includes 10 s and 30 s profile-change gaps,
+        // then forces a disconnect/recovery cycle. Keep XCTest's watchdog from
+        // cancelling the test before the network assertions can finish.
+        executionTimeAllowance = 180
         var environment = ProcessInfo.processInfo.environment
         let testBundle = Bundle(for: Self.self)
         let integrationFlag = configuredValue(
@@ -33,7 +37,10 @@ final class BackendIntegrationTests: XCTestCase {
             XCTFail("통합 테스트에는 SIDEY_SUPABASE_URL과 SIDEY_SUPABASE_PUBLISHABLE_KEY가 필요합니다.")
             return
         }
-        let configuration = try RuntimeConfiguration.resolve(environment: environment)
+        let configuration = try RuntimeConfiguration.resolve(
+            releaseChannel: .development,
+            environment: environment
+        )
         guard !configuration.isProductionBackend else {
             XCTFail("통합 테스트는 SIDEY production backend에서 실행할 수 없습니다.")
             return
@@ -47,6 +54,7 @@ final class BackendIntegrationTests: XCTestCase {
         let firstEvents = Task { await firstProbe.consume(first.events) }
         let secondEvents = Task { await secondProbe.consume(second.events) }
         var createdRoomIDs: Set<UUID> = []
+        var phase = "boot"
 
         do {
             _ = try await first.boot()
@@ -73,6 +81,42 @@ final class BackendIntegrationTests: XCTestCase {
                 return firstConnected && secondConnected
             }
 
+            let optionalFirstUserID = await first.currentUserID()
+            let firstUserID = try XCTUnwrap(optionalFirstUserID)
+            let optionalSecondUserID = await second.currentUserID()
+            let secondUserID = try XCTUnwrap(optionalSecondUserID)
+            let firstDisconnectsBeforeProfiles = await firstProbe.disconnectedAfterConnectCount
+            let secondDisconnectsBeforeProfiles = await secondProbe.disconnectedAfterConnectCount
+            let profileChanges: [(SideyBackend, BackendEventProbe, UUID, String, String, Duration)] = [
+                (first, secondProbe, firstUserID, "첫째즉시", "pixel_cat", .zero),
+                (second, firstProbe, secondUserID, "둘째십초", "pixel_penguin", .seconds(10)),
+                (first, secondProbe, firstUserID, "첫째삼십초", "pixel_puppy", .seconds(30))
+            ]
+            for (backend, peerProbe, userID, nickname, characterID, delay) in profileChanges {
+                phase = "profile delay: \(nickname)"
+                if delay > .zero { try await Task.sleep(for: delay) }
+                phase = "profile mutation: \(nickname)"
+                let snapshotsBeforeProfile = await peerProbe.snapshotCount
+                _ = try await backend.upsertProfile(
+                    nickname: nickname,
+                    characterID: characterID
+                )
+                phase = "profile broadcast: \(nickname)"
+                try await waitUntil("상대 클라이언트 프로필 변경 수신") {
+                    await peerProbe.hasMember(
+                        after: snapshotsBeforeProfile,
+                        userID: userID,
+                        nickname: nickname,
+                        characterID: characterID
+                    )
+                }
+            }
+            let firstDisconnectsAfterProfiles = await firstProbe.disconnectedAfterConnectCount
+            let secondDisconnectsAfterProfiles = await secondProbe.disconnectedAfterConnectCount
+            XCTAssertEqual(firstDisconnectsAfterProfiles, firstDisconnectsBeforeProfiles)
+            XCTAssertEqual(secondDisconnectsAfterProfiles, secondDisconnectsBeforeProfiles)
+
+            phase = "room rename"
             let snapshotsBeforeRename = await secondProbe.snapshotCount
             let renamedRoom = "이름 변경 \(Int.random(in: 1000...9999))"
             try await first.renameRoom(created.roomID, name: renamedRoom)
@@ -104,14 +148,10 @@ final class BackendIntegrationTests: XCTestCase {
             }
 
             try await first.setLocalPresence(.away)
-            let optionalFirstUserID = await first.currentUserID()
-            let firstUserID = try XCTUnwrap(optionalFirstUserID)
             try await waitUntil("away Presence 수신") {
                 await secondProbe.presence[firstUserID] == .away
             }
 
-            let optionalSecondUserID = await second.currentUserID()
-            let secondUserID = try XCTUnwrap(optionalSecondUserID)
             let presenceUpdatesBeforeInterruption = await firstProbe.presenceUpdateCounts[secondUserID, default: 0]
             let disconnectionsBeforeInterruption = await secondProbe.disconnectedAfterConnectCount
             await second.interruptRealtimeConnectionForTesting()
@@ -186,6 +226,7 @@ final class BackendIntegrationTests: XCTestCase {
             try await first.deleteRoom(created.roomID)
             createdRoomIDs.remove(created.roomID)
         } catch {
+            XCTFail("통합 테스트 실패 단계: \(phase) · \(error)")
             for roomID in createdRoomIDs {
                 try? await second.leaveRoom(roomID)
                 try? await first.deleteRoom(roomID)
@@ -258,6 +299,7 @@ private actor BackendEventProbe {
     private(set) var disconnectedAfterConnectCount = 0
     private(set) var snapshotCount = 0
     private(set) var roomNames: [UUID: String] = [:]
+    private(set) var members: [UUID: Profile] = [:]
     private var hasConnected = false
 
     func hasPresenceUpdate(userID: UUID, state: PresenceState, after count: Int) -> Bool {
@@ -268,16 +310,40 @@ private actor BackendEventProbe {
         snapshotCount > count && roomNames[roomID] == expectedName
     }
 
+    func hasMember(
+        after count: Int,
+        userID: UUID,
+        nickname: String,
+        characterID: String
+    ) -> Bool {
+        guard snapshotCount > count, let member = members[userID] else { return false }
+        return member.nickname == nickname && member.characterID == characterID
+    }
+
+    private func apply(_ snapshot: BackendSnapshot) {
+        snapshotCount += 1
+        roomNames = Dictionary(uniqueKeysWithValues: snapshot.rooms.map { ($0.id, $0.name) })
+        for room in snapshot.rooms {
+            for member in room.members {
+                members[member.userID] = Profile(
+                    id: member.userID,
+                    nickname: member.nickname,
+                    characterID: member.characterID
+                )
+            }
+        }
+    }
+
     func consume(_ events: AsyncStream<BackendEvent>) async {
         for await event in events {
             switch event {
-            case .connection(let connected):
-                if connected {
+            case .connection(let status):
+                if status.transportConnected {
                     hasConnected = true
                 } else if hasConnected {
                     disconnectedAfterConnectCount += 1
                 }
-                isConnected = connected
+                isConnected = status.isReady
             case .message(let message):
                 messageIDs.insert(message.id)
             case .messageDeleted:
@@ -294,8 +360,9 @@ private actor BackendEventProbe {
                 presence[userID] = state
                 presenceUpdateCounts[userID, default: 0] += 1
             case .snapshot(let snapshot):
-                snapshotCount += 1
-                roomNames = Dictionary(uniqueKeysWithValues: snapshot.rooms.map { ($0.id, $0.name) })
+                apply(snapshot)
+            case .reconciliation(let reconciliation):
+                apply(reconciliation.snapshot)
             case .technicalError:
                 break
             }

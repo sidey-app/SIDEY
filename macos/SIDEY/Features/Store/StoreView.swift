@@ -3,6 +3,17 @@ import SwiftUI
 struct StoreView: View {
     @Bindable var model: AppModel
     let actions: SettingsActions
+    let availability: StoreAvailability
+
+    init(
+        model: AppModel,
+        actions: SettingsActions,
+        availability: StoreAvailability = AppReleaseChannel.resolve().storeAvailability
+    ) {
+        self.model = model
+        self.actions = actions
+        self.availability = availability
+    }
 
     private let columns = [
         GridItem(
@@ -35,7 +46,12 @@ struct StoreView: View {
 
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 18) {
                     ForEach(model.commerceProducts) { productState in
-                        StoreProductCard(productState: productState, actions: actions)
+                        switch availability {
+                        case .comingSoon:
+                            StoreLockedProductCard(product: productState.product)
+                        case .enabled:
+                            StoreProductCard(productState: productState, actions: actions)
+                        }
                     }
                 }
             }
@@ -43,17 +59,16 @@ struct StoreView: View {
             Spacer(minLength: StoreCardLayout.footerMinimumSpacing)
 
             VStack(alignment: .center, spacing: 8) {
-                Label(
-                    "표시 가격은 부가세 포함 금액입니다. 구매 전 Google 계정 연결이 필요합니다.",
-                    systemImage: "lock.shield"
-                )
+                Label(footerHeadline, systemImage: "lock.shield")
                 .font(.callout)
 
-                Text("결제 승인과 서버 소유권 확인이 끝나면 디지털 캐릭터 사용권 제공이 즉시 시작됩니다.")
-                    .font(.caption)
+                if availability == .enabled {
+                    Text("결제 승인과 서버 소유권 확인이 끝나면 디지털 캐릭터 사용권 제공이 즉시 시작됩니다.")
+                        .font(.caption)
 
-                Text("사용권 제공이 시작된 뒤에는 단순 변심에 따른 청약철회가 제한됩니다. 미제공·계약 내용 불일치·중복 또는 무단 결제 등 법정 사유가 확인되면 전액 환불합니다.")
-                    .font(.caption)
+                    Text("구매 승인 후 7일 이내에는 사용 여부와 관계없이 전액 환불합니다. 그 이후에도 미제공·계약 내용 불일치·중복 또는 무단 결제 등 법정 사유가 확인되면 전액 환불합니다.")
+                        .font(.caption)
+                }
             }
             .foregroundStyle(.secondary)
             .multilineTextAlignment(.center)
@@ -62,7 +77,102 @@ struct StoreView: View {
             .frame(maxWidth: .infinity, alignment: .center)
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .onAppear { actions.onRefreshCommerceState(nil) }
+        .onAppear {
+            if availability.allowsCommerceActions {
+                actions.onRefreshCommerceState(nil)
+            }
+        }
+    }
+
+    private var footerHeadline: String {
+        availability == .enabled
+            ? "표시 가격은 부가세 포함 금액입니다. 구매 전 Google 계정 연결이 필요합니다."
+            : "현재 상점은 준비 중입니다. 보유 중인 캐릭터는 계속 사용할 수 있습니다."
+    }
+}
+
+private struct StoreLockedProductCard: View {
+    let product: CommerceProduct
+
+    private var definition: PixelCharacterDefinition {
+        PixelCharacterCatalog.definition(for: product.characterID)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color.primary.opacity(0.035))
+                Image(nsImage: PixelCharacterPreviewImage.image(for: definition, frame: definition.previewFrame))
+                    .interpolation(.none)
+                    .resizable()
+                    .frame(width: StoreReactionPreviewStyle.characterSize, height: StoreReactionPreviewStyle.characterSize)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(minHeight: StoreCardLayout.minimumPreviewHeight)
+
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(product.displayName).font(.title3.bold())
+                Spacer(minLength: 8)
+                Text(product.formattedPrice)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            Text(product.description)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            Color.clear.frame(height: 28)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .aspectRatio(StoreCardLayout.aspectRatio, contentMode: .fit)
+        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.black.opacity(0.68))
+        }
+        .overlay {
+            VStack(spacing: 12) {
+                PixelLockIcon()
+                Text("추후 오픈 예정입니다.")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(product.displayName), 추후 오픈 예정입니다.")
+    }
+}
+
+private struct PixelLockIcon: View {
+    private let rows = [
+        "00111100",
+        "01100110",
+        "11000011",
+        "11000011",
+        "11111111",
+        "11111111",
+        "11100111",
+        "11100111",
+        "11111111",
+        "11111111",
+    ]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                HStack(spacing: 0) {
+                    ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
+                        Rectangle()
+                            .fill(cell == "1" ? Color.white : Color.clear)
+                            .frame(width: 4, height: 4)
+                    }
+                }
+            }
+        }
+        .accessibilityHidden(true)
     }
 }
 

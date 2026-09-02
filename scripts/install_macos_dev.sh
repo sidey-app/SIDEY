@@ -14,6 +14,31 @@ SIDEY_INSTALL_DIR=
 SIDEY_BACKUP_APP=
 SIDEY_INSTALL_COMPLETE=0
 
+if [ -z "${SIDEY_SUPABASE_URL:-}" ] || [ -z "${SIDEY_SUPABASE_PUBLISHABLE_KEY:-}" ]; then
+	echo "Sidey-dev requires SIDEY-staging SIDEY_SUPABASE_URL and SIDEY_SUPABASE_PUBLISHABLE_KEY" >&2
+	exit 64
+fi
+case "$SIDEY_SUPABASE_URL" in
+	https://*) ;;
+	http://localhost:*|http://127.0.0.1:*|http://\[::1\]:*) ;;
+	*)
+		echo "Sidey-dev Supabase URL must use HTTPS (or a loopback URL for local development)" >&2
+		exit 64
+		;;
+esac
+case "$SIDEY_SUPABASE_URL" in
+	*whtejsviizgejauasqqt*)
+		echo "Refusing to build Sidey-dev against the production Supabase project" >&2
+		exit 64
+		;;
+esac
+case "$SIDEY_SUPABASE_PUBLISHABLE_KEY" in
+	sb_secret_*|service_role*)
+		echo "Refusing to embed a Supabase secret/service-role key in Sidey-dev" >&2
+		exit 64
+		;;
+esac
+
 cleanup() {
 	if [ "$SIDEY_INSTALL_COMPLETE" != 1 ] && [ -n "$SIDEY_INSTALL_DIR" ]; then
 		if [ -d "$SIDEY_BACKUP_APP" ]; then
@@ -51,8 +76,12 @@ xcodebuild \
 	CODE_SIGN_IDENTITY=- \
 	ENABLE_HARDENED_RUNTIME=NO \
 	SIDEY_AUTH_URL_SCHEME=sidey-dev \
+	SIDEY_APP_BUNDLE_IDENTIFIER=app.sidey.desktop.dev \
 	SIDEY_DISPLAY_NAME=Sidey-dev \
+	SIDEY_LOGIN_ITEM_BUNDLE_IDENTIFIER=app.sidey.desktop.dev.login-item \
 	SIDEY_RELEASE_CHANNEL=development \
+	SIDEY_SUPABASE_URL="$SIDEY_SUPABASE_URL" \
+	SIDEY_SUPABASE_PUBLISHABLE_KEY="$SIDEY_SUPABASE_PUBLISHABLE_KEY" \
 	build
 
 if [ ! -d "$SIDEY_PRODUCT_APP" ]; then
@@ -77,8 +106,8 @@ for SIDEY_REQUIRED_PATH in \
 	fi
 done
 
-if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SIDEY_INFO_PLIST")" != app.sidey.desktop ]; then
-	echo "Development app must preserve the production bundle identifier" >&2
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SIDEY_INFO_PLIST")" != app.sidey.desktop.dev ]; then
+	echo "Development app must use its isolated bundle identifier" >&2
 	exit 65
 fi
 if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$SIDEY_INFO_PLIST")" != Sidey-dev ]; then
@@ -102,8 +131,13 @@ if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$SIDEY_INFO_PLIST")
 	echo "Development app build number does not match the Xcode project" >&2
 	exit 65
 fi
-if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SIDEY_LOGIN_INFO_PLIST")" != app.sidey.desktop.login-item ]; then
-	echo "Development login item must preserve the production bundle identifier" >&2
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SIDEY_LOGIN_INFO_PLIST")" != app.sidey.desktop.dev.login-item ]; then
+	echo "Development login item must use its isolated bundle identifier" >&2
+	exit 65
+fi
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :SIDEYSupabaseURL' "$SIDEY_INFO_PLIST")" != "$SIDEY_SUPABASE_URL" ] \
+	|| [ "$(/usr/libexec/PlistBuddy -c 'Print :SIDEYSupabasePublishableKey' "$SIDEY_INFO_PLIST")" != "$SIDEY_SUPABASE_PUBLISHABLE_KEY" ]; then
+	echo "Development app does not contain the requested SIDEY-staging configuration" >&2
 	exit 65
 fi
 if [ "$(lipo -archs "$SIDEY_MAIN_EXECUTABLE")" != arm64 ] \

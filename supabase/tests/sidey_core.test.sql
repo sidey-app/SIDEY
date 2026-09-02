@@ -6,7 +6,7 @@ set local role postgres;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(48);
+select plan(51);
 
 insert into auth.users (
   id,
@@ -125,6 +125,31 @@ select is(
 );
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+select throws_ok(
+  $$select public.upsert_profile('무료친구', 'pixel_guinea_pig')$$,
+  '42501',
+  'character_ownership_required',
+  'new paid character is rejected without an entitlement'
+);
+
+set local role postgres;
+insert into public.commerce_entitlements (
+  user_id, entitlement_key, source_order_id, status, grant_kind, grant_reference
+)
+select '00000000-0000-0000-0000-000000000002'::uuid,
+       entitlement_key,
+       null,
+       'active',
+       'complimentary',
+       'sidey-core-pgtap'
+from unnest(array[
+  'character:pixel_guinea_pig',
+  'character:pixel_monkey',
+  'character:pixel_chinchilla'
+]) entitlement_key;
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+
 select lives_ok(
   $$select public.upsert_profile(' 민 트 ', 'pixel_hamster')$$,
   'duplicate nickname is allowed in the same room'
@@ -132,6 +157,25 @@ select lives_ok(
 select lives_ok(
   $$select public.upsert_profile('가나다라마바사아', 'pixel_hamster')$$,
   'eight-character nickname is accepted'
+);
+select lives_ok(
+  $$
+    do $body$
+    declare
+      character_id text;
+    begin
+      foreach character_id in array array['pixel_guinea_pig', 'pixel_monkey', 'pixel_chinchilla'] loop
+        perform public.upsert_profile('무료친구', character_id);
+      end loop;
+    end;
+    $body$
+  $$,
+  'all three new paid character ids are selectable with complimentary entitlements'
+);
+select is(
+  (select character_id from public.upsert_profile('무료친구', 'pixel_koala')),
+  'pixel_chinchilla',
+  'legacy koala id is normalized to the corrected chinchilla id'
 );
 select throws_ok(
   $$select public.upsert_profile('가나다라마바사아자', 'pixel_hamster')$$,

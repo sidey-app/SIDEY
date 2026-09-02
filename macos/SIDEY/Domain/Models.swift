@@ -222,9 +222,21 @@ enum CommerceCatalog {
     static let starlightUpalupaEntitlementKey = "character:pixel_starlight_upalupa"
     static let starlightUpalupaDescription = "진주빛 몸과 별빛 아가미를 가진 우파루파예요. 온라인일 때 별이 은은하게 따라다니고, 더블클릭하면 별무리가 두 겹으로 팡 터져요."
 
+    static let guineaPigProductID = "character_guinea_pig"
+    static let guineaPigEntitlementKey = "character:pixel_guinea_pig"
+    static let monkeyProductID = "character_monkey"
+    static let monkeyEntitlementKey = "character:pixel_monkey"
+    static let chinchillaProductID = "character_chinchilla"
+    static let chinchillaEntitlementKey = "character:pixel_chinchilla"
+
     /// Product order is a presentation contract. Registering a future product
     /// here is enough for the existing store grid to render it.
-    static let products: [CommerceProduct] = [.starlightUpalupa]
+    static let products: [CommerceProduct] = [
+        .starlightUpalupa,
+        .guineaPig,
+        .monkey,
+        .chinchilla,
+    ]
 
     static func product(id: String) -> CommerceProduct? {
         products.first { $0.id == id }
@@ -247,6 +259,39 @@ struct CommerceProduct: Equatable, Sendable {
         description: CommerceCatalog.starlightUpalupaDescription,
         characterID: CommerceCatalog.starlightUpalupaCharacterID,
         entitlementKey: CommerceCatalog.starlightUpalupaEntitlementKey,
+        amountKRW: 1_900,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let guineaPig = CommerceProduct(
+        id: CommerceCatalog.guineaPigProductID,
+        displayName: "아기 기니피그",
+        description: "낮고 동글동글한 몸에 비대칭 삼색 무늬가 매력인 작은 친구예요.",
+        characterID: PixelCharacterCatalog.pixelGuineaPigID,
+        entitlementKey: CommerceCatalog.guineaPigEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let monkey = CommerceProduct(
+        id: CommerceCatalog.monkeyProductID,
+        displayName: "아기 원숭이",
+        description: "세 갈래 머리털과 시안 목도리로 씩씩하게 산책하는 친구예요.",
+        characterID: PixelCharacterCatalog.pixelMonkeyID,
+        entitlementKey: CommerceCatalog.monkeyEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let chinchilla = CommerceProduct(
+        id: CommerceCatalog.chinchillaProductID,
+        displayName: "아기 친칠라",
+        description: "크고 둥근 귀와 포근한 회색 털, 파란 목도리를 가진 친구예요.",
+        characterID: PixelCharacterCatalog.pixelChinchillaID,
+        entitlementKey: CommerceCatalog.chinchillaEntitlementKey,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -591,6 +636,20 @@ struct RealtimeConnectionTracker: Equatable, Sendable {
 
     var isConnected: Bool {
         subscribedRoomIDs == desiredRoomIDs
+    }
+}
+
+struct RealtimeTopology: Equatable, Sendable {
+    let roomEpochs: [UUID: Int]
+
+    init(rooms: some Sequence<Room>) {
+        roomEpochs = Dictionary(uniqueKeysWithValues: rooms.prefix(5).map {
+            ($0.id, $0.realtimeEpoch)
+        })
+    }
+
+    init(channelEpochs: [UUID: Int]) {
+        roomEpochs = channelEpochs
     }
 }
 

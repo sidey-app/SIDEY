@@ -21,6 +21,7 @@ extension AppCoordinator {
             return
         }
         let requireExistingSession = model.preferences.onboardingComplete
+        backendConnectionStatus = nil
         model.connectionState = .connecting
         backendEventTask?.cancel()
         backendEventTask = Task { [weak self] in
@@ -72,11 +73,26 @@ extension AppCoordinator {
             model.selectedCharacterID = PixelCharacterCatalog.pixelHamsterID
             return
         }
-        runMutation {
-            _ = try await backend.upsertProfile(
-                nickname: self.model.nickname,
-                characterID: characterID
-            )
+        guard !model.isWorking, model.groupOperation == .idle else { return }
+        model.isWorking = true
+        model.errorMessage = nil
+        model.successMessage = nil
+        Task { [weak self] in
+            guard let self else { return }
+            defer { model.isWorking = false }
+            do {
+                let profile = try await backend.upsertProfile(
+                    nickname: model.nickname,
+                    characterID: characterID
+                )
+                model.apply(profile: profile)
+                model.successMessage = "프로필을 저장했습니다."
+                applyRequestedOverlayVisibility()
+                refreshStatusItem()
+                persistPreferences()
+            } catch {
+                model.errorMessage = error.localizedDescription
+            }
         }
     }
 
@@ -305,20 +321,11 @@ extension AppCoordinator {
             applyRequestedOverlayVisibility()
             refreshStatusItem()
             persistPreferences()
-            if let backend {
-                Task { [weak self] in
-                    guard let self else { return }
-                    do {
-                        let reconciliation = try await backend.syncRealtime(
-                            rooms: snapshot.rooms,
-                            activeRoomID: model.realtimeActiveRoomID
-                        )
-                        applyBackendReconciliation(reconciliation)
-                    } catch {
-                        model.connectionState = .failed(error.localizedDescription)
-                    }
-                }
-            }
+        case .reconciliation(let reconciliation):
+            applyBackendReconciliation(reconciliation)
+            applyRequestedOverlayVisibility()
+            refreshStatusItem()
+            persistPreferences()
         case .message(let message):
             let isActiveRoom = message.roomID == model.activeRoom?.id
             let revealMessage = isActiveRoom && !model.preferences.quietModeEnabled
@@ -358,9 +365,17 @@ extension AppCoordinator {
                   )
             else { return }
             overlayWindows.playCharacterPulse(event)
-        case .connection(let connected):
-            model.connectionState = connected ? .online : .connecting
-            model.setRealtimeConnected(connected)
+        case .connection(let status):
+            let previousStatus = backendConnectionStatus
+            backendConnectionStatus = status
+            model.connectionState = status.isReady ? .online : .connecting
+            if previousStatus?.transportConnected == true,
+               !status.transportConnected {
+                model.setRealtimeConnected(false)
+            } else if status.transportConnected,
+                      previousStatus?.transportConnected != true {
+                model.setRealtimeConnected(true)
+            }
         case .technicalError(let message):
             model.errorMessage = message
         }
@@ -439,7 +454,9 @@ extension AppCoordinator {
     }
 
     func refreshCommerceState(productID: String? = nil) {
-        guard let backend else { return }
+        guard releaseChannel.storeAvailability.allowsCommerceActions,
+              let backend
+        else { return }
         let productIDs = productID.map { [$0] } ?? model.commerceProducts.map(\.id)
 
         for productID in productIDs {
@@ -470,7 +487,8 @@ extension AppCoordinator {
     }
 
     private func connectGoogleForCommerce(productID: String) {
-        guard let backend,
+        guard releaseChannel.storeAvailability.allowsCommerceActions,
+              let backend,
               model.commerceProduct(id: productID) != nil,
               commerceProductTasks[productID] == nil,
               googleConnectionProductID == nil || googleConnectionProductID == productID
@@ -509,7 +527,8 @@ extension AppCoordinator {
     }
 
     func purchase(productID: String) {
-        guard let backend,
+        guard releaseChannel.storeAvailability.allowsCommerceActions,
+              let backend,
               let productState = model.commerceProduct(id: productID),
               commerceProductTasks[productID] == nil,
               productState.purchaseState != .owned

@@ -111,9 +111,16 @@ struct PixelSparklePulseWave: Equatable, Sendable {
 
 enum PixelCharacterCatalog {
     static let pixelHamsterID = "pixel_hamster"
+    static let pixelGuineaPigID = "pixel_guinea_pig"
+    static let pixelMonkeyID = "pixel_monkey"
+    static let pixelChinchillaID = "pixel_chinchilla"
     static let pixelStarlightUpalupaID = "pixel_starlight_upalupa"
     static let starlightUpalupaEntitlementKey = "character:pixel_starlight_upalupa"
+    static let guineaPigEntitlementKey = "character:pixel_guinea_pig"
+    static let monkeyEntitlementKey = "character:pixel_monkey"
+    static let chinchillaEntitlementKey = "character:pixel_chinchilla"
     static let legacyMintyPupID = "minty_pup"
+    static let legacyPixelKoalaID = "pixel_koala"
 
     static let all: [PixelCharacterDefinition] = [
         PixelCharacterDefinition(
@@ -177,6 +184,42 @@ enum PixelCharacterCatalog {
             sparkleEffect: nil
         ),
         PixelCharacterDefinition(
+            id: pixelGuineaPigID,
+            displayName: "아기 기니피그",
+            resourceName: "pixel_guinea_pig",
+            resourceDirectory: "Characters/PixelGuineaPig",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "브라운 · 캐러멜 · 크림",
+            entitlementKey: guineaPigEntitlementKey,
+            mirrorsToMovementDirection: true,
+            sparkleEffect: nil
+        ),
+        PixelCharacterDefinition(
+            id: pixelMonkeyID,
+            displayName: "아기 원숭이",
+            resourceName: "pixel_monkey",
+            resourceDirectory: "Characters/PixelMonkey",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "웜 브라운 · 피치 · 시안",
+            entitlementKey: monkeyEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil
+        ),
+        PixelCharacterDefinition(
+            id: pixelChinchillaID,
+            displayName: "아기 친칠라",
+            resourceName: "pixel_chinchilla",
+            resourceDirectory: "Characters/PixelChinchilla",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "쿨 그레이 · 크림 · 스카이 블루",
+            entitlementKey: chinchillaEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil
+        ),
+        PixelCharacterDefinition(
             id: pixelStarlightUpalupaID,
             displayName: "별빛 우파루파",
             resourceName: "pixel_starlight_upalupa",
@@ -198,7 +241,11 @@ enum PixelCharacterCatalog {
     static let footBaselinePixel = 3
 
     static func canonicalID(for storedID: String) -> String {
-        let candidate = storedID == legacyMintyPupID ? pixelHamsterID : storedID
+        let candidate = switch storedID {
+        case legacyMintyPupID: pixelHamsterID
+        case legacyPixelKoalaID: pixelChinchillaID
+        default: storedID
+        }
         return all.contains(where: { $0.id == candidate }) ? candidate : pixelHamsterID
     }
 

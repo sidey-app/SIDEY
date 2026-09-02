@@ -1,5 +1,10 @@
-export const PRODUCT_ID = "character_starlight_upalupa";
-export const TOSS_API_BASE = "https://api.tosspayments.com/v1";
+export const SUPPORTED_PRODUCT_IDS = new Set([
+  "character_starlight_upalupa",
+  "character_guinea_pig",
+  "character_monkey",
+  "character_chinchilla",
+]);
+export const PORTONE_API_BASE = "https://api.portone.io";
 
 export const corsHeaders = {
   "access-control-allow-origin": "*",
@@ -8,11 +13,7 @@ export const corsHeaders = {
 };
 
 export class HttpError extends Error {
-  constructor(
-    readonly status: number,
-    readonly code: string,
-    message = code,
-  ) {
+  constructor(readonly status: number, readonly code: string, message = code) {
     super(message);
   }
 }
@@ -25,35 +26,30 @@ export class CommerceConfigurationError extends Error {
 
 export type CommerceOrder = {
   order_id: string;
-  provider_order_id: string;
+  payment_id: string;
+  product_id: string;
   display_name: string;
+  character_id?: string;
   amount_krw: number;
   currency: string;
-  checkout_token_expires_at?: string;
   customer_name?: string;
   policy_version?: string;
   policy_notice?: string;
   policy_consented_at?: string | null;
-  payment_environment?: CommercePaymentEnvironment;
+  payment_environment?: "test" | "live";
+  order_status?: string;
 };
 
-export type CommercePaymentEnvironment = "test" | "live";
-
-export type CommerceRuntimeConfiguration = {
-  sales_enabled: boolean;
-  payment_environment: CommercePaymentEnvironment;
-  policy_version: string;
-  policy_notice: string;
-};
-
-export type TossPayment = {
-  paymentKey: string;
-  orderId: string;
+export type PortOnePayment = {
+  id: string;
   status: string;
+  storeId: string;
+  channel?: { key?: string; type?: string };
+  version: string;
+  transactionId?: string;
+  amount: { total: number; cancelled?: number };
   currency: string;
-  totalAmount: number;
-  balanceAmount: number;
-  lastTransactionKey?: string | null;
+  method?: { type?: string };
 };
 
 function requiredEnvironment(name: string): string {
@@ -66,21 +62,6 @@ export function supabaseURL(): string {
   return requiredEnvironment("SUPABASE_URL").replace(/\/$/, "");
 }
 
-export function functionURL(name: string): string {
-  const configuredURL = Deno.env.get("SIDEY_PUBLIC_SUPABASE_URL")?.trim();
-  const baseURL = new URL(configuredURL || supabaseURL());
-  if (baseURL.protocol !== "http:" && baseURL.protocol !== "https:") {
-    throw new CommerceConfigurationError("SIDEY_PUBLIC_SUPABASE_URL");
-  }
-  if (["kong", "edge-runtime"].includes(baseURL.hostname.toLowerCase())) {
-    throw new CommerceConfigurationError("SIDEY_PUBLIC_SUPABASE_URL");
-  }
-  baseURL.pathname = `/functions/v1/${name}`;
-  baseURL.search = "";
-  baseURL.hash = "";
-  return baseURL.toString();
-}
-
 function websitePageURL(path: string): URL {
   const base = Deno.env.get("SIDEY_WEBSITE_URL")?.trim()
     || "https://sidey-app.github.io/SIDEY/";
@@ -91,34 +72,60 @@ function websitePageURL(path: string): URL {
   return url;
 }
 
+function publicFunctionBaseURL(): string {
+  const configured = Deno.env.get("SIDEY_PUBLIC_SUPABASE_URL")?.trim() || supabaseURL();
+  const url = new URL(configured);
+  if (url.hostname.toLowerCase() === "whtejsviizgejauasqqt.supabase.co") {
+    throw new CommerceConfigurationError("SIDEY_PUBLIC_SUPABASE_URL");
+  }
+  url.pathname = "/functions/v1";
+  url.search = "";
+  url.hash = "";
+  return url.toString().replace(/\/$/, "");
+}
+
 export function checkoutPageURL(token: string): string {
   const url = websitePageURL("checkout.html");
-  // Keep the one-time bearer token in the URL fragment so it is not sent to
-  // the static host in the HTTP request or its access logs.
+  url.searchParams.set("api", publicFunctionBaseURL());
   url.hash = new URLSearchParams({ token }).toString();
   return url.toString();
 }
 
-export function checkoutResultURL(result: string): string {
+export function checkoutResultURL(result: string, productID?: string): string {
   const url = websitePageURL("checkout-result.html");
   url.searchParams.set("result", result);
+  if (productID && SUPPORTED_PRODUCT_IDS.has(productID)) url.searchParams.set("product", productID);
   return url.toString();
 }
 
-export function redirectResponse(location: string, status = 303): Response {
-  return new Response(null, {
-    status,
-    headers: {
-      location,
-      "cache-control": "no-store",
-      "referrer-policy": "no-referrer",
-      "x-content-type-options": "nosniff",
-    },
-  });
+export function checkoutRedirectURL(token: string, productID: string): string {
+  const url = new URL(checkoutResultURL("complete", productID));
+  url.searchParams.set("api", publicFunctionBaseURL());
+  url.hash = new URLSearchParams({ token }).toString();
+  return url.toString();
 }
 
-export function tossClientKey(): string {
-  return requiredEnvironment("TOSS_PAYMENTS_CLIENT_KEY");
+export function portOneStoreID(): string {
+  return requiredEnvironment("PORTONE_STORE_ID");
+}
+
+export function portOneChannelKey(): string {
+  return requiredEnvironment("PORTONE_CHANNEL_KEY");
+}
+
+function portOneAPISecret(): string {
+  return requiredEnvironment("PORTONE_API_SECRET");
+}
+
+export function portOneWebhookSecret(): string {
+  return requiredEnvironment("PORTONE_WEBHOOK_SECRET");
+}
+
+export function assertPortOneConfiguration(): void {
+  portOneStoreID();
+  portOneChannelKey();
+  portOneAPISecret();
+  portOneWebhookSecret();
 }
 
 function serviceRoleKey(): string {
@@ -130,54 +137,6 @@ function publishableKey(): string {
     || requiredEnvironment("SIDEY_SUPABASE_PUBLISHABLE_KEY");
 }
 
-function tossSecretKey(): string {
-  return requiredEnvironment("TOSS_PAYMENTS_SECRET_KEY");
-}
-
-function tossKeyDescriptor(
-  key: string,
-  kind: "client" | "secret",
-): { environment: CommercePaymentEnvironment; family: "widget" | "core" } | null {
-  const match = key.match(kind === "client"
-    ? /^(test|live)_(gck|ck)_/
-    : /^(test|live)_(gsk|sk)_/);
-  if (!match) return null;
-  return {
-    environment: match[1] as CommercePaymentEnvironment,
-    family: match[2].startsWith("g") ? "widget" : "core",
-  };
-}
-
-export function assertCheckoutConfiguration(
-  expectedEnvironment: CommercePaymentEnvironment,
-): void {
-  functionURL("commerce-checkout");
-  const client = tossKeyDescriptor(tossClientKey(), "client");
-  const secret = tossKeyDescriptor(tossSecretKey(), "secret");
-  if (
-    !client
-    || !secret
-    || client.environment !== secret.environment
-    || client.family !== secret.family
-    || client.environment !== expectedEnvironment
-  ) {
-    throw new CommerceConfigurationError("TOSS_PAYMENTS_KEY_PAIR");
-  }
-}
-
-export async function assertRuntimePaymentConfiguration(): Promise<CommerceRuntimeConfiguration> {
-  const rows = await serviceRPC<CommerceRuntimeConfiguration[]>(
-    "commerce_runtime_configuration",
-    {},
-  );
-  const runtime = rows[0];
-  if (!runtime || (runtime.payment_environment !== "test" && runtime.payment_environment !== "live")) {
-    throw new CommerceConfigurationError("COMMERCE_RUNTIME_SETTINGS");
-  }
-  assertCheckoutConfiguration(runtime.payment_environment);
-  return runtime;
-}
-
 export function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -185,6 +144,7 @@ export function jsonResponse(body: unknown, status = 200): Response {
       ...corsHeaders,
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
+      "x-content-type-options": "nosniff",
     },
   });
 }
@@ -240,11 +200,7 @@ async function rpc<T>(
 ): Promise<T> {
   const response = await fetch(`${supabaseURL()}/rest/v1/rpc/${name}`, {
     method: "POST",
-    headers: {
-      authorization,
-      apikey: apiKey,
-      "content-type": "application/json",
-    },
+    headers: { authorization, apikey: apiKey, "content-type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
@@ -256,11 +212,7 @@ async function rpc<T>(
   return await response.json() as T;
 }
 
-export function userRPC<T>(
-  name: string,
-  body: Record<string, unknown>,
-  authorization: string,
-): Promise<T> {
+export function userRPC<T>(name: string, body: Record<string, unknown>, authorization: string): Promise<T> {
   return rpc(name, body, authorization, publishableKey());
 }
 
@@ -269,43 +221,81 @@ export function serviceRPC<T>(name: string, body: Record<string, unknown>): Prom
   return rpc(name, body, `Bearer ${key}`, key);
 }
 
-function tossAuthorization(): string {
-  return `Basic ${btoa(`${tossSecretKey()}:`)}`;
-}
-
-export async function tossRequest<T>(
+export async function portOneRequest<T>(
   path: string,
   options: { method?: "GET" | "POST"; body?: unknown; idempotencyKey?: string } = {},
 ): Promise<T> {
   const headers: Record<string, string> = {
-    authorization: tossAuthorization(),
+    authorization: `PortOne ${portOneAPISecret()}`,
     "content-type": "application/json",
   };
-  if (options.idempotencyKey) headers["Idempotency-Key"] = options.idempotencyKey;
-  const response = await fetch(`${TOSS_API_BASE}${path}`, {
+  if (options.idempotencyKey) headers["Idempotency-Key"] = `"${options.idempotencyKey}"`;
+  const response = await fetch(`${PORTONE_API_BASE}${path}`, {
     method: options.method ?? "GET",
     headers,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    console.error("Toss Payments request failed", response.status, payload?.code);
+    console.error("PortOne request failed", response.status, payload?.type);
     throw new HttpError(502, "payment_provider_error", "결제사 응답을 확인하지 못했습니다.");
   }
   return payload as T;
 }
 
-export function validatePayment(payment: TossPayment, expected: CommerceOrder): TossPayment {
+export function validatePortOnePayment(
+  payment: PortOnePayment,
+  expected: CommerceOrder,
+  requiredStatus?: string,
+): PortOnePayment {
+  const expectedChannelType = expected.payment_environment === "live" ? "LIVE" : "TEST";
   if (
-    payment.orderId !== expected.provider_order_id
-    || payment.totalAmount !== expected.amount_krw
+    payment.id !== expected.payment_id
+    || payment.storeId !== portOneStoreID()
+    || payment.channel?.key !== portOneChannelKey()
+    || payment.channel?.type !== expectedChannelType
+    || payment.version !== "V2"
+    || payment.amount?.total !== expected.amount_krw
     || payment.currency !== expected.currency
-    || typeof payment.paymentKey !== "string"
-    || payment.paymentKey.length < 10
+    || payment.method?.type !== "PaymentMethodEasyPay"
+    || (requiredStatus !== undefined && payment.status !== requiredStatus)
   ) {
     throw new HttpError(409, "payment_verification_failed", "결제 정보가 주문과 일치하지 않습니다.");
   }
   return payment;
+}
+
+export async function applyPortOnePayment(
+  order: CommerceOrder,
+  payment: PortOnePayment,
+  eventID: string,
+  eventType: string,
+  payloadHash?: string,
+): Promise<string> {
+  validatePortOnePayment(payment, order);
+  const cancelled = payment.amount.cancelled ?? 0;
+  const balance = payment.amount.total - cancelled;
+  if (!Number.isSafeInteger(balance) || balance < 0) {
+    throw new HttpError(409, "payment_verification_failed");
+  }
+  const hash = payloadHash ?? await sha256Hex(JSON.stringify(payment));
+  return await serviceRPC<string>("commerce_record_portone_state", {
+    p_event_id: eventID,
+    p_event_type: eventType,
+    p_payload_sha256_hex: hash,
+    p_payment_id: payment.id,
+    p_store_id: payment.storeId,
+    p_channel_key: payment.channel?.key,
+    p_portone_version: payment.version,
+    p_channel_type: payment.channel?.type,
+    p_amount_krw: payment.amount.total,
+    p_balance_amount_krw: balance,
+    p_currency: payment.currency,
+    p_provider_status: payment.status,
+    p_transaction_id: payment.transactionId ?? null,
+    p_payment_method_type: "EASY_PAY",
+    p_verified_at: new Date().toISOString(),
+  });
 }
 
 export async function constantTimeEqual(left: string, right: string): Promise<boolean> {

@@ -172,7 +172,7 @@ final class SettingsInteractionTests: XCTestCase {
         }
     }
 
-    func testResponsiveSquareStoreGridRendersLongAndIndependentCardStates() throws {
+    func testTwoColumnStoreGridRendersLongAndIndependentCardStates() throws {
         let products = [
             CommerceProduct(
                 id: "fixture_store_first",
@@ -252,26 +252,11 @@ final class SettingsInteractionTests: XCTestCase {
                         configureState(model)
                     }
                     XCTAssertGreaterThan(data.count, 10_000)
-                    let placementData = try renderSettings(
-                        size: size,
-                        colorScheme: scheme,
-                        scrollToBottom: true,
-                        commerceProducts: products
-                    ) { model in
-                        model.activeSettingsPage = .store
-                        configureState(model)
-                    }
-                    XCTAssertGreaterThan(placementData.count, 10_000)
                     if let configuredOutput {
                         let mode = scheme == .light ? "light" : "dark"
                         try data.write(
                             to: configuredOutput.appending(
                                 path: "store-\(scenario)-\(sizeName)-\(mode).png"
-                            )
-                        )
-                        try placementData.write(
-                            to: configuredOutput.appending(
-                                path: "store-\(scenario)-\(sizeName)-\(mode)-placement.png"
                             )
                         )
                     }
@@ -280,11 +265,64 @@ final class SettingsInteractionTests: XCTestCase {
         }
     }
 
+    func testProductionStoreRendersFourLockedCardsWithoutRefreshingCommerce() throws {
+        var refreshCalls = 0
+        var purchaseCalls = 0
+        var actions = SettingsActions.empty
+        actions.onRefreshCommerceState = { _ in refreshCalls += 1 }
+        actions.onPurchase = { _ in purchaseCalls += 1 }
+        let snapshotSentinel = "/private/tmp/sidey-store-snapshots"
+        let outputDirectory = ProcessInfo.processInfo.environment["SIDEY_STORE_SNAPSHOT_DIR"]
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? (FileManager.default.fileExists(atPath: snapshotSentinel)
+                ? URL(fileURLWithPath: snapshotSentinel, isDirectory: true)
+                : nil)
+        if let outputDirectory {
+            try FileManager.default.createDirectory(
+                at: outputDirectory,
+                withIntermediateDirectories: true
+            )
+        }
+
+        let sizes: [(String, CGSize)] = [
+            ("minimum", CGSize(width: 860, height: 640)),
+            ("default", CGSize(width: 1000, height: 760)),
+        ]
+        let schemes: [ColorScheme] = [.light, .dark]
+        for (sizeName, size) in sizes {
+            for scheme in schemes {
+                let data = try renderSettings(
+                    size: size,
+                    colorScheme: scheme,
+                    storeAvailability: .comingSoon,
+                    actions: actions
+                ) { model in
+                    model.activeSettingsPage = .store
+                }
+                XCTAssertGreaterThan(data.count, 10_000)
+                if let outputDirectory {
+                    let mode = scheme == .light ? "light" : "dark"
+                    try data.write(
+                        to: outputDirectory.appending(
+                            path: "store-locked-\(sizeName)-\(mode).png"
+                        )
+                    )
+                }
+            }
+        }
+
+        XCTAssertEqual(CommerceCatalog.products.count, 4)
+        XCTAssertEqual(refreshCalls, 0)
+        XCTAssertEqual(purchaseCalls, 0)
+    }
+
     private func renderSettings(
         size: CGSize,
         colorScheme: ColorScheme,
         scrollToBottom: Bool = false,
         commerceProducts: [CommerceProduct] = CommerceCatalog.products,
+        storeAvailability: StoreAvailability = AppReleaseChannel.resolve().storeAvailability,
+        actions: SettingsActions = .empty,
         configure: (AppModel) -> Void = { _ in }
     ) throws -> Data {
         var preferences = AppPreferences.defaults
@@ -298,7 +336,11 @@ final class SettingsInteractionTests: XCTestCase {
         ]
         configure(model)
 
-        let root = SettingsRootView(model: model, actions: .empty)
+        let root = SettingsRootView(
+            model: model,
+            actions: actions,
+            storeAvailability: storeAvailability
+        )
             .environment(\.colorScheme, colorScheme)
             .frame(width: size.width, height: size.height)
         let hostingView = NSHostingView(rootView: root)

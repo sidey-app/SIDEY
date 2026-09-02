@@ -12,6 +12,15 @@ struct BackendReconciliation: Equatable, Sendable {
     let activeMessages: [ChatMessage]
 }
 
+struct BackendConnectionStatus: Equatable, Sendable {
+    let transportConnected: Bool
+    let recoveryReconciled: Bool
+
+    var isReady: Bool {
+        transportConnected && recoveryReconciled
+    }
+}
+
 struct MessageHistoryCursor: Equatable, Sendable {
     let rawCreatedAt: String
     let id: UUID
@@ -24,6 +33,7 @@ struct MessageHistoryPage: Equatable, Sendable {
 
 enum BackendEvent: Sendable {
     case snapshot(BackendSnapshot)
+    case reconciliation(BackendReconciliation)
     case message(ChatMessage)
     case messageDeleted(roomID: UUID, messageID: UUID)
     case messagesInvalidated(roomID: UUID)
@@ -31,7 +41,7 @@ enum BackendEvent: Sendable {
     case presence(roomID: UUID, userID: UUID, state: PresenceState)
     case typing(roomID: UUID, userID: UUID, active: Bool)
     case characterPulse(CharacterPulseEvent)
-    case connection(Bool)
+    case connection(BackendConnectionStatus)
     case technicalError(String)
 }
 

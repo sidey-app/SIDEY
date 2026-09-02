@@ -1,22 +1,28 @@
 (() => {
   "use strict";
 
-  const shell = document.querySelector(".checkout-shell");
+  const productionHost = "whtejsviizgejauasqqt.supabase.co";
+  const products = {
+    character_starlight_upalupa: { image: "pixel_starlight_upalupa.png" },
+    character_guinea_pig: { image: "pixel_guinea_pig.png" },
+    character_monkey: { image: "pixel_monkey.png" },
+    character_chinchilla: { image: "pixel_chinchilla.png" },
+  };
   const loading = document.querySelector("#checkout-loading");
   const error = document.querySelector("#checkout-error");
   const errorMessage = document.querySelector("#checkout-error-message");
   const product = document.querySelector("#checkout-product");
+  const productImage = document.querySelector("#checkout-product-image");
   const orderName = document.querySelector("#checkout-order-name");
   const amount = document.querySelector("#checkout-amount");
-  const environment = document.querySelector("#checkout-environment");
-  const policyNotice = document.querySelector("#checkout-policy-notice");
+  const meta = document.querySelector("#checkout-meta");
   const consent = document.querySelector("#checkout-consent");
+  const policyNotice = document.querySelector("#checkout-policy-notice");
   const payButton = document.querySelector("#checkout-pay");
   const status = document.querySelector("#checkout-status");
-  const checkoutEndpoint = shell?.dataset.checkoutEndpoint ?? "";
-  let checkoutToken = "";
-  let preparedOrder = null;
-  let paymentWindow = null;
+  let token = "";
+  let apiBase = "";
+  let prepared = null;
 
   function showError(message) {
     loading.hidden = true;
@@ -25,165 +31,144 @@
     error.hidden = false;
   }
 
-  function validReturnURL(value) {
+  function validAPIBase(value) {
     try {
       const url = new URL(value);
-      return url.protocol === "https:"
-        && url.hostname === "whtejsviizgejauasqqt.supabase.co"
-        && url.pathname === "/functions/v1/commerce-return";
+      const loopback = url.protocol === "http:"
+        && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+      const staging = url.protocol === "https:"
+        && url.hostname.endsWith(".supabase.co")
+        && url.hostname !== productionHost;
+      return (loopback || staging) && url.pathname === "/functions/v1" ? url.toString().replace(/\/$/, "") : "";
     } catch {
-      return false;
+      return "";
     }
   }
 
-  function validPreparedOrder(config) {
-    return config
-      && typeof config.order_name === "string"
-      && config.order_name.length > 0
-      && Number.isSafeInteger(config.amount)
-      && config.amount > 0
-      && config.currency === "KRW"
-      && typeof config.policy_version === "string"
-      && config.policy_version.length > 0
-      && typeof config.policy_notice === "string"
-      && config.policy_notice.length >= 80
-      && ["test", "live"].includes(config.payment_environment);
-  }
-
-  function validPaymentConfig(config) {
-    return config
-      && preparedOrder
-      && config.policy_version === preparedOrder.policy_version
-      && config.payment_environment === preparedOrder.payment_environment
-      && config.consent_recorded === true
-      && config.order_name === preparedOrder.order_name
-      && config.amount === preparedOrder.amount
-      && config.currency === preparedOrder.currency
-      && typeof config.client_key === "string"
-      && config.client_key.length > 0
-      && typeof config.customer_key === "string"
-      && config.customer_key.length >= 6
-      && typeof config.order_id === "string"
-      && config.order_id.length >= 6
-      && typeof config.customer_name === "string"
-      && validReturnURL(config.success_url)
-      && validReturnURL(config.fail_url);
-  }
-
-  async function requestCheckout(body) {
-    const response = await fetch(checkoutEndpoint, {
+  async function request(path, body) {
+    const response = await fetch(`${apiBase}/${path}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
       cache: "no-store",
     });
     const payload = await response.json().catch(() => null);
-    if (response.status === 410) throw new Error("checkout_expired");
     if (!response.ok) {
-      throw new Error(typeof payload?.error === "string" ? payload.error : "checkout_unavailable");
+      const requestError = new Error(payload?.error || "checkout_request_failed");
+      requestError.status = response.status;
+      throw requestError;
     }
     return payload;
   }
 
-  function setControlsEnabled(enabled) {
-    consent.disabled = !enabled;
-    payButton.disabled = !enabled || !consent.checked;
+  function validPrepared(config) {
+    return config
+      && products[config.product_id]
+      && typeof config.order_name === "string"
+      && Number.isSafeInteger(config.amount)
+      && config.amount > 0
+      && config.currency === "KRW"
+      && typeof config.policy_version === "string"
+      && typeof config.policy_notice === "string"
+      && ["test", "live"].includes(config.payment_environment);
   }
 
-  async function openPaymentWindow() {
-    if (!consent.checked) {
-      payButton.disabled = true;
-      status.textContent = "결제 조건을 확인하고 동의해 주세요.";
-      return;
-    }
-    setControlsEnabled(false);
-    status.textContent = "동의 내용을 안전하게 기록하고 있어요…";
+  function validAuthorized(config) {
     try {
-      const config = await requestCheckout({
-        token: checkoutToken,
-        action: "consent",
-        accepted: true,
-        policy_version: preparedOrder.policy_version,
-      });
-      if (!validPaymentConfig(config)) throw new Error("invalid_checkout_config");
-
-      status.textContent = "결제창을 준비하고 있어요…";
-      if (typeof window.TossPayments !== "function") throw new Error("toss_sdk_unavailable");
-      const tossPayments = window.TossPayments(config.client_key);
-      const widgets = tossPayments.widgets({ customerKey: config.customer_key });
-      await widgets.setAmount({ currency: config.currency, value: config.amount });
-      paymentWindow = await widgets.renderPaymentWindow({
-        variantKey: { paymentMethod: "sideyCheckout" },
-      });
-      paymentWindow.on("paymentRequest", async () => {
-        status.textContent = "결제 인증을 진행하고 있어요…";
-        try {
-          await widgets.requestPayment({
-            orderId: config.order_id,
-            orderName: config.order_name,
-            customerName: config.customer_name,
-            successUrl: config.success_url,
-            failUrl: config.fail_url,
-            windowTarget: "self",
-          });
-        } catch (requestError) {
-          console.error(requestError);
-          setControlsEnabled(true);
-          status.textContent = "결제 요청을 완료하지 못했습니다. 다시 시도해주세요.";
-        }
-      });
-      paymentWindow.on("cancel", () => {
-        setControlsEnabled(true);
-        status.textContent = "결제창을 닫았습니다. 다시 시도할 수 있어요.";
-      });
-    } catch (paymentError) {
-      console.error(paymentError);
-      setControlsEnabled(true);
-      status.textContent = paymentError.message === "checkout_expired"
-        ? "주문 링크가 만료되었습니다. SIDEY 상점에서 다시 시작해주세요."
-        : "동의를 기록하거나 결제창을 열지 못했습니다. 잠시 뒤 다시 시도해주세요.";
+      const redirect = new URL(config.redirect_url);
+      return validPrepared(config)
+        && typeof config.store_id === "string"
+        && typeof config.channel_key === "string"
+        && typeof config.payment_id === "string"
+        && config.pay_method === "EASY_PAY"
+        && config.portone_currency === "CURRENCY_KRW"
+        && redirect.origin === window.location.origin
+        && redirect.pathname.endsWith("/checkout-result.html");
+    } catch {
+      return false;
     }
   }
 
-  async function loadCheckout() {
-    checkoutToken = new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "";
-    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
-    if (!/^[A-Za-z0-9_-]{43}$/.test(checkoutToken) || !checkoutEndpoint) {
-      showError("주문 링크가 올바르지 않습니다. SIDEY 상점에서 새 주문을 만들어주세요.");
+  async function completePayment(config, paymentID) {
+    const completion = await request("commerce-complete", { token, payment_id: paymentID });
+    const resultURL = new URL(completion.result_url);
+    if (resultURL.origin !== window.location.origin || !resultURL.pathname.endsWith("/checkout-result.html")) {
+      throw new Error("invalid_result_url");
+    }
+    window.location.assign(resultURL.toString());
+  }
+
+  async function start() {
+    const query = new URLSearchParams(window.location.search);
+    token = new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "";
+    apiBase = validAPIBase(query.get("api") ?? "");
+    window.history.replaceState(null, "", window.location.pathname);
+    if (!/^[A-Za-z0-9_-]{43}$/.test(token) || !apiBase) {
+      showError("Sidey-dev에서 새 주문을 만들어 접근해 주세요. 공개 구매 링크는 지원하지 않습니다.");
       return;
     }
 
     try {
-      preparedOrder = await requestCheckout({ token: checkoutToken, action: "prepare" });
-      if (!validPreparedOrder(preparedOrder)) throw new Error("invalid_checkout_config");
-
-      orderName.textContent = preparedOrder.order_name;
-      amount.textContent = new Intl.NumberFormat("ko-KR").format(preparedOrder.amount);
-      if (preparedOrder.payment_environment === "test") {
-        environment.textContent = " · 테스트 모드 · 실제 청구 없음";
-        environment.hidden = false;
-      } else {
-        environment.textContent = "";
-        environment.hidden = true;
-      }
-      policyNotice.textContent = preparedOrder.policy_notice;
-      payButton.textContent = `${amount.textContent}원 결제창 열기`;
-      consent.checked = false;
-      consent.addEventListener("change", () => {
-        payButton.disabled = !consent.checked;
-        status.textContent = "";
-      });
-      payButton.addEventListener("click", openPaymentWindow);
-      setControlsEnabled(true);
+      prepared = await request("commerce-checkout", { token, action: "prepare" });
+      if (!validPrepared(prepared)) throw new Error("invalid_checkout_config");
+      orderName.textContent = prepared.order_name;
+      amount.textContent = new Intl.NumberFormat("ko-KR").format(prepared.amount);
+      productImage.src = `./assets/characters/${products[prepared.product_id].image}`;
+      productImage.alt = prepared.order_name;
+      policyNotice.textContent = prepared.policy_notice;
+      meta.textContent = `부가세 포함 · 1회 구매 · PortOne ${prepared.payment_environment === "test" ? "테스트" : "실결제"}`;
+      payButton.textContent = `${amount.textContent}원 동의하고 결제창 열기`;
       loading.hidden = true;
       product.hidden = false;
     } catch (requestError) {
       console.error(requestError);
-      showError(requestError.message === "checkout_expired"
-        ? "주문 링크가 만료되었거나 이미 처리되었습니다. SIDEY 상점에서 다시 시도해주세요."
-        : "주문 정보를 확인하지 못했습니다. SIDEY 상점에서 다시 시도해주세요.");
+      showError(requestError.status === 410
+        ? "주문 링크가 만료되었거나 이미 처리되었습니다. Sidey-dev 상점에서 다시 시도해 주세요."
+        : "서버에서 주문을 확인하지 못했습니다. Sidey-dev 상점에서 다시 시도해 주세요.");
     }
   }
 
-  loadCheckout();
+  payButton.addEventListener("click", async () => {
+    if (!consent.checked) {
+      status.textContent = "구매 조건과 환불 안내에 먼저 동의해 주세요.";
+      consent.focus();
+      return;
+    }
+    payButton.disabled = true;
+    status.textContent = "PortOne 결제창을 준비하고 있어요…";
+    try {
+      const config = await request("commerce-checkout", {
+        token,
+        action: "authorize",
+        policy_version: prepared.policy_version,
+      });
+      if (!validAuthorized(config) || typeof window.PortOne?.requestPayment !== "function") {
+        throw new Error("portone_sdk_unavailable");
+      }
+      const response = await window.PortOne.requestPayment({
+        storeId: config.store_id,
+        channelKey: config.channel_key,
+        paymentId: config.payment_id,
+        orderName: config.order_name,
+        totalAmount: config.amount,
+        currency: config.portone_currency,
+        payMethod: config.pay_method,
+        redirectUrl: config.redirect_url,
+      });
+      if (response?.code !== undefined) {
+        payButton.disabled = false;
+        status.textContent = response.message || "결제를 완료하지 않았습니다.";
+        return;
+      }
+      if (response?.paymentId !== config.payment_id) throw new Error("payment_id_mismatch");
+      status.textContent = "SIDEY 서버가 결제 상태를 확인하고 있어요…";
+      await completePayment(config, response.paymentId);
+    } catch (paymentError) {
+      console.error(paymentError);
+      payButton.disabled = false;
+      status.textContent = "결제 상태를 확인하지 못했습니다. 중복 결제하지 말고 상점 상태를 먼저 새로고침해 주세요.";
+    }
+  });
+
+  start();
 })();
