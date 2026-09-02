@@ -38,13 +38,13 @@ test("checkout uses the live basic payment UI with standard easy pay methods", a
   assert.ok(!script.includes("renderPaymentWindow();"));
 });
 
-test("Korean landing exposes one store item, fulfillment policy, and full business details", async () => {
+test("Korean landing links to the separate store and keeps commerce details in the footer", async () => {
   const [korean, english] = await Promise.all([read("index.html"), read("en/index.html")]);
 
-  assert.equal(korean.match(/data-product-id="character_starlight_upalupa"/g)?.length, 1);
+  assert.ok(korean.includes('<a class="nav-tab" href="./store.html">상점</a>'));
+  assert.ok(!korean.includes('data-product-id="character_starlight_upalupa"'));
   for (const requiredCopy of [
     "./store.html",
-    "별빛 우파루파",
     "배송일자",
     "디지털 상품으로 결제 완료 즉시 사용 가능",
     "교환·환불",
@@ -67,6 +67,16 @@ test("Korean landing exposes one store item, fulfillment policy, and full busine
   assert.ok(!english.includes("010-9270-2973"));
   assert.ok(!english.includes("류태현"));
   assert.ok(!english.includes("서천동로21번길"));
+});
+
+test("store renders character products as an extensible square card grid", async () => {
+  const [store, styles] = await Promise.all([read("store.html"), read("assets/styles.css")]);
+
+  assert.ok(store.includes('class="store-catalog-grid"'));
+  assert.equal(store.match(/data-product-id="character_starlight_upalupa"/g)?.length, 1);
+  assert.ok(store.includes('class="store-character-card"'));
+  assert.ok(styles.includes("grid-template-columns: repeat(auto-fill"));
+  assert.match(styles, /\.store-character-card\s*\{[^}]*aspect-ratio:\s*1;/s);
 });
 
 test("public policy URLs omit personal contact details and keep the required business scope", async () => {

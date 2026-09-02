@@ -19,31 +19,40 @@
           <span>SIDEY</span>
         </a>
         <ul class="nav-links">
-          <li><a href="./store.html">상품</a></li>
-          <li><a href="./terms.html">이용약관</a></li>
-          <li><a href="./privacy.html">개인정보</a></li>
-          <li><a href="./refund.html">환불</a></li>
+          <li><a class="nav-tab" href="./store.html" aria-current="page">상점</a></li>
+          <li class="nav-secondary"><a href="./terms.html">이용약관</a></li>
+          <li class="nav-secondary"><a href="./privacy.html">개인정보</a></li>
+          <li class="nav-secondary"><a href="./refund.html">환불</a></li>
           <li><a href="./">앱 소개</a></li>
         </ul>
       </nav>
     </header>
 
     <main id="main">
-      <section class="section store-product" id="product" aria-labelledby="product-title">
-        <div class="store-preview" aria-hidden="true">
-          <div class="store-sprite-frame">
-            <img src="./assets/characters/pixel_starlight_upalupa.png" alt="">
-          </div>
-          <span class="store-star store-star-one">✦</span>
-          <span class="store-star store-star-two">✦</span>
-        </div>
-        <div class="store-copy">
+      <section class="section store-catalog" id="products" aria-labelledby="store-title">
+        <div class="section-heading store-catalog-heading">
           <p class="section-kicker">SIDEY 꾸미기·상점</p>
-          <h1 id="product-title">별빛 우파루파</h1>
-          <p class="store-description">진주빛 몸과 별빛 아가미를 가진 우파루파예요. 온라인일 때 별이 은은하게 따라다니고, 더블클릭하면 별무리가 두 겹으로 팡 터져요.</p>
-          <div class="store-price">990원 <small>부가세 포함 · 1회 구매</small></div>
-          <p>구매한 SIDEY 계정에 귀속되는 macOS 전용 순수 꾸미기 상품입니다. 능력치나 기능상 이점은 없고, 구독·소모품·선물 상품이 아닙니다. Windows에서는 구매하거나 사용할 수 없습니다.</p>
-          <span class="development-badge">macOS 전용</span>
+          <h1 id="store-title">새로운 캐릭터를 만나보세요.</h1>
+          <p>캐릭터 상품은 이곳에 계속 추가됩니다. 구매한 캐릭터는 SIDEY 계정에 귀속되며 macOS 앱에서 사용할 수 있어요. Windows에서는 구매하거나 사용할 수 없습니다.</p>
+        </div>
+
+        <div class="store-catalog-grid" role="list" aria-label="캐릭터 상품 목록">
+          <article class="store-character-card" role="listitem" data-product-id="character_starlight_upalupa">
+            <div class="store-character-preview" aria-hidden="true">
+              <span class="store-card-badge">macOS 전용</span>
+              <div class="store-character-sprite">
+                <img src="./assets/characters/pixel_starlight_upalupa.png" alt="">
+              </div>
+              <span class="store-star store-star-one">✦</span>
+              <span class="store-star store-star-two">✦</span>
+            </div>
+            <div class="store-character-title">
+              <h2>별빛 우파루파</h2>
+              <strong>990원</strong>
+            </div>
+            <p class="store-character-description">진주빛 몸과 별빛 아가미를 가진 우파루파예요. 온라인일 때 별이 은은하게 따라다니고, 더블클릭하면 별무리가 두 겹으로 팡 터져요.</p>
+            <p class="store-character-meta">부가세 포함 · 1회 구매 · 순수 꾸미기 상품</p>
+          </article>
         </div>
       </section>
 
