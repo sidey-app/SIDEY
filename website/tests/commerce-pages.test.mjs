@@ -38,19 +38,35 @@ test("checkout uses the live basic payment UI with standard easy pay methods", a
   assert.ok(!script.includes("renderPaymentWindow();"));
 });
 
-test("landing pages hide commerce navigation and keep only minimal business support details", async () => {
+test("Korean landing exposes one store item, fulfillment policy, and full business details", async () => {
   const [korean, english] = await Promise.all([read("index.html"), read("en/index.html")]);
 
-  for (const landing of [korean, english]) {
-    for (const commerceURL of ["store.html", "terms.html", "privacy.html", "refund.html"]) {
-      assert.ok(!landing.includes(commerceURL));
-    }
-    assert.ok(landing.includes("ryu200112@gmail.com"));
-    assert.ok(landing.includes("388-53-01259"));
-    assert.ok(!landing.includes("010-9270-2973"));
-    assert.ok(!landing.includes("류태현"));
-    assert.ok(!landing.includes("서천동로21번길"));
+  assert.equal(korean.match(/data-product-id="character_starlight_upalupa"/g)?.length, 1);
+  for (const requiredCopy of [
+    "./store.html",
+    "별빛 우파루파",
+    "배송일자",
+    "디지털 상품으로 결제 완료 즉시 사용 가능",
+    "교환·환불",
+    "싸이디(SIDEY)",
+    "388-53-01259",
+    "010-9270-2973",
+    "ryu200112@gmail.com",
+    "경기도 용인시 기흥구 서천동로21번길 20-6",
+    "류태현",
+    "신고 면제(간이과세자)",
+  ]) {
+    assert.ok(korean.includes(requiredCopy), `missing Korean landing copy: ${requiredCopy}`);
   }
+
+  for (const commerceURL of ["store.html", "terms.html", "privacy.html", "refund.html"]) {
+    assert.ok(!english.includes(commerceURL));
+  }
+  assert.ok(english.includes("ryu200112@gmail.com"));
+  assert.ok(english.includes("388-53-01259"));
+  assert.ok(!english.includes("010-9270-2973"));
+  assert.ok(!english.includes("류태현"));
+  assert.ok(!english.includes("서천동로21번길"));
 });
 
 test("public policy URLs omit personal contact details and keep the required business scope", async () => {
