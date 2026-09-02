@@ -1,20 +1,31 @@
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Sidey.Core.Localization;
 using Sidey.Platform.Windows;
+using Sidey.Presentation.Services;
+using Sidey.Presentation.ViewModels;
 
 namespace Sidey.App;
 
 public partial class App : Application
 {
+    private readonly DispatcherQueue _dispatcherQueue;
     private Window? _window;
     private MainWindow? _mainWindow;
+    private OnboardingWindow? _onboardingWindow;
+    private HistoryWindow? _historyWindow;
     private ComposerWindow? _composer;
     private AppCoordinator? _coordinator;
     private SingleInstanceGuard? _singleInstance;
     private TrayIconService? _tray;
+    private DevelopmentUpdateService? _developmentUpdate;
+    private bool _closeAppWhenOnboardingCloses = true;
+    private bool _startupUpdateCheckStarted;
     private bool _shuttingDown;
 
     public App()
     {
+        _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         StartupDiagnostics.BeginSession();
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
@@ -43,7 +54,7 @@ public partial class App : Application
             if (_mainWindow is not null)
             {
                 _mainWindow.ShowFatalError(new InvalidOperationException(
-                    "SIDEY 시작 중 오류가 발생했습니다. 앱을 종료한 뒤 다시 실행해 주세요.",
+                    I18n.Get("error.launch"),
                     exception));
                 return;
             }
@@ -55,53 +66,89 @@ public partial class App : Application
 
     private async Task LaunchAsync(LaunchActivatedEventArgs args)
     {
-        _ = args;
+        string? processArguments = WindowsLaunchArguments.Resolve(
+            activationArguments: null,
+            Environment.GetCommandLineArgs());
+        bool backgroundLaunch = WindowsStartupService.IsBackgroundLaunch(args.Arguments)
+            || WindowsStartupService.IsBackgroundLaunch(processArguments);
+        bool onboardingPreview = IsOnboardingPreviewRequested(args.Arguments)
+            || IsOnboardingPreviewRequested(processArguments);
         StartupDiagnostics.Stage("launch-entered");
+        StartupDiagnostics.Stage(
+            $"launch-mode background={backgroundLaunch} onboarding-preview={onboardingPreview}");
         _singleInstance = SingleInstanceGuard.Acquire();
         if (!_singleInstance.IsPrimary)
         {
-            StartupDiagnostics.Stage("secondary-instance-exit");
+            SingleInstanceRequest request = onboardingPreview
+                ? SingleInstanceRequest.OnboardingPreview
+                : SingleInstanceRequest.Activate;
+            _singleInstance.Signal(request);
+            StartupDiagnostics.Stage($"secondary-instance-request request={request}");
+            _singleInstance.Dispose();
+            _singleInstance = null;
             Exit();
             return;
         }
         StartupDiagnostics.Stage("single-instance-acquired");
 
-        if (!WindowsVersionGuard.IsSupported())
+        if (!WindowsVersionGuard.CanLaunchMainWindow())
         {
             _window = new UnsupportedWindowsWindow();
             _window.Closed += OnWindowClosed;
             _window.Activate();
             StartupDiagnostics.Stage("unsupported-window-activated");
+            StartupDiagnostics.MarkRunning();
             return;
         }
 
         _coordinator = new AppCoordinator();
+        await _coordinator.LoadCachedStateAsync();
+        StartupDiagnostics.Stage("cached-settings-loaded");
         _coordinator.ComposerRequested += RequestComposer;
         _coordinator.PulseRequested += RequestPulse;
         _coordinator.SendFailed += RestoreFailedDraft;
         _coordinator.RenderingFailed += OnRenderingFailed;
         _coordinator.GroupSetupRequested += OnGroupSetupRequested;
         _coordinator.StateChanged += OnCoordinatorStateChanged;
-        _mainWindow = new MainWindow(_coordinator);
-        _window = _mainWindow;
-        _mainWindow.Closed += OnWindowClosed;
-        _mainWindow.Activate();
-        StartupDiagnostics.Stage("main-window-activated");
+        if (!_coordinator.State.Preferences.OnboardingCompleted)
+        {
+            CreateOnboardingWindow(_coordinator, onboardingPreview);
+            _window = _onboardingWindow;
+            _onboardingWindow!.Activate();
+            StartupDiagnostics.Stage("onboarding-window-activated");
+        }
+        else if (onboardingPreview)
+        {
+            CreateOnboardingWindow(_coordinator, isPreviewMode: true);
+            _window = _onboardingWindow;
+            _onboardingWindow!.Activate();
+            StartupDiagnostics.Stage("onboarding-window-activated");
+        }
+        else
+        {
+            EnsureMainWindow();
+            _window = _mainWindow;
+            StartupDiagnostics.Stage("completed-launch-window-hidden");
+        }
+        _singleInstance!.StartListening(
+            RequestPrimaryActivation,
+            RequestOnboardingPreview);
         try
         {
             _tray = TrayIconService.Start();
             _tray.CommandInvoked += OnTrayCommandInvoked;
             _tray.RoomSelected += OnTrayRoomSelected;
-            _mainWindow.SetTrayAvailable(true);
+            _mainWindow?.SetTrayAvailable(true);
             StartupDiagnostics.Stage("tray-started");
         }
         catch (Exception exception)
         {
             StartupDiagnostics.NonFatal("tray-start", exception);
-            _mainWindow.ShowFatalError(new InvalidOperationException(
-                "트레이 아이콘을 시작하지 못했습니다. 창을 닫으면 SIDEY가 종료됩니다.",
+            EnsureMainWindow().ShowFatalError(new InvalidOperationException(
+                I18n.Get("error.trayStart"),
                 exception));
         }
+        _developmentUpdate = DevelopmentUpdateService.Start(OnDevelopmentUpdateAccepted);
         try
         {
             await _coordinator.InitializeAsync();
@@ -110,12 +157,72 @@ public partial class App : Application
         catch (Exception exception)
         {
             StartupDiagnostics.NonFatal("coordinator-initialize", exception);
-            _mainWindow.ShowFatalError(exception);
+            EnsureMainWindow().ShowFatalError(exception);
+            _onboardingWindow?.ShowError(exception);
+        }
+
+        StartupDiagnostics.MarkRunning();
+    }
+
+    private static bool IsOnboardingPreviewRequested(string? arguments)
+    {
+#if DEBUG
+        return StringComparer.OrdinalIgnoreCase.Equals(
+            arguments?.Trim(),
+            "--onboarding-preview");
+#else
+        _ = arguments;
+        return false;
+#endif
+    }
+
+    private void StartStartupUpdateCheck()
+    {
+        if (_startupUpdateCheckStarted || _mainWindow is null)
+        {
+            return;
+        }
+
+        _startupUpdateCheckStarted = true;
+        _ = CheckForUpdatesOnStartupAsync(_mainWindow);
+    }
+
+    private MainWindow EnsureMainWindow()
+    {
+        if (_mainWindow is not null)
+        {
+            return _mainWindow;
+        }
+
+        if (_coordinator is null)
+        {
+            throw new InvalidOperationException("The settings window requires an initialized coordinator.");
+        }
+
+        _mainWindow = new MainWindow(_coordinator);
+        _mainWindow.Closed += OnMainWindowClosed;
+        _mainWindow.SetTrayAvailable(_tray is not null);
+        StartStartupUpdateCheck();
+        return _mainWindow;
+    }
+
+    private static async Task CheckForUpdatesOnStartupAsync(MainWindow mainWindow)
+    {
+        try
+        {
+            await mainWindow.ViewModel.CheckForUpdatesOnStartupAsync();
+            StartupDiagnostics.Stage("startup-update-checked");
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal("startup-update-check", exception);
         }
     }
 
     private async Task DisposeAfterFailedLaunchAsync()
     {
+        _developmentUpdate?.Dispose();
+        _developmentUpdate = null;
         try
         {
             _tray?.Dispose();
@@ -170,7 +277,7 @@ public partial class App : Application
 
     private void RequestComposer()
     {
-        _mainWindow?.DispatcherQueue.TryEnqueue(ShowComposer);
+        _dispatcherQueue.TryEnqueue(ShowComposer);
     }
 
     private void ShowComposer()
@@ -182,9 +289,10 @@ public partial class App : Application
 
         if (_composer is null)
         {
-            _composer = new ComposerWindow();
-            _composer.SendRequested += OnSendRequested;
-            _composer.TypingChanged += OnTypingChanged;
+            var viewModel = new ComposerViewModel();
+            viewModel.SendRequested += OnSendRequested;
+            viewModel.TypingChanged += OnTypingChanged;
+            _composer = new ComposerWindow(viewModel);
         }
 
         _composer.ShowAndFocus(
@@ -220,8 +328,7 @@ public partial class App : Application
 
     private void RequestPulse()
     {
-        var mainWindow = _mainWindow;
-        mainWindow?.DispatcherQueue.TryEnqueue(async () =>
+        _dispatcherQueue.TryEnqueue(async () =>
         {
             if (_coordinator is null)
             {
@@ -234,37 +341,142 @@ public partial class App : Application
             }
             catch (Exception exception)
             {
-                mainWindow.ShowFatalError(exception);
+                EnsureMainWindow().ShowFatalError(exception);
             }
         });
     }
 
-    private void RestoreFailedDraft(string body) =>
-        _mainWindow?.DispatcherQueue.TryEnqueue(() =>
+    private void RestoreFailedDraft(string body, Exception exception) =>
+        _dispatcherQueue.TryEnqueue(() =>
         {
             ShowComposer();
             _composer?.RestoreDraftAndFocus(body);
+            MainWindow mainWindow = EnsureMainWindow();
+            mainWindow.ShowFatalError(new InvalidOperationException(
+                I18n.Format("error.messageSendFailed", exception.Message),
+                exception));
+            ShowPrimaryWindow();
         });
 
     private void OnRenderingFailed(Exception exception)
     {
-        var mainWindow = _mainWindow;
-        mainWindow?.DispatcherQueue.TryEnqueue(() => mainWindow.ShowFatalError(exception));
+        _dispatcherQueue.TryEnqueue(() => EnsureMainWindow().ShowFatalError(exception));
     }
 
     private void OnGroupSetupRequested()
     {
-        var mainWindow = _mainWindow;
-        mainWindow?.DispatcherQueue.TryEnqueue(() => mainWindow.ShowPage("groups"));
+        _dispatcherQueue.TryEnqueue(() => EnsureMainWindow().ShowPage("groups"));
+    }
+
+    private void OnOnboardingCompleted()
+    {
+        if (_onboardingWindow is null)
+        {
+            return;
+        }
+
+        MainWindow mainWindow = EnsureMainWindow();
+        OnboardingWindow onboarding = _onboardingWindow;
+        _onboardingWindow = null;
+        _closeAppWhenOnboardingCloses = false;
+        onboarding.Completed -= OnOnboardingCompleted;
+        onboarding.Closed -= OnOnboardingClosed;
+        _window = mainWindow;
+        mainWindow.Activate();
+        SideyWindowActivation.BringToForeground(mainWindow);
+        onboarding.Close();
+        StartupDiagnostics.Stage("onboarding-completed");
+    }
+
+    private void CreateOnboardingWindow(
+        AppCoordinator coordinator,
+        bool isPreviewMode = false,
+        bool closeAppWhenClosed = true)
+    {
+        _closeAppWhenOnboardingCloses = closeAppWhenClosed;
+        _onboardingWindow = new OnboardingWindow(coordinator, isPreviewMode);
+        _onboardingWindow.Completed += OnOnboardingCompleted;
+        _onboardingWindow.Closed += OnOnboardingClosed;
+    }
+
+    private void OnOnboardingClosed(object sender, WindowEventArgs args)
+    {
+        _ = args;
+        if (!ReferenceEquals(sender, _onboardingWindow))
+        {
+            return;
+        }
+
+        _onboardingWindow!.Completed -= OnOnboardingCompleted;
+        _onboardingWindow.Closed -= OnOnboardingClosed;
+        _onboardingWindow = null;
+        if (_closeAppWhenOnboardingCloses)
+        {
+            BeginShutdown();
+            return;
+        }
+
+        _window = _mainWindow;
+        ShowPrimaryWindow();
+    }
+
+    private void RequestPrimaryActivation()
+    {
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            if (_onboardingWindow is null
+                && _coordinator is not null
+                && !_coordinator.State.Preferences.OnboardingCompleted)
+            {
+                CreateOnboardingWindow(_coordinator);
+                _window = _onboardingWindow;
+            }
+
+            if (_onboardingWindow is not null)
+            {
+                _onboardingWindow.ShowAndActivate();
+            }
+        });
+    }
+
+    private void RequestOnboardingPreview()
+    {
+#if DEBUG
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            if (_onboardingWindow is null && _coordinator is not null)
+            {
+                CreateOnboardingWindow(
+                    _coordinator,
+                    isPreviewMode: true,
+                    closeAppWhenClosed: false);
+                _window = _onboardingWindow;
+            }
+
+            _onboardingWindow?.ShowAndActivate();
+        });
+#else
+        RequestPrimaryActivation();
+#endif
+    }
+
+    private void ShowPrimaryWindow()
+    {
+        MainWindow mainWindow = EnsureMainWindow();
+        _window = mainWindow;
+        mainWindow.AppWindow.Show();
+        mainWindow.Activate();
+        SideyWindowActivation.BringToForeground(mainWindow);
     }
 
     private void OnCoordinatorStateChanged(CoordinatorState state)
     {
-        var mainWindow = _mainWindow;
         var coordinator = _coordinator;
-        mainWindow?.DispatcherQueue.TryEnqueue(() =>
+        _dispatcherQueue.TryEnqueue(() =>
         {
-            mainWindow.ApplyState(state);
+            _mainWindow?.ApplyState(state);
+            _onboardingWindow?.ApplyState(state);
+            _historyWindow?.ApplyState(state);
             _tray?.SetState(new TrayMenuState(
                 state.Preferences.OverlayVisible,
                 state.Preferences.QuietMode,
@@ -279,12 +491,11 @@ public partial class App : Application
     }
 
     private void OnTrayCommandInvoked(TrayCommand command) =>
-        _mainWindow?.DispatcherQueue.TryEnqueue(() => HandleTrayCommand(command));
+        _dispatcherQueue.TryEnqueue(() => HandleTrayCommand(command));
 
     private void OnTrayRoomSelected(Guid roomId)
     {
-        var mainWindow = _mainWindow;
-        mainWindow?.DispatcherQueue.TryEnqueue(async () =>
+        _dispatcherQueue.TryEnqueue(async () =>
         {
             if (_coordinator is null)
             {
@@ -297,15 +508,27 @@ public partial class App : Application
             }
             catch (Exception exception)
             {
-                mainWindow.ShowFatalError(exception);
+                EnsureMainWindow().ShowFatalError(exception);
             }
         });
     }
 
     private void HandleTrayCommand(TrayCommand command)
     {
-        if (_coordinator is null || _mainWindow is null)
+        if (_coordinator is null)
         {
+            return;
+        }
+        if (_onboardingWindow is null
+            && !_coordinator.State.Preferences.OnboardingCompleted
+            && command != TrayCommand.Exit)
+        {
+            CreateOnboardingWindow(_coordinator);
+            _window = _onboardingWindow;
+        }
+        if (_onboardingWindow is not null && command != TrayCommand.Exit)
+        {
+            _onboardingWindow.ShowAndActivate();
             return;
         }
         switch (command)
@@ -324,10 +547,10 @@ public partial class App : Application
                         !_coordinator.State.Preferences.QuietMode));
                 break;
             case TrayCommand.History:
-                _mainWindow.ShowPage("history");
+                ShowHistory();
                 break;
             case TrayCommand.Groups:
-                _mainWindow.ShowPage("groups");
+                EnsureMainWindow().ShowPage("groups");
                 break;
             case TrayCommand.ToggleStartAtLogin:
                 _ = RunCoordinatorCommandAsync(
@@ -335,16 +558,33 @@ public partial class App : Application
                         !_coordinator.State.Preferences.StartAtLogin));
                 break;
             case TrayCommand.CheckUpdates:
-                _mainWindow.ShowPage("settings");
-                _mainWindow.CheckForUpdates();
+                EnsureMainWindow().ShowPage("settings");
+                _mainWindow!.CheckForUpdates();
                 break;
             case TrayCommand.Settings:
-                _mainWindow.ShowPage("settings");
+                EnsureMainWindow().ShowPage("settings");
+                break;
+            case TrayCommand.Store:
+                EnsureMainWindow().ShowPage("store");
                 break;
             case TrayCommand.Exit:
-                _mainWindow.CloseForExit();
+                BeginShutdown();
                 break;
         }
+    }
+
+    private void ShowHistory()
+    {
+        if (_coordinator is null)
+        {
+            return;
+        }
+        if (_historyWindow is null)
+        {
+            _historyWindow = new HistoryWindow(new HistoryWindowViewModel(_coordinator));
+            _historyWindow.Closed += (_, _) => _historyWindow = null;
+        }
+        _historyWindow.ShowAndActivate();
     }
 
     private async Task RunCoordinatorCommandAsync(Func<Task> command)
@@ -358,22 +598,57 @@ public partial class App : Application
         }
         catch (Exception exception)
         {
-            var mainWindow = _mainWindow;
-            mainWindow?.DispatcherQueue.TryEnqueue(
-                () => mainWindow.ShowFatalError(exception));
+            _dispatcherQueue.TryEnqueue(
+                () => EnsureMainWindow().ShowFatalError(exception));
         }
     }
 
-    private async void OnWindowClosed(object sender, WindowEventArgs args)
+    private void OnWindowClosed(object sender, WindowEventArgs args)
     {
         _ = sender;
         _ = args;
+        BeginShutdown();
+    }
+
+    private void OnMainWindowClosed(object sender, WindowEventArgs args)
+    {
+        _ = args;
+        if (sender is not MainWindow mainWindow || !ReferenceEquals(mainWindow, _mainWindow))
+        {
+            return;
+        }
+
+        bool shouldExit = mainWindow.ShouldExitOnClose;
+        mainWindow.Closed -= OnMainWindowClosed;
+        _mainWindow = null;
+        if (ReferenceEquals(_window, mainWindow))
+        {
+            _window = null;
+        }
+
+        if (shouldExit)
+        {
+            BeginShutdown();
+        }
+    }
+
+    private async void BeginShutdown()
+    {
         if (_shuttingDown)
         {
             return;
         }
 
         _shuttingDown = true;
+        if (_mainWindow is not null)
+        {
+            MainWindow mainWindow = _mainWindow;
+            _mainWindow = null;
+            mainWindow.Closed -= OnMainWindowClosed;
+            mainWindow.CloseForExit();
+        }
+        _developmentUpdate?.Dispose();
+        _developmentUpdate = null;
         if (_tray is not null)
         {
             _tray.CommandInvoked -= OnTrayCommandInvoked;
@@ -390,10 +665,22 @@ public partial class App : Application
         }
         if (_composer is not null)
         {
-            _composer.SendRequested -= OnSendRequested;
-            _composer.TypingChanged -= OnTypingChanged;
+            _composer.ViewModel.SendRequested -= OnSendRequested;
+            _composer.ViewModel.TypingChanged -= OnTypingChanged;
             _composer.Close();
             _composer = null;
+        }
+        if (_historyWindow is not null)
+        {
+            _historyWindow.Close();
+            _historyWindow = null;
+        }
+        if (_onboardingWindow is not null)
+        {
+            _onboardingWindow.Completed -= OnOnboardingCompleted;
+            _onboardingWindow.Closed -= OnOnboardingClosed;
+            _onboardingWindow.Close();
+            _onboardingWindow = null;
         }
         if (_coordinator is not null)
         {
@@ -417,5 +704,26 @@ public partial class App : Application
         _singleInstance = null;
         StartupDiagnostics.Stage("shutdown-complete");
         Exit();
+    }
+
+    private void OnDevelopmentUpdateAccepted(DevelopmentUpdateRequest request)
+    {
+        if (_shuttingDown || _developmentUpdate is null)
+        {
+            return;
+        }
+        try
+        {
+            if (_developmentUpdate.LaunchUpdater(request))
+            {
+                // This callback runs on the watcher thread so it remains
+                // independent from UI and network initialization stalls.
+                Environment.Exit(0);
+            }
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal("development-update-start", exception);
+        }
     }
 }

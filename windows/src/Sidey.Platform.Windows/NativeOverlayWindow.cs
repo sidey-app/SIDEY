@@ -1,5 +1,5 @@
-using System.ComponentModel;
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Windows.Win32;
@@ -31,10 +31,13 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
     private static readonly ConcurrentDictionary<uint, int> ThreadWindowCounts = new();
     private static readonly WNDPROC WindowProcedureCallback = WindowProcedure;
     private static readonly HWND TopmostWindow = new((void*)(-1));
+    private static readonly HWND NotTopmostWindow = new((void*)(-2));
     private static bool _classRegistered;
 
     private HWND _handle;
     private readonly uint _ownerThreadId;
+    private nint _yieldBehindWindow;
+    private bool _isTopmost = true;
     private bool _disposed;
 
     private NativeOverlayWindow(
@@ -134,7 +137,7 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
         flags |= visible ? SET_WINDOW_POS_FLAGS.SWP_SHOWWINDOW : SET_WINDOW_POS_FLAGS.SWP_HIDEWINDOW;
         if (!PInvoke.SetWindowPos(
                 _handle,
-                TopmostWindow,
+                ZOrderAnchor(),
                 bounds.X,
                 bounds.Y,
                 bounds.Width,
@@ -148,7 +151,62 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
     public void SetVisible(bool visible)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        PInvoke.ShowWindow(_handle, visible ? SHOW_WINDOW_CMD.SW_SHOWNOACTIVATE : SHOW_WINDOW_CMD.SW_HIDE);
+        if (!visible)
+        {
+            PInvoke.ShowWindow(_handle, SHOW_WINDOW_CMD.SW_HIDE);
+            return;
+        }
+
+        ApplyZOrder(SET_WINDOW_POS_FLAGS.SWP_SHOWWINDOW);
+    }
+
+    public void EnsureTopmost()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _isTopmost = true;
+        _yieldBehindWindow = nint.Zero;
+        ApplyZOrder(default);
+    }
+
+    public void YieldBehind(nint window)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _isTopmost = false;
+        _yieldBehindWindow = window;
+        ApplyZOrder(default);
+    }
+
+    private void ApplyZOrder(SET_WINDOW_POS_FLAGS additionalFlags)
+    {
+        var flags = SET_WINDOW_POS_FLAGS.SWP_NOMOVE
+            | SET_WINDOW_POS_FLAGS.SWP_NOSIZE
+            | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE
+            | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER
+            | additionalFlags;
+        if (!PInvoke.SetWindowPos(_handle, ZOrderAnchor(), 0, 0, 0, 0, flags))
+        {
+            throw new Win32Exception(Marshal.GetLastPInvokeError(), "SetWindowPos failed while updating overlay Z-order.");
+        }
+    }
+
+    private HWND ZOrderAnchor()
+    {
+        if (_isTopmost)
+        {
+            return TopmostWindow;
+        }
+
+        var yieldWindow = new HWND((void*)_yieldBehindWindow);
+        return yieldWindow != HWND.Null && NativeMethods.IsWindow(_yieldBehindWindow)
+            ? yieldWindow
+            : NotTopmostWindow;
+    }
+
+    private static class NativeMethods
+    {
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool IsWindow(nint window);
     }
 
     public void Dispose()

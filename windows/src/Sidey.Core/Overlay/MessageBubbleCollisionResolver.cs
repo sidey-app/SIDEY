@@ -20,17 +20,39 @@ public static class MessageBubbleCollisionResolver
         IList<PixelMovementAgent> agents,
         IReadOnlyList<MessageBubbleTrackBounds> messageBubbles,
         double rawDeltaTime,
-        EdgeTrackGeometry geometry)
+        EdgeTrackGeometry geometry) =>
+        Apply(
+            agents,
+            messageBubbles,
+            rawDeltaTime,
+            geometry,
+            new MessageBubbleCollisionScratch());
+
+    public static IReadOnlySet<Guid> Apply(
+        IList<PixelMovementAgent> agents,
+        IReadOnlyList<MessageBubbleTrackBounds> messageBubbles,
+        double rawDeltaTime,
+        EdgeTrackGeometry geometry,
+        MessageBubbleCollisionScratch scratch)
     {
+        ArgumentNullException.ThrowIfNull(scratch);
+        var agentById = scratch.AgentById;
+        var acceleration = scratch.Acceleration;
+        var separated = scratch.Separated;
+        agentById.Clear();
+        acceleration.Clear();
+        separated.Clear();
         var deltaTime = Math.Clamp(rawDeltaTime, 0d, 0.1d);
         if (deltaTime <= 0d || messageBubbles.Count < 2)
         {
-            return new HashSet<Guid>();
+            return separated;
         }
 
-        var agentById = agents.ToDictionary(agent => agent.Id);
-        var acceleration = new Dictionary<Guid, double>();
-        var separated = new HashSet<Guid>();
+        for (var agentIndex = 0; agentIndex < agents.Count; agentIndex++)
+        {
+            var agent = agents[agentIndex];
+            agentById[agent.Id] = agent;
+        }
         for (var leftIndex = 0; leftIndex < messageBubbles.Count; leftIndex++)
         {
             for (var rightIndex = leftIndex + 1; rightIndex < messageBubbles.Count; rightIndex++)
@@ -49,9 +71,7 @@ public static class MessageBubbleCollisionResolver
 
                 var direction = left.Midpoint < right.Midpoint
                     || (left.Midpoint == right.Midpoint
-                        && StringComparer.Ordinal.Compare(
-                            left.MemberId.ToString("D"),
-                            right.MemberId.ToString("D")) < 0)
+                        && left.MemberId.CompareTo(right.MemberId) < 0)
                     ? -1d
                     : 1d;
                 Add(acceleration, left.MemberId, direction * SeparationAcceleration);
@@ -78,4 +98,11 @@ public static class MessageBubbleCollisionResolver
 
     private static void Add(Dictionary<Guid, double> values, Guid id, double value) =>
         values[id] = values.GetValueOrDefault(id) + value;
+}
+
+public sealed class MessageBubbleCollisionScratch
+{
+    internal Dictionary<Guid, PixelMovementAgent> AgentById { get; } = [];
+    internal Dictionary<Guid, double> Acceleration { get; } = [];
+    internal HashSet<Guid> Separated { get; } = [];
 }

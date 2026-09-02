@@ -1,22 +1,26 @@
-name: Windows native
+name: Windows
 
 on:
   push:
     branches: [main]
-    tags: ['v0.3.0-alpha.2']
+    tags: ['windows-v*']
     paths:
       - 'windows/**'
       - 'scripts/windows/**'
+      - 'website/windows-latest.json'
+      - 'website/windows/**'
       - '.github/workflows/windows.yml'
   pull_request:
     paths:
       - 'windows/**'
       - 'scripts/windows/**'
+      - 'website/windows-latest.json'
+      - 'website/windows/**'
       - '.github/workflows/windows.yml'
   workflow_dispatch:
     inputs:
       publish_release:
-        description: '검증 전 Windows 테스트용 GitHub pre-release 게시'
+        description: '검증한 Windows 후보를 GitHub pre-release로 게시'
         required: true
         default: false
         type: boolean
@@ -24,10 +28,17 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  build-test-package:
-    runs-on: windows-2025
-    timeout-minutes: 30
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+      bundle_version: ${{ steps.metadata.outputs.bundle_version }}
     defaults:
       run:
         shell: pwsh
@@ -38,79 +49,108 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Read Windows version
+        id: metadata
+        run: |
+          [xml]$project = Get-Content ./windows/src/Sidey.App/Sidey.App.csproj -Raw
+          $properties = $project.Project.PropertyGroup |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_.Version) } |
+            Select-Object -First 1
+          $version = [string]$properties.Version
+          $bundleVersion = [string]$properties.FileVersion
+          if ([string]::IsNullOrWhiteSpace($version) -or
+              [string]::IsNullOrWhiteSpace($bundleVersion)) {
+            throw 'Windows version metadata is missing.'
+          }
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $expectedTag = "windows-v$version"
+            if ($env:GITHUB_REF_NAME -ne $expectedTag) {
+              throw "Tag must match the project version: $expectedTag"
+            }
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "bundle_version=$bundleVersion" >> $env:GITHUB_OUTPUT
+
       - name: Restore
-        working-directory: windows
-        run: dotnet restore SIDEY.Windows.slnx
+        run: dotnet restore windows/SIDEY.Windows.slnx
 
-      - name: Core tests
-        run: dotnet test windows/tests/Sidey.Core.Tests/Sidey.Core.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=sidey-core.trx"
+      - name: Verify formatting
+        run: dotnet format windows/SIDEY.Windows.slnx --no-restore --verify-no-changes --verbosity minimal
 
-      - name: Windows platform policy tests
-        run: dotnet test windows/tests/Sidey.Platform.Windows.Tests/Sidey.Platform.Windows.Tests.csproj --configuration Release --no-restore --logger "trx;LogFileName=sidey-platform.trx"
-
-      - name: Build Windows solution
+      - name: Build
         run: dotnet build windows/SIDEY.Windows.slnx --configuration Release --no-restore
 
-      - name: Publish self-contained x64
-        run: >-
-          dotnet publish windows/src/Sidey.App/Sidey.App.csproj
-          --configuration Release
-          --runtime win-x64
-          --self-contained true
-          --no-restore
-          -p:Version=0.3.0-alpha.2
-          -p:PublishSingleFile=true
-          --output build/windows/publish
+      - name: Test
+        run: dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build --logger trx
 
-      - name: Smoke-launch published SIDEY.exe
-        run: ./scripts/windows/smoke-launch.ps1 -PublishDir ./build/windows/publish
+  package:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/windows-v')
+    needs: validate
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v5
 
-      - name: Build offline Setup.exe and SHA-256
-        run: >-
-          ./scripts/windows/package.ps1
-          -PublishDir ./build/windows/publish
-          -OutDir ./build/windows/artifacts
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
 
-      - name: Upload test results
-        if: always()
+      - name: Build signed installer candidate
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $version = '${{ needs.validate.outputs.version }}'
+          $bundleVersion = '${{ needs.validate.outputs.bundle_version }}'
+
+          dotnet restore windows/SIDEY.Windows.slnx
+          dotnet restore windows/installer/Sidey.Msi/Sidey.Msi.wixproj
+          dotnet restore windows/installer/Sidey.Bundle/Sidey.Bundle.wixproj
+          dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            --no-restore `
+            -p:PublishSingleFile=false `
+            --output build/windows/publish
+          ./scripts/windows/smoke-launch.ps1 `
+            -PublishDir ./build/windows/publish
+          ./scripts/windows/package.ps1 `
+            -PublishDir ./build/windows/publish `
+            -OutDir ./build/windows/artifacts `
+            -Version $version `
+            -BundleVersion $bundleVersion
+
+      - name: Upload Windows candidate
         uses: actions/upload-artifact@v4
         with:
-          name: windows-test-results
-          path: windows/tests/**/TestResults/*.trx
-          if-no-files-found: warn
-
-      - name: Upload Windows Setup candidate
-        uses: actions/upload-artifact@v4
-        with:
-          name: SIDEY-Windows-x64-v0.3.0-alpha.2-Setup-candidate
+          name: SIDEY-Windows-x64-v${{ needs.validate.outputs.version }}
           path: |
-            build/windows/artifacts/SIDEY-Windows-x64-v0.3.0-alpha.2-Setup.exe
-            build/windows/artifacts/SIDEY-Windows-x64-v0.3.0-alpha.2-Setup.exe.sha256
+            build/windows/artifacts/SIDEY-Windows-x64-v${{ needs.validate.outputs.version }}-Setup.exe
+            build/windows/artifacts/SIDEY-Windows-x64-v${{ needs.validate.outputs.version }}-Setup.exe.sha256
+            build/windows/artifacts/SIDEY-Windows-x64-v${{ needs.validate.outputs.version }}-Test.msi
+            build/windows/artifacts/SIDEY-Windows-x64-v${{ needs.validate.outputs.version }}-Test.msi.sha256
+            build/windows/artifacts/SIDEY-SelfSigned-CodeSigning.cer
           if-no-files-found: error
+          retention-days: 7
 
-      - name: Upload CI-only MSI
-        uses: actions/upload-artifact@v4
-        with:
-          name: SIDEY-Windows-x64-v0.3.0-alpha.2-internal-msi
-          path: build/windows/artifacts/internal/*.msi
-          if-no-files-found: error
-
-  publish-pre-release:
+  release:
     if: >-
       (github.event_name == 'workflow_dispatch' && inputs.publish_release)
-      || github.ref == 'refs/tags/v0.3.0-alpha.2'
-    needs: build-test-package
-    runs-on: windows-2025
+      || startsWith(github.ref, 'refs/tags/windows-v')
+    needs: [validate, package]
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     defaults:
       run:
         shell: pwsh
     steps:
-      - name: Download verified Setup candidate
+      - name: Download Windows candidate
         uses: actions/download-artifact@v4
         with:
-          name: SIDEY-Windows-x64-v0.3.0-alpha.2-Setup-candidate
+          name: SIDEY-Windows-x64-v${{ needs.validate.outputs.version }}
           path: release-assets
 
       - name: Publish Windows testing pre-release
@@ -118,22 +158,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          $tag = 'v0.3.0-alpha.2'
-          $setup = './release-assets/SIDEY-Windows-x64-v0.3.0-alpha.2-Setup.exe'
+          $version = '${{ needs.validate.outputs.version }}'
+          $tag = "windows-v$version"
+          $setup = "./release-assets/SIDEY-Windows-x64-v$version-Setup.exe"
           $checksum = "$setup.sha256"
+          $certificate = './release-assets/SIDEY-SelfSigned-CodeSigning.cer'
           $notes = @'
-          Windows 11 25H2(build 26200)+ x64 기기 테스트용 pre-release입니다.
+          Windows x64 기기 테스트용 pre-release입니다.
 
-          - 코드 서명이 없는 alpha입니다. SmartScreen 경고가 버전마다 반복될 수 있고 Smart App Control 또는 조직 정책이 실행을 차단할 수 있습니다.
-          - Windows 실기 30분, 12명 2시간, 20노드 30분, macOS↔Windows 상호운용 및 설치 수명주기 검증은 아직 완료되지 않았습니다. 공개 준비 완료판이 아닙니다.
+          - `CN=SIDEY` 자체 서명 alpha이며 공인 신뢰 또는 SmartScreen 평판을 제공하지 않습니다.
+          - SmartScreen, Smart App Control 또는 조직 정책이 실행을 차단할 수 있습니다.
+          - 설치 수명주기와 macOS↔Windows 상호운용 실기 검증은 아직 완료되지 않았습니다.
           - 모든 사용자용으로 `C:\Program Files\SIDEY`에 설치하며 설치·복구·제거 시 관리자 승인이 필요합니다.
-          - v0.3.0-alpha.1 사용자별 설치본은 Windows 설정에서 먼저 제거해야 합니다. `%LOCALAPPDATA%\SIDEY` 설정과 Credential Manager 세션은 보존됩니다.
-          - SHA-256 확인: `Get-FileHash .\SIDEY-Windows-x64-v0.3.0-alpha.2-Setup.exe -Algorithm SHA256`
           '@
 
-          gh release create $tag $setup $checksum `
+          gh release create $tag $setup $checksum $certificate `
             --target $env:GITHUB_SHA `
-            --title 'SIDEY Windows v0.3.0-alpha.2 — Device Test' `
+            --title "SIDEY Windows v$version — Device Test" `
             --notes $notes `
             --prerelease
           if ($LASTEXITCODE -ne 0) {

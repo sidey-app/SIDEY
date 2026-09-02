@@ -1,7 +1,7 @@
+using System.Diagnostics;
 using Sidey.Core.Domain;
 using Sidey.Core.Overlay;
 using Sidey.Platform.Windows;
-using System.Diagnostics;
 
 namespace Sidey.Overlay;
 
@@ -9,6 +9,10 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 {
     private const int FramesPerSecond = 30;
     private const double FixedDeltaTime = 1d / FramesPerSecond;
+    private const double EdgeInsetAnimationSpeedDipPerSecond = 72d;
+    private const int NameplateCharacterGapPixels = 10;
+    private const double DozeRestingOpacity = 0.55d;
+    private const double DozeFloatingDistanceDip = 3d;
     private static readonly IReadOnlyList<RectD> NoAvoidanceRects = Array.Empty<RectD>();
 
     private readonly object _gate = new();
@@ -16,31 +20,37 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private readonly NativePixelRect _renderBounds;
     private readonly int _hotspotPixelSize;
     private readonly int _integerScale;
+    private readonly int _dozeFloatingDistancePixels;
     private readonly OverlayEdge _edge;
     private readonly Action<NativePixelRect> _hotspotMoved;
     private readonly Action<Exception> _renderingFailed;
     private readonly ValidationMetricsCollector? _metrics;
     private readonly Random _random;
+    private readonly long _initialPositionSeed;
     private readonly EdgeTrackGeometry _geometry;
     private readonly PixelCharacterFrameCache _frameCache;
     private readonly PixelTextVisualCache _textVisuals;
     private readonly NativeLayeredBitmap _surface;
-    private readonly byte[] _worldPixels;
     private readonly List<WorldNode> _nodes = [];
     private readonly List<PixelMovementAgent> _agents = [];
     private readonly Dictionary<Guid, WorldNode> _nodeById = [];
     private readonly HashSet<Guid> _stoppedIds = [];
+    private readonly HashSet<Guid> _incomingMemberIds = [];
     private readonly Dictionary<Guid, long> _pulseStartedAt = [];
+    private readonly Dictionary<Guid, long> _dozeStartedAt = [];
     private readonly Dictionary<Guid, ActiveBubble> _bubbleBySender = [];
     private readonly List<Guid> _expiredBubbleSenders = [];
     private readonly List<MessageBubbleTrackBounds> _bubbleTrackBounds = [];
-    private readonly HashSet<Guid> _seenPulseIds = [];
-    private readonly Queue<Guid> _seenPulseOrder = [];
+    private readonly PixelMovementScratch _movementScratch = new();
+    private readonly MessageBubbleCollisionScratch _bubbleCollisionScratch = new();
+    private readonly CharacterPulseReplayGuard _pulseReplayGuard = new();
     private readonly Timer _timer;
     private NativePixelRect? _lastHotspotBounds;
     private double _hotspotTrackingElapsed = double.PositiveInfinity;
     private long _tick;
     private int _tickRunning;
+    private double _edgeInsetPixels;
+    private int _targetEdgeInsetPixels;
     private bool _faulted;
     private bool _disposed;
 
@@ -54,7 +64,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         Action<NativePixelRect> hotspotMoved,
         Action<Exception> renderingFailed,
         IReadOnlySet<string>? cachedCharacterIds = null,
-        ValidationMetricsCollector? metrics = null)
+        ValidationMetricsCollector? metrics = null,
+        int initialEdgeInsetPixels = 0)
     {
         if (!activityBounds.IsValid || !renderBounds.IsValid)
         {
@@ -67,36 +78,43 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         _renderingFailed = renderingFailed ?? throw new ArgumentNullException(nameof(renderingFailed));
         _metrics = metrics;
         _edge = edge;
+        _edgeInsetPixels = ClampEdgeInset(initialEdgeInsetPixels);
+        _targetEdgeInsetPixels = (int)_edgeInsetPixels;
         _integerScale = PixelScalePolicy.IntegerScale(dpi);
+        _dozeFloatingDistancePixels = Math.Max(1, DipToPixels(DozeFloatingDistanceDip, dpi));
         _hotspotPixelSize = Math.Max(1, DipToPixels(52, dpi));
-        _random = new Random(unchecked((int)initialSnapshot.InstallationSeed));
+        _initialPositionSeed = OverlayPlacementPolicy.CreateSessionSeed(
+            initialSnapshot.InstallationSeed);
+        _random = new Random(OverlayPlacementPolicy.RandomSeed(_initialPositionSeed));
         _geometry = new EdgeTrackGeometry(
             new RectD(0, 0, activityBounds.Width, activityBounds.Height),
             edge,
             Math.Max(24 * _integerScale, _hotspotPixelSize));
-        var assetRoot = Path.Combine(AppContext.BaseDirectory, "Assets", "Characters");
+        var assetRoot = CharacterAssetPathResolver.Resolve();
         PixelCharacterFrameCache? frameCache = null;
         PixelTextVisualCache? textVisuals = null;
         NativeLayeredBitmap? surface = null;
         try
         {
+            var initialCharacterIds = cachedCharacterIds
+                ?? initialSnapshot.Members
+                    .Select(member => PixelCharacterCatalog.NormalizeId(member.CharacterId))
+                    .ToHashSet(StringComparer.Ordinal);
             frameCache = new PixelCharacterFrameCache(
                 assetRoot,
                 _integerScale,
                 edge,
-                cachedCharacterIds);
-            textVisuals = new PixelTextVisualCache(dpi);
-            var worldPixels = new byte[checked(renderBounds.Width * renderBounds.Height * 4)];
+                initialCharacterIds);
+            textVisuals = new PixelTextVisualCache(dpi, edge);
             surface = new NativeLayeredBitmap(
                 windowHandle,
                 renderBounds.Width,
-                renderBounds.Height,
-                worldPixels);
+                renderBounds.Height);
             _frameCache = frameCache;
             _textVisuals = textVisuals;
-            _worldPixels = worldPixels;
             _surface = surface;
-            ApplySnapshotWithinGate(initialSnapshot);
+            _pulseReplayGuard.SeedExisting(initialSnapshot.Pulses);
+            ApplySnapshotWithinGate(initialSnapshot with { Pulses = [] });
             RenderFrame();
             _timer = new Timer(
                 static state => ((LayeredPixelWorldRenderer)state!).TickSafely(),
@@ -123,6 +141,15 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         }
     }
 
+    public void SetEdgeInset(int edgeInsetPixels)
+    {
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _targetEdgeInsetPixels = ClampEdgeInset(edgeInsetPixels);
+        }
+    }
+
     public void Dispose()
     {
         lock (_gate)
@@ -138,7 +165,6 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             _surface.Dispose();
             _textVisuals.Dispose();
             _frameCache.Dispose();
-            Array.Clear(_worldPixels);
         }
     }
 
@@ -205,6 +231,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 return;
             }
 
+            AnimateEdgeInset();
+
             foreach (var node in _nodes)
             {
                 if (Math.Abs(node.Agent.Target - node.Agent.TrackPosition) <= 2d)
@@ -220,7 +248,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 FixedDeltaTime,
                 _geometry,
                 NoAvoidanceRects,
-                _stoppedIds);
+                _stoppedIds,
+                _movementScratch);
             _expiredBubbleSenders.Clear();
             var now = DateTimeOffset.UtcNow;
             foreach (var bubble in _bubbleBySender)
@@ -241,8 +270,15 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 {
                     continue;
                 }
-                var estimatedWidthDip = Math.Clamp(24d + (bubble.Body.Length * 8d), 60d, 220d);
-                var halfWidth = estimatedWidthDip * _integerScale / 4d;
+                var visual = _textVisuals.Get(bubble.SenderId).MessageBubble;
+                if (visual is null)
+                {
+                    continue;
+                }
+                var tangentWidth = _edge is OverlayEdge.Left or OverlayEdge.Right
+                    ? visual.Height
+                    : visual.Width;
+                var halfWidth = tangentWidth / 2d;
                 _bubbleTrackBounds.Add(new MessageBubbleTrackBounds(
                     bubble.SenderId,
                     node.Agent.TrackPosition - halfWidth,
@@ -252,7 +288,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 _agents,
                 _bubbleTrackBounds,
                 FixedDeltaTime,
-                _geometry);
+                _geometry,
+                _bubbleCollisionScratch);
             _tick++;
             _hotspotTrackingElapsed = Math.Min(1d, _hotspotTrackingElapsed + FixedDeltaTime);
             RenderFrame();
@@ -261,7 +298,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private void RenderFrame()
     {
-        Array.Clear(_worldPixels);
+        Span<byte> destinationPixels = _surface.Pixels;
+        destinationPixels.Clear();
         NativePixelRect? currentUserHotspot = null;
         foreach (var node in _nodes)
         {
@@ -274,13 +312,16 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 foot,
                 cached.PixelSize,
                 cached.Definition.FootBaselinePixel * _integerScale,
+                cached.OnlineContentBounds,
                 1d);
             var destination = DestinationForFoot(
                 foot,
                 cached.PixelSize,
                 cached.Definition.FootBaselinePixel * _integerScale,
+                cached.OnlineContentBounds,
                 pulseScale);
             Composite(
+                destinationPixels,
                 cached.Frame(frame, node.Agent.Velocity < -0.1d),
                 cached.PixelSize,
                 destination.X - _renderBounds.X,
@@ -291,47 +332,47 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
             if (node.Member.IsCurrentUser)
             {
-                currentUserHotspot = new NativePixelRect(
-                    baseDestination.X + ((cached.PixelSize - _hotspotPixelSize) / 2),
-                    baseDestination.Y + ((cached.PixelSize - _hotspotPixelSize) / 2),
-                    _hotspotPixelSize,
-                    _hotspotPixelSize);
+                currentUserHotspot = HotspotBounds(baseDestination, cached.PixelSize, foot);
             }
 
             var visuals = _textVisuals.Get(node.Member.Id);
-            var nameplate = PlaceInward(
+            var nameplate = PlaceNameplate(
                 baseDestination,
                 cached.PixelSize,
                 visuals.Nameplate,
-                gap: 4,
-                priorVisual: null);
-            CompositeVisual(visuals.Nameplate, nameplate.X, nameplate.Y);
+                cached.OnlineContentBounds);
+            CompositeVisual(destinationPixels, visuals.Nameplate, nameplate.X, nameplate.Y);
             var bubble = _bubbleBySender.ContainsKey(node.Member.Id)
                 ? visuals.MessageBubble
                 : visuals.TypingBubble;
             if (bubble is not null)
             {
-                var bubblePosition = PlaceInward(
+                var bubblePosition = PlaceBeyondNameplate(
                     baseDestination,
                     cached.PixelSize,
                     bubble,
                     gap: 4,
-                    priorVisual: visuals.Nameplate);
-                CompositeVisual(bubble, bubblePosition.X, bubblePosition.Y);
+                    visuals.Nameplate,
+                    nameplate);
+                CompositeVisual(destinationPixels, bubble, bubblePosition.X, bubblePosition.Y);
             }
             if (visuals.Doze is { } doze)
             {
                 var dozePosition = PlaceDoze(baseDestination, cached.PixelSize, doze);
-                var wave = (Math.Sin(_tick / 8d) + 1d) / 2d;
+                long startedAt = _dozeStartedAt.GetValueOrDefault(node.Member.Id, _tick);
+                var progress = DozeAnimationProgress(_tick - startedAt);
+                var animatedPosition = FloatDozeTowardInterior(
+                    dozePosition,
+                    (int)Math.Round(progress * _dozeFloatingDistancePixels));
                 CompositeVisual(
+                    destinationPixels,
                     doze,
-                    dozePosition.X,
-                    dozePosition.Y - (int)Math.Round(wave * _integerScale),
-                    0.6d + (wave * 0.35d));
+                    animatedPosition.X,
+                    animatedPosition.Y,
+                    DozeRestingOpacity + (progress * (1d - DozeRestingOpacity)));
             }
         }
 
-        _surface.UpdatePixels(_worldPixels);
         _surface.Present(_renderBounds.X, _renderBounds.Y);
         if (currentUserHotspot is { } hotspot)
         {
@@ -341,11 +382,16 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private void ApplySnapshotWithinGate(WorldSnapshot snapshot)
     {
-        var incoming = snapshot.Members.Select(member => member.Id).ToHashSet();
+        _frameCache.RetainCharacters(snapshot.Members.Select(member => member.CharacterId));
+        _incomingMemberIds.Clear();
+        foreach (var member in snapshot.Members)
+        {
+            _incomingMemberIds.Add(member.Id);
+        }
         for (var index = _nodes.Count - 1; index >= 0; index--)
         {
             var node = _nodes[index];
-            if (incoming.Contains(node.Member.Id))
+            if (_incomingMemberIds.Contains(node.Member.Id))
             {
                 continue;
             }
@@ -355,25 +401,40 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             _nodeById.Remove(node.Member.Id);
             _stoppedIds.Remove(node.Member.Id);
             _pulseStartedAt.Remove(node.Member.Id);
+            _dozeStartedAt.Remove(node.Member.Id);
         }
 
         foreach (var member in snapshot.Members)
         {
             if (_nodeById.TryGetValue(member.Id, out var existing))
             {
+                bool wasAway = existing.Member.Presence == PresenceState.Away;
                 existing.Member = member with
                 {
                     CharacterId = PixelCharacterCatalog.NormalizeId(member.CharacterId),
                 };
+                bool isAway = existing.Member.Presence == PresenceState.Away;
+                if (!wasAway && isAway)
+                {
+                    _dozeStartedAt[member.Id] = _tick;
+                }
+                else if (!isAway)
+                {
+                    _dozeStartedAt.Remove(member.Id);
+                }
             }
             else
             {
-                var fraction = StableFraction(member.Id, snapshot.InstallationSeed);
+                var fraction = OverlayPlacementPolicy.Fraction(member.Id, _initialPositionSeed);
+                var targetFraction = OverlayPlacementPolicy.Fraction(
+                    member.Id,
+                    _initialPositionSeed,
+                    OverlayPlacementPolicy.TargetSalt);
                 var position = _geometry.TrackLowerBound
                     + (fraction * (_geometry.TrackUpperBound - _geometry.TrackLowerBound));
                 var target = _geometry.Clamp(
                     _geometry.TrackLowerBound
-                    + ((1d - fraction) * (_geometry.TrackUpperBound - _geometry.TrackLowerBound)));
+                    + (targetFraction * (_geometry.TrackUpperBound - _geometry.TrackLowerBound)));
                 var agent = new PixelMovementAgent(member.Id, position, target);
                 var node = new WorldNode(
                     member with { CharacterId = PixelCharacterCatalog.NormalizeId(member.CharacterId) },
@@ -381,6 +442,10 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 _nodeById.Add(member.Id, node);
                 _nodes.Add(node);
                 _agents.Add(agent);
+                if (node.Member.Presence == PresenceState.Away)
+                {
+                    _dozeStartedAt[node.Member.Id] = _tick;
+                }
             }
         }
 
@@ -394,24 +459,23 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         }
 
         _bubbleBySender.Clear();
-        foreach (var bubble in snapshot.Bubbles.Where(bubble => bubble.ExpiresAt > DateTimeOffset.UtcNow))
+        var now = DateTimeOffset.UtcNow;
+        foreach (var bubble in snapshot.Bubbles)
         {
-            _bubbleBySender[bubble.SenderId] = bubble;
+            if (bubble.ExpiresAt > now)
+            {
+                _bubbleBySender[bubble.SenderId] = bubble;
+            }
         }
 
         foreach (var pulse in snapshot.Pulses)
         {
-            if (!_seenPulseIds.Add(pulse.Id))
+            if (!_pulseReplayGuard.TryAccept(pulse))
             {
                 continue;
             }
 
-            _seenPulseOrder.Enqueue(pulse.Id);
             _pulseStartedAt[pulse.UserId] = Stopwatch.GetTimestamp();
-            while (_seenPulseOrder.Count > 256)
-            {
-                _seenPulseIds.Remove(_seenPulseOrder.Dequeue());
-            }
         }
 
         _textVisuals.Update(snapshot);
@@ -459,25 +523,58 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private (double X, double Y) FootPoint(double tangent) => _edge switch
     {
-        OverlayEdge.Bottom => (_activityBounds.X + tangent, _activityBounds.Y + _activityBounds.Height),
-        OverlayEdge.Top => (_activityBounds.X + tangent, _activityBounds.Y),
-        OverlayEdge.Left => (_activityBounds.X, _activityBounds.Y + tangent),
-        OverlayEdge.Right => (_activityBounds.X + _activityBounds.Width, _activityBounds.Y + tangent),
+        OverlayEdge.Bottom => (
+            _activityBounds.X + tangent,
+            _activityBounds.Y + _activityBounds.Height - _edgeInsetPixels),
+        OverlayEdge.Top => (
+            _activityBounds.X + tangent,
+            _activityBounds.Y + _edgeInsetPixels),
+        OverlayEdge.Left => (
+            _activityBounds.X + _edgeInsetPixels,
+            _activityBounds.Y + tangent),
+        OverlayEdge.Right => (
+            _activityBounds.X + _activityBounds.Width - _edgeInsetPixels,
+            _activityBounds.Y + tangent),
         _ => throw new ArgumentOutOfRangeException(),
     };
+
+    private int ClampEdgeInset(int edgeInsetPixels)
+    {
+        var depth = _edge is OverlayEdge.Bottom or OverlayEdge.Top
+            ? _activityBounds.Height
+            : _activityBounds.Width;
+        return Math.Clamp(edgeInsetPixels, 0, Math.Max(0, depth - 1));
+    }
+
+    private void AnimateEdgeInset()
+    {
+        var distance = _targetEdgeInsetPixels - _edgeInsetPixels;
+        var maximumStep = EdgeInsetAnimationSpeedDipPerSecond
+            * (_integerScale / 2d)
+            * FixedDeltaTime;
+        if (Math.Abs(distance) <= 1d)
+        {
+            _edgeInsetPixels = _targetEdgeInsetPixels;
+            return;
+        }
+
+        var easedStep = Math.Clamp(Math.Abs(distance) * 0.24d, 1d, maximumStep);
+        _edgeInsetPixels += Math.CopySign(easedStep, distance);
+    }
 
     private (int X, int Y) DestinationForFoot(
         (double X, double Y) foot,
         int pixelSize,
         int baselinePixels,
+        PixelContentBounds content,
         double pulseScale)
     {
         var scaledSize = pixelSize * pulseScale;
         var scaledBaseline = baselinePixels * pulseScale;
         var x = _edge switch
         {
-            OverlayEdge.Left => foot.X - scaledBaseline,
-            OverlayEdge.Right => foot.X - (scaledSize - scaledBaseline),
+            OverlayEdge.Left => foot.X - (content.MinX * pulseScale),
+            OverlayEdge.Right => foot.X - (content.MaxX * pulseScale),
             _ => foot.X - (scaledSize / 2d),
         };
         var y = _edge switch
@@ -491,7 +588,43 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             (int)Math.Round(y, MidpointRounding.AwayFromZero));
     }
 
+    private NativePixelRect HotspotBounds(
+        (int X, int Y) sprite,
+        int spriteSize,
+        (double X, double Y) foot)
+    {
+        var centeredX = sprite.X + ((spriteSize - _hotspotPixelSize) / 2);
+        var centeredY = sprite.Y + ((spriteSize - _hotspotPixelSize) / 2);
+        var footX = (int)Math.Round(foot.X, MidpointRounding.AwayFromZero);
+        var footY = (int)Math.Round(foot.Y, MidpointRounding.AwayFromZero);
+        return _edge switch
+        {
+            OverlayEdge.Bottom => new NativePixelRect(
+                centeredX,
+                Math.Min(centeredY, footY - _hotspotPixelSize),
+                _hotspotPixelSize,
+                _hotspotPixelSize),
+            OverlayEdge.Top => new NativePixelRect(
+                centeredX,
+                Math.Max(centeredY, footY),
+                _hotspotPixelSize,
+                _hotspotPixelSize),
+            OverlayEdge.Left => new NativePixelRect(
+                Math.Max(centeredX, footX),
+                centeredY,
+                _hotspotPixelSize,
+                _hotspotPixelSize),
+            OverlayEdge.Right => new NativePixelRect(
+                Math.Min(centeredX, footX - _hotspotPixelSize),
+                centeredY,
+                _hotspotPixelSize,
+                _hotspotPixelSize),
+            _ => throw new ArgumentOutOfRangeException(),
+        };
+    }
+
     private void Composite(
+        Span<byte> destination,
         ReadOnlySpan<byte> source,
         int sourceSize,
         int destinationX,
@@ -501,6 +634,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         bool desaturate = false)
     {
         CompositeRectangle(
+            destination,
             source,
             sourceSize,
             sourceSize,
@@ -512,11 +646,13 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     }
 
     private void CompositeVisual(
+        Span<byte> destination,
         PremultipliedVisual visual,
         int destinationX,
         int destinationY,
         double opacity = 1d) =>
         CompositeRectangle(
+            destination,
             visual.Pixels,
             visual.Width,
             visual.Height,
@@ -527,6 +663,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             desaturate: false);
 
     private void CompositeRectangle(
+        Span<byte> destination,
         ReadOnlySpan<byte> source,
         int sourceWidth,
         int sourceHeight,
@@ -538,6 +675,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     {
         var destinationWidth = Math.Max(1, (int)Math.Round(sourceWidth * scale));
         var destinationHeight = Math.Max(1, (int)Math.Round(sourceHeight * scale));
+        var useDirectColors = opacity >= 0.999d && !desaturate;
         for (var y = 0; y < destinationHeight; y++)
         {
             var worldY = destinationY + y;
@@ -557,7 +695,9 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
                 var sourceX = Math.Min(sourceWidth - 1, (int)(x / scale));
                 var sourceIndex = ((sourceY * sourceWidth) + sourceX) * 4;
-                var sourceAlpha = (byte)Math.Round(source[sourceIndex + 3] * opacity);
+                var sourceAlpha = useDirectColors
+                    ? source[sourceIndex + 3]
+                    : (byte)Math.Round(source[sourceIndex + 3] * opacity);
                 if (sourceAlpha == 0)
                 {
                     continue;
@@ -576,65 +716,103 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                     sourceRed = (byte)((sourceRed * 42 + gray * 58) / 100);
                 }
 
-                _worldPixels[destinationIndex] = Blend(
-                    (byte)Math.Round(sourceBlue * opacity),
-                    _worldPixels[destinationIndex],
+                if (!useDirectColors)
+                {
+                    sourceBlue = (byte)Math.Round(sourceBlue * opacity);
+                    sourceGreen = (byte)Math.Round(sourceGreen * opacity);
+                    sourceRed = (byte)Math.Round(sourceRed * opacity);
+                }
+
+                destination[destinationIndex] = Blend(
+                    sourceBlue,
+                    destination[destinationIndex],
                     inverseAlpha);
-                _worldPixels[destinationIndex + 1] = Blend(
-                    (byte)Math.Round(sourceGreen * opacity),
-                    _worldPixels[destinationIndex + 1],
+                destination[destinationIndex + 1] = Blend(
+                    sourceGreen,
+                    destination[destinationIndex + 1],
                     inverseAlpha);
-                _worldPixels[destinationIndex + 2] = Blend(
-                    (byte)Math.Round(sourceRed * opacity),
-                    _worldPixels[destinationIndex + 2],
+                destination[destinationIndex + 2] = Blend(
+                    sourceRed,
+                    destination[destinationIndex + 2],
                     inverseAlpha);
-                _worldPixels[destinationIndex + 3] = Blend(
+                destination[destinationIndex + 3] = Blend(
                     sourceAlpha,
-                    _worldPixels[destinationIndex + 3],
+                    destination[destinationIndex + 3],
                     inverseAlpha);
             }
         }
     }
 
-    private (int X, int Y) PlaceInward(
+    private (int X, int Y) PlaceNameplate(
+        (int X, int Y) sprite,
+        int spriteSize,
+        PremultipliedVisual visual,
+        PixelContentBounds content) => _edge switch
+        {
+            OverlayEdge.Bottom => (
+                sprite.X + ((spriteSize - visual.Width) / 2),
+                sprite.Y + content.MinY - NameplateCharacterGapPixels - visual.Height),
+            OverlayEdge.Top => (
+                sprite.X + ((spriteSize - visual.Width) / 2),
+                sprite.Y + content.MaxY + NameplateCharacterGapPixels),
+            OverlayEdge.Left => (
+                sprite.X + content.MaxX + NameplateCharacterGapPixels,
+                sprite.Y + ((spriteSize - visual.Height) / 2)),
+            OverlayEdge.Right => (
+                sprite.X + content.MinX - NameplateCharacterGapPixels - visual.Width,
+                sprite.Y + ((spriteSize - visual.Height) / 2)),
+            _ => throw new ArgumentOutOfRangeException(),
+        };
+
+    private (int X, int Y) PlaceBeyondNameplate(
         (int X, int Y) sprite,
         int spriteSize,
         PremultipliedVisual visual,
         int gap,
-        PremultipliedVisual? priorVisual)
-    {
-        var additional = priorVisual is null
-            ? 0
-            : gap + (_edge is OverlayEdge.Bottom or OverlayEdge.Top
-                ? priorVisual.Height
-                : priorVisual.Width);
-        return _edge switch
+        PremultipliedVisual nameplate,
+        (int X, int Y) nameplatePosition) => _edge switch
         {
             OverlayEdge.Bottom => (
                 sprite.X + ((spriteSize - visual.Width) / 2),
-                sprite.Y - gap - visual.Height - additional),
+                nameplatePosition.Y - gap - visual.Height),
             OverlayEdge.Top => (
                 sprite.X + ((spriteSize - visual.Width) / 2),
-                sprite.Y + spriteSize + gap + additional),
+                nameplatePosition.Y + nameplate.Height + gap),
             OverlayEdge.Left => (
-                sprite.X + spriteSize + gap + additional,
+                nameplatePosition.X + nameplate.Width + gap,
                 sprite.Y + ((spriteSize - visual.Height) / 2)),
             OverlayEdge.Right => (
-                sprite.X - gap - visual.Width - additional,
+                nameplatePosition.X - gap - visual.Width,
                 sprite.Y + ((spriteSize - visual.Height) / 2)),
             _ => throw new ArgumentOutOfRangeException(),
         };
-    }
 
     private (int X, int Y) PlaceDoze(
         (int X, int Y) sprite,
         int spriteSize,
         PremultipliedVisual visual) => _edge switch
+        {
+            OverlayEdge.Bottom => (sprite.X + spriteSize - (visual.Width / 3), sprite.Y - (visual.Height / 2)),
+            OverlayEdge.Top => (sprite.X - (visual.Width / 2), sprite.Y + spriteSize - (visual.Height / 2)),
+            OverlayEdge.Left => (sprite.X + spriteSize - (visual.Width / 2), sprite.Y + spriteSize - (visual.Height / 3)),
+            OverlayEdge.Right => (sprite.X - (visual.Width / 2), sprite.Y - (visual.Height / 3)),
+            _ => throw new ArgumentOutOfRangeException(),
+        };
+
+    private static double DozeAnimationProgress(long tick)
     {
-        OverlayEdge.Bottom => (sprite.X + spriteSize - (visual.Width / 3), sprite.Y - (visual.Height / 2)),
-        OverlayEdge.Top => (sprite.X - (visual.Width / 2), sprite.Y + spriteSize - (visual.Height / 2)),
-        OverlayEdge.Left => (sprite.X + spriteSize - (visual.Width / 2), sprite.Y + spriteSize - (visual.Height / 3)),
-        OverlayEdge.Right => (sprite.X - (visual.Width / 2), sprite.Y - (visual.Height / 3)),
+        var phase = tick % FramesPerSecond;
+        return phase <= FramesPerSecond / 2
+            ? phase / (FramesPerSecond / 2d)
+            : (FramesPerSecond - phase) / (FramesPerSecond / 2d);
+    }
+
+    private (int X, int Y) FloatDozeTowardInterior((int X, int Y) position, int distance) => _edge switch
+    {
+        OverlayEdge.Bottom => (position.X, position.Y - distance),
+        OverlayEdge.Top => (position.X, position.Y + distance),
+        OverlayEdge.Left => (position.X + distance, position.Y),
+        OverlayEdge.Right => (position.X - distance, position.Y),
         _ => throw new ArgumentOutOfRangeException(),
     };
 
@@ -656,16 +834,6 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private static byte Blend(byte source, byte destination, int inverseAlpha) =>
         (byte)Math.Min(255, source + ((destination * inverseAlpha + 127) / 255));
-
-    private static double StableFraction(Guid id, long seed)
-    {
-        var bytes = id.ToByteArray();
-        var value = BitConverter.ToUInt64(bytes, 0) ^ BitConverter.ToUInt64(bytes, 8) ^ unchecked((ulong)seed);
-        value ^= value >> 33;
-        value *= 0xff51afd7ed558ccdUL;
-        value ^= value >> 33;
-        return (value & 0x1FFFFFFFFFFFFFUL) / (double)0x20000000000000UL;
-    }
 
     private static PointD Center(NativePixelRect rect) =>
         new(rect.X + (rect.Width / 2d), rect.Y + (rect.Height / 2d));

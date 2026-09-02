@@ -9,37 +9,76 @@ param(
 $ErrorActionPreference = 'Stop'
 $resolvedPublishDir = (Resolve-Path $PublishDir).Path
 $executable = Join-Path $resolvedPublishDir 'SIDEY.exe'
+$hostExecutable = Join-Path $resolvedPublishDir 'Runtime\SIDEY.Host.exe'
 if (-not (Test-Path $executable -PathType Leaf)) {
-    throw "실행 스모크 테스트 대상 SIDEY.exe가 없음: $resolvedPublishDir"
+    throw "SIDEY.exe was not found in the publish directory: $resolvedPublishDir"
+}
+if (-not (Test-Path $hostExecutable -PathType Leaf)) {
+    throw "Runtime/SIDEY.Host.exe was not found in the publish directory: $resolvedPublishDir"
 }
 if ($TimeoutSeconds -lt 5 -or $TimeoutSeconds -gt 120) {
-    throw "실행 스모크 테스트 제한 시간은 5~120초여야 함"
+    throw "Startup smoke timeout must be between 5 and 120 seconds."
 }
 
-$logPath = Join-Path $env:LOCALAPPDATA 'SIDEY/Logs/startup.log'
-$process = Start-Process `
-    -FilePath $executable `
-    -WorkingDirectory $resolvedPublishDir `
-    -PassThru
-$deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
-$ready = $false
+$smokeDataRoot = Join-Path ([IO.Path]::GetTempPath()) "SIDEY-Smoke-$([Guid]::NewGuid().ToString('N'))"
+$logDirectory = Join-Path $smokeDataRoot 'SIDEY/Logs'
+$startedAt = [DateTime]::UtcNow.AddSeconds(-1)
+$smokeEnvironmentVariable = 'SIDEY_STARTUP_SMOKE'
+$smokeDataEnvironmentVariable = 'SIDEY_STARTUP_SMOKE_DATA_ROOT'
+$previousSmokeValue = [Environment]::GetEnvironmentVariable($smokeEnvironmentVariable, 'Process')
+$previousSmokeDataValue = [Environment]::GetEnvironmentVariable($smokeDataEnvironmentVariable, 'Process')
+$process = $null
+$launcherProcess = $null
 try {
+    [Environment]::SetEnvironmentVariable($smokeEnvironmentVariable, '1', 'Process')
+    [Environment]::SetEnvironmentVariable($smokeDataEnvironmentVariable, $smokeDataRoot, 'Process')
+    $launcherProcess = Start-Process `
+        -FilePath $executable `
+        -WorkingDirectory $resolvedPublishDir `
+        -PassThru
+    if (-not $launcherProcess.WaitForExit(5000) -or $launcherProcess.ExitCode -ne 0) {
+        throw "SIDEY launcher did not forward startup successfully."
+    }
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    $ready = $false
     while ([DateTimeOffset]::UtcNow -lt $deadline) {
+        if ($null -eq $process) {
+            $process = Get-Process -Name 'SIDEY.Host' -ErrorAction SilentlyContinue |
+                Where-Object {
+                    [string]::Equals(
+                        $_.Path,
+                        $hostExecutable,
+                        [StringComparison]::OrdinalIgnoreCase)
+                } |
+                Select-Object -First 1
+            if ($null -eq $process) {
+                Start-Sleep -Milliseconds 250
+                continue
+            }
+        }
         $process.Refresh()
         if ($process.HasExited) {
-            $tail = if (Test-Path $logPath -PathType Leaf) {
-                (Get-Content -Path $logPath -Tail 40) -join [Environment]::NewLine
+            $recentLogs = @(Get-ChildItem -LiteralPath $logDirectory -Filter '*-startup.log' -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTimeUtc -ge $startedAt } |
+                Sort-Object LastWriteTimeUtc)
+            $tail = if ($recentLogs.Count -gt 0) {
+                ($recentLogs | ForEach-Object { Get-Content -LiteralPath $_.FullName -Tail 40 }) -join [Environment]::NewLine
             }
             else {
-                '(startup.log 없음)'
+                '(startup.log not found)'
             }
-            throw "SIDEY.exe가 시작 직후 종료됨(exit=$($process.ExitCode)).`n$tail"
+            throw "SIDEY.exe exited during startup (exit=$($process.ExitCode)).`n$tail"
         }
 
-        if (Test-Path $logPath -PathType Leaf) {
-            $log = Get-Content -Path $logPath -Raw
+        $recentLogs = @(Get-ChildItem -LiteralPath $logDirectory -Filter '*-startup.log' -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.LastWriteTimeUtc -ge $startedAt } |
+            Sort-Object LastWriteTimeUtc)
+        if ($recentLogs.Count -gt 0) {
+            $log = ($recentLogs | ForEach-Object {
+                Get-Content -LiteralPath $_.FullName -Raw
+            }) -join [Environment]::NewLine
             $pidPattern = [regex]::Escape("pid=$($process.Id)")
-            if ($log -match "$pidPattern .*stage=(main-window-activated|unsupported-window-activated)") {
+            if ($log -match "$pidPattern .*stage=(?:(?:main|onboarding)-window-activated|completed-launch-window-hidden)") {
                 $ready = $true
                 break
             }
@@ -48,16 +87,38 @@ try {
     }
 
     if (-not $ready) {
-        throw "SIDEY.exe가 $TimeoutSeconds초 안에 시작 완료 지점에 도달하지 못함: $logPath"
+        $recentLogs = @(Get-ChildItem -LiteralPath $logDirectory -Filter '*-startup.log' -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.LastWriteTimeUtc -ge $startedAt } |
+            Sort-Object LastWriteTimeUtc)
+        $tail = if ($recentLogs.Count -gt 0) {
+            ($recentLogs | ForEach-Object { Get-Content -LiteralPath $_.FullName -Tail 40 }) -join [Environment]::NewLine
+        }
+        else {
+            '(startup.log not found)'
+        }
+        throw "SIDEY.exe did not activate its main or onboarding window within $TimeoutSeconds seconds.`n$tail"
     }
     Write-Host "StartupSmokeTest=true"
     Write-Host "ProcessId=$($process.Id)"
 }
 finally {
-    $process.Refresh()
-    if (-not $process.HasExited) {
-        Stop-Process -Id $process.Id -Force
-        $process.WaitForExit()
+    [Environment]::SetEnvironmentVariable(
+        $smokeEnvironmentVariable,
+        $previousSmokeValue,
+        'Process')
+    [Environment]::SetEnvironmentVariable(
+        $smokeDataEnvironmentVariable,
+        $previousSmokeDataValue,
+        'Process')
+    if ($null -ne $process) {
+        $process.Refresh()
+        if (-not $process.HasExited) {
+            Stop-Process -Id $process.Id -Force
+            $process.WaitForExit()
+        }
+        $process.Dispose()
     }
-    $process.Dispose()
+    if ($null -ne $launcherProcess) {
+        $launcherProcess.Dispose()
+    }
 }

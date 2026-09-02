@@ -1,7 +1,8 @@
-using Sidey.Core.Abstractions;
-using Sidey.Core.Domain;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Sidey.Core.Abstractions;
+using Sidey.Core.Domain;
+using Sidey.Core.Localization;
 
 namespace Sidey.Infrastructure;
 
@@ -21,7 +22,7 @@ public sealed class AtomicPreferencesStore : IPreferencesStore
     public AtomicPreferencesStore(string? path = null)
     {
         _path = path ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            Sidey.Core.Storage.SideyStoragePaths.LocalApplicationDataRoot(),
             "SIDEY",
             "preferences.json");
     }
@@ -51,7 +52,7 @@ public sealed class AtomicPreferencesStore : IPreferencesStore
         }
         catch (JsonException exception)
         {
-            throw new InvalidDataException("SIDEY 환경설정 파일을 읽을 수 없습니다.", exception);
+            throw new InvalidDataException(I18n.Get("preferences.readFailed"), exception);
         }
         finally
         {
@@ -68,7 +69,7 @@ public sealed class AtomicPreferencesStore : IPreferencesStore
         try
         {
             var directory = Path.GetDirectoryName(_path)
-                ?? throw new InvalidOperationException("환경설정 폴더 경로가 올바르지 않습니다.");
+                ?? throw new InvalidOperationException(I18n.Get("preferences.invalidFolder"));
             Directory.CreateDirectory(directory);
             var temporaryPath = Path.Combine(
                 directory,

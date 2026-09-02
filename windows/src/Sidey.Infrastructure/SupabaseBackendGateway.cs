@@ -1,12 +1,13 @@
-using Sidey.Core.Abstractions;
-using Sidey.Core.Domain;
-using Sidey.Core.Realtime;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
+using Sidey.Core.Abstractions;
+using Sidey.Core.Domain;
+using Sidey.Core.Localization;
+using Sidey.Core.Realtime;
 
 namespace Sidey.Infrastructure;
 
@@ -70,7 +71,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                     peers.TryGetValue(membership.UserId, out var peer);
                     return new RoomMember(
                         membership.UserId,
-                        peer?.Nickname ?? "친구",
+                        peer?.Nickname ?? I18n.Get("common.friend"),
                         PixelCharacterCatalog.NormalizeId(peer?.CharacterId),
                         PresenceState.Offline);
                 })
@@ -101,7 +102,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
     {
         if (!ProfileValidator.IsValidNickname(nickname))
         {
-            throw new ArgumentException("닉네임은 줄바꿈 없는 2~8자여야 합니다.", nameof(nickname));
+            throw new ArgumentException(I18n.Get("validation.nicknameLength"), nameof(nickname));
         }
 
         var row = await RpcSingleAsync<DatabaseProfile>(
@@ -128,7 +129,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             .ConfigureAwait(false);
         var snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
         var room = snapshot.Rooms.SingleOrDefault(room => room.Id == row.RoomId)
-            ?? throw new InvalidDataException("생성된 그룹이 서버 snapshot에 없습니다.");
+            ?? throw new InvalidDataException(I18n.Get("backend.createdRoomMissing"));
         return new CreateRoomResult(room, row.InviteCode);
     }
 
@@ -139,7 +140,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         var normalized = inviteCode.Trim().ToUpperInvariant();
         if (normalized.Length == 0)
         {
-            throw new ArgumentException("초대 코드를 입력해야 합니다.", nameof(inviteCode));
+            throw new ArgumentException(I18n.Get("onboarding.inviteRequired"), nameof(inviteCode));
         }
 
         var row = await RpcSingleAsync<JoinRoomRow>(
@@ -148,19 +149,19 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             cancellationToken).ConfigureAwait(false);
         if (!string.IsNullOrEmpty(row.ErrorCode))
         {
-            throw new InvalidOperationException($"그룹 참여 실패: {row.ErrorCode}");
+            throw new InvalidOperationException(I18n.Format("backend.joinFailed", row.ErrorCode));
         }
 
         if (row.RoomId is not { } roomId)
         {
-            throw new InvalidDataException("그룹 참여 응답에 room_id가 없습니다.");
+            throw new InvalidDataException(I18n.Get("backend.joinRoomIdMissing"));
         }
 
         await _credentials.WriteInviteCodeAsync(roomId, normalized, cancellationToken)
             .ConfigureAwait(false);
         var snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
         return snapshot.Rooms.SingleOrDefault(room => room.Id == roomId)
-            ?? throw new InvalidDataException("참여한 그룹이 서버 snapshot에 없습니다.");
+            ?? throw new InvalidDataException(I18n.Get("backend.joinedRoomMissing"));
     }
 
     public async Task LeaveRoomAsync(Guid roomId, CancellationToken cancellationToken = default)
@@ -192,7 +193,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             cancellationToken).ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(inviteCode))
         {
-            throw new InvalidDataException("새 초대 코드가 비어 있습니다.");
+            throw new InvalidDataException(I18n.Get("backend.emptyInviteCode"));
         }
 
         await _credentials.WriteInviteCodeAsync(roomId, inviteCode, cancellationToken)
@@ -220,10 +221,42 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         Guid roomId,
         CancellationToken cancellationToken = default)
     {
-        var rows = await GetAsync<DatabaseMessage[]>(
-            $"/rest/v1/messages?room_id=eq.{roomId:D}&select=*&order=created_at.desc&limit=50",
+        var page = await FetchMessagePageAsync(
+            roomId,
+            before: null,
+            limit: 50,
             cancellationToken).ConfigureAwait(false);
-        return rows.Reverse().Select(MapMessage).ToArray();
+        return page.Messages.Reverse().ToArray();
+    }
+
+    public async Task<MessageHistoryPage> FetchMessagePageAsync(
+        Guid roomId,
+        MessageHistoryCursor? before,
+        int limit = 50,
+        CancellationToken cancellationToken = default)
+    {
+        var boundedLimit = Math.Clamp(limit, 1, 50);
+        var cutoff = Uri.EscapeDataString(
+            (DateTimeOffset.UtcNow - MessageLedger.ConfirmedRetention)
+            .UtcDateTime
+            .ToString("O"));
+        var beforeFilter = string.Empty;
+        if (before is { } cursor)
+        {
+            var timestamp = Uri.EscapeDataString(cursor.CreatedAt.UtcDateTime.ToString("O"));
+            beforeFilter =
+                $"&or=(created_at.lt.{timestamp},and(created_at.eq.{timestamp},id.lt.{cursor.Id:D}))";
+        }
+
+        var rows = await GetAsync<DatabaseMessage[]>(
+            $"/rest/v1/messages?room_id=eq.{roomId:D}&created_at=gte.{cutoff}{beforeFilter}" +
+            $"&select=*&order=created_at.desc,id.desc&limit={boundedLimit + 1}",
+            cancellationToken).ConfigureAwait(false);
+        var messages = rows.Take(boundedLimit).Select(MapMessage).ToArray();
+        MessageHistoryCursor? nextCursor = rows.Length > boundedLimit && messages.LastOrDefault() is { } last
+            ? new MessageHistoryCursor(last.CreatedAt, last.Id)
+            : null;
+        return new MessageHistoryPage(messages, nextCursor);
     }
 
     public async Task<ChatMessage> SendMessageAsync(
@@ -235,7 +268,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         var normalized = MessageValidator.Normalize(body);
         if (!MessageValidator.IsValid(normalized))
         {
-            throw new ArgumentException("메시지는 1~200자, 최대 3줄이어야 합니다.", nameof(body));
+            throw new ArgumentException(I18n.Get("validation.messageLength"), nameof(body));
         }
 
         var row = await RpcSingleAsync<DatabaseMessage>(
@@ -352,7 +385,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                     {
                         await output.WriteAsync(
                             new BackendEvent.TechnicalError(
-                                $"메시지를 RLS로 재확인하지 못했습니다: {exception.Message}"),
+                                I18n.Format("backend.messageRecheckFailed", exception.Message)),
                             cancellationToken).ConfigureAwait(false);
                     }
                     continue;
@@ -373,7 +406,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                     {
                         await output.WriteAsync(
                             new BackendEvent.TechnicalError(
-                                $"만료 메시지 목록을 다시 읽지 못했습니다: {exception.Message}"),
+                                I18n.Format("backend.expiredMessagesFailed", exception.Message)),
                             cancellationToken).ConfigureAwait(false);
                     }
                     continue;
@@ -431,7 +464,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             {
                 await output.WriteAsync(
                     new BackendEvent.TechnicalError(
-                        $"Realtime 상태 재동기화에 실패했습니다: {exception.Message}"),
+                        I18n.Format("backend.realtimeResyncFailed", exception.Message)),
                     cancellationToken).ConfigureAwait(false);
                 await output.WriteAsync(
                     new BackendEvent.ConnectionChanged(false),
@@ -515,7 +548,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         catch (Exception exception)
         {
             output.TryWrite(new BackendEvent.TechnicalError(
-                $"그룹 snapshot을 다시 읽지 못했습니다: {exception.Message}"));
+                I18n.Format("backend.roomSnapshotFailed", exception.Message)));
         }
     }
 
@@ -575,7 +608,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
     {
         if (!_roomEpochs.TryGetValue(roomId, out var realtimeEpoch))
         {
-            throw new InvalidOperationException("구독 중인 그룹의 Realtime epoch를 찾을 수 없습니다.");
+            throw new InvalidOperationException(I18n.Get("backend.realtimeEpochMissing"));
         }
 
         return RpcNoResultAsync(
@@ -605,7 +638,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
     private async ValueTask<StoredSupabaseSession> RequiredSessionAsync(
         CancellationToken cancellationToken) =>
         await _sessions.GetStoredSessionAsync(cancellationToken).ConfigureAwait(false)
-        ?? throw new InvalidOperationException("Supabase 세션이 없습니다.");
+        ?? throw new InvalidOperationException(I18n.Get("auth.sessionMissing"));
 
     private static async Task<T> ReadRequiredAsync<T>(
         HttpResponseMessage response,
@@ -647,7 +680,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
     {
         if (!RoomNameValidator.IsValid(name))
         {
-            throw new ArgumentException("그룹 이름은 줄바꿈 없는 1~20자여야 합니다.", nameof(name));
+            throw new ArgumentException(I18n.Get("validation.roomNameLength"), nameof(name));
         }
     }
 

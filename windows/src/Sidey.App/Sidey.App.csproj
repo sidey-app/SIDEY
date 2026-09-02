@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
-    <SupportedOSPlatformVersion>10.0.26100.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <RootNamespace>Sidey.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x64</Platforms>
@@ -13,44 +13,62 @@
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <SelfContained>true</SelfContained>
     <EnableMsixTooling>true</EnableMsixTooling>
-    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
-    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
+    <PublishSingleFile>false</PublishSingleFile>
     <PublishTrimmed>false</PublishTrimmed>
     <SatelliteResourceLanguages>en-US;ko-KR</SatelliteResourceLanguages>
-    <AssemblyName>SIDEY</AssemblyName>
+    <AssemblyName>SIDEY.Host</AssemblyName>
+    <AssemblyTitle>SIDEY</AssemblyTitle>
+    <Product>SIDEY</Product>
+    <Version>0.3.0-alpha.7</Version>
+    <FileVersion>0.3.0.7</FileVersion>
+    <AssemblyVersion>0.3.0.7</AssemblyVersion>
+    <ApplicationIcon>Assets\Icons\SideyAppIcon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="CommunityToolkit.Mvvm" />
     <PackageReference Include="Microsoft.WindowsAppSDK" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Sidey.Core/Sidey.Core.csproj" />
     <ProjectReference Include="../Sidey.Infrastructure/Sidey.Infrastructure.csproj" />
     <ProjectReference Include="../Sidey.Overlay/Sidey.Overlay.csproj" />
+    <ProjectReference Include="../Sidey.Presentation/Sidey.Presentation.csproj" />
     <ProjectReference Include="../Sidey.Platform.Windows/Sidey.Platform.Windows.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <_SideyExternalCharacterAsset Include="../Sidey.Overlay/Assets/Characters/*" />
-    <None Include="@(_SideyExternalCharacterAsset)" Link="Assets/Characters/%(Filename)%(Extension)">
+    <None Update="Langs\*.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-      <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
+    </None>
+    <None Update="Assets\Icons\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <_SideyExternalIconAsset Include="Assets\Icons\*" />
+    <_SideyExternalCharacterAsset Include="../Sidey.Overlay/Assets/Characters/**/*" />
+    <None Include="@(_SideyExternalCharacterAsset)" Link="Assets/Characters/%(RecursiveDir)%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
   </ItemGroup>
-  <Target
-      Name="KeepCharacterAssetsOutsideSingleFile"
-      BeforeTargets="GenerateSingleFileBundle"
-      DependsOnTargets="PrepareForBundle"
-      Condition="'$(PublishSingleFile)' == 'true'">
-    <ItemGroup>
-      <FilesToBundle Remove="@(_SideyExternalCharacterAsset->'%(FullPath)')" />
-    </ItemGroup>
-  </Target>
   <Target Name="CopyExternalCharacterAssetsAfterPublish" AfterTargets="Publish">
-    <MakeDir Directories="$(PublishDir)Assets\Characters" />
+    <MakeDir Directories="@(_SideyExternalCharacterAsset->'$(PublishDir)Assets\Characters\%(RecursiveDir)')" />
     <Copy
         SourceFiles="@(_SideyExternalCharacterAsset)"
-        DestinationFolder="$(PublishDir)Assets\Characters"
+        DestinationFiles="@(_SideyExternalCharacterAsset->'$(PublishDir)Assets\Characters\%(RecursiveDir)%(Filename)%(Extension)')"
         SkipUnchangedFiles="true" />
+  </Target>
+  <Target Name="CopySideyAppIconsAfterPublish" AfterTargets="Publish">
+    <MakeDir Directories="$(PublishDir)Assets\Icons" />
+    <Copy
+        SourceFiles="@(_SideyExternalIconAsset)"
+        DestinationFiles="@(_SideyExternalIconAsset->'$(PublishDir)Assets\Icons\%(Filename)%(Extension)')"
+        SkipUnchangedFiles="true" />
+  </Target>
+  <Target
+      Name="OrganizeStructuredPublish"
+      AfterTargets="Publish"
+      DependsOnTargets="CopyExternalCharacterAssetsAfterPublish;CopySideyAppIconsAfterPublish">
+    <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\..\scripts\windows\organize-publish.ps1&quot; -PublishDir &quot;$(PublishDir).&quot; -LauncherSource &quot;$(MSBuildProjectDirectory)\..\Sidey.Launcher\Program.cs&quot; -Version &quot;$(Version)&quot; -FileVersion &quot;$(FileVersion)&quot;" />
   </Target>
 </Project>

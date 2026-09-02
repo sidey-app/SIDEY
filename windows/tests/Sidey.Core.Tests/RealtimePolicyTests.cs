@@ -47,6 +47,50 @@ public sealed class RealtimePolicyTests
     }
 
     [Fact]
+    public void LocalPresenceCannotBeOverwrittenByAnOfflineSnapshotOrStaleEvent()
+    {
+        var currentUser = Guid.NewGuid();
+
+        Assert.Equal(
+            PresenceState.Online,
+            LocalPresenceProjection.ForMember(
+                currentUser,
+                currentUser,
+                PresenceState.Offline,
+                PresenceState.Online));
+        Assert.Equal(
+            PresenceState.Offline,
+            LocalPresenceProjection.ForMember(
+                Guid.NewGuid(),
+                currentUser,
+                PresenceState.Offline,
+                PresenceState.Online));
+        var remoteUser = Guid.NewGuid();
+        Assert.Equal(
+            PresenceState.Online,
+            LocalPresenceProjection.ForSnapshotMember(
+                remoteUser,
+                currentUser,
+                PresenceState.Offline,
+                PresenceState.Online,
+                PresenceState.Online));
+    }
+
+    [Theory]
+    [InlineData(PresenceState.Online, PresenceState.Reconnecting, PresenceState.Online)]
+    [InlineData(PresenceState.Typing, PresenceState.Reconnecting, PresenceState.Online)]
+    [InlineData(PresenceState.Away, PresenceState.Reconnecting, PresenceState.Away)]
+    [InlineData(PresenceState.Reconnecting, PresenceState.Offline, PresenceState.Reconnecting)]
+    [InlineData(PresenceState.Offline, PresenceState.Offline, PresenceState.Offline)]
+    public void PresenceAggregationPrefersTheMostAvailableConnection(
+        PresenceState first,
+        PresenceState second,
+        PresenceState expected)
+    {
+        Assert.Equal(expected, PresenceAggregatePlan.MostAvailable([first, second]));
+    }
+
+    [Fact]
     public void TypingLeaseStopsPreviousRoomBeforeStartingNext()
     {
         var first = Guid.NewGuid();

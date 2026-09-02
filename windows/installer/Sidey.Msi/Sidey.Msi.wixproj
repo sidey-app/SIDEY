@@ -4,7 +4,7 @@
     <OutputName>SIDEY-Windows-x64-v$(DisplayVersion)-internal</OutputName>
     <InstallerPlatform>x64</InstallerPlatform>
     <DefineConstants>PublishDir=$(PublishDir);ProductVersion=$(ProductVersion);DisplayVersion=$(DisplayVersion)</DefineConstants>
-    <!-- ICE03 is the single-file host's multi-language PE metadata. ICE38/43/57
+    <!-- ICE03 is native multi-language PE metadata in the self-contained payload. ICE38/43/57
          misclassify ProgramMenuFolder as per-user even though this fixed
          per-machine package resolves it through ALLUSERS to the common menu. -->
     <SuppressIces>ICE03;ICE38;ICE43;ICE57</SuppressIces>

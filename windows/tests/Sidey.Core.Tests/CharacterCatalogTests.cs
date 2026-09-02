@@ -1,7 +1,7 @@
-using Sidey.Core.Domain;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text.Json;
+using Sidey.Core.Domain;
 
 namespace Sidey.Core.Tests;
 
@@ -16,6 +16,9 @@ public sealed class CharacterCatalogTests
 
         Assert.All(PixelCharacterCatalog.All, character =>
         {
+            Assert.Equal($"Characters/{character.Id}/sprite.png", character.SpriteSheetResource);
+            Assert.Equal($"Characters/{character.Id}/frames.bgra", character.RawBgraResource);
+            Assert.Equal($"Characters/{character.Id}/manifest.json", character.ManifestResource);
             Assert.Equal(24, character.FrameWidth);
             Assert.Equal(24, character.FrameHeight);
             Assert.Equal(10, character.FrameCount);
@@ -43,7 +46,7 @@ public sealed class CharacterCatalogTests
     {
         foreach (var character in PixelCharacterCatalog.All)
         {
-            var pngPath = AssetPath($"{character.Id}.png");
+            var pngPath = AssetPath(character.Id, "sprite.png");
             var png = File.ReadAllBytes(pngPath);
             Assert.True(png.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }));
             Assert.Equal("IHDR", System.Text.Encoding.ASCII.GetString(png, 12, 4));
@@ -53,11 +56,11 @@ public sealed class CharacterCatalogTests
             Assert.Equal(6, png[25]);
             Assert.Equal(character.SpriteSheetSha256, Convert.ToHexStringLower(SHA256.HashData(png)));
 
-            var raw = File.ReadAllBytes(AssetPath($"{character.Id}.bgra"));
+            var raw = File.ReadAllBytes(AssetPath(character.Id, "frames.bgra"));
             Assert.Equal(240 * 24 * 4, raw.Length);
 
             using var manifest = JsonDocument.Parse(File.ReadAllBytes(
-                AssetPath($"{character.Id}_manifest.json")));
+                AssetPath(character.Id, "manifest.json")));
             var root = manifest.RootElement;
             Assert.Equal(character.Id, root.GetProperty("character_id").GetString());
             Assert.Equal(character.DisplayName, root.GetProperty("display_name").GetString());
@@ -96,6 +99,9 @@ public sealed class CharacterCatalogTests
 
     private static string AssetPath(string name) =>
         Path.Combine(AppContext.BaseDirectory, "TestAssets", name);
+
+    private static string AssetPath(string characterId, string name) =>
+        Path.Combine(AppContext.BaseDirectory, "TestAssets", characterId, name);
 
     private static int[] Animation(JsonElement animations, string name) =>
         animations.GetProperty(name).EnumerateArray().Select(value => value.GetInt32()).ToArray();

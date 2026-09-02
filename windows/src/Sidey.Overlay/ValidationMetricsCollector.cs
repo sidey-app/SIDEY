@@ -127,7 +127,7 @@ public sealed class ValidationMetricsCollector(
     }
 
     private static string DefaultOutputPath() => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        Sidey.Core.Storage.SideyStoragePaths.LocalApplicationDataRoot(),
         "SIDEY",
         "Validation",
         $"windows-renderer-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.json");

@@ -40,14 +40,16 @@ public sealed class MessageLedgerTests
     }
 
     [Fact]
-    public void FailedOptimisticMessageReturnsBodyAndRemovesEntry()
+    public void FailedOptimisticMessageReturnsBodyAndKeepsFailedEntry()
     {
         var id = Guid.NewGuid();
         var ledger = new MessageLedger();
         ledger.Stage(id, Guid.NewGuid(), Guid.NewGuid(), "복구할 메시지");
 
         Assert.Equal("복구할 메시지", ledger.Fail(id));
-        Assert.Empty(ledger.Entries);
+        MessageLedgerEntry failed = Assert.Single(ledger.Entries);
+        Assert.Equal(MessageDeliveryState.Failed, failed.State);
+        Assert.Equal("복구할 메시지", failed.Body);
         Assert.Null(ledger.Fail(id));
     }
 

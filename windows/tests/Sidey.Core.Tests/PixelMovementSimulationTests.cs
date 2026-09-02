@@ -102,4 +102,32 @@ public sealed class PixelMovementSimulationTests
         Assert.Equal(220d, agents[2].TrackPosition);
         Assert.Equal(0d, agents[2].Velocity);
     }
+
+    [Fact]
+    public void ReusableScratchKeepsTheRenderLoopAllocationStable()
+    {
+        var geometry = new EdgeTrackGeometry(new RectD(0, 0, 1_200, 240), OverlayEdge.Bottom);
+        var agents = Enumerable.Range(0, 12)
+            .Select(index => new PixelMovementAgent(
+                Guid.NewGuid(),
+                100 + (index * 30),
+                900 - (index * 20)))
+            .ToList();
+        var scratch = new PixelMovementScratch();
+        var stopped = new HashSet<Guid>();
+
+        for (var index = 0; index < 100; index++)
+        {
+            PixelMovementSimulation.Step(agents, 1d / 30d, geometry, [], stopped, scratch);
+        }
+
+        var before = GC.GetAllocatedBytesForCurrentThread();
+        for (var index = 0; index < 1_000; index++)
+        {
+            PixelMovementSimulation.Step(agents, 1d / 30d, geometry, [], stopped, scratch);
+        }
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.InRange(allocated, 0, 4_096);
+    }
 }

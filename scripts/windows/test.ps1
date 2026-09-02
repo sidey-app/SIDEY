@@ -1,5 +1,7 @@
 [CmdletBinding()]
-param()
+param(
+    [string]$Version = '0.3.0-alpha.7'
+)
 
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
@@ -19,7 +21,8 @@ try {
         --runtime win-x64 `
         --self-contained true `
         --no-restore `
-        -p:PublishSingleFile=true `
+        "-p:Version=$Version" `
+        -p:PublishSingleFile=false `
         --output (Join-Path $repositoryRoot 'build/windows/publish-smoke')
     & (Join-Path $repositoryRoot 'scripts/windows/smoke-launch.ps1') `
         -PublishDir (Join-Path $repositoryRoot 'build/windows/publish-smoke')

@@ -37,8 +37,24 @@ public static class PixelMovementSimulation
         double rawDeltaTime,
         EdgeTrackGeometry geometry,
         IReadOnlyList<RectD> avoidanceRects,
-        IReadOnlySet<Guid> stoppedIds)
+        IReadOnlySet<Guid> stoppedIds) =>
+        Step(
+            agents,
+            rawDeltaTime,
+            geometry,
+            avoidanceRects,
+            stoppedIds,
+            new PixelMovementScratch());
+
+    public static void Step(
+        IList<PixelMovementAgent> agents,
+        double rawDeltaTime,
+        EdgeTrackGeometry geometry,
+        IReadOnlyList<RectD> avoidanceRects,
+        IReadOnlySet<Guid> stoppedIds,
+        PixelMovementScratch scratch)
     {
+        ArgumentNullException.ThrowIfNull(scratch);
         if (agents.Count == 0 || !double.IsFinite(geometry.TangentLength))
         {
             return;
@@ -50,8 +66,10 @@ public static class PixelMovementSimulation
             return;
         }
 
-        var separation = new Dictionary<Guid, double>();
-        var overlappingIds = new HashSet<Guid>();
+        var separation = scratch.Separation;
+        var overlappingIds = scratch.OverlappingIds;
+        separation.Clear();
+        overlappingIds.Clear();
         for (var leftIndex = 0; leftIndex < agents.Count; leftIndex++)
         {
             for (var rightIndex = leftIndex + 1; rightIndex < agents.Count; rightIndex++)
@@ -68,7 +86,7 @@ public static class PixelMovementSimulation
 
                 var direction = distance > 0.001d
                     ? delta < 0d ? -1d : 1d
-                    : StringComparer.Ordinal.Compare(left.Id.ToString("D"), right.Id.ToString("D")) < 0 ? -1d : 1d;
+                    : left.Id.CompareTo(right.Id) < 0 ? -1d : 1d;
                 var strength = Math.Max(0d, 1d - (distance / desiredDistance)) * 30d;
                 separation[left.Id] = separation.GetValueOrDefault(left.Id) + (direction * strength);
                 separation[right.Id] = separation.GetValueOrDefault(right.Id) - (direction * strength);
@@ -77,8 +95,9 @@ public static class PixelMovementSimulation
             }
         }
 
-        foreach (var agent in agents)
+        for (var agentIndex = 0; agentIndex < agents.Count; agentIndex++)
         {
+            var agent = agents[agentIndex];
             if (stoppedIds.Contains(agent.Id))
             {
                 agent.Velocity = 0d;
@@ -120,9 +139,12 @@ public static class PixelMovementSimulation
                 acceleration += separationForce;
             }
 
-            foreach (var rect in avoidanceRects)
+            for (var rectIndex = 0; rectIndex < avoidanceRects.Count; rectIndex++)
             {
-                acceleration += AvoidanceForce(agent.TrackPosition, geometry, rect);
+                acceleration += AvoidanceForce(
+                    agent.TrackPosition,
+                    geometry,
+                    avoidanceRects[rectIndex]);
             }
 
             agent.Velocity += acceleration * deltaTime;
@@ -160,4 +182,10 @@ public static class PixelMovementSimulation
             : expanded.MaxY - geometry.Bounds.MinY;
         return trackPosition - lower < upper - trackPosition ? -90d : 90d;
     }
+}
+
+public sealed class PixelMovementScratch
+{
+    internal Dictionary<Guid, double> Separation { get; } = [];
+    internal HashSet<Guid> OverlappingIds { get; } = [];
 }

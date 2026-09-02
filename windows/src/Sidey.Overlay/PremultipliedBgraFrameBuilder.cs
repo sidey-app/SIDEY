@@ -81,11 +81,11 @@ internal static class PremultipliedBgraFrameBuilder
         int y,
         int size,
         OverlayEdge edge) => edge switch
-    {
-        OverlayEdge.Bottom => (x, y),
-        OverlayEdge.Top => (size - 1 - x, size - 1 - y),
-        OverlayEdge.Left => (y, size - 1 - x),
-        OverlayEdge.Right => (size - 1 - y, x),
-        _ => throw new ArgumentOutOfRangeException(nameof(edge)),
-    };
+        {
+            OverlayEdge.Bottom => (x, y),
+            OverlayEdge.Top => (size - 1 - x, size - 1 - y),
+            OverlayEdge.Left => (y, size - 1 - x),
+            OverlayEdge.Right => (size - 1 - y, x),
+            _ => throw new ArgumentOutOfRangeException(nameof(edge)),
+        };
 }

@@ -8,10 +8,12 @@ public sealed record AppPreferences(
     bool QuietMode,
     bool ShowOfflineMembers,
     bool StartAtLogin,
+    string? CachedNickname,
+    string? CachedCharacterId,
     Guid? ActiveRoomId,
     OverlayRegionPreference OverlayRegion)
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public static AppPreferences CreateDefault(long? installationSeed = null) => new(
         SchemaVersion: CurrentSchemaVersion,
@@ -21,6 +23,8 @@ public sealed record AppPreferences(
         QuietMode: false,
         ShowOfflineMembers: true,
         StartAtLogin: false,
+        CachedNickname: null,
+        CachedCharacterId: null,
         ActiveRoomId: null,
         OverlayRegion: OverlayRegionPreference.Default);
 
@@ -30,6 +34,12 @@ public sealed record AppPreferences(
     {
         SchemaVersion = CurrentSchemaVersion,
         InstallationSeed = InstallationSeed == 0 ? Random.Shared.NextInt64() : InstallationSeed,
+        CachedNickname = CachedNickname is not null && ProfileValidator.IsValidNickname(CachedNickname)
+            ? ProfileValidator.NormalizeNickname(CachedNickname)
+            : null,
+        CachedCharacterId = string.IsNullOrWhiteSpace(CachedCharacterId)
+            ? null
+            : PixelCharacterCatalog.NormalizeId(CachedCharacterId),
         OverlayRegion = OverlayRegion ?? OverlayRegionPreference.Default,
     };
 }

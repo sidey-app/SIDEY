@@ -26,6 +26,11 @@ public sealed unsafe class NativeLayeredBitmap : IDisposable
     private readonly int _byteCount;
     private bool _disposed;
 
+    public NativeLayeredBitmap(nint windowHandle, int width, int height)
+        : this(windowHandle, width, height, ReadOnlySpan<byte>.Empty)
+    {
+    }
+
     public NativeLayeredBitmap(
         nint windowHandle,
         int width,
@@ -53,7 +58,7 @@ public sealed unsafe class NativeLayeredBitmap : IDisposable
         }
 
         var expectedByteCount = checked(width * height * 4);
-        if (premultipliedBgra.Length != expectedByteCount)
+        if (!premultipliedBgra.IsEmpty && premultipliedBgra.Length != expectedByteCount)
         {
             throw new ArgumentException(
                 $"Expected {expectedByteCount} BGRA bytes but received {premultipliedBgra.Length}.",
@@ -107,9 +112,16 @@ public sealed unsafe class NativeLayeredBitmap : IDisposable
                 throw LastWin32Exception("CreateDIBSection failed.");
             }
 
-            fixed (byte* source = premultipliedBgra)
+            if (premultipliedBgra.IsEmpty)
             {
-                Buffer.MemoryCopy(source, destination, expectedByteCount, expectedByteCount);
+                new Span<byte>(destination, expectedByteCount).Clear();
+            }
+            else
+            {
+                fixed (byte* source = premultipliedBgra)
+                {
+                    Buffer.MemoryCopy(source, destination, expectedByteCount, expectedByteCount);
+                }
             }
 
             previousObject = PInvoke.SelectObject(memoryDeviceContext, bitmap);
@@ -146,6 +158,15 @@ public sealed unsafe class NativeLayeredBitmap : IDisposable
 
     public int Width { get; }
     public int Height { get; }
+
+    public Span<byte> Pixels
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return new Span<byte>((void*)_destination, _byteCount);
+        }
+    }
 
     public void UpdatePixels(ReadOnlySpan<byte> premultipliedBgra)
     {

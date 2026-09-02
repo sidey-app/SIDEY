@@ -39,24 +39,24 @@ public static class PixelCharacterCatalog
     [
         Create(
             FallbackId,
-            "아기 햄스터",
+            Localization.I18n.Get("characters.hamster"),
             "43171c1dd614629058b6d593c57ca0e5841b0be03a04a05181dfda67c53a7f45",
             ["minty_pup"]),
         Create(
             "pixel_cat",
-            "아기 고양이",
+            Localization.I18n.Get("characters.cat"),
             "d8b370c03b5cf0ede6aa0d9fa6210030e164b015a920622e89ae86f835e018b2"),
         Create(
             "pixel_puppy",
-            "아기 강아지",
+            Localization.I18n.Get("characters.dog"),
             "8f56a5fda51a224802f41d6d1c359a138c83036b7da3e0a35777f9f4ed38d5f7"),
         Create(
             "pixel_rabbit",
-            "아기 토끼",
+            Localization.I18n.Get("characters.rabbit"),
             "f8e53749200a284f7729ea9baac3237a9fac0caf8efedf9102dcee065e521342"),
         Create(
             "pixel_penguin",
-            "아기 펭귄",
+            Localization.I18n.Get("characters.penguin"),
             "f171503f8ffb938732583a4b6f42443e7a69120bb17496f6e8d34372da2ea886"),
     ];
 
@@ -92,9 +92,9 @@ public static class PixelCharacterCatalog
         IReadOnlyList<string>? aliases = null) => new(
             id,
             displayName,
-            $"Characters/{id}.png",
-            $"Characters/{id}.bgra",
-            $"Characters/{id}_manifest.json",
+            $"Characters/{id}/sprite.png",
+            $"Characters/{id}/frames.bgra",
+            $"Characters/{id}/manifest.json",
             spriteSheetSha256,
             FrameWidth: 24,
             FrameHeight: 24,

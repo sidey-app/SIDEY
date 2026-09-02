@@ -4,6 +4,7 @@ public enum MessageDeliveryState
 {
     Pending,
     Confirmed,
+    Failed,
 }
 
 public sealed record MessageLedgerEntry(
@@ -90,7 +91,7 @@ public sealed class MessageLedger
         }
 
         var body = _entries[index].Body;
-        _entries.RemoveAt(index);
+        _entries[index] = _entries[index] with { State = MessageDeliveryState.Failed };
         return body;
     }
 

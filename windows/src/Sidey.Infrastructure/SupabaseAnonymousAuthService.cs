@@ -1,8 +1,9 @@
-using Sidey.Core.Abstractions;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Sidey.Core.Abstractions;
+using Sidey.Core.Localization;
 
 namespace Sidey.Infrastructure;
 
@@ -62,7 +63,7 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
             if (await ReadStoredSessionAsync(cancellationToken).ConfigureAwait(false) is not null)
             {
                 throw new InvalidOperationException(
-                    "저장된 세션이 있는 설치에서는 익명 계정을 새로 만들 수 없습니다.");
+                    I18n.Get("auth.cannotReplaceStoredSession"));
             }
 
             var created = await RequestSessionAsync(
@@ -137,18 +138,18 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException(
-                $"Supabase 익명 인증 요청이 실패했습니다. HTTP {(int)response.StatusCode}.");
+                I18n.Format("auth.requestFailed", (int)response.StatusCode));
         }
 
         var envelope = await response.Content.ReadFromJsonAsync<AuthEnvelope>(
             SerializerOptions,
             cancellationToken).ConfigureAwait(false)
-            ?? throw new InvalidDataException("Supabase 인증 응답이 비어 있습니다.");
+            ?? throw new InvalidDataException(I18n.Get("auth.emptyResponse"));
         if (string.IsNullOrWhiteSpace(envelope.AccessToken)
             || string.IsNullOrWhiteSpace(envelope.RefreshToken)
             || envelope.User?.Id is not { } userId)
         {
-            throw new InvalidDataException("Supabase 인증 응답에 필요한 세션 값이 없습니다.");
+            throw new InvalidDataException(I18n.Get("auth.missingSessionValues"));
         }
 
         return new StoredSupabaseSession(
@@ -190,7 +191,7 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
         }
         catch (JsonException exception)
         {
-            throw new InvalidDataException("저장된 SIDEY 세션을 해석할 수 없습니다.", exception);
+            throw new InvalidDataException(I18n.Get("auth.invalidStoredSession"), exception);
         }
     }
 

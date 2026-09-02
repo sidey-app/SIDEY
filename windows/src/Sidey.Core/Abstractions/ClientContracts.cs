@@ -1,4 +1,5 @@
 using Sidey.Core.Domain;
+using Sidey.Core.Localization;
 using Sidey.Core.Overlay;
 
 namespace Sidey.Core.Abstractions;
@@ -33,7 +34,7 @@ public static class AnonymousSessionBootstrapper
         catch (Exception exception) when (hasStoredSession)
         {
             throw new SessionRecoveryException(
-                "기존 SIDEY 세션을 복구하지 못했습니다. 새 계정으로 자동 대체하지 않습니다.",
+                I18n.Get("auth.restoreFailed"),
                 exception);
         }
 
@@ -45,7 +46,7 @@ public static class AnonymousSessionBootstrapper
         if (hasStoredSession)
         {
             throw new SessionRecoveryException(
-                "기존 SIDEY 세션을 복구하지 못했습니다. 새 계정으로 자동 대체하지 않습니다.");
+                I18n.Get("auth.restoreFailed"));
         }
 
         return await auth.CreateAnonymousSessionAsync(cancellationToken).ConfigureAwait(false);
@@ -58,6 +59,12 @@ public sealed record BackendSnapshot(
     Guid CurrentUserId);
 
 public sealed record CreateRoomResult(Room Room, string InviteCode);
+
+public sealed record MessageHistoryCursor(DateTimeOffset CreatedAt, Guid Id);
+
+public sealed record MessageHistoryPage(
+    IReadOnlyList<ChatMessage> Messages,
+    MessageHistoryCursor? NextCursor);
 
 public abstract record BackendEvent
 {
@@ -88,6 +95,11 @@ public interface IBackendGateway
     Task RemoveRoomMemberAsync(Guid roomId, Guid userId, CancellationToken cancellationToken = default);
     Task DeleteRoomAsync(Guid roomId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ChatMessage>> FetchRecentMessagesAsync(Guid roomId, CancellationToken cancellationToken = default);
+    Task<MessageHistoryPage> FetchMessagePageAsync(
+        Guid roomId,
+        MessageHistoryCursor? before,
+        int limit = 50,
+        CancellationToken cancellationToken = default);
     Task<ChatMessage> SendMessageAsync(Guid id, Guid roomId, string body, CancellationToken cancellationToken = default);
     Task PublishPresenceAsync(Guid roomId, PresenceState state, CancellationToken cancellationToken = default);
     Task BroadcastTypingAsync(Guid roomId, bool active, bool keepalive, CancellationToken cancellationToken = default);

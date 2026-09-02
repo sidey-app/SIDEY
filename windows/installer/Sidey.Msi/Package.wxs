@@ -27,9 +27,12 @@
         Condition="NOT LEGACYUSERINSTALLVERSION OR Installed"
         Message="The per-user SIDEY alpha must be uninstalled before installing this all-users version. Your SIDEY settings and session will be preserved." />
     <util:RestartResource ProcessName="SIDEY.exe" />
+    <util:RestartResource ProcessName="SIDEY.Host.exe" />
 
     <StandardDirectory Id="ProgramFiles6432Folder">
-      <Directory Id="INSTALLFOLDER" Name="SIDEY" />
+      <Directory Id="INSTALLFOLDER" Name="SIDEY">
+        <Directory Id="LANGSFOLDER" Name="Langs" />
+      </Directory>
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramMenuFolder">
@@ -39,9 +42,15 @@
     <Feature Id="MainFeature" Title="SIDEY" Level="1">
       <Files Directory="INSTALLFOLDER" Include="$(PublishDir)\**">
         <Exclude Files="$(PublishDir)\**\*.pdb" />
+        <Exclude Files="$(PublishDir)\SIDEY-Onboarding-Preview.cmd" />
       </Files>
       <ComponentRef Id="ApplicationShortcuts" />
+      <ComponentRef Id="LanguageDirectory" />
     </Feature>
+
+    <Component Id="LanguageDirectory" Directory="LANGSFOLDER" Guid="9A14E12D-D5E9-4D89-A095-9E38AA9A9C3E">
+      <CreateFolder />
+    </Component>
 
     <Component Id="ApplicationShortcuts" Directory="ApplicationProgramsFolder" Guid="DF80A2D7-20D7-4C1C-B448-F17D27073657">
       <Shortcut

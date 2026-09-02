@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using Sidey.Core.Localization;
 
 namespace Sidey.Infrastructure;
 
@@ -25,7 +26,7 @@ public sealed record SupabaseRuntimeConfiguration(Uri Url, string PublishableKey
             || LooksLikeSecretKey(key))
         {
             throw new InvalidOperationException(
-                "Supabase override는 HTTPS(또는 localhost HTTP) URL과 publishable key를 함께 사용해야 하며 secret/service-role 키는 금지됩니다.");
+                I18n.Get("backend.invalidOverride"));
         }
 
         return new SupabaseRuntimeConfiguration(parsed, key);

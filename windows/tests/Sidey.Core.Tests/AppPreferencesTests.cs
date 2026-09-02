@@ -16,6 +16,8 @@ public sealed class AppPreferencesTests
         Assert.False(preferences.QuietMode);
         Assert.True(preferences.ShowOfflineMembers);
         Assert.False(preferences.StartAtLogin);
+        Assert.Null(preferences.CachedNickname);
+        Assert.Null(preferences.CachedCharacterId);
         Assert.Null(preferences.ActiveRoomId);
         Assert.Equal(OverlayRegionPreference.Default, preferences.OverlayRegion);
     }

@@ -1,12 +1,14 @@
-using Sidey.Core.Abstractions;
-using Sidey.Core.Overlay;
 using System.Runtime.InteropServices;
+using Sidey.Core.Abstractions;
+using Sidey.Core.Localization;
+using Sidey.Core.Overlay;
 
 namespace Sidey.Platform.Windows;
 
 public sealed record WindowsMonitorInfo(
     string Identifier,
     string Name,
+    NativePixelRect MonitorPixels,
     NativePixelRect WorkAreaPixels,
     uint Dpi,
     bool IsPrimary);
@@ -68,6 +70,11 @@ public sealed class WindowsMonitorService : IMonitorService
                     identifier,
                     identifier,
                     new NativePixelRect(
+                        info.Monitor.Left,
+                        info.Monitor.Top,
+                        info.Monitor.Right - info.Monitor.Left,
+                        info.Monitor.Bottom - info.Monitor.Top),
+                    new NativePixelRect(
                         work.Left,
                         work.Top,
                         work.Right - work.Left,
@@ -85,7 +92,7 @@ public sealed class WindowsMonitorService : IMonitorService
         var monitors = GetAll();
         if (monitors.Count == 0)
         {
-            throw new InvalidOperationException("사용 가능한 모니터가 없습니다.");
+            throw new InvalidOperationException(I18n.Get("platform.noMonitor"));
         }
 
         return identifier is not null

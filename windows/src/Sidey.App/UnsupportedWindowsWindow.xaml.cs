@@ -1,5 +1,7 @@
 using Microsoft.UI.Xaml;
 
+using Sidey.Core.Localization;
+
 namespace Sidey.App;
 
 public sealed partial class UnsupportedWindowsWindow : Window
@@ -7,6 +9,7 @@ public sealed partial class UnsupportedWindowsWindow : Window
     public UnsupportedWindowsWindow()
     {
         InitializeComponent();
-        Title = "SIDEY — 지원되지 않는 Windows";
+        Title = I18n.Get("unsupported.windowTitle");
+        SideyWindowIcon.Apply(AppWindow);
     }
 }

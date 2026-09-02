@@ -1,7 +1,7 @@
-using Sidey.Core.Abstractions;
-using Sidey.Core.Domain;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Sidey.Core.Abstractions;
+using Sidey.Core.Domain;
 
 namespace Sidey.Platform.Windows;
 
