@@ -50,5 +50,8 @@
     <None Include="../../installer/Sidey.Msi/Sidey.Msi.wixproj" Link="TestAssets/Sidey.Msi.wixproj.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="../../installer/Sidey.Msi/SideyUI.wxs" Link="TestAssets/Sidey.Msi.SideyUI.wxs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 </Project>

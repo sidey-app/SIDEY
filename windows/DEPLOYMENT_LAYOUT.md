@@ -30,7 +30,7 @@ SIDEY/
 ```
 
 - 사용자는 루트 `SIDEY.exe`만 실행합니다. 런처는 모든 명령줄 인수를 `Runtime/SIDEY.Host.exe`로 전달하고 즉시 종료합니다.
-- `Uninstall.exe`를 직접 실행하면 설치된 MSI 제품 코드를 찾아 Windows Installer 제거를 시작합니다. MSI 제거 custom action은 같은 파일을 `--cleanup`으로 실행해 현재 사용자의 SIDEY 설정·로그와 `SIDEY/` 자격 증명을 삭제합니다. major upgrade와 repair에는 이 정리를 실행하지 않습니다.
+- `Uninstall.exe`를 직접 실행하면 설치된 MSI 제품 코드를 찾아 Windows Installer 제거를 시작합니다. 일반 제거 화면의 기본 미선택 데이터 삭제 옵션을 선택하면 MSI custom action이 같은 파일을 `--cleanup`으로 실행해 현재 사용자의 SIDEY 설정·로그와 `SIDEY/` 자격 증명을 삭제합니다. 선택하지 않거나 major upgrade·repair인 경우에는 이 정리를 실행하지 않습니다.
 - 실제 프로세스는 `SIDEY.Host.exe`이므로 런처와 작업 관리자에서 구분할 수 있습니다.
 - WinUI의 PRI 리소스는 호스트 파일 이름과 결합되므로 실제 앱은 빌드 단계부터 `SIDEY.Host`라는 어셈블리 이름을 사용합니다. 게시 후 EXE 이름만 바꾸면 안 됩니다.
 - `Assets`는 사용자가 교체하거나 확인할 수 있는 SIDEY 콘텐츠입니다. WinUI XAML 로딩 호환성을 위해 같은 소형 자산 집합을 `Runtime/Assets`에도 복사합니다.
@@ -38,6 +38,6 @@ SIDEY/
 - 번역 키는 `onboarding.tagline` 같은 점 구분 경로를 사용합니다. XAML은 `{i18n:I18n Key=...}`, C#은 `I18n.Get(...)` 또는 `I18n.Format(...)`으로 같은 카탈로그를 참조합니다.
 - MSI는 게시 트리 전체를 설치하되 `*.pdb`는 제외합니다.
 - 현재 배포 파이프라인은 자체 서명 인증서를 만들거나 SIDEY 파일에 자체 서명을 추가하지 않습니다. 공급자 런타임 파일의 기존 서명은 유지합니다.
-- 사용자 설정, 자격 증명과 메시지 상태는 Program Files가 아니라 Windows 사용자 프로필 또는 Credential Manager에 유지하며 일반 제거 때 함께 삭제합니다.
+- 사용자 설정, 자격 증명과 메시지 상태는 Program Files가 아니라 Windows 사용자 프로필 또는 Credential Manager에 유지하며 일반 제거의 데이터 삭제 옵션을 선택한 경우에만 함께 삭제합니다.
 
 `Runtime`은 하나의 검증된 실행 단위입니다. 내부 DLL을 개별 교체하는 플러그인 ABI나 독립 업데이트 경계로 취급하지 않습니다.

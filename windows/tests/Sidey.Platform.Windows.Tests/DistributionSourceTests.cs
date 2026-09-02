@@ -124,13 +124,14 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
-    public void MsiRunsInstalledUninstallerCleanupOnlyForOrdinaryUninstall()
+    public void MsiRunsSelectedUninstallerCleanupOnlyForOrdinaryUninstall()
     {
         var document = XDocument.Load(AssetPath("Sidey.Msi.Package.wxs"));
-        Assert.DoesNotContain(
-            document.Descendants(),
-            element => element.Name.LocalName == "Property"
-                && (string?)element.Attribute("Id") == "REMOVEUSERDATA");
+        var property = document.Descendants().Single(element =>
+            element.Name.LocalName == "Property"
+            && (string?)element.Attribute("Id") == "REMOVEUSERDATA");
+        Assert.Equal("yes", (string?)property.Attribute("Secure"));
+        Assert.Null(property.Attribute("Value"));
 
         var action = document.Descendants().Single(element =>
             element.Name.LocalName == "CustomAction"
@@ -147,8 +148,32 @@ public sealed class DistributionSourceTests
         var condition = (string?)scheduled.Attribute("Condition");
         Assert.Contains("REMOVE=\"ALL\"", condition, StringComparison.Ordinal);
         Assert.Contains("NOT UPGRADINGPRODUCTCODE", condition, StringComparison.Ordinal);
-        Assert.DoesNotContain("REMOVEUSERDATA", condition, StringComparison.Ordinal);
+        Assert.Contains("REMOVEUSERDATA=\"1\"", condition, StringComparison.Ordinal);
         Assert.Equal("RemoveStartupValue", (string?)scheduled.Attribute("Before"));
+    }
+
+    [Fact]
+    public void MsiRemovalDataOptionIsUncheckedByDefault()
+    {
+        var document = XDocument.Load(AssetPath("Sidey.Msi.SideyUI.wxs"));
+        var checkbox = document.Descendants().Single(element =>
+            element.Name.LocalName == "Control"
+            && (string?)element.Attribute("Id") == "RemoveUserData");
+
+        Assert.Equal("CheckBox", (string?)checkbox.Attribute("Type"));
+        Assert.Equal("REMOVEUSERDATA", (string?)checkbox.Attribute("Property"));
+        Assert.Equal("1", (string?)checkbox.Attribute("CheckBoxValue"));
+
+        var removeNavigation = document.Descendants().Single(element =>
+            element.Name.LocalName == "Publish"
+            && (string?)element.Attribute("Dialog") == "MaintenanceTypeDlg"
+            && (string?)element.Attribute("Control") == "RemoveButton");
+        Assert.Equal("SideyRemoveDataDlg", (string?)removeNavigation.Attribute("Value"));
+
+        var project = XDocument.Load(AssetPath("Sidey.Msi.wixproj.xml"));
+        Assert.Contains(
+            project.Descendants("PackageReference"),
+            reference => (string?)reference.Attribute("Include") == "WixToolset.UI.wixext");
     }
 
     [Fact]
