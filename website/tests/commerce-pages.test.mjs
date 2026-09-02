@@ -31,6 +31,13 @@ test("checkout records explicit consent before initializing Toss", async () => {
   assert.ok(script.includes("config.policy_version === preparedOrder.policy_version"));
 });
 
+test("checkout uses the live basic payment UI with standard easy pay methods", async () => {
+  const script = await read("assets/checkout.js");
+
+  assert.ok(script.includes('variantKey: { paymentMethod: "sideyCheckout" }'));
+  assert.ok(!script.includes("renderPaymentWindow();"));
+});
+
 test("public policy URLs contain seller details and macOS-only scope", async () => {
   const [store, terms, privacy, refund, sitemap] = await Promise.all([
     read("store.html"),

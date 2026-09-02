@@ -112,7 +112,9 @@
       const tossPayments = window.TossPayments(config.client_key);
       const widgets = tossPayments.widgets({ customerKey: config.customer_key });
       await widgets.setAmount({ currency: config.currency, value: config.amount });
-      paymentWindow = await widgets.renderPaymentWindow();
+      paymentWindow = await widgets.renderPaymentWindow({
+        variantKey: { paymentMethod: "sideyCheckout" },
+      });
       paymentWindow.on("paymentRequest", async () => {
         status.textContent = "결제 인증을 진행하고 있어요…";
         try {
