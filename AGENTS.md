@@ -9,6 +9,8 @@ Read these files before product or implementation work:
 1. `docs/DECISIONS.md` — authoritative confirmed decisions and open questions
 2. `docs/PRODUCT_SPEC.md` — detailed product scope and technical direction
 
+Before editing public landing, store, policy, or checkout pages under `website/`, read `.agents/skills/sidey-public-web/SKILL.md`.
+
 If the documents conflict, confirmed decisions in `docs/DECISIONS.md` win.
 
 ## Branch and platform isolation

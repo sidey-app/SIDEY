@@ -93,7 +93,7 @@ test("Windows production release is staged for verified MSI deployment", async (
   }
 });
 
-test("store renders all four launch-planned products and prices", async () => {
+test("store renders a stable four-product catalog and aligned seller details", async () => {
   const [store, styles] = await Promise.all([read("store.html"), read("assets/styles.css")]);
   for (const name of ["별빛 우파루파", "아기 기니피그", "아기 원숭이", "아기 친칠라"]) {
     assert.ok(store.includes(name), `missing product: ${name}`);
@@ -101,9 +101,20 @@ test("store renders all four launch-planned products and prices", async () => {
   assert.equal(store.match(/class="store-catalog-card"/g)?.length, 4);
   assert.equal(store.match(/990원/g)?.length, 3);
   assert.equal(store.match(/1,900원/g)?.length, 1);
-  assert.equal(store.match(/<span class="development-badge">출시 예정<\/span>/g)?.length, 4);
+  assert.ok(store.includes("macOS SIDEY 앱"));
+  assert.ok(store.includes("꾸미기·상점"));
+  assert.ok(store.includes("판매자 정보"));
+  assert.equal(store.match(/<dt>/g)?.length, 5);
+  for (const label of ["상호", "사업자등록번호", "주소", "통신판매업", "고객지원"]) {
+    assert.ok(store.includes(`<dt>${label}</dt>`), `missing seller label: ${label}`);
+  }
+  for (const internalCopy of ["출시 예정", "production", "Sidey-dev", "SIDEY-staging", "테스트 채널"]) {
+    assert.ok(!store.includes(internalCopy), `store exposes internal rollout copy: ${internalCopy}`);
+  }
   assert.ok(styles.includes(".store-catalog"));
-  assert.ok(styles.includes("grid-template-columns"));
+  assert.ok(styles.includes(".seller-details > div"));
+  assert.ok(styles.includes("grid-template-columns: 132px minmax(0, 1fr)"));
+  assert.ok(styles.includes("grid-template-columns: 104px minmax(0, 1fr)"));
 });
 
 test("public policy URLs keep seller scope and PortOne refund terms", async () => {
@@ -125,6 +136,8 @@ test("public policy URLs keep seller scope and PortOne refund terms", async () =
   assert.ok(publishedPolicies.includes("경기도 용인시 기흥구 서천동로21번길 20-6"));
   assert.ok(publishedPolicies.includes("신고 면제(간이과세자)"));
   assert.ok(publishedPolicies.includes("PortOne"));
+  assert.ok(terms.includes("macOS SIDEY 앱의 꾸미기·상점"));
+  assert.ok(!terms.includes("production 판매"));
   assert.ok(refund.includes("7일 이내"));
   assert.ok(refund.includes("사용 여부와 관계없이"));
   assert.ok(refund.includes("정책 버전 2026-09-02-portone-v1"));
