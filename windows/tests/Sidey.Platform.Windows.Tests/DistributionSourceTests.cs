@@ -15,9 +15,9 @@ public sealed class DistributionSourceTests
         Assert.Equal("true", Value(project, "EnableMsixTooling"));
         Assert.Equal("false", Value(project, "IncludeAllContentForSelfExtract"));
         Assert.Equal("false", Value(project, "PublishTrimmed"));
-        Assert.Equal("0.3.0-alpha.7", Value(project, "Version"));
-        Assert.Equal("0.3.0.7", Value(project, "FileVersion"));
-        Assert.Equal("0.3.0.7", Value(project, "AssemblyVersion"));
+        Assert.Equal("1.0.3", Value(project, "Version"));
+        Assert.Equal("1.0.3.0", Value(project, "FileVersion"));
+        Assert.Equal("1.0.3.0", Value(project, "AssemblyVersion"));
         Assert.Equal("SIDEY.Host", Value(project, "AssemblyName"));
         Assert.Equal("SIDEY", Value(project, "AssemblyTitle"));
         Assert.Equal("SIDEY", Value(project, "Product"));
@@ -114,33 +114,24 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
-    public void BurnLaunchesTheProgramFilesExecutable()
+    public void MsiUsesThePublicVersionedFileName()
     {
-        var document = XDocument.Load(AssetPath("Sidey.Bundle.Bundle.wxs"));
-        var launchTarget = document
-            .Descendants()
-            .Attributes("LaunchTarget")
-            .Single()
-            .Value;
+        var project = XDocument.Load(AssetPath("Sidey.Msi.wixproj.xml"));
 
-        Assert.Equal("[ProgramFiles64Folder]SIDEY\\SIDEY.exe", launchTarget);
-        Assert.DoesNotContain("LocalAppDataFolder", launchTarget, StringComparison.Ordinal);
+        Assert.Equal(
+            "SIDEY-Windows-x64-v$(DisplayVersion)",
+            Value(project, "OutputName"));
     }
 
     [Fact]
-    public void DistributionPipelineSelfSignsSideyArtifacts()
+    public void DistributionPipelineBuildsOnlyThePublicMsiWithoutSelfSigning()
     {
-        string signer = File.ReadAllText(RepositoryPath(
-            "scripts", "windows", "sign-self-signed.ps1"));
         string package = File.ReadAllText(RepositoryPath(
             "scripts", "windows", "package.ps1"));
 
-        Assert.Contains("$subject = 'CN=SIDEY'", signer, StringComparison.Ordinal);
-        Assert.Contains("-Type CodeSigningCert", signer, StringComparison.Ordinal);
-        Assert.Contains("Set-AuthenticodeSignature", signer, StringComparison.Ordinal);
-        Assert.Contains("SIDEY-SelfSigned-CodeSigning.cer", package, StringComparison.Ordinal);
-        Assert.Contains("$testMsiName", package, StringComparison.Ordinal);
-        Assert.Contains("$testMsiHashPath", package, StringComparison.Ordinal);
+        Assert.Contains("SIDEY-Windows-x64-v$Version.msi", package, StringComparison.Ordinal);
+        Assert.Contains("Get-FileHash", package, StringComparison.Ordinal);
+        Assert.Contains("SHA256=$hash", package, StringComparison.Ordinal);
         Assert.Contains("Runtime/SIDEY.Host.exe", package, StringComparison.Ordinal);
         Assert.Contains("'SIDEY.Host.dll'", package, StringComparison.Ordinal);
         Assert.Contains("'Sidey.Core.dll'", package, StringComparison.Ordinal);
@@ -148,11 +139,17 @@ public sealed class DistributionSourceTests
         Assert.Contains("'Sidey.Overlay.dll'", package, StringComparison.Ordinal);
         Assert.Contains("'Sidey.Platform.Windows.dll'", package, StringComparison.Ordinal);
         Assert.Contains("'Sidey.Presentation.dll'", package, StringComparison.Ordinal);
-        Assert.Contains("-Path $sideyBinaries", package, StringComparison.Ordinal);
-        Assert.Contains("-Path $msi.FullName", package, StringComparison.Ordinal);
-        Assert.Contains("-Path $setupPath", package, StringComparison.Ordinal);
-        Assert.Contains("SIDEY-signing-temporary.pfx", package, StringComparison.Ordinal);
-        Assert.Contains("finally", package, StringComparison.Ordinal);
+        Assert.DoesNotContain("sign-self-signed", package, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Set-AuthenticodeSignature", package, StringComparison.Ordinal);
+        Assert.DoesNotContain("SIDEY-SelfSigned", package, StringComparison.Ordinal);
+        Assert.DoesNotContain("Setup.exe", package, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(".sha256", package, StringComparison.OrdinalIgnoreCase);
+        Assert.False(File.Exists(RepositoryPath(
+            "scripts", "windows", "sign-self-signed.ps1")));
+        Assert.False(File.Exists(RepositoryPath(
+            "windows", "installer", "Sidey.Bundle", "Bundle.wxs")));
+        Assert.False(File.Exists(RepositoryPath(
+            "windows", "installer", "Sidey.Bundle", "Sidey.Bundle.wixproj")));
 
         string organizer = File.ReadAllText(RepositoryPath(
             "scripts", "windows", "organize-publish.ps1"));

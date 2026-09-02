@@ -20,9 +20,9 @@
     <AssemblyName>SIDEY.Host</AssemblyName>
     <AssemblyTitle>SIDEY</AssemblyTitle>
     <Product>SIDEY</Product>
-    <Version>0.3.0-alpha.7</Version>
-    <FileVersion>0.3.0.7</FileVersion>
-    <AssemblyVersion>0.3.0.7</AssemblyVersion>
+    <Version>1.0.3</Version>
+    <FileVersion>1.0.3.0</FileVersion>
+    <AssemblyVersion>1.0.3.0</AssemblyVersion>
     <ApplicationIcon>Assets\Icons\SideyAppIcon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>

@@ -59,9 +59,9 @@ public sealed class WindowPolicyTests
     }
 
     [Fact]
-    public void CurrentWindowsCandidateIsSeventhAlpha()
+    public void CurrentWindowsVersionIsStableOneZeroThree()
     {
-        Assert.Equal("0.3.0-alpha.7", WindowsUpdateService.CurrentVersion);
+        Assert.Equal("1.0.3", WindowsUpdateService.CurrentVersion);
     }
 
     [Theory]

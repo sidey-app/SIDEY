@@ -6,9 +6,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$LauncherSource,
 
-    [string]$Version = '0.3.0-alpha.7',
+    [string]$Version = '1.0.3',
 
-    [string]$FileVersion = '0.3.0.7'
+    [string]$FileVersion = '1.0.3.0'
 )
 
 $ErrorActionPreference = 'Stop'

@@ -8,7 +8,7 @@
       Scope="perMachine"
       Compressed="yes">
 
-    <SummaryInformation Description="SIDEY Windows alpha" Manufacturer="SIDEY" />
+    <SummaryInformation Description="SIDEY Windows" Manufacturer="SIDEY" />
     <MajorUpgrade
         AllowDowngrades="no"
         DowngradeErrorMessage="A newer version of SIDEY is already installed."
@@ -25,7 +25,7 @@
     <Launch Condition="VersionNT64" Message="SIDEY requires 64-bit Windows." />
     <Launch
         Condition="NOT LEGACYUSERINSTALLVERSION OR Installed"
-        Message="The per-user SIDEY alpha must be uninstalled before installing this all-users version. Your SIDEY settings and session will be preserved." />
+        Message="The older per-user SIDEY version must be uninstalled before installing this all-users version. Your SIDEY settings and session will be preserved." />
     <util:RestartResource ProcessName="SIDEY.exe" />
     <util:RestartResource ProcessName="SIDEY.Host.exe" />
 
