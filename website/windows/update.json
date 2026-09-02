@@ -2,6 +2,6 @@
   "channel": "alpha",
   "version": "0.3.0-alpha.7",
   "tag": "windows-v0.3.0-alpha.7",
-  "installer_url": null,
-  "sha256": null
+  "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v0.3.0-alpha.7/SIDEY-Windows-x64-v0.3.0-alpha.7-Setup.exe",
+  "sha256": "30af0b889ee56ff58934337f01b39275cf5c72a8ea5aa4b37a83eef7b11f9e81"
 }

@@ -96,14 +96,18 @@
               </span>
               macOS 다운로드
             </a>
-            <button class="button button-secondary" type="button" disabled aria-describedby="windows-hero-status">
+            <a
+              class="button button-secondary"
+              href="https://github.com/sidey-app/SIDEY/releases/download/windows-v0.3.0-alpha.7/SIDEY-Windows-x64-v0.3.0-alpha.7-Setup.exe"
+              aria-describedby="windows-hero-status"
+            >
               <span class="platform-icon platform-icon-windows" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
               Windows 다운로드
-            </button>
+            </a>
           </div>
           <p class="requirements">
             <span>macOS 26+ · Apple Silicon · 정식 버전</span>
-            <span class="pending" id="windows-hero-status">Windows 11 25H2 x64 · 개발 중</span>
+            <span class="pending" id="windows-hero-status">Windows 11 25H2 x64 · 테스트 알파</span>
           </p>
         </div>
 
@@ -205,8 +209,8 @@
       <section class="section download-section" id="download" aria-labelledby="download-title">
         <div class="section-heading">
           <p class="section-kicker">다운로드</p>
-          <h2 id="download-title">macOS 정식 버전을 바로 시작해 보세요.</h2>
-          <p>공증된 DMG로 직접 설치하거나 Homebrew Cask를 사용할 수 있습니다.</p>
+          <h2 id="download-title">사용 중인 플랫폼에서 SIDEY를 시작해 보세요.</h2>
+          <p>macOS 정식 버전과 Windows 기기 테스트용 알파를 제공합니다.</p>
         </div>
 
         <div class="download-grid">
@@ -261,16 +265,23 @@
 
           <article class="download-card">
             <span class="platform-label">Windows</span>
-            <h3>Windows 네이티브판</h3>
-            <p>Windows 11 25H2 x64용 5캐릭터 네이티브 alpha를 개발·검증 중입니다. 아직 공개 Setup.exe는 없습니다.</p>
-            <span class="development-badge" id="windows-card-status">개발 중</span>
+            <h3>SIDEY v0.3.0-alpha.7</h3>
+            <p>다섯 캐릭터와 메시지·최근 기록을 제공하는 Windows 기기 테스트용 네이티브 알파입니다.</p>
+            <span class="development-badge" id="windows-card-status">테스트 알파</span>
             <div class="download-actions">
-              <button class="button button-secondary" type="button" disabled aria-describedby="windows-card-status">
+              <a
+                class="button button-secondary"
+                href="https://github.com/sidey-app/SIDEY/releases/download/windows-v0.3.0-alpha.7/SIDEY-Windows-x64-v0.3.0-alpha.7-Setup.exe"
+                aria-describedby="windows-card-status"
+              >
                 <span class="platform-icon platform-icon-windows" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-                Windows 다운로드
-              </button>
+                Setup 다운로드
+              </a>
+              <a class="button button-secondary" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v0.3.0-alpha.7">
+                릴리스 정보
+              </a>
             </div>
-            <p class="system-note">예정 환경: Windows 11 25H2 이상 · x64</p>
+            <p class="system-note">지원: Windows 11 25H2 이상 · x64 · 자체 서명 테스트 빌드로 보안 정책에 따라 실행이 차단될 수 있음</p>
           </article>
         </div>
       </section>
