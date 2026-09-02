@@ -1,0 +1,7 @@
+interface:
+  display_name: "SIDEY Public Web"
+  short_description: "Keep SIDEY public web copy stable and user-facing"
+  default_prompt: "Use $sidey-public-web to update SIDEY public pages with durable user-facing copy and responsive layouts."
+
+policy:
+  allow_implicit_invocation: true
