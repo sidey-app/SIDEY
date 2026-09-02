@@ -17,6 +17,7 @@ $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $resolvedPublishDir = (Resolve-Path -LiteralPath $PublishDir).Path
 $resolvedOutDir = [System.IO.Path]::GetFullPath($OutDir)
 $executable = Join-Path $resolvedPublishDir 'SIDEY.exe'
+$uninstaller = Join-Path $resolvedPublishDir 'Uninstall.exe'
 $runtimeDir = Join-Path $resolvedPublishDir 'Runtime'
 $hostExecutable = Join-Path $runtimeDir 'SIDEY.Host.exe'
 $legacyExecutable = Join-Path $resolvedPublishDir 'Sidey.App.exe'
@@ -50,6 +51,9 @@ function Get-SideyRelativePath {
 if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
     throw "게시 폴더에 SIDEY.exe가 없음: $resolvedPublishDir"
 }
+if (-not (Test-Path -LiteralPath $uninstaller -PathType Leaf)) {
+    throw "Published Uninstall.exe is missing: $resolvedPublishDir"
+}
 if (-not (Test-Path -LiteralPath $hostExecutable -PathType Leaf)) {
     throw "게시 폴더에 Runtime/SIDEY.Host.exe가 없음: $resolvedPublishDir"
 }
@@ -64,6 +68,7 @@ $iconRoot = Join-Path $resolvedPublishDir 'Assets/Icons'
 $languageRoot = Join-Path $resolvedPublishDir 'Langs'
 $requiredSideyBinaries = @(
     $executable,
+    $uninstaller,
     $hostExecutable,
     (Join-Path $runtimeDir 'SIDEY.Host.dll'),
     (Join-Path $runtimeDir 'Sidey.Core.dll'),
@@ -83,6 +88,7 @@ $allowedRootNames = [Collections.Generic.HashSet[string]]::new(
     [StringComparer]::OrdinalIgnoreCase)
 foreach ($name in @(
     'SIDEY.exe',
+    'Uninstall.exe',
     'SIDEY-Onboarding-Preview.cmd',
     'Assets',
     'Langs',

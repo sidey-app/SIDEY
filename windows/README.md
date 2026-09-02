@@ -80,7 +80,7 @@ dotnet run --project ./windows/src/Sidey.App/Sidey.App.csproj --configuration De
 
 ## MSI 생성과 정식 배포
 
-unpackaged·multi-file self-contained WinUI 앱을 `PublishSingleFile=false`로 게시합니다. 루트의 작은 `SIDEY.exe` 런처가 모든 인수를 `Runtime\SIDEY.Host.exe`로 전달하며, 앱 본체와 .NET·Windows App SDK 런타임은 `Runtime` 안에 격리합니다. 사용자 콘텐츠는 `Assets`, SIDEY 자체 JSON 번역 리소스는 `Langs`에 둡니다. 별도 런타임 설치는 필요하지 않으며 모든 파일은 하나의 검증된 버전 단위로 함께 설치·업데이트합니다. 자세한 기준은 [`DEPLOYMENT_LAYOUT.md`](DEPLOYMENT_LAYOUT.md)에 있습니다.
+unpackaged·multi-file self-contained WinUI 앱을 `PublishSingleFile=false`로 게시합니다. 루트의 작은 `SIDEY.exe` 런처가 모든 인수를 `Runtime\SIDEY.Host.exe`로 전달하고, `Uninstall.exe`가 Windows Installer 제거를 시작하거나 제거 custom action에서 현재 사용자 데이터를 정리합니다. 앱 본체와 .NET·Windows App SDK 런타임은 `Runtime` 안에 격리합니다. 사용자 콘텐츠는 `Assets`, SIDEY 자체 JSON 번역 리소스는 `Langs`에 둡니다. 별도 런타임 설치는 필요하지 않으며 모든 파일은 하나의 검증된 버전 단위로 함께 설치·업데이트합니다. 자세한 기준은 [`DEPLOYMENT_LAYOUT.md`](DEPLOYMENT_LAYOUT.md)에 있습니다.
 
 WiX Toolset `6.0.2`는 게시 트리 전체를 포함하는 머신 단위 MSI를 만듭니다. 배포 파이프라인은 SIDEY 파일을 자체 서명하지 않으며, 공급자가 서명한 .NET·Windows App SDK 파일은 원래 서명을 유지합니다.
 
@@ -96,9 +96,9 @@ pwsh ./scripts/windows/package.ps1 `
   -Version 1.0.3
 ```
 
-CI 아티팩트와 GitHub 정식 Release에는 `SIDEY-Windows-x64-v1.0.3.msi` 하나만 게시합니다. Setup EXE, ZIP, MSIX, 자체 서명 인증서, `.sha256` 파일은 Release에 포함하지 않습니다. MSI는 관리자 승인 뒤 `C:\Program Files\SIDEY`에 설치하고 공용 시작 메뉴만 추가합니다. 바탕화면 바로가기와 설치 중 로그인 자동 실행은 만들지 않습니다.
+CI 아티팩트와 GitHub 정식 Release에는 `SIDEY-Windows-x64-v1.0.3.msi` 하나만 게시합니다. Setup EXE, ZIP, MSIX, 자체 서명 인증서, `.sha256` 파일은 Release에 포함하지 않습니다. MSI는 관리자 승인 뒤 `C:\Program Files\SIDEY`에 설치하고 공용 시작 메뉴에 앱과 제거 바로가기를 추가합니다. 앱 목록의 MSI 제품 정보와 설치된 `Uninstall.exe`에는 SIDEY 아이콘을 사용합니다. 바탕화면 바로가기와 설치 중 로그인 자동 실행은 만들지 않습니다.
 
-기존 Windows 테스트 버전이 설치되어 있으면 Windows 설정에서 먼저 제거한 뒤 v1.0.3을 설치합니다. `%LOCALAPPDATA%\SIDEY` 설정과 Credential Manager 세션은 제거하지 않습니다.
+기존 Windows 테스트 버전이 설치되어 있으면 Windows 설정에서 먼저 제거한 뒤 v1.0.3을 설치합니다. v1.0.3은 Windows 설정이나 MSI에서 제거할 때 `Uninstall.exe --cleanup`을 실행하고, 설치 폴더나 시작 메뉴에서 `Uninstall.exe`를 직접 실행하면 Windows Installer 제거를 시작합니다. 일반 제거는 `%LOCALAPPDATA%\SIDEY` 설정·로그와 Credential Manager의 `SIDEY/` 자격 증명까지 삭제하며, repair와 major upgrade는 이 데이터를 보존합니다.
 
 Windows와 macOS는 같은 GitHub 저장소를 사용하지만 릴리스 주기는 독립적입니다. Windows 릴리스 태그는 `windows-v<version>`, macOS 릴리스 태그는 기존 `v<version>` 형식을 사용합니다. Windows 앱은 Pages의 `website/windows-latest.json`만 확인하며, 호환 경로인 `website/windows/update.json`도 같은 내용으로 유지합니다.
 
@@ -127,5 +127,5 @@ Get-FileHash .\SIDEY-Windows-x64-v1.0.3.msi -Algorithm SHA256
 - Windows 30분 햄스터 제한 실기 계측
 - 12명 2시간·20노드 30분 장시간 실기
 - macOS↔Windows 메시지·Presence·typing·pulse·그룹 관리 양방향 실서버 검증
-- clean install·repair·upgrade·downgrade·uninstall/reinstall Windows 회귀 검증
+- clean install·repair·upgrade·downgrade와 Windows 설정·MSI·`Uninstall.exe` 제거 시 데이터 정리 회귀 검증
 - 향후 공인 코드 서명, MSIX, ARM64 배포 검토

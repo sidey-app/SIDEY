@@ -124,13 +124,13 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
-    public void MsiRunsSelectedCleanupOnlyForOrdinaryUninstall()
+    public void MsiRunsInstalledUninstallerCleanupOnlyForOrdinaryUninstall()
     {
         var document = XDocument.Load(AssetPath("Sidey.Msi.Package.wxs"));
-        var property = document.Descendants().Single(element =>
-            element.Name.LocalName == "Property"
-            && (string?)element.Attribute("Id") == "REMOVEUSERDATA");
-        Assert.Equal("yes", (string?)property.Attribute("Secure"));
+        Assert.DoesNotContain(
+            document.Descendants(),
+            element => element.Name.LocalName == "Property"
+                && (string?)element.Attribute("Id") == "REMOVEUSERDATA");
 
         var action = document.Descendants().Single(element =>
             element.Name.LocalName == "CustomAction"
@@ -138,7 +138,8 @@ public sealed class DistributionSourceTests
         Assert.Equal("deferred", (string?)action.Attribute("Execute"));
         Assert.Equal("yes", (string?)action.Attribute("Impersonate"));
         Assert.Equal("check", (string?)action.Attribute("Return"));
-        Assert.Contains("--uninstall-cleanup", (string?)action.Attribute("ExeCommand"));
+        Assert.Contains("Uninstall.exe", (string?)action.Attribute("ExeCommand"));
+        Assert.Contains("--cleanup", (string?)action.Attribute("ExeCommand"));
 
         var scheduled = document.Descendants().Single(element =>
             element.Name.LocalName == "Custom"
@@ -146,22 +147,54 @@ public sealed class DistributionSourceTests
         var condition = (string?)scheduled.Attribute("Condition");
         Assert.Contains("REMOVE=\"ALL\"", condition, StringComparison.Ordinal);
         Assert.Contains("NOT UPGRADINGPRODUCTCODE", condition, StringComparison.Ordinal);
-        Assert.Contains("REMOVEUSERDATA=\"1\"", condition, StringComparison.Ordinal);
+        Assert.DoesNotContain("REMOVEUSERDATA", condition, StringComparison.Ordinal);
+        Assert.Equal("RemoveStartupValue", (string?)scheduled.Attribute("Before"));
     }
 
     [Fact]
-    public void LauncherCleanupDeletesOnlySideyCurrentUserData()
+    public void InstalledUninstallerStartsMsiAndDeletesOnlySideyCurrentUserData()
     {
-        string launcher = File.ReadAllText(RepositoryPath(
-            "windows", "src", "Sidey.Launcher", "Program.cs"));
+        string uninstaller = File.ReadAllText(RepositoryPath(
+            "windows", "src", "Sidey.Uninstaller", "Program.cs"));
 
-        Assert.Contains("--uninstall-cleanup", launcher, StringComparison.Ordinal);
-        Assert.Contains("CredentialFilter = \"SIDEY/*\"", launcher, StringComparison.Ordinal);
-        Assert.Contains("CredEnumerate", launcher, StringComparison.Ordinal);
-        Assert.Contains("CredentialType.Generic", launcher, StringComparison.Ordinal);
-        Assert.Contains("Environment.SpecialFolder.LocalApplicationData", launcher, StringComparison.Ordinal);
-        Assert.Contains("Path.Combine(normalizedLocalAppData, \"SIDEY\")", launcher, StringComparison.Ordinal);
-        Assert.Contains("Directory.Delete(dataRoot, true)", launcher, StringComparison.Ordinal);
+        Assert.Contains("MsiEnumRelatedProducts", uninstaller, StringComparison.Ordinal);
+        Assert.Contains("msiexec.exe", uninstaller, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("start.Verb = \"runas\"", uninstaller, StringComparison.Ordinal);
+        Assert.Contains("CleanupArgument = \"--cleanup\"", uninstaller, StringComparison.Ordinal);
+        Assert.Contains("CredentialFilter = \"SIDEY/*\"", uninstaller, StringComparison.Ordinal);
+        Assert.Contains("CredEnumerate", uninstaller, StringComparison.Ordinal);
+        Assert.Contains("CredentialType.Generic", uninstaller, StringComparison.Ordinal);
+        Assert.Contains("Environment.SpecialFolder.LocalApplicationData", uninstaller, StringComparison.Ordinal);
+        Assert.Contains("Path.Combine(normalizedLocalAppData, \"SIDEY\")", uninstaller, StringComparison.Ordinal);
+        Assert.Contains("Directory.Delete(dataRoot, true)", uninstaller, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MsiAndUninstallerUseTheSideyApplicationIcon()
+    {
+        var document = XDocument.Load(AssetPath("Sidey.Msi.Package.wxs"));
+        var productIcon = document.Descendants().Single(element =>
+            element.Name.LocalName == "Icon"
+            && (string?)element.Attribute("Id") == "SideyProductIcon");
+        Assert.EndsWith(
+            @"Assets\Icons\SideyAppIcon.ico",
+            (string?)productIcon.Attribute("SourceFile"),
+            StringComparison.OrdinalIgnoreCase);
+
+        var arpIcon = document.Descendants().Single(element =>
+            element.Name.LocalName == "Property"
+            && (string?)element.Attribute("Id") == "ARPPRODUCTICON");
+        Assert.Equal("SideyProductIcon", (string?)arpIcon.Attribute("Value"));
+
+        var uninstallShortcut = document.Descendants().Single(element =>
+            element.Name.LocalName == "Shortcut"
+            && (string?)element.Attribute("Id") == "UninstallShortcut");
+        Assert.Equal("[INSTALLFOLDER]Uninstall.exe", (string?)uninstallShortcut.Attribute("Target"));
+
+        string organizer = File.ReadAllText(RepositoryPath(
+            "scripts", "windows", "organize-publish.ps1"));
+        Assert.Contains("Uninstall.exe", organizer, StringComparison.Ordinal);
+        Assert.Contains("/win32icon", organizer, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -174,6 +207,7 @@ public sealed class DistributionSourceTests
         Assert.Contains("Get-FileHash", package, StringComparison.Ordinal);
         Assert.Contains("SHA256=$hash", package, StringComparison.Ordinal);
         Assert.Contains("Runtime/SIDEY.Host.exe", package, StringComparison.Ordinal);
+        Assert.Contains("Uninstall.exe", package, StringComparison.Ordinal);
         Assert.Contains("'SIDEY.Host.dll'", package, StringComparison.Ordinal);
         Assert.Contains("'Sidey.Core.dll'", package, StringComparison.Ordinal);
         Assert.Contains("'Sidey.Infrastructure.dll'", package, StringComparison.Ordinal);
@@ -198,6 +232,7 @@ public sealed class DistributionSourceTests
             "windows", "src", "Sidey.Launcher", "Program.cs"));
         Assert.Contains("SIDEY.Host.exe", organizer, StringComparison.Ordinal);
         Assert.Contains("Runtime", organizer, StringComparison.Ordinal);
+        Assert.Contains("Uninstall.exe", organizer, StringComparison.Ordinal);
         Assert.Contains("SIDEY.Host.exe", launcher, StringComparison.Ordinal);
     }
 

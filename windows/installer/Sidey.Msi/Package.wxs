@@ -14,6 +14,8 @@
         DowngradeErrorMessage="A newer version of SIDEY is already installed."
         Schedule="afterInstallInitialize" />
     <MediaTemplate EmbedCab="yes" />
+    <Icon Id="SideyProductIcon" SourceFile="$(PublishDir)\Assets\Icons\SideyAppIcon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="SideyProductIcon" />
     <Property Id="LEGACYUSERINSTALLVERSION">
       <RegistrySearch
           Id="LegacyPerUserInstallSearch"
@@ -22,7 +24,6 @@
           Name="InstalledVersion"
           Type="raw" />
     </Property>
-    <Property Id="REMOVEUSERDATA" Secure="yes" />
     <Launch Condition="VersionNT64" Message="SIDEY requires 64-bit Windows." />
     <Launch
         Condition="NOT LEGACYUSERINSTALLVERSION OR Installed"
@@ -60,6 +61,12 @@
           Description="SIDEY ambient messenger"
           Target="[INSTALLFOLDER]SIDEY.exe"
           WorkingDirectory="INSTALLFOLDER" />
+      <Shortcut
+          Id="UninstallShortcut"
+          Name="SIDEY 제거"
+          Description="SIDEY와 현재 사용자의 데이터를 제거합니다"
+          Target="[INSTALLFOLDER]Uninstall.exe"
+          WorkingDirectory="INSTALLFOLDER" />
       <RemoveFolder Id="RemoveApplicationProgramsFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
       <RegistryValue
           Root="HKLM"
@@ -80,15 +87,15 @@
     <CustomAction
         Id="RemoveCurrentUserData"
         Directory="INSTALLFOLDER"
-        ExeCommand="&quot;[INSTALLFOLDER]SIDEY.exe&quot; --uninstall-cleanup"
+        ExeCommand="&quot;[INSTALLFOLDER]Uninstall.exe&quot; --cleanup"
         Execute="deferred"
         Impersonate="yes"
         Return="check" />
     <InstallExecuteSequence>
       <Custom
           Action="RemoveCurrentUserData"
-          Before="RemoveFiles"
-          Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE AND REMOVEUSERDATA=&quot;1&quot;" />
+          Before="RemoveStartupValue"
+          Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
       <Custom
           Action="RemoveStartupValue"
           Before="RemoveFiles"
