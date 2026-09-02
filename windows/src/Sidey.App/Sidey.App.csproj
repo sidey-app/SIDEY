@@ -20,9 +20,9 @@
     <AssemblyName>SIDEY.Host</AssemblyName>
     <AssemblyTitle>SIDEY</AssemblyTitle>
     <Product>SIDEY</Product>
-    <Version>0.3.0-alpha.7</Version>
-    <FileVersion>0.3.0.7</FileVersion>
-    <AssemblyVersion>0.3.0.7</AssemblyVersion>
+    <Version>1.0.3</Version>
+    <FileVersion>1.0.3.0</FileVersion>
+    <AssemblyVersion>1.0.3.0</AssemblyVersion>
     <ApplicationIcon>Assets\Icons\SideyAppIcon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
@@ -69,6 +69,6 @@
       Name="OrganizeStructuredPublish"
       AfterTargets="Publish"
       DependsOnTargets="CopyExternalCharacterAssetsAfterPublish;CopySideyAppIconsAfterPublish">
-    <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\..\scripts\windows\organize-publish.ps1&quot; -PublishDir &quot;$(PublishDir).&quot; -LauncherSource &quot;$(MSBuildProjectDirectory)\..\Sidey.Launcher\Program.cs&quot; -Version &quot;$(Version)&quot; -FileVersion &quot;$(FileVersion)&quot;" />
+    <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\..\scripts\windows\organize-publish.ps1&quot; -PublishDir &quot;$(PublishDir).&quot; -LauncherSource &quot;$(MSBuildProjectDirectory)\..\Sidey.Launcher\Program.cs&quot; -UninstallerSource &quot;$(MSBuildProjectDirectory)\..\Sidey.Uninstaller\Program.cs&quot; -Version &quot;$(Version)&quot; -FileVersion &quot;$(FileVersion)&quot;" />
   </Target>
 </Project>

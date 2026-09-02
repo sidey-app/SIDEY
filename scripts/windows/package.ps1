@@ -6,24 +6,22 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$OutDir,
 
-    [string]$Version = '0.3.0-alpha.7',
-
-    [string]$BundleVersion = '0.3.0.7',
+    [string]$Version = '1.0.3',
 
     [switch]$SuppressInstallerValidation
 )
 
 $ErrorActionPreference = 'Stop'
+$PSNativeCommandUseErrorActionPreference = $true
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$resolvedPublishDir = (Resolve-Path $PublishDir).Path
+$resolvedPublishDir = (Resolve-Path -LiteralPath $PublishDir).Path
 $resolvedOutDir = [System.IO.Path]::GetFullPath($OutDir)
 $executable = Join-Path $resolvedPublishDir 'SIDEY.exe'
+$uninstaller = Join-Path $resolvedPublishDir 'Uninstall.exe'
 $runtimeDir = Join-Path $resolvedPublishDir 'Runtime'
 $hostExecutable = Join-Path $runtimeDir 'SIDEY.Host.exe'
 $legacyExecutable = Join-Path $resolvedPublishDir 'Sidey.App.exe'
 $msiProject = Join-Path $repositoryRoot 'windows/installer/Sidey.Msi/Sidey.Msi.wixproj'
-$bundleProject = Join-Path $repositoryRoot 'windows/installer/Sidey.Bundle/Sidey.Bundle.wixproj'
-$signingScript = Join-Path $repositoryRoot 'scripts/windows/sign-self-signed.ps1'
 
 function Get-SideyRelativePath {
     param(
@@ -50,20 +48,27 @@ function Get-SideyRelativePath {
         [System.IO.Path]::DirectorySeparatorChar)
 }
 
-if (-not (Test-Path $executable -PathType Leaf)) {
+if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
     throw "게시 폴더에 SIDEY.exe가 없음: $resolvedPublishDir"
 }
-if (Test-Path $legacyExecutable -PathType Leaf) {
-    throw "게시 진입점 이름이 아직 Sidey.App.exe임. SIDEY.exe 하나로 통일해야 함."
+if (-not (Test-Path -LiteralPath $uninstaller -PathType Leaf)) {
+    throw "Published Uninstall.exe is missing: $resolvedPublishDir"
+}
+if (-not (Test-Path -LiteralPath $hostExecutable -PathType Leaf)) {
+    throw "게시 폴더에 Runtime/SIDEY.Host.exe가 없음: $resolvedPublishDir"
+}
+if (Test-Path -LiteralPath $legacyExecutable -PathType Leaf) {
+    throw '게시 진입점 이름이 아직 Sidey.App.exe임. SIDEY.exe 하나로 통일해야 함.'
 }
 
-$deployableFiles = @(Get-ChildItem -Path $resolvedPublishDir -Recurse -File |
+$deployableFiles = @(Get-ChildItem -LiteralPath $resolvedPublishDir -Recurse -File |
     Where-Object { $_.Extension -ne '.pdb' })
 $assetRoot = Join-Path $resolvedPublishDir 'Assets/Characters'
 $iconRoot = Join-Path $resolvedPublishDir 'Assets/Icons'
 $languageRoot = Join-Path $resolvedPublishDir 'Langs'
-$sideyBinaries = @(
+$requiredSideyBinaries = @(
     $executable,
+    $uninstaller,
     $hostExecutable,
     (Join-Path $runtimeDir 'SIDEY.Host.dll'),
     (Join-Path $runtimeDir 'Sidey.Core.dll'),
@@ -72,19 +77,18 @@ $sideyBinaries = @(
     (Join-Path $runtimeDir 'Sidey.Platform.Windows.dll'),
     (Join-Path $runtimeDir 'Sidey.Presentation.dll')
 )
-$missingSideyBinaries = @($sideyBinaries | Where-Object {
+$missingBinaries = @($requiredSideyBinaries | Where-Object {
     -not (Test-Path -LiteralPath $_ -PathType Leaf)
 })
-if ($missingSideyBinaries.Count -gt 0) {
-    $missingNames = @($missingSideyBinaries | ForEach-Object {
-        Split-Path -Leaf $_
-    })
-    throw "Required SIDEY binaries are missing from the multi-file publish: $($missingNames -join ', ')"
+if ($missingBinaries.Count -gt 0) {
+    throw "Required SIDEY binaries are missing: $($missingBinaries -join ', ')"
 }
+
 $allowedRootNames = [Collections.Generic.HashSet[string]]::new(
     [StringComparer]::OrdinalIgnoreCase)
 foreach ($name in @(
     'SIDEY.exe',
+    'Uninstall.exe',
     'SIDEY-Onboarding-Preview.cmd',
     'Assets',
     'Langs',
@@ -96,58 +100,51 @@ $unexpectedRootItems = @(Get-ChildItem -LiteralPath $resolvedPublishDir -Force |
 if ($unexpectedRootItems.Count -gt 0) {
     throw "Unexpected item at the publish root: $($unexpectedRootItems.Name -join ', ')"
 }
-if (-not (Test-Path -LiteralPath $languageRoot -PathType Container)) {
-    throw "SIDEY language directory is missing: $languageRoot"
-}
-if (-not (Test-Path $assetRoot -PathType Container)) {
-    throw "외부 캐릭터 에셋 폴더가 없음: $assetRoot"
-}
-
-if (-not (Test-Path $iconRoot -PathType Container)) {
-    throw "SIDEY icon asset directory is missing: $iconRoot"
+foreach ($directory in @($assetRoot, $iconRoot, $languageRoot)) {
+    if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
+        throw "Required publish directory is missing: $directory"
+    }
 }
 
 $sourceIconRoot = Join-Path $repositoryRoot 'windows/src/Sidey.App/Assets/Icons'
-$sourceIconNames = @(Get-ChildItem -Path $sourceIconRoot -File |
+$sourceIconNames = @(Get-ChildItem -LiteralPath $sourceIconRoot -File |
     Select-Object -ExpandProperty Name |
     Sort-Object)
-$publishedIconNames = @(Get-ChildItem -Path $iconRoot -File |
+$publishedIconNames = @(Get-ChildItem -LiteralPath $iconRoot -File |
     Select-Object -ExpandProperty Name |
     Sort-Object)
-$iconDifference = @(Compare-Object `
-    -ReferenceObject $sourceIconNames `
-    -DifferenceObject $publishedIconNames)
-if ($sourceIconNames.Count -eq 0 -or $iconDifference.Count -gt 0) {
-    throw "Published SIDEY icon variants do not match the source icon set."
+if ($sourceIconNames.Count -eq 0 -or
+    @(Compare-Object $sourceIconNames $publishedIconNames).Count -gt 0) {
+    throw 'Published SIDEY icon variants do not match the source icon set.'
 }
 
-$assetFiles = @(Get-ChildItem -Path $assetRoot -Recurse -File)
+$assetFiles = @(Get-ChildItem -LiteralPath $assetRoot -Recurse -File)
 $manifests = @($assetFiles | Where-Object { $_.Name -eq 'manifest.json' })
 $sourceAssetRoot = Join-Path $repositoryRoot 'windows/src/Sidey.Overlay/Assets/Characters'
-$sourceManifestNames = @(Get-ChildItem -Path $sourceAssetRoot -Filter 'manifest.json' -Recurse -File |
+$sourceManifestNames = @(Get-ChildItem -LiteralPath $sourceAssetRoot -Filter 'manifest.json' -Recurse -File |
     ForEach-Object { Get-SideyRelativePath $sourceAssetRoot $_.FullName } |
     Sort-Object)
 $publishedManifestNames = @($manifests |
     ForEach-Object { Get-SideyRelativePath $assetRoot $_.FullName } |
     Sort-Object)
-$manifestDifference = @(Compare-Object `
-    -ReferenceObject $sourceManifestNames `
-    -DifferenceObject $publishedManifestNames)
-if ($sourceManifestNames.Count -eq 0 -or $manifestDifference.Count -gt 0) {
-    throw "소스와 게시 폴더의 캐릭터 manifest 목록이 일치하지 않음"
+if ($sourceManifestNames.Count -eq 0 -or
+    @(Compare-Object $sourceManifestNames $publishedManifestNames).Count -gt 0) {
+    throw '소스와 게시 폴더의 캐릭터 manifest 목록이 일치하지 않음'
 }
-$expectedAssets = [System.Collections.Generic.HashSet[string]]::new(
-    [System.StringComparer]::OrdinalIgnoreCase)
+
+$expectedAssets = [Collections.Generic.HashSet[string]]::new(
+    [StringComparer]::OrdinalIgnoreCase)
 foreach ($manifest in $manifests) {
-    $metadata = Get-Content -Path $manifest.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
+    $metadata = Get-Content -LiteralPath $manifest.FullName -Raw -Encoding UTF8 |
+        ConvertFrom-Json
     $characterId = [string]$metadata.character_id
-    if ([string]::IsNullOrWhiteSpace($characterId) `
-        -or $manifest.Directory.Name -ne $characterId) {
+    if ([string]::IsNullOrWhiteSpace($characterId) -or
+        $manifest.Directory.Name -ne $characterId) {
         throw "캐릭터 폴더 이름과 character_id가 일치하지 않음: $($manifest.FullName)"
     }
     foreach ($name in @('sprite.png', 'frames.bgra', 'manifest.json')) {
         $path = Join-Path $manifest.Directory.FullName $name
-        if (-not (Test-Path $path -PathType Leaf)) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
             throw "캐릭터 외부 에셋이 누락됨: $characterId/$name"
         }
         [void]$expectedAssets.Add([System.IO.Path]::GetFullPath($path))
@@ -157,152 +154,52 @@ $unexpectedAssets = @($assetFiles | Where-Object {
     -not $expectedAssets.Contains($_.FullName)
 })
 if ($unexpectedAssets.Count -gt 0 -or $assetFiles.Count -ne $expectedAssets.Count) {
-    throw "캐릭터 외부 에셋에는 PNG/BGRA/manifest 세트만 둘 수 있음"
-}
-$publishBytes = ($deployableFiles | Measure-Object -Property Length -Sum).Sum
-Write-Host "PublishLayout=structured self-contained; Files=$($deployableFiles.Count); Bytes=$publishBytes; Host=Runtime/SIDEY.Host.exe; CharacterFiles=$($assetFiles.Count)"
-
-$versionMatch = [regex]::Match($Version, '^(?<product>\d+\.\d+\.\d+)(?:-[0-9A-Za-z.-]+)?$')
-if (-not $versionMatch.Success) {
-    throw "표시 버전 형식이 올바르지 않음: $Version"
-}
-if ($BundleVersion -notmatch '^\d+\.\d+\.\d+\.\d+$') {
-    throw "Burn bundle 버전은 숫자 4부 형식이어야 함: $BundleVersion"
-}
-try {
-    [void][Version]$BundleVersion
-}
-catch {
-    throw "Burn bundle 버전은 숫자 4부 형식이어야 함: $BundleVersion"
+    throw '캐릭터 외부 에셋에는 PNG/BGRA/manifest 세트만 둘 수 있음'
 }
 
-$displayCore = [Version]$versionMatch.Groups['product'].Value
-$publishedVersionInfo = (Get-Item $hostExecutable).VersionInfo
-$publishedProductVersion = $publishedVersionInfo.ProductVersion
-if (-not $publishedProductVersion.StartsWith(
-    "$Version+",
-    [System.StringComparison]::OrdinalIgnoreCase) `
-    -and -not [string]::Equals(
-        $publishedProductVersion,
-        $Version,
-        [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw "Published SIDEY.Host.exe version does not match the package version: $publishedProductVersion / $Version"
+if ($Version -notmatch '^\d+\.\d+\.\d+$') {
+    throw "Windows 정식 버전은 숫자 세 부분이어야 함: $Version"
 }
-$burnVersion = [Version]$BundleVersion
-if (-not [string]::Equals(
-    $publishedVersionInfo.FileVersion,
-    $BundleVersion,
-    [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw "Published SIDEY.Host.exe file version does not match the bundle version: $($publishedVersionInfo.FileVersion) / $BundleVersion"
+$publishedVersionInfo = (Get-Item -LiteralPath $hostExecutable).VersionInfo
+if (-not $publishedVersionInfo.ProductVersion.StartsWith(
+    $Version,
+    [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Published SIDEY.Host.exe version does not match: $($publishedVersionInfo.ProductVersion) / $Version"
 }
-if ($burnVersion.Major -ne $displayCore.Major `
-    -or $burnVersion.Minor -ne $displayCore.Minor `
-    -or $burnVersion.Build -ne $displayCore.Build) {
-    throw "Burn bundle 버전의 앞 세 자리는 표시 버전과 같아야 함: $BundleVersion / $Version"
+if (-not $publishedVersionInfo.FileVersion.StartsWith(
+    "$Version.",
+    [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Published SIDEY.Host.exe file version does not match: $($publishedVersionInfo.FileVersion) / $Version"
 }
-if ($burnVersion.Revision -lt 1 -or $burnVersion.Revision -gt 999) {
-    throw "Burn bundle revision은 alpha 순번 1~998 또는 stable 예약값 999여야 함: $BundleVersion"
-}
-$msiBuild = ($burnVersion.Build * 1000) + $burnVersion.Revision
-if ($msiBuild -gt 65535) {
-    throw "MSI build 필드가 65535를 초과함: $msiBuild"
-}
-$productVersion = "$($burnVersion.Major).$($burnVersion.Minor).$msiBuild"
-[System.IO.Directory]::CreateDirectory($resolvedOutDir) | Out-Null
-$certificatePath = Join-Path $resolvedOutDir 'SIDEY-SelfSigned-CodeSigning.cer'
-$internalDir = Join-Path $resolvedOutDir 'internal'
-$temporaryPfxPath = Join-Path $internalDir 'SIDEY-signing-temporary.pfx'
-$temporaryPfxPassword = [Guid]::NewGuid().ToString('N')
-if (Test-Path -LiteralPath $temporaryPfxPath -PathType Leaf) {
-    Remove-Item -LiteralPath $temporaryPfxPath -Force
-}
-try {
-& $signingScript `
-    -Path $sideyBinaries `
-    -CertificateOutPath $certificatePath `
-    -CertificatePfxPath $temporaryPfxPath `
-    -CertificatePassword $temporaryPfxPassword
-$msiBuildDir = Join-Path $internalDir 'msi-build'
-$bundleBuildDir = Join-Path $internalDir 'bundle-build'
-[System.IO.Directory]::CreateDirectory($msiBuildDir) | Out-Null
-[System.IO.Directory]::CreateDirectory($bundleBuildDir) | Out-Null
+
+[IO.Directory]::CreateDirectory($resolvedOutDir) | Out-Null
+$internalDir = Join-Path $resolvedOutDir 'internal/msi-build'
+[IO.Directory]::CreateDirectory($internalDir) | Out-Null
 
 dotnet build $msiProject `
     --configuration Release `
     --no-restore `
     --no-incremental `
-    --output $msiBuildDir `
+    --output $internalDir `
     "-p:PublishDir=$resolvedPublishDir" `
-    "-p:ProductVersion=$productVersion" `
+    "-p:ProductVersion=$Version" `
     "-p:DisplayVersion=$Version" `
     "-p:SuppressValidation=$($SuppressInstallerValidation.IsPresent.ToString().ToLowerInvariant())"
 if ($LASTEXITCODE -ne 0) {
-    throw "SIDEY 내부 MSI 빌드 실패"
+    throw 'SIDEY MSI 빌드 실패'
 }
 
-$msiFiles = @(Get-ChildItem -Path $msiBuildDir -Filter '*.msi' -File)
-if ($msiFiles.Count -ne 1) {
-    throw "WiX 빌드에서 내부 MSI가 정확히 하나 생성되지 않음"
-}
-$msi = $msiFiles[0]
-& $signingScript `
-    -Path $msi.FullName `
-    -CertificatePfxPath $temporaryPfxPath `
-    -CertificatePassword $temporaryPfxPassword
-
-dotnet build $bundleProject `
-    --configuration Release `
-    --no-restore `
-    --no-incremental `
-    --output $bundleBuildDir `
-    "-p:MsiPath=$($msi.FullName)" `
-    "-p:BundleVersion=$BundleVersion" `
-    "-p:DisplayVersion=$Version"
-if ($LASTEXITCODE -ne 0) {
-    throw "SIDEY Burn Setup 빌드 실패"
+$builtMsiFiles = @(Get-ChildItem -LiteralPath $internalDir -Filter '*.msi' -File)
+if ($builtMsiFiles.Count -ne 1) {
+    throw 'WiX 빌드에서 MSI가 정확히 하나 생성되지 않음'
 }
 
-$setupName = "SIDEY-Windows-x64-v$Version-Setup.exe"
-$setupPath = Join-Path $resolvedOutDir $setupName
-$builtSetups = @(Get-ChildItem -Path $bundleBuildDir -Filter '*.exe' -File)
-if ($builtSetups.Count -ne 1) {
-    throw "WiX Burn 빌드에서 Setup.exe가 정확히 하나 생성되지 않음"
-}
-$builtSetup = $builtSetups[0]
-Copy-Item -Path $builtSetup.FullName -Destination $setupPath -Force
-& $signingScript `
-    -Path $setupPath `
-    -CertificatePfxPath $temporaryPfxPath `
-    -CertificatePassword $temporaryPfxPassword
+$msiName = "SIDEY-Windows-x64-v$Version.msi"
+$msiPath = Join-Path $resolvedOutDir $msiName
+Copy-Item -LiteralPath $builtMsiFiles[0].FullName -Destination $msiPath -Force
+$hash = (Get-FileHash -LiteralPath $msiPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$publishBytes = ($deployableFiles | Measure-Object -Property Length -Sum).Sum
 
-$testMsiName = "SIDEY-Windows-x64-v$Version-Test.msi"
-$testMsiPath = Join-Path $resolvedOutDir $testMsiName
-Copy-Item -Path $msi.FullName -Destination $testMsiPath -Force
-if ((Get-Item $setupPath).Length -le (Get-Item $testMsiPath).Length) {
-    throw "Burn Setup.exe가 내부 MSI보다 작음. 오프라인 payload 내장을 확인해야 함."
-}
-
-$hashPath = "$setupPath.sha256"
-$hash = (Get-FileHash -Path $setupPath -Algorithm SHA256).Hash.ToLowerInvariant()
-[System.IO.File]::WriteAllText(
-    $hashPath,
-    "$hash *$setupName$([Environment]::NewLine)",
-    [System.Text.UTF8Encoding]::new($false))
-
-$testMsiHashPath = "$testMsiPath.sha256"
-$testMsiHash = (Get-FileHash -Path $testMsiPath -Algorithm SHA256).Hash.ToLowerInvariant()
-[System.IO.File]::WriteAllText(
-    $testMsiHashPath,
-    "$testMsiHash *$testMsiName$([Environment]::NewLine)",
-    [System.Text.UTF8Encoding]::new($false))
-
-Write-Host "Created public candidate $setupPath"
-Write-Host "Created checksum $hashPath"
-Write-Host "Created test MSI $testMsiPath"
-Write-Host "Created test MSI checksum $testMsiHashPath"
-}
-finally {
-    if (Test-Path -LiteralPath $temporaryPfxPath -PathType Leaf) {
-        Remove-Item -LiteralPath $temporaryPfxPath -Force
-    }
-}
+Write-Host "PublishLayout=structured self-contained; Files=$($deployableFiles.Count); Bytes=$publishBytes"
+Write-Host "Created public MSI $msiPath"
+Write-Host "SHA256=$hash"

@@ -17,7 +17,7 @@ public sealed record WindowsUpdateManifest(
 
 public sealed partial class WindowsUpdateService(HttpClient? httpClient = null)
 {
-    public const string CurrentVersion = "0.3.0-alpha.7";
+    public const string CurrentVersion = "1.0.3";
     public static readonly Uri ManifestUri = new(
         "https://sidey-app.github.io/SIDEY/windows-latest.json");
     private readonly HttpClient _httpClient = httpClient ?? new HttpClient();
@@ -53,7 +53,7 @@ public sealed partial class WindowsUpdateService(HttpClient? httpClient = null)
 
         var expectedInstallerUri = new Uri(
             $"https://github.com/sidey-app/SIDEY/releases/download/{manifest.Tag}/" +
-            $"SIDEY-Windows-x64-v{manifest.Version}-Setup.exe");
+            $"SIDEY-Windows-x64-v{manifest.Version}.msi");
         if (!Uri.TryCreate(manifest.InstallerUrl, UriKind.Absolute, out Uri? installerUri)
             || installerUri != expectedInstallerUri
             || string.IsNullOrWhiteSpace(manifest.Sha256)

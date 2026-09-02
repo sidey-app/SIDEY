@@ -8,12 +8,15 @@
       Scope="perMachine"
       Compressed="yes">
 
-    <SummaryInformation Description="SIDEY Windows alpha" Manufacturer="SIDEY" />
+    <SummaryInformation Description="SIDEY Windows" Manufacturer="SIDEY" />
     <MajorUpgrade
         AllowDowngrades="no"
         DowngradeErrorMessage="A newer version of SIDEY is already installed."
         Schedule="afterInstallInitialize" />
     <MediaTemplate EmbedCab="yes" />
+    <Icon Id="SideyProductIcon" SourceFile="$(PublishDir)\Assets\Icons\SideyAppIcon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="SideyProductIcon" />
+    <Property Id="REMOVEUSERDATA" Secure="yes" />
     <Property Id="LEGACYUSERINSTALLVERSION">
       <RegistrySearch
           Id="LegacyPerUserInstallSearch"
@@ -25,9 +28,10 @@
     <Launch Condition="VersionNT64" Message="SIDEY requires 64-bit Windows." />
     <Launch
         Condition="NOT LEGACYUSERINSTALLVERSION OR Installed"
-        Message="The per-user SIDEY alpha must be uninstalled before installing this all-users version. Your SIDEY settings and session will be preserved." />
+        Message="The older per-user SIDEY version must be uninstalled before installing this all-users version. Your SIDEY settings and session will be preserved." />
     <util:RestartResource ProcessName="SIDEY.exe" />
     <util:RestartResource ProcessName="SIDEY.Host.exe" />
+    <UIRef Id="SideyUI" />
 
     <StandardDirectory Id="ProgramFiles6432Folder">
       <Directory Id="INSTALLFOLDER" Name="SIDEY">
@@ -59,6 +63,12 @@
           Description="SIDEY ambient messenger"
           Target="[INSTALLFOLDER]SIDEY.exe"
           WorkingDirectory="INSTALLFOLDER" />
+      <Shortcut
+          Id="UninstallShortcut"
+          Name="Uninstall SIDEY"
+          Description="Uninstall SIDEY"
+          Target="[INSTALLFOLDER]Uninstall.exe"
+          WorkingDirectory="INSTALLFOLDER" />
       <RemoveFolder Id="RemoveApplicationProgramsFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
       <RegistryValue
           Root="HKLM"
@@ -76,7 +86,18 @@
         Execute="deferred"
         Impersonate="yes"
         Return="ignore" />
+    <CustomAction
+        Id="RemoveCurrentUserData"
+        Directory="INSTALLFOLDER"
+        ExeCommand="&quot;[INSTALLFOLDER]Uninstall.exe&quot; --cleanup"
+        Execute="deferred"
+        Impersonate="yes"
+        Return="check" />
     <InstallExecuteSequence>
+      <Custom
+          Action="RemoveCurrentUserData"
+          Before="RemoveStartupValue"
+          Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE AND REMOVEUSERDATA=&quot;1&quot;" />
       <Custom
           Action="RemoveStartupValue"
           Before="RemoveFiles"

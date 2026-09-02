@@ -91,18 +91,14 @@
               </span>
               Download for macOS
             </a>
-            <a
-              class="button button-secondary"
-              href="https://github.com/sidey-app/SIDEY/releases/download/windows-v0.3.0-alpha.7/SIDEY-Windows-x64-v0.3.0-alpha.7-Setup.exe"
-              aria-describedby="windows-hero-status"
-            >
+            <button class="button button-secondary" id="windows-hero-download-action" type="button" disabled aria-describedby="windows-hero-status">
               <span class="platform-icon platform-icon-windows" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
               Download for Windows
-            </a>
+            </button>
           </div>
           <p class="requirements">
             <span>macOS 26+ · Apple Silicon · Stable</span>
-            <span class="pending" id="windows-hero-status">Windows 11 25H2 x64 · Test alpha</span>
+            <span id="windows-hero-status">Windows 11 25H2 x64 · v1.0.3 production release</span>
           </p>
         </div>
 
@@ -201,7 +197,7 @@
         <div class="section-heading">
           <p class="section-kicker">Download</p>
           <h2 id="download-title">Start SIDEY on your desktop platform.</h2>
-          <p>Choose the stable macOS release or the Windows device-test alpha.</p>
+          <p>Choose the stable macOS or Windows release.</p>
         </div>
 
         <div class="download-grid">
@@ -256,23 +252,16 @@
 
           <article class="download-card">
             <span class="platform-label">Windows</span>
-            <h3>SIDEY v0.3.0-alpha.7</h3>
-            <p>A native Windows device-test alpha with five characters, messaging, and recent history.</p>
-            <span class="development-badge" id="windows-card-status">Test alpha</span>
+            <h3>Native Windows edition</h3>
+            <p>SIDEY v1.0.3 is the production release for Windows 11 25H2 x64, with all five characters, messages, and presence.</p>
+            <span class="release-badge" id="windows-card-status">v1.0.3 released</span>
             <div class="download-actions">
-              <a
-                class="button button-secondary"
-                href="https://github.com/sidey-app/SIDEY/releases/download/windows-v0.3.0-alpha.7/SIDEY-Windows-x64-v0.3.0-alpha.7-Setup.exe"
-                aria-describedby="windows-card-status"
-              >
+              <button class="button button-secondary" id="windows-download-action" type="button" disabled aria-describedby="windows-card-status">
                 <span class="platform-icon platform-icon-windows" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-                Download Setup
-              </a>
-              <a class="button button-secondary" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v0.3.0-alpha.7">
-                Release notes
-              </a>
+                Download for Windows
+              </button>
             </div>
-            <p class="system-note">Requires Windows 11 25H2 or later · x64 · Self-signed test build that security policies may block</p>
+            <p class="system-note">Requires Windows 11 25H2 or later · x64</p>
           </article>
         </div>
       </section>

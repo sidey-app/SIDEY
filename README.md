@@ -35,9 +35,7 @@ brew install --cask sidey-app/tap/sidey
 
 Windows 11 25H2 이상 x64 PC를 지원합니다.
 
-[Windows v0.3.0-alpha.7 Release](https://github.com/sidey-app/SIDEY/releases/tag/windows-v0.3.0-alpha.7)에서 `SIDEY-Windows-x64-v0.3.0-alpha.7-Setup.exe`를 받아 실행합니다.
-
-Windows 버전은 현재 자체 서명된 테스트 알파입니다. 이 서명은 공인 신뢰나 SmartScreen 평판을 제공하지 않으며 일부 보안 설정에서 실행이 차단될 수 있습니다.
+[SIDEY Releases](https://github.com/sidey-app/SIDEY/releases)에서 최신 `SIDEY-Windows-x64-v<version>.msi`를 받아 실행합니다.
 
 ## 최신 업데이트
 
@@ -47,12 +45,13 @@ Windows 버전은 현재 자체 서명된 테스트 알파입니다. 이 서명�
 - 이전 메시지를 더 불러볼 수 있게 되었습니다.
 - 메시지 기록 표시 안정성이 개선되었습니다.
 
-### Windows · 2026년 9월 2일 · v0.3.0-alpha.7
+### Windows · 2026년 9월 2일 · v1.0.3
 
 - 처음 실행 설정과 프로필·그룹 관리 화면이 추가되었습니다.
 - 다섯 캐릭터의 상태·타이핑·메시지와 최근 기록을 Windows에서도 확인할 수 있습니다.
 - 트레이 메뉴, 다중 모니터 배치, 조용히 모드와 업데이트 확인 기능이 추가되었습니다.
-- 한국어·영어 표시와 앱 실행·설치 안정성이 개선되었습니다.
+- 한국어·영어 표시와 앱 실행 안정성이 개선되었습니다.
+- 설치 폴더와 시작 메뉴에서 제거 프로그램을 실행할 수 있으며, 제거할 때 현재 사용자의 설정과 로그인 정보도 삭제할지 선택할 수 있습니다.
 
 ## 추후 개선 및 개발 예정
 

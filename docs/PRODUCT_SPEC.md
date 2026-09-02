@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.8
 - 최종 갱신: 2026-09-02
-- 상태: macOS `v1.0.3`(build 14) 정식 공개, 그 위에 상점·Google 연결·별빛 우파루파 개발, Windows 네이티브 `0.3.0-alpha.7` 기기 테스트용 pre-release 공개·검증 계속
+- 상태: macOS `v1.0.3`(build 14) 정식 공개, 그 위에 상점·Google 연결·별빛 우파루파 개발, Windows 네이티브 `v1.0.3` 정식 출시
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
 
@@ -52,15 +52,15 @@
 - 공식 주소는 GitHub 프로젝트 Pages `https://sidey-app.github.io/SIDEY/`다. 루트는 한국어, `/en/`은 영어이며 각 페이지에서 언어를 전환할 수 있다.
 - `website/`의 정적 HTML·CSS·최소 JavaScript만 배포한다. 이 사이트는 제품 소개와 다운로드 안내만 담당하며 로그인·그룹·메시지 기능을 제공하는 웹 클라이언트가 아니다.
 - macOS 기본 CTA는 현재 공개 버전의 고정 공증 DMG를 직접 가리키고 `brew install --cask sidey-app/tap/sidey`를 함께 제공한다. 다음 공개 릴리스에서는 버전 표기와 고정 DMG URL을 같은 배포 작업에서 갱신한다.
-- Windows CTA는 `windows-v0.3.0-alpha.7` 기기 테스트용 pre-release의 고정 Setup.exe URL을 가리키고 자체 서명 테스트 알파, 지원 OS·아키텍처와 미완료 실기 검증을 함께 표시한다.
-- Windows 업데이트 채널은 macOS Release와 분리된 `windows-v<version>` 태그와 `website/windows-latest.json`을 사용한다. 호환 경로 `website/windows/update.json`은 같은 내용을 유지하며, 검증된 공개 Setup이 없거나 현재 버전과 같을 때 `installer_url`과 `sha256`은 `null`로 둘 수 있다. 공개 업데이트가 있으면 CI 후보와 Release 재다운로드 파일이 일치한 고정 URL과 SHA-256을 기록한다.
+- Windows 기본 CTA는 현재 정식 버전의 고정 MSI를 직접 가리킨다. 저장소의 다운로드 버튼은 Release 검증 전까지 비활성 상태로 두고, Pages Actions가 정식 Release의 단일 MSI를 확인한 배포 아티팩트에서만 링크로 활성화한다.
+- Windows 업데이트 채널은 macOS Release와 분리된 `windows-v<version>` 태그와 `website/windows-latest.json`을 사용한다. 호환 경로 `website/windows/update.json`은 같은 내용을 유지한다. 저장소 manifest의 `sha256`은 `null`로 두고, Pages Actions가 Release MSI를 다시 내려받아 계산한 64자리 SHA-256으로 두 배포 manifest를 완성한다. Release가 없거나 draft·pre-release이거나 MSI 외 자산이 있으면 기존 Pages를 교체하지 않는다.
 - 첫 화면에서 플랫폼·아키텍처·정식 배포 상태를 밝히고, 개인정보 수집 경계, E2EE 미지원, 보안 화면·DRM·권한 상승 앱·모든 독점 전체화면 위 표시를 보장하지 않는다는 제한을 숨기지 않는다.
 - `main`의 웹 파일 또는 Pages 워크플로가 바뀌면 GitHub Actions가 `website/`만 Pages artifact로 올리고 `github-pages` 환경에 배포한다. custom domain과 별도 Sites 호스팅은 사용하지 않는다.
 
 ### 2.5 공개 업데이트 문서와 향후 계획
 
 - README는 짧은 제품 소개와 macOS·Windows 설치 안내를 유지하고, 그 아래에 플랫폼별 날짜·버전·최신 변경과 공통 향후 계획을 제공한다. 기술 스택·아키텍처·백엔드·개발·빌드 설명은 공개 README에 두지 않는다.
-- `docs/releases/*`와 GitHub Release 본문은 일반 사용자가 체감하는 결과를 짧은 문장으로 설명한다. 설치 행동과 지원 환경, 데이터 위험, 자체 서명의 공인 신뢰 부재처럼 사용자가 알아야 하는 내용은 유지하되 DB·schema·API·클래스·파이프라인 세부는 제외한다.
+- `docs/releases/*`와 GitHub Release 본문은 일반 사용자가 체감하는 결과를 짧은 문장으로 설명한다. 설치 행동과 지원 환경, 데이터 위험처럼 사용자가 알아야 하는 내용은 유지하되 DB·schema·API·클래스·파이프라인 세부는 제외한다.
 - 공개 향후 계획은 새로운 말풍선 디자인, Windows 기능 안정화, 캐릭터 드래그 앤 드롭, 캐릭터 효과음, macOS 이모지 입력 버그 개선, 다른 사람 캐릭터 클릭 이펙트다. 이는 완료 기능이나 일정 약속이 아니며 현재 MVP 범위를 바꾸지 않는다.
 - 캐릭터 드래그 앤 드롭은 현재 제거된 기능으로 유지한다. 기본 클릭 통과와 명시적 상호작용 모드를 보존하는 별도 제품 결정과 입력 설계가 확정된 뒤에만 다시 구현한다.
 
@@ -262,8 +262,8 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 월드 HWND는 작업 표시줄·Alt-Tab에 나타나지 않고 활성화되지 않으며 외부 앱으로 포인터를 통과시킨다.
 - 내 캐릭터 상호작용 52×52 hotspot은 별도 HWND가 소유하고 최대 15Hz·1 DIP 임계값으로 위치를 갱신한다. 전역 마우스 hook·전역 좌표 수집은 금지한다.
 - composer는 400×56 DIP 별도 WinUI 창이며, 내 캐릭터 클릭·트레이 `메시지 작성`만 이 창을 활성화한다.
-- 트레이 메뉴는 macOS 메뉴바의 제품 행동에 맞춰 오버레이, 메시지 작성, 활성 그룹, 조용히 모드, 최근 기록, 상점, 그룹 설정, 로그인 실행, 업데이트 확인, 설정, 종료를 제공한다. 익명 세션을 사용하는 Windows alpha에는 로그아웃 메뉴를 두지 않는다.
-- 앱은 Pages의 Windows 전용 manifest를 시작 시 한 번 확인하고 트레이·설정에서 수동 확인도 제공한다. 새 버전의 고정 GitHub Release Setup URL과 SHA-256이 모두 유효할 때만 사용자 승인을 받아 내려받고 hash 검증 뒤 설치기를 실행하며 무인 자동 설치는 하지 않는다.
+- 트레이 메뉴는 macOS 메뉴바의 제품 행동에 맞춰 오버레이, 메시지 작성, 활성 그룹, 조용히 모드, 최근 기록, 상점, 그룹 설정, 로그인 실행, 업데이트 확인, 설정, 종료를 제공한다. 익명 세션을 사용하는 Windows판에는 로그아웃 메뉴를 두지 않는다.
+- 앱은 Pages의 Windows 전용 manifest를 시작 시 한 번 확인하고 트레이·설정에서 수동 확인도 제공한다. 새 버전의 고정 GitHub Release MSI URL과 SHA-256이 모두 유효할 때만 사용자 승인을 받아 내려받고 hash 검증 뒤 설치기를 실행하며 무인 자동 설치는 하지 않는다.
 - 시작 단계와 예외 유형·HRESULT·stack은 `%LOCALAPPDATA%\SIDEY\Logs\startup.log`에 기록하되 token·메시지 본문·평문 초대 코드는 기록하지 않는다. WinUI 창 생성 전 실패하면 네이티브 오류창으로 로그 경로를 알리고, 트레이 아이콘 초기화만 실패한 경우 설정창은 계속 유지하며 창을 닫으면 앱을 종료한다.
 - 보안 화면·DRM·관리자 권한 앱·모든 독점 전체화면 위 표시는 보장하지 않는다.
 
@@ -414,7 +414,7 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 - DMG: 660×420 배경, `SIDEY.app`, `/Applications` 심볼릭 링크, 기존 5종 idle 프레임, `.DS_Store`를 자동 생성·마운트 검증하고 Finder에서 아이콘 위치·안내 문구·nearest-neighbor 픽셀 선명도를 수동 확인
 - Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단
 - 서버: 실제 anon/authenticated role의 RLS, 12번째 성공·13번째 거부와 여섯 번째 방 경합, 병렬 초대 제한, invite hash API 비노출, current epoch topic 권한, client Broadcast INSERT 봉쇄, transient event whitelist·rate, 메시지 멱등성·rate, 7일 retention, 비방장 관리 거부와 cascade를 SQL 테스트한다.
-- Windows 설치·업데이트: clean install, `C:\Program Files\SIDEY`, 시작 메뉴와 Burn 성공 화면 실행, 게시된 런처·호스트 시작 스모크, 자체 서명 대상과 공개 CER, repair, 실행 중 upgrade의 정상 종료 요청, downgrade 차단, uninstall/reinstall 뒤 `%LOCALAPPDATA%\SIDEY` 설정과 Credential Manager 세션 보존을 Windows CI·실기에서 확인한다. `windows-v<version>` manifest의 버전·태그·고정 Setup URL·SHA-256도 검증하며 per-user alpha.1이 있으면 자동 교차-scope upgrade하지 않고 먼저 제거하라는 안내로 중단한다.
+- Windows 설치·업데이트: clean install, `C:\Program Files\SIDEY`, 공용 시작 메뉴, 아이콘이 포함된 `Uninstall.exe`, 게시된 런처·호스트 시작 스모크, repair, 실행 중 upgrade의 정상 종료 요청, downgrade 차단을 Windows CI·실기에서 확인한다. Windows 설정·MSI·`Uninstall.exe`의 일반 제거에서 기본 미선택 데이터 삭제 옵션이 동작하고, 선택 시에만 현재 사용자의 `%LOCALAPPDATA%\SIDEY`와 Credential Manager `SIDEY/` 자격 증명을 삭제하며 upgrade·repair에는 실행하지 않는지도 검증한다. `windows-v<version>` manifest의 버전·태그·고정 MSI URL·SHA-256도 검증하며 기존 per-user·Burn 테스트 설치가 있으면 설치 전에 제거하도록 안내한다.
 
 ### 10.2 macOS 장시간 수동·계측 테스트
 
@@ -429,13 +429,13 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 - 화면 잠금·절전·복귀
 - Realtime 연결 끊김·재연결과 transient typing 정리
 
-### 10.3 Windows 승격 기준
+### 10.3 Windows 지속 검증 기준
 
 1. 첫 기능 빌드부터 무료 5종을 `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러로 제공하고 asset·frame·발 기준선·방향·fallback 계약을 자동 검증한다.
 2. 같은 렌더러를 햄스터 1종으로 제한하는 Debug 내부 모드에서 투명·최상위·외부 앱 클릭 통과·52×52 hotspot·composer 포커스·100/125/150/200% DPI를 Windows 11 25H2 x64 실기에서 통과한다. 이 모드는 Release에 노출하지 않는다.
 3. 연결형 검증에서 익명 세션 복구·생성, 프로필, 방, 메시지, Presence, typing lease, `character_pulse`를 staging의 기존 macOS 클라이언트와 양방향 확인한다.
 4. 최종 12명 월드를 2시간, 20노드 합성 부하를 30분 실행해 p95 frame time 40ms 이하, 100ms 이상 UI-thread hang 없음, warm-up 후 working set 20MB 초과 증가 없음, GDI/USER handle·COM surface 지속 증가 없음을 확인한다.
-5. 현재 보조 모니터 실기 검증은 공개 alpha 완료 조건에서 제외하되 합성 모니터 geometry 테스트는 통과시키고 release note에 mixed-DPI·연결 해제 실기 미검증을 명시한다.
+5. 보조 모니터의 mixed-DPI와 연결 해제를 실기에서 계속 회귀 검증하고 합성 모니터 geometry 테스트도 유지한다.
 
 ### 10.4 macOS 배포 절차
 
@@ -467,19 +467,16 @@ Keychain 접근은 앱 실행 동안 하나의 `LAContext`를 공유하고 `loca
 
 자동화 테스트와 공개 배포는 장시간 수동 기준을 대신하지 않는다. 수행하지 않은 장시간 항목을 통과했다고 기록하지 않고 정식판에서도 지속 검증한다.
 
-### 10.5 Windows alpha 배포 절차
+### 10.5 Windows v1.0.3 정식 배포 절차
 
 1. Windows 전체 단위·계약·창 정책·업데이트·배포 source 테스트와 10.3의 실기·장시간 기준을 통과한다.
 2. staging에서 익명 세션·RLS·private Realtime을 통과한 뒤 production publishable 구성에서도 다시 확인한다. service-role·secret key는 클라이언트·저장소·CI 산출물에 넣지 않는다.
 3. CI에서 `win-x64` unpackaged·multi-file self-contained 앱을 `PublishSingleFile=false`로 게시한다. 루트 `SIDEY.exe` 런처가 인수를 `Runtime\SIDEY.Host.exe`로 전달하고, 앱·.NET·Windows App SDK 런타임은 `Runtime`, 사용자 콘텐츠는 `Assets`, SIDEY 번역은 `Langs`에 둔다. 게시한 런처와 호스트를 실제 시작해 main 또는 미지원 OS 창 활성화 로그가 남고 프로세스가 유지되는지 확인한다.
-4. WiX Toolset `6.0.2`로 머신 단위 테스트 MSI와 전체 payload를 내장한 Burn `SIDEY-Windows-x64-v0.3.0-alpha.7-Setup.exe`를 만든다. 테스트 MSI와 `.sha256`은 CI artifact·직접 설치 검증에만 사용하고 GitHub Release에는 게시하지 않는다.
-5. 패키징 중 한 번 만든 `CN=SIDEY` 자체 서명 인증서로 SIDEY 제작 런처·호스트·DLL·내부 MSI·Setup.exe를 Authenticode 서명한다. 임시 PFX는 성공·실패와 관계없이 삭제하고 개인 키 없는 `SIDEY-SelfSigned-CodeSigning.cer`만 후보에 남기며 공급자 런타임의 기존 서명은 유지한다.
-6. 자동 검증을 통과한 커밋에 `windows-v0.3.0-alpha.7` 태그와 기기 테스트용 GitHub pre-release를 만들 수 있다. Release에는 Setup.exe, `.sha256`, 공개 CER만 게시하고 alpha.1 제거·데이터 보존, 자체 서명의 공인 신뢰 부재, ARM64·MSIX·무인 자동 설치 제외와 미완료 실기 항목을 명시한다. 이 공개는 10.3의 수동 승격 기준 통과나 공개 준비 완료를 뜻하지 않는다.
-7. GitHub에서 다시 받은 Setup.exe의 SHA-256이 CI 후보와 같은 것을 확인한 뒤에만 `website/windows-latest.json`과 호환 경로 `website/windows/update.json`에 같은 `windows-v<version>` 태그·고정 Setup URL·64자리 SHA-256을 게시한다. 앱은 시작 시 한 번 새 버전을 확인하고 트레이·설정에서 수동 확인하며, 사용자 승인 뒤 다운로드·hash 검증을 통과한 설치기만 실행한다.
-8. clean install·시작 메뉴·성공 화면 실행·repair·실행 중 upgrade·downgrade 차단·uninstall/reinstall 보존과 10.3의 실기·장시간·상호운용 기준을 통과하기 전에는 테스트 pre-release를 공개 준비 완료나 stable로 승격하지 않는다.
+4. WiX Toolset `6.0.2`로 전체 payload와 내부 cabinet을 포함한 머신 단위 `SIDEY-Windows-x64-v1.0.3.msi`를 만든다. Burn Setup EXE·ZIP·MSIX는 만들거나 공개하지 않는다.
+5. 자체 서명 인증서·임시 PFX·공개 CER를 만들지 않고 Release용 MSI와 내부 검증용 SHA-256만 생성한다. `.sha256` 파일은 Release 자산으로 게시하지 않는다.
+6. clean install·공용 시작 메뉴·아이콘이 포함된 `Uninstall.exe`·repair·실행 중 upgrade·downgrade 차단을 확인한다. Windows 설정·MSI·`Uninstall.exe`의 일반 제거에서 데이터 삭제 옵션이 기본 미선택이고, 선택 시에만 현재 사용자의 설정·로그·로그인 정보를 삭제하며 upgrade·repair에는 삭제하지 않는지 검증한 뒤, 검증된 커밋에 `windows-v1.0.3` 태그와 GitHub 정식 Release를 만든다. Release에는 MSI 하나만 게시하고 제거 옵션의 영향을 명시한다.
+7. Windows Actions가 성공하면 Pages Actions가 GitHub 정식 Release의 단일 MSI를 다시 내려받아 SHA-256을 계산한다. 태그·고정 MSI URL·자산 구성이 모두 맞을 때 배포 아티팩트의 `website/windows-latest.json`과 호환 경로 `website/windows/update.json`에 64자리 SHA-256을 기록하고 Windows 다운로드 버튼을 활성화한다. 앱은 시작 시 한 번 새 버전을 확인하고 트레이·설정에서 수동 확인하며, 사용자 승인 뒤 다운로드·hash 검증을 통과한 설치기만 실행한다.
 
-`windows-v0.3.0-alpha.7`은 2026-09-02에 기기 테스트용 pre-release로 게시했다. CI 후보와 Release 재다운로드 Setup.exe의 SHA-256은 모두 `30af0b889ee56ff58934337f01b39275cf5c72a8ea5aa4b37a83eef7b11f9e81`로 일치했다.
+공개 MSI는 관리자 승인 뒤 모든 사용자용으로 `C:\Program Files\SIDEY`에 설치하고 공용 시작 메뉴에 앱과 제거 바로가기를 만든다. 설치 폴더에는 앱 아이콘을 포함한 `Uninstall.exe`를 두고, MSI 제품 정보에는 같은 아이콘을 등록한다. 기존 per-user·Burn 테스트 설치는 등록 방식이 달라 자동 전환하지 않으며 먼저 Windows 설정에서 제거하도록 안내한다. `Uninstall.exe`를 직접 실행하면 Windows Installer 제거를 시작하고, Windows 설정과 MSI 유지 관리 화면을 포함한 일반 제거에는 `설정, 로그 및 로그인 정보도 삭제` 체크박스를 기본 미선택으로 표시한다. 선택하면 MSI가 `Uninstall.exe --cleanup`을 실행해 현재 사용자의 `%LOCALAPPDATA%\SIDEY`와 Credential Manager의 `SIDEY/` 자격 증명을 삭제한다. 선택하지 않으면 사용자 데이터를 보존하며 major upgrade와 repair에서는 이 정리를 실행하지 않는다.
 
-공개 Setup은 관리자 승인 뒤 모든 사용자용으로 `C:\Program Files\SIDEY`에 설치하고 공용 시작 메뉴 바로가기만 만든다. 기존 alpha.1은 사용자별 context라 자동 upgrade할 수 없으므로 새 Setup이 감지하면 먼저 Windows 설정에서 제거하도록 안내하고 설치를 중단한다. uninstall은 앱 파일·시작 메뉴·현재 사용자의 로그인 실행 registry만 제거하며 `%LOCALAPPDATA%\SIDEY` 설정과 Credential Manager 세션은 보존한다.
-
-SHA-256은 PowerShell에서 `Get-FileHash .\SIDEY-Windows-x64-v0.3.0-alpha.7-Setup.exe -Algorithm SHA256`으로 계산해 Release의 `.sha256`과 비교한다. 자체 서명은 공인 코드 서명을 대체하지 않으며 SmartScreen·Smart App Control·조직 정책이 실행을 차단할 수 있다.
+SHA-256은 PowerShell에서 `Get-FileHash .\SIDEY-Windows-x64-v1.0.3.msi -Algorithm SHA256`으로 계산한다. GitHub에서 다시 내려받은 MSI와 CI 후보가 같은지 검증하고 이 값을 업데이트 manifest에 기록하되 별도 `.sha256` Release 자산은 만들지 않는다.

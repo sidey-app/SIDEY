@@ -27,7 +27,7 @@ internal sealed class WindowsUpdateServiceAdapter : IUpdateService
         }
 
         var manifest = new WindowsUpdateManifest(
-            "alpha",
+            "production",
             update.Version,
             $"windows-v{update.Version}",
             update.InstallerUri,

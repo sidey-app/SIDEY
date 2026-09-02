@@ -14,9 +14,8 @@
 | 제품 형태 | 최대 12명의 실제 친구가 2D 픽셀 동물로 화면 가장자리에서 함께 움직이는 초대 전용 데스크톱 ambient messenger | 고정형 채팅 목록보다 친구의 존재와 짧은 대화가 자연스럽게 보이는 경험에 집중한다. AI 동료나 가상 반려동물 제품은 아니다. |
 | 공개 업데이트 문서 | README는 제품 소개 뒤 macOS·Windows 설치, 플랫폼별 최신 업데이트, 공통 향후 계획만 제공한다. GitHub Release와 `docs/releases/*`는 사용자에게 보이는 변화와 필요한 설치·제한 안내만 짧게 적고 DB·백엔드·클래스·빌드 구현 세부는 싣지 않는다 | README와 Release는 일반 사용자가 보는 문서다. 내부 변경이 사용자 경험을 뒷받침하면 `내부 안정성 개선` 또는 `내부 운영 구조 개선`처럼 결과만 설명한다. |
 | 공개 향후 계획 | 새로운 말풍선 디자인, Windows 기능 안정화, 캐릭터 드래그 앤 드롭, 캐릭터 효과음, macOS 이모지 입력 버그 개선, 다른 사람 캐릭터 클릭 이펙트를 향후 개선 후보로 공개한다 | 계획 항목은 구현 완료나 일정 약속이 아니며 현재 MVP 범위를 즉시 확장하지 않는다. 드래그 앤 드롭은 기본 클릭 통과 정책을 깨지 않는 별도 상호작용 설계가 확정된 뒤 구현한다. |
-| 공식 다운로드 웹사이트 | GitHub 프로젝트 Pages `https://sidey-app.github.io/SIDEY/`를 한국어 기본·`/en/` 영어 정적 랜딩으로 운영하고 `website/`만 GitHub Actions로 배포. macOS는 공증 DMG와 `sidey-app/tap/sidey` Homebrew Cask를 제공하고 Windows는 검증된 `0.3.0-alpha.7` Setup.exe와 Release 안내를 제공한다 | 앱 클라이언트나 별도 웹 기능을 추가하지 않고 공식 설치 경로·지원 환경·개인정보 경계·플랫폼 제한을 한곳에서 정확히 안내한다. Windows CTA는 CI 후보와 Release 재다운로드 파일의 SHA-256 일치 뒤에만 활성화하며 자체 서명 테스트 빌드와 미완료 실기 검증을 함께 알린다. |
-| 현재 구현 범위 | macOS 네이티브 정식판에 첫 유료 캐릭터 상점을 추가하고 Windows 네이티브 `0.3.0-alpha.7` 기기 테스트용 pre-release를 공개 | macOS Swift/SpriteKit 기준 구현 위에 승인된 상점 범위만 확장하며 Windows 작업은 `windows/*`에서 독립적으로 진행한다. Windows pre-release 공개는 정식 승격을 뜻하지 않으며 실기·장시간·설치 수명주기·macOS 상호운용 검증을 계속한다. |
-| Windows 테스트 릴리스 | `windows-v0.3.0-alpha.7` pre-release는 Setup.exe, SHA-256, 개인 키 없는 자체 서명 공개 인증서만 게시하고 업데이트 manifest도 같은 고정 URL과 검증된 hash를 사용 | 테스트 MSI는 CI 내부 자산으로만 유지한다. `CN=SIDEY` 자체 서명은 공인 신뢰나 SmartScreen 평판을 제공하지 않으며 Windows 11 25H2+ x64 기기 테스트 배포를 공개 준비 완료나 stable로 표현하지 않는다. |
+| 공식 다운로드 웹사이트 | GitHub 프로젝트 Pages `https://sidey-app.github.io/SIDEY/`를 한국어 기본·`/en/` 영어 정적 랜딩으로 운영하고 `website/`만 GitHub Actions로 배포. macOS는 현재 공증 DMG와 `sidey-app/tap/sidey` Homebrew Cask를 제공하고 Windows는 정식 Release MSI를 직접 제공 | 앱 클라이언트나 별도 웹 기능을 추가하지 않고 공식 설치 경로·지원 환경·개인정보 경계·플랫폼 제한을 한곳에서 정확히 안내한다. Pages Actions가 Windows 정식 Release의 단일 MSI를 다시 내려받아 SHA-256을 계산한 뒤에만 다운로드 링크와 업데이트 manifest를 포함한 사이트를 배포한다. |
+| 현재 구현 범위 | macOS 네이티브 정식판에 첫 유료 캐릭터 상점을 추가하고 Windows 네이티브 `1.0.3` 정식판을 제공 | macOS Swift/SpriteKit 기준 구현 위에 승인된 상점 범위만 확장하며 Windows 작업은 `windows/*`에서 독립적으로 진행한다. |
 | 플랫폼 순서 | macOS 정식판을 기준 구현으로 유지하고 Windows 11 25H2+ x64를 후속 개발 | 이미 배포된 macOS 코드를 재작성하지 않고 Windows 고유 창·DPI·전원·IME 리스크를 별도로 검증한다. |
 | 플랫폼 브랜치 격리 | macOS 구현은 `macos/*`, Windows 구현은 `windows/*`, 문서·백엔드·웹·공통 계약은 `shared/*`에서 작업하고 `main`은 검증된 변경의 통합·배포에만 사용 | 한 플랫폼 작업이 다른 플랫폼 파일이나 다른 작업자의 dirty worktree를 건드리는 사고를 막는다. 공용 변경은 독립 커밋으로 만든 뒤 필요한 플랫폼 브랜치가 가져가며 반대 플랫폼 대응은 별도 후속 작업으로 남긴다. |
 | macOS 클라이언트 | SwiftUI + AppKit + SpriteKit | 일반 창은 SwiftUI/AppKit, 창 정책은 AppKit, 픽셀 월드는 SpriteKit이 담당한다. |
@@ -77,9 +76,9 @@
 | 업데이트 전환 | Sparkle이 없는 기존 alpha는 최신 공증 DMG로 한 번 수동 교체하고, Sparkle 내장 production 빌드부터 앱 내부 업데이트를 사용 | 기존 설치에 프레임워크를 원격으로 소급 탑재할 수 없고, ad-hoc development 자동 업데이트는 Gatekeeper·코드 서명 연속성을 깨뜨릴 수 있다. |
 | 배포 채널 | 현재 공개본은 버전 `1.0.3`, 빌드 `14`의 `v1.0.3` GitHub 정식 stable release다 | macOS 최근 기록에 캐릭터·닉네임 발신자 카드와 50개 단위 자동 페이지네이션을 추가한다. 최대 7일의 기존 서버 보존 정책과 RLS 계약은 유지하며 Windows·Supabase schema는 바꾸지 않는다. 12명 실제 방의 30분 장시간 계측은 지속 검증한다. |
 | Windows 인증 | Supabase 익명 인증 + Windows Credential Manager | 기존 익명 세션을 먼저 복구하고 신규 설치에서만 새 익명 계정을 만든다. access·refresh token과 평문 초대 코드는 일반 설정이 아닌 Credential Manager에 보관하며 Google OAuth·PKCE·callback은 사용하지 않는다. |
-| Windows alpha 배포 | 다음 후보는 `0.3.0-alpha.7`, 태그 `windows-v0.3.0-alpha.7`, WiX Toolset `6.0.2`의 머신 단위 MSI를 내장한 오프라인 `SIDEY-Windows-x64-v0.3.0-alpha.7-Setup.exe` + SHA-256 + 공개 자체 서명 인증서, GitHub pre-release | unpackaged·multi-file self-contained WinUI 3 앱을 루트 `SIDEY.exe` 런처와 `Runtime` 앱·런타임, `Assets`, `Langs`로 나눈다. 별도 런타임 설치는 요구하지 않으며 설치기는 전체 트리를 하나의 버전 단위로 `C:\Program Files\SIDEY`에 설치한다. ZIP·직접 MSI·MSIX는 공개하지 않는다. |
-| Windows 서명 | 배포 파이프라인이 SIDEY 제작 실행 파일·DLL·내부 MSI·Setup.exe를 한 번 생성한 `CN=SIDEY` 자체 서명 인증서로 Authenticode 서명하고 임시 PFX는 항상 삭제하며 개인 키 없는 CER만 후보에 남김 | 자체 서명은 SIDEY 산출물의 서명 주체와 배포 중 변조 확인을 돕지만 공인 인증서 신뢰나 SmartScreen 평판을 제공하지 않는다. 공급자 런타임의 기존 서명은 유지하며 `알 수 없는 게시자`·SmartScreen·Smart App Control·조직 정책 차단 가능성을 사용자에게 밝힌다. |
-| Windows 설치·업데이트 | alpha.7 후보는 머신 단위 major upgrade·repair와 downgrade 차단을 지원하고, Pages의 Windows 전용 manifest를 시작 시 한 번과 트레이·설정의 수동 확인에서 사용 | per-user alpha.1은 설치 context가 달라 새 설치기가 감지·중단하고 사용자가 먼저 제거한다. 제거와 재설치 중에도 `%LOCALAPPDATA%\SIDEY` 설정과 Credential Manager 세션은 보존한다. 업데이트는 `windows-v<version>`의 고정 Setup URL과 SHA-256이 유효할 때만 사용자 승인을 받아 다운로드·검증한 뒤 설치기를 실행하며 무인 자동 설치는 하지 않는다. |
+| Windows 정식 배포 | 정식 출시 버전은 `1.0.3`, 태그 `windows-v1.0.3`, WiX Toolset `6.0.2`의 머신 단위 단일 파일 `SIDEY-Windows-x64-v1.0.3.msi`, GitHub Release | unpackaged·multi-file self-contained WinUI 3 앱을 루트 `SIDEY.exe` 런처와 `Runtime` 앱·런타임, `Assets`, `Langs`로 나눈다. MSI는 전체 트리를 하나의 버전 단위로 `C:\Program Files\SIDEY`에 설치하며 별도 런타임을 요구하지 않는다. Release에는 MSI 하나만 게시하고 Setup EXE·ZIP·MSIX·별도 인증서·`.sha256` 파일은 게시하지 않는다. |
+| Windows 서명 | 공인 코드 서명 인증서를 도입하기 전에는 SIDEY 제작 실행 파일·DLL·MSI를 자체 서명하지 않고, Release에 자체 서명 인증서를 제공하거나 설치하도록 안내하지 않음 | 신뢰되지 않은 자체 서명 인증서 설치를 사용자에게 요구하지 않는다. 공인 인증서 도입은 별도 검증 후 결정한다. |
+| Windows 설치·업데이트 | `1.0.3` 정식판은 머신 단위 major upgrade·repair와 downgrade 차단을 지원하고, Pages의 Windows 전용 manifest를 시작 시 한 번과 트레이·설정의 수동 확인에서 사용한다. 일반 제거에는 현재 사용자의 설정·로그·로그인 정보도 삭제하는 기본 미선택 옵션을 제공한다 | 기존 per-user·Burn 테스트 설치는 설치 context와 등록 방식이 달라 사용자가 먼저 제거한다. 설치 폴더·시작 메뉴의 `Uninstall.exe`, Windows 설정과 MSI 유지 관리 화면은 같은 Windows Installer 제거 경로를 사용한다. 옵션을 선택한 일반 제거만 `%LOCALAPPDATA%\SIDEY`와 Credential Manager의 `SIDEY/` 정보를 삭제하며 upgrade·repair는 보존한다. 업데이트는 `windows-v<version>`의 고정 MSI URL과 manifest 내부 SHA-256이 유효할 때만 사용자 승인을 받아 다운로드·검증한 뒤 설치기를 실행하며 무인 자동 설치는 하지 않는다. Release에 별도 `.sha256` 파일은 두지 않는다. |
 | Windows 시작 안정성 | 앱 시작 단계를 `%LOCALAPPDATA%\SIDEY\Logs\startup.log`에 본문·token·초대 코드 없이 기록하고, WinUI 초기화 예외는 사용자에게 로그 경로를 표시. 트레이 초기화 실패만으로 프로세스를 종료하지 않고 이때는 창 닫기가 앱 종료로 동작하며 CI가 게시된 `SIDEY.exe`를 실제 시작해 창 활성화 단계까지 확인 | 기존 CI는 파일 존재만 검사해 시작 직후 예외와 누락된 런타임을 잡지 못했다. 사용자에게 아무 반응도 없는 종료를 없애고 설치 후보 자체를 실행 검증한다. |
 
 ## 현재 검증 기준
@@ -93,7 +92,7 @@
 - 12번째 가입 성공, 13번째 거부, 여섯 번째 방 거부, 7일 초과 메시지 삭제, 방장 전용 이름 변경·추방·삭제와 cascade, RLS, 중복 닉네임·캐릭터 허용을 SQL 테스트한다.
 - 최대 방 인원 12명으로 30분 실행하고, 별도 20노드 합성 부하에서도 p95 frame time 40ms 이하, 100ms 이상 main-thread hang 없음, 지속 RSS 증가 없음, 숨긴 월드의 SpriteKit 정지를 확인한다.
 - Windows는 무료 5종을 같은 catalog·렌더러로 유지하고 Debug 전용 햄스터 제한 모드에서 투명·최상위·클릭 통과·52×52 hotspot·DPI·잠금·절전 복귀를 실기 검증한다. 연결형 검증은 익명 세션·방·Presence·타이핑·메시지·`character_pulse`를 macOS와 양방향 확인한다.
-- Windows 공개 alpha는 12명 2시간과 20노드 30분 부하에서 p95 frame time 40ms 이하, 100ms 이상 UI-thread hang 없음, warm-up 후 working set 20MB 초과 증가 없음, handle·surface 지속 증가 없음을 확인한다.
+- Windows 정식판은 12명 2시간과 20노드 30분 부하에서 p95 frame time 40ms 이하, 100ms 이상 UI-thread hang 없음, warm-up 후 working set 20MB 초과 증가 없음, handle·surface 지속 증가 없음을 확인한다.
 
 ## 아직 결정하지 않은 항목
 

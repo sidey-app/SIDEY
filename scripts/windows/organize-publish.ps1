@@ -6,19 +6,24 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$LauncherSource,
 
-    [string]$Version = '0.3.0-alpha.7',
+    [Parameter(Mandatory = $true)]
+    [string]$UninstallerSource,
 
-    [string]$FileVersion = '0.3.0.7'
+    [string]$Version = '1.0.3',
+
+    [string]$FileVersion = '1.0.3.0'
 )
 
 $ErrorActionPreference = 'Stop'
 $resolvedPublishDir = (Resolve-Path -LiteralPath $PublishDir).Path
 $resolvedLauncherSource = (Resolve-Path -LiteralPath $LauncherSource).Path
+$resolvedUninstallerSource = (Resolve-Path -LiteralPath $UninstallerSource).Path
 $runtimeDirectory = Join-Path $resolvedPublishDir 'Runtime'
 $assetsDirectory = Join-Path $resolvedPublishDir 'Assets'
 $languageDirectory = Join-Path $resolvedPublishDir 'Langs'
 $legacyLanguageDirectory = Join-Path $resolvedPublishDir 'Lang'
 $launcherPath = Join-Path $resolvedPublishDir 'SIDEY.exe'
+$uninstallerPath = Join-Path $resolvedPublishDir 'Uninstall.exe'
 $hostPath = Join-Path $runtimeDirectory 'SIDEY.Host.exe'
 $previewPath = Join-Path $resolvedPublishDir 'SIDEY-Onboarding-Preview.cmd'
 
@@ -52,7 +57,11 @@ foreach ($catalogName in @('ko-KR.json', 'en-US.json')) {
 
 $preservedNames = [Collections.Generic.HashSet[string]]::new(
     [StringComparer]::OrdinalIgnoreCase)
-foreach ($name in @('Assets', 'Langs', 'Runtime', 'SIDEY-Onboarding-Preview.cmd')) {
+foreach ($name in @(
+    'Assets',
+    'Langs',
+    'Runtime',
+    'SIDEY-Onboarding-Preview.cmd')) {
     [void]$preservedNames.Add($name)
 }
 
@@ -87,39 +96,71 @@ Copy-Item `
     -Recurse `
     -Force
 
-$assemblyInfoPath = Join-Path $runtimeDirectory 'SIDEY.Launcher.AssemblyInfo.cs'
 $assemblyVersion = [Version]$FileVersion
-$assemblyInfo = @"
+function Build-SideyExecutable {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SourcePath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$OutputAssembly,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Title,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Description
+    )
+
+    $assemblyInfoName = [IO.Path]::GetFileNameWithoutExtension($OutputAssembly) + '.AssemblyInfo.cs'
+    $assemblyInfoPath = Join-Path $runtimeDirectory $assemblyInfoName
+    $assemblyInfo = @"
 using System.Reflection;
-[assembly: AssemblyTitle("SIDEY Launcher")]
+[assembly: AssemblyTitle("$Title")]
 [assembly: AssemblyProduct("SIDEY")]
 [assembly: AssemblyCompany("SIDEY")]
-[assembly: AssemblyDescription("SIDEY desktop launcher")]
+[assembly: AssemblyDescription("$Description")]
 [assembly: AssemblyVersion("$assemblyVersion")]
 [assembly: AssemblyFileVersion("$assemblyVersion")]
 [assembly: AssemblyInformationalVersion("$Version")]
 "@
-[IO.File]::WriteAllText(
-    $assemblyInfoPath,
-    $assemblyInfo,
-    [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText(
+        $assemblyInfoPath,
+        $assemblyInfo,
+        [Text.UTF8Encoding]::new($false))
 
-$iconPath = Join-Path $assetsDirectory 'Icons\SideyAppIcon.ico'
-$compilerOptions = '/optimize+ /nologo'
-if (Test-Path -LiteralPath $iconPath -PathType Leaf) {
-    $compilerOptions += " /win32icon:`"$iconPath`""
+    $iconPath = Join-Path $assetsDirectory 'Icons\SideyAppIcon.ico'
+    $compilerOptions = '/optimize+ /nologo'
+    if (Test-Path -LiteralPath $iconPath -PathType Leaf) {
+        $compilerOptions += " /win32icon:`"$iconPath`""
+    }
+    $compilerParameters = [CodeDom.Compiler.CompilerParameters]::new()
+    $compilerParameters.CompilerOptions = "$compilerOptions /target:winexe"
+    $compilerParameters.GenerateExecutable = $true
+    $compilerParameters.OutputAssembly = $OutputAssembly
+    [void]$compilerParameters.ReferencedAssemblies.Add('System.dll')
+    try {
+        Add-Type `
+            -Path @($SourcePath, $assemblyInfoPath) `
+            -CompilerParameters $compilerParameters
+    }
+    finally {
+        Remove-Item -LiteralPath $assemblyInfoPath -Force
+    }
 }
-$compilerParameters = [CodeDom.Compiler.CompilerParameters]::new()
-$compilerParameters.CompilerOptions = "$compilerOptions /target:winexe"
-$compilerParameters.GenerateExecutable = $true
-$compilerParameters.OutputAssembly = $launcherPath
-[void]$compilerParameters.ReferencedAssemblies.Add('System.dll')
-Add-Type `
-    -Path @($resolvedLauncherSource, $assemblyInfoPath) `
-    -CompilerParameters $compilerParameters
-Remove-Item -LiteralPath $assemblyInfoPath -Force
+
+Build-SideyExecutable `
+    -SourcePath $resolvedLauncherSource `
+    -OutputAssembly $launcherPath `
+    -Title 'SIDEY Launcher' `
+    -Description 'SIDEY desktop launcher'
+Build-SideyExecutable `
+    -SourcePath $resolvedUninstallerSource `
+    -OutputAssembly $uninstallerPath `
+    -Title 'SIDEY Uninstaller' `
+    -Description 'SIDEY uninstaller'
 
 $preview = "@echo off`r`nsetlocal`r`nstart `"`" `"%~dp0SIDEY.exe`" --onboarding-preview`r`n"
 [IO.File]::WriteAllText($previewPath, $preview, [Text.ASCIIEncoding]::new())
 
-Write-Host "PublishLayout=SIDEY.exe + Assets + Langs + Runtime/SIDEY.Host.exe"
+Write-Host "PublishLayout=SIDEY.exe + Uninstall.exe + Assets + Langs + Runtime/SIDEY.Host.exe"
