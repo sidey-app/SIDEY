@@ -357,13 +357,13 @@ OverlayRegionPreference(
 `20260902000000_commerce_policy_consent_and_refunds.sql`은 적용된 commerce migration을 수정하지 않는 forward-only 보정이며 다음 계약을 추가한다.
 
 - singleton private runtime 설정의 판매 활성화 스위치는 기본 `false`이고 결제 환경은 `test` 또는 `live` 하나로 고정한다.
-- 주문은 정책 버전 `2026-09-02-v1`, 결제 당시 서버 고지 원문과 동의 시각을 함께 저장하며 셋 중 일부만 저장할 수 없다.
+- 주문은 정책 버전 `2026-09-02-v2`, 결제 당시 서버 고지 원문과 동의 시각을 함께 저장하며 셋 중 일부만 저장할 수 없다. 체크아웃에는 결제 환경·서버 검증·소유권 처리 같은 내부 구현 문구 대신 가격, 제공 시점, 청약철회 제한과 환불 조건만 사용자 언어로 표시한다.
 - `commerce-checkout`의 주문 준비는 상품·가격·정책만 반환한다. 기본 미선택 체크박스가 명시적 `accepted=true`와 현재 정책 버전을 보낸 뒤 서버 동의 기록이 성공해야만 토스 클라이언트 설정과 반환 URL을 반환한다.
 - 기존 `commerce_checkout_order`와 entitlement DB trigger는 동의 없는 결제 설정 조회와 활성 소유권 생성을 각각 차단한다. 반환 URL, 승인 RPC와 웹훅이 우회되어도 같은 DB 규칙을 통과해야 한다.
 - Toss client/secret 키는 `test`/`live` 환경과 `gck↔gsk` 또는 `ck↔sk` 세트가 모두 일치해야 하며 checkout·반환 URL·웹훅·운영 환불의 결제사 API 호출 전에 현재 private runtime 환경과 대조한다.
 - 운영 환불은 별도 ops key와 운영자 식별자, `not_provided`, `contract_mismatch`, `duplicate_payment`, `unauthorized_payment`, `minor_without_consent`, `other_statutory_reason` 중 하나를 요구한다. 단순 변심 코드는 허용하지 않고 사유·요청·결제사 상태·처리 결과를 `private.commerce_refund_operations`에 저장한다.
 
-공개 웹사이트는 상품 `store.html`, 이용약관 `terms.html`, 개인정보 `privacy.html`, 환불 `refund.html`을 고정 URL로 제공한다. 판매자는 싸이디(SIDEY), 대표 류태현, 사업자등록번호 388-53-01259, 경기도 용인시 기흥구 서천동로21번길 20-6, `ryu200112@gmail.com`, `010-9270-2973`, 통신판매업 신고 면제(간이과세자)로 표시한다. 사업자등록증의 생년월일·QR·동호수는 저장소나 웹사이트에 포함하지 않는다. 이번 Windows 릴리스는 구매와 별빛 우파루파 원격 렌더링을 지원하지 않는다.
+공개 웹사이트는 결제 페이지가 직접 연결하는 상품 `store.html`, 이용약관 `terms.html`, 개인정보 `privacy.html`, 환불 `refund.html`을 고정 URL로 제공하되 랜딩 탐색 메뉴에서는 노출하지 않는다. 고정 고지 페이지에는 판매자를 싸이디(SIDEY), 사업자등록번호 388-53-01259, 경기도 용인시 기흥구 서천동로21번길 20-6, `ryu200112@gmail.com`, 통신판매업 신고 면제(간이과세자)로 표시하고 대표자 개인 이름과 전화번호는 공개하지 않는다. 랜딩 하단에는 고객지원 이메일과 사업자등록번호만 표시한다. 사업자등록증의 생년월일·QR·동호수는 저장소나 웹사이트에 포함하지 않는다. PG 심사나 관계 법령이 대표자·전화번호 공개를 요구하면 이 결정을 재검토한다. 이번 Windows 릴리스는 구매와 별빛 우파루파 원격 렌더링을 지원하지 않는다.
 
 기존 짧은 초대 코드는 migration에서 비활성화한다. 방장은 새 macOS 클라이언트에서 한 번 재발급해야 하며 public room 조회와 Realtime payload 어디에도 invite hash·version이 포함되지 않는다. macOS hotfix와 migration은 호환 순서로 배포하고 구버전의 기존 topic 계약은 유지하지 않는다.
 
