@@ -147,7 +147,7 @@ select is(
   (select policy_version from public.commerce_checkout_prepare(
     '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
   )),
-  '2026-09-02-v1',
+  '2026-09-02-v2',
   'checkout preparation returns the canonical current policy'
 );
 select is(
@@ -179,18 +179,18 @@ select throws_ok(
 create temporary table commerce_test_consent as
 select * from public.commerce_record_policy_consent(
   '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-  '2026-09-02-v1'
+  '2026-09-02-v2'
 );
 
 select is(
   (select policy_version from commerce_test_consent),
-  '2026-09-02-v1',
+  '2026-09-02-v2',
   'explicit consent records the policy version'
 );
 select is(
   (select policy_consented_at from public.commerce_record_policy_consent(
     '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-    '2026-09-02-v1'
+    '2026-09-02-v2'
   )),
   (select policy_consented_at from commerce_test_consent),
   'duplicate consent is idempotent and preserves its first timestamp'

@@ -159,9 +159,13 @@
 
       orderName.textContent = preparedOrder.order_name;
       amount.textContent = new Intl.NumberFormat("ko-KR").format(preparedOrder.amount);
-      environment.textContent = preparedOrder.payment_environment === "test"
-        ? "테스트 결제 · 실제 청구 없음"
-        : "라이브 결제";
+      if (preparedOrder.payment_environment === "test") {
+        environment.textContent = " · 테스트 모드 · 실제 청구 없음";
+        environment.hidden = false;
+      } else {
+        environment.textContent = "";
+        environment.hidden = true;
+      }
       policyNotice.textContent = preparedOrder.policy_notice;
       payButton.textContent = `${amount.textContent}원 결제창 열기`;
       consent.checked = false;
@@ -177,7 +181,7 @@
       console.error(requestError);
       showError(requestError.message === "checkout_expired"
         ? "주문 링크가 만료되었거나 이미 처리되었습니다. SIDEY 상점에서 다시 시도해주세요."
-        : "결제 서버에서 주문을 확인하지 못했습니다. SIDEY 상점에서 다시 시도해주세요.");
+        : "주문 정보를 확인하지 못했습니다. SIDEY 상점에서 다시 시도해주세요.");
     }
   }
 
