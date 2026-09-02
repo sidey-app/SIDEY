@@ -696,6 +696,135 @@ final class PixelWorldTests: XCTestCase {
         XCTAssertEqual(PixelCharacterPulseStyle.totalDuration, 0.80, accuracy: 0.001)
     }
 
+    func testStarlightSparklesAreCatalogDrivenAndStopOutsideOnlinePresence() {
+        let roomID = UUID()
+        let memberID = UUID()
+        let scene = PixelWorldScene(size: CGSize(width: 720, height: 240))
+
+        func apply(_ presence: PresenceState, pulse: CharacterPulseEvent? = nil) {
+            scene.apply(
+                roomID: roomID,
+                members: [PixelWorldMember(
+                    id: memberID,
+                    nickname: "친구",
+                    characterID: PixelCharacterCatalog.pixelStarlightUpalupaID,
+                    presence: presence,
+                    isTyping: presence == .typing,
+                    isCurrentUser: false
+                )],
+                bubbles: [],
+                edge: .bottom,
+                installationSeed: 2,
+                characterPulse: pulse
+            )
+        }
+
+        apply(.online)
+        XCTAssertTrue(scene.hasRenderedAmbientSparkles(for: memberID))
+        apply(.typing)
+        XCTAssertTrue(scene.hasRenderedAmbientSparkles(for: memberID))
+        for presence in [PresenceState.away, .offline, .reconnecting] {
+            apply(presence)
+            XCTAssertFalse(scene.hasRenderedAmbientSparkles(for: memberID), "\(presence)")
+        }
+
+        apply(.online, pulse: CharacterPulseEvent(id: UUID(), roomID: roomID, userID: memberID))
+        XCTAssertEqual(scene.renderedPulseSparkleCount(for: memberID), 42)
+    }
+
+    func testStarlightFacingFollowsTrackVelocityOnEveryEdgeAndPersistsAtRest() {
+        for edge in OverlayEdge.allCases {
+            let expectedPositive: CGFloat = switch edge {
+            case .bottom, .right: 1
+            case .top, .left: -1
+            }
+            let positive = PixelCharacterFacingPolicy.scale(
+                mirrorsToMovementDirection: true,
+                velocity: 12,
+                edge: edge,
+                previousScale: 1
+            )
+            XCTAssertEqual(positive, expectedPositive, "\(edge)")
+            XCTAssertEqual(PixelCharacterFacingPolicy.scale(
+                mirrorsToMovementDirection: true,
+                velocity: -12,
+                edge: edge,
+                previousScale: positive
+            ), -positive, "\(edge)")
+            XCTAssertEqual(PixelCharacterFacingPolicy.scale(
+                mirrorsToMovementDirection: true,
+                velocity: 0,
+                edge: edge,
+                previousScale: -positive
+            ), -positive, "\(edge)")
+        }
+
+        XCTAssertEqual(PixelCharacterFacingPolicy.scale(
+            mirrorsToMovementDirection: false,
+            velocity: -12,
+            edge: .bottom,
+            previousScale: 1
+        ), 1)
+        XCTAssertEqual(PixelCharacterFacingPolicy.scale(
+            mirrorsToMovementDirection: true,
+            velocity: PixelCharacterFacingPolicy.movementThreshold,
+            edge: .bottom,
+            previousScale: -1
+        ), -1)
+    }
+
+    func testAmbientSparkleVisibilityDependsOnlyOnOnlinePresence() {
+        XCTAssertTrue(PixelSparkleVisibilityPolicy.showsAmbient(for: .online))
+        XCTAssertTrue(PixelSparkleVisibilityPolicy.showsAmbient(for: .typing))
+        XCTAssertFalse(PixelSparkleVisibilityPolicy.showsAmbient(for: .away))
+        XCTAssertFalse(PixelSparkleVisibilityPolicy.showsAmbient(for: .offline))
+        XCTAssertFalse(PixelSparkleVisibilityPolicy.showsAmbient(for: .reconnecting))
+    }
+
+    func testTwelveStarlightCharactersKeepIndependentAmbientAndPulseEffects() {
+        let roomID = UUID()
+        let members = (0..<12).map { index in
+            PixelWorldMember(
+                id: UUID(),
+                nickname: "별\(index)",
+                characterID: PixelCharacterCatalog.pixelStarlightUpalupaID,
+                presence: .online,
+                isTyping: false,
+                isCurrentUser: index == 0
+            )
+        }
+        let scene = PixelWorldScene(size: CGSize(width: 1_200, height: 360))
+        scene.apply(
+            roomID: roomID,
+            members: members,
+            bubbles: [],
+            edge: .bottom,
+            installationSeed: 9
+        )
+        XCTAssertTrue(members.allSatisfy {
+            scene.hasRenderedAmbientSparkles(for: $0.id)
+        })
+
+        for member in members {
+            scene.apply(
+                roomID: roomID,
+                members: members,
+                bubbles: [],
+                edge: .bottom,
+                installationSeed: 9,
+                characterPulse: CharacterPulseEvent(
+                    id: UUID(),
+                    roomID: roomID,
+                    userID: member.id
+                )
+            )
+        }
+        XCTAssertEqual(
+            members.reduce(0) { $0 + scene.renderedPulseSparkleCount(for: $1.id) },
+            12 * PixelSparkleEffect.starlight.pulseCount
+        )
+    }
+
     func testAwayOfflineAndReconnectHaveDistinctVisualStates() throws {
         let scene = PixelWorldScene(size: CGSize(width: 720, height: 240))
         let roomID = UUID()

@@ -23,6 +23,9 @@ struct PixelCharacterDefinition: Equatable, Identifiable, Sendable {
     let previewFrame: Int
     let frames: PixelCharacterFrameContract
     let paletteDescription: String
+    let entitlementKey: String?
+    let mirrorsToMovementDirection: Bool
+    let sparkleEffect: PixelSparkleEffect?
 
     func assetURL(bundle: Bundle = .main) -> URL? {
         bundle.url(
@@ -33,8 +36,83 @@ struct PixelCharacterDefinition: Equatable, Identifiable, Sendable {
     }
 }
 
+struct PixelSparkleColor: Equatable, Sendable {
+    let red: CGFloat
+    let green: CGFloat
+    let blue: CGFloat
+
+    var cgColor: CGColor {
+        CGColor(red: red, green: green, blue: blue, alpha: 1)
+    }
+}
+
+struct PixelSparkleEffect: Equatable, Sendable {
+    let ambientDelay: ClosedRange<TimeInterval>
+    let ambientDuration: TimeInterval
+    let ambientCount: ClosedRange<Int>
+    let ambientRadius: ClosedRange<CGFloat>
+    let ambientHorizontalPosition: ClosedRange<CGFloat>
+    let ambientVerticalPosition: ClosedRange<CGFloat>
+    let ambientRise: CGFloat
+    let centralFlashDuration: TimeInterval
+    let centralFlashRadius: CGFloat
+    let pulseWaves: [PixelSparklePulseWave]
+    let colors: [PixelSparkleColor]
+
+    var pulseDuration: TimeInterval {
+        pulseWaves.map { $0.delay + $0.duration }.max() ?? centralFlashDuration
+    }
+
+    var pulseCount: Int {
+        pulseWaves.reduce(0) { $0 + $1.count }
+    }
+
+    static let starlight = PixelSparkleEffect(
+        ambientDelay: 1.0...1.4,
+        ambientDuration: 1.05,
+        ambientCount: 4...6,
+        ambientRadius: 2.6...4.0,
+        ambientHorizontalPosition: -25...25,
+        ambientVerticalPosition: 5...37,
+        ambientRise: 4,
+        centralFlashDuration: 0.32,
+        centralFlashRadius: 34,
+        pulseWaves: [
+            PixelSparklePulseWave(
+                delay: 0,
+                duration: 0.72,
+                count: 18,
+                distance: 126...168,
+                radius: 8...13
+            ),
+            PixelSparklePulseWave(
+                delay: 0.06,
+                duration: 0.78,
+                count: 24,
+                distance: 82...132,
+                radius: 4.5...8
+            )
+        ],
+        colors: [
+            PixelSparkleColor(red: 0.47, green: 0.76, blue: 0.68),
+            PixelSparkleColor(red: 0.66, green: 0.53, blue: 0.84),
+            PixelSparkleColor(red: 0.96, green: 0.73, blue: 0.22)
+        ]
+    )
+}
+
+struct PixelSparklePulseWave: Equatable, Sendable {
+    let delay: TimeInterval
+    let duration: TimeInterval
+    let count: Int
+    let distance: ClosedRange<CGFloat>
+    let radius: ClosedRange<CGFloat>
+}
+
 enum PixelCharacterCatalog {
     static let pixelHamsterID = "pixel_hamster"
+    static let pixelStarlightUpalupaID = "pixel_starlight_upalupa"
+    static let starlightUpalupaEntitlementKey = "character:pixel_starlight_upalupa"
     static let legacyMintyPupID = "minty_pup"
 
     static let all: [PixelCharacterDefinition] = [
@@ -45,7 +123,10 @@ enum PixelCharacterCatalog {
             resourceDirectory: "Characters/PixelHamster",
             previewFrame: 0,
             frames: .standard,
-            paletteDescription: "골든 · 크림 · 페리윙클"
+            paletteDescription: "골든 · 크림 · 페리윙클",
+            entitlementKey: nil,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil
         ),
         PixelCharacterDefinition(
             id: "pixel_cat",
@@ -54,7 +135,10 @@ enum PixelCharacterCatalog {
             resourceDirectory: "Characters/PixelCat",
             previewFrame: 0,
             frames: .standard,
-            paletteDescription: "스모크 그레이 · 크림 · 라일락"
+            paletteDescription: "스모크 그레이 · 크림 · 라일락",
+            entitlementKey: nil,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil
         ),
         PixelCharacterDefinition(
             id: "pixel_puppy",
@@ -63,7 +147,10 @@ enum PixelCharacterCatalog {
             resourceDirectory: "Characters/PixelPuppy",
             previewFrame: 0,
             frames: .standard,
-            paletteDescription: "캐러멜 · 크림 · 스카이 블루"
+            paletteDescription: "캐러멜 · 크림 · 스카이 블루",
+            entitlementKey: nil,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil
         ),
         PixelCharacterDefinition(
             id: "pixel_rabbit",
@@ -72,7 +159,10 @@ enum PixelCharacterCatalog {
             resourceDirectory: "Characters/PixelRabbit",
             previewFrame: 0,
             frames: .standard,
-            paletteDescription: "아이보리 · 피치 · 라벤더"
+            paletteDescription: "아이보리 · 피치 · 라벤더",
+            entitlementKey: nil,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil
         ),
         PixelCharacterDefinition(
             id: "pixel_penguin",
@@ -81,9 +171,26 @@ enum PixelCharacterCatalog {
             resourceDirectory: "Characters/PixelPenguin",
             previewFrame: 0,
             frames: .standard,
-            paletteDescription: "네이비 · 크림 · 민트"
+            paletteDescription: "네이비 · 크림 · 민트",
+            entitlementKey: nil,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil
+        ),
+        PixelCharacterDefinition(
+            id: pixelStarlightUpalupaID,
+            displayName: "별빛 우파루파",
+            resourceName: "pixel_starlight_upalupa",
+            resourceDirectory: "Characters/PixelStarlightUpalupa",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "진주빛 핑크 · 라벤더 · 민트",
+            entitlementKey: starlightUpalupaEntitlementKey,
+            mirrorsToMovementDirection: true,
+            sparkleEffect: .starlight
         )
     ]
+
+    static let free = all.filter { $0.entitlementKey == nil }
 
     static let frameCount = 10
     static let framePixelSize = CGSize(width: 24, height: 24)
@@ -98,6 +205,19 @@ enum PixelCharacterCatalog {
     static func definition(for storedID: String) -> PixelCharacterDefinition {
         let canonical = canonicalID(for: storedID)
         return all.first(where: { $0.id == canonical }) ?? all[0]
+    }
+
+    static func selectableDefinitions(entitlementKeys: Set<String>) -> [PixelCharacterDefinition] {
+        all.filter { definition in
+            guard let entitlementKey = definition.entitlementKey else { return true }
+            return entitlementKeys.contains(entitlementKey)
+        }
+    }
+
+    static func canSelect(_ characterID: String, entitlementKeys: Set<String>) -> Bool {
+        let definition = definition(for: characterID)
+        guard let entitlementKey = definition.entitlementKey else { return true }
+        return entitlementKeys.contains(entitlementKey)
     }
 }
 

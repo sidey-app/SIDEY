@@ -29,6 +29,8 @@ brew install --cask sidey-app/tap/sidey
 
 직접 설치하려면 [SIDEY Releases](https://github.com/sidey-app/SIDEY/releases)에서 최신 `SIDEY-macOS-arm64-<version>.dmg`를 받은 뒤 `SIDEY.app`을 Applications 폴더로 옮깁니다. 새로 설치할 때는 ZIP이 아닌 DMG를 사용하세요.
 
+현재 공개 버전은 `v1.0.3`(build 14)입니다.
+
 ### Windows
 
 Windows 11 25H2 이상 x64 PC를 지원합니다.

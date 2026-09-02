@@ -9,6 +9,8 @@ struct SettingsActions {
     var onLaunchAtLoginChanged: (Bool) -> Void
     var onCheckForUpdates: () -> Void
     var canCheckForUpdates: () -> Bool
+    var onPurchase: (String) -> Void
+    var onRefreshCommerceState: (String?) -> Void
     var onSaveProfile: @MainActor @Sendable () -> Void
     var onCreateRoom: () -> Void
     var onJoinRoom: () -> Void
@@ -27,6 +29,8 @@ struct SettingsActions {
         onLaunchAtLoginChanged: { _ in },
         onCheckForUpdates: {},
         canCheckForUpdates: { false },
+        onPurchase: { _ in },
+        onRefreshCommerceState: { _ in },
         onSaveProfile: {},
         onCreateRoom: {},
         onJoinRoom: {},
@@ -69,31 +73,39 @@ struct SettingsRootView: View {
                     .padding(16)
             }
         } detail: {
-            ScrollView {
-                Group {
-                    switch model.activeSettingsPage {
-                    case .profile:
-                        ProfileSettingsView(model: model, onSave: actions.onSaveProfile)
-                    case .groups:
-                        GroupsSettingsView(model: model, actions: actions)
-                    case .app:
-                        AppSettingsView(model: model, actions: actions)
+            GeometryReader { geometry in
+                ScrollView {
+                    Group {
+                        switch model.activeSettingsPage {
+                        case .profile:
+                            ProfileSettingsView(model: model, onSave: actions.onSaveProfile)
+                        case .groups:
+                            GroupsSettingsView(model: model, actions: actions)
+                        case .store:
+                            StoreView(model: model, actions: actions)
+                                .frame(
+                                    minHeight: max(0, geometry.size.height - 80),
+                                    alignment: .top
+                                )
+                        case .app:
+                            AppSettingsView(model: model, actions: actions)
+                        }
                     }
+                    .frame(maxWidth: 760, alignment: .topLeading)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                    .padding(.horizontal, 44)
+                    .padding(.vertical, 40)
                 }
-                .frame(maxWidth: 760, alignment: .topLeading)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .padding(.horizontal, 44)
-                .padding(.vertical, 40)
-            }
-            .overlay(alignment: .bottom) {
-                if let error = model.errorMessage {
-                    ErrorBanner(message: error) { model.errorMessage = nil }
-                        .padding(20)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else if let success = model.successMessage {
-                    SuccessBanner(message: success) { model.successMessage = nil }
-                        .padding(20)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                .overlay(alignment: .bottom) {
+                    if let error = model.errorMessage {
+                        ErrorBanner(message: error) { model.errorMessage = nil }
+                            .padding(20)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    } else if let success = model.successMessage {
+                        SuccessBanner(message: success) { model.successMessage = nil }
+                            .padding(20)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
                 }
             }
         }

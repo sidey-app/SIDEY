@@ -3,6 +3,7 @@ import Foundation
 struct BackendSnapshot: Equatable, Sendable {
     var profile: Profile?
     var rooms: [Room]
+    var activeEntitlementKeys: Set<String> = []
 }
 
 struct BackendReconciliation: Equatable, Sendable {
@@ -108,6 +109,97 @@ struct DatabaseMembership: Codable, Sendable {
         case roomID = "room_id"
         case userID = "user_id"
         case joinedAt = "joined_at"
+    }
+}
+
+struct DatabaseCommerceEntitlement: Codable, Sendable {
+    let entitlementKey: String
+    let status: String
+
+    enum CodingKeys: String, CodingKey {
+        case status
+        case entitlementKey = "entitlement_key"
+    }
+}
+
+enum CommerceEntitlementSnapshotPolicy {
+    static func resolvedKeys(
+        remoteKeys: Set<String>?,
+        profileCharacterID: String?
+    ) -> Set<String> {
+        if let remoteKeys { return remoteKeys }
+        guard let profileCharacterID,
+              let entitlementKey = PixelCharacterCatalog
+                .definition(for: profileCharacterID)
+                .entitlementKey
+        else { return [] }
+        return [entitlementKey]
+    }
+}
+
+struct DatabaseCommerceState: Codable, Sendable {
+    let productID: String
+    let displayName: String
+    let productDescription: String
+    let characterID: String
+    let entitlementKey: String
+    let amountKRW: Int
+    let currency: String
+    let taxInclusive: Bool
+    let googleConnected: Bool
+    let entitlementStatus: String?
+    let latestOrderStatus: String?
+
+    enum CodingKeys: String, CodingKey {
+        case currency
+        case productID = "product_id"
+        case displayName = "display_name"
+        case productDescription = "product_description"
+        case characterID = "character_id"
+        case entitlementKey = "entitlement_key"
+        case amountKRW = "amount_krw"
+        case taxInclusive = "tax_inclusive"
+        case googleConnected = "google_connected"
+        case entitlementStatus = "entitlement_status"
+        case latestOrderStatus = "latest_order_status"
+    }
+
+    var domain: CommerceState {
+        CommerceState(
+            product: CommerceProduct(
+                id: productID,
+                displayName: displayName,
+                description: productDescription,
+                characterID: characterID,
+                entitlementKey: entitlementKey,
+                amountKRW: amountKRW,
+                currency: currency,
+                taxInclusive: taxInclusive
+            ),
+            googleConnected: googleConnected,
+            entitlementStatus: entitlementStatus,
+            latestOrderStatus: latestOrderStatus
+        )
+    }
+}
+
+struct CommerceStateParameters: Encodable, Sendable {
+    let productID: String
+    enum CodingKeys: String, CodingKey { case productID = "p_product_id" }
+}
+
+struct CommerceOrderRequest: Encodable, Sendable {
+    let productID: String
+    enum CodingKeys: String, CodingKey { case productID = "product_id" }
+}
+
+struct CommerceOrderResponse: Decodable, Sendable {
+    let orderID: UUID
+    let checkoutURL: URL
+
+    enum CodingKeys: String, CodingKey {
+        case orderID = "order_id"
+        case checkoutURL = "checkout_url"
     }
 }
 

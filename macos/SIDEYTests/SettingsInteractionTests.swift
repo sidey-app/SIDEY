@@ -172,16 +172,125 @@ final class SettingsInteractionTests: XCTestCase {
         }
     }
 
+    func testResponsiveSquareStoreGridRendersLongAndIndependentCardStates() throws {
+        let products = [
+            CommerceProduct(
+                id: "fixture_store_first",
+                displayName: "첫 번째 테스트 캐릭터",
+                description: "최소 크기에서도 설명이 자연스럽게 여러 줄로 이어지고 아래 버튼을 밀어내거나 잘라내지 않는지 확인하는 긴 상품 설명입니다.",
+                characterID: "pixel_hamster",
+                entitlementKey: "character:fixture_store_first",
+                amountKRW: 990,
+                currency: "KRW",
+                taxInclusive: true
+            ),
+            CommerceProduct(
+                id: "fixture_store_second",
+                displayName: "두 번째 테스트 캐릭터",
+                description: "두 번째 카드의 상태가 첫 번째 카드와 독립적으로 표시되는지 확인합니다.",
+                characterID: "pixel_cat",
+                entitlementKey: "character:fixture_store_second",
+                amountKRW: 1_900,
+                currency: "KRW",
+                taxInclusive: true
+            )
+        ]
+        let snapshotSentinel = "/private/tmp/sidey-store-snapshots"
+        let configuredOutput = ProcessInfo.processInfo.environment["SIDEY_STORE_SNAPSHOT_DIR"]
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? (FileManager.default.fileExists(atPath: snapshotSentinel)
+                ? URL(fileURLWithPath: snapshotSentinel, isDirectory: true)
+                : nil)
+        if let configuredOutput {
+            try FileManager.default.createDirectory(
+                at: configuredOutput,
+                withIntermediateDirectories: true
+            )
+        }
+
+        for (scenario, configureState) in [
+            (
+                "owned-error",
+                { (model: AppModel) in
+                    model.apply(commerceState: CommerceState(
+                        product: products[0],
+                        googleConnected: true,
+                        entitlementStatus: "active",
+                        latestOrderStatus: "approved"
+                    ))
+                    model.setCommercePurchaseState(
+                        .error("두 번째 상품만 상태를 불러오지 못했습니다. 다른 상품은 그대로 사용할 수 있습니다."),
+                        productID: products[1].id
+                    )
+                }
+            ),
+            (
+                "loading-confirming",
+                { (model: AppModel) in
+                    model.apply(commerceState: CommerceState(
+                        product: products[0],
+                        googleConnected: true,
+                        entitlementStatus: nil,
+                        latestOrderStatus: nil
+                    ))
+                    model.setCommerceWorking(true, productID: products[0].id)
+                    model.setCommercePurchaseState(.confirming, productID: products[1].id)
+                }
+            )
+        ] {
+            for (sizeName, size) in [
+                ("minimum", CGSize(width: 860, height: 640)),
+                ("default", SettingsWindowController.settingsContentSize)
+            ] {
+                for scheme in [ColorScheme.light, .dark] {
+                    let data = try renderSettings(
+                        size: size,
+                        colorScheme: scheme,
+                        commerceProducts: products
+                    ) { model in
+                        model.activeSettingsPage = .store
+                        configureState(model)
+                    }
+                    XCTAssertGreaterThan(data.count, 10_000)
+                    let placementData = try renderSettings(
+                        size: size,
+                        colorScheme: scheme,
+                        scrollToBottom: true,
+                        commerceProducts: products
+                    ) { model in
+                        model.activeSettingsPage = .store
+                        configureState(model)
+                    }
+                    XCTAssertGreaterThan(placementData.count, 10_000)
+                    if let configuredOutput {
+                        let mode = scheme == .light ? "light" : "dark"
+                        try data.write(
+                            to: configuredOutput.appending(
+                                path: "store-\(scenario)-\(sizeName)-\(mode).png"
+                            )
+                        )
+                        try placementData.write(
+                            to: configuredOutput.appending(
+                                path: "store-\(scenario)-\(sizeName)-\(mode)-placement.png"
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     private func renderSettings(
         size: CGSize,
         colorScheme: ColorScheme,
         scrollToBottom: Bool = false,
+        commerceProducts: [CommerceProduct] = CommerceCatalog.products,
         configure: (AppModel) -> Void = { _ in }
     ) throws -> Data {
         var preferences = AppPreferences.defaults
         preferences.onboardingComplete = true
         preferences.overlayRegion.screenIdentifier = "display:main"
-        let model = AppModel(preferences: preferences)
+        let model = AppModel(preferences: preferences, commerceProducts: commerceProducts)
         model.activeSettingsPage = .app
         model.availableScreens = [
             OverlayScreenOption(id: "display:main", name: "내장 디스플레이"),

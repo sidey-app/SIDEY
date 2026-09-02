@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.7
 - 최종 갱신: 2026-09-02
-- 상태: macOS `v1.0.3`(build 14) 정식 공개(최근 기록 개선), Windows 네이티브 햄스터 vertical slice 개발
+- 상태: macOS `v1.0.3`(build 14) 정식 공개, 그 위에 상점·Google 연결·별빛 우파루파 개발, Windows 네이티브판 별도 개발
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
 
@@ -27,6 +27,7 @@
 - 실제 그룹은 최대 12명이다. 렌더러 안정성은 별도 20노드 합성 스트레스 테스트로 검증한다.
 - macOS 코드·인증·설정 schema는 Windows 개발을 위해 재작성하지 않는다.
 - 기존 설치의 인증 세션과 설정을 잃지 않도록 Swift 기반 legacy migration 호환만 유지한다.
+- macOS 설정과 메뉴바에서 첫 유료 캐릭터 상점을 제공하고, 기존 익명 계정을 Google identity에 연결한 뒤 브라우저 결제를 시작한다.
 
 ### 2.2 Windows 구현 목표
 
@@ -38,7 +39,7 @@
 
 ### 2.3 명시적 제외
 
-- 내장 5종을 넘는 추가 동물
+- 승인된 catalog 상품 외의 추가 동물
 - 모바일·웹 클라이언트
 - 공개 그룹·검색·발견
 - 12명을 넘는 그룹
@@ -146,6 +147,8 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 | `pixel_rabbit` | 아기 토끼 | 아이보리·피치·라벤더 |
 | `pixel_penguin` | 아기 펭귄 | 네이비·크림·민트 |
 
+첫 유료 catalog 상품은 `pixel_starlight_upalupa` 별빛 우파루파다. macOS 선택 목록에는 무료 5종과 현재 계정이 활성 소유권을 가진 유료 캐릭터만 표시한다. 환불 또는 소유권 만료 시 로컬 선택을 햄스터로 되돌리며, macOS에서 다른 사용자의 유료 캐릭터를 렌더링할 때는 보는 사람의 소유권을 요구하지 않는다. 이번 Windows 릴리스는 별빛 우파루파 ID를 원격 렌더링하지 않고 기존 안전한 fallback을 사용한다.
+
 - 논리 프레임: 24×24 픽셀
 - 화면 크기: 2배 정수 확대, 약 48pt
 - 필터: nearest-neighbor
@@ -208,6 +211,9 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 이 패널만 키보드 포커스와 포인터 입력을 받는다.
 - 패널의 둥근 glass 영역 밖과 hosting surface는 포커스 여부와 무관하게 완전 투명하며 400×56 사각 배경을 그리지 않는다.
 - 최대 200자·3줄, Enter 전송, Shift+Enter 줄바꿈 계약을 유지한다.
+- `NativeMessageField`의 텍스트 컨테이너는 입력 폭을 추적하고 문서 높이는 실제 자동 줄바꿈 결과만큼 확장한다. 명시적 줄바꿈 3줄 제한은 `MessageValidator`가 유지하며 시각적 자동 줄바꿈을 3줄에서 잘라내지 않는다.
+- 한 시각 줄은 세로 중앙 정렬하고 여러 시각 줄은 3pt 상단 inset과 숨겨진 세로 스크롤을 사용한다. 일반 입력·삭제, 한글 IME 확정, Shift+Enter, 방향키·Home·End·마우스 선택, undo·redo, 외부 draft 복원과 전송 실패 재표시 뒤 선택·삽입 커서를 자동으로 보이는 영역에 스크롤한다.
+- 스크롤 상태는 `NativeMessageField`와 내부 `NSTextView`만 소유하고 `AppModel.draft`에는 추가하지 않는다. 유효성 실패로 마지막 정상 문자열과 선택을 복구한 뒤에도 복구 커서를 표시하며 가로 무한 확장은 사용하지 않는다.
 - 앱 실행과 오버레이 표시 직후에는 숨겨져 있다.
 - 내 캐릭터 단일 클릭 또는 메뉴바 `메시지 작성`으로 열고 즉시 포커스한다.
 - 내 캐릭터 더블클릭은 리액션을 실행하고 입력창은 열린 상태로 유지한다.
@@ -232,13 +238,24 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 활성 그룹과 그룹별 미확인 수
 - 조용히 모드
 - 최근 기록
+- 꾸미기·상점
 - 그룹 설정
 - 로그인 시 실행
 - 업데이트 확인
 - 설정
 - 종료
 
-### 6.4 Windows 창과 트레이
+### 6.4 macOS 꾸미기·상점
+
+- 설정과 메뉴바의 `꾸미기·상점`은 같은 화면을 열고 판매 상품을 등록 순서대로 2열 그리드에 표시한다.
+- 화면에는 외부 상점 섹션 카드와 별도의 미리보기 카드 배경을 두지 않고 `StoreProductCard` 한 단계만 사용한다.
+- 각 상품 카드는 최대 210pt의 배경 없는 미리보기 영역 안에 96pt 캐릭터를 최대 1.45배로 표시한다. 좌상단에는 상태 배지, 우상단에는 `hand.tap` 아이콘 미리보기 버튼을 overlay하며 버튼은 보이는 텍스트 없이 접근성 라벨과 도움말을 제공한다.
+- 이름과 서버 가격은 같은 행에 배치하고 설명·오류·상태별 구매 action을 아래에 둔다. `1회 구매`, 카드별 `부가세 포함`, 텍스트 `반응 미리보기`, 소유권 배지와 중복되는 비활성 `보유 중` 버튼은 표시하지 않는다.
+- 공통 안내는 상품 그리드 아래 가변 여백 다음에 가로 중앙 정렬한다. 내용이 짧으면 설정 상세 영역 하단, 창이 작으면 카드와 겹치지 않는 스크롤 끝에 표시한다.
+- 공통 안내는 부가세 포함·Google 연결 필요, 결제 승인과 서버 소유권 확인 뒤 즉시 디지털 사용권 제공 시작, 제공 시작 뒤 단순 변심 청약철회 제한, 미제공·계약 불일치·중복 또는 무단 결제 등 법정 사유 전액 환불을 한 번만 전달한다.
+- 카드별 미리보기 scale·effect generation·취소 가능한 Task는 `StoreProductCard`가 소유하고 상품 ID별 정렬된 서버 상태와 구매 action은 `AppModel`·`AppCoordinator`·`SideyBackend`가 소유한다.
+
+### 6.5 Windows 창과 트레이
 
 - 월드는 WinUI XAML 창에 투명 표현을 위임하지 않고 `WS_POPUP` 기반 전용 Win32 HWND가 소유한다. 첫 local slice는 24px 원본에서 정수 nearest-neighbor로 미리 만든 premultiplied BGRA frame을 `UpdateLayeredWindow`로 표시하며 tick마다 bitmap이나 surface를 새로 할당하지 않는다.
 - 월드 HWND는 작업 표시줄·Alt-Tab에 나타나지 않고 활성화되지 않으며 외부 앱으로 포인터를 통과시킨다.
@@ -271,6 +288,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 오버레이 영역, 모니터, 오프라인 표시 등 환경설정
 - 편집 중인 `selectedCharacterID`
 - 연결 상태와 분리된 현재 `GroupOperation`
+- 상품 ID별 commerce 상태, Google 연결 여부와 활성 소유권
 
 macOS 최근 기록의 페이지·cursor·최초 및 추가 로딩 상태는 창 수명에 묶인 `MessageHistoryStore`가 소유한다. `AppModel`의 방별 50개 confirmed ledger와 outbox 계약은 바꾸지 않으며, 화면에 표시할 때만 페이지 결과·실시간 신규 메시지·pending·failed 항목을 UUID로 병합한다. `SideyBackend`는 RLS가 적용된 페이지 조회만 담당하고 offset이나 별도 서버 schema를 추가하지 않는다.
 
@@ -334,6 +352,19 @@ OverlayRegionPreference(
 - 7일 초과·프로필 없음·방 없음인 미완성 익명 가입만 삭제
 - `rename_room(uuid,text)`, `remove_room_member(uuid,uuid)`, 방장 전용 `delete_room(uuid) returns void`; 삭제는 기존 FK cascade로 방 멤버십과 메시지를 함께 제거
 
+`20260901010000_starlight_upalupa_commerce.sql`은 상품·가격·주문·결제 시도·소유권·환불 기록과 RLS를 추가한다. 클라이언트는 서버 catalog 가격과 활성 소유권만 사용하며 checkout 생성, 결제 승인·재조회, webhook, 환불은 Edge Functions가 서비스 권한으로 검증한다. 공개 callback 함수는 일회용 주문 token과 공급자 서명을 확인하고 임의 사용자·금액·소유권을 신뢰하지 않는다.
+
+`20260902000000_commerce_policy_consent_and_refunds.sql`은 적용된 commerce migration을 수정하지 않는 forward-only 보정이며 다음 계약을 추가한다.
+
+- singleton private runtime 설정의 판매 활성화 스위치는 기본 `false`이고 결제 환경은 `test` 또는 `live` 하나로 고정한다.
+- 주문은 정책 버전 `2026-09-02-v1`, 결제 당시 서버 고지 원문과 동의 시각을 함께 저장하며 셋 중 일부만 저장할 수 없다.
+- `commerce-checkout`의 주문 준비는 상품·가격·정책만 반환한다. 기본 미선택 체크박스가 명시적 `accepted=true`와 현재 정책 버전을 보낸 뒤 서버 동의 기록이 성공해야만 토스 클라이언트 설정과 반환 URL을 반환한다.
+- 기존 `commerce_checkout_order`와 entitlement DB trigger는 동의 없는 결제 설정 조회와 활성 소유권 생성을 각각 차단한다. 반환 URL, 승인 RPC와 웹훅이 우회되어도 같은 DB 규칙을 통과해야 한다.
+- Toss client/secret 키는 `test`/`live` 환경과 `gck↔gsk` 또는 `ck↔sk` 세트가 모두 일치해야 하며 checkout·반환 URL·웹훅·운영 환불의 결제사 API 호출 전에 현재 private runtime 환경과 대조한다.
+- 운영 환불은 별도 ops key와 운영자 식별자, `not_provided`, `contract_mismatch`, `duplicate_payment`, `unauthorized_payment`, `minor_without_consent`, `other_statutory_reason` 중 하나를 요구한다. 단순 변심 코드는 허용하지 않고 사유·요청·결제사 상태·처리 결과를 `private.commerce_refund_operations`에 저장한다.
+
+공개 웹사이트는 상품 `store.html`, 이용약관 `terms.html`, 개인정보 `privacy.html`, 환불 `refund.html`을 고정 URL로 제공한다. 판매자는 싸이디(SIDEY), 대표 류태현, 사업자등록번호 388-53-01259, 경기도 용인시 기흥구 서천동로21번길 20-6, `ryu200112@gmail.com`, `010-9270-2973`, 통신판매업 신고 면제(간이과세자)로 표시한다. 사업자등록증의 생년월일·QR·동호수는 저장소나 웹사이트에 포함하지 않는다. 이번 Windows 릴리스는 구매와 별빛 우파루파 원격 렌더링을 지원하지 않는다.
+
 기존 짧은 초대 코드는 migration에서 비활성화한다. 방장은 새 macOS 클라이언트에서 한 번 재발급해야 하며 public room 조회와 Realtime payload 어디에도 invite hash·version이 포함되지 않는다. macOS hotfix와 migration은 호환 순서로 배포하고 구버전의 기존 topic 계약은 유지하지 않는다.
 
 임시로 방 정원을 20명으로 늘렸던 staging migration은 운영에 적용되지 않았고 `main`에서도 제거한다. 20명 조건은 렌더러 합성 부하 테스트에만 사용하며 제품 정원은 12명이다.
@@ -358,6 +389,8 @@ E2EE는 현재 설계·구현·검증되지 않았다. 전송 암호화, Postgre
 
 Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity를 처리하지만 SIDEY 클라이언트는 이 값을 닉네임·캐릭터·친구 노출 정보로 복사하지 않는다. 로컬 로그에는 access/refresh token, OAuth callback query, 메시지 본문, 평문 초대 코드를 남기지 않는다.
 
+macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀키, service-role key, 일회용 주문 token, 전체 결제 식별자를 남기지 않는다. 결제 성공 redirect만으로 소유권을 지급하지 않고 토스 승인·재조회, 결제 당시 정책 동의와 Postgres 기록이 모두 일치해야 한다. 카드 번호·결제 비밀번호는 SIDEY가 수집하지 않는다.
+
 ## 10. 검증과 승격 기준
 
 ### 10.1 자동화 테스트
@@ -372,6 +405,9 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 - 업데이트: production 채널에 Sparkle `2.9.6` 프레임워크·메뉴 항목·피드 URL·EdDSA 공개키가 번들에 포함되고 signed feed와 압축 해제 전 검증을 강제하며, 업데이트 진행 중에는 수동 확인 메뉴를 비활성화. development 채널은 Sparkle을 시작하지 않고 수동 확인 메뉴도 항상 비활성화
 - 에셋: 5개 시트의 240×24 RGBA·10프레임·공통 발 기준선·결정적 hash·Release 번들 포함, 메뉴 아이콘 1x·2x template/unread variant
 - 설정: 860×640 최소 크기와 1000×760 기본 크기의 라이트·다크 렌더, 옅은 카드 명도, 240pt 컨트롤 영역과 Picker·버튼·토글 오른쪽 정렬, `동작 정보` 제거, 두 사람 그룹 아이콘, 한글 IME 조합 확정 후 닉네임 저장
+- 입력 필드: 200자 끝, 한글 조합, 영문 긴 단어, 이모지, Shift+Enter 3줄, 중간 커서 이동·전체 선택, undo·redo, 외부 draft와 잘못된 입력 복구에서 마지막 글자와 커서가 보이고 텍스트 손실·IME 중복 확정·가로 스크롤이 없는지 검증한다.
+- 상점: 2열 상품 카드의 독립 상태·정렬, 소유권·환불 fallback, Google callback scheme 분리, 최소·기본 크기와 라이트·다크 렌더, 한 단계 카드 구조, 상태 배지와 아이콘 미리보기 접근성, 넓은 창 중앙 하단·작은 창 스크롤 끝의 공통 정책 안내를 검증한다.
+- commerce 서버·웹: 판매 기본 잠금, 동의 멱등성, 정책 버전 불일치, 체크박스 미동의, 동의 없는 승인·소유권 차단, 만료 token, 위조 금액, 중복 승인·중복 클릭·반환 URL 재호출, 허용 법정 사유 환불과 private 결과 기록·햄스터 복귀, test/live 키 혼용 거부를 검증한다.
 - 그룹 설정: 0·1·12명 멤버 목록, 기본 접힘·제목 영역 및 오른쪽 단일 화살표 펼침, `그룹 참가` 문구, 생성·참여·전환별 진행 문구와 라이트·다크 대상 카드 강조, A→B→C 연속 선택에서 C만 commit, UUID 기반 방장 왕관과 펼친 목록 아래 방장 전용 이름 변경·삭제 버튼, 이름 변경 저장·취소, 대상 명시 추방 확인, 영구 삭제 2단계 확인, 활성·비활성·마지막 그룹 삭제 fallback, 초대 코드 복사 성공·실패와 3초 표시·재클릭 갱신·행 제거 취소
 - DMG: 660×420 배경, `SIDEY.app`, `/Applications` 심볼릭 링크, 기존 5종 idle 프레임, `.DS_Store`를 자동 생성·마운트 검증하고 Finder에서 아이콘 위치·안내 문구·nearest-neighbor 픽셀 선명도를 수동 확인
 - Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단
@@ -401,15 +437,19 @@ Windows Google OAuth에서 Google과 Supabase Auth가 email·provider identity�
 
 ### 10.4 macOS 배포 절차
 
-1. 전체 macOS 단위·창 정책 테스트와 20노드 합성 부하를 통과한다.
-2. 로컬 Supabase에서 12명 제한·7일 메시지 보관과 SQL 테스트를 통과한다.
-3. Developer ID Application 인증서와 Hardened Runtime으로 앱·로그인 항목·Sparkle의 중첩 코드를 서명하고 Apple 공증 뒤 ticket을 staple한다.
-4. `scripts/package_macos_release.sh`로 버전·빌드 번호, arm64 아키텍처, 번들 메타데이터, 코드 서명, 신규 설치용 DMG, Sparkle용 ZIP과 각 SHA-256을 검증한다. 로그인된 Finder 세션에서 쓰기 가능한 DMG를 마운트해 660×420 배경, 왼쪽 `SIDEY.app`, 오른쪽 `/Applications` 바로가기, 숨긴 toolbar·sidebar·status bar와 `.DS_Store`를 설정한 뒤 UDZO로 변환한다. 배경에는 `SIDEY 설치`, 드래그 안내, 좌→우 픽셀 화살표와 기존 5종 idle 프레임을 정수 nearest-neighbor로 넣는다. 변환본을 다시 마운트해 앱·심볼릭 링크·배경 크기·`.DS_Store`를 자동 검증하고, 별도로 Developer ID 서명·공증·staple을 통과해야 한다. `CFBundleVersion`은 이전 공개 빌드보다 반드시 커야 한다.
-5. 검증된 커밋을 `main`에 푸시하고 동일 커밋에 버전 태그와 GitHub pre-release 또는 release를 만든 뒤, 그 태그에 검증된 DMG와 ZIP을 업로드한다. 신규 설치 링크는 DMG를, Sparkle appcast는 ZIP을 가리킨다.
-6. `scripts/macos/prepare_sparkle_appcast.sh`로 ZIP의 EdDSA 서명과 signed appcast를 생성한다. 이 도구가 Developer ID, Hardened Runtime, stapled notarization, 앱의 `SIDEY` 표시명·`production` 채널·공개키·피드 URL·보안 플래그를 모두 통과하고, GitHub Release에서 다시 받은 ZIP이 로컬 검증본과 바이트 단위로 같아야 한다.
-7. Release ZIP URL이 실제로 내려받아지는지 확인한 뒤 생성된 `updates/appcast.xml`을 커밋·푸시한다. appcast를 먼저 게시하면 클라이언트가 존재하지 않는 ZIP을 보게 되므로 순서를 바꾸지 않는다.
-8. `sidey-app/homebrew-tap`의 Cask를 해당 DMG의 고정 URL·SHA-256으로 갱신하고 audit·style·설치·실행·삭제를 검증한다.
-9. stable 또는 hotfix 승격 여부와 근거를 `docs/DECISIONS.md`에 기록한다. 현재 macOS `v1.0.3`(build 14) 정식 공개이며 12명 실제 방의 30분 장시간 계측은 이후에도 지속 검증한다.
+1. macOS·Supabase·웹·입력 수정 PR에서 전체 Swift 테스트·Release 빌드, pgTAP, 웹 계약 테스트와 20노드 합성 부하를 통과한다. 이 PR에서는 공개 다운로드와 앱 버전을 `v1.0.3` build 14로 유지한다.
+2. 검증된 PR을 `main`에 병합하고 `20260902000000_commerce_policy_consent_and_refunds.sql`과 commerce Edge Functions를 운영 Supabase에 배포하되 private 판매 스위치는 `false`로 유지한다.
+3. 이 지점에서 자동 작업을 멈추고 사용자가 토스 개발자센터에서 라이브 client·secret 키를 Supabase secret에 직접 입력하게 한다. 원문 키는 채팅·코드·셸 명령·로그에 남기지 않는다.
+4. 판매 스위치를 잠시 켜 라이브 990원 결제 1건으로 승인, 소유권 지급, 앱 재실행 복구, 허용 사유 운영 취소, 소유권 회수와 햄스터 복귀를 확인한 뒤 즉시 다시 잠근다.
+5. 즉시 제공·청약철회 제한·미성년자·통신판매업 신고 면제·판매자·개인정보 고지를 실제 운영 설정과 함께 법률 검토한다. 검토가 끝나지 않으면 판매와 릴리스를 진행하지 않는다.
+6. `v1.0.4` build 15 릴리스 브랜치에서 앱·웹 다운로드·릴리스 문서를 갱신한다. 이 단계 전에는 공개 버전을 미리 바꾸지 않는다.
+7. 이 지점에서 다시 작업을 멈추고 사용자가 p12를 로그인 Keychain에 설치하게 한다. Developer ID Application identity와 notary profile을 확인하되 인증서 원문과 비밀번호를 저장소·채팅·로그에 남기지 않는다.
+8. Developer ID Application 인증서와 Hardened Runtime으로 앱·로그인 항목·Sparkle 중첩 코드를 서명하고 Apple 공증 뒤 ticket을 staple한다.
+9. `scripts/package_macos_release.sh`로 버전·빌드 번호, arm64 아키텍처, 번들 메타데이터, 코드 서명, 신규 설치용 DMG, Sparkle용 ZIP과 각 SHA-256을 검증한다. 로그인된 Finder 세션에서 쓰기 가능한 DMG를 마운트해 660×420 배경, 왼쪽 `SIDEY.app`, 오른쪽 `/Applications` 바로가기, 숨긴 toolbar·sidebar·status bar와 `.DS_Store`를 설정한 뒤 UDZO로 변환한다. 변환본은 다시 마운트해 앱·심볼릭 링크·배경 크기·`.DS_Store`, Developer ID 서명·공증·staple을 모두 확인한다.
+10. 검증된 동일 커밋에 `v1.0.4` 태그와 GitHub Release를 만든 뒤 DMG와 ZIP을 업로드한다. GitHub에서 다시 받은 두 파일이 로컬 SHA-256과 같아야 한다.
+11. `scripts/macos/prepare_sparkle_appcast.sh`로 ZIP의 EdDSA 서명과 signed appcast를 만들고 Release ZIP URL이 실제 다운로드된 뒤에만 `updates/appcast.xml`을 게시한다. appcast를 먼저 게시하지 않는다.
+12. 웹 다운로드 링크를 같은 DMG로 갱신하고 `sidey-app/homebrew-tap` Cask를 동일 고정 URL·SHA-256으로 갱신해 audit·style·신규 설치·실행·삭제를 검증한다.
+13. 신규 설치, Sparkle 업데이트, Google 연결, 실제 결제 복구를 최종 확인한 뒤에만 판매 스위치를 `true`로 바꾸고 stable 승격 근거를 `docs/DECISIONS.md`에 기록한다. 현재 공개본은 여전히 macOS `v1.0.3`(build 14)이며 이 절차 완료 전에는 `v1.0.4`가 공개됐다고 표시하지 않는다.
 
 Sparkle `2.9.6`이 production 앱에 내장되며 메뉴바 `업데이트 확인…`과 설정의 업데이트 카드에서 수동 확인할 수 있다. 설정 버튼은 production updater가 사용 가능한 동안에만 활성화한다. 자동 확인은 Sparkle의 사용자 동의 흐름을 사용하고, 익명 system profiling은 활성화하지 않는다. appcast와 ZIP은 서로 다른 검증 대상이므로 둘 다 `sidey-app` EdDSA 키로 서명하며 `SURequireSignedFeed`와 `SUVerifyUpdateBeforeExtraction`을 강제한다. 피드는 GitHub raw HTTPS URL, 설치 파일은 GitHub Releases를 사용한다.
 

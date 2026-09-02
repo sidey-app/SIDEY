@@ -11,6 +11,8 @@ final class AppModel {
     var presence: PresenceState = .online
     var nickname: String
     var selectedCharacterID: String
+    private(set) var activeEntitlementKeys: Set<String> = []
+    private(set) var commerceProducts: [CommerceProductState]
     var draft = ""
     private(set) var messageLedger = MessageLedger()
     private(set) var messageOutbox = MessageOutbox()
@@ -33,12 +35,22 @@ final class AppModel {
     private var basePresence: [MemberPresenceKey: PresenceState] = [:]
     private var typingMembers: Set<MemberPresenceKey> = []
 
-    init(preferences: AppPreferences) {
+    init(
+        preferences: AppPreferences,
+        commerceProducts: [CommerceProduct] = CommerceCatalog.products
+    ) {
         self.preferences = preferences
         self.overlayVisibility = OverlayVisibility(isVisible: preferences.overlayVisible)
         self.nickname = preferences.nickname
         self.selectedCharacterID = PixelCharacterCatalog.canonicalID(for: preferences.selectedCharacterID)
         self.launchAtLogin = preferences.launchAtLogin
+        self.commerceProducts = commerceProducts.map {
+            CommerceProductState(
+                product: $0,
+                purchaseState: .confirming,
+                isWorking: false
+            )
+        }
     }
 
     func setOverlayVisibility(_ visibility: OverlayVisibility) {
@@ -80,6 +92,7 @@ final class AppModel {
 
     func apply(snapshot: BackendSnapshot, currentUserID: UUID?) {
         self.currentUserID = currentUserID
+        activeEntitlementKeys = snapshot.activeEntitlementKeys
         hasProfile = snapshot.profile != nil
         var updatedRooms = snapshot.rooms
         let previousBasePresence = basePresence
@@ -120,8 +133,58 @@ final class AppModel {
             selectedCharacterID = PixelCharacterCatalog.canonicalID(for: profile.characterID)
             preferences.selectedCharacterID = selectedCharacterID
         }
+        enforceSelectableCurrentCharacter()
         preferences.activeRoomID = resolvedActiveRoomID(in: rooms)
         preferences.onboardingComplete = snapshot.profile != nil && !rooms.isEmpty
+    }
+
+    var selectableCharacters: [PixelCharacterDefinition] {
+        PixelCharacterCatalog.selectableDefinitions(entitlementKeys: activeEntitlementKeys)
+    }
+
+    func isCharacterSelectable(_ characterID: String) -> Bool {
+        PixelCharacterCatalog.canSelect(characterID, entitlementKeys: activeEntitlementKeys)
+    }
+
+    func apply(commerceState: CommerceState) {
+        guard let index = commerceProducts.firstIndex(where: {
+            $0.id == commerceState.product.id
+        }) else { return }
+        commerceProducts[index].product = commerceState.product
+        commerceProducts[index].purchaseState = commerceState.purchaseState
+        if commerceState.entitlementStatus == "active" {
+            activeEntitlementKeys.insert(commerceState.product.entitlementKey)
+        } else {
+            activeEntitlementKeys.remove(commerceState.product.entitlementKey)
+            enforceSelectableCurrentCharacter()
+        }
+    }
+
+    func commerceProduct(id: String) -> CommerceProductState? {
+        commerceProducts.first { $0.id == id }
+    }
+
+    func setCommerceWorking(_ isWorking: Bool, productID: String) {
+        guard let index = commerceProducts.firstIndex(where: { $0.id == productID }) else { return }
+        commerceProducts[index].isWorking = isWorking
+    }
+
+    func setCommercePurchaseState(_ state: CommercePurchaseState, productID: String) {
+        guard let index = commerceProducts.firstIndex(where: { $0.id == productID }) else { return }
+        commerceProducts[index].purchaseState = state
+    }
+
+    private func enforceSelectableCurrentCharacter() {
+        guard !isCharacterSelectable(selectedCharacterID) else { return }
+        selectedCharacterID = PixelCharacterCatalog.pixelHamsterID
+        preferences.selectedCharacterID = selectedCharacterID
+        guard let currentUserID else { return }
+        for roomIndex in rooms.indices {
+            guard let memberIndex = rooms[roomIndex].members.firstIndex(where: {
+                $0.userID == currentUserID
+            }) else { continue }
+            rooms[roomIndex].members[memberIndex].characterID = PixelCharacterCatalog.pixelHamsterID
+        }
     }
 
     var effectiveLocalPresence: PresenceState {

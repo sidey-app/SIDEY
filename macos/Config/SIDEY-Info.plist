@@ -12,6 +12,19 @@
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>app.sidey.desktop.auth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>$(SIDEY_AUTH_URL_SCHEME)</string>
+			</array>
+		</dict>
+	</array>
+	<key>SIDEYAuthURLScheme</key>
+	<string>$(SIDEY_AUTH_URL_SCHEME)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>

@@ -2,7 +2,18 @@ import SwiftUI
 
 struct CharacterSelectionGrid: View {
     let maximumColumns: Int
+    let characters: [PixelCharacterDefinition]
     @Binding var selection: String
+
+    init(
+        maximumColumns: Int,
+        characters: [PixelCharacterDefinition] = PixelCharacterCatalog.free,
+        selection: Binding<String>
+    ) {
+        self.maximumColumns = maximumColumns
+        self.characters = characters
+        self._selection = selection
+    }
 
     private var columns: [GridItem] {
         Array(
@@ -13,7 +24,7 @@ struct CharacterSelectionGrid: View {
 
     var body: some View {
         LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-            ForEach(PixelCharacterCatalog.all) { character in
+            ForEach(characters) { character in
                 CharacterSelectionCard(
                     character: character,
                     isSelected: PixelCharacterCatalog.canonicalID(for: selection) == character.id,
