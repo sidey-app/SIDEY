@@ -6,12 +6,17 @@ on:
       - main
     paths:
       - "website/**"
+      - "scripts/website/**"
       - ".github/workflows/pages.yml"
   pull_request:
     paths:
       - "website/**"
+      - "scripts/website/**"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Windows"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -24,6 +29,10 @@ concurrency:
 
 jobs:
   test:
+    if: >-
+      github.event_name != 'workflow_run'
+      || (github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.event != 'pull_request')
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -35,7 +44,11 @@ jobs:
         run: node --test website/tests/*.test.mjs
 
   deploy:
-    if: github.event_name != 'pull_request'
+    if: >-
+      github.event_name != 'pull_request'
+      && (github.event_name != 'workflow_run'
+      || (github.event.workflow_run.conclusion == 'success'
+      && github.event.workflow_run.event != 'pull_request'))
     needs: test
     environment:
       name: github-pages
@@ -47,15 +60,64 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Prepare verified Windows release metadata
+        id: windows_release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $manifest = Get-Content ./website/windows-latest.json -Raw |
+            ConvertFrom-Json
+          $tag = [string]$manifest.tag
+          $version = [string]$manifest.version
+          $msiName = "SIDEY-Windows-x64-v$version.msi"
+
+          $releaseJson = gh release view $tag --json isDraft,isPrerelease,assets 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Windows Release is not published yet: $tag"
+            "available=false" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+
+          $release = $releaseJson | ConvertFrom-Json
+          if ($release.isDraft -or $release.isPrerelease) {
+            throw "Windows Release must be a regular release: $tag"
+          }
+          $assetNames = @($release.assets | ForEach-Object { [string]$_.name })
+          if ($assetNames.Count -ne 1 -or $assetNames[0] -ne $msiName) {
+            throw "Windows Release must contain only $msiName"
+          }
+
+          New-Item -ItemType Directory -Path ./build/windows-pages-release -Force |
+            Out-Null
+          gh release download $tag `
+            --pattern $msiName `
+            --dir ./build/windows-pages-release `
+            --clobber
+          if ($LASTEXITCODE -ne 0) {
+            throw "Windows Release MSI download failed: $tag/$msiName"
+          }
+
+          ./scripts/website/prepare-windows-release.ps1 `
+            -WebsiteDir ./website `
+            -OutputDir ./build/pages-site `
+            -ReleaseMsi "./build/windows-pages-release/$msiName"
+          "available=true" >> $env:GITHUB_OUTPUT
+
       - name: Configure GitHub Pages
+        if: steps.windows_release.outputs.available == 'true'
         uses: actions/configure-pages@v6
 
       - name: Upload website artifact
+        if: steps.windows_release.outputs.available == 'true'
         uses: actions/upload-pages-artifact@v5
         with:
-          path: website
+          path: build/pages-site
           include-hidden-files: true
 
       - name: Deploy to GitHub Pages
+        if: steps.windows_release.outputs.available == 'true'
         id: deployment
         uses: actions/deploy-pages@v5
