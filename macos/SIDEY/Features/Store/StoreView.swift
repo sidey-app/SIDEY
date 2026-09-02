@@ -5,8 +5,14 @@ struct StoreView: View {
     let actions: SettingsActions
 
     private let columns = [
-        GridItem(.flexible(), spacing: 18, alignment: .top),
-        GridItem(.flexible(), spacing: 18, alignment: .top)
+        GridItem(
+            .adaptive(
+                minimum: StoreCardLayout.minimumWidth,
+                maximum: StoreCardLayout.maximumWidth
+            ),
+            spacing: 18,
+            alignment: .top
+        )
     ]
 
     var body: some View {
@@ -36,15 +42,20 @@ struct StoreView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Label(
-                    "표시된 가격은 부가세 포함 금액입니다. 구매 전 Google 계정 연결이 필요하며 결제 승인과 서버 소유권 확인 뒤에만 보유 상태로 반영됩니다.",
+                    "표시 가격은 부가세 포함 금액입니다. 구매 전 Google 계정 연결이 필요합니다.",
                     systemImage: "lock.shield"
                 )
                 .font(.callout)
+
+                Text("결제 승인과 서버 소유권 확인 후 보유 상태에 반영됩니다.")
+                    .font(.caption)
 
                 Text("구매자는 만 14세 이상이어야 합니다. 구매일로부터 7일 이내에는 사용 여부와 관계없이 전액 환불할 수 있습니다.")
                     .font(.caption)
             }
             .foregroundStyle(.secondary)
+            .frame(maxWidth: StoreCardLayout.footerMaximumWidth, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
         }
         .onAppear { actions.onRefreshCommerceState(nil) }
     }
@@ -63,11 +74,11 @@ struct StoreProductCard: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 10) {
             animatedPreview
-                .aspectRatio(1, contentMode: .fit)
-                .frame(maxWidth: StoreReactionPreviewStyle.cardSize)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(minHeight: StoreCardLayout.minimumPreviewHeight)
+                .layoutPriority(1)
                 .overlay(alignment: .topLeading) {
                     CommerceStatusBadge(state: productState.purchaseState)
                         .padding(10)
@@ -88,24 +99,25 @@ struct StoreProductCard: View {
                     .fixedSize()
             }
 
-            Text(productState.product.description)
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-
             if case .error(let message) = productState.purchaseState {
                 Label(message, systemImage: "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundStyle(.orange)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(productState.product.description)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
-
-            Spacer(minLength: 0)
 
             purchaseButton
         }
         .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .aspectRatio(StoreCardLayout.aspectRatio, contentMode: .fit)
         .background(
             Color.primary.opacity(0.035),
             in: RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -122,6 +134,14 @@ struct StoreProductCard: View {
 
     private var animatedPreview: some View {
         ZStack {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [.pink.opacity(0.16), .purple.opacity(0.12), .mint.opacity(0.10)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
             if let effect = definition.sparkleEffect {
                 StoreAmbientSparkles(effect: effect)
                     .allowsHitTesting(false)
@@ -145,6 +165,11 @@ struct StoreProductCard: View {
                     )
                     .scaleEffect(previewScale, anchor: .bottom)
             }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(.primary.opacity(0.08), lineWidth: 1)
         }
     }
 
@@ -269,10 +294,17 @@ struct StoreProductCard: View {
 }
 
 enum StoreReactionPreviewStyle {
-    static let cardSize: CGFloat = 210
     static let characterSize: CGFloat = 96
     static let peakScale: CGFloat = 1.45
     static let maximumRenderedCharacterSize = characterSize * peakScale
+}
+
+enum StoreCardLayout {
+    static let aspectRatio: CGFloat = 1
+    static let minimumWidth: CGFloat = 300
+    static let maximumWidth: CGFloat = 360
+    static let minimumPreviewHeight: CGFloat = 144
+    static let footerMaximumWidth: CGFloat = 520
 }
 
 private struct CommerceStatusBadge: View {

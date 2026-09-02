@@ -58,7 +58,11 @@ final class CommerceModelTests: XCTestCase {
     func testStoreReactionPreviewFitsInsideItsCardWithoutUsingWorldScale() {
         XCTAssertEqual(StoreReactionPreviewStyle.peakScale, 1.45, accuracy: 0.001)
         XCTAssertEqual(StoreReactionPreviewStyle.maximumRenderedCharacterSize, 139.2, accuracy: 0.001)
-        XCTAssertLessThan(StoreReactionPreviewStyle.maximumRenderedCharacterSize, StoreReactionPreviewStyle.cardSize)
+        XCTAssertLessThan(
+            StoreReactionPreviewStyle.maximumRenderedCharacterSize,
+            StoreCardLayout.minimumPreviewHeight
+        )
+        XCTAssertEqual(StoreCardLayout.aspectRatio, 1)
         XCTAssertNotEqual(StoreReactionPreviewStyle.peakScale, PixelCharacterPulseStyle.peakScale)
     }
 

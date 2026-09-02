@@ -172,7 +172,7 @@ final class SettingsInteractionTests: XCTestCase {
         }
     }
 
-    func testTwoColumnStoreGridRendersLongAndIndependentCardStates() throws {
+    func testResponsiveSquareStoreGridRendersLongAndIndependentCardStates() throws {
         let products = [
             CommerceProduct(
                 id: "fixture_store_first",
