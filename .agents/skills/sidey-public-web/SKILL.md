@@ -27,6 +27,8 @@ Write public pages for ordinary SIDEY users. Describe the product, purchase path
 
 - Use semantic HTML and explicit CSS for visible structures. In particular, never leave seller or policy definition lists on browser-default `dt`/`dd` spacing.
 - Align repeated labels and values on a shared grid, keep row spacing and dividers consistent, and allow long addresses and email links to wrap without horizontal overflow.
+- Keep Korean headings and paragraphs from leaving a single syllable or punctuation mark on its own line. Tune the copy and usable width first, then apply `word-break: keep-all` with `text-wrap: balance` for headings or `text-wrap: pretty` for prose. Do not add a hardcoded `<br>` unless that break is intentional at every target width.
+- Keep secondary store and policy pages below landing-page display scale. Scope typography to a page class so a store cleanup does not silently resize the home page.
 - Check desktop and narrow mobile widths. Keep existing static-page ownership in HTML and the shared stylesheet; do not add a framework or JavaScript for copy-only layout work.
 
 ## Decision and scope discipline
@@ -39,5 +41,5 @@ Write public pages for ordinary SIDEY users. Describe the product, purchase path
 
 - Run `node --test website/tests/commerce-pages.test.mjs` and any other affected web checks.
 - Test durable invariants such as products, prices, purchase path, seller fields, links, and absence of internal rollout jargon; avoid locking tests to an entire headline or paragraph.
-- Inspect desktop and mobile rendering for alignment, wrapping, focus visibility, and overflow.
+- Inspect desktop and mobile rendering for alignment, Korean orphan lines, wrapping, focus visibility, and overflow.
 - Search the final public pages for temporary status and internal environment terms, then inspect every changed path against the branch base.
