@@ -124,6 +124,47 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
+    public void MsiRunsSelectedCleanupOnlyForOrdinaryUninstall()
+    {
+        var document = XDocument.Load(AssetPath("Sidey.Msi.Package.wxs"));
+        var property = document.Descendants().Single(element =>
+            element.Name.LocalName == "Property"
+            && (string?)element.Attribute("Id") == "REMOVEUSERDATA");
+        Assert.Equal("yes", (string?)property.Attribute("Secure"));
+
+        var action = document.Descendants().Single(element =>
+            element.Name.LocalName == "CustomAction"
+            && (string?)element.Attribute("Id") == "RemoveCurrentUserData");
+        Assert.Equal("deferred", (string?)action.Attribute("Execute"));
+        Assert.Equal("yes", (string?)action.Attribute("Impersonate"));
+        Assert.Equal("check", (string?)action.Attribute("Return"));
+        Assert.Contains("--uninstall-cleanup", (string?)action.Attribute("ExeCommand"));
+
+        var scheduled = document.Descendants().Single(element =>
+            element.Name.LocalName == "Custom"
+            && (string?)element.Attribute("Action") == "RemoveCurrentUserData");
+        var condition = (string?)scheduled.Attribute("Condition");
+        Assert.Contains("REMOVE=\"ALL\"", condition, StringComparison.Ordinal);
+        Assert.Contains("NOT UPGRADINGPRODUCTCODE", condition, StringComparison.Ordinal);
+        Assert.Contains("REMOVEUSERDATA=\"1\"", condition, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void LauncherCleanupDeletesOnlySideyCurrentUserData()
+    {
+        string launcher = File.ReadAllText(RepositoryPath(
+            "windows", "src", "Sidey.Launcher", "Program.cs"));
+
+        Assert.Contains("--uninstall-cleanup", launcher, StringComparison.Ordinal);
+        Assert.Contains("CredentialFilter = \"SIDEY/*\"", launcher, StringComparison.Ordinal);
+        Assert.Contains("CredEnumerate", launcher, StringComparison.Ordinal);
+        Assert.Contains("CredentialType.Generic", launcher, StringComparison.Ordinal);
+        Assert.Contains("Environment.SpecialFolder.LocalApplicationData", launcher, StringComparison.Ordinal);
+        Assert.Contains("Path.Combine(normalizedLocalAppData, \"SIDEY\")", launcher, StringComparison.Ordinal);
+        Assert.Contains("Directory.Delete(dataRoot, true)", launcher, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DistributionPipelineBuildsOnlyThePublicMsiWithoutSelfSigning()
     {
         string package = File.ReadAllText(RepositoryPath(

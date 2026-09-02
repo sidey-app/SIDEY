@@ -22,6 +22,7 @@
           Name="InstalledVersion"
           Type="raw" />
     </Property>
+    <Property Id="REMOVEUSERDATA" Secure="yes" />
     <Launch Condition="VersionNT64" Message="SIDEY requires 64-bit Windows." />
     <Launch
         Condition="NOT LEGACYUSERINSTALLVERSION OR Installed"
@@ -76,7 +77,18 @@
         Execute="deferred"
         Impersonate="yes"
         Return="ignore" />
+    <CustomAction
+        Id="RemoveCurrentUserData"
+        Directory="INSTALLFOLDER"
+        ExeCommand="&quot;[INSTALLFOLDER]SIDEY.exe&quot; --uninstall-cleanup"
+        Execute="deferred"
+        Impersonate="yes"
+        Return="check" />
     <InstallExecuteSequence>
+      <Custom
+          Action="RemoveCurrentUserData"
+          Before="RemoveFiles"
+          Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE AND REMOVEUSERDATA=&quot;1&quot;" />
       <Custom
           Action="RemoveStartupValue"
           Before="RemoveFiles"
