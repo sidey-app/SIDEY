@@ -15,11 +15,11 @@
 | 공개 업데이트 문서 | README는 제품 소개 뒤 macOS·Windows 설치, 플랫폼별 최신 업데이트, 공통 향후 계획만 제공한다. GitHub Release와 `docs/releases/*`는 사용자에게 보이는 변화와 필요한 설치·제한 안내만 짧게 적고 DB·백엔드·클래스·빌드 구현 세부는 싣지 않는다 | README와 Release는 일반 사용자가 보는 문서다. 내부 변경이 사용자 경험을 뒷받침하면 `내부 안정성 개선` 또는 `내부 운영 구조 개선`처럼 결과만 설명한다. |
 | 공개 향후 계획 | 새로운 말풍선 디자인, Windows 기능 안정화, 캐릭터 드래그 앤 드롭, 캐릭터 효과음, macOS 이모지 입력 버그 개선, 다른 사람 캐릭터 클릭 이펙트를 향후 개선 후보로 공개한다 | 계획 항목은 구현 완료나 일정 약속이 아니며 현재 MVP 범위를 즉시 확장하지 않는다. 드래그 앤 드롭은 기본 클릭 통과 정책을 깨지 않는 별도 상호작용 설계가 확정된 뒤 구현한다. |
 | 공식 다운로드 웹사이트 | GitHub 프로젝트 Pages `https://sidey-app.github.io/SIDEY/`를 한국어 기본·`/en/` 영어 정적 랜딩으로 운영하고 `website/`만 GitHub Actions로 배포. macOS는 현재 공증 DMG와 `sidey-app/tap/sidey` Homebrew Cask를 제공하고 Windows는 공개 파일이 생길 때까지 링크 없는 비활성 버튼으로 표시 | 앱 클라이언트나 별도 웹 기능을 추가하지 않고 공식 설치 경로·지원 환경·개인정보 경계·플랫폼 제한을 한곳에서 정확히 안내한다. 릴리스가 바뀌면 고정 DMG URL과 웹사이트 버전을 같은 배포 작업에서 갱신한다. |
-| 현재 구현 범위 | macOS 네이티브 정식판에 첫 유료 캐릭터 상점을 추가하고 Windows 네이티브판을 별도 개발 | macOS Swift/SpriteKit 기준 구현 위에 승인된 상점 범위만 확장하며 Windows 작업은 `windows/*`에서 독립적으로 진행한다. |
+| 현재 구현 범위 | macOS 네이티브 정식판에 첫 유료 캐릭터 상점을 추가하고 Windows 네이티브 `0.3.0-alpha.7` 후보를 별도 개발 | macOS Swift/SpriteKit 기준 구현 위에 승인된 상점 범위만 확장하며 Windows 작업은 `windows/*`에서 독립적으로 진행한다. Windows 후보는 공개 승격 전 실기·장시간 검증을 계속한다. |
 | 플랫폼 순서 | macOS 정식판을 기준 구현으로 유지하고 Windows 11 25H2+ x64를 후속 개발 | 이미 배포된 macOS 코드를 재작성하지 않고 Windows 고유 창·DPI·전원·IME 리스크를 별도로 검증한다. |
 | 플랫폼 브랜치 격리 | macOS 구현은 `macos/*`, Windows 구현은 `windows/*`, 문서·백엔드·웹·공통 계약은 `shared/*`에서 작업하고 `main`은 검증된 변경의 통합·배포에만 사용 | 한 플랫폼 작업이 다른 플랫폼 파일이나 다른 작업자의 dirty worktree를 건드리는 사고를 막는다. 공용 변경은 독립 커밋으로 만든 뒤 필요한 플랫폼 브랜치가 가져가며 반대 플랫폼 대응은 별도 후속 작업으로 남긴다. |
 | macOS 클라이언트 | SwiftUI + AppKit + SpriteKit | 일반 창은 SwiftUI/AppKit, 창 정책은 AppKit, 픽셀 월드는 SpriteKit이 담당한다. |
-| Windows 클라이언트 | Windows 11 25H2(build 26200)+ x64, C#/.NET 10 LTS + WinUI 3/Windows App SDK 2.4.0 + Win32 | 일반 창은 WinUI 3, 투명 월드는 전용 Win32 HWND가 담당한다. 첫 햄스터 local slice는 사전 생성한 BGRA frame과 `UpdateLayeredWindow`로 창·DPI·클릭 통과·GDI handle 안정성을 먼저 검증한다. 트레이·모니터·활동 감지는 Win32 플랫폼 서비스가 담당하며 WPF·Electron·WebView·Godot은 사용하지 않는다. |
+| Windows 클라이언트 | Windows 11 25H2(build 26200)+ x64, C#/.NET 10 LTS + WinUI 3/Windows App SDK 2.4.0 + Win32 | 일반 창은 WinUI 3, 투명 월드는 전용 Win32 HWND가 담당한다. 첫 기능 빌드부터 `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러로 무료 5종의 사전 생성 BGRA frame을 표시한다. 햄스터 1종 실기 계측은 같은 렌더러를 제한하는 Debug 전용 내부 모드이며 Release 제품 구현이나 별도 승격 전 구현 게이트가 아니다. 트레이·모니터·활동 감지는 Win32 플랫폼 서비스가 담당하며 WPF·Electron·WebView·Godot은 사용하지 않는다. |
 | 클라이언트 공통화 | 플랫폼별 네이티브 코드베이스와 공통 서버 계약 | Godot 공통 런타임은 폐기하고 서버 schema·Realtime payload·제품 행동 규칙을 동등성 계약으로 삼는다. |
 | 백엔드 | Supabase Auth, Postgres, Realtime Presence·Broadcast, Edge Functions commerce | 메시지·주문·소유권은 Postgres가 원본이며 Presence는 연결 상태, Broadcast는 typing·리액션 같은 일시 이벤트에만 사용한다. 결제 식별자와 결제사 비밀키는 클라이언트에 두지 않는다. |
 | 그룹 인원 | 방당 최대 12명, 서버에서 강제 | 12번째 가입은 허용하고 13번째는 `member_limit_reached`로 거부한다. 클라이언트 검증만으로 대체하지 않는다. |
@@ -75,9 +75,10 @@
 | macOS 로컬 개발 설치 | 최신 Release 구성의 ad-hoc 앱을 `Sidey-dev`·`development`로 빌드해 `/Applications/Sidey-dev.app`에만 설치. bundle ID `app.sidey.desktop`, login item ID, `com.sidey.desktop` Keychain service는 배포본과 공유하고 development 채널은 Sparkle을 시작하지 않으며 업데이트 메뉴를 비활성화 | 운영 데이터와 설정을 이어 쓰되 로컬 빌드가 공개 업데이트를 받거나 배포본으로 오인되는 것을 막는다. 설치 스크립트는 정확한 dev 경로만 교체한다. |
 | 업데이트 전환 | Sparkle이 없는 기존 alpha는 최신 공증 DMG로 한 번 수동 교체하고, Sparkle 내장 production 빌드부터 앱 내부 업데이트를 사용 | 기존 설치에 프레임워크를 원격으로 소급 탑재할 수 없고, ad-hoc development 자동 업데이트는 Gatekeeper·코드 서명 연속성을 깨뜨릴 수 있다. |
 | 배포 채널 | 현재 공개본은 버전 `1.0.3`, 빌드 `14`의 `v1.0.3` GitHub 정식 stable release다 | macOS 최근 기록에 캐릭터·닉네임 발신자 카드와 50개 단위 자동 페이지네이션을 추가한다. 최대 7일의 기존 서버 보존 정책과 RLS 계약은 유지하며 Windows·Supabase schema는 바꾸지 않는다. 12명 실제 방의 30분 장시간 계측은 지속 검증한다. |
-| Windows 인증 | Google OAuth + PKCE, `sidey://auth/callback`, Credential Locker | Windows에서는 시스템 브라우저로 로그인하고 callback·refresh token·평문 초대 코드를 로컬 일반 설정이 아닌 보안 저장소에 보관한다. Google 이름·사진은 SIDEY 닉네임으로 복사하지 않는다. |
-| Windows alpha 배포 | 다음 후보는 `v0.3.0-alpha.2`, WiX Toolset `6.0.2`의 머신 단위 MSI를 내장한 오프라인 `SIDEY-Windows-x64-v0.3.0-alpha.2-Setup.exe` + SHA-256, GitHub pre-release | 관리자 승인 뒤 `C:\Program Files\SIDEY`에 설치한다. unpackaged·self-contained WinUI 3 단일 파일 게시로 런타임과 앱 코드를 `SIDEY.exe`에 묶고, 캐릭터 PNG·BGRA·manifest 15개만 `Assets\Characters`에 외부 유지한다. ZIP·직접 MSI·MSIX는 공개하지 않으며 미서명 alpha의 SmartScreen·Smart App Control 제한은 그대로 밝힌다. |
-| Windows 설치·업데이트 | alpha.2부터 머신 단위 major upgrade·repair와 downgrade 차단을 지원. per-user alpha.1은 Windows Installer가 설치 context를 가로질러 major upgrade할 수 없으므로 새 설치기가 감지·중단하고 사용자가 먼저 제거함 | 제거와 재설치 중에도 `%LOCALAPPDATA%\SIDEY` 설정과 Credential Manager 세션은 보존한다. 시작 메뉴와 Burn 성공 화면은 `C:\Program Files\SIDEY\SIDEY.exe`를 실행하고, 실행 중 upgrade는 Restart Manager로 정상 종료만 요청한다. |
+| Windows 인증 | Supabase 익명 인증 + Windows Credential Manager | 기존 익명 세션을 먼저 복구하고 신규 설치에서만 새 익명 계정을 만든다. access·refresh token과 평문 초대 코드는 일반 설정이 아닌 Credential Manager에 보관하며 Google OAuth·PKCE·callback은 사용하지 않는다. |
+| Windows alpha 배포 | 다음 후보는 `0.3.0-alpha.7`, 태그 `windows-v0.3.0-alpha.7`, WiX Toolset `6.0.2`의 머신 단위 MSI를 내장한 오프라인 `SIDEY-Windows-x64-v0.3.0-alpha.7-Setup.exe` + SHA-256 + 공개 자체 서명 인증서, GitHub pre-release | unpackaged·multi-file self-contained WinUI 3 앱을 루트 `SIDEY.exe` 런처와 `Runtime` 앱·런타임, `Assets`, `Langs`로 나눈다. 별도 런타임 설치는 요구하지 않으며 설치기는 전체 트리를 하나의 버전 단위로 `C:\Program Files\SIDEY`에 설치한다. ZIP·직접 MSI·MSIX는 공개하지 않는다. |
+| Windows 서명 | 배포 파이프라인이 SIDEY 제작 실행 파일·DLL·내부 MSI·Setup.exe를 한 번 생성한 `CN=SIDEY` 자체 서명 인증서로 Authenticode 서명하고 임시 PFX는 항상 삭제하며 개인 키 없는 CER만 후보에 남김 | 자체 서명은 SIDEY 산출물의 서명 주체와 배포 중 변조 확인을 돕지만 공인 인증서 신뢰나 SmartScreen 평판을 제공하지 않는다. 공급자 런타임의 기존 서명은 유지하며 `알 수 없는 게시자`·SmartScreen·Smart App Control·조직 정책 차단 가능성을 사용자에게 밝힌다. |
+| Windows 설치·업데이트 | alpha.7 후보는 머신 단위 major upgrade·repair와 downgrade 차단을 지원하고, Pages의 Windows 전용 manifest를 시작 시 한 번과 트레이·설정의 수동 확인에서 사용 | per-user alpha.1은 설치 context가 달라 새 설치기가 감지·중단하고 사용자가 먼저 제거한다. 제거와 재설치 중에도 `%LOCALAPPDATA%\SIDEY` 설정과 Credential Manager 세션은 보존한다. 업데이트는 `windows-v<version>`의 고정 Setup URL과 SHA-256이 유효할 때만 사용자 승인을 받아 다운로드·검증한 뒤 설치기를 실행하며 무인 자동 설치는 하지 않는다. |
 | Windows 시작 안정성 | 앱 시작 단계를 `%LOCALAPPDATA%\SIDEY\Logs\startup.log`에 본문·token·초대 코드 없이 기록하고, WinUI 초기화 예외는 사용자에게 로그 경로를 표시. 트레이 초기화 실패만으로 프로세스를 종료하지 않고 이때는 창 닫기가 앱 종료로 동작하며 CI가 게시된 `SIDEY.exe`를 실제 시작해 창 활성화 단계까지 확인 | 기존 CI는 파일 존재만 검사해 시작 직후 예외와 누락된 런타임을 잡지 못했다. 사용자에게 아무 반응도 없는 종료를 없애고 설치 후보 자체를 실행 검증한다. |
 
 ## 현재 검증 기준
@@ -90,7 +91,7 @@
 - Sparkle 프레임워크와 `SUFeedURL`·`SUPublicEDKey`가 Release 번들에 포함되고 signed feed·압축 해제 전 검증이 강제되어야 한다. appcast 게시 도구는 ad-hoc·development 빌드를 기본 거부하고 Developer ID·Hardened Runtime·stapled notarization·production 표시명과 채널을 검증해야 한다. development 채널은 Sparkle을 만들지 않고 업데이트 메뉴를 비활성화해야 한다.
 - 12번째 가입 성공, 13번째 거부, 여섯 번째 방 거부, 7일 초과 메시지 삭제, 방장 전용 이름 변경·추방·삭제와 cascade, RLS, 중복 닉네임·캐릭터 허용을 SQL 테스트한다.
 - 최대 방 인원 12명으로 30분 실행하고, 별도 20노드 합성 부하에서도 p95 frame time 40ms 이하, 100ms 이상 main-thread hang 없음, 지속 RSS 증가 없음, 숨긴 월드의 SpriteKit 정지를 확인한다.
-- Windows는 햄스터 1종의 투명·최상위·클릭 통과·52×52 hotspot·DPI·잠금·절전 복귀를 실기에서 먼저 통과한 후 Google 로그인·방·Presence·타이핑·메시지를 연결한다.
+- Windows는 무료 5종을 같은 catalog·렌더러로 유지하고 Debug 전용 햄스터 제한 모드에서 투명·최상위·클릭 통과·52×52 hotspot·DPI·잠금·절전 복귀를 실기 검증한다. 연결형 검증은 익명 세션·방·Presence·타이핑·메시지·`character_pulse`를 macOS와 양방향 확인한다.
 - Windows 공개 alpha는 12명 2시간과 20노드 30분 부하에서 p95 frame time 40ms 이하, 100ms 이상 UI-thread hang 없음, warm-up 후 working set 20MB 초과 증가 없음, handle·surface 지속 증가 없음을 확인한다.
 
 ## 아직 결정하지 않은 항목
@@ -100,4 +101,3 @@
 | D-006 | 자리 비움 전환 시간 | 5분 유지 | 실제 장시간 테스트 후 |
 | D-007 | 메시지 말풍선 시간 | 10초 유지 | 12명 비공개 UX 테스트 후 |
 | D-012 | E2EE 도입 여부와 프로토콜 | MVP 이후 별도 설계 | 보안 로드맵 수립 시 |
-| D-013 | Windows 5캐릭터 최종 렌더러 | 1캐릭터 `UpdateLayeredWindow` slice의 frame time·working set·GDI handle 실측 뒤 유지 여부와 System Composition 전환을 결정 | 10.3의 첫 local slice 실기 검증 뒤 |
