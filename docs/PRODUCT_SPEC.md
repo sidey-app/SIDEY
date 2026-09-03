@@ -294,7 +294,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - composer는 400×56 DIP 별도 WinUI 창이며, 내 캐릭터 클릭·트레이 `메시지 작성`만 이 창을 활성화한다.
 - 트레이 메뉴는 맨 위에 굵은 기본 항목 `열기`를 두고 오버레이, 메시지 작성, 활성 그룹, 조용히 모드, 최근 기록, 상점, 그룹 설정, 로그인 실행, 업데이트 확인, 설정, `종료`를 제공한다. 트레이 아이콘 왼쪽 클릭과 연결 실패 알림 클릭도 기본 창을 연다. 익명 세션을 사용하는 Windows판에는 로그아웃 메뉴를 두지 않는다.
 - 앱은 Pages의 Windows 전용 manifest를 시작 시 한 번 확인하고 트레이·설정에서 수동 확인도 제공한다. 새 버전의 고정 GitHub Release MSI URL과 SHA-256이 모두 유효할 때만 사용자 승인을 받아 내려받고 hash 검증 뒤 설치기를 실행하며 무인 자동 설치는 하지 않는다.
-- 시작 단계와 예외 유형·HRESULT·stack, Realtime 메시지 수신·오버레이 적용·재조정 단계는 `%LOCALAPPDATA%\SIDEY\Logs\startup.log`에 기록하되 token·메시지 본문·사용자/방 식별자·평문 초대 코드는 기록하지 않는다. Windows Realtime watchdog은 마지막 수신 후 30초까지 지연된 heartbeat를 허용한 뒤 연결을 재생성한다. WinUI 창 생성 전 실패하면 네이티브 오류창으로 로그 경로를 알리고, 트레이 아이콘 초기화만 실패한 경우 설정창은 계속 유지하며 창을 닫으면 앱을 종료한다.
+- 시작 단계와 앱·OS·runtime·process architecture, 예외 유형·HRESULT·stack, Realtime 변경 이벤트·RLS 재조회·ledger 확정·말풍선 등록·월드 전달/수락·실제 surface 표시·재조정 단계를 `%LOCALAPPDATA%\SIDEY\Logs\startup.log`에 기록한다. token·메시지 본문·닉네임·사용자/방/메시지 식별자·평문 초대 코드·컴퓨터/사용자 이름은 기록하지 않는다. Windows Realtime watchdog은 마지막 수신 후 30초까지 지연된 heartbeat를 허용한 뒤 연결을 재생성한다. WinUI 창 생성 전 실패하면 네이티브 오류창으로 로그 경로를 알리고, 트레이 아이콘 초기화만 실패한 경우 설정창은 계속 유지하며 창을 닫으면 앱을 종료한다.
 - 보안 화면·DRM·관리자 권한 앱·모든 독점 전체화면 위 표시는 보장하지 않는다.
 
 ## 7. 클라이언트 구조
