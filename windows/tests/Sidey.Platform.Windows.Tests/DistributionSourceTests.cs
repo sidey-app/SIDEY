@@ -64,128 +64,91 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
-    public void MsiInstallsPerMachineIntoNativeProgramFiles()
+    public void SetupExeOffersAnInstallLocationAndReusesItForUpdates()
     {
-        var document = XDocument.Load(AssetPath("Sidey.Msi.Package.wxs"));
-        var ns = document.Root!.Name.Namespace;
-        var package = document.Root.Element(ns + "Package")!;
+        string setup = ReadSetupScript();
 
-        Assert.Equal("perMachine", (string?)package.Attribute("Scope"));
-        Assert.Contains(
-            package.Elements(ns + "StandardDirectory"),
-            directory => (string?)directory.Attribute("Id") == "ProgramFiles6432Folder");
-        Assert.DoesNotContain(
-            package.Elements(ns + "StandardDirectory"),
-            directory => (string?)directory.Attribute("Id") == "LocalAppDataFolder");
-
-        var installerMarker = package
-            .Descendants(ns + "RegistryValue")
-            .Single(value => (string?)value.Attribute("Name") == "InstalledVersion");
-        Assert.Equal("HKLM", (string?)installerMarker.Attribute("Root"));
-        Assert.Contains(
-            package.Elements(ns + "Launch"),
-            launch => ((string?)launch.Attribute("Condition"))?.Contains(
-                "LEGACYUSERINSTALLVERSION",
-                StringComparison.Ordinal) == true);
-
-        var files = package.Descendants(ns + "Files").Single();
-        Assert.Equal(@"$(PublishDir)\**", (string?)files.Attribute("Include"));
-        var excludedFiles = files
-            .Elements(ns + "Exclude")
-            .Select(exclude => (string?)exclude.Attribute("Files"))
-            .ToArray();
-        Assert.Contains(@"$(PublishDir)\**\*.pdb", excludedFiles);
-        Assert.Contains(@"$(PublishDir)\SIDEY-Onboarding-Preview.cmd", excludedFiles);
-        Assert.Contains(
-            package.Descendants().Where(element => element.Name.LocalName == "RestartResource"),
-            resource => (string?)resource.Attribute("ProcessName") == "SIDEY.Host.exe");
-        Assert.Contains(
-            package.Descendants(ns + "Directory"),
-            directory => (string?)directory.Attribute("Id") == "LANGSFOLDER"
-                && (string?)directory.Attribute("Name") == "Langs");
+        Assert.Contains("InstallDir \"$PROGRAMFILES64\\SIDEY\"", setup, StringComparison.Ordinal);
+        Assert.Contains("InstallDirRegKey HKLM", setup, StringComparison.Ordinal);
+        Assert.Contains("RequestExecutionLevel admin", setup, StringComparison.Ordinal);
+        Assert.Contains("MUI_PAGE_DIRECTORY", setup, StringComparison.Ordinal);
+        Assert.Contains("StrCpy $InstallState \"upgrade\"", setup, StringComparison.Ordinal);
+        Assert.Contains("$InstallState == \"repair\"", setup, StringComparison.Ordinal);
+        Assert.Contains("StrCpy $HasNsisInstall \"true\"", setup, StringComparison.Ordinal);
+        Assert.Contains("ExecWait '\"$INSTDIR\\Uninstall.exe\" /S'", setup, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void MsiSuppressesOnlyTheDocumentedNativePeAndCommonMenuIceRules()
+    public void SetupExeSupportsEnglishAndKorean()
     {
-        var project = XDocument.Load(AssetPath("Sidey.Msi.wixproj.xml"));
+        string setup = ReadSetupScript();
 
-        Assert.Equal("ICE03;ICE38;ICE43;ICE57", Value(project, "SuppressIces"));
+        Assert.Contains("MUI_LANGUAGE \"English\"", setup, StringComparison.Ordinal);
+        Assert.Contains("MUI_LANGUAGE \"Korean\"", setup, StringComparison.Ordinal);
+        Assert.Contains("LangString MaintenanceTitle ${LANG_ENGLISH}", setup, StringComparison.Ordinal);
+        Assert.Contains("LangString MaintenanceTitle ${LANG_KOREAN}", setup, StringComparison.Ordinal);
+        Assert.Contains("LangString DeleteLocalData ${LANG_KOREAN}", setup, StringComparison.Ordinal);
+        Assert.Contains("LangString DeleteCredentials ${LANG_KOREAN}", setup, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void MsiUsesThePublicVersionedFileName()
+    public void SameVersionOffersRepairRemoveAndCloseWhileDowngradesAreBlocked()
     {
-        var project = XDocument.Load(AssetPath("Sidey.Msi.wixproj.xml"));
+        string setup = ReadSetupScript();
 
-        Assert.Equal(
-            "SIDEY-Windows-x64-v$(DisplayVersion)",
-            Value(project, "OutputName"));
+        Assert.Contains("${VersionCompare}", setup, StringComparison.Ordinal);
+        Assert.Contains("StrCpy $InstallState \"same\"", setup, StringComparison.Ordinal);
+        Assert.Contains("${NSD_CreateButton}", setup, StringComparison.Ordinal);
+        Assert.Contains("$(RepairAction)", setup, StringComparison.Ordinal);
+        Assert.Contains("$(RemoveAction)", setup, StringComparison.Ordinal);
+        Assert.Contains("$(CloseAction)", setup, StringComparison.Ordinal);
+        Assert.Contains("Exec '\"$INSTDIR\\Uninstall.exe\"'", setup, StringComparison.Ordinal);
+        Assert.Contains("$(DowngradeBlocked)", setup, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void MsiRunsSelectedUninstallerCleanupOnlyForOrdinaryUninstall()
+    public void UninstallCleanupChoicesAreIndependentAndUncheckedByDefault()
     {
-        var document = XDocument.Load(AssetPath("Sidey.Msi.Package.wxs"));
-        var property = document.Descendants().Single(element =>
-            element.Name.LocalName == "Property"
-            && (string?)element.Attribute("Id") == "REMOVEUSERDATA");
-        Assert.Equal("yes", (string?)property.Attribute("Secure"));
-        Assert.Null(property.Attribute("Value"));
+        string setup = ReadSetupScript();
 
-        var action = document.Descendants().Single(element =>
-            element.Name.LocalName == "CustomAction"
-            && (string?)element.Attribute("Id") == "RemoveCurrentUserData");
-        Assert.Equal("deferred", (string?)action.Attribute("Execute"));
-        Assert.Equal("yes", (string?)action.Attribute("Impersonate"));
-        Assert.Equal("check", (string?)action.Attribute("Return"));
-        Assert.Contains("Uninstall.exe", (string?)action.Attribute("ExeCommand"));
-        Assert.Contains("--cleanup", (string?)action.Attribute("ExeCommand"));
-
-        var scheduled = document.Descendants().Single(element =>
-            element.Name.LocalName == "Custom"
-            && (string?)element.Attribute("Action") == "RemoveCurrentUserData");
-        var condition = (string?)scheduled.Attribute("Condition");
-        Assert.Contains("REMOVE=\"ALL\"", condition, StringComparison.Ordinal);
-        Assert.Contains("NOT UPGRADINGPRODUCTCODE", condition, StringComparison.Ordinal);
-        Assert.Contains("REMOVEUSERDATA=\"1\"", condition, StringComparison.Ordinal);
-        Assert.Equal("RemoveStartupValue", (string?)scheduled.Attribute("Before"));
+        Assert.Contains("${NSD_Uncheck} $DeleteLocalDataCheckbox", setup, StringComparison.Ordinal);
+        Assert.Contains("${NSD_Uncheck} $DeleteCredentialsCheckbox", setup, StringComparison.Ordinal);
+        Assert.Contains("--cleanup-local-data", setup, StringComparison.Ordinal);
+        Assert.Contains("$DeleteLocalData == ${BST_CHECKED}", setup, StringComparison.Ordinal);
+        Assert.Contains("--cleanup-credentials", setup, StringComparison.Ordinal);
+        Assert.Contains("$DeleteCredentials == ${BST_CHECKED}", setup, StringComparison.Ordinal);
+        Assert.DoesNotContain("RMDir /r \"$LOCALAPPDATA", setup, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
-    public void MsiRemovalDataOptionIsUncheckedByDefault()
+    public void SetupMigratesTheLegacyMsiWithoutDeletingUserData()
     {
-        var document = XDocument.Load(AssetPath("Sidey.Msi.SideyUI.wxs"));
-        var checkbox = document.Descendants().Single(element =>
-            element.Name.LocalName == "Control"
-            && (string?)element.Attribute("Id") == "RemoveUserData");
+        string setup = ReadSetupScript();
+        string uninstaller = File.ReadAllText(RepositoryPath(
+            "windows", "src", "Sidey.Uninstaller", "Program.cs"));
 
-        Assert.Equal("CheckBox", (string?)checkbox.Attribute("Type"));
-        Assert.Equal("REMOVEUSERDATA", (string?)checkbox.Attribute("Property"));
-        Assert.Equal("1", (string?)checkbox.Attribute("CheckBoxValue"));
-
-        var removeNavigation = document.Descendants().Single(element =>
-            element.Name.LocalName == "Publish"
-            && (string?)element.Attribute("Dialog") == "MaintenanceTypeDlg"
-            && (string?)element.Attribute("Control") == "RemoveButton");
-        Assert.Equal("SideyRemoveDataDlg", (string?)removeNavigation.Attribute("Value"));
-
-        var project = XDocument.Load(AssetPath("Sidey.Msi.wixproj.xml"));
-        Assert.Contains(
-            project.Descendants("PackageReference"),
-            reference => (string?)reference.Attribute("Include") == "WixToolset.UI.wixext");
+        Assert.Contains("LEGACY_MSI_UPGRADE_CODE", setup, StringComparison.Ordinal);
+        Assert.Contains("--uninstall-legacy-msi", setup, StringComparison.Ordinal);
+        Assert.Contains("SideyLegacyMsiHelper.exe", setup, StringComparison.Ordinal);
+        Assert.Contains("/quiet /norestart", uninstaller, StringComparison.Ordinal);
+        Assert.Contains("MsiEnumRelatedProducts", uninstaller, StringComparison.Ordinal);
+        Assert.DoesNotContain("--cleanup", setup[..setup.IndexOf("Section \"Uninstall\"", StringComparison.Ordinal)], StringComparison.Ordinal);
+        Assert.Contains("$0 == 3010", setup, StringComparison.Ordinal);
+        Assert.Contains("$(LegacyMigrationRestart)", setup, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void InstalledUninstallerStartsMsiAndDeletesOnlySideyCurrentUserData()
+    public void InstalledNsisUninstallerDeletesOnlySelectedCurrentUserData()
     {
         string uninstaller = File.ReadAllText(RepositoryPath(
             "windows", "src", "Sidey.Uninstaller", "Program.cs"));
 
-        Assert.Contains("MsiEnumRelatedProducts", uninstaller, StringComparison.Ordinal);
-        Assert.Contains("msiexec.exe", uninstaller, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("start.Verb = \"runas\"", uninstaller, StringComparison.Ordinal);
-        Assert.Contains("CleanupArgument = \"--cleanup\"", uninstaller, StringComparison.Ordinal);
+        string setup = ReadSetupScript();
+
+        Assert.Contains("WriteUninstaller \"$INSTDIR\\Uninstall.exe\"", setup, StringComparison.Ordinal);
+        Assert.Contains("SIDEY.UninstallHelper.exe", setup, StringComparison.Ordinal);
+        Assert.Contains("CleanupLocalDataArgument = \"--cleanup-local-data\"", uninstaller, StringComparison.Ordinal);
+        Assert.Contains("CleanupCredentialsArgument = \"--cleanup-credentials\"", uninstaller, StringComparison.Ordinal);
         Assert.Contains("CredentialFilter = \"SIDEY/*\"", uninstaller, StringComparison.Ordinal);
         Assert.Contains("CredEnumerate", uninstaller, StringComparison.Ordinal);
         Assert.Contains("CredentialType.Generic", uninstaller, StringComparison.Ordinal);
@@ -195,26 +158,19 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
-    public void MsiAndUninstallerUseTheSideyApplicationIcon()
+    public void SetupAndUninstallerUseTheSideyApplicationIcon()
     {
-        var document = XDocument.Load(AssetPath("Sidey.Msi.Package.wxs"));
-        var productIcon = document.Descendants().Single(element =>
-            element.Name.LocalName == "Icon"
-            && (string?)element.Attribute("Id") == "SideyProductIcon");
-        Assert.EndsWith(
-            @"Assets\Icons\SideyAppIcon.ico",
-            (string?)productIcon.Attribute("SourceFile"),
-            StringComparison.OrdinalIgnoreCase);
+        string setup = ReadSetupScript();
 
-        var arpIcon = document.Descendants().Single(element =>
-            element.Name.LocalName == "Property"
-            && (string?)element.Attribute("Id") == "ARPPRODUCTICON");
-        Assert.Equal("SideyProductIcon", (string?)arpIcon.Attribute("Value"));
-
-        var uninstallShortcut = document.Descendants().Single(element =>
-            element.Name.LocalName == "Shortcut"
-            && (string?)element.Attribute("Id") == "UninstallShortcut");
-        Assert.Equal("[INSTALLFOLDER]Uninstall.exe", (string?)uninstallShortcut.Attribute("Target"));
+        Assert.Contains(
+            "Icon \"${PUBLISH_DIR}\\Assets\\Icons\\SideyAppIcon.ico\"",
+            setup,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "UninstallIcon \"${PUBLISH_DIR}\\Assets\\Icons\\SideyAppIcon.ico\"",
+            setup,
+            StringComparison.Ordinal);
+        Assert.Contains("WriteUninstaller \"$INSTDIR\\Uninstall.exe\"", setup, StringComparison.Ordinal);
 
         string organizer = File.ReadAllText(RepositoryPath(
             "scripts", "windows", "organize-publish.ps1"));
@@ -223,12 +179,19 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
-    public void DistributionPipelineBuildsOnlyThePublicMsiWithoutSelfSigning()
+    public void DistributionPipelineBuildsOnlyThePublicSetupExeWithoutSelfSigning()
     {
         string package = File.ReadAllText(RepositoryPath(
             "scripts", "windows", "package.ps1"));
 
-        Assert.Contains("SIDEY-Windows-x64-v$Version.msi", package, StringComparison.Ordinal);
+        Assert.Contains("SIDEY-Windows-x64-v${Version}-Setup.exe", package, StringComparison.Ordinal);
+        Assert.Contains("NSIS 3.12", package, StringComparison.Ordinal);
+        Assert.Contains("makensis.exe", package, StringComparison.Ordinal);
+        Assert.Contains("/VERSION", package, StringComparison.Ordinal);
+        Assert.Contains("SideyPayloadInstall.nsh", package, StringComparison.Ordinal);
+        Assert.Contains("SideyPayloadUninstall.nsh", package, StringComparison.Ordinal);
+        Assert.Contains("Generated NSIS payload paths must expand $INSTDIR", package, StringComparison.Ordinal);
+        Assert.DoesNotContain("ConvertTo-NsisLiteral $destination", package, StringComparison.Ordinal);
         Assert.Contains("Get-FileHash", package, StringComparison.Ordinal);
         Assert.Contains("SHA256=$hash", package, StringComparison.Ordinal);
         Assert.Contains("Runtime/SIDEY.Host.exe", package, StringComparison.Ordinal);
@@ -242,14 +205,10 @@ public sealed class DistributionSourceTests
         Assert.DoesNotContain("sign-self-signed", package, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Set-AuthenticodeSignature", package, StringComparison.Ordinal);
         Assert.DoesNotContain("SIDEY-SelfSigned", package, StringComparison.Ordinal);
-        Assert.DoesNotContain("Setup.exe", package, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(".msi", package, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(".sha256", package, StringComparison.OrdinalIgnoreCase);
         Assert.False(File.Exists(RepositoryPath(
-            "scripts", "windows", "sign-self-signed.ps1")));
-        Assert.False(File.Exists(RepositoryPath(
-            "windows", "installer", "Sidey.Bundle", "Bundle.wxs")));
-        Assert.False(File.Exists(RepositoryPath(
-            "windows", "installer", "Sidey.Bundle", "Sidey.Bundle.wixproj")));
+            "windows", "installer", "Sidey.Msi", "Sidey.Msi.wixproj")));
 
         string organizer = File.ReadAllText(RepositoryPath(
             "scripts", "windows", "organize-publish.ps1"));
@@ -260,6 +219,8 @@ public sealed class DistributionSourceTests
         Assert.Contains("Uninstall.exe", organizer, StringComparison.Ordinal);
         Assert.Contains("SIDEY.Host.exe", launcher, StringComparison.Ordinal);
     }
+
+    private static string ReadSetupScript() => File.ReadAllText(AssetPath("Sidey.Setup.nsi"));
 
     private static string Value(XDocument document, string name) =>
         document.Descendants(name).Single().Value;

@@ -4,28 +4,28 @@ param(
     [string]$Version,
 
     [Parameter(Mandatory = $true)]
-    [string]$CandidateMsi
+    [string]$CandidateSetup
 )
 
 $ErrorActionPreference = 'Stop'
-$candidate = (Resolve-Path -LiteralPath $CandidateMsi).Path
-$msiName = "SIDEY-Windows-x64-v$Version.msi"
-if ([IO.Path]::GetFileName($candidate) -ne $msiName) {
-    throw "후보 파일 이름이 공개 계약과 다름: $msiName"
+$candidate = (Resolve-Path -LiteralPath $CandidateSetup).Path
+$setupName = "SIDEY-Windows-x64-v${Version}-Setup.exe"
+if ([IO.Path]::GetFileName($candidate) -ne $setupName) {
+    throw "후보 파일 이름이 공개 계약과 다름: $setupName"
 }
 
 $tag = "windows-v$Version"
-$releaseUrl = "https://github.com/sidey-app/SIDEY/releases/download/$tag/$msiName"
+$releaseUrl = "https://github.com/sidey-app/SIDEY/releases/download/$tag/$setupName"
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) "sidey-windows-release-$([Guid]::NewGuid().ToString('N'))"
 [IO.Directory]::CreateDirectory($temporaryRoot) | Out-Null
 try {
-    $downloadedMsi = Join-Path $temporaryRoot $msiName
-    Invoke-WebRequest -Uri $releaseUrl -OutFile $downloadedMsi
+    $downloadedSetup = Join-Path $temporaryRoot $setupName
+    Invoke-WebRequest -Uri $releaseUrl -OutFile $downloadedSetup
 
-    $downloadedHash = (Get-FileHash -LiteralPath $downloadedMsi -Algorithm SHA256).Hash.ToLowerInvariant()
+    $downloadedHash = (Get-FileHash -LiteralPath $downloadedSetup -Algorithm SHA256).Hash.ToLowerInvariant()
     $candidateHash = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($downloadedHash -ne $candidateHash) {
-        throw 'Release MSI가 CI에서 검증한 로컬 후보와 다름'
+        throw 'Release Setup EXE가 CI에서 검증한 로컬 후보와 다름'
     }
 
     Write-Host 'ReleaseVerified=true'

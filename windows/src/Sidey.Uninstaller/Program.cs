@@ -9,9 +9,13 @@ namespace Sidey.Uninstaller
     public static class Program
     {
         private const string CleanupArgument = "--cleanup";
+        private const string CleanupCredentialsArgument = "--cleanup-credentials";
+        private const string CleanupLocalDataArgument = "--cleanup-local-data";
+        private const string LegacyMsiUninstallArgument = "--uninstall-legacy-msi";
         private const string CredentialFilter = "SIDEY/*";
         private const string UpgradeCode = "{E744D02B-C3CF-41CE-A4C9-9BA1EB10C6B9}";
         private const int ErrorNotFound = 1168;
+        private const int ErrorProductNotInstalled = 1605;
         private const uint ErrorSuccess = 0;
         private const uint ErrorNoMoreItems = 259;
 
@@ -21,7 +25,33 @@ namespace Sidey.Uninstaller
             if (arguments.Length == 1
                 && string.Equals(arguments[0], CleanupArgument, StringComparison.OrdinalIgnoreCase))
             {
+                int localDataResult = RemoveCurrentUserData();
+                int credentialsResult = RemoveCurrentUserCredentials();
+                return localDataResult != 0 ? localDataResult : credentialsResult;
+            }
+            if (arguments.Length == 1
+                && string.Equals(
+                    arguments[0],
+                    CleanupLocalDataArgument,
+                    StringComparison.OrdinalIgnoreCase))
+            {
                 return RemoveCurrentUserData();
+            }
+            if (arguments.Length == 1
+                && string.Equals(
+                    arguments[0],
+                    CleanupCredentialsArgument,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return RemoveCurrentUserCredentials();
+            }
+            if (arguments.Length == 1
+                && string.Equals(
+                    arguments[0],
+                    LegacyMsiUninstallArgument,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return UninstallLegacyMsi();
             }
 
             if (arguments.Length != 0)
@@ -50,8 +80,8 @@ namespace Sidey.Uninstaller
                 start.Verb = "runas";
                 Process.Start(start);
 
-                // Do not wait here. The installed copy must exit before MSI
-                // removes Uninstall.exe and the rest of INSTALLFOLDER.
+                // Do not wait here. The installed helper must exit before MSI
+                // removes it and the rest of the legacy installation folder.
                 return 0;
             }
             catch (Exception exception)
@@ -60,6 +90,40 @@ namespace Sidey.Uninstaller
                     "SIDEY could not start Windows Installer.\r\n\r\n" + exception.Message,
                     "Windows Installer를 시작하지 못했습니다.\r\n\r\n" + exception.Message,
                     0x10);
+                return 1;
+            }
+        }
+
+        private static int UninstallLegacyMsi()
+        {
+            try
+            {
+                string productCode = FindInstalledProductCode();
+                if (string.IsNullOrEmpty(productCode))
+                {
+                    return 0;
+                }
+
+                string systemDirectory = Environment.GetFolderPath(Environment.SpecialFolder.System);
+                ProcessStartInfo start = new ProcessStartInfo();
+                start.FileName = Path.Combine(systemDirectory, "msiexec.exe");
+                start.Arguments = "/x " + QuoteArgument(productCode) + " /quiet /norestart";
+                start.UseShellExecute = false;
+                using (Process process = Process.Start(start))
+                {
+                    if (process == null)
+                    {
+                        return 1;
+                    }
+
+                    process.WaitForExit();
+                    return process.ExitCode == ErrorProductNotInstalled
+                        ? 0
+                        : process.ExitCode;
+                }
+            }
+            catch
+            {
                 return 1;
             }
         }
@@ -86,8 +150,6 @@ namespace Sidey.Uninstaller
         {
             try
             {
-                DeleteSideyCredentials();
-
                 string localAppData = Environment.GetFolderPath(
                     Environment.SpecialFolder.LocalApplicationData);
                 if (string.IsNullOrWhiteSpace(localAppData))
@@ -115,6 +177,19 @@ namespace Sidey.Uninstaller
                     Directory.Delete(dataRoot, true);
                 }
 
+                return 0;
+            }
+            catch
+            {
+                return 3;
+            }
+        }
+
+        private static int RemoveCurrentUserCredentials()
+        {
+            try
+            {
+                DeleteSideyCredentials();
                 return 0;
             }
             catch

@@ -26,7 +26,7 @@ on:
   workflow_dispatch:
     inputs:
       publish_release:
-        description: '검증한 Windows MSI를 GitHub 정식 Release로 게시'
+        description: '검증한 Windows Setup EXE를 GitHub 정식 Release로 게시'
         required: true
         default: false
         type: boolean
@@ -103,13 +103,28 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Build MSI candidate
+      - name: Install pinned NSIS compiler
+        id: nsis
+        run: |
+          winget install NSIS.NSIS `
+            --exact `
+            --version 3.12 `
+            --silent `
+            --accept-package-agreements `
+            --accept-source-agreements `
+            --disable-interactivity
+          $makensis = Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'
+          if (-not (Test-Path -LiteralPath $makensis -PathType Leaf)) {
+            throw 'NSIS 3.12 makensis.exe was not installed.'
+          }
+          "makensis_path=$makensis" >> $env:GITHUB_OUTPUT
+
+      - name: Build Setup EXE candidate
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           $version = '${{ needs.validate.outputs.version }}'
 
           dotnet restore windows/SIDEY.Windows.slnx
-          dotnet restore windows/installer/Sidey.Msi/Sidey.Msi.wixproj
           dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
             --configuration Release `
             --runtime win-x64 `
@@ -122,13 +137,14 @@ jobs:
           ./scripts/windows/package.ps1 `
             -PublishDir ./build/windows/publish `
             -OutDir ./build/windows/artifacts `
-            -Version $version
+            -Version $version `
+            -MakensisPath '${{ steps.nsis.outputs.makensis_path }}'
 
       - name: Upload Windows candidate
         uses: actions/upload-artifact@v4
         with:
           name: SIDEY-Windows-x64-v${{ needs.validate.outputs.version }}
-          path: build/windows/artifacts/SIDEY-Windows-x64-v${{ needs.validate.outputs.version }}.msi
+          path: build/windows/artifacts/SIDEY-Windows-x64-v${{ needs.validate.outputs.version }}-Setup.exe
           if-no-files-found: error
           retention-days: 7
 
@@ -159,13 +175,13 @@ jobs:
         run: |
           $version = '${{ needs.validate.outputs.version }}'
           $tag = "windows-v$version"
-          $msi = "./release-assets/SIDEY-Windows-x64-v$version.msi"
+          $setup = "./release-assets/SIDEY-Windows-x64-v${version}-Setup.exe"
           $notes = "./docs/releases/windows-v$version.md"
           if (-not (Test-Path -LiteralPath $notes -PathType Leaf)) {
             throw "Windows release notes are missing: $notes"
           }
 
-          gh release create $tag $msi `
+          gh release create $tag $setup `
             --target $env:GITHUB_SHA `
             --title "SIDEY Windows v$version" `
             --notes-file $notes

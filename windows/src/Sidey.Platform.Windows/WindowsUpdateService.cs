@@ -53,7 +53,7 @@ public sealed partial class WindowsUpdateService(HttpClient? httpClient = null)
 
         var expectedInstallerUri = new Uri(
             $"https://github.com/sidey-app/SIDEY/releases/download/{manifest.Tag}/" +
-            $"SIDEY-Windows-x64-v{manifest.Version}.msi");
+            $"SIDEY-Windows-x64-v{manifest.Version}-Setup.exe");
         if (!Uri.TryCreate(manifest.InstallerUrl, UriKind.Absolute, out Uri? installerUri)
             || installerUri != expectedInstallerUri
             || string.IsNullOrWhiteSpace(manifest.Sha256)

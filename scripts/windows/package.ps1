@@ -8,7 +8,7 @@ param(
 
     [string]$Version = '1.0.5',
 
-    [switch]$SuppressInstallerValidation
+    [string]$MakensisPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,7 +21,7 @@ $uninstaller = Join-Path $resolvedPublishDir 'Uninstall.exe'
 $runtimeDir = Join-Path $resolvedPublishDir 'Runtime'
 $hostExecutable = Join-Path $runtimeDir 'SIDEY.Host.exe'
 $legacyExecutable = Join-Path $resolvedPublishDir 'Sidey.App.exe'
-$msiProject = Join-Path $repositoryRoot 'windows/installer/Sidey.Msi/Sidey.Msi.wixproj'
+$setupScript = Join-Path $repositoryRoot 'windows/installer/Sidey.Setup/Sidey.Setup.nsi'
 
 function Get-SideyRelativePath {
     param(
@@ -173,33 +173,113 @@ if (-not $publishedVersionInfo.FileVersion.StartsWith(
 }
 
 [IO.Directory]::CreateDirectory($resolvedOutDir) | Out-Null
-$internalDir = Join-Path $resolvedOutDir 'internal/msi-build'
+$internalDir = Join-Path $resolvedOutDir 'internal/setup-build'
 [IO.Directory]::CreateDirectory($internalDir) | Out-Null
 
-dotnet build $msiProject `
-    --configuration Release `
-    --no-restore `
-    --no-incremental `
-    --output $internalDir `
-    "-p:PublishDir=$resolvedPublishDir" `
-    "-p:ProductVersion=$Version" `
-    "-p:DisplayVersion=$Version" `
-    "-p:SuppressValidation=$($SuppressInstallerValidation.IsPresent.ToString().ToLowerInvariant())"
+$makensisCandidates = @()
+if (-not [string]::IsNullOrWhiteSpace($MakensisPath)) {
+    $makensisCandidates += $MakensisPath
+}
+$makensisCommand = Get-Command makensis.exe -ErrorAction SilentlyContinue
+if ($null -ne $makensisCommand) {
+    $makensisCandidates += $makensisCommand.Source
+}
+$programFilesX86 = [Environment]::GetFolderPath(
+    [Environment+SpecialFolder]::ProgramFilesX86)
+$programFiles = [Environment]::GetFolderPath(
+    [Environment+SpecialFolder]::ProgramFiles)
+$makensisCandidates += @(
+    (Join-Path $programFilesX86 'NSIS\makensis.exe'),
+    (Join-Path $programFiles 'NSIS\makensis.exe')
+)
+$resolvedMakensisPath = $makensisCandidates |
+    Where-Object { -not [string]::IsNullOrWhiteSpace($_) -and (Test-Path -LiteralPath $_ -PathType Leaf) } |
+    Select-Object -First 1
+if ([string]::IsNullOrWhiteSpace($resolvedMakensisPath)) {
+    throw 'NSIS 3.12 or newer is required. Install NSIS.NSIS or pass -MakensisPath.'
+}
+$makensisVersionText = (& $resolvedMakensisPath /VERSION | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or
+    $makensisVersionText -notmatch '^v?(?<version>\d+\.\d+(?:\.\d+)?)$') {
+    throw "Unable to read the NSIS compiler version: $makensisVersionText"
+}
+$makensisVersion = [Version]::Parse($Matches.version)
+if ($makensisVersion -lt [Version]'3.12') {
+    throw "NSIS 3.12 or newer is required. Found $makensisVersion."
+}
+
+function ConvertTo-NsisLiteral {
+    param([Parameter(Mandatory = $true)][string]$Value)
+
+    return $Value.Replace('$', '$$').Replace('"', '$\"')
+}
+
+$payloadFiles = @($deployableFiles | Where-Object {
+    $_.FullName -ne $uninstaller -and
+    $_.Name -ne 'SIDEY-Onboarding-Preview.cmd'
+})
+$installInclude = Join-Path $internalDir 'SideyPayloadInstall.nsh'
+$uninstallInclude = Join-Path $internalDir 'SideyPayloadUninstall.nsh'
+$installLines = [Collections.Generic.List[string]]::new()
+$uninstallLines = [Collections.Generic.List[string]]::new()
+$payloadDirectories = [Collections.Generic.HashSet[string]]::new(
+    [StringComparer]::OrdinalIgnoreCase)
+
+foreach ($file in $payloadFiles) {
+    $relativePath = Get-SideyRelativePath $resolvedPublishDir $file.FullName
+    $relativeDirectory = Split-Path $relativePath -Parent
+    $destination = '$INSTDIR'
+    if (-not [string]::IsNullOrWhiteSpace($relativeDirectory)) {
+        $destination += "\$(ConvertTo-NsisLiteral $relativeDirectory)"
+        [void]$payloadDirectories.Add($relativeDirectory)
+    }
+
+    $installLines.Add("SetOutPath `"$destination`"")
+    $installLines.Add("File `"$(ConvertTo-NsisLiteral $file.FullName)`"")
+    $uninstallLines.Add(
+        "Delete `"`$INSTDIR\$(ConvertTo-NsisLiteral $relativePath)`"")
+}
+
+foreach ($directory in @($payloadDirectories) |
+    Sort-Object { ($_ -split '[\\/]').Count } -Descending) {
+    $uninstallLines.Add(
+        "RMDir `"`$INSTDIR\$(ConvertTo-NsisLiteral $directory)`"")
+}
+
+if (@($installLines + $uninstallLines | Where-Object {
+    $_.IndexOf('$$INSTDIR', [StringComparison]::Ordinal) -ge 0
+}).Count -gt 0) {
+    throw 'Generated NSIS payload paths must expand $INSTDIR at runtime.'
+}
+
+$installLines | Set-Content -LiteralPath $installInclude -Encoding utf8
+$uninstallLines | Set-Content -LiteralPath $uninstallInclude -Encoding utf8
+
+& $resolvedMakensisPath `
+    '/INPUTCHARSET' 'UTF8' `
+    "/DAPP_VERSION=$Version" `
+    "/DAPP_FILE_VERSION=$Version.0" `
+    "/DOUTPUT_DIR=$internalDir" `
+    "/DPUBLISH_DIR=$resolvedPublishDir" `
+    "/DPAYLOAD_INSTALL_INCLUDE=$installInclude" `
+    "/DPAYLOAD_UNINSTALL_INCLUDE=$uninstallInclude" `
+    $setupScript
 if ($LASTEXITCODE -ne 0) {
-    throw 'SIDEY MSI 빌드 실패'
+    throw 'SIDEY Setup EXE build failed.'
 }
 
-$builtMsiFiles = @(Get-ChildItem -LiteralPath $internalDir -Filter '*.msi' -File)
-if ($builtMsiFiles.Count -ne 1) {
-    throw 'WiX 빌드에서 MSI가 정확히 하나 생성되지 않음'
+$builtSetupFiles = @(Get-ChildItem -LiteralPath $internalDir -Filter '*.exe' -File)
+if ($builtSetupFiles.Count -ne 1) {
+    throw 'NSIS must produce exactly one Setup EXE.'
 }
 
-$msiName = "SIDEY-Windows-x64-v$Version.msi"
-$msiPath = Join-Path $resolvedOutDir $msiName
-Copy-Item -LiteralPath $builtMsiFiles[0].FullName -Destination $msiPath -Force
-$hash = (Get-FileHash -LiteralPath $msiPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$setupName = "SIDEY-Windows-x64-v${Version}-Setup.exe"
+$setupPath = Join-Path $resolvedOutDir $setupName
+Copy-Item -LiteralPath $builtSetupFiles[0].FullName -Destination $setupPath -Force
+$hash = (Get-FileHash -LiteralPath $setupPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $publishBytes = ($deployableFiles | Measure-Object -Property Length -Sum).Sum
 
 Write-Host "PublishLayout=structured self-contained; Files=$($deployableFiles.Count); Bytes=$publishBytes"
-Write-Host "Created public MSI $msiPath"
+Write-Host "NSIS=$makensisVersion"
+Write-Host "Created public Setup EXE $setupPath"
 Write-Host "SHA256=$hash"
