@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.8
 - 최종 갱신: 2026-09-03
-- 상태: macOS `v1.0.5`(build 16) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.0.4` 정식 출시
+- 상태: macOS `v1.0.5`(build 16) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.0.5` 정식 출시
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
 
@@ -504,16 +504,18 @@ Keychain 접근은 앱 실행 동안 하나의 `LAContext`를 공유하고 `loca
 
 자동화 테스트와 공개 배포는 장시간 수동 기준을 대신하지 않는다. 수행하지 않은 장시간 항목을 통과했다고 기록하지 않고 정식판에서도 지속 검증한다.
 
-### 10.5 Windows v1.0.4 정식 배포 절차
+### 10.5 Windows v1.0.5 정식 배포 절차
 
 1. Windows 전체 단위·계약·창 정책·업데이트·배포 source 테스트와 10.3의 실기·장시간 기준을 통과한다.
 2. staging에서 익명 세션·RLS·private Realtime을 통과한 뒤 production publishable 구성에서도 다시 확인한다. service-role·secret key는 클라이언트·저장소·CI 산출물에 넣지 않는다.
 3. CI에서 `win-x64` unpackaged·multi-file self-contained 앱을 `PublishSingleFile=false`로 게시한다. 루트 `SIDEY.exe` 런처가 인수를 `Runtime\SIDEY.Host.exe`로 전달하고, 앱·.NET·Windows App SDK 런타임은 `Runtime`, 사용자 콘텐츠는 `Assets`, SIDEY 번역은 `Langs`에 둔다. 게시한 런처와 호스트를 실제 시작해 main 또는 미지원 OS 창 활성화 로그가 남고 프로세스가 유지되는지 확인한다.
-4. WiX Toolset `6.0.2`로 전체 payload와 내부 cabinet을 포함한 머신 단위 `SIDEY-Windows-x64-v1.0.4.msi`를 만든다. Burn Setup EXE·ZIP·MSIX는 만들거나 공개하지 않는다.
+4. WiX Toolset `6.0.2`로 전체 payload와 내부 cabinet을 포함한 머신 단위 `SIDEY-Windows-x64-v1.0.5.msi`를 만든다. Burn Setup EXE·ZIP·MSIX는 만들거나 공개하지 않는다.
 5. 자체 서명 인증서·임시 PFX·공개 CER를 만들지 않고 Release용 MSI와 내부 검증용 SHA-256만 생성한다. `.sha256` 파일은 Release 자산으로 게시하지 않는다.
-6. clean install·공용 시작 메뉴·아이콘이 포함된 `Uninstall.exe`·repair·실행 중 upgrade·downgrade 차단을 확인한다. Windows 설정·MSI·`Uninstall.exe`의 일반 제거에서 데이터 삭제 옵션이 기본 미선택이고, 선택 시에만 현재 사용자의 설정·로그·로그인 정보를 삭제하며 upgrade·repair에는 삭제하지 않는지 검증한 뒤, 검증된 커밋에 `windows-v1.0.4` 태그와 GitHub 정식 Release를 만든다. Release에는 MSI 하나만 게시하고 제거 옵션의 영향을 명시한다.
+6. clean install·공용 시작 메뉴·아이콘이 포함된 `Uninstall.exe`·repair·실행 중 upgrade·downgrade 차단을 확인한다. Windows 설정·MSI·`Uninstall.exe`의 일반 제거에서 데이터 삭제 옵션이 기본 미선택이고, 선택 시에만 현재 사용자의 설정·로그·로그인 정보를 삭제하며 upgrade·repair에는 삭제하지 않는지 검증한 뒤, 검증된 커밋에 `windows-v1.0.5` 태그와 GitHub 정식 Release를 만든다. Release에는 MSI 하나만 게시하고 제거 옵션의 영향을 명시한다.
 7. Windows Actions가 성공하면 Pages Actions가 GitHub 정식 Release의 단일 MSI를 다시 내려받아 SHA-256을 계산한다. 태그·고정 MSI URL·자산 구성이 모두 맞을 때 배포 아티팩트의 `website/windows-latest.json`과 호환 경로 `website/windows/update.json`에 64자리 SHA-256을 기록하고 Windows 다운로드 버튼을 활성화한다. 앱은 시작 시 한 번 새 버전을 확인하고 트레이·설정에서 수동 확인하며, 사용자 승인 뒤 다운로드·hash 검증을 통과한 설치기만 실행한다.
 
 공개 MSI는 관리자 승인 뒤 모든 사용자용으로 `C:\Program Files\SIDEY`에 설치하고 공용 시작 메뉴에 앱과 제거 바로가기를 만든다. 설치 폴더에는 앱 아이콘을 포함한 `Uninstall.exe`를 두고, MSI 제품 정보에는 같은 아이콘을 등록한다. 기존 per-user·Burn 테스트 설치는 등록 방식이 달라 자동 전환하지 않으며 먼저 Windows 설정에서 제거하도록 안내한다. `Uninstall.exe`를 직접 실행하면 Windows Installer 제거를 시작하고, Windows 설정과 MSI 유지 관리 화면을 포함한 일반 제거에는 `설정, 로그 및 로그인 정보도 삭제` 체크박스를 기본 미선택으로 표시한다. 선택하면 MSI가 `Uninstall.exe --cleanup`을 실행해 현재 사용자의 `%LOCALAPPDATA%\SIDEY`와 Credential Manager의 `SIDEY/` 자격 증명을 삭제한다. 선택하지 않으면 사용자 데이터를 보존하며 major upgrade와 repair에서는 이 정리를 실행하지 않는다.
 
-SHA-256은 PowerShell에서 `Get-FileHash .\SIDEY-Windows-x64-v1.0.4.msi -Algorithm SHA256`으로 계산한다. GitHub에서 다시 내려받은 MSI와 CI 후보가 같은지 검증하고 이 값을 업데이트 manifest에 기록하되 별도 `.sha256` Release 자산은 만들지 않는다.
+v1.0.3·v1.0.4의 앱 내 업데이트는 SHA-256 검사에 사용한 파일 스트림이 열린 상태에서 설치 파일 이름을 바꾸려 해 Windows 파일 잠금 오류로 실패한다. 따라서 기존 사용자는 v1.0.5 MSI를 한 번 수동 설치해야 하며, 설정·로그인 정보는 major upgrade에서 보존한다. v1.0.5는 검사 스트림을 닫은 뒤 검증된 MSI를 게시하고 설치기를 실행한다.
+
+SHA-256은 PowerShell에서 `Get-FileHash .\SIDEY-Windows-x64-v1.0.5.msi -Algorithm SHA256`으로 계산한다. GitHub에서 다시 내려받은 MSI와 CI 후보가 같은지 검증하고 이 값을 업데이트 manifest에 기록하되 별도 `.sha256` Release 자산은 만들지 않는다.
