@@ -224,8 +224,8 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("CompactModeThresholdWidth=\"0\"", xaml, StringComparison.Ordinal);
         Assert.Contains("CompactPaneLength=\"48\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ExpandedModeThresholdWidth=\"960\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Background=\"{ThemeResource SubtleFillColorSecondaryBrush}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Foreground=\"{ThemeResource TextFillColorSecondaryBrush}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Background=\"{ThemeResource SideyAccentBackground12Brush}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Foreground=\"{ThemeResource SideyAccentForegroundBrush}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("<TitleBar", xaml, StringComparison.Ordinal);
         Assert.Contains("BackRequested=\"OnTitleBarBackRequested\"", xaml, StringComparison.Ordinal);
         Assert.Contains("PaneToggleRequested=\"OnTitleBarPaneToggleRequested\"", xaml, StringComparison.Ordinal);

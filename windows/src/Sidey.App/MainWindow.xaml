@@ -251,7 +251,7 @@
                                           Width="20"
                                           Height="20"
                                           VerticalAlignment="Center"
-                                          Background="{ThemeResource SubtleFillColorSecondaryBrush}"
+                                          Background="{ThemeResource SideyAccentBackground12Brush}"
                                           CornerRadius="10"
                                           Visibility="{Binding IsCurrentUser, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <TextBlock
@@ -260,7 +260,7 @@
                                             VerticalAlignment="Center"
                                             FontSize="11"
                                             FontWeight="SemiBold"
-                                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                            Foreground="{ThemeResource SideyAccentForegroundBrush}"
                                             Text="{i18n:I18n Key=common.me}" />
                                       </Border>
                                     </StackPanel>
