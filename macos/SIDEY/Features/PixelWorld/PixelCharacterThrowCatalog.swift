@@ -118,6 +118,7 @@ enum PixelCharacterThrowStyle {
     static let releaseDelay: TimeInterval = 0.2
     static let hitDuration: TimeInterval = 0.44
     static let impactDuration: TimeInterval = 0.24
+    static let impactPointSize: CGFloat = 48
     static let rotationFrameInterval: TimeInterval = 0.083
     static let maximumActiveProjectiles = 32
 
