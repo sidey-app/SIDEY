@@ -157,9 +157,9 @@ insert into private.download_metric_snapshots (
   asset_id, asset_name, release_tag, version, channel, download_count, collected_at
 ) values
   (900002, 'SIDEY-macOS-arm64-v1.0.5-homebrew.dmg', 'v1.0.5', '1.0.5', 'homebrew_dmg', 10,
-   timezone('Asia/Seoul', timezone('Asia/Seoul', now())::date) - interval '1 minute'),
+   (timezone('Asia/Seoul', now())::date::timestamp at time zone 'Asia/Seoul') - interval '1 minute'),
   (900002, 'SIDEY-macOS-arm64-v1.0.5-homebrew.dmg', 'v1.0.5', '1.0.5', 'homebrew_dmg', 13,
-   timezone('Asia/Seoul', timezone('Asia/Seoul', now())::date) + interval '1 minute');
+   (timezone('Asia/Seoul', now())::date::timestamp at time zone 'Asia/Seoul') + interval '1 minute');
 set local role service_role;
 select set_config('request.jwt.claim.role', 'service_role', true);
 select is(
