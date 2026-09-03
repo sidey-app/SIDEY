@@ -120,6 +120,10 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 
 내 캐릭터를 더블클릭하면 캐릭터 스프라이트만 발 위치를 기준으로 7배까지 0.20초 동안 커지고 0.60초 동안 원래 크기로 복귀한다. 닉네임·상태 점·말풍선은 확대하지 않는다. 로컬에서 즉시 재생한 뒤 같은 방에 이벤트 UUID와 사용자 UUID를 담은 `character_pulse` Broadcast를 보내며, 송신·수신 모두 캐릭터별 1초 쿨타임을 적용한다. 동일 이벤트 UUID는 한 번만 재생한다.
 
+캐릭터 물체 던지기는 `우클릭 후 던지기` 설정으로 입력 방식만 바꾼다. 기본값은 OFF이며 화면에 표시되는 다른 멤버의 52×52 hotspot을 Presence 상태와 무관하게 항상 표시해 한 번 클릭하면 즉시 던진다. ON이면 평소 친구 hotspot을 만들지 않고 내 캐릭터를 우클릭한 뒤 10초 동안만 표시한다. 우클릭을 다시 하면 10초로 갱신되고 활성 시간에는 여러 친구에게 계속 던질 수 있다. 두 방식 모두 송신자 기준 0.5초 쿨타임을 적용한다. 온라인·자리 비움·오프라인·재연결 캐릭터를 모두 대상으로 허용하며 자기 자신만 제외한다.
+
+송신자는 약 0.4초 throw 동작을 재생하고 0.2초에 물체를 놓는다. 각 클라이언트가 현재 로컬 캐릭터 위치로 화면 안쪽을 향하는 2차 베지어 궤적을 계산하며 좌표는 전송하지 않는다. 호 높이는 거리의 18%를 24~96pt로 제한하고 비행 시간은 `0.35 + 거리 / 1600`초를 0.35~0.95초로 제한한다. 물체 회전은 약 83ms 간격이며 이동 중인 대상의 현재 몸통 위치로 종점을 매 frame 보정한다. 충돌 이펙트는 약 0.24초, hit 동작은 약 0.44초다. hit 중 대상 이동만 정지하고 기존 산책 목적지는 보존하며 연속 피격은 hit을 처음부터 다시 시작한다. 비행 중 Presence 상태가 바뀌어도 대상 노드가 화면에 남아 있으면 충돌 이펙트와 hit 동작을 모두 재생한다. 최근 이벤트 UUID는 256개, 활성 투사체는 월드당 32개로 제한한다.
+
 ### 4.3 이동
 
 - 각 캐릭터는 선택한 가장자리와 평행한 1차원 track의 로컬 랜덤 목적지를 향해 산책하고 간헐적으로 idle 한다.
@@ -163,6 +167,8 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 
 원본 콘셉트 이미지는 `docs/assets/pixel_<species>_concept.png`, 런타임 시트는 `macos/SIDEY/Resources/Characters/Pixel<Species>/pixel_<species>.png`에 둔다. 모든 시트는 결정적 Swift 생성기와 240×24 RGBA·10프레임·발 기준선·hash 검증으로 관리한다.
 
+물체 던지기 action 시트는 9종 각각 192×24 RGBA이며 24×24 셀의 throw 4프레임과 hit 4프레임을 가진다. 물체 시트는 5종 각각 192×16 RGBA이며 16×16 셀의 고정 중심 회전 8프레임과 충돌 4프레임을 가진다. 무료 5종은 비대칭 패치와 봉제선이 있는 패치 말랑공을 공유하고, 기니피그는 미니 파프리카, 원숭이는 바나나, 친칠라는 매듭 달린 먼지목욕 모래주머니, 별빛 우파루파는 회전 광점이 있는 별빛 구슬을 사용한다. 투명 배경, sRGB, hard alpha, integer nearest-neighbor를 유지하고 안티앨리어싱과 실시간 그림자는 사용하지 않는다. 승인 경로·프레임 범위·캐릭터 매핑·SHA-256은 `shared/character-throw/v1/manifest.json`이 고정하며 알 수 없는 캐릭터 ID는 햄스터 action과 패치 말랑공으로 fallback한다.
+
 ## 5. 메시지와 타이핑
 
 ### 5.1 데이터 흐름
@@ -170,11 +176,11 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - Postgres가 메시지 원본이다.
 - 메시지는 생성 후 7일이 지나면 서버의 일일 정리 작업으로 영구 삭제한다.
 - Presence는 연결·온라인·자리 비움 상태에 사용한다.
-- Broadcast는 SIDEY 입력창의 타이핑과 `character_pulse`처럼 저장하지 않는 이벤트, 그리고 서버가 발행하는 DB 변경 식별자에만 사용한다. 클라이언트 직접 발행은 Presence만 허용한다.
+- Broadcast는 SIDEY 입력창의 타이핑, `character_pulse`, `character_throw`처럼 저장하지 않는 이벤트와 서버가 발행하는 DB 변경 식별자에만 사용한다. 클라이언트 직접 발행은 Presence만 허용하며 `character_throw`는 전용 인증 RPC만 사용한다.
 - 각 방은 멤버 변경마다 증가하는 `realtime_epoch`을 가지며 DB·ephemeral private topic을 분리한다. DB event에는 message UUID와 operation만 담고, macOS는 RLS를 거쳐 해당 row를 재조회한 뒤 확정한다.
 - macOS 클라이언트는 5초마다 WebSocket과 각 방 채널의 실제 구독 상태를 확인한다. 비정상이 8초 이상 지속되면 채널 및 수신 스트림을 재생성하고, 실패가 이어지면 8초·16초·최대 30초 간격으로 재시도한다.
 - 재구독 중에는 로컬 상태를 재연결로 표시한다. 성공하면 현재 Presence를 다시 publish하고 방·멤버 snapshot과 최근 메시지를 다시 읽어 단절 중 누락된 가입·메시지를 보정한다.
-- macOS는 실제 채널 구독 상태인 `transportConnected`와 단절 복구 보정 상태인 `recoveryReconciled`를 별도로 관리한다. 원격 Presence 캐시는 실제 transport 단절에서만 폐기한다. 프로필·닉네임·방 이름 `structure_changed`는 연결 상태를 바꾸지 않고 metadata snapshot만 갱신하며, 조회 실패도 transport를 online으로 유지한 채 metadata 작업만 backoff 재시도한다.
+- macOS는 전체 방 채널 구독 상태인 `transportConnected`, 현재 활성 방 채널 구독 상태인 `activeRoomTransportConnected`, 단절 복구 보정 상태인 `recoveryReconciled`를 별도로 관리한다. 원격 Presence 캐시는 실제 transport 단절에서만 폐기한다. 자기 캐릭터와 던지기 상호작용은 활성 방 transport가 끊긴 동안에만 회색·비활성 상태를 사용하며, 절전 복귀 뒤 해당 transport가 복구되면 다른 방 또는 snapshot·메시지 보정이 진행 중이어도 현재 로컬 Presence와 상호작용을 즉시 되돌린다. 프로필·닉네임·방 이름 `structure_changed`는 연결 상태를 바꾸지 않고 metadata snapshot만 갱신하며, 조회 실패도 transport를 online으로 유지한 채 metadata 작업만 backoff 재시도한다.
 - confirmed message ledger는 `senderID`를 보존하며 방별 최근 50개·7일 범위로 제한한다. pending·failed 전송은 방별 outbox에 분리한다.
 - macOS 최근 기록은 최신순 카드 목록이며 각 카드에 40pt 슬롯 안의 24×24 무배율 픽셀 캐릭터, 닉네임·`나` 표식, 로컬 시각, 본문과 pending·failed 상태를 표시한다. 발신자 UUID가 현재 방 멤버 snapshot에 없으면 햄스터와 `알 수 없는 친구`로 표시한다.
 - 최근 기록의 최초·추가 조회는 RLS가 적용된 `messages`를 `created_at DESC, id DESC`로 51개 읽어 50개를 표시하고, 마지막 표시 row의 원본 `created_at` 문자열과 UUID를 keyset cursor로 사용한다. 하단 도달 시 자동으로 다음 페이지를 가져오며 서버 보관 정책과 같은 최근 7일 cutoff를 모든 조회에 적용한다.
@@ -221,7 +227,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 한 시각 줄은 세로 중앙 정렬하고 여러 시각 줄은 3pt 상단 inset과 숨겨진 세로 스크롤을 사용한다. 일반 입력·삭제, 한글 IME 확정, Shift+Enter, 방향키·Home·End·마우스 선택, undo·redo, 외부 draft 복원과 전송 실패 재표시 뒤 선택·삽입 커서를 자동으로 보이는 영역에 스크롤한다.
 - 스크롤 상태는 `NativeMessageField`와 내부 `NSTextView`만 소유하고 `AppModel.draft`에는 추가하지 않는다. 유효성 실패로 마지막 정상 문자열과 선택을 복구한 뒤에도 복구 커서를 표시하며 가로 무한 확장은 사용하지 않는다.
 - 앱 실행과 오버레이 표시 직후에는 숨겨져 있다.
-- 내 캐릭터 단일 클릭 또는 메뉴바 `메시지 작성`으로 열고 즉시 포커스한다.
+- 내 캐릭터 단일 클릭 또는 메뉴바 `메시지 작성`으로 열고 즉시 포커스한다. 월드와 캐릭터 hotspot은 모든 macOS Space에 유지하지만 입력창은 열기를 요청한 현재 Space로 이동해 표시한다.
 - 내 캐릭터 더블클릭은 리액션을 실행하고 입력창은 열린 상태로 유지한다.
 - 캐릭터 또는 입력 패널 클릭으로 앱이 활성화될 때는 수동 앱 재열기로 처리하거나 설정창을 열지 않는다.
 - 왼쪽 `×`, 내 캐릭터 재클릭, Esc 또는 입력창 외부 클릭은 draft를 보존하고 닫으며 `typing_stop`을 보낸다. 외부 클릭은 전역 마우스 이벤트나 좌표를 수집하지 않고 입력 패널의 키 포커스 상실로 판정한다.
@@ -229,7 +235,9 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 낙관적 전송 실패 시 예약 닫힘을 취소하고 실패 항목을 원래 방 outbox에 보존한 뒤, 그 방이 아직 활성 방이면 입력창을 열어 포커스한다. 현재 draft는 실패 본문으로 덮지 않는다.
 - 오버레이 숨김, 활성 방 전환, 현재 사용자 노드 제거 시 입력창을 닫는다.
 
-월드 패널 전체는 `ignoresMouseEvents`로 클릭을 통과시킨다. 내 캐릭터 위의 52×52pt 투명 `NSPanel`만 최대 15Hz·1pt 임계값으로 위치를 따라가며 메시지·리액션 클릭을 받는다. 전역 마우스 좌표와 전역 이벤트 모니터는 사용하지 않는다.
+월드 패널 전체는 `ignoresMouseEvents`로 클릭을 통과시킨다. 내 캐릭터 위의 52×52pt 투명 `NSPanel`은 최대 15Hz·1pt 임계값으로 위치를 따라가며 메시지·리액션 클릭과 우클릭을 받는다. `우클릭 후 던지기`가 OFF이면 연결된 활성 방에서 화면에 표시되는 모든 친구마다 Presence 상태와 무관하게 같은 크기의 투명 hotspot을 항상 유지하고, ON이면 내 캐릭터 우클릭 뒤 10초 동안만 만든다. 설정 변경, 오버레이 숨김, 방 전환, Realtime 단절, 현재 사용자 노드 제거 시 10초 상태와 친구 hotspot을 즉시 재구성한다. 전역 마우스 hook·전역 좌표 수집·클릭 재주입은 사용하지 않는다.
+
+설정 토글 제목은 `우클릭 후 던지기`, 설명은 `끄면 친구 캐릭터를 바로 클릭할 수 있고, 켜면 내 캐릭터를 우클릭한 뒤 10초 동안만 클릭할 수 있습니다.`다. 기본값은 OFF다. 따라서 OFF에서는 친구 캐릭터 52×52 영역이 뒤 앱 클릭을 가로채지만 월드의 나머지 투명 영역은 계속 클릭을 통과시킨다.
 
 오버레이 영역 자체의 자유 이동·크기 조절·잠금, 캐릭터 직접 드래그, 오버레이 내부의 최근 기록·설정 버튼은 제거한다. 최근 기록은 메뉴바에서 여는 일반 레벨의 macOS 창으로 제공하며 최초 로딩·빈 기록·오류와 재시도, 추가 페이지 로딩·오류와 재시도를 서로 구분한다. 방 전환을 시작하면 보던 목록을 즉시 초기화해 전환 대상 방을 조회하고, 창을 닫으면 진행 중 요청을 취소하고 적재한 페이지를 해제한다.
 
@@ -263,7 +271,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 
 - 월드는 WinUI XAML 창에 투명 표현을 위임하지 않고 `WS_POPUP` 기반 전용 Win32 HWND가 소유한다. 무료 5종은 24px 원본에서 정수 nearest-neighbor로 미리 만든 premultiplied BGRA frame을 같은 `UpdateLayeredWindow` 렌더러로 표시하며 tick마다 bitmap이나 surface를 새로 할당하지 않는다.
 - 월드 HWND는 작업 표시줄·Alt-Tab에 나타나지 않고 활성화되지 않으며 외부 앱으로 포인터를 통과시킨다.
-- 내 캐릭터 상호작용 52×52 hotspot은 별도 HWND가 소유하고 최대 15Hz·1 DIP 임계값으로 위치를 갱신한다. 전역 마우스 hook·전역 좌표 수집은 금지한다.
+- 내 캐릭터 상호작용 52×52 hotspot은 별도 HWND가 소유하고 최대 15Hz·1 DIP 임계값으로 위치를 갱신한다. `우클릭 후 던지기`가 OFF이면 화면에 표시되는 친구별 hotspot HWND를 Presence 상태와 무관하게 계속 유지하고, ON이면 내 캐릭터 우클릭 뒤 10초 동안만 만든다. 전역 마우스 hook·전역 좌표 수집은 금지한다.
 - composer는 400×56 DIP 별도 WinUI 창이며, 내 캐릭터 클릭·트레이 `메시지 작성`만 이 창을 활성화한다.
 - 트레이 메뉴는 macOS 메뉴바의 제품 행동에 맞춰 오버레이, 메시지 작성, 활성 그룹, 조용히 모드, 최근 기록, 상점, 그룹 설정, 로그인 실행, 업데이트 확인, 설정, 종료를 제공한다. 익명 세션을 사용하는 Windows판에는 로그아웃 메뉴를 두지 않는다.
 - 앱은 Pages의 Windows 전용 manifest를 시작 시 한 번 확인하고 트레이·설정에서 수동 확인도 제공한다. 새 버전의 고정 GitHub Release MSI URL과 SHA-256이 모두 유효할 때만 사용자 승인을 받아 내려받고 hash 검증 뒤 설치기를 실행하며 무인 자동 설치는 하지 않는다.
@@ -283,6 +291,8 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 입력창 및 캐릭터 상호 회피
 - 타이핑 점과 상태 모션 frame
 - 캐릭터 리액션의 이벤트 UUID 중복 제거와 발 기준 확대·복귀 action
+- 캐릭터별 throw/hit frame, 비행·충돌 이펙트, 최근 throw 이벤트 UUID 256개와 활성 투사체 최대 32개
+- hit 중 이동 정지와 기존 산책 목적지 보존
 - 캐릭터의 1차원 접선 좌표, 실제 메시지 말풍선 충돌 범위·분리 순서와 말풍선 꼬리 배치
 
 `AppModel`은 다음 제품·서버 상태를 소유한다.
@@ -305,7 +315,7 @@ macOS 설정창은 `fullSizeContentView`를 유지하되 투명 커스텀 타이
 
 Presence나 snapshot을 적용할 때 UUID 기준으로 추가·갱신·삭제하며 존재하는 캐릭터 노드의 위치를 초기화하지 않는다.
 
-`OverlayWindowGroup`은 composer 표시 상태와 내 캐릭터 단일·더블클릭 패널을 소유한다. `AppCoordinator`는 `character_pulse` 송수신과 캐릭터별 1초 쿨타임을 소유한다. `AppModel`에는 화면 좌표나 애니메이션 frame을 저장하지 않는다.
+`OverlayWindowGroup`은 composer 표시 상태, 내 캐릭터 단일·더블·우클릭 패널, `우클릭 후 던지기` 설정에 따른 10초 타이머와 최대 11개 친구 hotspot 생명주기를 소유한다. `AppCoordinator`는 `character_pulse` 송수신과 캐릭터별 1초 쿨타임, throw 대상 검증·0.5초 쿨타임·이벤트 생성·로컬 재생·서버 호출을 소유한다. `AppModel`에는 영구 `requiresRightClickToThrow`만 저장하고 화면 좌표, 활성화 타이머나 애니메이션 frame을 저장하지 않는다.
 
 `AppCoordinator`의 방 전환 파이프라인은 150ms 마지막 선택 우선 처리, 직렬 네트워크 실행, 최종 대상 메시지의 명시적 `roomID` 조회, 성공 뒤 활성 그룹·기록 commit, 최종 실패 rollback을 소유한다. `SideyBackend`는 epoch별 DB·ephemeral Realtime 채널, bounded 수신 stream, Presence publish와 자동 복구 watchdog을 소유한다. snapshot·복구·방 전환이 요청하는 Presence는 하나의 직렬 publication queue가 최신 전체 방 상태로 coalesce해 동시에 `track`하지 않는다. generation별 복구가 snapshot·활성 방 최근 메시지를 모두 맞춘 뒤에만 online을 확정하고, 사라진 그룹의 채널과 이 기기의 Keychain 초대 코드를 정리한다.
 
@@ -321,7 +331,7 @@ OverlayRegionPreference(
 )
 ```
 
-환경설정 schema 7은 기존 Keychain 전환 완료 여부를 추가한다. schema 6 이하 파일은 닉네임·방·오버레이 등 기존 값을 유지하면서 전환 미완료로 읽고, 새 설치 기본값은 완료 상태로 시작한다. 과거 frame, lock, scale, screen 값은 디코딩만 지원하며 마이그레이션 결과는 기존 화면 식별자를 가능한 경우 유지한 `하단·전체`다.
+환경설정 schema 8은 `requiresRightClickToThrow`를 추가하며 새 설치와 schema 7 이하 migration 기본값은 `false`다. 기존 Keychain 전환 완료 여부와 닉네임·방·오버레이 값은 그대로 유지한다. 과거 frame, lock, scale, screen 값은 디코딩만 지원하며 마이그레이션 결과는 기존 화면 식별자를 가능한 경우 유지한 `하단·전체`다.
 
 ### 7.3 렌더링 기본값
 
@@ -337,7 +347,7 @@ OverlayRegionPreference(
 - `Sidey.Core`는 프로필·방·Presence·message ledger·bubble ledger·이동 시뮬레이션·검증 규칙을 소유하고 WinUI·Win32·Supabase를 참조하지 않는다.
 - `Sidey.App`의 feature ViewModel은 화면에 표시할 상태와 사용자 명령만 소유한다. Supabase endpoint·Realtime payload·HWND를 직접 다루지 않는다.
 - `Sidey.Infrastructure`는 `IAuthService`·`IBackendGateway`·`ICredentialStore`·`IPreferencesStore`를 구현하고 community Supabase C# client를 교체 가능한 adapter 뒤에 격리한다.
-- `Sidey.Overlay`는 전용 Win32 message-loop thread와 30FPS 고정 step을 소유하고 불변 `WorldSnapshot`을 UUID diff로 반영한다. 위치·속도·animation frame은 앱 세션 상태에 저장하지 않는다. 무료 5종의 GDI bitmap frame은 시작할 때만 만들고 종료 시 모두 해제하며 Debug 검증 모드는 같은 렌더러의 캐릭터 목록만 햄스터로 제한한다.
+- `Sidey.Overlay`는 전용 Win32 message-loop thread와 30FPS 고정 step을 소유하고 불변 `WorldSnapshot`을 UUID diff로 반영한다. 위치·속도·animation frame은 앱 세션 상태에 저장하지 않는다. 무료 5종과 승인된 throw/hit·물체 PNG를 premultiplied BGRA frame으로 시작할 때만 변환·캐시하고 종료 시 모두 해제하며 tick마다 bitmap·surface·projectile buffer를 새로 할당하지 않는다. Debug 검증 모드는 같은 렌더러의 캐릭터 목록만 햄스터로 제한한다. Windows가 유료 source character 이벤트를 받으면 캐릭터 action은 햄스터로 fallback하되 서버 source character ID에 맞는 고유 물체는 표시한다.
 - `Sidey.Platform.Windows`는 창 정책·모니터·DPI·트레이·로그인 실행·입력 유휴·잠금·절전 이벤트와 Windows update manifest·다운로드 hash 검증을 소유한다.
 - Windows 일반 설정은 `%LOCALAPPDATA%\SIDEY\preferences.json`에 atomic replace로 저장하고, Supabase 익명 세션과 평문 초대 코드는 Windows Credential Manager에만 저장한다.
 - 24px sprite는 물리 픽셀 기준 `max(2, round-away-from-zero(2 × dpi / 96))` 정수 배율로 렌더한다.
@@ -366,6 +376,8 @@ OverlayRegionPreference(
 - 직접 Toss 실행 RPC 권한, Edge Function, 웹 SDK·CSP·문구·시크릿을 제거한다. 과거 Toss payment row는 삭제하지 않는다.
 
 forward-only `20260903000000_commerce_refund_policy_v2.sql`은 기존 주문에 저장된 결제 당시 동의 원문을 바꾸지 않고, 새 checkout의 정책 버전을 `2026-09-03-portone-v2`로 올려 제공 시작 뒤 단순 변심 환불 불가와 관련 법령상 환불 사유를 명시한다.
+
+forward-only `20260903010000_character_throw.sql`은 `broadcast_character_throw(p_room_id, p_realtime_epoch, p_event_id, p_target_user_id)` 전용 RPC를 추가한다. 서버는 인증, 최신 room epoch, 송신자·대상 멤버십, 자기 자신 대상 금지와 필수 UUID를 검증하고 송신자 프로필에서 `source_character_id`를 읽는다. 송신자당 10초 20회 제한을 적용한 뒤 schema version, room/event/actor/target UUID와 source character ID만 현재 private ephemeral topic의 `character_throw`로 발행한다. 이벤트는 Postgres 메시지나 기록에 저장하지 않고 재접속 뒤 재생하지 않는다.
 
 Edge Functions는 책임을 다음처럼 분리한다.
 
@@ -410,20 +422,21 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 - 영역: 4개 가장자리 × 3개 길이의 240pt activity frame과 최대 360pt render frame, 접선 144pt 여유, 중앙 정렬, 회전, visible frame, 깊이 제한, hotspot 원점 변환, 모니터 fallback
 - 이동: 20개 합성 노드가 3,000 tick 동안 1차원 track과 발 기준선을 유지하고 finite 좌표, 입력창·상호 회피, 겹침 시 idle 해제·가속 통과, 실제 메시지 말풍선의 240pt/s² 분리 가속·72pt/s 상한·8pt 해소·경계 힘 재배분·혼잡 시 안정적인 겹침·일반 목표 복귀
 - 상태: 온라인·자리 비움 doze와 고정 `Zzz`의 부유·alpha 반복·해제 시 action 정리, 오프라인 curled sleep·재연결·타이핑, 내 캐릭터 항상 표시, 오프라인 숨김, 방 전환 UUID diff, 최대 8자 닉네임·반투명 배경과 상태 점 5pt 간격, 발 기준 7배·0.8초 리액션과 이벤트 UUID 중복 제거
-- Realtime: current epoch topic 접근, client DB형 Broadcast 거부, 다른 사용자·방 transient event 거부, bounded stream overflow 재동기화, backoff와 generation 기반 snapshot reconciliation, Presence publication 최대 동시 실행 수 1을 검증한다. 실서버 2클라이언트에서는 프로필을 즉시·10초·30초 간격으로 연속 변경해 transport 단절 이벤트가 생기지 않는지 확인하고, 별도로 강제 단절과 추방 뒤 자동 재구독·메시지·Presence·`character_pulse` 격리를 확인한다.
+- Realtime: current epoch topic 접근, client DB형 Broadcast 거부, 다른 사용자·방 transient event 거부, bounded stream overflow 재동기화, backoff와 generation 기반 snapshot reconciliation, Presence publication 최대 동시 실행 수 1, 활성 방 transport 복구 뒤 다른 방·후속 보정 중 자기 캐릭터의 회색 상태와 던지기 비활성 해제를 검증한다. `character_throw`는 미인증·누락 UUID·stale epoch·송신자/대상 비멤버·자기 자신 대상·10초 20회 초과를 거부하고 payload에 좌표나 클라이언트 지정 source character가 없는지 확인한다. 실서버 2클라이언트에서는 프로필을 즉시·10초·30초 간격으로 연속 변경해 transport 단절 이벤트가 생기지 않는지 확인하고, 별도로 강제 단절과 추방 뒤 자동 재구독·메시지·Presence·`character_pulse`·`character_throw` 격리를 확인한다.
 - 메시지: 발신자별 교체, 최대 4개 eviction, 10초 만료, 이동 중 말풍선 추적, 방별 outbox 낙관적 성공·실패, 응답 유실 시 동일 UUID 멱등성, 방 A 실패가 방 B draft를 건드리지 않음, confirmed ledger의 방별 50개·7일 cutoff, 최근 기록 0·1·20·50·51·120개 및 동일 timestamp keyset·페이지 중복 제거·실시간/pending/failed 병합·탈퇴 발신자 fallback·방 전환 취소·창 닫기 해제·추가 조회 실패와 재시도, 조용히 모드, 미확인 수, 엄격한 서버 시각 해석
 - 말풍선: 1자·200자·3줄·프리셋 양 끝·4방향에서 본문과 꼬리 누적 frame이 캔버스 안에 유지하고 실제 메시지 본문만 접선 충돌 범위에 포함하며 타이핑 말풍선은 제외
-- 창: 월드 항상 위·전체 클릭 통과, 내 캐릭터 52×52 hotspot, composer의 선택 모니터 상단 중앙·노치 아래 10pt 배치와 왼쪽 `×`·Esc·외부 클릭 닫기, 단일·더블클릭 분기와 캐릭터별 1초 리액션 쿨타임, composer 초기 숨김·열기·마지막 전송 뒤 5초 자동 닫힘·타이머 갱신·실패 복구, 기록 일반 창
+- 창: 월드 항상 위·나머지 영역 클릭 통과, 내 캐릭터 52×52 hotspot, 기본 OFF에서 화면에 표시되는 친구별 Presence 상태 무관 52×52 상시 hotspot, ON에서 우클릭 전 통과·우클릭 뒤 10초 활성화·재우클릭 갱신·만료, 설정 전환·숨김·방 전환·단절 시 즉시 재구성, composer의 선택 모니터 상단 중앙·노치 아래 10pt 배치와 멀티 데스크탑 현재 Space 이동, 왼쪽 `×`·Esc·외부 클릭 닫기, 단일·더블클릭 회귀와 throw 0.5초 쿨타임, composer 초기 숨김·열기·마지막 전송 뒤 5초 자동 닫힘·타이머 갱신·실패 복구, 기록 일반 창
 - 업데이트: production 채널에 Sparkle `2.9.6` 프레임워크·메뉴 항목·피드 URL·EdDSA 공개키가 번들에 포함되고 signed feed와 압축 해제 전 검증을 강제하며, 업데이트 진행 중에는 수동 확인 메뉴를 비활성화. development 채널은 Sparkle을 시작하지 않고 수동 확인 메뉴도 항상 비활성화
-- 에셋: 무료 5종과 유료 4종 시트의 240×24 RGBA·10프레임·공통 발 기준선·결정적 hash·Release 번들 포함, 메뉴 아이콘 1x·2x template/unread variant
-- 설정: 860×640 최소 크기와 1000×760 기본 크기의 라이트·다크 렌더, 옅은 카드 명도, 240pt 컨트롤 영역과 Picker·버튼·토글 오른쪽 정렬, `동작 정보` 제거, 두 사람 그룹 아이콘, 한글 IME 조합 확정 후 닉네임 저장
+- 에셋: 무료 5종과 유료 4종 기본 시트의 240×24 RGBA·10프레임, throw/hit 시트 9개의 192×24 RGBA·8프레임, 물체 시트 5개의 192×16 RGBA·12프레임, 공통 발 기준선·회전 중심·hard alpha·결정적 SHA-256·Release 번들 포함과 캐릭터→물체/fallback 매핑, 메뉴 아이콘 1x·2x template/unread variant
+- 던지기 렌더링: 9종 throw/hit, 5종 물체 매핑, 4개 화면 가장자리, 이동 목표 추적, 다중 피격 재시작, 대상 상태 전환, 방 전환 중 stale 이벤트를 검증한다. 12명이 0.5초마다 던지는 초당 24개 부하에서 활성 투사체 32개 이하, p95 frame time 40ms 이하, 100ms 이상 UI hang과 지속 메모리·handle 증가가 없어야 한다.
+- 설정: schema 7 이하에서 `requiresRightClickToThrow=false` migration과 저장·복원·즉시 ON/OFF 전환, 860×640 최소 크기와 1000×760 기본 크기의 라이트·다크 렌더, 옅은 카드 명도, 240pt 컨트롤 영역과 Picker·버튼·토글 오른쪽 정렬, `동작 정보` 제거, 두 사람 그룹 아이콘, 한글 IME 조합 확정 후 닉네임 저장
 - 입력 필드: 200자 끝, 한글 조합, 영문 긴 단어, 이모지, Shift+Enter 3줄, 중간 커서 이동·전체 선택, undo·redo, 외부 draft와 잘못된 입력 복구에서 마지막 글자와 커서가 보이고 텍스트 손실·IME 중복 확정·가로 스크롤이 없는지 검증한다.
 - 상점: 2열 4종 카드의 독립 상태·정렬과 `보유 중` 유지, entitlement 선택 목록, Google callback·저장소 분리, 860×640·1000×760 라이트·다크 렌더를 검증한다. production은 action 호출과 animation Task가 0개이고 검정 68%·픽셀 자물쇠·잠금 안내만 접근성에 노출되어야 한다.
 - commerce 서버·웹: 활성 가격 1,900/990/990/990, 4종 프로필 소유권 검사, complimentary grant·RLS, 판매 기본 잠금, 만료 token, 최신 정책 버전과 단순 변심 환불 불가 동의, PortOne Store·Channel·V2·환경·상태·금액·통화·수단 불일치, 중복 웹훅·서명 오류, 법정 사유 전액 환불과 purchase/complimentary 격리를 검증한다.
 - 그룹 설정: 0·1·12명 멤버 목록, 기본 접힘·제목 영역 및 오른쪽 단일 화살표 펼침, `그룹 참가` 문구, 생성·참여·전환별 진행 문구와 라이트·다크 대상 카드 강조, A→B→C 연속 선택에서 C만 commit, UUID 기반 방장 왕관과 펼친 목록 아래 방장 전용 이름 변경·삭제 버튼, 이름 변경 저장·취소, 대상 명시 추방 확인, 영구 삭제 2단계 확인, 활성·비활성·마지막 그룹 삭제 fallback, 초대 코드 복사 성공·실패와 3초 표시·재클릭 갱신·행 제거 취소
 - DMG: 660×420 배경, `SIDEY.app`, `/Applications` 심볼릭 링크, 기존 5종 idle 프레임, `.DS_Store`를 자동 생성·마운트 검증하고 Finder에서 아이콘 위치·안내 문구·nearest-neighbor 픽셀 선명도를 수동 확인
 - Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단
-- 서버: 실제 anon/authenticated role의 RLS, 12번째 성공·13번째 거부와 여섯 번째 방 경합, 병렬 초대 제한, invite hash API 비노출, current epoch topic 권한, client Broadcast INSERT 봉쇄, transient event whitelist·rate, 메시지 멱등성·rate, 7일 retention, 비방장 관리 거부와 cascade를 SQL 테스트한다.
+- 서버: 실제 anon/authenticated role의 RLS, 12번째 성공·13번째 거부와 여섯 번째 방 경합, 병렬 초대 제한, invite hash API 비노출, current epoch topic 권한, client Broadcast INSERT 봉쇄, transient event whitelist·rate, `broadcast_character_throw`의 인증·epoch·양쪽 membership·자기 대상·필수 UUID·20회/10초 제한과 서버 source character, 메시지 멱등성·rate, 7일 retention, 비방장 관리 거부와 cascade를 SQL 테스트한다.
 - Windows 설치·업데이트: clean install, `C:\Program Files\SIDEY`, 공용 시작 메뉴, 아이콘이 포함된 `Uninstall.exe`, 게시된 런처·호스트 시작 스모크, repair, 실행 중 upgrade의 정상 종료 요청, downgrade 차단을 Windows CI·실기에서 확인한다. Windows 설정·MSI·`Uninstall.exe`의 일반 제거에서 기본 미선택 데이터 삭제 옵션이 동작하고, 선택 시에만 현재 사용자의 `%LOCALAPPDATA%\SIDEY`와 Credential Manager `SIDEY/` 자격 증명을 삭제하며 upgrade·repair에는 실행하지 않는지도 검증한다. `windows-v<version>` manifest의 버전·태그·고정 MSI URL·SHA-256도 검증하며 기존 per-user·Burn 테스트 설치가 있으면 설치 전에 제거하도록 안내한다.
 
 ### 10.2 macOS 장시간 수동·계측 테스트
@@ -443,7 +456,7 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 
 1. 첫 기능 빌드부터 무료 5종을 `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러로 제공하고 asset·frame·발 기준선·방향·fallback 계약을 자동 검증한다.
 2. 같은 렌더러를 햄스터 1종으로 제한하는 Debug 내부 모드에서 투명·최상위·외부 앱 클릭 통과·52×52 hotspot·composer 포커스·100/125/150/200% DPI를 Windows 11 25H2 x64 실기에서 통과한다. 이 모드는 Release에 노출하지 않는다.
-3. 연결형 검증에서 익명 세션 복구·생성, 프로필, 방, 메시지, Presence, typing lease, `character_pulse`를 staging의 기존 macOS 클라이언트와 양방향 확인한다.
+3. 연결형 검증에서 익명 세션 복구·생성, 프로필, 방, 메시지, Presence, typing lease, `character_pulse`, `character_throw`를 staging의 기존 macOS 클라이언트와 양방향 확인한다.
 4. 최종 12명 월드를 2시간, 20노드 합성 부하를 30분 실행해 p95 frame time 40ms 이하, 100ms 이상 UI-thread hang 없음, warm-up 후 working set 20MB 초과 증가 없음, GDI/USER handle·COM surface 지속 증가 없음을 확인한다.
 5. 보조 모니터의 mixed-DPI와 연결 해제를 실기에서 계속 회귀 검증하고 합성 모니터 geometry 테스트도 유지한다.
 
