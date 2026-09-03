@@ -1,0 +1,46 @@
+{
+  "character_id": "pixel_grandma",
+  "display_name": "할머니",
+  "legacy_aliases": [],
+  "frame_pixel_size": [
+    24,
+    24
+  ],
+  "render_dip_size": [
+    48,
+    48
+  ],
+  "sheet_pixel_size": [
+    240,
+    24
+  ],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": {
+    "idle": [
+      0,
+      1
+    ],
+    "walk": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "doze": [
+      6,
+      7
+    ],
+    "offline": [
+      8,
+      9
+    ]
+  },
+  "sha256": "1fb62d27514270292af5f9cdc7b26ae1a7294160ee4c7948e914d563fbd5f1fe",
+  "runtime_bgra": {
+    "byte_order": "BGRA",
+    "alpha": "straight",
+    "byte_length": 23040,
+    "sha256": "e4dd4fd9af65b5e68d40e1c809b5d2b2bc6bcfc83cb8b6c19856b668f6cbab63"
+  }
+}

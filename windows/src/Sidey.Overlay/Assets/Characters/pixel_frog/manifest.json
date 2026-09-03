@@ -1,0 +1,46 @@
+{
+  "character_id": "pixel_frog",
+  "display_name": "아기 개구리",
+  "legacy_aliases": [],
+  "frame_pixel_size": [
+    24,
+    24
+  ],
+  "render_dip_size": [
+    48,
+    48
+  ],
+  "sheet_pixel_size": [
+    240,
+    24
+  ],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": {
+    "idle": [
+      0,
+      1
+    ],
+    "walk": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "doze": [
+      6,
+      7
+    ],
+    "offline": [
+      8,
+      9
+    ]
+  },
+  "sha256": "9a0a3c779b65d4854702d27b864f8d439e2f566128360d5396d7481f8efebf30",
+  "runtime_bgra": {
+    "byte_order": "BGRA",
+    "alpha": "straight",
+    "byte_length": 23040,
+    "sha256": "1747c5dea73a29a23aeb9cdf91b71415247e67df92825cace752fda02cb389d1"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "character_id": "pixel_hedgehog",
+  "display_name": "아기 고슴도치",
+  "legacy_aliases": [],
+  "frame_pixel_size": [
+    24,
+    24
+  ],
+  "render_dip_size": [
+    48,
+    48
+  ],
+  "sheet_pixel_size": [
+    240,
+    24
+  ],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": {
+    "idle": [
+      0,
+      1
+    ],
+    "walk": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "doze": [
+      6,
+      7
+    ],
+    "offline": [
+      8,
+      9
+    ]
+  },
+  "sha256": "1425bc90448ca4d072a8002b154373bd4130f307ae960e6734f94f8d2d26ac0a",
+  "runtime_bgra": {
+    "byte_order": "BGRA",
+    "alpha": "straight",
+    "byte_length": 23040,
+    "sha256": "c31dd06825a0d6dcee0476b5ea3402bf81bffa81d994ec0c9cf964dd82ab0682"
+  }
+}

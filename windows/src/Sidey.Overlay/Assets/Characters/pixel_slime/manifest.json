@@ -1,0 +1,46 @@
+{
+  "character_id": "pixel_slime",
+  "display_name": "슬라임",
+  "legacy_aliases": [],
+  "frame_pixel_size": [
+    24,
+    24
+  ],
+  "render_dip_size": [
+    48,
+    48
+  ],
+  "sheet_pixel_size": [
+    240,
+    24
+  ],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": {
+    "idle": [
+      0,
+      1
+    ],
+    "walk": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "doze": [
+      6,
+      7
+    ],
+    "offline": [
+      8,
+      9
+    ]
+  },
+  "sha256": "b617507db147821f92d54fd6c9327b4e942b87081cdbd716b4c44fd11e8ec7a8",
+  "runtime_bgra": {
+    "byte_order": "BGRA",
+    "alpha": "straight",
+    "byte_length": 23040,
+    "sha256": "b41ef4b7cfded88f9a7eacec661a1dd1802621a902ea3936811290da5ab44db8"
+  }
+}

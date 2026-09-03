@@ -1,0 +1,46 @@
+{
+  "character_id": "pixel_salmon_sushi",
+  "display_name": "연어초밥",
+  "legacy_aliases": [],
+  "frame_pixel_size": [
+    24,
+    24
+  ],
+  "render_dip_size": [
+    48,
+    48
+  ],
+  "sheet_pixel_size": [
+    240,
+    24
+  ],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": {
+    "idle": [
+      0,
+      1
+    ],
+    "walk": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "doze": [
+      6,
+      7
+    ],
+    "offline": [
+      8,
+      9
+    ]
+  },
+  "sha256": "5a86a6babc1539dd9326635a79979c5f7105a2ae6497dbe8d7bd706bdecebe33",
+  "runtime_bgra": {
+    "byte_order": "BGRA",
+    "alpha": "straight",
+    "byte_length": 23040,
+    "sha256": "401b1287038ceaee153d911fae3fb2cb035a5ba6c0a6b13e89758a46b3390b67"
+  }
+}
