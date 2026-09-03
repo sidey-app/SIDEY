@@ -58,19 +58,19 @@ try {
         }
         $process.Refresh()
         if ($process.HasExited) {
-            $recentLogs = @(Get-ChildItem -LiteralPath $logDirectory -Filter '*-startup.log' -File -ErrorAction SilentlyContinue |
+            $recentLogs = @(Get-ChildItem -LiteralPath $logDirectory -Filter 'SIDEY.*.log' -File -ErrorAction SilentlyContinue |
                 Where-Object { $_.LastWriteTimeUtc -ge $startedAt } |
                 Sort-Object LastWriteTimeUtc)
             $tail = if ($recentLogs.Count -gt 0) {
                 ($recentLogs | ForEach-Object { Get-Content -LiteralPath $_.FullName -Tail 40 }) -join [Environment]::NewLine
             }
             else {
-                '(startup.log not found)'
+                '(SIDEY session log not found)'
             }
             throw "SIDEY.exe exited during startup (exit=$($process.ExitCode)).`n$tail"
         }
 
-        $recentLogs = @(Get-ChildItem -LiteralPath $logDirectory -Filter '*-startup.log' -File -ErrorAction SilentlyContinue |
+        $recentLogs = @(Get-ChildItem -LiteralPath $logDirectory -Filter 'SIDEY.*.log' -File -ErrorAction SilentlyContinue |
             Where-Object { $_.LastWriteTimeUtc -ge $startedAt } |
             Sort-Object LastWriteTimeUtc)
         if ($recentLogs.Count -gt 0) {
@@ -87,14 +87,14 @@ try {
     }
 
     if (-not $ready) {
-        $recentLogs = @(Get-ChildItem -LiteralPath $logDirectory -Filter '*-startup.log' -File -ErrorAction SilentlyContinue |
+        $recentLogs = @(Get-ChildItem -LiteralPath $logDirectory -Filter 'SIDEY.*.log' -File -ErrorAction SilentlyContinue |
             Where-Object { $_.LastWriteTimeUtc -ge $startedAt } |
             Sort-Object LastWriteTimeUtc)
         $tail = if ($recentLogs.Count -gt 0) {
             ($recentLogs | ForEach-Object { Get-Content -LiteralPath $_.FullName -Tail 40 }) -join [Environment]::NewLine
         }
         else {
-            '(startup.log not found)'
+            '(SIDEY session log not found)'
         }
         throw "SIDEY.exe did not activate its main or onboarding window within $TimeoutSeconds seconds.`n$tail"
     }
