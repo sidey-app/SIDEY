@@ -2,6 +2,21 @@
   "schema_version": 1,
   "asset_version": "v1",
   "approval": { "status": "approved", "approved_at": "2026-09-03" },
+  "licensing": {
+    "paid_asset_license": "../PAID_ASSET_LICENSE.md",
+    "paid_character_ids": [
+      "pixel_guinea_pig",
+      "pixel_monkey",
+      "pixel_chinchilla",
+      "pixel_starlight_upalupa"
+    ],
+    "paid_throwable_ids": [
+      "mini_paprika",
+      "banana",
+      "dust_bath_pouch",
+      "starlight_orb"
+    ]
+  },
   "format": {
     "color_space": "sRGB",
     "bit_depth": 8,

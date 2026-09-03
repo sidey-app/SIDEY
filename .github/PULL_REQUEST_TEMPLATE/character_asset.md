@@ -12,6 +12,7 @@
 유료 캐릭터는 PR을 열기 전에 판매·정산 조건을 협의해야 합니다.
 [ryu200112@gmail.com](mailto:ryu200112@gmail.com)으로 먼저 문의해 주세요.
 제출만으로 출시·판매·수익 배분이 확정되지는 않습니다.
+승인된 유료 에셋에는 [SIDEY Paid Asset License 1.0](https://github.com/sidey-app/SIDEY/blob/main/assets/PAID_ASSET_LICENSE.md)이 적용됩니다.
 
 ## 에셋 정보
 
@@ -29,7 +30,7 @@
 - [ ] `python3 scripts/validate_pixel_assets.py` 검사를 통과했습니다.
 - [ ] [공개 에셋 프리뷰어](https://sidey-app.github.io/SIDEY/contribute/asset-previewer/)에서 전체 동작을 확인했습니다.
 - [ ] 직접 제작했거나 SIDEY에 제출하고 배포할 권리를 보유한 에셋입니다.
-- [ ] 유료 캐릭터인 경우 판매·정산 조건을 사전에 협의했습니다.
+- [ ] 유료 캐릭터인 경우 판매·정산·배포 권한을 정한 별도 서면 계약을 체결했습니다.
 
 ## 원본 전체본
 

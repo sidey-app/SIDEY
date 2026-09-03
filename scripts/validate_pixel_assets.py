@@ -329,6 +329,34 @@ def main() -> int:
     mapping = {entry["id"]: entry["throwable_id"] for entry in characters}
     if set(mapping) != character_ids or not set(mapping.values()) <= throwable_ids:
         fail("character-to-throwable mapping is incomplete")
+
+    licensing = manifest["licensing"]
+    if licensing.get("paid_asset_license") != "../PAID_ASSET_LICENSE.md":
+        fail("paid asset license path is missing or unsupported")
+    paid_asset_license = ASSET_ROOT / licensing["paid_asset_license"]
+    if not paid_asset_license.is_file():
+        fail("paid asset license file is missing")
+
+    paid_character_list = licensing["paid_character_ids"]
+    paid_throwable_list = licensing["paid_throwable_ids"]
+    if not isinstance(paid_character_list, list) or not isinstance(paid_throwable_list, list):
+        fail("paid asset ID schedules must be lists")
+    paid_character_ids = set(paid_character_list)
+    paid_throwable_ids = set(paid_throwable_list)
+    if len(paid_character_ids) != len(paid_character_list):
+        fail("duplicate paid character ID")
+    if len(paid_throwable_ids) != len(paid_throwable_list):
+        fail("duplicate paid throwable ID")
+    if not paid_character_ids or not paid_character_ids <= character_ids:
+        fail("paid character schedule is empty or references an unknown character")
+    if not paid_throwable_ids or not paid_throwable_ids <= throwable_ids:
+        fail("paid throwable schedule is empty or references an unknown throwable")
+    if {mapping[character_id] for character_id in paid_character_ids} != paid_throwable_ids:
+        fail("paid characters and their licensed throwables differ")
+    free_character_ids = character_ids - paid_character_ids
+    if {mapping[character_id] for character_id in free_character_ids} & paid_throwable_ids:
+        fail("a free character references a paid throwable")
+
     if manifest["fallbacks"]["character_id"] not in character_ids:
         fail("character fallback is missing")
     if manifest["fallbacks"]["throwable_id"] not in throwable_ids:
@@ -359,7 +387,7 @@ def main() -> int:
 
     print(
         "Validated 9 base sheets, 9 throw/hit sheets, 5 throwables, all mirrors, "
-        "baselines, mappings, formats, and SHA-256 values."
+        "baselines, mappings, paid asset licensing, formats, and SHA-256 values."
     )
     return 0
 

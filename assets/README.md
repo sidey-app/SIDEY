@@ -14,6 +14,20 @@ SIDEY 웹 클라이언트가 아니라, 에셋을 제출하기 전에 실제 동
 
 ![햄스터 기본·throw/hit·패치 말랑공 공식 8배 참고 이미지](v1/reference/pixel_hamster_reference.png)
 
+## 라이선스
+
+`v1/manifest.json`의 `licensing`에 등록된 유료 캐릭터와 전용 투척물은
+[SIDEY Paid Asset License 1.0](PAID_ASSET_LICENSE.md)이 적용되는 독점 에셋입니다.
+소스가 공개되어 있어 열람할 수 있지만 오픈소스 에셋은 아닙니다.
+
+공식 SIDEY 앱이 계정의 사용 권한에 따라 표시하거나, SIDEY 개발·검토를 위해
+로컬에서 확인하는 범위만 허용합니다. 다른 앱이나 상품에서 복제·수정·재배포·판매할
+수 없으며, 앱·웹·Windows BGRA mirror에도 같은 조건이 적용됩니다.
+
+이 라이선스는 manifest에 유료로 지정되지 않은 에셋이나 소프트웨어 코드에는
+적용되지 않습니다. 해당 파일은 별도 라이선스가 명시되지 않았다면 기본 저작권
+조건을 따릅니다.
+
 ## 프레임 계약
 
 ### 기본 캐릭터 `base.png`

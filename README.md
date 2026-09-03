@@ -90,3 +90,9 @@ SIDEY를 함께 만들어 주신 분들께 감사드립니다.
 
 유료 캐릭터는 PR을 열기 전에 판매·정산 조건을 협의해야 합니다.
 [ryu200112@gmail.com](mailto:ryu200112@gmail.com)으로 문의해 주세요.
+
+## 라이선스
+
+유료 캐릭터와 전용 투척물은 공개 저장소에서 열람할 수 있지만 오픈소스 에셋은 아닙니다.
+복제·수정·재배포·상업 이용 조건은
+[SIDEY Paid Asset License 1.0](assets/PAID_ASSET_LICENSE.md)을 확인해 주세요.

@@ -177,6 +177,8 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 
 승인 원본은 최상위 `assets/v1`에 둔다. `manifest.json`이 9종 캐릭터의 `base.png`·`throw_hit.png`, 5종 투척물의 `sprite.png`, 캐릭터→투척물 매핑, fallback과 SHA-256을 단일 관리한다. macOS·Windows·웹에 있는 같은 PNG와 Windows BGRA는 배포용 mirror이며 직접 편집하지 않고 중앙 검사기로 원본과 일치하는지 확인한다. 작업 중 concept·candidate·확대 review 이미지와 일회성 importer는 승인 원본에 포함하지 않는다.
 
+`manifest.json`의 `licensing`에 등록된 유료 캐릭터 4종과 전용 투척물 4종 및 그 mirror에는 `SIDEY Paid Asset License 1.0`을 적용한다. 파일은 공개 저장소에서 열람할 수 있지만 오픈소스 에셋은 아니며, 공식 SIDEY의 계정·entitlement 규칙에 따른 표시와 SIDEY 개발·검토 목적의 로컬 확인만 허용한다. 다른 앱·게임·웹사이트·상품에서 복제·추출·수정·재배포·판매할 수 없다. 유료 에셋 기여는 PR 제출만으로 판매나 수익 배분이 확정되지 않으며, 판매·정산·환불·배포 권한을 정한 별도 서면 계약 뒤에만 병합한다.
+
 기본 시트는 240×24 RGBA이며 idle 2·walk 4·doze 2·offline 2프레임을 가진다. 물체 던지기 action 시트는 9종 각각 192×24 RGBA이며 24×24 셀의 throw 4프레임과 hit 4프레임을 가진다. 물체 시트는 5종 각각 192×16 RGBA이며 16×16 셀의 고정 중심 회전 8프레임과 충돌 4프레임을 가진다. 무료 5종은 비대칭 패치와 봉제선이 있는 패치 말랑공을 공유하고, 기니피그는 미니 파프리카, 원숭이는 바나나, 친칠라는 매듭 달린 먼지목욕 모래주머니, 별빛 우파루파는 회전 광점이 있는 별빛 구슬을 사용한다. 투명 배경, sRGB, 8-bit RGBA, hard alpha, 아래쪽 3px 발 기준선과 integer nearest-neighbor를 유지하고 안티앨리어싱과 실시간 그림자는 사용하지 않는다. 알 수 없는 캐릭터 ID는 햄스터 action과 패치 말랑공으로 fallback한다.
 
 별빛 우파루파처럼 ambient sparkle과 더블클릭 particle burst를 제안할 수 있지만 이는 PNG가 아니라 별도 렌더러 효과다. 성능·색상·밀도·지속 시간을 검토하고 각 플랫폼에서 구현해야 하며 에셋 제출만으로 제품에서 자동 활성화하지 않는다. 공개 프리뷰어의 효과 토글은 제안 영상을 위한 로컬 시뮬레이션일 뿐 앱 설정이나 서버 payload를 만들지 않는다.
