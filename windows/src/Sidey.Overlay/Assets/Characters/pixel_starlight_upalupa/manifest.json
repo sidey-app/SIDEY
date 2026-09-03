@@ -1,0 +1,13 @@
+{
+  "character_id": "pixel_starlight_upalupa",
+  "display_name": "별빛 우파루파",
+  "legacy_aliases": [],
+  "frame_pixel_size": [24, 24],
+  "render_dip_size": [48, 48],
+  "sheet_pixel_size": [240, 24],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": { "idle": [0, 1], "walk": [2, 3, 4, 5], "doze": [6, 7], "offline": [8, 9] },
+  "sha256": "d180810a8796280077f3f70f6da681888c583c2f8d74776d0f5d300e943a079a",
+  "runtime_bgra": { "byte_order": "BGRA", "alpha": "straight", "byte_length": 23040, "sha256": "deb13161076d72dcfdc59ce56f74faf31fcd8c1ba9c29153322ea6ca67f703bf" }
+}

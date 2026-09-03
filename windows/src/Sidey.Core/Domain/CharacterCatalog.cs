@@ -58,7 +58,26 @@ public static class PixelCharacterCatalog
             "pixel_penguin",
             Localization.I18n.Get("characters.penguin"),
             "f171503f8ffb938732583a4b6f42443e7a69120bb17496f6e8d34372da2ea886"),
+        Create(
+            "pixel_guinea_pig",
+            Localization.I18n.Get("characters.guineaPig"),
+            "1a0bf85dae86f2e6bb460e8b0b852c2bd010d5ff6f7efd1477cbd6986da64f5b"),
+        Create(
+            "pixel_monkey",
+            Localization.I18n.Get("characters.monkey"),
+            "515fe377f5344dd4cbaa2b0faf58de3ce72fdc62be5aff6a9d9de683983c783b"),
+        Create(
+            "pixel_chinchilla",
+            Localization.I18n.Get("characters.chinchilla"),
+            "c0009e007a7a63029fb58ad6f94d2b9a8c9ae7a55f139dd4892050f11614c5d4",
+            ["pixel_koala"]),
+        Create(
+            "pixel_starlight_upalupa",
+            Localization.I18n.Get("characters.starlightUpalupa"),
+            "d180810a8796280077f3f70f6da681888c583c2f8d74776d0f5d300e943a079a"),
     ];
+
+    private static readonly PixelCharacterDefinition[] SelectableDefinitions = Definitions[..5];
 
     private static readonly IReadOnlyDictionary<string, PixelCharacterDefinition> ById =
         Definitions.ToDictionary(definition => definition.Id, StringComparer.Ordinal);
@@ -68,6 +87,13 @@ public static class PixelCharacterCatalog
         .ToDictionary(pair => pair.alias, pair => pair.Id, StringComparer.Ordinal);
 
     public static IReadOnlyList<PixelCharacterDefinition> All => Definitions;
+
+    /// <summary>
+    /// Characters that Windows can select without opening macOS commerce.
+    /// Paid characters remain renderable through <see cref="All"/> so friends
+    /// keep their actual appearance across platforms.
+    /// </summary>
+    public static IReadOnlyList<PixelCharacterDefinition> Selectable => SelectableDefinitions;
 
     public static PixelCharacterDefinition Fallback => ById[FallbackId];
 

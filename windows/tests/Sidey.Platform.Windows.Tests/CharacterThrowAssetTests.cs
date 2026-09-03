@@ -43,7 +43,7 @@ public sealed class CharacterThrowAssetTests
     }
 
     [Fact]
-    public void PaidCharacterThrowsKeepTheirUniqueObjectsAndUseTheHamsterActionFallback()
+    public void PaidCharacterThrowsKeepTheirOwnActionsAndUniqueObjects()
     {
         using var cache = new CharacterThrowFrameCache(
             Path.Combine(AppContext.BaseDirectory, "Assets", "CharacterThrow"),
@@ -51,18 +51,11 @@ public sealed class CharacterThrowAssetTests
             edge: OverlayEdge.Bottom);
 
         var hamsterAction = cache.ActionFrame("pixel_hamster", frame: 0, flipped: false).ToArray();
-        Assert.Equal(
-            hamsterAction,
-            cache.ActionFrame("pixel_guinea_pig", frame: 0, flipped: false).ToArray());
-        Assert.Equal(
-            hamsterAction,
-            cache.ActionFrame("pixel_monkey", frame: 0, flipped: false).ToArray());
-        Assert.Equal(
-            hamsterAction,
-            cache.ActionFrame("pixel_chinchilla", frame: 0, flipped: false).ToArray());
-        Assert.Equal(
-            hamsterAction,
-            cache.ActionFrame("pixel_starlight_upalupa", frame: 0, flipped: false).ToArray());
+        Assert.False(hamsterAction.SequenceEqual(cache.ActionFrame("pixel_guinea_pig", frame: 0, flipped: false).ToArray()));
+        Assert.False(hamsterAction.SequenceEqual(cache.ActionFrame("pixel_monkey", frame: 0, flipped: false).ToArray()));
+        Assert.False(hamsterAction.SequenceEqual(cache.ActionFrame("pixel_chinchilla", frame: 0, flipped: false).ToArray()));
+        Assert.False(hamsterAction.SequenceEqual(cache.ActionFrame("pixel_starlight_upalupa", frame: 0, flipped: false).ToArray()));
+        Assert.Equal(hamsterAction, cache.ActionFrame("unknown_character", frame: 0, flipped: false).ToArray());
 
         var patchBall = cache.ObjectFrame("pixel_hamster", frame: 0).ToArray();
         Assert.False(patchBall.SequenceEqual(cache.ObjectFrame("pixel_guinea_pig", frame: 0).ToArray()));

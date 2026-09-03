@@ -7,6 +7,20 @@ namespace Sidey.Platform.Windows.Tests;
 public sealed class MainWindowViewModelTests
 {
     [Fact]
+    public void CharacterPickerKeepsTheFiveFreeWindowsSelections()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        Assert.Equal(
+            ["pixel_hamster", "pixel_cat", "pixel_puppy", "pixel_rabbit", "pixel_penguin"],
+            viewModel.CharacterSelections.Select(character => character.Id));
+    }
+
+    [Fact]
     public void ApplyingEquivalentSnapshotPreservesRoomItemIdentity()
     {
         (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();

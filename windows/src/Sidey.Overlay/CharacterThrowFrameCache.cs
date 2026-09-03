@@ -16,6 +16,10 @@ internal sealed class CharacterThrowFrameCache : IDisposable
             ["pixel_puppy"] = "38d2858c97b456be17f34fd6b93df862e9c0d3b72e5592bb0e625e64110c5744",
             ["pixel_rabbit"] = "f641ebbba64e8c23d33173ff04d4907d3e15955024dd72e3f6e7d9b3e20fec84",
             ["pixel_penguin"] = "7ee5ea2b90994400a1b4dd252ed2affb095416597422a8ef4cb0ae54b3fb7f77",
+            ["pixel_guinea_pig"] = "384157773baa55bd4a5f8586d179ab7eb43f42fb4204c306490784551e38ae1d",
+            ["pixel_monkey"] = "059a288dde75695febec8a42303dc63f126636b094e3896b795b6a4ac1cce39a",
+            ["pixel_chinchilla"] = "a6dd2b4f1837812bc9fd0d979fe379c4362ed8018b9d5e6991e5c28d53265b02",
+            ["pixel_starlight_upalupa"] = "7a9bae8b1359f432857e026c972e3bc99777539ce7cfff89bc01e95d1938de75",
         };
 
     private static readonly IReadOnlyDictionary<string, string> ObjectHashes =
@@ -50,6 +54,10 @@ internal sealed class CharacterThrowFrameCache : IDisposable
             ["action-sheets/pixel_puppy_throw_hit"] = "17b33fe94b2a76791b2d5002f720038ae1299d2185540866110e3258bb9b724a",
             ["action-sheets/pixel_rabbit_throw_hit"] = "5f715868aff1a2606c1f637f35ab1042d4b11f154ce91b5ddf21db33189b55c2",
             ["action-sheets/pixel_penguin_throw_hit"] = "658a54d43d8cd3c8a85b823a1dda11296addf45cad6ce58b7172128882666d0b",
+            ["action-sheets/pixel_guinea_pig_throw_hit"] = "d9d96bb33233b9bbe0bf2e8effc6077bdfef978f4c3b61c00124fb8fc0715690",
+            ["action-sheets/pixel_monkey_throw_hit"] = "b859c2e4bf6d890070c1ba085f47349771e84514e9ee2e50378da87ac7f0db6a",
+            ["action-sheets/pixel_chinchilla_throw_hit"] = "b5bf003b3374a2d26f1c324c71ffbbe8acad54c19d9697861555edf0add0369c",
+            ["action-sheets/pixel_starlight_upalupa_throw_hit"] = "3c27f23d45f14da7191850c4ec8c5a99d11d79bf415b0acd9445058e6c1db572",
             ["object-sheets/patch_soft_ball"] = "64d4792b32df1c9dcae113d9a19dcee1f6fc5b6653a8dc4e80ffb1a2793f6e2f",
             ["object-sheets/mini_paprika"] = "1e9f6181ef51c8e0f84f45f1dc12c14bf6141edb132c7131007e8937e969673f",
             ["object-sheets/banana"] = "f42c588b897b5e33b3ca5f676dab15ce9e3aa3be02aad424c6b9ade8d01c372f",

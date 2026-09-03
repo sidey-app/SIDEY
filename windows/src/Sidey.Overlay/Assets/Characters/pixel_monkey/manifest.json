@@ -1,0 +1,13 @@
+{
+  "character_id": "pixel_monkey",
+  "display_name": "아기 원숭이",
+  "legacy_aliases": [],
+  "frame_pixel_size": [24, 24],
+  "render_dip_size": [48, 48],
+  "sheet_pixel_size": [240, 24],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": { "idle": [0, 1], "walk": [2, 3, 4, 5], "doze": [6, 7], "offline": [8, 9] },
+  "sha256": "515fe377f5344dd4cbaa2b0faf58de3ce72fdc62be5aff6a9d9de683983c783b",
+  "runtime_bgra": { "byte_order": "BGRA", "alpha": "straight", "byte_length": 23040, "sha256": "75e57e93a4930b9c60edf48ebf8581a73ca079970e8ebdacd103b4ab11b40ee6" }
+}

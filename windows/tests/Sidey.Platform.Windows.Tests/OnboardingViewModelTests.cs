@@ -7,6 +7,16 @@ namespace Sidey.Platform.Windows.Tests;
 public sealed class OnboardingViewModelTests
 {
     [Fact]
+    public void CharacterPickerKeepsTheFiveFreeWindowsSelections()
+    {
+        var viewModel = new OnboardingViewModel(new FakeSideyCoordinator());
+
+        Assert.Equal(
+            ["pixel_hamster", "pixel_cat", "pixel_puppy", "pixel_rabbit", "pixel_penguin"],
+            viewModel.CharacterSelections.Select(character => character.Id));
+    }
+
+    [Fact]
     public async Task PreviewModeWalksEveryStepWithoutServerMutations()
     {
         var coordinator = new FakeSideyCoordinator

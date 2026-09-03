@@ -1,0 +1,13 @@
+{
+  "character_id": "pixel_guinea_pig",
+  "display_name": "아기 기니피그",
+  "legacy_aliases": [],
+  "frame_pixel_size": [24, 24],
+  "render_dip_size": [48, 48],
+  "sheet_pixel_size": [240, 24],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": { "idle": [0, 1], "walk": [2, 3, 4, 5], "doze": [6, 7], "offline": [8, 9] },
+  "sha256": "1a0bf85dae86f2e6bb460e8b0b852c2bd010d5ff6f7efd1477cbd6986da64f5b",
+  "runtime_bgra": { "byte_order": "BGRA", "alpha": "straight", "byte_length": 23040, "sha256": "9f2b14dae24d2e8294e5a1bdec1f7ba1fe0d5db25248a9413ee78350749cee5a" }
+}
