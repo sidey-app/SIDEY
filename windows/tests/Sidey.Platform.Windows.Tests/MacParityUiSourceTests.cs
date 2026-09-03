@@ -132,6 +132,9 @@ public sealed class MacParityUiSourceTests
         var tray = ReadRepositoryFile("windows", "src", "Sidey.Platform.Windows", "TrayIconService.cs");
 
         Assert.Contains("UpdateConnectionFailureNotification", app, StringComparison.Ordinal);
+        Assert.Contains("InitialConnectionFailureNotificationDelay = TimeSpan.FromSeconds(15)", app, StringComparison.Ordinal);
+        Assert.Contains("ScheduleInitialConnectionFailureNotification", app, StringComparison.Ordinal);
+        Assert.Contains("CancelInitialConnectionFailureNotification", app, StringComparison.Ordinal);
         Assert.Contains("ConnectionFailureNotificationCooldown", app, StringComparison.Ordinal);
         Assert.Contains("NotifyConnectionFailure", tray, StringComparison.Ordinal);
         Assert.Contains("NotifyIconInfo", tray, StringComparison.Ordinal);
