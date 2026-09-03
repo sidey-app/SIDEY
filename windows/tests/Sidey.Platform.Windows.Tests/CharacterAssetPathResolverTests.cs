@@ -11,7 +11,7 @@ public sealed class CharacterAssetPathResolverTests
         try
         {
             var executableDirectory = Path.Combine(root, "install");
-            var executableAssetRoot = Path.Combine(executableDirectory, "Assets", "Characters");
+            var executableAssetRoot = Path.Combine(executableDirectory, "Assets", "Character");
             var extractionDirectory = Path.Combine(root, "extraction");
             Directory.CreateDirectory(executableAssetRoot);
             Directory.CreateDirectory(extractionDirectory);
@@ -36,7 +36,7 @@ public sealed class CharacterAssetPathResolverTests
         {
             var executableDirectory = Path.Combine(root, "host");
             var appBaseDirectory = Path.Combine(root, "app");
-            var appBaseAssetRoot = Path.Combine(appBaseDirectory, "Assets", "Characters");
+            var appBaseAssetRoot = Path.Combine(appBaseDirectory, "Assets", "Character");
             Directory.CreateDirectory(executableDirectory);
             Directory.CreateDirectory(appBaseAssetRoot);
 
@@ -60,7 +60,7 @@ public sealed class CharacterAssetPathResolverTests
         {
             var deploymentRoot = Path.Combine(root, "live");
             var runtimeDirectory = Path.Combine(deploymentRoot, "Runtime");
-            var assetRoot = Path.Combine(deploymentRoot, "Assets", "Characters");
+            var assetRoot = Path.Combine(deploymentRoot, "Assets", "Character");
             Directory.CreateDirectory(runtimeDirectory);
             Directory.CreateDirectory(assetRoot);
 

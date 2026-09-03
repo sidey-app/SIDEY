@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE_ROOT = ROOT / "assets" / "v1" / "characters"
-OUTPUT_ROOT = ROOT / "windows" / "src" / "Sidey.Overlay" / "Assets" / "Characters"
+OUTPUT_ROOT = ROOT / "windows" / "src" / "Sidey.Overlay" / "Assets" / "Character"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 CHARACTERS = (
     "pixel_guinea_pig",
@@ -106,8 +106,8 @@ def main() -> None:
 
         output_directory = OUTPUT_ROOT / character_id
         output_directory.mkdir(parents=True, exist_ok=True)
-        (output_directory / "sprite.png").write_bytes(png)
-        (output_directory / "frames.bgra").write_bytes(bgra)
+        (output_directory / "base.png").write_bytes(png)
+        (output_directory / "base.bgra").write_bytes(bgra)
         print(f"Imported {character_id}")
 
 

@@ -15,13 +15,13 @@ internal static class CharacterAssetPathResolver
         var executableAssetRoot = Path.Combine(
             deploymentRoot,
             "Assets",
-            "Characters");
+            "Character");
         if (Directory.Exists(executableAssetRoot))
         {
             return executableAssetRoot;
         }
 
-        var appBaseAssetRoot = Path.Combine(appBaseDirectory, "Assets", "Characters");
+        var appBaseAssetRoot = Path.Combine(appBaseDirectory, "Assets", "Character");
         return Directory.Exists(appBaseAssetRoot)
             ? appBaseAssetRoot
             : executableAssetRoot;

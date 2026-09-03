@@ -20,13 +20,13 @@
     <None Include="../../src/Sidey.App/Langs/*.json" Link="Langs/%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="../../src/Sidey.Overlay/Assets/Characters/**/*.png" Link="TestAssets/%(RecursiveDir)%(Filename)%(Extension)">
+    <None Include="../../src/Sidey.Overlay/Assets/Character/**/*.png" Link="TestAssets/%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="../../src/Sidey.Overlay/Assets/Characters/**/*.bgra" Link="TestAssets/%(RecursiveDir)%(Filename)%(Extension)">
+    <None Include="../../src/Sidey.Overlay/Assets/Character/**/*.bgra" Link="TestAssets/%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="../../src/Sidey.Overlay/Assets/Characters/**/*.json" Link="TestAssets/%(RecursiveDir)%(Filename)%(Extension)">
+    <None Include="../../src/Sidey.Overlay/Assets/Character/**/*.json" Link="TestAssets/%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="../../src/Sidey.Overlay/LayeredPixelWorldRenderer.cs" Link="TestAssets/LayeredPixelWorldRenderer.cs">

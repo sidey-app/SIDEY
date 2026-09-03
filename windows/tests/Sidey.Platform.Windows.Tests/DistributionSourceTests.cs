@@ -35,8 +35,12 @@ public sealed class DistributionSourceTests
         Assert.DoesNotContain(
             project.Descendants("Content"),
             element => ((string?)element.Attribute("Include"))?.Contains(
-                "Assets/Characters",
+                "Assets/Character",
                 StringComparison.Ordinal) == true);
+
+        var throwableAssets = project.Descendants("None").Single(element =>
+            (string?)element.Attribute("Include") == "@(_SideyExternalThrowableAsset)");
+        Assert.Equal("PreserveNewest", throwableAssets.Element("CopyToPublishDirectory")?.Value);
 
         var copyExternal = project.Descendants("Target").Single(element =>
             (string?)element.Attribute("Name") == "CopyExternalCharacterAssetsAfterPublish");
@@ -44,6 +48,14 @@ public sealed class DistributionSourceTests
         Assert.Contains(
             "%(RecursiveDir)",
             copyExternal.Descendants("Copy").Single().Attribute("DestinationFiles")?.Value);
+
+        var copyThrowables = project.Descendants("Target").Single(element =>
+            (string?)element.Attribute("Name") == "CopyExternalThrowableAssetsAfterPublish");
+        Assert.Equal("Publish", (string?)copyThrowables.Attribute("AfterTargets"));
+        Assert.Contains(
+            "Assets\\Throwable",
+            copyThrowables.Descendants("Copy").Single().Attribute("DestinationFiles")?.Value,
+            StringComparison.Ordinal);
 
         var organize = project.Descendants("Target").Single(element =>
             (string?)element.Attribute("Name") == "OrganizeStructuredPublish");
