@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sidey.Core.Domain;
@@ -303,6 +304,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private bool _roomExpansionInitialized;
     private string _syncedProfileNickname = string.Empty;
     private string _syncedProfileCharacterId = PixelCharacterCatalog.FallbackId;
+    private AvailableUpdate? _lastAvailableUpdate;
 
     [ObservableProperty]
     public partial string Nickname { get; set; } = string.Empty;
@@ -363,6 +365,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial bool IsCheckingForUpdates { get; set; }
 
     [ObservableProperty]
+    public partial string CurrentVersionText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string LastUpdateCheckText { get; set; } = string.Empty;
+
+    [ObservableProperty]
     public partial string ValidationPathText { get; set; } = I18n.Get("metrics.rendererNotStarted");
 
     [ObservableProperty]
@@ -385,6 +393,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Monitors = _coordinator.GetMonitors();
         ApplyState(coordinator.State);
         UpdateCharacterSelectionState();
+        RefreshUpdateInformation();
     }
 
     public event Action<NoticeMessage>? NoticeRaised;
@@ -505,6 +514,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         try
         {
             AvailableUpdate? update = await _updates.CheckAsync();
+            _lastAvailableUpdate = update;
             if (update is null)
             {
                 RaiseNotice(I18n.Get("update.latest"), NoticeKind.Success);
@@ -528,32 +538,76 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
         finally
         {
+            RefreshUpdateInformation();
             IsCheckingForUpdates = false;
         }
     }
 
-    public async Task CheckForUpdatesOnStartupAsync()
+    public async Task<AvailableUpdate?> CheckForUpdatesOnStartupAsync()
     {
         if (IsCheckingForUpdates)
         {
-            return;
+            return null;
         }
 
         IsCheckingForUpdates = true;
         try
         {
             AvailableUpdate? update = await _updates.CheckAsync();
+            _lastAvailableUpdate = update;
             if (update is not null)
             {
                 RaiseNotice(
                     I18n.Format("update.startupAvailable", update.Version),
                     NoticeKind.Informational);
             }
+            return update;
         }
         finally
         {
+            RefreshUpdateInformation();
             IsCheckingForUpdates = false;
         }
+    }
+
+    [RelayCommand]
+    private async Task OpenReleaseNotesAsync()
+    {
+        try
+        {
+            Uri releaseNotesUri = _lastAvailableUpdate?.ReleaseNotesUri
+                ?? _updates.CurrentReleaseNotesUri;
+            await _updates.OpenReleaseNotesAsync(releaseNotesUri);
+        }
+        catch (Exception exception)
+        {
+            RaiseNotice(
+                I18n.Format("update.releaseNotesFailed", exception.Message),
+                NoticeKind.Error);
+        }
+    }
+
+    private void RefreshUpdateInformation()
+    {
+        CurrentVersionText = $"v{_updates.CurrentVersion}";
+        if (_updates.LastCheckedAt is not { } checkedAt)
+        {
+            LastUpdateCheckText = I18n.Get("settings.updateNeverChecked");
+            return;
+        }
+
+        DateTimeOffset local = checkedAt.ToLocalTime();
+        DateTime today = DateTime.Today;
+        string display = local.Date == today
+            ? I18n.Format(
+                "settings.updateCheckedToday",
+                local.ToString("t", CultureInfo.CurrentCulture))
+            : local.Date == today.AddDays(-1)
+                ? I18n.Format(
+                    "settings.updateCheckedYesterday",
+                    local.ToString("t", CultureInfo.CurrentCulture))
+                : local.ToString("g", CultureInfo.CurrentCulture);
+        LastUpdateCheckText = I18n.Format("settings.updateLastChecked", display);
     }
 
     [RelayCommand]

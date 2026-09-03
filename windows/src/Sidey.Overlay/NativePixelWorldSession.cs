@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using Sidey.Core.Abstractions;
 using Sidey.Core.Domain;
 using Sidey.Platform.Windows;
@@ -9,7 +10,10 @@ public sealed record NativePixelWorldSessionOptions(
     IReadOnlySet<string>? ValidationCharacterIds = null,
     bool CollectValidationMetrics = false,
     string? ValidationMetricsPath = null,
-    Action<int>? MessageBubblesPresented = null);
+    Action<int>? MessageBubblesPresented = null,
+    Action<string>? Diagnostic = null,
+    Action<string, Exception>? DiagnosticFailure = null,
+    Action<double, double, long, long>? RendererPerformanceSampled = null);
 
 public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
 {
@@ -24,6 +28,8 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
     private readonly Timer _taskbarTimer;
     private readonly Timer _throwTargetingTimer;
     private readonly Action<Guid> _requestThrow;
+    private readonly Action<string>? _diagnostic;
+    private readonly Action<string, Exception>? _diagnosticFailure;
     private readonly Guid?[] _targetUserIds = new Guid?[NativeOverlayWindowThread.MaximumTargetHotspots];
     private readonly NativePixelRect[] _targetBounds = new NativePixelRect[NativeOverlayWindowThread.MaximumTargetHotspots];
     private readonly NativePixelRect[] _appliedTargetBounds = new NativePixelRect[NativeOverlayWindowThread.MaximumTargetHotspots];
@@ -48,7 +54,9 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         Guid? roomId,
         Action<Guid> requestThrow,
         bool requiresRightClickToThrow,
-        bool realtimeConnected)
+        bool realtimeConnected,
+        Action<string>? diagnostic,
+        Action<string, Exception>? diagnosticFailure)
     {
         _windows = windows;
         _renderer = renderer;
@@ -57,6 +65,8 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         _edge = edge;
         _roomId = roomId;
         _requestThrow = requestThrow;
+        _diagnostic = diagnostic;
+        _diagnosticFailure = diagnosticFailure;
         _requiresRightClickToThrow = requiresRightClickToThrow;
         _realtimeConnected = realtimeConnected;
         _taskbarTimer = new Timer(
@@ -113,6 +123,13 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         }
 
         var monitor = WindowsMonitorService.Select(preference.MonitorIdentifier);
+        IReadOnlyList<WindowsMonitorInfo> monitors = WindowsMonitorService.GetAll();
+        int monitorIndex = Math.Max(
+            0,
+            monitors.ToList().FindIndex(candidate => candidate.Identifier == monitor.Identifier));
+        options.Diagnostic?.Invoke(
+            $"overlay-environment monitor={monitorIndex + 1} dpi={monitor.Dpi} "
+            + $"scale={(monitor.Dpi / 96d).ToString("F2", CultureInfo.InvariantCulture)}");
         var initialTaskbarInset = WindowsTaskbarService.VisibleInset(
             monitor.MonitorPixels,
             monitor.MonitorPixels,
@@ -153,6 +170,7 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
                     (self, targets) => session?.UpdateHotspots(self, targets),
                     renderingFailed,
                     options.MessageBubblesPresented,
+                    options.RendererPerformanceSampled,
                     normalizedValidationIds,
                     metrics,
                     initialTaskbarInset);
@@ -171,7 +189,10 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
             initialSnapshot.RoomId,
             requestThrow,
             requiresRightClickToThrow,
-            realtimeConnected);
+            realtimeConnected,
+            options.Diagnostic,
+            options.DiagnosticFailure);
+        options.Diagnostic?.Invoke("overlay-window-created result=success");
         return session;
     }
 
@@ -253,6 +274,7 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         _throwTargetingTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         _throwTargetingTimer.Dispose();
         _windows.Dispose();
+        _diagnostic?.Invoke("overlay-stopped");
         if (_metrics is not null)
         {
             try
@@ -446,18 +468,28 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
                 if (shellSurface != _yieldedShellSurface
                     || Interlocked.Decrement(ref _topmostRefreshCountdown) <= 0)
                 {
+                    bool stateChanged = _yieldedShellSurface != shellSurface;
                     Interlocked.Exchange(ref _topmostRefreshCountdown, 20);
                     _windows.YieldBehind(shellSurface);
                     _yieldedShellSurface = shellSurface;
+                    if (stateChanged)
+                    {
+                        _diagnostic?.Invoke("overlay-z-order mode=behind-shell");
+                    }
                 }
             }
             else if (IsVisible
                 && (_yieldedShellSurface != nint.Zero
                     || Interlocked.Decrement(ref _topmostRefreshCountdown) <= 0))
             {
+                bool stateChanged = _yieldedShellSurface != nint.Zero;
                 Interlocked.Exchange(ref _topmostRefreshCountdown, 20);
                 _windows.EnsureTopmost();
                 _yieldedShellSurface = nint.Zero;
+                if (stateChanged)
+                {
+                    _diagnostic?.Invoke("overlay-z-order mode=topmost");
+                }
             }
         }
         catch (ObjectDisposedException) when (_disposed)
@@ -466,6 +498,7 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         catch (Exception exception)
         {
             Trace.TraceError("SIDEY taskbar tracking failed: {0}", exception);
+            _diagnosticFailure?.Invoke("overlay-z-order", exception);
         }
     }
 

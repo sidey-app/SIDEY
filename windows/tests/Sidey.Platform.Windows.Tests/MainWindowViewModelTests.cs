@@ -259,6 +259,26 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task UpdateInformationShowsVersionLastCheckAndOpensReleaseNotes()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var updates = new FakeUpdateService { CurrentVersion = "1.0.5" };
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            updates);
+
+        Assert.Equal("v1.0.5", viewModel.CurrentVersionText);
+        Assert.NotEmpty(viewModel.LastUpdateCheckText);
+
+        await viewModel.CheckForUpdatesOnStartupAsync();
+        await viewModel.OpenReleaseNotesCommand.ExecuteAsync(null);
+
+        Assert.NotNull(updates.LastCheckedAt);
+        Assert.Equal(1, updates.ReleaseNotesLaunchCount);
+    }
+
+    [Fact]
     public async Task ManualUpdateCheckReportsTheLatestVersion()
     {
         (FakeSideyCoordinator coordinator, _) = CreateRoomState();

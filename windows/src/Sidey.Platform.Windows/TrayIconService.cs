@@ -36,6 +36,7 @@ public sealed class TrayIconService : IDisposable
     private const uint TrayMessage = 0x8000 + 51;
     private const uint RefreshMessage = 0x8000 + 52;
     private const uint NotificationMessage = 0x8000 + 53;
+    private const nuint UpdateNotification = 1;
     private const uint IconId = 1;
     private const uint NotifyIconMessage = 0x1;
     private const uint NotifyIconIcon = 0x2;
@@ -56,6 +57,7 @@ public sealed class TrayIconService : IDisposable
     private nint _unreadIcon;
     private bool _ownsBaseIcon;
     private bool _ownsUnreadIcon;
+    private string _availableUpdateVersion = string.Empty;
     private Exception? _startupError;
     private TrayMenuState _state = new(true, false, false, 0, [], null);
     private bool _disposed;
@@ -107,6 +109,20 @@ public sealed class TrayIconService : IDisposable
         if (_window != nint.Zero)
         {
             NativeMethods.PostMessage(_window, NotificationMessage, nint.Zero, nint.Zero);
+        }
+    }
+
+    public void NotifyUpdateAvailable(string version)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(version);
+        _availableUpdateVersion = version;
+        if (_window != nint.Zero)
+        {
+            NativeMethods.PostMessage(
+                _window,
+                NotificationMessage,
+                (nint)UpdateNotification,
+                nint.Zero);
         }
     }
 
@@ -512,9 +528,20 @@ public sealed class TrayIconService : IDisposable
             {
                 var data = service.CreateIconData();
                 data.Flags |= NotifyIconInfo;
-                data.InfoTitle = I18n.Get("tray.connectionFailedTitle");
-                data.Info = I18n.Get("tray.connectionFailedBody");
-                data.InfoFlags = NotifyInfoWarning;
+                if ((nuint)wParam == UpdateNotification)
+                {
+                    data.InfoTitle = I18n.Get("dialogs.updateTitle");
+                    data.Info = I18n.Format(
+                        "update.available",
+                        service._availableUpdateVersion);
+                    data.InfoFlags = 0;
+                }
+                else
+                {
+                    data.InfoTitle = I18n.Get("tray.connectionFailedTitle");
+                    data.Info = I18n.Get("tray.connectionFailedBody");
+                    data.InfoFlags = NotifyInfoWarning;
+                }
                 NativeMethods.ShellNotifyIcon(1, ref data);
                 return nint.Zero;
             }

@@ -40,6 +40,7 @@ public sealed class RealtimeSecuritySourceTests
         Assert.Contains("CreateBounded<BackendEvent>", transport, StringComparison.Ordinal);
         Assert.Contains("ReconciliationRequired", transport, StringComparison.Ordinal);
         Assert.Contains("EmitReconciliationWithRetryAsync", gateway, StringComparison.Ordinal);
+        Assert.Contains("realtime-event-queue-overflow capacity=256 dropped=", transport, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -62,9 +63,15 @@ public sealed class RealtimeSecuritySourceTests
 
         Assert.Contains("UnhealthyAfter = TimeSpan.FromSeconds(30)", transport, StringComparison.Ordinal);
         Assert.Contains("Realtime WebSocket heartbeat timed out.", transport, StringComparison.Ordinal);
+        Assert.Contains("realtime-health silence-ms=", transport, StringComparison.Ordinal);
+        Assert.Contains("realtime-websocket-closed code=", transport, StringComparison.Ordinal);
+        Assert.Contains("realtime-reconnect-scheduled attempt=", transport, StringComparison.Ordinal);
+        Assert.Contains("realtime-reconnect-completed attempt=", transport, StringComparison.Ordinal);
+        Assert.Contains("realtime-topic-subscribe-completed kind=", transport, StringComparison.Ordinal);
         Assert.Contains("realtime-message-change-received", gateway, StringComparison.Ordinal);
         Assert.Contains("message-recheck-started", gateway, StringComparison.Ordinal);
         Assert.Contains("message-recheck-completed result=found", gateway, StringComparison.Ordinal);
+        Assert.Contains("message-recheck-completed result=failed", gateway, StringComparison.Ordinal);
         Assert.Contains("realtime-message-received", coordinator, StringComparison.Ordinal);
         Assert.Contains("message-ledger-confirmed", coordinator, StringComparison.Ordinal);
         Assert.Contains("message-bubble-enqueued", coordinator, StringComparison.Ordinal);

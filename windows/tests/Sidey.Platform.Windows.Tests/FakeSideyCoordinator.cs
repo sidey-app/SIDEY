@@ -185,12 +185,24 @@ internal sealed class FakeMainWindowDialogService : IMainWindowDialogService
 
 internal sealed class FakeUpdateService : IUpdateService
 {
+    public string CurrentVersion { get; set; } = "1.0.5";
+
+    public DateTimeOffset? LastCheckedAt { get; set; }
+
+    public Uri CurrentReleaseNotesUri { get; set; } = new(
+        "https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.5");
+
     public AvailableUpdate? AvailableUpdate { get; set; }
 
     public int InstallerLaunchCount { get; private set; }
 
-    public Task<AvailableUpdate?> CheckAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(AvailableUpdate);
+    public int ReleaseNotesLaunchCount { get; private set; }
+
+    public Task<AvailableUpdate?> CheckAsync(CancellationToken cancellationToken = default)
+    {
+        LastCheckedAt = DateTimeOffset.UtcNow;
+        return Task.FromResult(AvailableUpdate);
+    }
 
     public Task DownloadAndLaunchInstallerAsync(
         AvailableUpdate update,
@@ -199,6 +211,13 @@ internal sealed class FakeUpdateService : IUpdateService
         _ = update;
         _ = cancellationToken;
         InstallerLaunchCount++;
+        return Task.CompletedTask;
+    }
+
+    public Task OpenReleaseNotesAsync(Uri releaseNotesUri)
+    {
+        _ = releaseNotesUri;
+        ReleaseNotesLaunchCount++;
         return Task.CompletedTask;
     }
 }

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using Sidey.Core.Abstractions;
 using Sidey.Core.Domain;
 using Sidey.Core.Localization;
@@ -137,6 +138,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 #endif
         if (configuration is null)
         {
+            StartupDiagnostics.Stage("server-configuration result=missing");
 #if DEBUG
             StartPreviewOverlay(preferences);
             SetState(_state with
@@ -155,18 +157,29 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         }
 
         var auth = new SupabaseAnonymousAuthService(configuration, _credentialStore);
+        StartupDiagnostics.Stage("auth-session-read-started");
         var stored = await _credentialStore.ReadAsync(
             CredentialKey.SupabaseSession,
             cancellationToken);
+        bool restoringSession = !string.IsNullOrWhiteSpace(stored);
+        StartupDiagnostics.Stage(
+            $"auth-session-read-completed result={(restoringSession ? "present" : "missing")}");
+        StartupDiagnostics.Stage(
+            $"auth-session-bootstrap-started mode={(restoringSession ? "restore" : "create")}");
         await AnonymousSessionBootstrapper.RestoreOrCreateAsync(
             auth,
-            hasStoredSession: !string.IsNullOrWhiteSpace(stored),
+            hasStoredSession: restoringSession,
             cancellationToken);
+        StartupDiagnostics.Stage(
+            $"auth-session-bootstrap-completed mode={(restoringSession ? "restore" : "create")}");
         var backend = new SupabaseBackendGateway(configuration, auth, _credentialStore);
         _auth = auth;
         _backend = backend;
 
+        StartupDiagnostics.Stage("server-snapshot-fetch-started");
         var snapshot = await backend.FetchSnapshotAsync(cancellationToken);
+        StartupDiagnostics.Stage(
+            $"server-snapshot-fetch-completed rooms={snapshot.Rooms.Count} profile={(snapshot.Profile is null ? "missing" : "present")}");
         var activeRoomId = SelectActiveRoom(preferences.ActiveRoomId, snapshot.Rooms);
         _state = _state with { ActiveRoomId = activeRoomId };
         ApplySnapshot(snapshot);
@@ -178,15 +191,22 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             CommitRoomSwitch);
         _roomSwitch.InitializeCommittedRoom(activeRoomId);
         _eventPump = PumpBackendEventsAsync();
+        StartupDiagnostics.Stage(
+            $"realtime-subscription-sync-started rooms={snapshot.Rooms.Count}");
         await backend.SynchronizeRealtimeRoomsAsync(
             RoomEpochs(snapshot.Rooms),
             activeRoomId,
             _localPresence,
             cancellationToken);
+        StartupDiagnostics.Stage(
+            $"realtime-subscription-sync-completed rooms={snapshot.Rooms.Count}");
         if (activeRoomId is { } roomId)
         {
+            StartupDiagnostics.Stage("message-history-fetch-started active=true");
             var history = await backend.FetchRecentMessagesAsync(roomId, cancellationToken);
             _messages.ReplaceConfirmed(roomId, history);
+            StartupDiagnostics.Stage(
+                $"message-history-fetch-completed result=success count={history.Count}");
         }
         _activityPump = PumpActivityAsync();
         await PersistPreferencesAsync(cancellationToken);
@@ -897,7 +917,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                         StartupDiagnostics.Stage(diagnostic.Stage);
                         break;
                     case BackendEvent.TechnicalError error:
-                        StartupDiagnostics.Stage($"realtime-technical-error {error.Message}");
+                        StartupDiagnostics.Stage("realtime-technical-error");
                         SetState(_state with { ErrorMessage = error.Message });
                         break;
                 }
@@ -908,6 +928,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         }
         catch (Exception exception)
         {
+            StartupDiagnostics.NonFatal("backend-event-pump", exception);
             SetState(_state with { Connected = false, ErrorMessage = exception.Message });
         }
     }
@@ -1174,20 +1195,36 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         }
 
         _overlay?.Dispose();
-        _overlay = NativePixelWorldSession.Start(
-            _state.Preferences.OverlayRegion,
-            snapshot,
-            RequestComposer,
-            RequestCharacterPulse,
-            RequestCharacterThrow,
-            _state.Preferences.RequiresRightClickToThrow,
-            _backend is null || _state.Connected,
-            exception => RenderingFailed?.Invoke(exception),
-            new NativePixelWorldSessionOptions(
-                ValidationCharacterIds: validationIds,
-                CollectValidationMetrics: validationIds is not null,
-                MessageBubblesPresented: count => StartupDiagnostics.Stage(
-                    $"overlay-message-presented count={count}")));
+        try
+        {
+            _overlay = NativePixelWorldSession.Start(
+                _state.Preferences.OverlayRegion,
+                snapshot,
+                RequestComposer,
+                RequestCharacterPulse,
+                RequestCharacterThrow,
+                _state.Preferences.RequiresRightClickToThrow,
+                _backend is null || _state.Connected,
+                exception => RenderingFailed?.Invoke(exception),
+                new NativePixelWorldSessionOptions(
+                    ValidationCharacterIds: validationIds,
+                    CollectValidationMetrics: validationIds is not null,
+                    MessageBubblesPresented: count => StartupDiagnostics.Stage(
+                        $"overlay-message-presented count={count}"),
+                    Diagnostic: StartupDiagnostics.Stage,
+                    DiagnosticFailure: StartupDiagnostics.NonFatal,
+                    RendererPerformanceSampled: (average, maximum, frames, skipped) =>
+                        StartupDiagnostics.Stage(
+                            $"renderer-health frames={frames} "
+                            + $"average-ms={average.ToString("F2", CultureInfo.InvariantCulture)} "
+                            + $"maximum-ms={maximum.ToString("F2", CultureInfo.InvariantCulture)} "
+                            + $"skipped={skipped}")));
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal("overlay-window-create", exception);
+            throw;
+        }
         StartupDiagnostics.Stage("overlay-started");
     }
 

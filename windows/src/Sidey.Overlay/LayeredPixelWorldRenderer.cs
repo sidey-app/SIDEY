@@ -32,6 +32,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private readonly Action<NativePixelRect?, IReadOnlyList<CharacterHotspotFrame>> _hotspotsMoved;
     private readonly Action<Exception> _renderingFailed;
     private readonly Action<int>? _messageBubblesPresented;
+    private readonly Action<double, double, long, long>? _performanceSampled;
     private readonly ValidationMetricsCollector? _metrics;
     private readonly Random _random;
     private readonly long _initialPositionSeed;
@@ -64,6 +65,11 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private readonly Timer _timer;
     private double _hotspotTrackingElapsed = double.PositiveInfinity;
     private long _tick;
+    private long _performanceWindowStarted = Stopwatch.GetTimestamp();
+    private long _performanceFrameCount;
+    private long _performanceSkippedTicks;
+    private double _performanceTotalMilliseconds;
+    private double _performanceMaximumMilliseconds;
     private int _tickRunning;
     private double _edgeInsetPixels;
     private int _targetEdgeInsetPixels;
@@ -81,6 +87,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         Action<NativePixelRect?, IReadOnlyList<CharacterHotspotFrame>> hotspotsMoved,
         Action<Exception> renderingFailed,
         Action<int>? messageBubblesPresented,
+        Action<double, double, long, long>? performanceSampled,
         IReadOnlySet<string>? cachedCharacterIds = null,
         ValidationMetricsCollector? metrics = null,
         int initialEdgeInsetPixels = 0)
@@ -95,6 +102,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         _hotspotsMoved = hotspotsMoved ?? throw new ArgumentNullException(nameof(hotspotsMoved));
         _renderingFailed = renderingFailed ?? throw new ArgumentNullException(nameof(renderingFailed));
         _messageBubblesPresented = messageBubblesPresented;
+        _performanceSampled = performanceSampled;
         _metrics = metrics;
         _edge = edge;
         _edgeInsetPixels = ClampEdgeInset(initialEdgeInsetPixels);
@@ -203,6 +211,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     {
         if (Interlocked.Exchange(ref _tickRunning, 1) != 0)
         {
+            Interlocked.Increment(ref _performanceSkippedTicks);
             return;
         }
 
@@ -238,9 +247,11 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         }
         finally
         {
+            TimeSpan elapsed = Stopwatch.GetElapsedTime(started);
             try
             {
-                _metrics?.RecordFrame(Stopwatch.GetElapsedTime(started));
+                _metrics?.RecordFrame(elapsed);
+                RecordRuntimePerformance(elapsed);
             }
             catch (Exception exception)
             {
@@ -251,6 +262,35 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 Volatile.Write(ref _tickRunning, 0);
             }
         }
+    }
+
+    private void RecordRuntimePerformance(TimeSpan frameTime)
+    {
+        _performanceFrameCount++;
+        _performanceTotalMilliseconds += frameTime.TotalMilliseconds;
+        _performanceMaximumMilliseconds = Math.Max(
+            _performanceMaximumMilliseconds,
+            frameTime.TotalMilliseconds);
+        if (_performanceSampled is null
+            || Stopwatch.GetElapsedTime(_performanceWindowStarted) < TimeSpan.FromMinutes(1))
+        {
+            return;
+        }
+
+        long frameCount = _performanceFrameCount;
+        double averageMilliseconds = frameCount == 0
+            ? 0
+            : _performanceTotalMilliseconds / frameCount;
+        long skippedTicks = Interlocked.Exchange(ref _performanceSkippedTicks, 0);
+        _performanceSampled(
+            averageMilliseconds,
+            _performanceMaximumMilliseconds,
+            frameCount,
+            skippedTicks);
+        _performanceWindowStarted = Stopwatch.GetTimestamp();
+        _performanceFrameCount = 0;
+        _performanceTotalMilliseconds = 0;
+        _performanceMaximumMilliseconds = 0;
     }
 
     private void Tick()

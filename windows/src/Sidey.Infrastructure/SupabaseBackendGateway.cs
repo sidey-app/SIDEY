@@ -1,5 +1,7 @@
+using System.Net.Sockets;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Authentication;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -411,6 +413,10 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                     catch (Exception exception) when (exception is not OperationCanceledException)
                     {
                         await output.WriteAsync(
+                            new BackendEvent.Diagnostic(
+                                $"message-recheck-error {FailureDiagnostic(exception)}"),
+                            cancellationToken).ConfigureAwait(false);
+                        await output.WriteAsync(
                             new BackendEvent.TechnicalError(
                                 I18n.Format("backend.messageRecheckFailed", exception.Message)),
                             cancellationToken).ConfigureAwait(false);
@@ -431,6 +437,10 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                     }
                     catch (Exception exception) when (exception is not OperationCanceledException)
                     {
+                        await output.WriteAsync(
+                            new BackendEvent.Diagnostic(
+                                $"expired-messages-error {FailureDiagnostic(exception)}"),
+                            cancellationToken).ConfigureAwait(false);
                         await output.WriteAsync(
                             new BackendEvent.TechnicalError(
                                 I18n.Format("backend.expiredMessagesFailed", exception.Message)),
@@ -490,6 +500,10 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             catch (Exception exception)
             {
                 await output.WriteAsync(
+                    new BackendEvent.Diagnostic(
+                        $"realtime-reconciliation-error {FailureDiagnostic(exception)}"),
+                    cancellationToken).ConfigureAwait(false);
+                await output.WriteAsync(
                     new BackendEvent.TechnicalError(
                         I18n.Format("backend.realtimeResyncFailed", exception.Message)),
                     cancellationToken).ConfigureAwait(false);
@@ -547,9 +561,24 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         await output.WriteAsync(
             new BackendEvent.Diagnostic("message-recheck-started"),
             cancellationToken).ConfigureAwait(false);
-        var rows = await GetAsync<DatabaseMessage[]>(
-            $"/rest/v1/messages?room_id=eq.{change.RoomId:D}&id=eq.{change.MessageId:D}&select=*&limit=1",
-            cancellationToken).ConfigureAwait(false);
+        DatabaseMessage[] rows;
+        try
+        {
+            rows = await GetAsync<DatabaseMessage[]>(
+                $"/rest/v1/messages?room_id=eq.{change.RoomId:D}&id=eq.{change.MessageId:D}&select=*&limit=1",
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            await output.WriteAsync(
+                new BackendEvent.Diagnostic("message-recheck-completed result=failed"),
+                cancellationToken).ConfigureAwait(false);
+            throw;
+        }
         if (rows.FirstOrDefault() is { } row)
         {
             await output.WriteAsync(
@@ -586,6 +615,8 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         }
         catch (Exception exception)
         {
+            output.TryWrite(new BackendEvent.Diagnostic(
+                $"room-snapshot-error {FailureDiagnostic(exception)}"));
             output.TryWrite(new BackendEvent.TechnicalError(
                 I18n.Format("backend.roomSnapshotFailed", exception.Message)));
         }
@@ -597,6 +628,31 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             .ConfigureAwait(false);
         using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         return await ReadRequiredAsync<T>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string FailureDiagnostic(Exception exception)
+    {
+        Exception current = exception;
+        while (current.InnerException is { } inner)
+        {
+            current = inner;
+        }
+
+        string category = current switch
+        {
+            SocketException socket when socket.SocketErrorCode is
+                SocketError.HostNotFound or SocketError.NoData or SocketError.TryAgain => "dns",
+            SocketException => "socket",
+            AuthenticationException => "tls",
+            TimeoutException => "timeout",
+            TaskCanceledException => "timeout",
+            HttpRequestException => "http",
+            _ => "unknown",
+        };
+        string status = current is HttpRequestException { StatusCode: { } statusCode }
+            ? $" status={(int)statusCode}"
+            : string.Empty;
+        return $"category={category} type={current.GetType().Name} hresult=0x{current.HResult:X8}{status}";
     }
 
     private async Task<T> RpcSingleAsync<T>(
@@ -635,7 +691,10 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
-            throw new HttpRequestException($"Supabase RPC {function} failed with HTTP {(int)response.StatusCode}.");
+            throw new HttpRequestException(
+                $"Supabase RPC {function} failed with HTTP {(int)response.StatusCode}.",
+                inner: null,
+                response.StatusCode);
         }
     }
 
@@ -685,7 +744,10 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
     {
         if (!response.IsSuccessStatusCode)
         {
-            throw new HttpRequestException($"Supabase REST request failed with HTTP {(int)response.StatusCode}.");
+            throw new HttpRequestException(
+                $"Supabase REST request failed with HTTP {(int)response.StatusCode}.",
+                inner: null,
+                response.StatusCode);
         }
 
         return await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken)
@@ -699,7 +761,10 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
     {
         if (!response.IsSuccessStatusCode)
         {
-            throw new HttpRequestException($"Supabase RPC failed with HTTP {(int)response.StatusCode}.");
+            throw new HttpRequestException(
+                $"Supabase RPC failed with HTTP {(int)response.StatusCode}.",
+                inner: null,
+                response.StatusCode);
         }
 
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken)

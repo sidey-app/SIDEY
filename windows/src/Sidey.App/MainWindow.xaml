@@ -413,10 +413,11 @@
                 <Grid>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                   <StackPanel Spacing="3">
-                    <TextBlock FontWeight="SemiBold" Text="{i18n:I18n Key=settings.checkUpdate}" />
-                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=settings.checkUpdateDescription}" />
+                    <TextBlock FontWeight="SemiBold" Text="{Binding CurrentVersionText}" />
+                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding LastUpdateCheckText}" />
+                    <HyperlinkButton HorizontalAlignment="Left" Padding="0" Command="{Binding OpenReleaseNotesCommand}" Content="{i18n:I18n Key=settings.releaseNotes}" />
                   </StackPanel>
-                  <Button Grid.Column="1" Command="{Binding CheckForUpdatesCommand}" Content="{i18n:I18n Key=settings.checkNow}" VerticalAlignment="Center" ToolTipService.ToolTip="{i18n:I18n Key=settings.checkNowTooltip}" />
+                  <Button Grid.Column="1" Command="{Binding CheckForUpdatesCommand}" Content="{i18n:I18n Key=settings.checkUpdate}" VerticalAlignment="Center" ToolTipService.ToolTip="{i18n:I18n Key=settings.checkNowTooltip}" />
                 </Grid>
               </Border>
 
