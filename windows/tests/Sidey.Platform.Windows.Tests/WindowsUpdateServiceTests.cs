@@ -1,4 +1,5 @@
 using System.Net;
+using System.Security.Cryptography;
 using System.Text;
 using Sidey.Platform.Windows;
 
@@ -25,8 +26,8 @@ public sealed class WindowsUpdateServiceTests
         const string manifest = """
             {
               "channel": "production",
-              "version": "1.0.4",
-              "tag": "windows-v1.0.4"
+              "version": "1.0.5",
+              "tag": "windows-v1.0.5"
             }
             """;
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -39,6 +40,49 @@ public sealed class WindowsUpdateServiceTests
         WindowsUpdateManifest? update = await service.CheckAsync();
 
         Assert.Null(update);
+    }
+
+    [Fact]
+    public async Task DownloadClosesTheHashStreamBeforePublishingTheInstaller()
+    {
+        byte[] installerBytes = Encoding.UTF8.GetBytes("SIDEY update regression fixture");
+        string sha256 = Convert.ToHexStringLower(SHA256.HashData(installerBytes));
+        string version = $"1.0.6-file-handle-{Guid.NewGuid():N}";
+        string installerName = $"SIDEY-Windows-x64-v{version}.msi";
+        string updateDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "SIDEY",
+            "Updates",
+            version);
+        string expectedPath = Path.Combine(updateDirectory, installerName);
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new ByteArrayContent(installerBytes),
+        };
+        using var client = new HttpClient(new StubHandler(response));
+        var service = new WindowsUpdateService(client);
+        var manifest = new WindowsUpdateManifest(
+            "production",
+            version,
+            $"windows-v{version}",
+            new Uri($"https://example.invalid/{installerName}"),
+            sha256);
+
+        try
+        {
+            string actualPath = await service.DownloadInstallerAsync(manifest);
+
+            Assert.Equal(expectedPath, actualPath);
+            Assert.Equal(installerBytes, await File.ReadAllBytesAsync(actualPath));
+            Assert.False(File.Exists($"{expectedPath}.download"));
+        }
+        finally
+        {
+            if (Directory.Exists(updateDirectory))
+            {
+                Directory.Delete(updateDirectory, recursive: true);
+            }
+        }
     }
 
     [Fact]

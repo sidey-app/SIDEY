@@ -17,7 +17,7 @@ public sealed record WindowsUpdateManifest(
 
 public sealed partial class WindowsUpdateService(HttpClient? httpClient = null)
 {
-    public const string CurrentVersion = "1.0.4";
+    public const string CurrentVersion = "1.0.5";
     public static readonly Uri ManifestUri = new(
         "https://sidey-app.github.io/SIDEY/windows-latest.json");
     private readonly HttpClient _httpClient = httpClient ?? new HttpClient();
@@ -107,10 +107,14 @@ public sealed partial class WindowsUpdateService(HttpClient? httpClient = null)
                 await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
             }
 
-            await using var downloaded = File.OpenRead(partialPath);
-            byte[] digest = await SHA256.HashDataAsync(downloaded, cancellationToken)
-                .ConfigureAwait(false);
-            string actualHash = Convert.ToHexStringLower(digest);
+            string actualHash;
+            await using (var downloaded = File.OpenRead(partialPath))
+            {
+                byte[] digest = await SHA256.HashDataAsync(downloaded, cancellationToken)
+                    .ConfigureAwait(false);
+                actualHash = Convert.ToHexStringLower(digest);
+            }
+
             if (!StringComparer.OrdinalIgnoreCase.Equals(actualHash, manifest.Sha256))
             {
                 throw new InvalidDataException(
