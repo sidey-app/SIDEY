@@ -56,6 +56,10 @@ public interface ISideyCoordinator
         bool enabled,
         CancellationToken cancellationToken = default);
 
+    Task SetRequiresRightClickToThrowAsync(
+        bool enabled,
+        CancellationToken cancellationToken = default);
+
     Task SetStartAtLoginAsync(bool enabled, CancellationToken cancellationToken = default);
 
     Task SetRegionAsync(

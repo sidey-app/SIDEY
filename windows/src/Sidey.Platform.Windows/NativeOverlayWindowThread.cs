@@ -4,6 +4,7 @@ namespace Sidey.Platform.Windows;
 
 public sealed class NativeOverlayWindowThread : IDisposable
 {
+    public const int MaximumTargetHotspots = 11;
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(5);
 
@@ -14,8 +15,13 @@ public sealed class NativeOverlayWindowThread : IDisposable
     private readonly Func<nint, IDisposable?>? _initializeWorld;
     private readonly Action? _hotspotActivated;
     private readonly Action? _hotspotDoubleClicked;
+    private readonly Action? _hotspotRightClicked;
+    private readonly Action<int>? _targetHotspotActivated;
     private NativeOverlayWindow? _worldWindow;
     private NativeOverlayWindow? _hotspotWindow;
+    private readonly NativeOverlayWindow?[] _targetHotspotWindows = new NativeOverlayWindow?[MaximumTargetHotspots];
+    private readonly bool[] _targetHotspotVisible = new bool[MaximumTargetHotspots];
+    private bool _windowsVisible = true;
     private IDisposable? _threadResource;
     private ExceptionDispatchInfo? _startupFailure;
     private ExceptionDispatchInfo? _shutdownFailure;
@@ -26,13 +32,17 @@ public sealed class NativeOverlayWindowThread : IDisposable
         NativePixelRect initialHotspotBounds,
         Func<nint, IDisposable?>? initializeWorld,
         Action? hotspotActivated,
-        Action? hotspotDoubleClicked)
+        Action? hotspotDoubleClicked,
+        Action? hotspotRightClicked,
+        Action<int>? targetHotspotActivated)
     {
         _initialWorldBounds = initialWorldBounds;
         _initialHotspotBounds = initialHotspotBounds;
         _initializeWorld = initializeWorld;
         _hotspotActivated = hotspotActivated;
         _hotspotDoubleClicked = hotspotDoubleClicked;
+        _hotspotRightClicked = hotspotRightClicked;
+        _targetHotspotActivated = targetHotspotActivated;
         _thread = new Thread(Run)
         {
             IsBackground = true,
@@ -49,7 +59,9 @@ public sealed class NativeOverlayWindowThread : IDisposable
         NativePixelRect initialHotspotBounds,
         Func<nint, IDisposable?>? initializeWorld = null,
         Action? hotspotActivated = null,
-        Action? hotspotDoubleClicked = null)
+        Action? hotspotDoubleClicked = null,
+        Action? hotspotRightClicked = null,
+        Action<int>? targetHotspotActivated = null)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -61,7 +73,9 @@ public sealed class NativeOverlayWindowThread : IDisposable
             initialHotspotBounds,
             initializeWorld,
             hotspotActivated,
-            hotspotDoubleClicked);
+            hotspotDoubleClicked,
+            hotspotRightClicked,
+            targetHotspotActivated);
         owner._thread.Start();
         if (!owner._started.Wait(StartupTimeout))
         {
@@ -83,22 +97,55 @@ public sealed class NativeOverlayWindowThread : IDisposable
     public void SetHotspotBounds(NativePixelRect bounds, bool visible = true) =>
         RequiredHotspotWindow.SetBounds(bounds, visible);
 
+    public void SetTargetHotspotBounds(int index, NativePixelRect bounds, bool visible)
+    {
+        if (index < 0 || index >= MaximumTargetHotspots)
+        {
+            throw new ArgumentOutOfRangeException(nameof(index));
+        }
+
+        _targetHotspotVisible[index] = visible;
+        RequiredTargetHotspot(index).SetBounds(bounds, visible && _windowsVisible);
+    }
+
+    public void HideTargetHotspots()
+    {
+        for (var index = 0; index < MaximumTargetHotspots; index++)
+        {
+            _targetHotspotVisible[index] = false;
+            RequiredTargetHotspot(index).SetVisible(false);
+        }
+    }
+
     public void SetVisible(bool visible)
     {
+        _windowsVisible = visible;
         RequiredWorldWindow.SetVisible(visible);
         RequiredHotspotWindow.SetVisible(visible);
+        for (var index = 0; index < MaximumTargetHotspots; index++)
+        {
+            RequiredTargetHotspot(index).SetVisible(visible && _targetHotspotVisible[index]);
+        }
     }
 
     public void EnsureTopmost()
     {
         RequiredWorldWindow.EnsureTopmost();
         RequiredHotspotWindow.EnsureTopmost();
+        foreach (var hotspot in _targetHotspotWindows)
+        {
+            hotspot?.EnsureTopmost();
+        }
     }
 
     public void YieldBehind(nint window)
     {
         RequiredWorldWindow.YieldBehind(window);
         RequiredHotspotWindow.YieldBehind(window);
+        foreach (var hotspot in _targetHotspotWindows)
+        {
+            hotspot?.YieldBehind(window);
+        }
     }
 
     public void Dispose()
@@ -120,6 +167,10 @@ public sealed class NativeOverlayWindowThread : IDisposable
 
         _worldWindow?.Dispose();
         _hotspotWindow?.Dispose();
+        foreach (var hotspot in _targetHotspotWindows)
+        {
+            hotspot?.Dispose();
+        }
         if (_thread.IsAlive && !_thread.Join(ShutdownTimeout))
         {
             throw new TimeoutException("SIDEY overlay thread did not shut down within five seconds.");
@@ -135,6 +186,10 @@ public sealed class NativeOverlayWindowThread : IDisposable
     private NativeOverlayWindow RequiredHotspotWindow =>
         _hotspotWindow ?? throw new InvalidOperationException("Hotspot window is not available.");
 
+    private NativeOverlayWindow RequiredTargetHotspot(int index) =>
+        _targetHotspotWindows[index]
+        ?? throw new InvalidOperationException("Target hotspot window is not available.");
+
     private void Run()
     {
         try
@@ -144,7 +199,17 @@ public sealed class NativeOverlayWindowThread : IDisposable
                 NativeOverlayWindowRole.Hotspot,
                 _initialHotspotBounds,
                 _hotspotActivated,
-                _hotspotDoubleClicked);
+                _hotspotDoubleClicked,
+                _hotspotRightClicked);
+            for (var index = 0; index < MaximumTargetHotspots; index++)
+            {
+                var capturedIndex = index;
+                _targetHotspotWindows[index] = NativeOverlayWindow.Create(
+                    NativeOverlayWindowRole.Hotspot,
+                    _initialHotspotBounds,
+                    () => _targetHotspotActivated?.Invoke(capturedIndex));
+                _targetHotspotWindows[index]!.SetVisible(false);
+            }
             _threadResource = _initializeWorld?.Invoke(_worldWindow.Handle);
             _started.Set();
             NativeMessageLoop.Run();
@@ -167,6 +232,10 @@ public sealed class NativeOverlayWindowThread : IDisposable
 
             _worldWindow?.Dispose();
             _hotspotWindow?.Dispose();
+            foreach (var hotspot in _targetHotspotWindows)
+            {
+                hotspot?.Dispose();
+            }
         }
     }
 }

@@ -643,7 +643,42 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                         new CharacterPulseEvent(pulseId, descriptor.RoomId, pulseUserId)));
                 }
                 break;
+            case "character_throw":
+                if (inner.TryGetProperty("schema_version", out var schemaVersion)
+                    && schemaVersion.TryGetInt32(out var version)
+                    && version == 1
+                    && TryGuid(inner, "event_id", out var throwId)
+                    && TryGuid(inner, "actor_user_id", out var actorUserId)
+                    && TryGuid(inner, "target_user_id", out var targetUserId)
+                    && actorUserId != targetUserId
+                    && inner.TryGetProperty("source_character_id", out var sourceCharacterElement)
+                    && sourceCharacterElement.ValueKind == JsonValueKind.String
+                    && sourceCharacterElement.GetString() is { Length: > 0 and <= 40 } sourceCharacterId
+                    && IsValidCharacterId(sourceCharacterId))
+                {
+                    Emit(new BackendEvent.CharacterThrown(new CharacterThrowEvent(
+                        throwId,
+                        descriptor.RoomId,
+                        actorUserId,
+                        targetUserId,
+                        sourceCharacterId)));
+                }
+                break;
         }
+    }
+
+    private static bool IsValidCharacterId(string value)
+    {
+        foreach (var character in value)
+        {
+            if (character != '_'
+                && (character < 'a' || character > 'z')
+                && (character < '0' || character > '9'))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     private void HandleDatabaseBroadcast(

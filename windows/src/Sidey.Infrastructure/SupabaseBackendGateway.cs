@@ -310,6 +310,29 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             cancellationToken).ConfigureAwait(false);
     }
 
+    public Task BroadcastCharacterThrowAsync(
+        Guid roomId,
+        Guid eventId,
+        Guid targetUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_roomEpochs.TryGetValue(roomId, out var realtimeEpoch))
+        {
+            throw new InvalidOperationException(I18n.Get("backend.realtimeEpochMissing"));
+        }
+
+        return RpcNoResultAsync(
+            "broadcast_character_throw",
+            new
+            {
+                p_room_id = roomId,
+                p_realtime_epoch = realtimeEpoch,
+                p_event_id = eventId,
+                p_target_user_id = targetUserId,
+            },
+            cancellationToken);
+    }
+
     public async Task SynchronizeRealtimeRoomsAsync(
         IReadOnlyDictionary<Guid, long> roomEpochs,
         Guid? activeRoomId,

@@ -110,6 +110,10 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
         bool enabled,
         CancellationToken cancellationToken = default) => Task.CompletedTask;
 
+    public Task SetRequiresRightClickToThrowAsync(
+        bool enabled,
+        CancellationToken cancellationToken = default) => Task.CompletedTask;
+
     public Task SetStartAtLoginAsync(bool enabled, CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 

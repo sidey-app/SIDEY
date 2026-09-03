@@ -348,6 +348,15 @@
                   <Grid ColumnSpacing="20">
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                     <StackPanel Spacing="3">
+                      <TextBlock FontWeight="SemiBold" Text="{i18n:I18n Key=settings.rightClickThrow}" />
+                      <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=settings.rightClickThrowDescription}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <ToggleSwitch Grid.Column="1" Width="48" MinWidth="0" HorizontalAlignment="Right" IsOn="{Binding RequiresRightClickToThrow, Mode=TwoWay}" VerticalAlignment="Center" OffContent="" OnContent="" ToolTipService.ToolTip="{i18n:I18n Key=settings.rightClickThrowTooltip}" />
+                  </Grid>
+                  <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                  <Grid ColumnSpacing="20">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <StackPanel Spacing="3">
                       <TextBlock FontWeight="SemiBold" Text="{i18n:I18n Key=settings.offlineMembers}" />
                       <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=settings.offlineMembersDescription}" TextWrapping="Wrap" />
                     </StackPanel>

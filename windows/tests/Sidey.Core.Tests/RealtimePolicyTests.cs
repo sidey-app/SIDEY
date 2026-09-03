@@ -122,6 +122,21 @@ public sealed class RealtimePolicyTests
         Assert.False(cooldown.Accept(roomId, userId, TimeSpan.FromSeconds(-1)));
     }
 
+    [Fact]
+    public void ThrowCooldownMatchesTheHalfSecondClientContract()
+    {
+        var roomId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var cooldown = new CharacterThrowCooldown();
+
+        Assert.True(cooldown.Accept(roomId, userId, TimeSpan.FromSeconds(10)));
+        Assert.False(cooldown.Accept(roomId, userId, TimeSpan.FromSeconds(10.499)));
+        Assert.True(cooldown.Accept(roomId, userId, TimeSpan.FromSeconds(10.5)));
+        Assert.True(cooldown.Accept(roomId, Guid.NewGuid(), TimeSpan.FromSeconds(10.5)));
+        Assert.False(cooldown.Accept(roomId, userId, TimeSpan.FromSeconds(-1)));
+        Assert.Equal(TimeSpan.FromMilliseconds(500), CharacterThrowCooldown.Duration);
+    }
+
     [Theory]
     [InlineData(1, 8)]
     [InlineData(2, 16)]

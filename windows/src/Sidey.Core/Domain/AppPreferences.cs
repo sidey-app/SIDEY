@@ -7,13 +7,14 @@ public sealed record AppPreferences(
     bool OverlayVisible,
     bool QuietMode,
     bool ShowOfflineMembers,
+    bool RequiresRightClickToThrow,
     bool StartAtLogin,
     string? CachedNickname,
     string? CachedCharacterId,
     Guid? ActiveRoomId,
     OverlayRegionPreference OverlayRegion)
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     public static AppPreferences CreateDefault(long? installationSeed = null) => new(
         SchemaVersion: CurrentSchemaVersion,
@@ -22,6 +23,7 @@ public sealed record AppPreferences(
         OverlayVisible: true,
         QuietMode: false,
         ShowOfflineMembers: true,
+        RequiresRightClickToThrow: false,
         StartAtLogin: false,
         CachedNickname: null,
         CachedCharacterId: null,

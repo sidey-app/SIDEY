@@ -13,6 +13,9 @@ public sealed class RealtimeSecuritySourceTests
         Assert.DoesNotContain("SendBroadcastAsync", transport, StringComparison.Ordinal);
         Assert.DoesNotContain("BroadcastTypingAsync", transport, StringComparison.Ordinal);
         Assert.DoesNotContain("BroadcastCharacterPulseAsync", transport, StringComparison.Ordinal);
+        Assert.Contains("\"broadcast_character_throw\"", gateway, StringComparison.Ordinal);
+        Assert.Contains("p_target_user_id", gateway, StringComparison.Ordinal);
+        Assert.DoesNotContain("BroadcastCharacterThrowAsync", transport, StringComparison.Ordinal);
     }
 
     [Fact]

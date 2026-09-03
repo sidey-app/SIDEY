@@ -204,6 +204,7 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("PaneTitle=\"SIDEY\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Key=settings.overlayDescription", xaml, StringComparison.Ordinal);
         Assert.Contains("Key=settings.quietModeDescription", xaml, StringComparison.Ordinal);
+        Assert.Contains("Key=settings.rightClickThrowDescription", xaml, StringComparison.Ordinal);
         Assert.Contains("Key=settings.offlineMembersDescription", xaml, StringComparison.Ordinal);
         Assert.Contains("Key=settings.monitorDescription", xaml, StringComparison.Ordinal);
         Assert.Contains("NavigationViewContentBackground\" Color=\"Transparent", xaml, StringComparison.Ordinal);
