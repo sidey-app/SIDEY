@@ -331,6 +331,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial bool ShowOfflineMembers { get; set; }
 
     [ObservableProperty]
+    public partial bool RequiresRightClickToThrow { get; set; }
+
+    [ObservableProperty]
     public partial bool StartAtLogin { get; set; }
 
     [ObservableProperty]
@@ -442,6 +445,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             IsOverlayVisible = state.Preferences.OverlayVisible;
             IsQuietMode = state.Preferences.QuietMode;
             ShowOfflineMembers = state.Preferences.ShowOfflineMembers;
+            RequiresRightClickToThrow = state.Preferences.RequiresRightClickToThrow;
             StartAtLogin = state.Preferences.StartAtLogin;
             SelectedEdgeIndex = (int)state.Preferences.OverlayRegion.Edge;
             SelectedSpanIndex = (int)state.Preferences.OverlayRegion.Span;
@@ -596,6 +600,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (!_isApplyingState)
         {
             _ = RunCommandAsync(() => _coordinator.SetShowOfflineMembersAsync(value), null);
+        }
+    }
+
+    partial void OnRequiresRightClickToThrowChanged(bool value)
+    {
+        if (!_isApplyingState)
+        {
+            _ = RunCommandAsync(() => _coordinator.SetRequiresRightClickToThrowAsync(value), null);
         }
     }
 

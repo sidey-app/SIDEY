@@ -20,7 +20,7 @@ Windows 11 25H2(build 26200)+ x64용 네이티브 클라이언트입니다. 첫 
 - `Sidey.App`: 앱 수명, 서버 mutation, 방 전환, 트레이·창 coordinator와 WinUI UI
 - `Sidey.Core`: 5종 catalog, 플랫폼 독립 모델·검증·Realtime 규칙·이동 시뮬레이션
 - `Sidey.Infrastructure`: Supabase adapter, Windows Credential Manager, atomic preferences
-- `Sidey.Overlay`: 단일 Win32 world HWND, 30 FPS 고정 step, 5종 premultiplied BGRA frame cache
+- `Sidey.Overlay`: 단일 Win32 world HWND, self 1개·상대 최대 11개의 hotspot HWND, 30 FPS 고정 step, premultiplied BGRA frame cache
 - `Sidey.Platform.Windows`: 창·DPI·모니터·트레이·로그인 실행·시스템 유휴/잠금 감지
 
 UI는 Supabase DTO, Credential Manager, HWND를 직접 소유하지 않습니다. `Sidey.Core`는 Windows·Supabase 패키지를 참조하지 않습니다. 종별 switch·HWND·renderer class는 추가하지 마세요. 새 내장 캐릭터는 asset, manifest, catalog entry로만 추가합니다.

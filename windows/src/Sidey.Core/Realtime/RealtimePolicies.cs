@@ -161,6 +161,30 @@ public sealed class CharacterPulseCooldown
     }
 }
 
+public sealed class CharacterThrowCooldown
+{
+    public static readonly TimeSpan Duration = TimeSpan.FromMilliseconds(500);
+
+    private readonly Dictionary<(Guid RoomId, Guid UserId), TimeSpan> _lastAcceptedUptime = [];
+
+    public bool Accept(Guid roomId, Guid userId, TimeSpan uptime)
+    {
+        if (uptime < TimeSpan.Zero)
+        {
+            return false;
+        }
+
+        var key = (roomId, userId);
+        if (_lastAcceptedUptime.TryGetValue(key, out var last) && uptime - last < Duration)
+        {
+            return false;
+        }
+
+        _lastAcceptedUptime[key] = uptime;
+        return true;
+    }
+}
+
 public static class RealtimeRecoveryPolicy
 {
     public static readonly TimeSpan WatchdogInterval = TimeSpan.FromSeconds(5);

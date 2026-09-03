@@ -5,6 +5,8 @@ using Sidey.Platform.Windows;
 
 namespace Sidey.Overlay;
 
+internal readonly record struct CharacterHotspotFrame(Guid UserId, NativePixelRect Bounds);
+
 internal sealed class LayeredPixelWorldRenderer : IDisposable
 {
     private const int FramesPerSecond = 30;
@@ -13,6 +15,11 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private const int NameplateCharacterGapPixels = 10;
     private const double DozeRestingOpacity = 0.55d;
     private const double DozeFloatingDistanceDip = 3d;
+    private const int MaximumActiveProjectiles = 32;
+    private const double ThrowActionSeconds = 0.4d;
+    private const double ThrowReleaseSeconds = 0.2d;
+    private const double HitActionSeconds = 0.44d;
+    private const double ImpactSeconds = 0.24d;
     private static readonly IReadOnlyList<RectD> NoAvoidanceRects = Array.Empty<RectD>();
 
     private readonly object _gate = new();
@@ -22,13 +29,14 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private readonly int _integerScale;
     private readonly int _dozeFloatingDistancePixels;
     private readonly OverlayEdge _edge;
-    private readonly Action<NativePixelRect> _hotspotMoved;
+    private readonly Action<NativePixelRect?, IReadOnlyList<CharacterHotspotFrame>> _hotspotsMoved;
     private readonly Action<Exception> _renderingFailed;
     private readonly ValidationMetricsCollector? _metrics;
     private readonly Random _random;
     private readonly long _initialPositionSeed;
     private readonly EdgeTrackGeometry _geometry;
     private readonly PixelCharacterFrameCache _frameCache;
+    private readonly CharacterThrowFrameCache _throwFrameCache;
     private readonly PixelTextVisualCache _textVisuals;
     private readonly NativeLayeredBitmap _surface;
     private readonly List<WorldNode> _nodes = [];
@@ -41,11 +49,16 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private readonly Dictionary<Guid, ActiveBubble> _bubbleBySender = [];
     private readonly List<Guid> _expiredBubbleSenders = [];
     private readonly List<MessageBubbleTrackBounds> _bubbleTrackBounds = [];
+    private readonly List<CharacterHotspotFrame> _targetHotspots = new(11);
     private readonly PixelMovementScratch _movementScratch = new();
     private readonly MessageBubbleCollisionScratch _bubbleCollisionScratch = new();
     private readonly CharacterPulseReplayGuard _pulseReplayGuard = new();
+    private readonly CharacterThrowReplayGuard _throwReplayGuard = new();
+    private readonly List<ActiveProjectile> _projectiles = new(MaximumActiveProjectiles);
+    private readonly Dictionary<Guid, long> _throwStartedAt = [];
+    private readonly Dictionary<Guid, long> _hitStartedAt = [];
+    private readonly List<Guid> _expiredHitIds = new(12);
     private readonly Timer _timer;
-    private NativePixelRect? _lastHotspotBounds;
     private double _hotspotTrackingElapsed = double.PositiveInfinity;
     private long _tick;
     private int _tickRunning;
@@ -53,6 +66,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private int _targetEdgeInsetPixels;
     private bool _faulted;
     private bool _disposed;
+    private Guid? _roomId;
 
     internal LayeredPixelWorldRenderer(
         nint windowHandle,
@@ -61,7 +75,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         uint dpi,
         OverlayEdge edge,
         WorldSnapshot initialSnapshot,
-        Action<NativePixelRect> hotspotMoved,
+        Action<NativePixelRect?, IReadOnlyList<CharacterHotspotFrame>> hotspotsMoved,
         Action<Exception> renderingFailed,
         IReadOnlySet<string>? cachedCharacterIds = null,
         ValidationMetricsCollector? metrics = null,
@@ -74,7 +88,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
         _activityBounds = activityBounds;
         _renderBounds = renderBounds;
-        _hotspotMoved = hotspotMoved ?? throw new ArgumentNullException(nameof(hotspotMoved));
+        _hotspotsMoved = hotspotsMoved ?? throw new ArgumentNullException(nameof(hotspotsMoved));
         _renderingFailed = renderingFailed ?? throw new ArgumentNullException(nameof(renderingFailed));
         _metrics = metrics;
         _edge = edge;
@@ -92,6 +106,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             Math.Max(24 * _integerScale, _hotspotPixelSize));
         var assetRoot = CharacterAssetPathResolver.Resolve();
         PixelCharacterFrameCache? frameCache = null;
+        CharacterThrowFrameCache? throwFrameCache = null;
         PixelTextVisualCache? textVisuals = null;
         NativeLayeredBitmap? surface = null;
         try
@@ -105,16 +120,25 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 _integerScale,
                 edge,
                 initialCharacterIds);
+            var throwAssetRoot = Path.Combine(
+                Directory.GetParent(assetRoot)?.FullName ?? assetRoot,
+                "CharacterThrow");
+            throwFrameCache = new CharacterThrowFrameCache(
+                throwAssetRoot,
+                _integerScale,
+                edge);
             textVisuals = new PixelTextVisualCache(dpi, edge);
             surface = new NativeLayeredBitmap(
                 windowHandle,
                 renderBounds.Width,
                 renderBounds.Height);
             _frameCache = frameCache;
+            _throwFrameCache = throwFrameCache;
             _textVisuals = textVisuals;
             _surface = surface;
             _pulseReplayGuard.SeedExisting(initialSnapshot.Pulses);
-            ApplySnapshotWithinGate(initialSnapshot with { Pulses = [] });
+            _throwReplayGuard.SeedExisting(initialSnapshot.Throws);
+            ApplySnapshotWithinGate(initialSnapshot with { Pulses = [], Throws = [] });
             RenderFrame();
             _timer = new Timer(
                 static state => ((LayeredPixelWorldRenderer)state!).TickSafely(),
@@ -127,6 +151,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             surface?.Dispose();
             textVisuals?.Dispose();
             frameCache?.Dispose();
+            throwFrameCache?.Dispose();
             throw;
         }
     }
@@ -165,6 +190,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             _surface.Dispose();
             _textVisuals.Dispose();
             _frameCache.Dispose();
+            _throwFrameCache.Dispose();
         }
     }
 
@@ -232,6 +258,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             }
 
             AnimateEdgeInset();
+            ExpireHitAnimations();
+            RefreshStoppedIds();
 
             foreach (var node in _nodes)
             {
@@ -301,10 +329,13 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         Span<byte> destinationPixels = _surface.Pixels;
         destinationPixels.Clear();
         NativePixelRect? currentUserHotspot = null;
+        _targetHotspots.Clear();
+        UpdateProjectiles();
         foreach (var node in _nodes)
         {
             var cached = _frameCache.Get(node.Member.CharacterId);
             var moving = Math.Abs(node.Agent.Velocity) >= 0.5d;
+            var actionFrame = ActionFrame(node.Member.Id);
             var frame = FrameIndex(node.Member.Presence, moving, cached.Definition.Frames);
             var pulseScale = PulseScale(node.Member.Id);
             var foot = FootPoint(node.Agent.TrackPosition);
@@ -320,9 +351,12 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 cached.Definition.FootBaselinePixel * _integerScale,
                 cached.OnlineContentBounds,
                 pulseScale);
+            var flipped = ThrowFacingLeft(node) ?? (node.Agent.Velocity < -0.1d);
             Composite(
                 destinationPixels,
-                cached.Frame(frame, node.Agent.Velocity < -0.1d),
+                actionFrame is { } activeAction
+                    ? _throwFrameCache.ActionFrame(node.Member.CharacterId, activeAction, flipped)
+                    : cached.Frame(frame, flipped),
                 cached.PixelSize,
                 destination.X - _renderBounds.X,
                 destination.Y - _renderBounds.Y,
@@ -333,6 +367,12 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             if (node.Member.IsCurrentUser)
             {
                 currentUserHotspot = HotspotBounds(baseDestination, cached.PixelSize, foot);
+            }
+            else if (_targetHotspots.Count < NativeOverlayWindowThread.MaximumTargetHotspots)
+            {
+                _targetHotspots.Add(new CharacterHotspotFrame(
+                    node.Member.Id,
+                    HotspotBounds(baseDestination, cached.PixelSize, foot)));
             }
 
             var visuals = _textVisuals.Get(node.Member.Id);
@@ -373,15 +413,25 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             }
         }
 
+        RenderProjectiles(destinationPixels);
+
         _surface.Present(_renderBounds.X, _renderBounds.Y);
-        if (currentUserHotspot is { } hotspot)
+        if (_hotspotTrackingElapsed >= HotspotTrackingPolicy.MinimumUpdateInterval.TotalSeconds)
         {
-            MoveHotspotIfNeeded(hotspot);
+            _hotspotsMoved(currentUserHotspot, _targetHotspots);
+            _hotspotTrackingElapsed = 0d;
         }
     }
 
     private void ApplySnapshotWithinGate(WorldSnapshot snapshot)
     {
+        if (_roomId != snapshot.RoomId)
+        {
+            _roomId = snapshot.RoomId;
+            _projectiles.Clear();
+            _throwStartedAt.Clear();
+            _hitStartedAt.Clear();
+        }
         _frameCache.RetainCharacters(snapshot.Members.Select(member => member.CharacterId));
         _incomingMemberIds.Clear();
         foreach (var member in snapshot.Members)
@@ -449,14 +499,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             }
         }
 
-        _stoppedIds.Clear();
-        foreach (var node in _nodes)
-        {
-            if (node.Member.Presence is PresenceState.Away or PresenceState.Offline or PresenceState.Reconnecting)
-            {
-                _stoppedIds.Add(node.Member.Id);
-            }
-        }
+        RefreshStoppedIds();
 
         _bubbleBySender.Clear();
         var now = DateTimeOffset.UtcNow;
@@ -478,7 +521,236 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             _pulseStartedAt[pulse.UserId] = Stopwatch.GetTimestamp();
         }
 
+        foreach (var characterThrow in snapshot.Throws)
+        {
+            if (characterThrow.RoomId != snapshot.RoomId
+                || characterThrow.ActorUserId == characterThrow.TargetUserId
+                || !_nodeById.ContainsKey(characterThrow.ActorUserId)
+                || !_nodeById.ContainsKey(characterThrow.TargetUserId)
+                || !_throwReplayGuard.TryAccept(characterThrow))
+            {
+                continue;
+            }
+
+            if (_projectiles.Count == MaximumActiveProjectiles)
+            {
+                _projectiles.RemoveAt(0);
+            }
+            var started = Stopwatch.GetTimestamp();
+            _throwStartedAt[characterThrow.ActorUserId] = started;
+            _projectiles.Add(new ActiveProjectile(characterThrow, started));
+        }
+
         _textVisuals.Update(snapshot);
+    }
+
+    private void RefreshStoppedIds()
+    {
+        _stoppedIds.Clear();
+        foreach (var node in _nodes)
+        {
+            if (node.Member.Presence is PresenceState.Away or PresenceState.Offline or PresenceState.Reconnecting
+                || _hitStartedAt.ContainsKey(node.Member.Id))
+            {
+                _stoppedIds.Add(node.Member.Id);
+            }
+        }
+    }
+
+    private void ExpireHitAnimations()
+    {
+        _expiredHitIds.Clear();
+        foreach (var hit in _hitStartedAt)
+        {
+            if (Stopwatch.GetElapsedTime(hit.Value).TotalSeconds >= HitActionSeconds)
+            {
+                _expiredHitIds.Add(hit.Key);
+            }
+        }
+        foreach (var userId in _expiredHitIds)
+        {
+            _hitStartedAt.Remove(userId);
+        }
+    }
+
+    private int? ActionFrame(Guid userId)
+    {
+        if (_hitStartedAt.TryGetValue(userId, out var hitStarted))
+        {
+            var elapsed = Stopwatch.GetElapsedTime(hitStarted).TotalSeconds;
+            return 4 + Math.Min(3, (int)(elapsed / (HitActionSeconds / 4d)));
+        }
+        if (_throwStartedAt.TryGetValue(userId, out var throwStarted))
+        {
+            var elapsed = Stopwatch.GetElapsedTime(throwStarted).TotalSeconds;
+            if (elapsed < ThrowActionSeconds)
+            {
+                return Math.Min(3, (int)(elapsed / (ThrowActionSeconds / 4d)));
+            }
+            _throwStartedAt.Remove(userId);
+        }
+        return null;
+    }
+
+    private bool? ThrowFacingLeft(WorldNode node)
+    {
+        ActiveProjectile? latest = null;
+        foreach (var projectile in _projectiles)
+        {
+            if (projectile.Event.ActorUserId == node.Member.Id && projectile.ImpactStartedAt is null)
+            {
+                latest = projectile;
+            }
+        }
+        if (latest is null || !_nodeById.TryGetValue(latest.Event.TargetUserId, out var target))
+        {
+            return null;
+        }
+        return target.Agent.TrackPosition < node.Agent.TrackPosition;
+    }
+
+    private void UpdateProjectiles()
+    {
+        for (var index = _projectiles.Count - 1; index >= 0; index--)
+        {
+            var projectile = _projectiles[index];
+            if (!_nodeById.TryGetValue(projectile.Event.ActorUserId, out var actor))
+            {
+                _projectiles.RemoveAt(index);
+                continue;
+            }
+
+            if (!_nodeById.TryGetValue(projectile.Event.TargetUserId, out var target))
+            {
+                if (projectile.Start is not null && projectile.End is not null)
+                {
+                    projectile.ImpactStartedAt ??= Stopwatch.GetTimestamp();
+                    if (Stopwatch.GetElapsedTime(projectile.ImpactStartedAt.Value).TotalSeconds >= ImpactSeconds)
+                    {
+                        _projectiles.RemoveAt(index);
+                    }
+                }
+                else
+                {
+                    _projectiles.RemoveAt(index);
+                }
+                continue;
+            }
+
+            var elapsed = Stopwatch.GetElapsedTime(projectile.StartedAt).TotalSeconds;
+            if (elapsed < ThrowReleaseSeconds)
+            {
+                continue;
+            }
+            if (projectile.Start is null)
+            {
+                projectile.Start = BodyPoint(actor);
+            }
+            var endpoint = BodyPoint(target);
+            projectile.End = endpoint;
+            var start = projectile.Start.Value;
+            var distancePixels = Math.Sqrt(
+                Math.Pow(endpoint.X - start.X, 2d) + Math.Pow(endpoint.Y - start.Y, 2d));
+            var distanceDip = distancePixels * 96d / Math.Max(96d, _integerScale * 48d);
+            var duration = Math.Clamp(0.35d + (distanceDip / 1600d), 0.35d, 0.95d);
+            if (projectile.ImpactStartedAt is null && elapsed - ThrowReleaseSeconds >= duration)
+            {
+                projectile.ImpactStartedAt = Stopwatch.GetTimestamp();
+                _hitStartedAt[target.Member.Id] = projectile.ImpactStartedAt.Value;
+            }
+            if (projectile.ImpactStartedAt is { } impactStarted
+                && Stopwatch.GetElapsedTime(impactStarted).TotalSeconds >= ImpactSeconds)
+            {
+                _projectiles.RemoveAt(index);
+            }
+        }
+    }
+
+    private void RenderProjectiles(Span<byte> destination)
+    {
+        foreach (var projectile in _projectiles)
+        {
+            if (projectile.Start is not { } start || projectile.End is not { } end)
+            {
+                continue;
+            }
+
+            int frame;
+            (double X, double Y) point;
+            if (projectile.ImpactStartedAt is { } impactStarted)
+            {
+                var elapsed = Stopwatch.GetElapsedTime(impactStarted).TotalSeconds;
+                frame = 8 + Math.Min(3, (int)(elapsed / (ImpactSeconds / 4d)));
+                point = end;
+            }
+            else
+            {
+                var elapsed = Stopwatch.GetElapsedTime(projectile.StartedAt).TotalSeconds - ThrowReleaseSeconds;
+                var distancePixels = Math.Sqrt(
+                    Math.Pow(end.X - start.X, 2d) + Math.Pow(end.Y - start.Y, 2d));
+                var distanceDip = distancePixels * 96d / Math.Max(96d, _integerScale * 48d);
+                var duration = Math.Clamp(0.35d + (distanceDip / 1600d), 0.35d, 0.95d);
+                var progress = Math.Clamp(elapsed / duration, 0d, 1d);
+                var arc = Math.Clamp(distancePixels * 0.18d, 24d * _integerScale / 2d, 96d * _integerScale / 2d);
+                var control = InwardControlPoint(start, end, arc);
+                point = QuadraticBezier(start, control, end, progress);
+                frame = (int)(Math.Max(0d, elapsed) / 0.083d) % 8;
+            }
+
+            var size = _throwFrameCache.ObjectPixelSize;
+            CompositeRectangle(
+                destination,
+                _throwFrameCache.ObjectFrame(projectile.Event.SourceCharacterId, frame),
+                size,
+                size,
+                (int)Math.Round(point.X - (size / 2d)) - _renderBounds.X,
+                (int)Math.Round(point.Y - (size / 2d)) - _renderBounds.Y,
+                1d,
+                1d,
+                desaturate: false);
+        }
+    }
+
+    private (double X, double Y) BodyPoint(WorldNode node)
+    {
+        var foot = FootPoint(node.Agent.TrackPosition);
+        var inward = 12d * _integerScale;
+        return _edge switch
+        {
+            OverlayEdge.Bottom => (foot.X, foot.Y - inward),
+            OverlayEdge.Top => (foot.X, foot.Y + inward),
+            OverlayEdge.Left => (foot.X + inward, foot.Y),
+            OverlayEdge.Right => (foot.X - inward, foot.Y),
+            _ => throw new ArgumentOutOfRangeException(),
+        };
+    }
+
+    private (double X, double Y) InwardControlPoint(
+        (double X, double Y) start,
+        (double X, double Y) end,
+        double arc)
+    {
+        var midpoint = ((start.X + end.X) / 2d, (start.Y + end.Y) / 2d);
+        return _edge switch
+        {
+            OverlayEdge.Bottom => (midpoint.Item1, midpoint.Item2 - arc),
+            OverlayEdge.Top => (midpoint.Item1, midpoint.Item2 + arc),
+            OverlayEdge.Left => (midpoint.Item1 + arc, midpoint.Item2),
+            OverlayEdge.Right => (midpoint.Item1 - arc, midpoint.Item2),
+            _ => throw new ArgumentOutOfRangeException(),
+        };
+    }
+
+    private static (double X, double Y) QuadraticBezier(
+        (double X, double Y) start,
+        (double X, double Y) control,
+        (double X, double Y) end,
+        double progress)
+    {
+        var inverse = 1d - progress;
+        return (
+            (inverse * inverse * start.X) + (2d * inverse * progress * control.X) + (progress * progress * end.X),
+            (inverse * inverse * start.Y) + (2d * inverse * progress * control.Y) + (progress * progress * end.Y));
     }
 
     private int FrameIndex(
@@ -816,27 +1088,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         _ => throw new ArgumentOutOfRangeException(),
     };
 
-    private void MoveHotspotIfNeeded(NativePixelRect hotspot)
-    {
-        if (_lastHotspotBounds is { } previous
-            && !HotspotTrackingPolicy.ShouldUpdate(
-                Center(previous),
-                Center(hotspot),
-                TimeSpan.FromSeconds(_hotspotTrackingElapsed)))
-        {
-            return;
-        }
-
-        _hotspotMoved(hotspot);
-        _lastHotspotBounds = hotspot;
-        _hotspotTrackingElapsed = 0d;
-    }
-
     private static byte Blend(byte source, byte destination, int inverseAlpha) =>
         (byte)Math.Min(255, source + ((destination * inverseAlpha + 127) / 255));
-
-    private static PointD Center(NativePixelRect rect) =>
-        new(rect.X + (rect.Width / 2d), rect.Y + (rect.Height / 2d));
 
     private static int DipToPixels(double value, uint dpi) =>
         (int)Math.Round(value * dpi / 96d, MidpointRounding.AwayFromZero);
@@ -845,5 +1098,14 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     {
         public PixelWorldMember Member { get; set; } = member;
         public PixelMovementAgent Agent { get; } = agent;
+    }
+
+    private sealed class ActiveProjectile(CharacterThrowEvent @event, long startedAt)
+    {
+        public CharacterThrowEvent Event { get; } = @event;
+        public long StartedAt { get; } = startedAt;
+        public (double X, double Y)? Start { get; set; }
+        public (double X, double Y)? End { get; set; }
+        public long? ImpactStartedAt { get; set; }
     }
 }

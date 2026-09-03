@@ -15,6 +15,7 @@ public sealed class AppPreferencesTests
         Assert.True(preferences.OverlayVisible);
         Assert.False(preferences.QuietMode);
         Assert.True(preferences.ShowOfflineMembers);
+        Assert.False(preferences.RequiresRightClickToThrow);
         Assert.False(preferences.StartAtLogin);
         Assert.Null(preferences.CachedNickname);
         Assert.Null(preferences.CachedCharacterId);

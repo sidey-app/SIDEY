@@ -34,6 +34,7 @@ public sealed class AtomicPreferencesStoreTests
             Assert.Equal(AppPreferences.CurrentSchemaVersion, preferences.SchemaVersion);
             Assert.Null(preferences.CachedNickname);
             Assert.Null(preferences.CachedCharacterId);
+            Assert.False(preferences.RequiresRightClickToThrow);
         }
         finally
         {
@@ -53,6 +54,7 @@ public sealed class AtomicPreferencesStoreTests
             OverlayVisible = false,
             QuietMode = true,
             ShowOfflineMembers = false,
+            RequiresRightClickToThrow = true,
             StartAtLogin = true,
             CachedNickname = "윈도우 테스트",
             CachedCharacterId = "pixel_penguin",

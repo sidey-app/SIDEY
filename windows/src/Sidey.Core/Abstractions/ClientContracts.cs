@@ -77,6 +77,7 @@ public abstract record BackendEvent
     public sealed record PresenceChanged(Guid RoomId, Guid UserId, PresenceState State) : BackendEvent;
     public sealed record TypingChanged(Guid RoomId, Guid UserId, bool Active) : BackendEvent;
     public sealed record CharacterPulsed(CharacterPulseEvent Pulse) : BackendEvent;
+    public sealed record CharacterThrown(CharacterThrowEvent Throw) : BackendEvent;
     public sealed record RoomStructureChanged(Guid RoomId) : BackendEvent;
     public sealed record ConnectionChanged(bool Connected) : BackendEvent;
     public sealed record ReconciliationRequired : BackendEvent;
@@ -104,6 +105,11 @@ public interface IBackendGateway
     Task PublishPresenceAsync(Guid roomId, PresenceState state, CancellationToken cancellationToken = default);
     Task BroadcastTypingAsync(Guid roomId, bool active, bool keepalive, CancellationToken cancellationToken = default);
     Task BroadcastCharacterPulseAsync(Guid roomId, Guid eventId, CancellationToken cancellationToken = default);
+    Task BroadcastCharacterThrowAsync(
+        Guid roomId,
+        Guid eventId,
+        Guid targetUserId,
+        CancellationToken cancellationToken = default);
     Task SynchronizeRealtimeRoomsAsync(
         IReadOnlyDictionary<Guid, long> roomEpochs,
         Guid? activeRoomId,

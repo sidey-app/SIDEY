@@ -122,6 +122,35 @@ public sealed class RealtimePolicyTests
         Assert.False(cooldown.Accept(roomId, userId, TimeSpan.FromSeconds(-1)));
     }
 
+    [Fact]
+    public void ThrowCooldownMatchesTheHalfSecondClientContract()
+    {
+        var roomId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var cooldown = new CharacterThrowCooldown();
+
+        Assert.True(cooldown.Accept(roomId, userId, TimeSpan.FromSeconds(10)));
+        Assert.False(cooldown.Accept(roomId, userId, TimeSpan.FromSeconds(10.499)));
+        Assert.True(cooldown.Accept(roomId, userId, TimeSpan.FromSeconds(10.5)));
+        Assert.True(cooldown.Accept(roomId, Guid.NewGuid(), TimeSpan.FromSeconds(10.5)));
+        Assert.False(cooldown.Accept(roomId, userId, TimeSpan.FromSeconds(-1)));
+        Assert.Equal(TimeSpan.FromMilliseconds(500), CharacterThrowCooldown.Duration);
+    }
+
+    [Theory]
+    [InlineData(PresenceState.Online)]
+    [InlineData(PresenceState.Typing)]
+    [InlineData(PresenceState.Away)]
+    [InlineData(PresenceState.Offline)]
+    [InlineData(PresenceState.Reconnecting)]
+    public void ThrowTargetIgnoresPresence(PresenceState presence)
+    {
+        Assert.True(CharacterThrowTargetPolicy.CanTarget(new PixelWorldMember(
+            Guid.NewGuid(), "friend", "pixel_hamster", presence, false, false)));
+        Assert.False(CharacterThrowTargetPolicy.CanTarget(new PixelWorldMember(
+            Guid.NewGuid(), "self", "pixel_hamster", presence, false, true)));
+    }
+
     [Theory]
     [InlineData(1, 8)]
     [InlineData(2, 16)]

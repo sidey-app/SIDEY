@@ -18,6 +18,21 @@ public sealed class OverlayBehaviorPolicyTests
     }
 
     [Fact]
+    public void ExistingThrowDoesNotReplayAndGuardIsBounded()
+    {
+        var existing = Throw();
+        var guard = new CharacterThrowReplayGuard(capacity: 2);
+
+        guard.SeedExisting([existing]);
+        Assert.False(guard.TryAccept(existing));
+        var second = Throw();
+        var third = Throw();
+        Assert.True(guard.TryAccept(second));
+        Assert.True(guard.TryAccept(third));
+        Assert.True(guard.TryAccept(existing));
+    }
+
+    [Fact]
     public void PlacementSessionEntropyChangesInitialPositions()
     {
         var memberId = Guid.Parse("5ec7a319-2dde-48df-af96-e2554fc0cf2a");
@@ -56,6 +71,13 @@ public sealed class OverlayBehaviorPolicyTests
         Guid.NewGuid(),
         Guid.NewGuid(),
         Guid.NewGuid());
+
+    private static CharacterThrowEvent Throw() => new(
+        Guid.NewGuid(),
+        Guid.NewGuid(),
+        Guid.NewGuid(),
+        Guid.NewGuid(),
+        "pixel_hamster");
 
     private static PremultipliedVisual Visual(int width, int height)
     {

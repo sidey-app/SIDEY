@@ -38,6 +38,15 @@
     <None Include="../../src/Sidey.App/AppCoordinator.cs" Link="TestAssets/AppCoordinator.cs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="../../src/Sidey.Overlay/NativePixelWorldSession.cs" Link="TestAssets/NativePixelWorldSession.cs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="../../src/Sidey.Platform.Windows/NativeOverlayWindowThread.cs" Link="TestAssets/NativeOverlayWindowThread.cs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="../../src/Sidey.Platform.Windows/NativeOverlayWindow.cs" Link="TestAssets/NativeOverlayWindow.cs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="../../src/Sidey.App/Sidey.App.csproj" Link="TestAssets/Sidey.App.csproj.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

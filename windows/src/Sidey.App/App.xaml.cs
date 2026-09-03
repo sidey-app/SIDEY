@@ -106,6 +106,7 @@ public partial class App : Application
         StartupDiagnostics.Stage("cached-settings-loaded");
         _coordinator.ComposerRequested += RequestComposer;
         _coordinator.PulseRequested += RequestPulse;
+        _coordinator.CharacterThrowRequested += RequestCharacterThrow;
         _coordinator.SendFailed += RestoreFailedDraft;
         _coordinator.RenderingFailed += OnRenderingFailed;
         _coordinator.GroupSetupRequested += OnGroupSetupRequested;
@@ -342,6 +343,26 @@ public partial class App : Application
             catch (Exception exception)
             {
                 EnsureMainWindow().ShowFatalError(exception);
+            }
+        });
+    }
+
+    private void RequestCharacterThrow(Guid targetUserId)
+    {
+        _dispatcherQueue.TryEnqueue(async () =>
+        {
+            if (_coordinator is null)
+            {
+                return;
+            }
+
+            try
+            {
+                await _coordinator.ThrowAtCharacterAsync(targetUserId);
+            }
+            catch (Exception exception)
+            {
+                StartupDiagnostics.NonFatal("character-throw", exception);
             }
         });
     }
@@ -686,6 +707,7 @@ public partial class App : Application
         {
             _coordinator.ComposerRequested -= RequestComposer;
             _coordinator.PulseRequested -= RequestPulse;
+            _coordinator.CharacterThrowRequested -= RequestCharacterThrow;
             _coordinator.SendFailed -= RestoreFailedDraft;
             _coordinator.RenderingFailed -= OnRenderingFailed;
             _coordinator.GroupSetupRequested -= OnGroupSetupRequested;

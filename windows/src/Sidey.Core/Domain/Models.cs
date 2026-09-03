@@ -69,6 +69,18 @@ public sealed record PixelWorldMember(
 
 public sealed record CharacterPulseEvent(Guid Id, Guid RoomId, Guid UserId);
 
+public sealed record CharacterThrowEvent(
+    Guid Id,
+    Guid RoomId,
+    Guid ActorUserId,
+    Guid TargetUserId,
+    string SourceCharacterId);
+
+public static class CharacterThrowTargetPolicy
+{
+    public static bool CanTarget(PixelWorldMember member) => !member.IsCurrentUser;
+}
+
 public sealed record ActiveBubble(
     Guid SenderId,
     Guid MessageId,
@@ -89,5 +101,6 @@ public sealed record WorldSnapshot(
     IReadOnlyList<PixelWorldMember> Members,
     IReadOnlyList<ActiveBubble> Bubbles,
     IReadOnlyList<CharacterPulseEvent> Pulses,
+    IReadOnlyList<CharacterThrowEvent> Throws,
     OverlayEdge Edge,
     long InstallationSeed);

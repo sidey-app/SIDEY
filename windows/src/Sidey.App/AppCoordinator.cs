@@ -25,8 +25,10 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
     private readonly MessageLedger _messages = new();
     private readonly ActiveBubbleLedger _bubbles = new();
     private readonly CharacterPulseCooldown _pulseCooldown = new();
+    private readonly CharacterThrowCooldown _throwCooldown = new();
     private readonly TypingLease _typingLease = new();
     private readonly List<CharacterPulseEvent> _pendingPulses = [];
+    private readonly List<CharacterThrowEvent> _pendingThrows = [];
     private readonly HashSet<(Guid RoomId, Guid UserId)> _typing = [];
     private readonly Dictionary<(Guid RoomId, Guid UserId), PresenceState> _basePresence = [];
     private readonly Dictionary<Guid, int> _unreadByRoom = [];
@@ -92,6 +94,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
     public event Action<CoordinatorState>? StateChanged;
     public event Action? ComposerRequested;
     public event Action? PulseRequested;
+    public event Action<Guid>? CharacterThrowRequested;
     public event Action<string, Exception>? SendFailed;
     public event Action<Exception>? RenderingFailed;
     public event Action? GroupSetupRequested;
@@ -502,6 +505,18 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         ApplyWorldSnapshot();
     }
 
+    public async Task SetRequiresRightClickToThrowAsync(
+        bool enabled,
+        CancellationToken cancellationToken = default)
+    {
+        SetState(_state with
+        {
+            Preferences = _state.Preferences with { RequiresRightClickToThrow = enabled },
+        });
+        await PersistPreferencesAsync(cancellationToken);
+        _overlay?.ConfigureThrowInteraction(enabled, _backend is null || _state.Connected);
+    }
+
     public async Task SetStartAtLoginAsync(
         bool enabled,
         CancellationToken cancellationToken = default)
@@ -599,6 +614,9 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 
     public void RequestCharacterPulse() => PulseRequested?.Invoke();
 
+    public void RequestCharacterThrow(Guid targetUserId) =>
+        CharacterThrowRequested?.Invoke(targetUserId);
+
     public async Task PulseCurrentCharacterAsync(CancellationToken cancellationToken = default)
     {
         var roomId = _state.ActiveRoomId ?? _previewRoomId;
@@ -624,6 +642,64 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                 roomId.Value,
                 pulse.Id,
                 cancellationToken);
+        }
+    }
+
+    public async Task ThrowAtCharacterAsync(
+        Guid targetUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var roomId = _state.ActiveRoomId ?? _previewRoomId;
+        var actor = _state.Profile;
+        var actorUserId = actor?.Id ?? _previewUserId;
+        var sourceCharacterId = actor?.CharacterId
+            ?? _previewSnapshot?.Members.FirstOrDefault(member => member.IsCurrentUser)?.CharacterId;
+        if (roomId is null || actorUserId is null || sourceCharacterId is null
+            || actorUserId == targetUserId
+            || (_backend is not null && !_state.Connected))
+        {
+            return;
+        }
+
+        var world = CurrentWorldSnapshot();
+        var target = world.Members.FirstOrDefault(member => member.Id == targetUserId);
+        if (world.RoomId != roomId || target is null
+            || !CharacterThrowTargetPolicy.CanTarget(target))
+        {
+            return;
+        }
+
+        var uptime = TimeSpan.FromSeconds(
+            Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency);
+        if (!_throwCooldown.Accept(roomId.Value, actorUserId.Value, uptime))
+        {
+            return;
+        }
+
+        var characterThrow = new CharacterThrowEvent(
+            Guid.NewGuid(),
+            roomId.Value,
+            actorUserId.Value,
+            targetUserId,
+            sourceCharacterId);
+        QueueThrowForWorld(characterThrow);
+        if (_backend is not null)
+        {
+            try
+            {
+                await _backend.BroadcastCharacterThrowAsync(
+                    roomId.Value,
+                    characterThrow.Id,
+                    targetUserId,
+                    cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+            }
+            catch (Exception exception)
+            {
+                Trace.TraceError("SIDEY character throw broadcast failed: {0}", exception);
+            }
         }
     }
 
@@ -787,6 +863,24 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                             QueuePulseForWorld(pulsed.Pulse);
                         }
                         break;
+                    case BackendEvent.CharacterThrown thrown:
+                        var characterThrow = thrown.Throw;
+                        var activeRoom = _state.ActiveRoomId is { } activeRoomId
+                            ? _state.Rooms.FirstOrDefault(room => room.Id == activeRoomId)
+                            : null;
+                        if (activeRoom?.Id == characterThrow.RoomId
+                            && characterThrow.ActorUserId != characterThrow.TargetUserId
+                            && activeRoom.Members.Any(member => member.UserId == characterThrow.ActorUserId)
+                            && activeRoom.Members.Any(member => member.UserId == characterThrow.TargetUserId)
+                            && _throwCooldown.Accept(
+                                characterThrow.RoomId,
+                                characterThrow.ActorUserId,
+                                TimeSpan.FromSeconds(
+                                    Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency)))
+                        {
+                            QueueThrowForWorld(characterThrow);
+                        }
+                        break;
                     case BackendEvent.ConnectionChanged connection:
                         StartupDiagnostics.Stage(
                             $"realtime-connection connected={connection.Connected.ToString().ToLowerInvariant()}");
@@ -912,6 +1006,9 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         }).ToArray();
 
         SetState(_state with { Rooms = rooms, Connected = connected });
+        _overlay?.ConfigureThrowInteraction(
+            _state.Preferences.RequiresRightClickToThrow,
+            connected);
         if (_overlay is null
             && _state.ActiveRoomId is not null
             && _state.Preferences.OverlayVisible)
@@ -1072,6 +1169,9 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             snapshot,
             RequestComposer,
             RequestCharacterPulse,
+            RequestCharacterThrow,
+            _state.Preferences.RequiresRightClickToThrow,
+            _backend is null || _state.Connected,
             exception => RenderingFailed?.Invoke(exception),
             new NativePixelWorldSessionOptions(
                 ValidationCharacterIds: validationIds,
@@ -1096,6 +1196,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         _bubbles.Prune();
         _overlay.ApplyAsync(CurrentWorldSnapshot()).GetAwaiter().GetResult();
         _pendingPulses.Clear();
+        _pendingThrows.Clear();
     }
 
     private void QueuePulseForWorld(CharacterPulseEvent pulse)
@@ -1109,6 +1210,17 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         ApplyWorldSnapshot();
     }
 
+    private void QueueThrowForWorld(CharacterThrowEvent characterThrow)
+    {
+        if (_overlay is null)
+        {
+            return;
+        }
+
+        _pendingThrows.Add(characterThrow);
+        ApplyWorldSnapshot();
+    }
+
     private WorldSnapshot CurrentWorldSnapshot()
     {
         if (_backend is null && _previewSnapshot is { } preview)
@@ -1116,6 +1228,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             return preview with
             {
                 Pulses = _pendingPulses.ToArray(),
+                Throws = _pendingThrows.ToArray(),
                 Edge = _state.Preferences.OverlayRegion.Edge,
                 InstallationSeed = _state.Preferences.InstallationSeed,
             };
@@ -1140,6 +1253,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             members,
             _state.Preferences.QuietMode ? [] : _bubbles.Bubbles.ToArray(),
             _pendingPulses.ToArray(),
+            _pendingThrows.ToArray(),
             _state.Preferences.OverlayRegion.Edge,
             _state.Preferences.InstallationSeed);
     }

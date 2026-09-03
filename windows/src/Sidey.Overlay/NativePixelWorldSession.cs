@@ -12,14 +12,30 @@ public sealed record NativePixelWorldSessionOptions(
 
 public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
 {
+    private static readonly TimeSpan ThrowTargetingDuration = TimeSpan.FromSeconds(10);
+
+    private readonly object _throwGate = new();
     private readonly NativeOverlayWindowThread _windows;
     private readonly LayeredPixelWorldRenderer _renderer;
     private readonly ValidationMetricsCollector? _metrics;
     private readonly WindowsMonitorInfo _monitor;
     private readonly OverlayEdge _edge;
     private readonly Timer _taskbarTimer;
+    private readonly Timer _throwTargetingTimer;
+    private readonly Action<Guid> _requestThrow;
+    private readonly Guid?[] _targetUserIds = new Guid?[NativeOverlayWindowThread.MaximumTargetHotspots];
+    private readonly NativePixelRect[] _targetBounds = new NativePixelRect[NativeOverlayWindowThread.MaximumTargetHotspots];
+    private readonly NativePixelRect[] _appliedTargetBounds = new NativePixelRect[NativeOverlayWindowThread.MaximumTargetHotspots];
+    private readonly bool[] _targetWindowsShown = new bool[NativeOverlayWindowThread.MaximumTargetHotspots];
     private int _topmostRefreshCountdown = 20;
     private nint _yieldedShellSurface;
+    private Guid? _roomId;
+    private bool _requiresRightClickToThrow;
+    private bool _realtimeConnected;
+    private bool _selfHotspotAvailable;
+    private NativePixelRect _lastSelfHotspot = new(0, 0, 1, 1);
+    private bool _selfWindowShown = true;
+    private bool _throwTargetingActive;
     private bool _disposed;
 
     private NativePixelWorldSession(
@@ -27,18 +43,31 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         LayeredPixelWorldRenderer renderer,
         ValidationMetricsCollector? metrics,
         WindowsMonitorInfo monitor,
-        OverlayEdge edge)
+        OverlayEdge edge,
+        Guid? roomId,
+        Action<Guid> requestThrow,
+        bool requiresRightClickToThrow,
+        bool realtimeConnected)
     {
         _windows = windows;
         _renderer = renderer;
         _metrics = metrics;
         _monitor = monitor;
         _edge = edge;
+        _roomId = roomId;
+        _requestThrow = requestThrow;
+        _requiresRightClickToThrow = requiresRightClickToThrow;
+        _realtimeConnected = realtimeConnected;
         _taskbarTimer = new Timer(
             static state => ((NativePixelWorldSession)state!).RefreshTaskbarInset(),
             this,
             TimeSpan.FromMilliseconds(50),
             TimeSpan.FromMilliseconds(50));
+        _throwTargetingTimer = new Timer(
+            static state => ((NativePixelWorldSession)state!).ExpireThrowTargeting(),
+            this,
+            Timeout.InfiniteTimeSpan,
+            Timeout.InfiniteTimeSpan);
     }
 
     public bool IsVisible { get; private set; } = true;
@@ -52,12 +81,16 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         WorldSnapshot initialSnapshot,
         Action requestComposer,
         Action requestPulse,
+        Action<Guid> requestThrow,
+        bool requiresRightClickToThrow,
+        bool realtimeConnected,
         Action<Exception> renderingFailed,
         NativePixelWorldSessionOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(initialSnapshot);
         ArgumentNullException.ThrowIfNull(requestComposer);
         ArgumentNullException.ThrowIfNull(requestPulse);
+        ArgumentNullException.ThrowIfNull(requestThrow);
         ArgumentNullException.ThrowIfNull(renderingFailed);
         options ??= new NativePixelWorldSessionOptions();
 
@@ -103,6 +136,7 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
 
         NativeOverlayWindowThread? windows = null;
         LayeredPixelWorldRenderer? renderer = null;
+        NativePixelWorldSession? session = null;
         windows = NativeOverlayWindowThread.Start(
             frames.RenderFrame,
             initialHotspot,
@@ -115,7 +149,7 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
                     monitor.Dpi,
                     preference.Edge,
                     initialSnapshot,
-                    bounds => windows?.SetHotspotBounds(bounds),
+                    (self, targets) => session?.UpdateHotspots(self, targets),
                     renderingFailed,
                     normalizedValidationIds,
                     metrics,
@@ -123,13 +157,20 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
                 return renderer;
             },
             requestComposer,
-            requestPulse);
-        return new NativePixelWorldSession(
+            requestPulse,
+            () => session?.ActivateThrowTargeting(),
+            index => session?.ActivateTarget(index));
+        session = new NativePixelWorldSession(
             windows,
             renderer ?? throw new InvalidOperationException("SIDEY renderer did not initialize."),
             metrics,
             monitor,
-            preference.Edge);
+            preference.Edge,
+            initialSnapshot.RoomId,
+            requestThrow,
+            requiresRightClickToThrow,
+            realtimeConnected);
+        return session;
     }
 
     public ValueTask ApplyAsync(
@@ -137,6 +178,15 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (_roomId != snapshot.RoomId)
+        {
+            lock (_throwGate)
+            {
+                _roomId = snapshot.RoomId;
+                CancelThrowTargetingWithinGate();
+                ClearTargetsWithinGate();
+            }
+        }
         _renderer.ApplySnapshot(snapshot);
         return ValueTask.CompletedTask;
     }
@@ -147,7 +197,40 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         _windows.SetVisible(visible);
         IsVisible = visible;
+        if (visible && !_selfHotspotAvailable)
+        {
+            _windows.SetHotspotBounds(_lastSelfHotspot, visible: false);
+        }
+        _selfWindowShown = visible && _selfHotspotAvailable;
+        if (!visible)
+        {
+            lock (_throwGate)
+            {
+                CancelThrowTargetingWithinGate();
+                _windows.HideTargetHotspots();
+                Array.Clear(_targetWindowsShown);
+            }
+        }
+        else
+        {
+            lock (_throwGate)
+            {
+                RefreshTargetVisibilityWithinGate();
+            }
+        }
         return ValueTask.CompletedTask;
+    }
+
+    public void ConfigureThrowInteraction(bool requiresRightClickToThrow, bool realtimeConnected)
+    {
+        lock (_throwGate)
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _requiresRightClickToThrow = requiresRightClickToThrow;
+            _realtimeConnected = realtimeConnected;
+            CancelThrowTargetingWithinGate();
+            RefreshTargetVisibilityWithinGate();
+        }
     }
 
     public Task<string?> ExportValidationMetricsAsync(CancellationToken cancellationToken = default) =>
@@ -165,6 +248,8 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         _disposed = true;
         _taskbarTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         _taskbarTimer.Dispose();
+        _throwTargetingTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        _throwTargetingTimer.Dispose();
         _windows.Dispose();
         if (_metrics is not null)
         {
@@ -183,6 +268,162 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         ValidationMetricsCollector metrics,
         CancellationToken cancellationToken) =>
         await metrics.ExportAsync(cancellationToken).ConfigureAwait(false);
+
+    private void ActivateThrowTargeting()
+    {
+        lock (_throwGate)
+        {
+            if (_disposed || !_requiresRightClickToThrow || !_realtimeConnected
+                || !IsVisible || !_selfHotspotAvailable)
+            {
+                return;
+            }
+
+            _throwTargetingActive = true;
+            _throwTargetingTimer.Change(ThrowTargetingDuration, Timeout.InfiniteTimeSpan);
+            RefreshTargetVisibilityWithinGate();
+        }
+    }
+
+    private void ExpireThrowTargeting()
+    {
+        lock (_throwGate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _throwTargetingActive = false;
+            RefreshTargetVisibilityWithinGate();
+        }
+    }
+
+    private void ActivateTarget(int index)
+    {
+        Guid? targetUserId;
+        lock (_throwGate)
+        {
+            if (_disposed || !TargetsEnabledWithinGate()
+                || index < 0 || index >= _targetUserIds.Length)
+            {
+                return;
+            }
+
+            targetUserId = _targetUserIds[index];
+        }
+
+        if (targetUserId is { } userId)
+        {
+            _requestThrow(userId);
+        }
+    }
+
+    private void UpdateHotspots(
+        NativePixelRect? self,
+        IReadOnlyList<CharacterHotspotFrame> targets)
+    {
+        lock (_throwGate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _selfHotspotAvailable = self is not null;
+            if (self is { } selfBounds)
+            {
+                if (!_selfWindowShown || MovedAtLeastOneDip(_lastSelfHotspot, selfBounds))
+                {
+                    _windows.SetHotspotBounds(selfBounds, IsVisible);
+                    _lastSelfHotspot = selfBounds;
+                }
+                _selfWindowShown = IsVisible;
+            }
+            else
+            {
+                if (_selfWindowShown)
+                {
+                    _windows.SetHotspotBounds(_lastSelfHotspot, visible: false);
+                    _selfWindowShown = false;
+                }
+                CancelThrowTargetingWithinGate();
+            }
+
+            var count = Math.Min(targets.Count, _targetUserIds.Length);
+            for (var index = 0; index < count; index++)
+            {
+                _targetUserIds[index] = targets[index].UserId;
+                _targetBounds[index] = targets[index].Bounds;
+            }
+            for (var index = count; index < _targetUserIds.Length; index++)
+            {
+                _targetUserIds[index] = null;
+            }
+            RefreshTargetVisibilityWithinGate();
+        }
+    }
+
+    private bool TargetsEnabledWithinGate() =>
+        IsVisible
+        && _realtimeConnected
+        && _selfHotspotAvailable
+        && (!_requiresRightClickToThrow || _throwTargetingActive);
+
+    private void RefreshTargetVisibilityWithinGate()
+    {
+        var enabled = TargetsEnabledWithinGate();
+        for (var index = 0; index < _targetUserIds.Length; index++)
+        {
+            var visible = enabled && _targetUserIds[index] is not null;
+            if (visible)
+            {
+                if (!_targetWindowsShown[index]
+                    || MovedAtLeastOneDip(_appliedTargetBounds[index], _targetBounds[index]))
+                {
+                    _windows.SetTargetHotspotBounds(index, _targetBounds[index], visible: true);
+                    _appliedTargetBounds[index] = _targetBounds[index];
+                }
+                _targetWindowsShown[index] = true;
+            }
+            else if (_targetWindowsShown[index])
+            {
+                _windows.SetTargetHotspotBounds(
+                    index,
+                    _targetBounds[index].IsValid ? _targetBounds[index] : new NativePixelRect(0, 0, 1, 1),
+                    visible: false);
+                _targetWindowsShown[index] = false;
+            }
+        }
+    }
+
+    private void CancelThrowTargetingWithinGate()
+    {
+        _throwTargetingActive = false;
+        _throwTargetingTimer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+    }
+
+    private void ClearTargetsWithinGate()
+    {
+        Array.Clear(_targetUserIds);
+        Array.Clear(_targetWindowsShown);
+        _windows.HideTargetHotspots();
+    }
+
+    private bool MovedAtLeastOneDip(NativePixelRect previous, NativePixelRect current)
+    {
+        if (!previous.IsValid)
+        {
+            return true;
+        }
+        var minimumPixels = Math.Max(1d, _monitor.Dpi / 96d);
+        var previousCenterX = previous.X + (previous.Width / 2d);
+        var previousCenterY = previous.Y + (previous.Height / 2d);
+        var currentCenterX = current.X + (current.Width / 2d);
+        var currentCenterY = current.Y + (current.Height / 2d);
+        return Math.Abs(currentCenterX - previousCenterX) >= minimumPixels
+            || Math.Abs(currentCenterY - previousCenterY) >= minimumPixels;
+    }
 
     private void RefreshTaskbarInset()
     {
@@ -300,6 +541,7 @@ public static class PixelWorldPreview
             members,
             Array.Empty<ActiveBubble>(),
             Array.Empty<CharacterPulseEvent>(),
+            Array.Empty<CharacterThrowEvent>(),
             edge,
             installationSeed);
     }
