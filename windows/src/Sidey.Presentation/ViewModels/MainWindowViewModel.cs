@@ -363,7 +363,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _updates = updates ?? throw new ArgumentNullException(nameof(updates));
-        CharacterSelections = PixelCharacterCatalog.All
+        CharacterSelections = PixelCharacterCatalog.Selectable
             .Select(character => new CharacterSelectionItemViewModel(
                 character.Id,
                 character.DisplayName,

@@ -18,7 +18,7 @@ public sealed partial class OnboardingViewModel : ObservableObject
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         IsPreviewMode = isPreviewMode;
         _state = coordinator.State;
-        CharacterSelections = PixelCharacterCatalog.All
+        CharacterSelections = PixelCharacterCatalog.Selectable
             .Select(character => new CharacterSelectionItemViewModel(
                 character.Id,
                 character.DisplayName,

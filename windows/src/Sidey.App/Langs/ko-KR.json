@@ -236,7 +236,7 @@
     "joinPrompt": "그룹에 참가하면 최근 메시지를 확인할 수 있습니다."
   },
   "characters": {
-    "hamster": "아기 햄스터", "cat": "아기 고양이", "dog": "아기 강아지", "rabbit": "아기 토끼", "penguin": "아기 펭귄"
+    "hamster": "아기 햄스터", "cat": "아기 고양이", "dog": "아기 강아지", "rabbit": "아기 토끼", "penguin": "아기 펭귄", "guineaPig": "아기 기니피그", "monkey": "아기 원숭이", "chinchilla": "아기 친칠라", "starlightUpalupa": "별빛 우파루파"
   },
   "overlay": { "currentUser": "{0} · 나" },
   "unsupported": {
@@ -328,7 +328,7 @@
   },
   "development": {
     "metricsPreview": "내부 햄스터 제한 renderer 계측 모드입니다. 수동 검증 결과는 아직 기록되지 않았습니다.",
-    "localPreview": "백엔드 환경변수가 없어 5캐릭터 로컬 미리보기로 실행 중입니다."
+    "localPreview": "백엔드 환경변수가 없어 9캐릭터 로컬 미리보기로 실행 중입니다."
   },
   "error": {
     "generic": "오류가 발생했습니다: {0}",

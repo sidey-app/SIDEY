@@ -1,0 +1,13 @@
+{
+  "character_id": "pixel_chinchilla",
+  "display_name": "아기 친칠라",
+  "legacy_aliases": ["pixel_koala"],
+  "frame_pixel_size": [24, 24],
+  "render_dip_size": [48, 48],
+  "sheet_pixel_size": [240, 24],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": { "idle": [0, 1], "walk": [2, 3, 4, 5], "doze": [6, 7], "offline": [8, 9] },
+  "sha256": "c0009e007a7a63029fb58ad6f94d2b9a8c9ae7a55f139dd4892050f11614c5d4",
+  "runtime_bgra": { "byte_order": "BGRA", "alpha": "straight", "byte_length": 23040, "sha256": "6ae63734da3fa781baf5afee6286f7ae3e8c68cb5fb7f7dde858053a9b3d6944" }
+}
