@@ -4,7 +4,7 @@ set local role postgres;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(40);
+select plan(41);
 
 select has_table('private', 'download_metric_snapshots', 'download snapshots stay private');
 select has_index('private', 'download_metric_snapshots', 'download_metric_snapshots_asset_time_idx', 'asset timeline is indexed');
@@ -96,6 +96,13 @@ select is(
   'first historical baseline is recorded'
 );
 select is((public.admin_downloads(7) ->> 'isStale')::boolean, true, 'collector delay is reported as stale');
+select is(
+  (select (metric ->> 'today')::integer
+   from jsonb_array_elements(public.admin_downloads(7) -> 'channels') metric
+   where metric ->> 'channel' = 'legacy_unclassified'),
+  0,
+  'first same-day snapshot is a baseline and not a today increment'
+);
 select is(
   public.admin_ingest_download_metrics(
     now() - interval '5 minutes',
