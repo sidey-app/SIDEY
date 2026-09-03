@@ -94,6 +94,24 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
+    public void FreshInstallAndUpgradeRequireTermsAcceptance()
+    {
+        string setup = ReadSetupScript();
+        string package = File.ReadAllText(RepositoryPath(
+            "scripts", "windows", "package.ps1"));
+
+        Assert.Contains("MUI_LICENSEPAGE_CHECKBOX", setup, StringComparison.Ordinal);
+        Assert.Contains("MUI_LICENSEPAGE_CHECKBOX_TEXT \"$(AcceptTerms)\"", setup, StringComparison.Ordinal);
+        Assert.Contains("MUI_PAGE_LICENSE \"${TERMS_LICENSE_FILE}\"", setup, StringComparison.Ordinal);
+        Assert.Contains("LangString AcceptTerms ${LANG_ENGLISH}", setup, StringComparison.Ordinal);
+        Assert.Contains("LangString AcceptTerms ${LANG_KOREAN}", setup, StringComparison.Ordinal);
+        Assert.Contains("Function TermsPagePre", setup, StringComparison.Ordinal);
+        Assert.Contains("$InstallState == \"repair\"", setup, StringComparison.Ordinal);
+        Assert.Contains("generate-installer-terms.ps1", package, StringComparison.Ordinal);
+        Assert.Contains("/DTERMS_LICENSE_FILE=", package, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SetupExeUsesAWhiteSideyWelcomeBitmap()
     {
         string setup = ReadSetupScript();

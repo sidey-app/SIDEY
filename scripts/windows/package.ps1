@@ -175,6 +175,13 @@ if (-not $publishedVersionInfo.FileVersion.StartsWith(
 [IO.Directory]::CreateDirectory($resolvedOutDir) | Out-Null
 $internalDir = Join-Path $resolvedOutDir 'internal/setup-build'
 [IO.Directory]::CreateDirectory($internalDir) | Out-Null
+$termsSource = Join-Path $repositoryRoot 'website/terms.html'
+$termsGenerator = Join-Path $repositoryRoot 'scripts/windows/generate-installer-terms.ps1'
+$termsLicenseFile = Join-Path $internalDir 'SideyTerms.txt'
+& $termsGenerator -SourceHtml $termsSource -OutputPath $termsLicenseFile
+if (-not (Test-Path -LiteralPath $termsLicenseFile -PathType Leaf)) {
+    throw 'SIDEY installer terms file was not generated.'
+}
 
 $makensisCandidates = @()
 if (-not [string]::IsNullOrWhiteSpace($MakensisPath)) {
@@ -263,6 +270,7 @@ $uninstallLines | Set-Content -LiteralPath $uninstallInclude -Encoding utf8
     "/DPUBLISH_DIR=$resolvedPublishDir" `
     "/DPAYLOAD_INSTALL_INCLUDE=$installInclude" `
     "/DPAYLOAD_UNINSTALL_INCLUDE=$uninstallInclude" `
+    "/DTERMS_LICENSE_FILE=$termsLicenseFile" `
     $setupScript
 if ($LASTEXITCODE -ne 0) {
     throw 'SIDEY Setup EXE build failed.'

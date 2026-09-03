@@ -18,6 +18,9 @@ Unicode true
 !ifndef PAYLOAD_UNINSTALL_INCLUDE
   !error "PAYLOAD_UNINSTALL_INCLUDE is required."
 !endif
+!ifndef TERMS_LICENSE_FILE
+  !error "TERMS_LICENSE_FILE is required."
+!endif
 
 !define PRODUCT_NAME "SIDEY"
 !define PRODUCT_PUBLISHER "SIDEY"
@@ -68,6 +71,13 @@ VIAddVersionKey /LANG=1033 "FileVersion" "${APP_FILE_VERSION}"
 
 !insertmacro MUI_PAGE_WELCOME
 Page custom MaintenancePageCreate
+!define MUI_PAGE_HEADER_TEXT "$(TermsTitle)"
+!define MUI_PAGE_HEADER_SUBTEXT "$(TermsSubtitle)"
+!define MUI_PAGE_CUSTOMFUNCTION_PRE TermsPagePre
+!define MUI_LICENSEPAGE_TEXT_TOP "$(TermsTop)"
+!define MUI_LICENSEPAGE_CHECKBOX
+!define MUI_LICENSEPAGE_CHECKBOX_TEXT "$(AcceptTerms)"
+!insertmacro MUI_PAGE_LICENSE "${TERMS_LICENSE_FILE}"
 !define MUI_PAGE_CUSTOMFUNCTION_PRE DirectoryPagePre
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
@@ -85,6 +95,14 @@ SetFont /LANG=${LANG_KOREAN} "맑은 고딕" 9
 
 LangString LaunchSidey ${LANG_ENGLISH} "Launch SIDEY"
 LangString LaunchSidey ${LANG_KOREAN} "SIDEY 실행"
+LangString TermsTitle ${LANG_ENGLISH} "SIDEY Terms of Use"
+LangString TermsTitle ${LANG_KOREAN} "SIDEY 이용약관"
+LangString TermsSubtitle ${LANG_ENGLISH} "Review and accept the terms before installing SIDEY."
+LangString TermsSubtitle ${LANG_KOREAN} "SIDEY를 설치하기 전에 약관을 확인하고 동의해 주세요."
+LangString TermsTop ${LANG_ENGLISH} "Read the terms below. You must select the agreement checkbox to continue."
+LangString TermsTop ${LANG_KOREAN} "아래 이용약관을 읽어 주세요. 계속하려면 동의 항목을 선택해야 합니다."
+LangString AcceptTerms ${LANG_ENGLISH} "I have read and agree to the SIDEY Terms of Use."
+LangString AcceptTerms ${LANG_KOREAN} "SIDEY 이용약관을 읽었으며 이에 동의합니다."
 LangString MaintenanceTitle ${LANG_ENGLISH} "SIDEY is already installed"
 LangString MaintenanceTitle ${LANG_KOREAN} "SIDEY가 이미 설치되어 있습니다"
 LangString MaintenanceSubtitle ${LANG_ENGLISH} "Choose what you want Setup to do."
@@ -219,7 +237,7 @@ Function SelectClose
   SendMessage $HWNDPARENT ${WM_COMMAND} 1 0
 FunctionEnd
 
-Function DirectoryPagePre
+Function TermsPagePre
   ${If} $InstallState == "remove"
     HideWindow
     ExecWait '"$INSTDIR\Uninstall.exe"'
@@ -227,7 +245,13 @@ Function DirectoryPagePre
   ${ElseIf} $InstallState == "close"
     HideWindow
     Quit
-  ${ElseIf} $InstallState == "upgrade"
+  ${ElseIf} $InstallState == "repair"
+    Abort
+  ${EndIf}
+FunctionEnd
+
+Function DirectoryPagePre
+  ${If} $InstallState == "upgrade"
   ${OrIf} $InstallState == "repair"
     Abort
   ${EndIf}
