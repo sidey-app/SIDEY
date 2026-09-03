@@ -17,7 +17,7 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
-"$SIDEY_REPO_ROOT/scripts/macos/verify_pixel_hamster.sh"
+python3 "$SIDEY_REPO_ROOT/scripts/validate_pixel_assets.py"
 
 set -- xcodebuild \
 	-project "$SIDEY_REPO_ROOT/macos/SIDEY.xcodeproj" \

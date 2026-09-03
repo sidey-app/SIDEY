@@ -6,15 +6,15 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SOURCE_ROOT = ROOT / "macos" / "SIDEY" / "Resources" / "Characters"
+SOURCE_ROOT = ROOT / "assets" / "v1" / "characters"
 OUTPUT_ROOT = ROOT / "windows" / "src" / "Sidey.Overlay" / "Assets" / "Characters"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
-CHARACTERS = {
-    "pixel_guinea_pig": "PixelGuineaPig",
-    "pixel_monkey": "PixelMonkey",
-    "pixel_chinchilla": "PixelChinchilla",
-    "pixel_starlight_upalupa": "PixelStarlightUpalupa",
-}
+CHARACTERS = (
+    "pixel_guinea_pig",
+    "pixel_monkey",
+    "pixel_chinchilla",
+    "pixel_starlight_upalupa",
+)
 
 
 def paeth(left: int, up: int, upper_left: int) -> int:
@@ -92,8 +92,8 @@ def decode_rgba_png(data: bytes) -> tuple[int, int, bytes]:
 
 
 def main() -> None:
-    for character_id, source_directory in CHARACTERS.items():
-        source_path = SOURCE_ROOT / source_directory / f"{character_id}.png"
+    for character_id in CHARACTERS:
+        source_path = SOURCE_ROOT / character_id / "base.png"
         png = source_path.read_bytes()
         _, _, rgba = decode_rgba_png(png)
         alpha_values = set(rgba[3::4])

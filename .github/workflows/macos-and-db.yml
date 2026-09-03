@@ -4,12 +4,15 @@ on:
   push:
     branches: [main]
     paths:
+      - 'assets/**'
       - 'macos/**'
       - 'supabase/**'
       - 'scripts/macos/**'
       - 'scripts/supabase/**'
       - 'scripts/download-metrics/**'
       - 'scripts/verify_release_consistency.sh'
+      - 'scripts/validate_pixel_assets.py'
+      - 'shared/character-throw/**'
       - 'README.md'
       - 'docs/DECISIONS.md'
       - 'docs/PRODUCT_SPEC.md'
@@ -19,12 +22,15 @@ on:
       - '.github/workflows/download-metrics.yml'
   pull_request:
     paths:
+      - 'assets/**'
       - 'macos/**'
       - 'supabase/**'
       - 'scripts/macos/**'
       - 'scripts/supabase/**'
       - 'scripts/download-metrics/**'
       - 'scripts/verify_release_consistency.sh'
+      - 'scripts/validate_pixel_assets.py'
+      - 'shared/character-throw/**'
       - 'README.md'
       - 'docs/DECISIONS.md'
       - 'docs/PRODUCT_SPEC.md'
@@ -46,6 +52,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
+
+      - name: Validate central pixel assets and mirrors
+        run: python3 ./scripts/validate_pixel_assets.py
 
       - name: Run native test suite
         run: ./scripts/macos/test_native.sh

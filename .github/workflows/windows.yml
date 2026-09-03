@@ -5,15 +5,21 @@ on:
     branches: [main]
     tags: ['windows-v*']
     paths:
+      - 'assets/**'
       - 'windows/**'
       - 'scripts/windows/**'
+      - 'scripts/validate_pixel_assets.py'
+      - 'shared/character-throw/**'
       - 'website/windows-latest.json'
       - 'website/windows/**'
       - '.github/workflows/windows.yml'
   pull_request:
     paths:
+      - 'assets/**'
       - 'windows/**'
       - 'scripts/windows/**'
+      - 'scripts/validate_pixel_assets.py'
+      - 'shared/character-throw/**'
       - 'website/windows-latest.json'
       - 'website/windows/**'
       - '.github/workflows/windows.yml'
@@ -43,6 +49,9 @@ jobs:
         shell: pwsh
     steps:
       - uses: actions/checkout@v5
+
+      - name: Validate central pixel assets and mirrors
+        run: python ./scripts/validate_pixel_assets.py
 
       - uses: actions/setup-dotnet@v5
         with:
