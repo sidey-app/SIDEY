@@ -13,9 +13,19 @@ public sealed class WindowsShellSurfacePolicyTests
     [InlineData("Widgets", "Windows.UI.Composition.DesktopWindowContentBridge")]
     [InlineData("explorer", "TopLevelWindowForOverflowXamlIsland")]
     [InlineData("explorer", "NotifyIconOverflowWindow")]
+    [InlineData("explorer", "Shell_TrayWnd")]
+    [InlineData("explorer", "Shell_SecondaryTrayWnd")]
     public void TaskbarShellSurfacesYieldOverlay(string processName, string windowClass)
     {
         Assert.True(WindowsShellSurfacePolicy.ShouldYield(processName, windowClass));
+    }
+
+    [Theory]
+    [InlineData("Shell_TrayWnd")]
+    [InlineData("Shell_SecondaryTrayWnd")]
+    public void PersistentTaskbarsAreDetectedForInputYielding(string windowClass)
+    {
+        Assert.True(WindowsShellSurfacePolicy.IsTaskbarWindow(windowClass));
     }
 
     [Theory]

@@ -803,6 +803,8 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                         await ReconcileSnapshotAsync(snapshot.Snapshot, _lifetime.Token);
                         break;
                     case BackendEvent.MessageReceived message:
+                        StartupDiagnostics.Stage(
+                            $"realtime-message-received active={(message.Message.RoomId == _state.ActiveRoomId).ToString().ToLowerInvariant()}");
                         _messages.Confirm(message.Message);
                         _bubbles.Show(
                             message.Message.SenderId,
@@ -818,6 +820,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                         }
                         PublishState();
                         ApplyWorldSnapshot();
+                        StartupDiagnostics.Stage("overlay-message-applied");
                         break;
                     case BackendEvent.MessageDeleted deleted:
                         _messages.Remove(deleted.RoomId, deleted.MessageId);
@@ -826,6 +829,8 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                         ApplyWorldSnapshot();
                         break;
                     case BackendEvent.MessagesReplaced replaced:
+                        StartupDiagnostics.Stage(
+                            $"realtime-messages-reconciled active={(replaced.RoomId == _state.ActiveRoomId).ToString().ToLowerInvariant()}");
                         _messages.ReplaceConfirmed(replaced.RoomId, replaced.Messages);
                         if (replaced.RoomId == _state.ActiveRoomId)
                         {

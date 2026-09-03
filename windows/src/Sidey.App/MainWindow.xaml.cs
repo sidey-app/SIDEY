@@ -289,6 +289,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     {
         _ = sender;
         _ = args;
+        ExpandedConnectionStatus.Visibility = Visibility.Visible;
         CompactConnectionDot.Visibility = Visibility.Collapsed;
     }
 
@@ -296,6 +297,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     {
         _ = sender;
         _ = args;
+        ExpandedConnectionStatus.Visibility = Visibility.Collapsed;
         CompactConnectionDot.Visibility = Visibility.Visible;
     }
 

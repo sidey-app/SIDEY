@@ -441,8 +441,10 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
             nint shellSurface = WindowsShellSurfaceDetector.ForegroundSurface();
             if (IsVisible && shellSurface != nint.Zero)
             {
-                if (shellSurface != _yieldedShellSurface)
+                if (shellSurface != _yieldedShellSurface
+                    || Interlocked.Decrement(ref _topmostRefreshCountdown) <= 0)
                 {
+                    Interlocked.Exchange(ref _topmostRefreshCountdown, 20);
                     _windows.YieldBehind(shellSurface);
                     _yieldedShellSurface = shellSurface;
                 }

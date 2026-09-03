@@ -38,6 +38,19 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void DisconnectedStateUsesAnExplicitOfflineLabel()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        Assert.False(viewModel.IsConnected);
+        Assert.Equal("연결 안 됨", viewModel.ConnectionText);
+    }
+
+    [Fact]
     public void RoomProjectionMarksCurrentUserAndOwnerWithoutUiTypes()
     {
         (FakeSideyCoordinator coordinator, _) = CreateRoomState();

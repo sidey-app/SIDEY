@@ -19,7 +19,7 @@ internal sealed record RealtimePresenceIntent(
 
 internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 {
-    private static readonly TimeSpan UnhealthyAfter = TimeSpan.FromSeconds(8);
+    private static readonly TimeSpan UnhealthyAfter = TimeSpan.FromSeconds(30);
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly SupabaseRuntimeConfiguration _configuration;
@@ -444,13 +444,14 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         {
             return;
         }
-        catch (Exception)
+        catch (Exception exception)
         {
             if (generation != Volatile.Read(ref _connectionGeneration) || _shutdown.IsCancellationRequested)
             {
                 return;
             }
 
+            Emit(new BackendEvent.TechnicalError(ConnectionFailureMessage(exception)));
             Emit(new BackendEvent.ConnectionChanged(false));
             _ = RecoverAsync();
         }
@@ -473,6 +474,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             if (silence >= UnhealthyAfter)
             {
                 socket.Abort();
+                Emit(new BackendEvent.TechnicalError("Realtime WebSocket heartbeat timed out."));
                 Emit(new BackendEvent.ConnectionChanged(false));
                 _ = RecoverAsync();
                 continue;
@@ -483,8 +485,9 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 await SendAsync("phoenix", "heartbeat", new { }, _shutdown.Token)
                     .ConfigureAwait(false);
             }
-            catch
+            catch (Exception exception)
             {
+                Emit(new BackendEvent.TechnicalError(ConnectionFailureMessage(exception)));
                 socket.Abort();
             }
         }

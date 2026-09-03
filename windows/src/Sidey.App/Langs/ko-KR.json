@@ -212,7 +212,7 @@
     "activeRoomRequired": "활성 그룹과 프로필이 필요합니다."
   },
   "tray": {
-    "hideOverlay": "오버레이 숨기기", "showOverlay": "오버레이 보이기", "compose": "메시지 작성…", "noGroups": "연결된 그룹 없음", "activeGroup": "활성 그룹", "quietMode": "조용히 모드", "history": "최근 기록…", "store": "상점…", "groups": "그룹 설정…", "startup": "로그인 시 자동 실행", "checkUpdates": "업데이트 확인…", "settings": "설정…", "exit": "SIDEY 종료", "unreadTooltip": "SIDEY · 미확인 메시지 {0}개"
+    "open": "열기", "hideOverlay": "오버레이 숨기기", "showOverlay": "오버레이 보이기", "compose": "메시지 작성…", "noGroups": "연결된 그룹 없음", "activeGroup": "활성 그룹", "quietMode": "조용히 모드", "history": "최근 기록…", "store": "상점…", "groups": "그룹 설정…", "startup": "로그인 시 자동 실행", "checkUpdates": "업데이트 확인…", "settings": "설정…", "exit": "종료", "unreadTooltip": "SIDEY · 미확인 메시지 {0}개", "connectionFailedTitle": "SIDEY 연결 안 됨", "connectionFailedBody": "SIDEY 서버와 연결할 수 없습니다. 네트워크 상태를 확인해 주세요."
   },
   "history": {
     "retentionNotice": "메시지는 서버에서 7일 후 자동 삭제됩니다.",
@@ -270,6 +270,7 @@
   },
   "connection": {
     "connected": "연결됨",
+    "disconnected": "연결 안 됨",
     "reconnecting": "연결 중",
     "offline": "오프라인",
     "serverConnected": "SIDEY 서버와 연결되었습니다.",

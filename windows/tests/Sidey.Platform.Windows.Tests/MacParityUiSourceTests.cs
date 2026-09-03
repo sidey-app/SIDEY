@@ -126,13 +126,17 @@ public sealed class MacParityUiSourceTests
     }
 
     [Fact]
-    public void WindowsDoesNotAddSystemNotificationsAbsentFromMac()
+    public void WindowsNotifiesOnceWhenTheServerConnectionFails()
     {
         var app = ReadRepositoryFile("windows", "src", "Sidey.App", "App.xaml.cs");
         var tray = ReadRepositoryFile("windows", "src", "Sidey.Platform.Windows", "TrayIconService.cs");
 
-        Assert.DoesNotContain("ShowStateNotification", app, StringComparison.Ordinal);
-        Assert.DoesNotContain("public void Notify", tray, StringComparison.Ordinal);
+        Assert.Contains("UpdateConnectionFailureNotification", app, StringComparison.Ordinal);
+        Assert.Contains("ConnectionFailureNotificationCooldown", app, StringComparison.Ordinal);
+        Assert.Contains("NotifyConnectionFailure", tray, StringComparison.Ordinal);
+        Assert.Contains("NotifyIconInfo", tray, StringComparison.Ordinal);
+        Assert.DoesNotContain("ToastNotification", app, StringComparison.Ordinal);
+        Assert.DoesNotContain("AppNotification", app, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -224,6 +228,9 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("CompactModeThresholdWidth=\"0\"", xaml, StringComparison.Ordinal);
         Assert.Contains("CompactPaneLength=\"48\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ExpandedModeThresholdWidth=\"960\"", xaml, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(xaml, "x:Name=\"CompactConnectionDot\""));
+        Assert.Contains("x:Name=\"ExpandedConnectionStatus\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ExpandedConnectionStatus.Visibility = Visibility.Collapsed", source, StringComparison.Ordinal);
         Assert.Contains("Background=\"{ThemeResource SideyAccentBackground12Brush}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Foreground=\"{ThemeResource SideyAccentForegroundBrush}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("<TitleBar", xaml, StringComparison.Ordinal);
@@ -361,6 +368,8 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("_state.UnreadCount > 0", tray, StringComparison.Ordinal);
         Assert.Contains("_unreadIcon", tray, StringComparison.Ordinal);
         Assert.Contains("TrayUnreadBadgeRenderer.Apply", tray, StringComparison.Ordinal);
+        Assert.Contains("TrayCommand.Open", tray, StringComparison.Ordinal);
+        Assert.Contains("SetMenuDefaultItem", tray, StringComparison.Ordinal);
     }
 
     [Fact]

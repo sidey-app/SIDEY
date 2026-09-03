@@ -9,6 +9,8 @@ namespace Sidey.App;
 
 public partial class App : Application
 {
+    private static readonly TimeSpan ConnectionFailureNotificationCooldown = TimeSpan.FromMinutes(15);
+
     private readonly DispatcherQueue _dispatcherQueue;
     private Window? _window;
     private MainWindow? _mainWindow;
@@ -21,6 +23,9 @@ public partial class App : Application
     private DevelopmentUpdateService? _developmentUpdate;
     private bool _closeAppWhenOnboardingCloses = true;
     private bool _startupUpdateCheckStarted;
+    private bool _monitorConnectionFailures;
+    private bool _connectionFailureNotificationArmed = true;
+    private DateTimeOffset? _lastConnectionFailureNotificationAt;
     private bool _shuttingDown;
 
     public App()
@@ -161,6 +166,9 @@ public partial class App : Application
             EnsureMainWindow().ShowFatalError(exception);
             _onboardingWindow?.ShowError(exception);
         }
+
+        _monitorConnectionFailures = true;
+        UpdateConnectionFailureNotification(_coordinator.State.Connected);
 
         StartupDiagnostics.MarkRunning();
     }
@@ -495,6 +503,7 @@ public partial class App : Application
         var coordinator = _coordinator;
         _dispatcherQueue.TryEnqueue(() =>
         {
+            UpdateConnectionFailureNotification(state.Connected);
             _mainWindow?.ApplyState(state);
             _onboardingWindow?.ApplyState(state);
             _historyWindow?.ApplyState(state);
@@ -554,6 +563,9 @@ public partial class App : Application
         }
         switch (command)
         {
+            case TrayCommand.Open:
+                ShowPrimaryWindow();
+                break;
             case TrayCommand.ToggleOverlay:
                 _ = RunCoordinatorCommandAsync(
                     () => _coordinator.SetOverlayVisibleAsync(
@@ -592,6 +604,35 @@ public partial class App : Application
                 BeginShutdown();
                 break;
         }
+    }
+
+    private void UpdateConnectionFailureNotification(bool connected)
+    {
+        if (connected)
+        {
+            _connectionFailureNotificationArmed = true;
+            return;
+        }
+
+        if (_shuttingDown
+            || !_monitorConnectionFailures
+            || !_connectionFailureNotificationArmed
+            || _tray is null)
+        {
+            return;
+        }
+
+        _connectionFailureNotificationArmed = false;
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        if (_lastConnectionFailureNotificationAt is { } previous
+            && now - previous < ConnectionFailureNotificationCooldown)
+        {
+            return;
+        }
+
+        _lastConnectionFailureNotificationAt = now;
+        _tray.NotifyConnectionFailure();
+        StartupDiagnostics.Stage("connection-failure-notification-posted");
     }
 
     private void ShowHistory()

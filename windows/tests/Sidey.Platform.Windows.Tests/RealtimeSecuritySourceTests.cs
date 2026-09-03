@@ -53,6 +53,20 @@ public sealed class RealtimeSecuritySourceTests
     }
 
     [Fact]
+    public void RealtimeHealthAllowsDelayedHeartbeatsAndLogsMessageApplication()
+    {
+        var transport = Read("SupabaseRealtimeTransport.cs");
+        var coordinator = Read("AppCoordinator.cs");
+
+        Assert.Contains("UnhealthyAfter = TimeSpan.FromSeconds(30)", transport, StringComparison.Ordinal);
+        Assert.Contains("Realtime WebSocket heartbeat timed out.", transport, StringComparison.Ordinal);
+        Assert.Contains("realtime-message-received", coordinator, StringComparison.Ordinal);
+        Assert.Contains("overlay-message-applied", coordinator, StringComparison.Ordinal);
+        Assert.Contains("realtime-messages-reconciled", coordinator, StringComparison.Ordinal);
+        Assert.DoesNotContain("message.Message.Body}", coordinator, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PresenceSubscriptionExplicitlyRequestsRemoteState()
     {
         var transport = Read("SupabaseRealtimeTransport.cs");

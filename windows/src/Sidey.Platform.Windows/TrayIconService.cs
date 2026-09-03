@@ -7,6 +7,7 @@ namespace Sidey.Platform.Windows;
 
 public enum TrayCommand
 {
+    Open = 1000,
     ToggleOverlay = 1001,
     Compose = 1002,
     ToggleQuietMode = 1003,
@@ -34,11 +35,14 @@ public sealed class TrayIconService : IDisposable
     private const string WindowClassName = "SIDEY.TrayIconWindow";
     private const uint TrayMessage = 0x8000 + 51;
     private const uint RefreshMessage = 0x8000 + 52;
+    private const uint NotificationMessage = 0x8000 + 53;
     private const uint IconId = 1;
     private const uint NotifyIconMessage = 0x1;
     private const uint NotifyIconIcon = 0x2;
     private const uint NotifyIconTip = 0x4;
+    private const uint NotifyIconInfo = 0x10;
     private const uint NotifyIconShowTip = 0x80;
+    private const uint NotifyInfoWarning = 0x2;
     private static readonly object RegistrationGate = new();
     private static readonly ConcurrentDictionary<nint, TrayIconService> Instances = new();
     private static readonly NativeMethods.WindowProcedure WindowProcedure = WndProc;
@@ -95,6 +99,14 @@ public sealed class TrayIconService : IDisposable
         if (_window != nint.Zero)
         {
             NativeMethods.PostMessage(_window, RefreshMessage, nint.Zero, nint.Zero);
+        }
+    }
+
+    public void NotifyConnectionFailure()
+    {
+        if (_window != nint.Zero)
+        {
+            NativeMethods.PostMessage(_window, NotificationMessage, nint.Zero, nint.Zero);
         }
     }
 
@@ -384,6 +396,9 @@ public sealed class TrayIconService : IDisposable
         try
         {
             var roomCommands = new Dictionary<uint, Guid>();
+            Append(menu, TrayCommand.Open, I18n.Get("tray.open"));
+            NativeMethods.SetMenuDefaultItem(menu, (uint)TrayCommand.Open, false);
+            NativeMethods.AppendMenu(menu, 0x800, 0, null);
             Append(menu, TrayCommand.ToggleOverlay, _state.OverlayVisible
                 ? I18n.Get("tray.hideOverlay")
                 : I18n.Get("tray.showOverlay"));
@@ -477,9 +492,9 @@ public sealed class TrayIconService : IDisposable
                     service.ShowMenu();
                     return nint.Zero;
                 }
-                if (mouseMessage is 0x0202 or 0x0203)
+                if (mouseMessage is 0x0202 or 0x0203 or 0x0405)
                 {
-                    service.CommandInvoked?.Invoke(TrayCommand.Settings);
+                    service.CommandInvoked?.Invoke(TrayCommand.Open);
                     return nint.Zero;
                 }
             }
@@ -490,6 +505,16 @@ public sealed class TrayIconService : IDisposable
                     ? service._unreadIcon
                     : service._baseIcon;
                 var data = service.CreateIconData();
+                NativeMethods.ShellNotifyIcon(1, ref data);
+                return nint.Zero;
+            }
+            if (message == NotificationMessage)
+            {
+                var data = service.CreateIconData();
+                data.Flags |= NotifyIconInfo;
+                data.InfoTitle = I18n.Get("tray.connectionFailedTitle");
+                data.Info = I18n.Get("tray.connectionFailedBody");
+                data.InfoFlags = NotifyInfoWarning;
                 NativeMethods.ShellNotifyIcon(1, ref data);
                 return nint.Zero;
             }
@@ -654,6 +679,7 @@ public sealed class TrayIconService : IDisposable
         [DllImport("user32.dll")] public static extern nint CreateIconIndirect(ref IconInfo iconInformation);
         [DllImport("user32.dll")] public static extern nint CreatePopupMenu();
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern bool AppendMenu(nint menu, uint flags, nuint item, string? label);
+        [DllImport("user32.dll")] public static extern bool SetMenuDefaultItem(nint menu, uint item, [MarshalAs(UnmanagedType.Bool)] bool byPosition);
         [DllImport("user32.dll")] public static extern uint TrackPopupMenu(nint menu, uint flags, int x, int y, int reserved, nint window, nint rectangle);
         [DllImport("user32.dll")] public static extern bool DestroyMenu(nint menu);
         [DllImport("user32.dll")] public static extern bool GetCursorPos(out NativePoint point);

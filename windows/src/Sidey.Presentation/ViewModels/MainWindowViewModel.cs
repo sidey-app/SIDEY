@@ -454,7 +454,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             IsConnected = state.Connected;
             ConnectionText = state.Connected
                 ? I18n.Get("connection.connected")
-                : I18n.Get("connection.reconnecting");
+                : I18n.Get("connection.disconnected");
             IsOverlayVisible = state.Preferences.OverlayVisible;
             IsQuietMode = state.Preferences.QuietMode;
             ShowOfflineMembers = state.Preferences.ShowOfflineMembers;
