@@ -56,16 +56,21 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $manifest = Get-Content ./website/windows-latest.json -Raw |
             ConvertFrom-Json
-          $msiName = "SIDEY-Windows-x64-v$($manifest.version).msi"
+          $version = [string]$manifest.version
+          $installerName = if ([Version]::Parse($version) -le [Version]'1.0.5') {
+            "SIDEY-Windows-x64-v$version.msi"
+          } else {
+            "SIDEY-Windows-x64-v${version}-Setup.exe"
+          }
           New-Item -ItemType Directory -Path ./build/pages-test-release -Force |
             Out-Null
           Copy-Item ./website/windows-latest.json `
-            "./build/pages-test-release/$msiName"
+            "./build/pages-test-release/$installerName"
 
           ./scripts/website/prepare-windows-release.ps1 `
             -WebsiteDir ./website `
             -OutputDir ./build/pages-test-site `
-            -ReleaseMsi "./build/pages-test-release/$msiName"
+            -ReleaseInstaller "./build/pages-test-release/$installerName"
 
           $published = Get-Content ./build/pages-test-site/windows-latest.json -Raw |
             ConvertFrom-Json
@@ -108,7 +113,11 @@ jobs:
             ConvertFrom-Json
           $tag = [string]$manifest.tag
           $version = [string]$manifest.version
-          $msiName = "SIDEY-Windows-x64-v$version.msi"
+          $installerName = if ([Version]::Parse($version) -le [Version]'1.0.5') {
+            "SIDEY-Windows-x64-v$version.msi"
+          } else {
+            "SIDEY-Windows-x64-v${version}-Setup.exe"
+          }
 
           $releaseJson = gh release view $tag --json isDraft,isPrerelease,assets 2>$null
           if ($LASTEXITCODE -ne 0) {
@@ -122,24 +131,24 @@ jobs:
             throw "Windows Release must be a regular release: $tag"
           }
           $assetNames = @($release.assets | ForEach-Object { [string]$_.name })
-          if ($assetNames.Count -ne 1 -or $assetNames[0] -ne $msiName) {
-            throw "Windows Release must contain only $msiName"
+          if ($assetNames.Count -ne 1 -or $assetNames[0] -ne $installerName) {
+            throw "Windows Release must contain only $installerName"
           }
 
           New-Item -ItemType Directory -Path ./build/windows-pages-release -Force |
             Out-Null
           gh release download $tag `
-            --pattern $msiName `
+            --pattern $installerName `
             --dir ./build/windows-pages-release `
             --clobber
           if ($LASTEXITCODE -ne 0) {
-            throw "Windows Release MSI download failed: $tag/$msiName"
+            throw "Windows Release installer download failed: $tag/$installerName"
           }
 
           ./scripts/website/prepare-windows-release.ps1 `
             -WebsiteDir ./website `
             -OutputDir ./build/pages-site `
-            -ReleaseMsi "./build/windows-pages-release/$msiName"
+            -ReleaseInstaller "./build/windows-pages-release/$installerName"
           "available=true" >> $env:GITHUB_OUTPUT
 
       - name: Configure GitHub Pages

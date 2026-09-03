@@ -35,7 +35,7 @@ brew install --cask sidey-app/tap/sidey
 
 Windows 11 25H2 이상 x64 PC를 지원합니다.
 
-[SIDEY Releases](https://github.com/sidey-app/SIDEY/releases)에서 최신 `SIDEY-Windows-x64-v<version>.msi`를 받아 실행합니다.
+[SIDEY Releases](https://github.com/sidey-app/SIDEY/releases)에서 Windows 설치 파일을 받아 실행합니다. 현재 공개된 v1.0.5는 `SIDEY-Windows-x64-v1.0.5.msi`이며, 다음 릴리스부터 `SIDEY-Windows-x64-v<version>-Setup.exe`를 사용합니다.
 
 Windows v1.0.3 또는 v1.0.4는 앱 안에서 업데이트 파일을 내려받지 못하므로, v1.0.5 MSI를 한 번 직접 받아 설치해야 합니다. 설정과 로그인 정보는 유지됩니다.
 
