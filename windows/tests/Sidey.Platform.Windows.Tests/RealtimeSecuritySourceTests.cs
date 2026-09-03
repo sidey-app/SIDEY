@@ -53,16 +53,26 @@ public sealed class RealtimeSecuritySourceTests
     }
 
     [Fact]
-    public void RealtimeHealthAllowsDelayedHeartbeatsAndLogsMessageApplication()
+    public void RealtimeHealthAllowsDelayedHeartbeatsAndLogsTheMessagePipeline()
     {
+        var gateway = Read("SupabaseBackendGateway.cs");
         var transport = Read("SupabaseRealtimeTransport.cs");
         var coordinator = Read("AppCoordinator.cs");
+        var session = Read("NativePixelWorldSession.cs");
 
         Assert.Contains("UnhealthyAfter = TimeSpan.FromSeconds(30)", transport, StringComparison.Ordinal);
         Assert.Contains("Realtime WebSocket heartbeat timed out.", transport, StringComparison.Ordinal);
+        Assert.Contains("realtime-message-change-received", gateway, StringComparison.Ordinal);
+        Assert.Contains("message-recheck-started", gateway, StringComparison.Ordinal);
+        Assert.Contains("message-recheck-completed result=found", gateway, StringComparison.Ordinal);
         Assert.Contains("realtime-message-received", coordinator, StringComparison.Ordinal);
-        Assert.Contains("overlay-message-applied", coordinator, StringComparison.Ordinal);
+        Assert.Contains("message-ledger-confirmed", coordinator, StringComparison.Ordinal);
+        Assert.Contains("message-bubble-enqueued", coordinator, StringComparison.Ordinal);
+        Assert.Contains("overlay-snapshot-dispatched", coordinator, StringComparison.Ordinal);
+        Assert.Contains("overlay-snapshot-accepted", coordinator, StringComparison.Ordinal);
+        Assert.Contains("overlay-message-presented", coordinator, StringComparison.Ordinal);
         Assert.Contains("realtime-messages-reconciled", coordinator, StringComparison.Ordinal);
+        Assert.Contains("MessageBubblesPresented", session, StringComparison.Ordinal);
         Assert.DoesNotContain("message.Message.Body}", coordinator, StringComparison.Ordinal);
     }
 

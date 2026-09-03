@@ -15,6 +15,33 @@ public sealed class StartupDiagnosticsSourceTests
     }
 
     [Fact]
+    public void SessionHeaderIncludesRuntimeContextWithoutMachineIdentity()
+    {
+        string source = ReadRepositoryFile("windows", "src", "Sidey.App", "StartupDiagnostics.cs");
+
+        Assert.Contains("os-arch=", source, StringComparison.Ordinal);
+        Assert.Contains("process-arch=", source, StringComparison.Ordinal);
+        Assert.Contains("runtime=", source, StringComparison.Ordinal);
+        Assert.Contains("processors=", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("MachineName", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("UserName", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OverlayFailuresAndSuccessfulPresentationAreBothRecorded()
+    {
+        string app = ReadRepositoryFile("windows", "src", "Sidey.App", "App.xaml.cs");
+        string coordinator = ReadRepositoryFile("windows", "src", "Sidey.App", "AppCoordinator.cs");
+        string renderer = ReadRepositoryFile(
+            "windows", "src", "Sidey.Overlay", "LayeredPixelWorldRenderer.cs");
+
+        Assert.Contains("StartupDiagnostics.NonFatal(\"overlay-render\"", app, StringComparison.Ordinal);
+        Assert.Contains("overlay-message-presented count=", coordinator, StringComparison.Ordinal);
+        Assert.Contains("_surface.Present", renderer, StringComparison.Ordinal);
+        Assert.Contains("ReportPresentedMessageBubbles();", renderer, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void LogRetentionIsBoundedByAgeSizeAndCount()
     {
         string source = ReadRepositoryFile("windows", "src", "Sidey.App", "StartupDiagnostics.cs");

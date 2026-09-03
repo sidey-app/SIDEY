@@ -8,7 +8,8 @@ namespace Sidey.Overlay;
 public sealed record NativePixelWorldSessionOptions(
     IReadOnlySet<string>? ValidationCharacterIds = null,
     bool CollectValidationMetrics = false,
-    string? ValidationMetricsPath = null);
+    string? ValidationMetricsPath = null,
+    Action<int>? MessageBubblesPresented = null);
 
 public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
 {
@@ -151,6 +152,7 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
                     initialSnapshot,
                     (self, targets) => session?.UpdateHotspots(self, targets),
                     renderingFailed,
+                    options.MessageBubblesPresented,
                     normalizedValidationIds,
                     metrics,
                     initialTaskbarInset);

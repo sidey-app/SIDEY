@@ -36,7 +36,12 @@ internal static class StartupDiagnostics
                     null,
                     CleanupInterval,
                     CleanupInterval);
-                AppendLine($"session-start version={AppVersion()} os={Environment.OSVersion.Version}");
+                AppendLine(
+                    $"session-start version={AppVersion()} os={Environment.OSVersion.Version} "
+                    + $"os-arch={RuntimeInformation.OSArchitecture.ToString().ToLowerInvariant()} "
+                    + $"process-arch={RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant()} "
+                    + $"runtime={RuntimeInformation.FrameworkDescription.Replace(' ', '_')} "
+                    + $"processors={Environment.ProcessorCount}");
             }
             catch
             {

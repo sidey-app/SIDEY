@@ -803,14 +803,17 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                         await ReconcileSnapshotAsync(snapshot.Snapshot, _lifetime.Token);
                         break;
                     case BackendEvent.MessageReceived message:
+                        bool isActiveRoom = message.Message.RoomId == _state.ActiveRoomId;
                         StartupDiagnostics.Stage(
-                            $"realtime-message-received active={(message.Message.RoomId == _state.ActiveRoomId).ToString().ToLowerInvariant()}");
+                            $"realtime-message-received active={isActiveRoom.ToString().ToLowerInvariant()}");
                         _messages.Confirm(message.Message);
+                        StartupDiagnostics.Stage("message-ledger-confirmed");
                         _bubbles.Show(
                             message.Message.SenderId,
                             message.Message.Id,
                             message.Message.Body);
-                        bool isActiveRoom = message.Message.RoomId == _state.ActiveRoomId;
+                        StartupDiagnostics.Stage(
+                            $"message-bubble-enqueued active={isActiveRoom.ToString().ToLowerInvariant()} quiet={_state.Preferences.QuietMode.ToString().ToLowerInvariant()}");
                         if (message.Message.SenderId != _state.Profile?.Id
                             && (!isActiveRoom || _state.Preferences.QuietMode))
                         {
@@ -819,8 +822,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                                 _unreadByRoom.GetValueOrDefault(message.Message.RoomId) + 1);
                         }
                         PublishState();
-                        ApplyWorldSnapshot();
-                        StartupDiagnostics.Stage("overlay-message-applied");
+                        ApplyWorldSnapshot("message");
                         break;
                     case BackendEvent.MessageDeleted deleted:
                         _messages.Remove(deleted.RoomId, deleted.MessageId);
@@ -890,6 +892,9 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                         StartupDiagnostics.Stage(
                             $"realtime-connection connected={connection.Connected.ToString().ToLowerInvariant()}");
                         SetRealtimeConnected(connection.Connected);
+                        break;
+                    case BackendEvent.Diagnostic diagnostic:
+                        StartupDiagnostics.Stage(diagnostic.Stage);
                         break;
                     case BackendEvent.TechnicalError error:
                         StartupDiagnostics.Stage($"realtime-technical-error {error.Message}");
@@ -1180,7 +1185,9 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             exception => RenderingFailed?.Invoke(exception),
             new NativePixelWorldSessionOptions(
                 ValidationCharacterIds: validationIds,
-                CollectValidationMetrics: validationIds is not null));
+                CollectValidationMetrics: validationIds is not null,
+                MessageBubblesPresented: count => StartupDiagnostics.Stage(
+                    $"overlay-message-presented count={count}")));
         StartupDiagnostics.Stage("overlay-started");
     }
 
@@ -1192,14 +1199,29 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         StartOverlay(snapshot);
     }
 
-    private void ApplyWorldSnapshot()
+    private void ApplyWorldSnapshot(string? diagnosticContext = null)
     {
         if (_overlay is null)
         {
+            if (diagnosticContext is not null)
+            {
+                StartupDiagnostics.Stage(
+                    $"overlay-snapshot-skipped context={diagnosticContext} reason=not-started");
+            }
             return;
         }
         _bubbles.Prune();
-        _overlay.ApplyAsync(CurrentWorldSnapshot()).GetAwaiter().GetResult();
+        WorldSnapshot snapshot = CurrentWorldSnapshot();
+        if (diagnosticContext is not null)
+        {
+            StartupDiagnostics.Stage(
+                $"overlay-snapshot-dispatched context={diagnosticContext} visible={_overlay.IsVisible.ToString().ToLowerInvariant()} members={snapshot.Members.Count} bubbles={snapshot.Bubbles.Count}");
+        }
+        _overlay.ApplyAsync(snapshot).GetAwaiter().GetResult();
+        if (diagnosticContext is not null)
+        {
+            StartupDiagnostics.Stage($"overlay-snapshot-accepted context={diagnosticContext}");
+        }
         _pendingPulses.Clear();
         _pendingThrows.Clear();
     }

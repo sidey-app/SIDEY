@@ -81,6 +81,7 @@ public abstract record BackendEvent
     public sealed record RoomStructureChanged(Guid RoomId) : BackendEvent;
     public sealed record ConnectionChanged(bool Connected) : BackendEvent;
     public sealed record ReconciliationRequired : BackendEvent;
+    public sealed record Diagnostic(string Stage) : BackendEvent;
     public sealed record TechnicalError(string Message) : BackendEvent;
 }
 

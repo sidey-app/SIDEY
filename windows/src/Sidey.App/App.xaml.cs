@@ -389,6 +389,7 @@ public partial class App : Application
 
     private void OnRenderingFailed(Exception exception)
     {
+        StartupDiagnostics.NonFatal("overlay-render", exception);
         _dispatcherQueue.TryEnqueue(() => EnsureMainWindow().ShowFatalError(exception));
     }
 

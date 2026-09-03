@@ -401,6 +401,10 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                 {
                     try
                     {
+                        await output.WriteAsync(
+                            new BackendEvent.Diagnostic(
+                                $"realtime-message-change-received operation={change.Operation.ToLowerInvariant()}"),
+                            cancellationToken).ConfigureAwait(false);
                         await HandleMessageChangeAsync(change, output, cancellationToken)
                             .ConfigureAwait(false);
                     }
@@ -527,6 +531,9 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         if (change.Operation == "DELETE")
         {
             await output.WriteAsync(
+                new BackendEvent.Diagnostic("message-delete-forwarded"),
+                cancellationToken).ConfigureAwait(false);
+            await output.WriteAsync(
                 new BackendEvent.MessageDeleted(change.RoomId, change.MessageId),
                 cancellationToken).ConfigureAwait(false);
             return;
@@ -537,17 +544,26 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             return;
         }
 
+        await output.WriteAsync(
+            new BackendEvent.Diagnostic("message-recheck-started"),
+            cancellationToken).ConfigureAwait(false);
         var rows = await GetAsync<DatabaseMessage[]>(
             $"/rest/v1/messages?room_id=eq.{change.RoomId:D}&id=eq.{change.MessageId:D}&select=*&limit=1",
             cancellationToken).ConfigureAwait(false);
         if (rows.FirstOrDefault() is { } row)
         {
             await output.WriteAsync(
+                new BackendEvent.Diagnostic("message-recheck-completed result=found"),
+                cancellationToken).ConfigureAwait(false);
+            await output.WriteAsync(
                 new BackendEvent.MessageReceived(MapMessage(row)),
                 cancellationToken).ConfigureAwait(false);
         }
         else
         {
+            await output.WriteAsync(
+                new BackendEvent.Diagnostic("message-recheck-completed result=missing"),
+                cancellationToken).ConfigureAwait(false);
             await output.WriteAsync(
                 new BackendEvent.MessageDeleted(change.RoomId, change.MessageId),
                 cancellationToken).ConfigureAwait(false);

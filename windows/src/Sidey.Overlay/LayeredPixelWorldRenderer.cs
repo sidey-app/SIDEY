@@ -31,6 +31,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private readonly OverlayEdge _edge;
     private readonly Action<NativePixelRect?, IReadOnlyList<CharacterHotspotFrame>> _hotspotsMoved;
     private readonly Action<Exception> _renderingFailed;
+    private readonly Action<int>? _messageBubblesPresented;
     private readonly ValidationMetricsCollector? _metrics;
     private readonly Random _random;
     private readonly long _initialPositionSeed;
@@ -48,6 +49,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private readonly Dictionary<Guid, long> _dozeStartedAt = [];
     private readonly Dictionary<Guid, ActiveBubble> _bubbleBySender = [];
     private readonly List<Guid> _expiredBubbleSenders = [];
+    private readonly HashSet<Guid> _drawnBubbleIds = [];
+    private readonly HashSet<Guid> _presentedBubbleIds = [];
     private readonly List<MessageBubbleTrackBounds> _bubbleTrackBounds = [];
     private readonly List<CharacterHotspotFrame> _targetHotspots = new(11);
     private readonly PixelMovementScratch _movementScratch = new();
@@ -77,6 +80,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         WorldSnapshot initialSnapshot,
         Action<NativePixelRect?, IReadOnlyList<CharacterHotspotFrame>> hotspotsMoved,
         Action<Exception> renderingFailed,
+        Action<int>? messageBubblesPresented,
         IReadOnlySet<string>? cachedCharacterIds = null,
         ValidationMetricsCollector? metrics = null,
         int initialEdgeInsetPixels = 0)
@@ -90,6 +94,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         _renderBounds = renderBounds;
         _hotspotsMoved = hotspotsMoved ?? throw new ArgumentNullException(nameof(hotspotsMoved));
         _renderingFailed = renderingFailed ?? throw new ArgumentNullException(nameof(renderingFailed));
+        _messageBubblesPresented = messageBubblesPresented;
         _metrics = metrics;
         _edge = edge;
         _edgeInsetPixels = ClampEdgeInset(initialEdgeInsetPixels);
@@ -328,6 +333,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     {
         Span<byte> destinationPixels = _surface.Pixels;
         destinationPixels.Clear();
+        _drawnBubbleIds.Clear();
         NativePixelRect? currentUserHotspot = null;
         _targetHotspots.Clear();
         UpdateProjectiles();
@@ -382,9 +388,10 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 visuals.Nameplate,
                 cached.OnlineContentBounds);
             CompositeVisual(destinationPixels, visuals.Nameplate, nameplate.X, nameplate.Y);
-            var bubble = _bubbleBySender.ContainsKey(node.Member.Id)
-                ? visuals.MessageBubble
-                : visuals.TypingBubble;
+            bool hasMessageBubble = _bubbleBySender.TryGetValue(
+                node.Member.Id,
+                out var activeBubble);
+            var bubble = hasMessageBubble ? visuals.MessageBubble : visuals.TypingBubble;
             if (bubble is not null)
             {
                 var bubblePosition = PlaceBeyondNameplate(
@@ -395,6 +402,10 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                     visuals.Nameplate,
                     nameplate);
                 CompositeVisual(destinationPixels, bubble, bubblePosition.X, bubblePosition.Y);
+                if (activeBubble is not null)
+                {
+                    _drawnBubbleIds.Add(activeBubble.MessageId);
+                }
             }
             if (visuals.Doze is { } doze)
             {
@@ -416,10 +427,30 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         RenderProjectiles(destinationPixels);
 
         _surface.Present(_renderBounds.X, _renderBounds.Y);
+        ReportPresentedMessageBubbles();
         if (_hotspotTrackingElapsed >= HotspotTrackingPolicy.MinimumUpdateInterval.TotalSeconds)
         {
             _hotspotsMoved(currentUserHotspot, _targetHotspots);
             _hotspotTrackingElapsed = 0d;
+        }
+    }
+
+    private void ReportPresentedMessageBubbles()
+    {
+        int newlyPresented = 0;
+        foreach (Guid bubbleId in _drawnBubbleIds)
+        {
+            if (!_presentedBubbleIds.Contains(bubbleId))
+            {
+                newlyPresented++;
+            }
+        }
+
+        _presentedBubbleIds.Clear();
+        _presentedBubbleIds.UnionWith(_drawnBubbleIds);
+        if (newlyPresented > 0)
+        {
+            _messageBubblesPresented?.Invoke(newlyPresented);
         }
     }
 
