@@ -78,8 +78,8 @@ UninstPage custom un.CleanupPageCreate un.CleanupPageLeave
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "Korean"
 
-LangString ^Font ${LANG_ENGLISH} "Segoe UI"
-LangString ^Font ${LANG_KOREAN} "맑은 고딕"
+SetFont /LANG=${LANG_ENGLISH} "Segoe UI" 9
+SetFont /LANG=${LANG_KOREAN} "맑은 고딕" 9
 
 LangString LaunchSidey ${LANG_ENGLISH} "Launch SIDEY"
 LangString LaunchSidey ${LANG_KOREAN} "SIDEY 실행"
@@ -206,16 +206,26 @@ Function SelectRepair
 FunctionEnd
 
 Function SelectRemove
-  Exec '"$INSTDIR\Uninstall.exe"'
-  Quit
+  StrCpy $InstallState "remove"
+  Call RestoreNavigationButtons
+  SendMessage $HWNDPARENT ${WM_COMMAND} 1 0
 FunctionEnd
 
 Function SelectClose
-  Quit
+  StrCpy $InstallState "close"
+  Call RestoreNavigationButtons
+  SendMessage $HWNDPARENT ${WM_COMMAND} 1 0
 FunctionEnd
 
 Function DirectoryPagePre
-  ${If} $InstallState == "upgrade"
+  ${If} $InstallState == "remove"
+    HideWindow
+    ExecWait '"$INSTDIR\Uninstall.exe"'
+    Quit
+  ${ElseIf} $InstallState == "close"
+    HideWindow
+    Quit
+  ${ElseIf} $InstallState == "upgrade"
   ${OrIf} $InstallState == "repair"
     Abort
   ${EndIf}

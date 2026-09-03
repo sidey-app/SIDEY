@@ -85,8 +85,8 @@ public sealed class DistributionSourceTests
 
         Assert.Contains("MUI_LANGUAGE \"English\"", setup, StringComparison.Ordinal);
         Assert.Contains("MUI_LANGUAGE \"Korean\"", setup, StringComparison.Ordinal);
-        Assert.Contains("LangString ^Font ${LANG_ENGLISH} \"Segoe UI\"", setup, StringComparison.Ordinal);
-        Assert.Contains("LangString ^Font ${LANG_KOREAN} \"맑은 고딕\"", setup, StringComparison.Ordinal);
+        Assert.Contains("SetFont /LANG=${LANG_ENGLISH} \"Segoe UI\" 9", setup, StringComparison.Ordinal);
+        Assert.Contains("SetFont /LANG=${LANG_KOREAN} \"맑은 고딕\" 9", setup, StringComparison.Ordinal);
         Assert.Contains("LangString MaintenanceTitle ${LANG_ENGLISH}", setup, StringComparison.Ordinal);
         Assert.Contains("LangString MaintenanceTitle ${LANG_KOREAN}", setup, StringComparison.Ordinal);
         Assert.Contains("LangString DeleteLocalData ${LANG_KOREAN}", setup, StringComparison.Ordinal);
@@ -104,7 +104,10 @@ public sealed class DistributionSourceTests
         Assert.Contains("$(RepairAction)", setup, StringComparison.Ordinal);
         Assert.Contains("$(RemoveAction)", setup, StringComparison.Ordinal);
         Assert.Contains("$(CloseAction)", setup, StringComparison.Ordinal);
-        Assert.Contains("Exec '\"$INSTDIR\\Uninstall.exe\"'", setup, StringComparison.Ordinal);
+        Assert.Contains("StrCpy $InstallState \"remove\"", setup, StringComparison.Ordinal);
+        Assert.Contains("StrCpy $InstallState \"close\"", setup, StringComparison.Ordinal);
+        Assert.Contains("HideWindow", setup, StringComparison.Ordinal);
+        Assert.Contains("ExecWait '\"$INSTDIR\\Uninstall.exe\"'", setup, StringComparison.Ordinal);
         Assert.Contains("$(DowngradeBlocked)", setup, StringComparison.Ordinal);
     }
 
