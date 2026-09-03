@@ -180,7 +180,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 각 방은 멤버 변경마다 증가하는 `realtime_epoch`을 가지며 DB·ephemeral private topic을 분리한다. DB event에는 message UUID와 operation만 담고, macOS는 RLS를 거쳐 해당 row를 재조회한 뒤 확정한다.
 - macOS 클라이언트는 5초마다 WebSocket과 각 방 채널의 실제 구독 상태를 확인한다. 비정상이 8초 이상 지속되면 채널 및 수신 스트림을 재생성하고, 실패가 이어지면 8초·16초·최대 30초 간격으로 재시도한다.
 - 재구독 중에는 로컬 상태를 재연결로 표시한다. 성공하면 현재 Presence를 다시 publish하고 방·멤버 snapshot과 최근 메시지를 다시 읽어 단절 중 누락된 가입·메시지를 보정한다.
-- macOS는 실제 채널 구독 상태인 `transportConnected`와 단절 복구 보정 상태인 `recoveryReconciled`를 별도로 관리한다. 원격 Presence 캐시는 실제 transport 단절에서만 폐기한다. 프로필·닉네임·방 이름 `structure_changed`는 연결 상태를 바꾸지 않고 metadata snapshot만 갱신하며, 조회 실패도 transport를 online으로 유지한 채 metadata 작업만 backoff 재시도한다.
+- macOS는 실제 채널 구독 상태인 `transportConnected`와 단절 복구 보정 상태인 `recoveryReconciled`를 별도로 관리한다. 원격 Presence 캐시는 실제 transport 단절에서만 폐기한다. 자기 캐릭터는 실제 transport가 끊긴 동안에만 회색 재연결 상태를 사용하며, 절전 복귀 뒤 transport가 복구되면 snapshot·메시지 보정이 진행 중이어도 현재 로컬 Presence로 즉시 되돌린다. 프로필·닉네임·방 이름 `structure_changed`는 연결 상태를 바꾸지 않고 metadata snapshot만 갱신하며, 조회 실패도 transport를 online으로 유지한 채 metadata 작업만 backoff 재시도한다.
 - confirmed message ledger는 `senderID`를 보존하며 방별 최근 50개·7일 범위로 제한한다. pending·failed 전송은 방별 outbox에 분리한다.
 - macOS 최근 기록은 최신순 카드 목록이며 각 카드에 40pt 슬롯 안의 24×24 무배율 픽셀 캐릭터, 닉네임·`나` 표식, 로컬 시각, 본문과 pending·failed 상태를 표시한다. 발신자 UUID가 현재 방 멤버 snapshot에 없으면 햄스터와 `알 수 없는 친구`로 표시한다.
 - 최근 기록의 최초·추가 조회는 RLS가 적용된 `messages`를 `created_at DESC, id DESC`로 51개 읽어 50개를 표시하고, 마지막 표시 row의 원본 `created_at` 문자열과 UUID를 keyset cursor로 사용한다. 하단 도달 시 자동으로 다음 페이지를 가져오며 서버 보관 정책과 같은 최근 7일 cutoff를 모든 조회에 적용한다.
@@ -227,7 +227,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 한 시각 줄은 세로 중앙 정렬하고 여러 시각 줄은 3pt 상단 inset과 숨겨진 세로 스크롤을 사용한다. 일반 입력·삭제, 한글 IME 확정, Shift+Enter, 방향키·Home·End·마우스 선택, undo·redo, 외부 draft 복원과 전송 실패 재표시 뒤 선택·삽입 커서를 자동으로 보이는 영역에 스크롤한다.
 - 스크롤 상태는 `NativeMessageField`와 내부 `NSTextView`만 소유하고 `AppModel.draft`에는 추가하지 않는다. 유효성 실패로 마지막 정상 문자열과 선택을 복구한 뒤에도 복구 커서를 표시하며 가로 무한 확장은 사용하지 않는다.
 - 앱 실행과 오버레이 표시 직후에는 숨겨져 있다.
-- 내 캐릭터 단일 클릭 또는 메뉴바 `메시지 작성`으로 열고 즉시 포커스한다.
+- 내 캐릭터 단일 클릭 또는 메뉴바 `메시지 작성`으로 열고 즉시 포커스한다. 월드와 캐릭터 hotspot은 모든 macOS Space에 유지하지만 입력창은 열기를 요청한 현재 Space로 이동해 표시한다.
 - 내 캐릭터 더블클릭은 리액션을 실행하고 입력창은 열린 상태로 유지한다.
 - 캐릭터 또는 입력 패널 클릭으로 앱이 활성화될 때는 수동 앱 재열기로 처리하거나 설정창을 열지 않는다.
 - 왼쪽 `×`, 내 캐릭터 재클릭, Esc 또는 입력창 외부 클릭은 draft를 보존하고 닫으며 `typing_stop`을 보낸다. 외부 클릭은 전역 마우스 이벤트나 좌표를 수집하지 않고 입력 패널의 키 포커스 상실로 판정한다.
@@ -422,10 +422,10 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 - 영역: 4개 가장자리 × 3개 길이의 240pt activity frame과 최대 360pt render frame, 접선 144pt 여유, 중앙 정렬, 회전, visible frame, 깊이 제한, hotspot 원점 변환, 모니터 fallback
 - 이동: 20개 합성 노드가 3,000 tick 동안 1차원 track과 발 기준선을 유지하고 finite 좌표, 입력창·상호 회피, 겹침 시 idle 해제·가속 통과, 실제 메시지 말풍선의 240pt/s² 분리 가속·72pt/s 상한·8pt 해소·경계 힘 재배분·혼잡 시 안정적인 겹침·일반 목표 복귀
 - 상태: 온라인·자리 비움 doze와 고정 `Zzz`의 부유·alpha 반복·해제 시 action 정리, 오프라인 curled sleep·재연결·타이핑, 내 캐릭터 항상 표시, 오프라인 숨김, 방 전환 UUID diff, 최대 8자 닉네임·반투명 배경과 상태 점 5pt 간격, 발 기준 7배·0.8초 리액션과 이벤트 UUID 중복 제거
-- Realtime: current epoch topic 접근, client DB형 Broadcast 거부, 다른 사용자·방 transient event 거부, bounded stream overflow 재동기화, backoff와 generation 기반 snapshot reconciliation, Presence publication 최대 동시 실행 수 1을 검증한다. `character_throw`는 미인증·누락 UUID·stale epoch·송신자/대상 비멤버·자기 자신 대상·10초 20회 초과를 거부하고 payload에 좌표나 클라이언트 지정 source character가 없는지 확인한다. 실서버 2클라이언트에서는 프로필을 즉시·10초·30초 간격으로 연속 변경해 transport 단절 이벤트가 생기지 않는지 확인하고, 별도로 강제 단절과 추방 뒤 자동 재구독·메시지·Presence·`character_pulse`·`character_throw` 격리를 확인한다.
+- Realtime: current epoch topic 접근, client DB형 Broadcast 거부, 다른 사용자·방 transient event 거부, bounded stream overflow 재동기화, backoff와 generation 기반 snapshot reconciliation, Presence publication 최대 동시 실행 수 1, transport 복구 뒤 후속 보정 중 자기 캐릭터의 회색 상태 해제를 검증한다. `character_throw`는 미인증·누락 UUID·stale epoch·송신자/대상 비멤버·자기 자신 대상·10초 20회 초과를 거부하고 payload에 좌표나 클라이언트 지정 source character가 없는지 확인한다. 실서버 2클라이언트에서는 프로필을 즉시·10초·30초 간격으로 연속 변경해 transport 단절 이벤트가 생기지 않는지 확인하고, 별도로 강제 단절과 추방 뒤 자동 재구독·메시지·Presence·`character_pulse`·`character_throw` 격리를 확인한다.
 - 메시지: 발신자별 교체, 최대 4개 eviction, 10초 만료, 이동 중 말풍선 추적, 방별 outbox 낙관적 성공·실패, 응답 유실 시 동일 UUID 멱등성, 방 A 실패가 방 B draft를 건드리지 않음, confirmed ledger의 방별 50개·7일 cutoff, 최근 기록 0·1·20·50·51·120개 및 동일 timestamp keyset·페이지 중복 제거·실시간/pending/failed 병합·탈퇴 발신자 fallback·방 전환 취소·창 닫기 해제·추가 조회 실패와 재시도, 조용히 모드, 미확인 수, 엄격한 서버 시각 해석
 - 말풍선: 1자·200자·3줄·프리셋 양 끝·4방향에서 본문과 꼬리 누적 frame이 캔버스 안에 유지하고 실제 메시지 본문만 접선 충돌 범위에 포함하며 타이핑 말풍선은 제외
-- 창: 월드 항상 위·나머지 영역 클릭 통과, 내 캐릭터 52×52 hotspot, 기본 OFF에서 화면에 표시되는 친구별 Presence 상태 무관 52×52 상시 hotspot, ON에서 우클릭 전 통과·우클릭 뒤 10초 활성화·재우클릭 갱신·만료, 설정 전환·숨김·방 전환·단절 시 즉시 재구성, composer의 선택 모니터 상단 중앙·노치 아래 10pt 배치와 왼쪽 `×`·Esc·외부 클릭 닫기, 단일·더블클릭 회귀와 throw 0.5초 쿨타임, composer 초기 숨김·열기·마지막 전송 뒤 5초 자동 닫힘·타이머 갱신·실패 복구, 기록 일반 창
+- 창: 월드 항상 위·나머지 영역 클릭 통과, 내 캐릭터 52×52 hotspot, 기본 OFF에서 화면에 표시되는 친구별 Presence 상태 무관 52×52 상시 hotspot, ON에서 우클릭 전 통과·우클릭 뒤 10초 활성화·재우클릭 갱신·만료, 설정 전환·숨김·방 전환·단절 시 즉시 재구성, composer의 선택 모니터 상단 중앙·노치 아래 10pt 배치와 멀티 데스크탑 현재 Space 이동, 왼쪽 `×`·Esc·외부 클릭 닫기, 단일·더블클릭 회귀와 throw 0.5초 쿨타임, composer 초기 숨김·열기·마지막 전송 뒤 5초 자동 닫힘·타이머 갱신·실패 복구, 기록 일반 창
 - 업데이트: production 채널에 Sparkle `2.9.6` 프레임워크·메뉴 항목·피드 URL·EdDSA 공개키가 번들에 포함되고 signed feed와 압축 해제 전 검증을 강제하며, 업데이트 진행 중에는 수동 확인 메뉴를 비활성화. development 채널은 Sparkle을 시작하지 않고 수동 확인 메뉴도 항상 비활성화
 - 에셋: 무료 5종과 유료 4종 기본 시트의 240×24 RGBA·10프레임, throw/hit 시트 9개의 192×24 RGBA·8프레임, 물체 시트 5개의 192×16 RGBA·12프레임, 공통 발 기준선·회전 중심·hard alpha·결정적 SHA-256·Release 번들 포함과 캐릭터→물체/fallback 매핑, 메뉴 아이콘 1x·2x template/unread variant
 - 던지기 렌더링: 9종 throw/hit, 5종 물체 매핑, 4개 화면 가장자리, 이동 목표 추적, 다중 피격 재시작, 대상 상태 전환, 방 전환 중 stale 이벤트를 검증한다. 12명이 0.5초마다 던지는 초당 24개 부하에서 활성 투사체 32개 이하, p95 frame time 40ms 이하, 100ms 이상 UI hang과 지속 메모리·handle 증가가 없어야 한다.
