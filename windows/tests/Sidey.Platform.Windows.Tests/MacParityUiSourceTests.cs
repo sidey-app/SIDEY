@@ -211,8 +211,15 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("HorizontalAlignment=\"Right\"", xaml, StringComparison.Ordinal);
         Assert.Contains("OffContent=\"\" OnContent=\"\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Width=\"48\" MinWidth=\"0\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("PaneDisplayMode=\"Auto\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("CompactModeThresholdWidth=\"0\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("CompactPaneLength=\"48\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ExpandedModeThresholdWidth=\"960\"", xaml, StringComparison.Ordinal);
         Assert.Contains("MicaKind.Base", source, StringComparison.Ordinal);
-        Assert.Contains("_minimumWindowSize = size;", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "_minimumWindowSize = ResponsiveWindowSizePolicy.Minimum(",
+            source,
+            StringComparison.Ordinal);
     }
 
     [Fact]

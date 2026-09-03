@@ -73,8 +73,8 @@ public static class ResponsiveWindowSizePolicy
         SideyWindowKind.Settings => new WindowSizeSpecification(
             WidthFraction: 0.50,
             HeightFraction: 0.60,
-            MinimumWidthDips: 640,
-            MinimumHeightDips: 560,
+            MinimumWidthDips: 860,
+            MinimumHeightDips: 640,
             MaximumWidthDips: 1120,
             MaximumHeightDips: 900),
         SideyWindowKind.History => new WindowSizeSpecification(

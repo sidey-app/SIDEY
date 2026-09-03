@@ -7,11 +7,14 @@
     <NavigationView
         x:Name="RootNavigation"
         Background="Transparent"
+        CompactModeThresholdWidth="0"
+        CompactPaneLength="48"
+        ExpandedModeThresholdWidth="960"
         IsBackButtonVisible="Collapsed"
         IsSettingsVisible="False"
         OpenPaneLength="210"
         PaneClosed="OnNavigationPaneClosed"
-        PaneDisplayMode="Left"
+        PaneDisplayMode="Auto"
         PaneOpened="OnNavigationPaneOpened"
         PaneTitle="SIDEY"
         SelectionChanged="OnNavigationSelectionChanged">

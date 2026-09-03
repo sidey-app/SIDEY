@@ -294,7 +294,9 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         ResponsiveWindowSize size = ResponsiveWindowSizePolicy.Calculate(
             monitor,
             SideyWindowKind.Settings);
-        _minimumWindowSize = size;
+        _minimumWindowSize = ResponsiveWindowSizePolicy.Minimum(
+            monitor,
+            SideyWindowKind.Settings);
         AppWindow.Resize(new Windows.Graphics.SizeInt32(size.Width, size.Height));
         AppWindow.Move(new Windows.Graphics.PointInt32(
             monitor.WorkAreaPixels.X + ((monitor.WorkAreaPixels.Width - size.Width) / 2),
