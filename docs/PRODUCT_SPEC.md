@@ -293,8 +293,8 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 내 캐릭터 상호작용 52×52 hotspot은 별도 HWND가 소유하고 최대 15Hz·1 DIP 임계값으로 위치를 갱신한다. `우클릭 후 던지기`가 OFF이면 화면에 표시되는 친구별 hotspot HWND를 Presence 상태와 무관하게 계속 유지하고, ON이면 내 캐릭터 우클릭 뒤 10초 동안만 만든다. Windows 셸 표면 위에서는 캐릭터 클릭·우클릭을 받지 않는다. 전역 마우스 hook·전역 좌표 수집은 금지한다.
 - composer는 400×56 DIP 별도 WinUI 창이며, 내 캐릭터 클릭·트레이 `메시지 작성`만 이 창을 활성화한다.
 - 트레이 메뉴는 맨 위에 굵은 기본 항목 `열기`를 두고 오버레이, 메시지 작성, 활성 그룹, 조용히 모드, 최근 기록, 상점, 그룹 설정, 로그인 실행, 업데이트 확인, 설정, `종료`를 제공한다. 트레이 아이콘 왼쪽 클릭과 연결 실패 알림 클릭도 기본 창을 연다. 익명 세션을 사용하는 Windows판에는 로그아웃 메뉴를 두지 않는다.
-- 앱은 Pages의 Windows 전용 manifest를 시작 시 한 번 확인하고 트레이·설정에서 수동 확인도 제공한다. 새 버전의 고정 GitHub Release MSI URL과 SHA-256이 모두 유효할 때만 사용자 승인을 받아 내려받고 hash 검증 뒤 설치기를 실행하며 무인 자동 설치는 하지 않는다.
-- 시작 단계와 앱·OS·runtime·process architecture, 예외 유형·HRESULT·stack, Realtime 변경 이벤트·RLS 재조회·ledger 확정·말풍선 등록·월드 전달/수락·실제 surface 표시·재조정 단계를 `%LOCALAPPDATA%\SIDEY\Logs\startup.log`에 기록한다. token·메시지 본문·닉네임·사용자/방/메시지 식별자·평문 초대 코드·컴퓨터/사용자 이름은 기록하지 않는다. Windows Realtime watchdog은 마지막 수신 후 30초까지 지연된 heartbeat를 허용한 뒤 연결을 재생성한다. WinUI 창 생성 전 실패하면 네이티브 오류창으로 로그 경로를 알리고, 트레이 아이콘 초기화만 실패한 경우 설정창은 계속 유지하며 창을 닫으면 앱을 종료한다.
+- 앱은 Pages의 Windows 전용 manifest를 시작 시 한 번 확인하고 트레이·설정에서 수동 확인도 제공한다. 새 버전이 있으면 Windows 시스템 알림을 보내며 설정의 업데이트 카드는 현재 버전, 마지막 성공 확인 시각, `업데이트 확인` 버튼과 `릴리스 정보` 링크를 표시한다. 링크는 현재 확인된 새 버전 또는 설치된 버전의 `https://github.com/sidey-app/SIDEY/releases/tag/windows-v<version>`만 기본 브라우저로 연다. 새 버전의 고정 GitHub Release MSI URL과 SHA-256이 모두 유효할 때만 사용자 승인을 받아 내려받고 hash 검증 뒤 설치기를 실행하며 무인 자동 설치는 하지 않는다.
+- 앱 실행 한 번의 startup과 running 진단은 `%LOCALAPPDATA%\SIDEY\Logs\SIDEY.<underscore-version>.<yyyyMMdd>.<HHmmss>.log` 한 파일에 UTC(+00:00)로 기록한다. 앱·build·Windows·runtime·process architecture와 시작·정상 종료·다음 실행에서 판정한 비정상 종료, 설정·인증·서버·Realtime 구독, 연결·재연결 횟수/대기·WebSocket 종료 코드·HTTP 상태·timeout/DNS/TLS·마지막 정상 수신 경과, 메시지 변경·RLS 재조회·활성 그룹 판정·ledger·말풍선·오버레이 전달/표시, 익명 모니터 번호·DPI·Z-order, 1분 단위 메모리·frame 시간·queue·handle/GDI·UI 응답 지연, 예외 유형·HRESULT·stack·동일 오류 반복 횟수를 기록한다. source stack의 로컬 경로는 제거하고 token·메시지 본문·닉네임·email·사용자/방/메시지 UUID 원문·평문 초대 코드·입력 키·마우스 좌표·화면 내용·활성 앱 목록·파일 내용·Credential Manager 데이터·컴퓨터/사용자 이름은 기록하지 않는다. 파일은 4MB에서 추가 기록을 중단하고 30일·100개·총 32MB 상한으로 정리한다. Windows Realtime watchdog은 마지막 수신 후 30초까지 지연된 heartbeat를 허용한 뒤 연결을 재생성한다. WinUI 창 생성 전 실패하면 네이티브 오류창으로 로그 경로를 알리고, 트레이 아이콘 초기화만 실패한 경우 설정창은 계속 유지하며 창을 닫으면 앱을 종료한다.
 - 보안 화면·DRM·관리자 권한 앱·모든 독점 전체화면 위 표시는 보장하지 않는다.
 
 ## 7. 클라이언트 구조
@@ -435,7 +435,7 @@ SIDEY가 사용할 수 있는 전역 활동 신호는 마지막 시스템 입력
 
 E2EE는 현재 설계·구현·검증되지 않았다. 전송 암호화, Postgres, RLS를 근거로 종단간 암호화라고 표현하면 안 된다.
 
-Windows는 Supabase 익명 인증만 사용하며 Google email·provider identity나 OAuth callback을 처리하지 않는다. 로컬 로그에는 access·refresh token, 메시지 본문, 평문 초대 코드를 남기지 않는다.
+Windows는 Supabase 익명 인증만 사용하며 Google email·provider identity나 OAuth callback을 처리하지 않는다. 로컬 로그에는 access·refresh token, 메시지 본문, 평문 초대 코드, 닉네임·email·UUID 원문, 입력 키·마우스 좌표·화면 및 활성 앱 목록·로컬 파일 내용·Credential Manager 데이터를 남기지 않는다.
 
 macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀키, service-role key, 일회용 주문 token, 전체 결제 식별자를 남기지 않는다. 결제 성공 redirect만으로 소유권을 지급하지 않고 PortOne V2 재조회, 결제 당시 정책 동의와 Postgres 기록이 모두 일치해야 한다. 카드 번호·결제 비밀번호는 SIDEY가 수집하지 않는다.
 
@@ -462,7 +462,7 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 - Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단
 - 서버: 실제 anon/authenticated role의 RLS, 12번째 성공·13번째 거부와 여섯 번째 방 경합, 병렬 초대 제한, invite hash API 비노출, current epoch topic 권한, client Broadcast INSERT 봉쇄, transient event whitelist·rate, `broadcast_character_throw`의 인증·epoch·양쪽 membership·자기 대상·필수 UUID·20회/10초 제한과 서버 source character, 메시지 멱등성·rate, 7일 retention, 비방장 관리 거부와 cascade를 SQL 테스트한다.
 - 운영 어드민: 모든 `admin_*` 조회·수집 RPC의 anon·authenticated 거부와 service role 허용, 다운로드 baseline·분리 경로·KST 경계·카운터 증가·정체·역행 거부·수집 지연을 SQL 테스트한다. 로컬 API는 환경변수 누락·잘못된 production ref·LAN Host·외부 Origin·잘못된 query와 upstream 응답을 거부해야 하며 lint·typecheck·unit·production build·Secret 번들 scan과 1280×800·1440×900의 두 테마 Playwright 검증을 통과해야 한다.
-- Windows 설치·업데이트: clean install, `C:\Program Files\SIDEY`, 공용 시작 메뉴, 아이콘이 포함된 `Uninstall.exe`, 게시된 런처·호스트 시작 스모크, repair, 실행 중 upgrade의 정상 종료 요청, downgrade 차단을 Windows CI·실기에서 확인한다. Windows 설정·MSI·`Uninstall.exe`의 일반 제거에서 기본 미선택 데이터 삭제 옵션이 동작하고, 선택 시에만 현재 사용자의 `%LOCALAPPDATA%\SIDEY`와 Credential Manager `SIDEY/` 자격 증명을 삭제하며 upgrade·repair에는 실행하지 않는지도 검증한다. `windows-v<version>` manifest의 버전·태그·고정 MSI URL·SHA-256도 검증하며 기존 per-user·Burn 테스트 설치가 있으면 설치 전에 제거하도록 안내한다.
+- Windows 설치·업데이트: clean install, `C:\Program Files\SIDEY`, 공용 시작 메뉴, 아이콘이 포함된 `Uninstall.exe`, 게시된 런처·호스트 시작 스모크, repair, 실행 중 upgrade의 정상 종료 요청, downgrade 차단을 Windows CI·실기에서 확인한다. Windows 설정·MSI·`Uninstall.exe`의 일반 제거에서 기본 미선택 데이터 삭제 옵션이 동작하고, 선택 시에만 현재 사용자의 `%LOCALAPPDATA%\SIDEY`와 Credential Manager `SIDEY/` 자격 증명을 삭제하며 upgrade·repair에는 실행하지 않는지도 검증한다. `windows-v<version>` manifest의 버전·태그·고정 MSI URL·SHA-256, 시작 확인 시 새 버전 시스템 알림, 현재 버전·마지막 성공 확인 시각 표시와 신뢰된 Release 링크도 검증하며 기존 per-user·Burn 테스트 설치가 있으면 설치 전에 제거하도록 안내한다.
 
 ### 10.2 macOS 장시간 수동·계측 테스트
 
