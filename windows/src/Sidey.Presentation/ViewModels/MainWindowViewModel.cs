@@ -62,6 +62,7 @@ public sealed class RoomCardViewModel : ObservableObject
     private string _joinActionText = string.Empty;
     private bool _isJoinEnabled;
     private bool _isSwitching;
+    private bool _areRoomActionsEnabled;
     private bool _areOwnerActionsEnabled;
 
     public RoomCardViewModel(
@@ -69,6 +70,7 @@ public sealed class RoomCardViewModel : ObservableObject
         IAsyncRelayCommand joinCommand,
         IRelayCommand toggleCommand,
         IAsyncRelayCommand inviteCommand,
+        IAsyncRelayCommand leaveCommand,
         IAsyncRelayCommand renameCommand,
         IAsyncRelayCommand deleteCommand)
     {
@@ -76,6 +78,7 @@ public sealed class RoomCardViewModel : ObservableObject
         JoinCommand = joinCommand;
         ToggleCommand = toggleCommand;
         InviteCommand = inviteCommand;
+        LeaveCommand = leaveCommand;
         RenameCommand = renameCommand;
         DeleteCommand = deleteCommand;
     }
@@ -166,6 +169,12 @@ public sealed class RoomCardViewModel : ObservableObject
         private set => SetProperty(ref _areOwnerActionsEnabled, value);
     }
 
+    public bool AreRoomActionsEnabled
+    {
+        get => _areRoomActionsEnabled;
+        private set => SetProperty(ref _areRoomActionsEnabled, value);
+    }
+
     public ObservableCollection<RoomMemberCardViewModel> Members { get; } = [];
 
     public IAsyncRelayCommand JoinCommand { get; }
@@ -173,6 +182,8 @@ public sealed class RoomCardViewModel : ObservableObject
     public IRelayCommand ToggleCommand { get; }
 
     public IAsyncRelayCommand InviteCommand { get; }
+
+    public IAsyncRelayCommand LeaveCommand { get; }
 
     public IAsyncRelayCommand RenameCommand { get; }
 
@@ -189,6 +200,7 @@ public sealed class RoomCardViewModel : ObservableObject
         bool isSwitching,
         string inviteActionText,
         bool isInviteActionEnabled,
+        bool areRoomActionsEnabled,
         bool areOwnerActionsEnabled,
         IReadOnlyList<RoomMemberCardViewModel> members)
     {
@@ -208,6 +220,7 @@ public sealed class RoomCardViewModel : ObservableObject
             : I18n.Get("groups.expand");
         InviteActionText = inviteActionText;
         IsInviteActionEnabled = isInviteActionEnabled;
+        AreRoomActionsEnabled = areRoomActionsEnabled;
         AreOwnerActionsEnabled = areOwnerActionsEnabled;
         UpdateMembers(members);
     }
@@ -485,19 +498,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     private void Compose() => _coordinator.RequestComposer();
 
-    [RelayCommand]
-    private async Task LeaveActiveRoomAsync()
-    {
-        if (ActiveRoom() is not { } room)
-        {
-            return;
-        }
-
-        await RunCommandAsync(
-            () => _coordinator.LeaveRoomAsync(room.Id),
-            I18n.Get("groups.left"));
-    }
-
     [RelayCommand(CanExecute = nameof(CanCheckForUpdates))]
     private async Task CheckForUpdatesAsync()
     {
@@ -676,6 +676,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             new AsyncRelayCommand(() => SwitchRoomAsync(room.Id)),
             new RelayCommand(() => ToggleRoom(room.Id)),
             new AsyncRelayCommand(() => UseInviteCodeAsync(room.Id)),
+            new AsyncRelayCommand(() => LeaveRoomAsync(room.Id)),
             new AsyncRelayCommand(() => RenameRoomAsync(room.Id)),
             new AsyncRelayCommand(() => DeleteRoomAsync(room.Id)));
         UpdateRoomCard(card, room);
@@ -718,6 +719,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 ? I18n.Get("groups.copyInvite")
                 : I18n.Get("groups.rotateInvite"),
             mutationsEnabled && (room.InviteCodeReady || isOwner),
+            mutationsEnabled,
             mutationsEnabled && isOwner,
             members);
     }
@@ -803,6 +805,24 @@ public sealed partial class MainWindowViewModel : ObservableObject
         await RunCommandAsync(
             () => _coordinator.RemoveRoomMemberAsync(roomId, userId),
             I18n.Get("groups.memberRemoved"));
+    }
+
+    private async Task LeaveRoomAsync(Guid roomId)
+    {
+        if (RoomById(roomId) is not { } room)
+        {
+            return;
+        }
+
+        bool isOwner = room.OwnerId == _state.Profile?.Id;
+        if (!await _dialogs.ConfirmRoomLeaveAsync(room.Name, isOwner))
+        {
+            return;
+        }
+
+        await RunCommandAsync(
+            () => _coordinator.LeaveRoomAsync(room.Id),
+            I18n.Get("groups.left"));
     }
 
     private async Task DeleteRoomAsync(Guid roomId)

@@ -272,6 +272,8 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("CreateRoomActionText", xaml, StringComparison.Ordinal);
         Assert.Contains("JoinRoomActionText", xaml, StringComparison.Ordinal);
         Assert.Contains("AreOwnerActionsEnabled", xaml, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding LeaveCommand}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ConfirmRoomLeaveAsync(room.Name, isOwner)", viewModel, StringComparison.Ordinal);
         Assert.Contains("GroupOperation.Mutating", coordinator, StringComparison.Ordinal);
         Assert.Contains("RunRoomMutationAsync", coordinator, StringComparison.Ordinal);
         Assert.Contains("SwitchingRoomId == room.Id", viewModel, StringComparison.Ordinal);

@@ -36,6 +36,10 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
 
     public int DeleteRoomCallCount { get; private set; }
 
+    public int LeaveRoomCallCount { get; private set; }
+
+    public Guid? LastLeftRoomId { get; private set; }
+
     public Task<MessageHistoryPage> FetchMessagePageAsync(
         Guid roomId,
         MessageHistoryCursor? before,
@@ -94,8 +98,12 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
         return Task.CompletedTask;
     }
 
-    public Task LeaveRoomAsync(Guid roomId, CancellationToken cancellationToken = default) =>
-        Task.CompletedTask;
+    public Task LeaveRoomAsync(Guid roomId, CancellationToken cancellationToken = default)
+    {
+        LeaveRoomCallCount++;
+        LastLeftRoomId = roomId;
+        return Task.CompletedTask;
+    }
 
     public Task<bool> CopyInviteCodeAsync(Guid roomId, CancellationToken cancellationToken = default) =>
         Task.FromResult(true);
@@ -139,7 +147,13 @@ internal sealed class FakeMainWindowDialogService : IMainWindowDialogService
 
     public bool ConfirmRoomDeletion { get; set; } = true;
 
+    public bool ConfirmRoomLeave { get; set; } = true;
+
     public string? ConfirmedRemovalNickname { get; private set; }
+
+    public string? ConfirmedLeaveRoomName { get; private set; }
+
+    public bool? ConfirmedLeaveRoomIsOwner { get; private set; }
 
     public Task<bool> ConfirmInviteCodeRotationAsync() => Task.FromResult(true);
 
@@ -154,6 +168,13 @@ internal sealed class FakeMainWindowDialogService : IMainWindowDialogService
 
     public Task<bool> ConfirmRoomDeletionAsync(string roomName) =>
         Task.FromResult(ConfirmRoomDeletion);
+
+    public Task<bool> ConfirmRoomLeaveAsync(string roomName, bool isOwner)
+    {
+        ConfirmedLeaveRoomName = roomName;
+        ConfirmedLeaveRoomIsOwner = isOwner;
+        return Task.FromResult(ConfirmRoomLeave);
+    }
 
     public Task<bool> ConfirmUpdateDownloadAsync(string version)
     {

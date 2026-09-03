@@ -317,6 +317,7 @@ public sealed class MainWindowViewModelTests
         Assert.False(target.IsJoinEnabled);
         Assert.False(active.IsSwitching);
         Assert.False(viewModel.AreGroupMutationsEnabled);
+        Assert.All(viewModel.Rooms, room => Assert.False(room.AreRoomActionsEnabled));
         Assert.All(viewModel.Rooms, room => Assert.False(room.AreOwnerActionsEnabled));
         Assert.All(viewModel.Rooms.SelectMany(room => room.Members), member =>
             Assert.False(member.CanRemove));
@@ -377,6 +378,31 @@ public sealed class MainWindowViewModelTests
         Assert.Equal(1, coordinator.RemoveRoomMemberCallCount);
         Assert.Equal(NoticeKind.Success, notice?.Kind);
         Assert.Equal("멤버를 내보냈습니다.", notice?.Message);
+    }
+
+    [Fact]
+    public async Task LeavingAnyRoomRequiresConfirmationAndUsesTheSelectedRoom()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateMultiRoomState();
+        var dialogs = new FakeMainWindowDialogService { ConfirmRoomLeave = false };
+        var viewModel = new MainWindowViewModel(coordinator, dialogs, new FakeUpdateService());
+        RoomCardViewModel room = viewModel.Rooms[1];
+
+        await room.LeaveCommand.ExecuteAsync(null);
+
+        Assert.Equal("Second", dialogs.ConfirmedLeaveRoomName);
+        Assert.True(dialogs.ConfirmedLeaveRoomIsOwner);
+        Assert.Equal(0, coordinator.LeaveRoomCallCount);
+
+        dialogs.ConfirmRoomLeave = true;
+        NoticeMessage? notice = null;
+        viewModel.NoticeRaised += value => notice = value;
+        await room.LeaveCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, coordinator.LeaveRoomCallCount);
+        Assert.Equal(room.Room.Id, coordinator.LastLeftRoomId);
+        Assert.Equal(NoticeKind.Success, notice?.Kind);
+        Assert.Equal("그룹에서 나왔습니다.", notice?.Message);
     }
 
     private static (FakeSideyCoordinator Coordinator, CoordinatorState State) CreateRoomState()

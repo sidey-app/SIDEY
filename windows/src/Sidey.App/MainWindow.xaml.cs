@@ -147,6 +147,22 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
+    public async Task<bool> ConfirmRoomLeaveAsync(string roomName, bool isOwner)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = I18n.Format("dialogs.leaveRoomTitle", roomName),
+            Content = I18n.Get(isOwner
+                ? "dialogs.leaveOwnedRoomBody"
+                : "dialogs.leaveRoomBody"),
+            PrimaryButtonText = I18n.Get("dialogs.leaveRoomPrimary"),
+            CloseButtonText = I18n.Get("common.cancel"),
+            DefaultButton = ContentDialogButton.Close,
+        };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+    }
+
     public async Task<bool> ConfirmRoomDeletionAsync(string roomName)
     {
         var impactDialog = new ContentDialog
