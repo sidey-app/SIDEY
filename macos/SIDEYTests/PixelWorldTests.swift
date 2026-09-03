@@ -759,6 +759,7 @@ final class PixelWorldTests: XCTestCase {
         XCTAssertEqual(PixelCharacterThrowStyle.arcHeight(for: 1_000), 96)
         XCTAssertEqual(PixelCharacterThrowStyle.flightDuration(for: 0), 0.35, accuracy: 0.001)
         XCTAssertEqual(PixelCharacterThrowStyle.flightDuration(for: 2_000), 0.95, accuracy: 0.001)
+        XCTAssertEqual(PixelCharacterThrowStyle.impactPointSize, 48)
         XCTAssertEqual(PixelCharacterThrowStyle.maximumActiveProjectiles, 32)
     }
 

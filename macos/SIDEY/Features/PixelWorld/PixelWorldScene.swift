@@ -546,7 +546,13 @@ final class PixelWorldScene: SKScene {
     private func playImpact(at point: CGPoint, sourceCharacterID: String) {
         let frames = PixelCharacterThrowTextureStore.shared.textures(for: sourceCharacterID).impactFrames
         guard let first = frames.first else { return }
-        let node = SKSpriteNode(texture: first, size: CGSize(width: 40, height: 40))
+        let node = SKSpriteNode(
+            texture: first,
+            size: CGSize(
+                width: PixelCharacterThrowStyle.impactPointSize,
+                height: PixelCharacterThrowStyle.impactPointSize
+            )
+        )
         node.position = point
         node.zPosition = 101
         addChild(node)
