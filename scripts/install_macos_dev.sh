@@ -63,7 +63,7 @@ if ! printf '%s\n' "$SIDEY_BUILD_NUMBER" | grep -Eq '^[0-9]+$'; then
 	exit 65
 fi
 
-"$SIDEY_REPO_ROOT/scripts/macos/verify_pixel_hamster.sh"
+python3 "$SIDEY_REPO_ROOT/scripts/validate_pixel_assets.py"
 xcodebuild \
 	-project "$SIDEY_REPO_ROOT/macos/SIDEY.xcodeproj" \
 	-scheme SIDEY \

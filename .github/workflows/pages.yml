@@ -5,13 +5,17 @@ on:
     branches:
       - main
     paths:
+      - "assets/**"
       - "website/**"
       - "scripts/website/**"
+      - "scripts/validate_pixel_assets.py"
       - ".github/workflows/pages.yml"
   pull_request:
     paths:
+      - "assets/**"
       - "website/**"
       - "scripts/website/**"
+      - "scripts/validate_pixel_assets.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
   workflow_run:
@@ -42,6 +46,9 @@ jobs:
 
       - name: Test commerce pages
         run: node --test website/tests/*.test.mjs
+
+      - name: Validate central pixel assets and mirrors
+        run: python3 ./scripts/validate_pixel_assets.py
 
       - name: Test Windows release metadata preparation
         shell: pwsh
