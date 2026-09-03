@@ -8,6 +8,7 @@ on:
       - 'supabase/**'
       - 'scripts/macos/**'
       - 'scripts/supabase/**'
+      - 'scripts/download-metrics/**'
       - 'scripts/verify_release_consistency.sh'
       - 'README.md'
       - 'docs/DECISIONS.md'
@@ -15,12 +16,14 @@ on:
       - 'updates/appcast.xml'
       - 'website/**'
       - '.github/workflows/macos-and-db.yml'
+      - '.github/workflows/download-metrics.yml'
   pull_request:
     paths:
       - 'macos/**'
       - 'supabase/**'
       - 'scripts/macos/**'
       - 'scripts/supabase/**'
+      - 'scripts/download-metrics/**'
       - 'scripts/verify_release_consistency.sh'
       - 'README.md'
       - 'docs/DECISIONS.md'
@@ -28,6 +31,7 @@ on:
       - 'updates/appcast.xml'
       - 'website/**'
       - '.github/workflows/macos-and-db.yml'
+      - '.github/workflows/download-metrics.yml'
   workflow_dispatch:
 
 permissions:
@@ -67,6 +71,9 @@ jobs:
 
       - name: Run database tests
         run: supabase test db
+
+      - name: Test download asset classification
+        run: node --test scripts/download-metrics/*.test.mjs
 
       - name: Run concurrent transaction tests
         run: ./scripts/supabase/test_concurrency.sh

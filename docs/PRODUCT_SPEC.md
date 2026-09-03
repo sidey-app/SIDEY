@@ -64,6 +64,15 @@
 - 공개 향후 계획은 새로운 말풍선 디자인, Windows 기능 안정화, 캐릭터 드래그 앤 드롭, 캐릭터 효과음, macOS 이모지 입력 버그 개선, 다른 사람 캐릭터 클릭 이펙트다. 이는 완료 기능이나 일정 약속이 아니며 현재 MVP 범위를 바꾸지 않는다.
 - 캐릭터 드래그 앤 드롭은 현재 제거된 기능으로 유지한다. 기본 클릭 통과와 명시적 상호작용 모드를 보존하는 별도 제품 결정과 입력 설계가 확정된 뒤에만 다시 구현한다.
 
+### 2.6 로컬 운영 어드민
+
+- `/Users/aryu/Documents/sidey-admin`은 배포 제품이나 웹 클라이언트가 아닌 독립 로컬 운영 도구다. 운영 Supabase 하나만 조회하며 `개요 / 채팅방 / 사용자 / 다운로드 / 결제` 메뉴를 제공한다.
+- Vite·React·TypeScript와 React Query를 사용하고 route는 주소 연결만 담당한다. 메뉴별 feature가 API query, loading·empty·error·background refresh 상태와 화면 구성을 소유한다.
+- Node API만 `SUPABASE_SECRET_KEY`를 읽고 브라우저 번들에는 Supabase URL·Secret Key를 포함하지 않는다. 서버는 production project ref `whtejsviizgejauasqqt`를 고정 검증하며 `127.0.0.1`에만 bind하고 Host·Origin·production CSP를 강제한다.
+- 이메일은 운영 식별을 위해 전체 표시하되 값이 없는 익명 계정은 `이메일 없음`으로 표시한다. UUID는 축약 표시하고 복사할 때 전체 값을 사용한다.
+- 메시지 본문, 초대 코드·hash, checkout token, 카드 정보, PortOne Store·Channel·payment 식별자는 RPC가 반환하지 않는다. 어드민에는 mutation endpoint나 삭제·환불·지급 action을 두지 않는다.
+- 라이트·다크 테마를 지원하고 SIDEY 앱 아이콘과 기존 24×24 캐릭터 sprite의 첫 frame을 정수 nearest-neighbor로 사용한다.
+
 ## 3. 그룹과 계정
 
 - 그룹은 초대 전용 비공개 방이다.
@@ -386,6 +395,11 @@ Edge Functions는 책임을 다음처럼 분리한다.
 - `commerce-complete`: PortOne API에서 결제를 재조회하고 모든 결제 사실이 일치할 때만 entitlement를 지급한다.
 - `commerce-webhook`: `jsr:@portone/server-sdk@0.19.0`으로 raw body 서명을 검증한 뒤 PortOne API를 다시 조회한다.
 - `commerce-refund`: 별도 운영 키와 멱등키를 요구하고 PortOne 전액 취소·재조회가 확인된 뒤 purchase entitlement만 회수한다.
+- `download-metrics-ingest`: GitHub Actions 전용 ingest key를 검사한 뒤 service role로 누적 asset snapshot을 기록한다. 15분 수집 실패는 GitHub 설치 자산 제공과 완전히 분리한다.
+
+`20260903010000_admin_observability.sql`은 private download snapshot과 service role 전용 `admin_overview`, `admin_rooms`, `admin_room_members`, `admin_users`, `admin_downloads`, `admin_payments`, `admin_ingest_download_metrics`를 추가한다. `anon`과 일반 `authenticated`에는 모든 함수 실행 권한을 명시적으로 회수한다. 검색·상태·기간·정렬·page size는 Node API와 SQL 양쪽에서 allowlist 검증한다.
+
+GitHub download collector는 정식 Release만 읽고 `SIDEY-macOS-arm64-v<version>.dmg`, `SIDEY-macOS-arm64-v<version>-homebrew.dmg`, `SIDEY-Windows-x64-v<version>.msi`만 집계한다. 같은 macOS Release에 Homebrew 전용 자산이 없으면 해당 DMG의 기존 누적 수는 직접·Homebrew가 섞인 `legacy_unclassified`로 보존한다. 일별·오늘 수치는 Asia/Seoul 자정 전후 snapshot 차이이며 최대 약 15분의 경계 오차와 마지막 수집 시각을 함께 보여준다. 현재 `sidey-app/tap`은 third-party tap이므로 `homebrew/homebrew-cask` 공식 30/90/365일 익명 통계를 제공받지 못하며, 공식 Cask 편입 전에는 교차 확인 수치를 비워 둔다.
 
 공개 웹사이트는 4종·가격·macOS 앱 내 구매 경로·구매와 환불 조건을 `store.html`에 고정형 사용자 문구로 표시한다. 상점은 결제·개인정보 설명 카드와 랜딩 하단에 이미 있는 판매자 정보를 반복하지 않고 관련 정책 링크만 제공한다. 한국어 제목과 본문에는 적절한 폭과 `word-break: keep-all`, `text-wrap`을 적용해 한 글자만 다음 줄에 남는 줄바꿈을 막고, 상점 타이포그래피는 홈 랜딩보다 작은 페이지 전용 크기를 사용한다. 상품 소개에는 production·staging·Sidey-dev·테스트 채널·출시 준비 상태 같은 내부 운영 정보를 노출하지 않는다. `checkout.html`과 `checkout-result.html`은 상품 ID별 이름·가격·이미지를 사용하고 공개 구매 링크로 노출하지 않으며 staging/dev 주문 token으로만 접근한다. 결제 카드 정보는 SIDEY가 수집하지 않고 PortOne을 통해 열린 실제 PG 결제창이 처리한다.
 
@@ -437,6 +451,7 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 - DMG: 660×420 배경, `SIDEY.app`, `/Applications` 심볼릭 링크, 기존 5종 idle 프레임, `.DS_Store`를 자동 생성·마운트 검증하고 Finder에서 아이콘 위치·안내 문구·nearest-neighbor 픽셀 선명도를 수동 확인
 - Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단
 - 서버: 실제 anon/authenticated role의 RLS, 12번째 성공·13번째 거부와 여섯 번째 방 경합, 병렬 초대 제한, invite hash API 비노출, current epoch topic 권한, client Broadcast INSERT 봉쇄, transient event whitelist·rate, `broadcast_character_throw`의 인증·epoch·양쪽 membership·자기 대상·필수 UUID·20회/10초 제한과 서버 source character, 메시지 멱등성·rate, 7일 retention, 비방장 관리 거부와 cascade를 SQL 테스트한다.
+- 운영 어드민: 모든 `admin_*` 조회·수집 RPC의 anon·authenticated 거부와 service role 허용, 다운로드 baseline·분리 경로·KST 경계·카운터 증가·정체·역행 거부·수집 지연을 SQL 테스트한다. 로컬 API는 환경변수 누락·잘못된 production ref·LAN Host·외부 Origin·잘못된 query와 upstream 응답을 거부해야 하며 lint·typecheck·unit·production build·Secret 번들 scan과 1280×800·1440×900의 두 테마 Playwright 검증을 통과해야 한다.
 - Windows 설치·업데이트: clean install, `C:\Program Files\SIDEY`, 공용 시작 메뉴, 아이콘이 포함된 `Uninstall.exe`, 게시된 런처·호스트 시작 스모크, repair, 실행 중 upgrade의 정상 종료 요청, downgrade 차단을 Windows CI·실기에서 확인한다. Windows 설정·MSI·`Uninstall.exe`의 일반 제거에서 기본 미선택 데이터 삭제 옵션이 동작하고, 선택 시에만 현재 사용자의 `%LOCALAPPDATA%\SIDEY`와 Credential Manager `SIDEY/` 자격 증명을 삭제하며 upgrade·repair에는 실행하지 않는지도 검증한다. `windows-v<version>` manifest의 버전·태그·고정 MSI URL·SHA-256도 검증하며 기존 per-user·Burn 테스트 설치가 있으면 설치 전에 제거하도록 안내한다.
 
 ### 10.2 macOS 장시간 수동·계측 테스트
