@@ -9,6 +9,38 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <description>Signed macOS updates for SIDEY</description>
         <language>ko</language>
         <item>
+            <title>1.0.5</title>
+            <pubDate>Thu, 03 Sep 2026 16:27:57 +0900</pubDate>
+            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.5</link>
+            <sparkle:version>16</sparkle:version>
+            <sparkle:shortVersionString>1.0.5</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.5
+
+`1.0.5` build `16` · macOS 26+ · Apple Silicon(arm64)
+
+## 변경 사항
+
+- 친구 캐릭터를 클릭해 물체를 던질 수 있습니다. 기본 설정에서는 바로 클릭해 던지고, `우클릭 후 던지기`를 켜면 내 캐릭터를 우클릭한 뒤 10초 동안 여러 번 던질 수 있습니다.
+- 여러 데스크탑을 사용할 때 캐릭터를 클릭해도 메시지 입력창이 나타나지 않던 문제를 수정했습니다.
+- Mac을 덮었다 다시 열거나 절전 모드에서 깨어난 뒤 내 캐릭터만 회색 연결 중 상태로 남던 문제를 수정했습니다.
+
+## 설치 및 업데이트
+
+- 신규 설치는 `SIDEY-macOS-arm64-v1.0.5.dmg`를 사용하세요.
+- 기존 사용자는 앱의 `업데이트 확인…` 또는 Homebrew로 업데이트할 수 있습니다.
+- 업데이트해도 SIDEY 계정, 그룹, 닉네임과 로컬 설정은 유지됩니다.
+
+## 현재 제한
+
+- 정식판 상점의 실제 캐릭터 판매는 아직 시작하지 않습니다.
+- Windows v1.0.3 배포물과 Windows의 무료 캐릭터 정책은 이번 macOS 릴리스에서 변경되지 않습니다.
+- 보안 화면, DRM 앱, 권한이 더 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
+]]></description>
+            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.5/SIDEY-macOS-arm64-v1.0.5.zip" length="5489752" type="application/octet-stream" sparkle:edSignature="5UnqBMW/KppK1y8B5XQHmRZH7CVIJeOGH7XB1pUyyrGRTtJ284QscODHd2CQluEfxb3WPZvSlQI5+BchgfVWBg=="/>
+        </item>
+        <item>
             <title>1.0.4</title>
             <pubDate>Wed, 02 Sep 2026 22:22:24 +0900</pubDate>
             <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.4</link>
@@ -167,46 +199,9 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
 ]]></description>
             <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.1/SIDEY-macOS-arm64-v1.0.1.zip" length="5208990" type="application/octet-stream" sparkle:edSignature="/1XIO++40gZ8BSyHn0JqMSNOa16ZkcBFT31YDNK1xZIM9DYGd/NLCg4juTRMNzJHgj2I74To2vAB+3ug9dJfAA=="/>
         </item>
-        <item>
-            <title>1.0.0</title>
-            <pubDate>Tue, 01 Sep 2026 10:25:39 +0900</pubDate>
-            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.0</link>
-            <sparkle:version>11</sparkle:version>
-            <sparkle:shortVersionString>1.0.0</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.0
-
-`1.0.0` build `11` · macOS 26+ · Apple Silicon(arm64) · stable release
-
-## 설치
-
-- Homebrew: `brew install --cask sidey-app/tap/sidey`
-- 직접 설치: Release의 DMG를 열고 `SIDEY.app`을 Applications로 이동
-
-새 설치에는 공증된 DMG를 사용합니다. ZIP은 앱 내 업데이트용이며 DMG와 ZIP의 SHA-256 파일을 같은 Release에서 제공합니다.
-
-## 주요 기능
-
-- 최대 12명의 가까운 친구가 참여하는 초대 전용 비공개 그룹을 제공합니다.
-- 온라인·자리 비움·오프라인 상태와 SIDEY 입력창의 타이핑 상태를 픽셀 동물로 표시합니다.
-- 최대 200자의 짧은 메시지를 화면 가장자리 말풍선과 최근 기록으로 확인할 수 있습니다.
-- 자리 비움 상태는 글자 수가 순환하지 않는 고정 `Zzz`와 부유·투명도 연출로 표시합니다.
-- 메시지는 서버에 7일간 보관한 뒤 일일 정리 작업으로 자동 삭제합니다.
-- 끊어진 Realtime 채널을 자동 복구하고 Presence·멤버·메시지를 다시 동기화합니다.
-
-## 제한 사항
-
-- macOS 26 이상 Apple Silicon Mac만 지원합니다.
-- E2EE는 제공하지 않습니다.
-- 보안 화면, DRM 앱, 권한이 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
-- Windows 개발 파일은 이 macOS 배포에 포함되지 않습니다.
-]]></description>
-            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.0/SIDEY-macOS-arm64-v1.0.0.zip" length="5148115" type="application/octet-stream" sparkle:edSignature="9Cc3iZqjK5cZ6Yl+BdUaJjBUWIsB3uSeA0U/7g4XKnA/EJxuZrl902FGoWX60W75tfLMHbVHC0yNxF3RfrFABQ=="/>
-        </item>
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: bfJHwU+z++/dAZUMtCZUi1KeziNdc5LGBmgpvXRf94K+XNyo+nKr1pBlmkjn/pGOubthTbm7mAuyE9Tsk0bdBA==
-length: 13333
+edSignature: IMi3BE0CjKBN147B9hwf3JvLNTSG1bzH0bc/zDuG6akpAkOxsUXb7LEU8DhZt89Qg4nUpD3D68/d5ORA/d9/Cg==
+length: 13203
 -->

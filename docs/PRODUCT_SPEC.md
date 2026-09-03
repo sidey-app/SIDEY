@@ -1,8 +1,8 @@
 # SIDEY 제품 기획서
 
 - 문서 버전: 0.8
-- 최종 갱신: 2026-09-02
-- 상태: macOS `v1.0.4`(build 15) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.0.3` 정식 출시
+- 최종 갱신: 2026-09-03
+- 상태: macOS `v1.0.5`(build 16) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.0.3` 정식 출시
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
 
@@ -467,7 +467,7 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 3. 전체 Swift 테스트, 로컬 2클라이언트 Realtime 통합 테스트, pgTAP, 웹 계약 테스트와 Release 빌드를 통과한다.
 4. Developer ID Application과 Hardened Runtime으로 앱·로그인 항목·Sparkle 중첩 코드를 서명하고 Apple 공증 뒤 ticket을 staple한다.
 5. `scripts/package_macos_release.sh`로 arm64·production 메타데이터, DMG·ZIP·SHA-256을 검증한다. production 카드 잠금과 구매 action 0회를 최종 확인한다.
-6. 검증된 동일 커밋에 `v1.0.4` 태그와 GitHub Release를 만든 뒤 DMG와 ZIP을 업로드하고, 다시 받은 파일이 로컬 SHA-256과 같은지 확인한다.
+6. 검증된 동일 커밋에 릴리스 태그와 GitHub Release를 만든 뒤 DMG와 ZIP을 업로드하고, 다시 받은 파일이 로컬 SHA-256과 같은지 확인한다.
 7. Release ZIP이 실제 다운로드된 뒤에만 `scripts/macos/prepare_sparkle_appcast.sh`로 signed appcast를 게시한다. 이어 웹 다운로드 링크와 `sidey-app/homebrew-tap` Cask를 같은 DMG URL·SHA-256으로 갱신한다.
 8. `SIDEY-staging`이 준비되면 같은 migration·Google OAuth·PortOne test Store/Channel/Webhook을 구성하고 Sidey-dev로 주문→결제→지급→프로필 선택→전액 환불→회수를 실제 검증한다.
 9. 추후 실판매는 별도 결정과 법률·운영 검증 뒤 production 앱의 `StoreAvailability`를 여는 새 버전을 먼저 배포하고, 마지막 단계에서만 운영 `sales_enabled=true`와 live 시크릿을 설정한다.
