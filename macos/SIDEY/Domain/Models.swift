@@ -717,6 +717,12 @@ struct CharacterThrowEvent: Equatable, Identifiable, Sendable {
     let sourceCharacterID: String
 }
 
+enum CharacterThrowTargetPolicy {
+    static func canTarget(_ member: PixelWorldMember) -> Bool {
+        !member.isCurrentUser
+    }
+}
+
 struct CharacterThrowCooldown: Equatable, Sendable {
     static let duration: TimeInterval = 0.5
     private var lastAcceptedUptimeByActor: [UUID: TimeInterval] = [:]

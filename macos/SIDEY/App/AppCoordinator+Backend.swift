@@ -478,8 +478,7 @@ extension AppCoordinator {
               actorUserID != targetUserID,
               let actor = room.members.first(where: { $0.userID == actorUserID }),
               model.pixelWorldMembers.contains(where: {
-                  $0.id == targetUserID && !$0.isCurrentUser
-                      && ($0.presence == .online || $0.presence == .typing)
+                  $0.id == targetUserID && CharacterThrowTargetPolicy.canTarget($0)
               }),
               characterThrowCooldown.accept(
                   actorUserID: actorUserID,

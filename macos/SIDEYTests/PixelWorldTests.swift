@@ -725,6 +725,29 @@ final class PixelWorldTests: XCTestCase {
         XCTAssertEqual(scene.renderedHitCount(for: target.id), 1)
     }
 
+    func testCharacterThrowCompletesWithHitForOfflineTarget() {
+        let roomID = UUID()
+        let actor = makeMember(isCurrentUser: true)
+        let target = PixelWorldMember(
+            id: UUID(), nickname: "오프라인", characterID: "pixel_cat",
+            presence: .offline, isTyping: false, isCurrentUser: false
+        )
+        let event = CharacterThrowEvent(
+            id: UUID(), roomID: roomID, actorUserID: actor.id,
+            targetUserID: target.id, sourceCharacterID: PixelCharacterCatalog.pixelHamsterID
+        )
+        let scene = PixelWorldScene(size: CGSize(width: 720, height: 360))
+
+        scene.apply(
+            roomID: roomID, members: [actor, target], bubbles: [], edge: .bottom,
+            installationSeed: 1, characterThrow: event
+        )
+        scene.update(ProcessInfo.processInfo.systemUptime + 2)
+
+        XCTAssertEqual(scene.activeProjectileCount, 0)
+        XCTAssertEqual(scene.renderedHitCount(for: target.id), 1)
+    }
+
     func testCharacterThrowCatalogMappingAndTimingContract() {
         XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_cat"), "patch_soft_ball")
         XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_guinea_pig"), "mini_paprika")

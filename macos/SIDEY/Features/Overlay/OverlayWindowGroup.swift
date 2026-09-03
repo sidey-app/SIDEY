@@ -309,9 +309,7 @@ final class OverlayWindowGroup {
             && currentUserLocalFrame != nil
             && (!model.preferences.requiresRightClickToThrow || throwTargetingActive)
         let eligibleIDs: Set<UUID> = canTarget ? Set(model.pixelWorldMembers.compactMap { member -> UUID? in
-            guard !member.isCurrentUser,
-                  member.presence == .online || member.presence == .typing
-            else { return nil }
+            guard CharacterThrowTargetPolicy.canTarget(member) else { return nil }
             return member.id
         }) : []
 

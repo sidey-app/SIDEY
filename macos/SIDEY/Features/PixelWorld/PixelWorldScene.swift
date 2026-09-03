@@ -534,8 +534,7 @@ final class PixelWorldScene: SKScene {
             } else {
                 projectile.node.removeFromParent()
                 playImpact(at: end, sourceCharacterID: projectile.event.sourceCharacterID)
-                if let target = members[projectile.event.targetUserID],
-                   target.presence == .online || target.presence == .typing {
+                if let target = members[projectile.event.targetUserID] {
                     hitUntil[projectile.event.targetUserID] = currentTime + PixelCharacterThrowStyle.hitDuration
                     targetNode.playHit(sourceCharacterID: target.characterID)
                 }

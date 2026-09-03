@@ -563,6 +563,19 @@ final class PresenceAndRealtimeTests: XCTestCase {
         XCTAssertEqual(CharacterThrowCooldown.duration, 0.5)
     }
 
+    func testCharacterThrowTargetIgnoresPresenceButRejectsCurrentUser() {
+        for presence in PresenceState.allCases {
+            XCTAssertTrue(CharacterThrowTargetPolicy.canTarget(PixelWorldMember(
+                id: UUID(), nickname: "친구", characterID: "pixel_hamster",
+                presence: presence, isTyping: presence == .typing, isCurrentUser: false
+            )), "\(presence)")
+        }
+        XCTAssertFalse(CharacterThrowTargetPolicy.canTarget(PixelWorldMember(
+            id: UUID(), nickname: "나", characterID: "pixel_hamster",
+            presence: .online, isTyping: false, isCurrentUser: true
+        )))
+    }
+
 
     func testLatestRoomSelectionWinsWithoutApplyingCompletedStaleSwitch() async {
         let roomB = UUID()
