@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import Supabase
 
 actor SideyBackend {
@@ -10,14 +11,20 @@ actor SideyBackend {
     private let legacyRefreshAccount: String
     private let inviteAccountPrefix: String
     private let eventContinuation: AsyncStream<BackendEvent>.Continuation
+    private let networkPathMonitor: any NetworkPathMonitoring
+    private let recoveryLogger = Logger(
+        subsystem: "app.sidey.desktop",
+        category: "RealtimeRecovery"
+    )
     private var channels: [UUID: RoomRealtimeChannels] = [:]
-    private var channelRecoveryTasks: [UUID: Task<Void, Never>] = [:]
-    private var channelRecoveryAttempts: [UUID: Int] = [:]
-    private var channelsBeingAdded: Set<UUID> = []
+    private var desiredTopology = RealtimeDesiredTopology()
+    private var realtimeGeneration = 0
+    private var realtimeRecoveryTask: Task<Void, Never>?
+    private var realtimeRecoveryAttempt = 0
+    private var rebuildingGeneration: Int?
     private var realtimeWatchdogTask: Task<Void, Never>?
-    private var recoveryReconciliationTask: Task<Void, Never>?
-    private var recoveryReconciliationGeneration = 0
-    private var recoveryReconciliationAttempt = 0
+    private var networkPathTask: Task<Void, Never>?
+    private var networkAvailability = NetworkAvailabilityState()
     private var structuralSnapshotTask: Task<Void, Never>?
     private var structuralSnapshotAttempt = 0
     private var typingExpiryTasks: [String: Task<Void, Never>] = [:]
@@ -36,7 +43,8 @@ actor SideyBackend {
     init(
         configuration: RuntimeConfiguration,
         keychain: KeychainStore = KeychainStore(),
-        authCallbackURL: URL = SideyAuthCallback.callbackURL()
+        authCallbackURL: URL = SideyAuthCallback.callbackURL(),
+        networkPathMonitor: any NetworkPathMonitoring = SystemNetworkPathMonitor()
     ) {
         let eventPair = AsyncStream<BackendEvent>.makeStream(
             bufferingPolicy: .bufferingNewest(256)
@@ -47,6 +55,7 @@ actor SideyBackend {
         let legacyRefreshAccount = "supabase-refresh:\(fingerprint):default"
         self.keychain = keychain
         self.authCallbackURL = authCallbackURL
+        self.networkPathMonitor = networkPathMonitor
         self.legacyRefreshAccount = legacyRefreshAccount
         self.inviteAccountPrefix = "room-invite:\(fingerprint):default:"
 
@@ -75,6 +84,7 @@ actor SideyBackend {
 
     func syncRealtime(rooms: [Room], activeRoomID: UUID?) async throws -> BackendReconciliation {
         guard !isShuttingDown else { throw CancellationError() }
+        startNetworkPathMonitoringIfNeeded()
         try await configureChannels(rooms: rooms, activeRoomID: activeRoomID)
         return try await reconcileCurrentState(emitEvents: false)
     }
@@ -137,16 +147,19 @@ actor SideyBackend {
     func shutdown() async {
         isShuttingDown = true
         connectionTracker.replaceDesiredRoomIDs([])
+        desiredTopology = RealtimeDesiredTopology()
+        realtimeGeneration += 1
+        realtimeRecoveryTask?.cancel()
+        realtimeRecoveryTask = nil
         realtimeWatchdogTask?.cancel()
         realtimeWatchdogTask = nil
-        recoveryReconciliationTask?.cancel()
-        recoveryReconciliationTask = nil
+        networkPathTask?.cancel()
+        networkPathTask = nil
+        networkPathMonitor.cancel()
         structuralSnapshotTask?.cancel()
         structuralSnapshotTask = nil
-        for task in channelRecoveryTasks.values { task.cancel() }
-        channelRecoveryTasks.removeAll()
-        channelRecoveryAttempts.removeAll()
-        for roomID in Array(channels.keys) { await removeChannel(roomID) }
+        await removeAllChannels()
+        client.realtimeV2.disconnect(reason: "SIDEY shutdown")
         for task in typingExpiryTasks.values { task.cancel() }
         typingExpiryTasks.removeAll()
         await presencePublicationQueue.cancel()
@@ -489,6 +502,10 @@ actor SideyBackend {
         client.realtimeV2.disconnect(reason: "SIDEY integration recovery test")
     }
 
+    func simulateNetworkAvailabilityForTesting(_ availability: NetworkAvailability) async {
+        await handleNetworkAvailability(availability)
+    }
+
     func deleteOwnAccountForTesting() async throws {
         _ = try await client.rpc("delete_own_account").execute()
     }
@@ -513,16 +530,18 @@ actor SideyBackend {
 
     private func configureChannels(rooms: [Room], activeRoomID: UUID?) async throws {
         let requestedRooms = Array(rooms.prefix(5))
-        let requestedByID = Dictionary(uniqueKeysWithValues: requestedRooms.map { ($0.id, $0) })
-        let desiredRoomIDs = Set(requestedByID.keys)
         let requestedTopology = RealtimeTopology(rooms: requestedRooms)
-        let currentTopology = RealtimeTopology(channelEpochs: Dictionary(
+        let previousDesiredTopology = RealtimeTopology(channelEpochs: desiredTopology.roomEpochs)
+        let liveTopology = RealtimeTopology(channelEpochs: Dictionary(
             uniqueKeysWithValues: channels.map { ($0.key, $0.value.epoch) }
         ))
+        desiredTopology.replace(rooms: requestedRooms)
+        let desiredRoomIDs = desiredTopology.roomIDs
         let resolvedActiveRoomID = activeRoomID.flatMap {
             desiredRoomIDs.contains($0) ? $0 : nil
         }
-        let topologyChanged = requestedTopology != currentTopology
+        let topologyChanged = requestedTopology != previousDesiredTopology
+            || requestedTopology != liveTopology
         let activeRoomChanged = self.activeRoomID != resolvedActiveRoomID
 
         self.activeRoomID = resolvedActiveRoomID
@@ -532,16 +551,25 @@ actor SideyBackend {
         }
         emitConnectionState()
 
-        for roomID in Set(channels.keys).subtracting(desiredRoomIDs) {
-            await removeChannel(roomID)
-            try? keychain.delete(account: inviteAccount(roomID: roomID))
+        guard networkAvailability.current != .unavailable else {
+            markAllRoomsUnsubscribed()
+            emitConnectionState()
+            throw SideyBackendError.realtimeUnavailable
         }
-        for room in requestedRooms {
-            if let existing = channels[room.id], existing.epoch != room.realtimeEpoch {
-                await removeChannel(room.id)
-            }
-            if channels[room.id] == nil {
-                try await addChannel(roomID: room.id, epoch: room.realtimeEpoch)
+
+        if topologyChanged {
+            realtimeRecoveryTask?.cancel()
+            realtimeRecoveryTask = nil
+            realtimeRecoveryAttempt = 0
+            realtimeGeneration += 1
+            let generation = realtimeGeneration
+            markAllRoomsUnsubscribed()
+            emitConnectionState()
+            do {
+                try await replaceAllChannels(rooms: requestedRooms, generation: generation)
+            } catch {
+                scheduleRealtimeRecovery(trigger: .channel, immediate: false)
+                throw error
             }
         }
         if topologyChanged || activeRoomChanged {
@@ -550,12 +578,33 @@ actor SideyBackend {
         startRealtimeWatchdogIfNeeded()
     }
 
-    private func addChannel(roomID: UUID, epoch: Int) async throws {
+    private func replaceAllChannels(rooms: [Room], generation: Int) async throws {
+        rebuildingGeneration = generation
+        defer {
+            if rebuildingGeneration == generation {
+                rebuildingGeneration = nil
+            }
+        }
+        await removeAllChannels()
+        try ensureCurrentRealtimeGeneration(generation)
+        for room in rooms {
+            try await addChannel(
+                roomID: room.id,
+                epoch: room.realtimeEpoch,
+                generation: generation
+            )
+            try ensureCurrentRealtimeGeneration(generation)
+        }
+        guard connectionTracker.isConnected else {
+            throw SideyBackendError.realtimeUnavailable
+        }
+    }
+
+    private func addChannel(roomID: UUID, epoch: Int, generation: Int) async throws {
         guard let userID = client.auth.currentUser?.id else {
             throw SideyBackendError.remote("인증 세션이 없습니다.")
         }
-        channelsBeingAdded.insert(roomID)
-        defer { channelsBeingAdded.remove(roomID) }
+        try ensureCurrentRealtimeGeneration(generation)
 
         let topicPrefix = "room:\(roomID.uuidString.lowercased()):\(epoch)"
         let databaseChannel = client.channel("\(topicPrefix):db") { config in
@@ -584,6 +633,7 @@ actor SideyBackend {
                 for await payload in messageChanges {
                     await self?.handleDatabaseBroadcast(
                         roomID: roomID,
+                        generation: generation,
                         payload: payload,
                         event: "message_changed"
                     )
@@ -593,6 +643,7 @@ actor SideyBackend {
                 for await payload in structureChanges {
                     await self?.handleDatabaseBroadcast(
                         roomID: roomID,
+                        generation: generation,
                         payload: payload,
                         event: "structure_changed"
                     )
@@ -602,6 +653,7 @@ actor SideyBackend {
                 for await payload in messagesPruned {
                     await self?.handleDatabaseBroadcast(
                         roomID: roomID,
+                        generation: generation,
                         payload: payload,
                         event: "messages_pruned"
                     )
@@ -609,42 +661,73 @@ actor SideyBackend {
             },
             Task { [weak self] in
                 for await payload in typingStart {
-                    await self?.handleTyping(roomID: roomID, payload: payload, active: true)
+                    await self?.handleTyping(
+                        roomID: roomID,
+                        generation: generation,
+                        payload: payload,
+                        active: true
+                    )
                 }
             },
             Task { [weak self] in
                 for await payload in typingStop {
-                    await self?.handleTyping(roomID: roomID, payload: payload, active: false)
+                    await self?.handleTyping(
+                        roomID: roomID,
+                        generation: generation,
+                        payload: payload,
+                        active: false
+                    )
                 }
             },
             Task { [weak self] in
                 for await payload in characterPulse {
-                    await self?.handleCharacterPulse(roomID: roomID, payload: payload)
+                    await self?.handleCharacterPulse(
+                        roomID: roomID,
+                        generation: generation,
+                        payload: payload
+                    )
                 }
             },
             Task { [weak self] in
                 for await payload in characterThrow {
-                    await self?.handleCharacterThrow(roomID: roomID, payload: payload)
+                    await self?.handleCharacterThrow(
+                        roomID: roomID,
+                        generation: generation,
+                        payload: payload
+                    )
                 }
             },
             Task { [weak self] in
                 for await action in presenceChanges {
-                    await self?.handlePresence(roomID: roomID, action: action)
+                    await self?.handlePresence(
+                        roomID: roomID,
+                        generation: generation,
+                        action: action
+                    )
                 }
             },
             Task { [weak self] in
                 for await status in databaseStatuses {
-                    await self?.handleChannelStatus(roomID: roomID, kind: .database, status: status)
+                    await self?.handleChannelStatus(
+                        roomID: roomID,
+                        generation: generation,
+                        status: status
+                    )
                 }
             },
             Task { [weak self] in
                 for await status in ephemeralStatuses {
-                    await self?.handleChannelStatus(roomID: roomID, kind: .ephemeral, status: status)
+                    await self?.handleChannelStatus(
+                        roomID: roomID,
+                        generation: generation,
+                        status: status
+                    )
                 }
             }
         ]
         channels[roomID] = RoomRealtimeChannels(
             epoch: epoch,
+            generation: generation,
             database: databaseChannel,
             ephemeral: ephemeralChannel,
             tasks: tasks
@@ -653,19 +736,21 @@ actor SideyBackend {
         do {
             try await databaseChannel.subscribeWithError()
             try Task.checkCancellation()
+            try ensureCurrentRealtimeGeneration(generation)
             try await ephemeralChannel.subscribeWithError()
             try Task.checkCancellation()
+            try ensureCurrentRealtimeGeneration(generation)
             updateRoomSubscription(roomID: roomID)
         } catch {
-            await removeChannel(roomID, resetRecovery: false)
+            await removeChannel(roomID, expectedGeneration: generation)
             throw error
         }
     }
 
-    private func removeChannel(_ roomID: UUID, resetRecovery: Bool = true) async {
-        if resetRecovery {
-            channelRecoveryTasks.removeValue(forKey: roomID)?.cancel()
-            channelRecoveryAttempts.removeValue(forKey: roomID)
+    private func removeChannel(_ roomID: UUID, expectedGeneration: Int? = nil) async {
+        if let expectedGeneration,
+           channels[roomID]?.generation != expectedGeneration {
+            return
         }
         connectionTracker.setSubscribed(false, roomID: roomID)
         guard let roomChannels = channels.removeValue(forKey: roomID) else { return }
@@ -674,27 +759,29 @@ actor SideyBackend {
         await client.removeChannel(roomChannels.ephemeral)
     }
 
+    private func removeAllChannels() async {
+        let channelGenerations = channels.map { ($0.key, $0.value.generation) }
+        for (roomID, generation) in channelGenerations {
+            await removeChannel(roomID, expectedGeneration: generation)
+        }
+    }
+
     private func handleChannelStatus(
         roomID: UUID,
-        kind: RealtimeChannelKind,
+        generation: Int,
         status: RealtimeChannelStatus
     ) async {
+        guard isCurrentChannel(roomID: roomID, generation: generation) else { return }
         switch status {
         case .subscribed:
-            channelRecoveryTasks.removeValue(forKey: roomID)?.cancel()
-            channelRecoveryAttempts.removeValue(forKey: roomID)
             updateRoomSubscription(roomID: roomID)
-            if kind == .ephemeral,
-               channels[roomID]?.ephemeral.status == .subscribed {
-                try? await publishPresence()
-            }
             emitConnectionState()
         case .unsubscribed:
             connectionTracker.setSubscribed(false, roomID: roomID)
             recoveryReconciled = false
             emitConnectionState()
-            if !channelsBeingAdded.contains(roomID) {
-                scheduleChannelRecovery(roomID: roomID)
+            if rebuildingGeneration == nil {
+                scheduleRealtimeRecovery(trigger: .channel, immediate: false)
             }
         case .subscribing, .unsubscribing:
             connectionTracker.setSubscribed(false, roomID: roomID)
@@ -704,13 +791,17 @@ actor SideyBackend {
     }
 
     private func updateRoomSubscription(roomID: UUID) {
-        guard let roomChannels = channels[roomID] else {
+        guard let roomChannels = channels[roomID],
+              roomChannels.generation == realtimeGeneration
+        else {
             connectionTracker.setSubscribed(false, roomID: roomID)
             return
         }
         connectionTracker.setSubscribed(
-            roomChannels.database.status == .subscribed
-                && roomChannels.ephemeral.status == .subscribed,
+            RealtimeChannelPairPolicy.isSubscribed(
+                database: roomChannels.database.status == .subscribed,
+                ephemeral: roomChannels.ephemeral.status == .subscribed
+            ),
             roomID: roomID
         )
     }
@@ -738,6 +829,8 @@ actor SideyBackend {
             $0.uuidString < $1.uuidString
         }) {
             guard let roomChannels = channels[roomID],
+                  roomChannels.generation == realtimeGeneration,
+                  roomChannels.database.status == .subscribed,
                   roomChannels.ephemeral.status == .subscribed
             else {
                 throw SideyBackendError.realtimeUnavailable
@@ -758,10 +851,11 @@ actor SideyBackend {
     private func subscribedChannels(roomID: UUID) -> RoomRealtimeChannels? {
         guard client.realtimeV2.status == .connected,
               let roomChannels = channels[roomID],
+              roomChannels.generation == realtimeGeneration,
               roomChannels.database.status == .subscribed,
               roomChannels.ephemeral.status == .subscribed
         else {
-            scheduleChannelRecovery(roomID: roomID)
+            scheduleRealtimeRecovery(trigger: .channel, immediate: false)
             return nil
         }
         return roomChannels
@@ -783,116 +877,196 @@ actor SideyBackend {
     }
 
     private func inspectRealtimeHealth() {
-        guard !isShuttingDown else { return }
+        guard !isShuttingDown,
+              networkAvailability.current != .unavailable,
+              rebuildingGeneration == nil
+        else { return }
         let socketConnected = client.realtimeV2.status == .connected
         for roomID in connectionTracker.desiredRoomIDs {
             let subscribed = socketConnected
+                && channels[roomID]?.generation == realtimeGeneration
                 && channels[roomID]?.database.status == .subscribed
                 && channels[roomID]?.ephemeral.status == .subscribed
             connectionTracker.setSubscribed(subscribed, roomID: roomID)
-            if !subscribed, !channelsBeingAdded.contains(roomID) {
+            if !subscribed {
                 recoveryReconciled = false
-                scheduleChannelRecovery(roomID: roomID)
+                scheduleRealtimeRecovery(trigger: .watchdog, immediate: false)
             }
         }
         emitConnectionState()
     }
 
-    private func scheduleChannelRecovery(roomID: UUID) {
+    private func scheduleRealtimeRecovery(
+        trigger: RealtimeRecoveryTrigger,
+        immediate: Bool
+    ) {
         guard !isShuttingDown,
-              connectionTracker.desiredRoomIDs.contains(roomID),
-              channelRecoveryTasks[roomID] == nil
+              networkAvailability.current != .unavailable,
+              realtimeRecoveryTask == nil
         else { return }
 
-        let attempt = channelRecoveryAttempts[roomID, default: 0] + 1
-        channelRecoveryAttempts[roomID] = attempt
-        let delay = RealtimeRecoveryPolicy.delay(forAttempt: attempt)
-        channelRecoveryTasks[roomID] = Task { [weak self] in
+        recoveryReconciled = false
+        markAllRoomsUnsubscribed()
+        cancelTypingExpiryTasks()
+        realtimeRecoveryAttempt += 1
+        realtimeGeneration += 1
+        let attempt = realtimeRecoveryAttempt
+        let generation = realtimeGeneration
+        let delay = immediate
+            ? RealtimeRecoveryPolicy.pathRecoveryDebounce
+            : RealtimeRecoveryPolicy.delay(forAttempt: attempt)
+        recoveryLogger.notice(
+            "scheduled generation=\(generation, privacy: .public) attempt=\(attempt, privacy: .public) trigger=\(trigger.rawValue, privacy: .public)"
+        )
+        emitConnectionState()
+        realtimeRecoveryTask = Task { [weak self] in
             do {
                 try await Task.sleep(for: .seconds(delay))
             } catch {
                 return
             }
             guard !Task.isCancelled else { return }
-            await self?.recoverChannel(roomID: roomID)
+            await self?.recoverRealtimeTopology(generation: generation, attempt: attempt)
         }
     }
 
-    private func recoverChannel(roomID: UUID) async {
-        channelRecoveryTasks.removeValue(forKey: roomID)
+    private func recoverRealtimeTopology(generation: Int, attempt: Int) async {
         guard !isShuttingDown,
-              connectionTracker.desiredRoomIDs.contains(roomID),
-              !channelsBeingAdded.contains(roomID)
+              generation == realtimeGeneration,
+              networkAvailability.current != .unavailable
         else { return }
 
-        let epoch = channels[roomID]?.epoch
-        if channels[roomID] != nil { await removeChannel(roomID, resetRecovery: false) }
-
-        guard !isShuttingDown,
-              connectionTracker.desiredRoomIDs.contains(roomID)
-        else { return }
-
+        rebuildingGeneration = generation
+        recoveryLogger.notice(
+            "started generation=\(generation, privacy: .public) attempt=\(attempt, privacy: .public)"
+        )
         do {
-            guard let epoch else { return }
-            try await addChannel(roomID: roomID, epoch: epoch)
-            guard !isShuttingDown,
-                  connectionTracker.desiredRoomIDs.contains(roomID)
-            else {
-                await removeChannel(roomID)
-                return
+            await presencePublicationQueue.cancel()
+            await removeAllChannels()
+            client.realtimeV2.disconnect(reason: "SIDEY topology recovery")
+            try await Task.sleep(for: .milliseconds(150))
+            try ensureCurrentRealtimeGeneration(generation)
+
+            let snapshot = try await loadSnapshot()
+            try ensureCurrentRealtimeGeneration(generation)
+            let rooms = Array(snapshot.rooms.prefix(5))
+            desiredTopology.replace(rooms: rooms)
+            connectionTracker.replaceDesiredRoomIDs(desiredTopology.roomIDs)
+            activeRoomID = activeRoomID.flatMap { requestedID in
+                desiredTopology.roomIDs.contains(requestedID) ? requestedID : nil
+            } ?? rooms.first?.id
+
+            await client.realtimeV2.connect()
+            try ensureCurrentRealtimeGeneration(generation)
+            guard client.realtimeV2.status == .connected else {
+                throw SideyBackendError.realtimeUnavailable
+            }
+
+            for room in rooms {
+                try await addChannel(
+                    roomID: room.id,
+                    epoch: room.realtimeEpoch,
+                    generation: generation
+                )
+                try ensureCurrentRealtimeGeneration(generation)
+            }
+            guard connectionTracker.isConnected else {
+                throw SideyBackendError.realtimeUnavailable
             }
             try await publishPresence()
+            try ensureCurrentRealtimeGeneration(generation)
+            let reconciliation = try await makeReconciliation(snapshot: snapshot)
+            try ensureCurrentRealtimeGeneration(generation)
+
+            rebuildingGeneration = nil
+            realtimeRecoveryTask = nil
+            realtimeRecoveryAttempt = 0
+            recoveryReconciled = true
+            emit(.reconciliation(reconciliation))
             emitConnectionState()
-            scheduleRecoveryReconciliation()
+            recoveryLogger.notice(
+                "completed generation=\(generation, privacy: .public) rooms=\(rooms.count, privacy: .public)"
+            )
         } catch {
-            connectionTracker.setSubscribed(false, roomID: roomID)
+            guard generation == realtimeGeneration else { return }
+            rebuildingGeneration = nil
+            realtimeRecoveryTask = nil
+            recoveryReconciled = false
+            markAllRoomsUnsubscribed()
+            await removeAllChannels()
             emitConnectionState()
-            scheduleRecoveryReconciliation()
-            scheduleChannelRecovery(roomID: roomID)
+            recoveryLogger.error(
+                "failed generation=\(generation, privacy: .public) attempt=\(attempt, privacy: .public)"
+            )
+            scheduleRealtimeRecovery(trigger: .retry, immediate: false)
         }
     }
 
-    private func scheduleRecoveryReconciliation() {
-        guard !isShuttingDown else { return }
-        recoveryReconciled = false
-        emitConnectionState()
-        recoveryReconciliationGeneration += 1
-        recoveryReconciliationAttempt = 1
-        let generation = recoveryReconciliationGeneration
-        recoveryReconciliationTask?.cancel()
-        recoveryReconciliationTask = Task { [weak self] in
-            do {
-                try await Task.sleep(for: .seconds(RealtimeRecoveryPolicy.delay(forAttempt: 1)))
-            } catch {
-                return
-            }
-            guard !Task.isCancelled else { return }
-            await self?.reconcileAfterRealtimeRecovery(generation: generation)
-        }
-    }
-
-    private func reconcileAfterRealtimeRecovery(generation: Int) async {
-        recoveryReconciliationTask = nil
-        guard !isShuttingDown, generation == recoveryReconciliationGeneration else { return }
-        do {
-            _ = try await reconcileCurrentState(emitEvents: true)
-            recoveryReconciliationAttempt = 0
-        } catch {
-            recoveryReconciliationAttempt += 1
-            let attempt = recoveryReconciliationAttempt
-            emit(.technicalError("실시간 상태 재동기화 실패: \(error.localizedDescription)"))
-            recoveryReconciliationTask = Task { [weak self] in
-                do {
-                    try await Task.sleep(for: .seconds(
-                        RealtimeRecoveryPolicy.delay(forAttempt: attempt)
-                    ))
-                } catch {
-                    return
-                }
+    private func startNetworkPathMonitoringIfNeeded() {
+        guard networkPathTask == nil else { return }
+        let updates = networkPathMonitor.updates
+        networkPathTask = Task { [weak self] in
+            for await availability in updates {
                 guard !Task.isCancelled else { return }
-                await self?.reconcileAfterRealtimeRecovery(generation: generation)
+                await self?.handleNetworkAvailability(availability)
             }
         }
+        networkPathMonitor.start()
+    }
+
+    private func handleNetworkAvailability(_ availability: NetworkAvailability) async {
+        guard !isShuttingDown else { return }
+        switch networkAvailability.update(availability) {
+        case .unchanged, .initialAvailable:
+            return
+        case .becameUnavailable:
+            realtimeGeneration += 1
+            realtimeRecoveryTask?.cancel()
+            realtimeRecoveryTask = nil
+            realtimeRecoveryAttempt = 0
+            rebuildingGeneration = nil
+            recoveryReconciled = false
+            structuralSnapshotTask?.cancel()
+            structuralSnapshotTask = nil
+            markAllRoomsUnsubscribed()
+            cancelTypingExpiryTasks()
+            emitConnectionState()
+            await presencePublicationQueue.cancel()
+            await removeAllChannels()
+            client.realtimeV2.disconnect(reason: "SIDEY network unavailable")
+            recoveryLogger.notice("network unavailable")
+        case .becameAvailable:
+            recoveryLogger.notice("network available")
+            scheduleRealtimeRecovery(trigger: .networkPath, immediate: true)
+        }
+    }
+
+    private func ensureCurrentRealtimeGeneration(_ generation: Int) throws {
+        guard !isShuttingDown,
+              generation == realtimeGeneration,
+              networkAvailability.current != .unavailable
+        else { throw CancellationError() }
+    }
+
+    private func isCurrentChannel(roomID: UUID, generation: Int) -> Bool {
+        guard channels[roomID]?.generation == generation else { return false }
+        return RealtimeChannelGenerationPolicy.accepts(
+            candidateGeneration: generation,
+            currentGeneration: realtimeGeneration,
+            desiredEpoch: desiredTopology.epoch(for: roomID),
+            channelEpoch: channels[roomID]?.epoch
+        )
+    }
+
+    private func markAllRoomsUnsubscribed() {
+        for roomID in connectionTracker.desiredRoomIDs {
+            connectionTracker.setSubscribed(false, roomID: roomID)
+        }
+    }
+
+    private func cancelTypingExpiryTasks() {
+        for task in typingExpiryTasks.values { task.cancel() }
+        typingExpiryTasks.removeAll()
     }
 
     private func reconcileCurrentState(emitEvents: Bool) async throws -> BackendReconciliation {
@@ -905,7 +1079,19 @@ actor SideyBackend {
             try await configureChannels(rooms: snapshot.rooms, activeRoomID: activeRoomID)
             snapshot = try await loadSnapshot()
         }
+        guard connectionTracker.isConnected else {
+            throw SideyBackendError.realtimeUnavailable
+        }
+        let reconciliation = try await makeReconciliation(snapshot: snapshot)
+        if emitEvents {
+            emit(.reconciliation(reconciliation))
+        }
+        recoveryReconciled = true
+        emitConnectionState()
+        return reconciliation
+    }
 
+    private func makeReconciliation(snapshot: BackendSnapshot) async throws -> BackendReconciliation {
         let reconciledActiveRoomID = activeRoomID.flatMap { requestedID in
             snapshot.rooms.contains(where: { $0.id == requestedID }) ? requestedID : snapshot.rooms.first?.id
         } ?? snapshot.rooms.first?.id
@@ -915,33 +1101,41 @@ actor SideyBackend {
         } else {
             messages = []
         }
-        let reconciliation = BackendReconciliation(
+        return BackendReconciliation(
             snapshot: snapshot,
             activeRoomID: reconciledActiveRoomID,
             activeMessages: messages
         )
-        if emitEvents {
-            emit(.reconciliation(reconciliation))
-        }
-        recoveryReconciled = true
-        emitConnectionState()
-        return reconciliation
     }
 
     private func emitConnectionState() {
+        let pathAvailable = networkAvailability.current != .unavailable
+        let socketAvailable = connectionTracker.desiredRoomIDs.isEmpty
+            || client.realtimeV2.status == .connected
+        let transportConnected = pathAvailable
+            && socketAvailable
+            && realtimeRecoveryTask == nil
+            && rebuildingGeneration == nil
+            && connectionTracker.isConnected
         let status = BackendConnectionStatus(
-            transportConnected: connectionTracker.isConnected,
+            transportConnected: transportConnected,
             recoveryReconciled: recoveryReconciled,
             activeRoomTransportConnected: activeRoomID.map {
-                connectionTracker.isSubscribed(roomID: $0)
-            } ?? connectionTracker.isConnected
+                transportConnected && connectionTracker.isSubscribed(roomID: $0)
+            } ?? transportConnected
         )
         guard lastEmittedConnectionStatus != status else { return }
         lastEmittedConnectionStatus = status
         emit(.connection(status))
     }
 
-    private func handleDatabaseBroadcast(roomID: UUID, payload: JSONObject, event: String) async {
+    private func handleDatabaseBroadcast(
+        roomID: UUID,
+        generation: Int,
+        payload: JSONObject,
+        event: String
+    ) async {
+        guard isCurrentChannel(roomID: roomID, generation: generation) else { return }
         let inner = payload["payload"]?.objectValue ?? payload
         guard let change = try? inner.decode(as: DatabaseChangePayload.self),
               change.roomID == roomID
@@ -961,8 +1155,10 @@ actor SideyBackend {
                 guard let verified = try await message(id: messageID, roomID: roomID) else {
                     throw SideyBackendError.malformedResponse
                 }
+                guard isCurrentChannel(roomID: roomID, generation: generation) else { return }
                 emit(.message(verified))
             } catch {
+                guard isCurrentChannel(roomID: roomID, generation: generation) else { return }
                 emit(.technicalError(
                     "메시지 수신 실패: \(error.localizedDescription)"
                 ))
@@ -982,7 +1178,10 @@ actor SideyBackend {
     }
 
     private func scheduleStructuralSnapshot() {
-        guard structuralSnapshotTask == nil, !isShuttingDown else { return }
+        guard structuralSnapshotTask == nil,
+              !isShuttingDown,
+              networkAvailability.current != .unavailable
+        else { return }
         let attempt = structuralSnapshotAttempt
         let delay: Duration = attempt == 0
             ? .milliseconds(150)
@@ -1000,7 +1199,7 @@ actor SideyBackend {
 
     private func emitStructuralSnapshot() async {
         structuralSnapshotTask = nil
-        guard !isShuttingDown else { return }
+        guard !isShuttingDown, networkAvailability.current != .unavailable else { return }
         do {
             let snapshot = try await loadSnapshot()
             let snapshotTopology = RealtimeTopology(rooms: snapshot.rooms)
@@ -1022,12 +1221,17 @@ actor SideyBackend {
             structuralSnapshotAttempt += 1
             scheduleStructuralSnapshot()
             if !recoveryReconciled {
-                scheduleRecoveryReconciliation()
+                scheduleRealtimeRecovery(trigger: .reconciliation, immediate: false)
             }
         }
     }
 
-    private func handlePresence(roomID: UUID, action: any PresenceAction) {
+    private func handlePresence(
+        roomID: UUID,
+        generation: Int,
+        action: any PresenceAction
+    ) {
+        guard isCurrentChannel(roomID: roomID, generation: generation) else { return }
         var joined: [UUID: PresenceState] = [:]
         for (userIDString, presence) in action.joins {
             guard let userID = UUID(uuidString: userIDString),
@@ -1045,7 +1249,13 @@ actor SideyBackend {
         }
     }
 
-    private func handleTyping(roomID: UUID, payload: JSONObject, active: Bool) {
+    private func handleTyping(
+        roomID: UUID,
+        generation: Int,
+        payload: JSONObject,
+        active: Bool
+    ) {
+        guard isCurrentChannel(roomID: roomID, generation: generation) else { return }
         let inner = payload["payload"]?.objectValue ?? payload
         guard let typing = try? inner.decode(as: TypingPayload.self),
               typing.roomID == roomID,
@@ -1062,11 +1272,21 @@ actor SideyBackend {
         typingExpiryTasks[key] = Task { [weak self] in
             try? await Task.sleep(for: .seconds(4))
             guard !Task.isCancelled else { return }
-            await self?.expireTyping(roomID: roomID, userID: typing.userID, key: key)
+            await self?.expireTyping(
+                roomID: roomID,
+                userID: typing.userID,
+                key: key,
+                generation: generation
+            )
         }
     }
 
-    private func handleCharacterPulse(roomID: UUID, payload: JSONObject) {
+    private func handleCharacterPulse(
+        roomID: UUID,
+        generation: Int,
+        payload: JSONObject
+    ) {
+        guard isCurrentChannel(roomID: roomID, generation: generation) else { return }
         let inner = payload["payload"]?.objectValue ?? payload
         guard let pulse = try? inner.decode(as: CharacterPulsePayload.self),
               pulse.roomID == roomID,
@@ -1079,7 +1299,12 @@ actor SideyBackend {
         )))
     }
 
-    private func handleCharacterThrow(roomID: UUID, payload: JSONObject) {
+    private func handleCharacterThrow(
+        roomID: UUID,
+        generation: Int,
+        payload: JSONObject
+    ) {
+        guard isCurrentChannel(roomID: roomID, generation: generation) else { return }
         let inner = payload["payload"]?.objectValue ?? payload
         guard let value = try? inner.decode(as: CharacterThrowPayload.self),
               value.schemaVersion == 1,
@@ -1096,7 +1321,8 @@ actor SideyBackend {
         )))
     }
 
-    private func expireTyping(roomID: UUID, userID: UUID, key: String) {
+    private func expireTyping(roomID: UUID, userID: UUID, key: String, generation: Int) {
+        guard isCurrentChannel(roomID: roomID, generation: generation) else { return }
         typingExpiryTasks.removeValue(forKey: key)
         emit(.typing(roomID: roomID, userID: userID, active: false))
     }
@@ -1119,13 +1345,17 @@ actor SideyBackend {
     }
 }
 
-private enum RealtimeChannelKind: Sendable {
-    case database
-    case ephemeral
+private enum RealtimeRecoveryTrigger: String, Sendable {
+    case channel
+    case networkPath = "network-path"
+    case reconciliation
+    case retry
+    case watchdog
 }
 
 private struct RoomRealtimeChannels: Sendable {
     let epoch: Int
+    let generation: Int
     let database: RealtimeChannelV2
     let ephemeral: RealtimeChannelV2
     let tasks: [Task<Void, Never>]

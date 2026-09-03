@@ -154,10 +154,12 @@ final class BackendIntegrationTests: XCTestCase {
 
             let presenceUpdatesBeforeInterruption = await firstProbe.presenceUpdateCounts[secondUserID, default: 0]
             let disconnectionsBeforeInterruption = await secondProbe.disconnectedAfterConnectCount
-            await second.interruptRealtimeConnectionForTesting()
+            await second.simulateNetworkAvailabilityForTesting(.unavailable)
             try await waitUntil("강제 단절 감지", timeout: .seconds(15)) {
                 await secondProbe.disconnectedAfterConnectCount > disconnectionsBeforeInterruption
             }
+            try await Task.sleep(for: .milliseconds(500))
+            await second.simulateNetworkAvailabilityForTesting(.available)
             try await waitUntil("Realtime 자동 재구독", timeout: .seconds(30)) {
                 await secondProbe.isConnected
             }
