@@ -1,13 +1,16 @@
 # SIDEY 픽셀 에셋 라이브러리
 
-이 폴더는 SIDEY 승인 픽셀 에셋의 단일 원본이다. 공개 인터페이스는
+이 폴더는 SIDEY에서 사용하는 승인된 픽셀 에셋의 원본입니다. 공개 규격은
 [`v1/manifest.json`](v1/manifest.json)과 캐릭터별 `base.png`, `throw_hit.png`,
-투척물별 `sprite.png`다. 앱과 웹 폴더에 있는 같은 PNG 및 Windows BGRA는
-배포용 mirror이며 직접 편집하지 않는다.
+투척물별 `sprite.png`입니다.
+
+앱과 웹 폴더에 있는 같은 PNG 및 Windows BGRA 파일은 배포용 복사본입니다.
+해당 파일은 직접 편집하지 않고 이 폴더의 원본에서 갱신합니다.
 
 [공개 에셋 프리뷰어](https://sidey-app.github.io/SIDEY/contribute/asset-previewer/)는
-파일을 서버로 보내거나 저장하지 않고 브라우저 메모리에서만 처리한다. SIDEY 웹
-클라이언트가 아니라 컨트리뷰터가 제출 전 동작을 확인하는 도구다.
+파일을 서버로 보내거나 저장하지 않고 현재 브라우저의 메모리에서만 처리합니다.
+SIDEY 웹 클라이언트가 아니라, 에셋을 제출하기 전에 실제 동작을 확인하는
+컨트리뷰터용 도구입니다.
 
 ![햄스터 기본·throw/hit·패치 말랑공 공식 8배 참고 이미지](v1/reference/pixel_hamster_reference.png)
 
@@ -42,20 +45,23 @@
 - 화면 확대는 `2×`, `3×`, `4×` 같은 정수 nearest-neighbor만 사용
 - 픽셀을 흐리게 만드는 비정수 크기, 선형 보간, 반투명 가장자리 금지
 
-별빛 우파루파처럼 idle 중 후광으로 보이는 ambient sparkle과 더블클릭 particle
-burst를 제안할 수 있다. 이 효과는 PNG 프레임이 아니라 별도 렌더러 기능이다.
-성능·색상·밀도·지속 시간 검토와 macOS/Windows 각각의 구현이 필요하며, 에셋
-제출만으로 제품에서 자동 활성화되지 않는다.
+별빛 우파루파처럼 idle 상태에서 후광처럼 보이는 ambient sparkle과 더블클릭
+particle burst 효과를 제안할 수 있습니다. 이러한 효과는 PNG 프레임이 아니라
+별도의 렌더러 기능입니다. 성능·색상·밀도·지속 시간 검토와 macOS·Windows별
+구현이 필요하며, 에셋 제출만으로 제품에서 자동 활성화되지는 않습니다.
 
 ## 신규 제출 절차
 
-1. `assets/v1/characters/<character_id>/`에 `base.png`와 `throw_hit.png`를 추가한다.
-2. 고유 투척물이 필요하면 `assets/v1/throwables/<object_id>/sprite.png`를 추가한다.
-3. `manifest.json`의 캐릭터→투척물 매핑, fallback, 상대 경로, SHA-256을 갱신한다.
-4. `python3 scripts/validate_pixel_assets.py`로 중앙 원본을 검사한다.
-5. 중앙 변경을 먼저 리뷰한 뒤 플랫폼별 catalog와 배포 mirror는 별도 후속 PR에서
-   갱신한다.
+1. `assets/v1/characters/<character_id>/`에 `base.png`와 `throw_hit.png`를 추가합니다.
+2. 고유 투척물이 필요하면 `assets/v1/throwables/<object_id>/sprite.png`를 추가합니다.
+3. `manifest.json`의 캐릭터→투척물 매핑, fallback, 상대 경로, SHA-256을 갱신합니다.
+4. `python3 scripts/validate_pixel_assets.py`로 중앙 원본을 검사합니다.
+5. PR 유형에서 `캐릭터 에셋`을 선택하고
+   [캐릭터 에셋 전용 PR 양식](../.github/PULL_REQUEST_TEMPLATE/character_asset.md)에
+   원본 전체본과 프리뷰어 검사 결과를 첨부합니다.
+6. 중앙 변경을 먼저 리뷰한 뒤 플랫폼별 catalog와 배포 복사본은 별도 후속 PR에서
+   갱신합니다.
 
-검사 통과를 위해 규격을 억지로 재인코딩하지 말고 원본 제작 파일에서 바로잡아야
-한다. 승인된 `v1` 파일을 바꿀 필요가 생기면 기존 hash를 조용히 덮지 말고 변경
-이유와 호환 영향을 함께 리뷰한다.
+검사 통과를 위해 규격을 억지로 재인코딩하지 말고 원본 제작 파일에서 문제를
+바로잡아 주세요. 승인된 `v1` 파일을 변경해야 한다면 기존 hash를 조용히 덮지
+말고 변경 이유와 호환 영향을 함께 리뷰해야 합니다.

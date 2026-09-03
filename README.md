@@ -62,3 +62,28 @@ Windows 버전은 현재 공인 코드 서명 전 정식판입니다. SmartScree
 - **macOS:** 이모지 입력이 되지 않는 문제 개선
 
 위 항목은 개발 예정 내용이며 일정과 제공 순서는 변경될 수 있습니다.
+
+## Contributors
+
+SIDEY를 함께 만들어 주신 분들께 감사드립니다.
+
+### Windows 개발
+
+<table>
+  <tr>
+    <td align="center" width="120">
+      <a href="https://github.com/patulus">
+        <img src="https://avatars.githubusercontent.com/u/7178737?v=4" width="80" height="80" alt="@patulus"><br>
+        <sub><strong>@patulus</strong></sub>
+      </a><br>
+      <sub>Windows 개발</sub>
+    </td>
+  </tr>
+</table>
+
+### 캐릭터 에셋 기여
+
+새로운 픽셀 캐릭터와 투척물 에셋 기여를 기다리고 있습니다.
+[에셋 제작 규격](assets/README.md)을 확인하고
+[공개 에셋 프리뷰어](https://sidey-app.github.io/SIDEY/contribute/asset-previewer/)에서
+동작을 검증한 뒤 [캐릭터 에셋 전용 PR 양식](.github/PULL_REQUEST_TEMPLATE/character_asset.md)으로 제출해 주세요.
