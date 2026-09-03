@@ -58,6 +58,8 @@ VIAddVersionKey /LANG=1033 "FileVersion" "${APP_FILE_VERSION}"
 !define MUI_ABORTWARNING
 !define MUI_ICON "${PUBLISH_DIR}\Assets\Icons\SideyAppIcon.ico"
 !define MUI_UNICON "${PUBLISH_DIR}\Assets\Icons\SideyAppIcon.ico"
+!define MUI_WELCOMEFINISHPAGE_BITMAP "${__FILEDIR__}\SideyWelcome.bmp"
+!define MUI_WELCOMEFINISHPAGE_BITMAP_STRETCH "FitControl"
 !define MUI_FINISHPAGE_RUN "$INSTDIR\SIDEY.exe"
 !define MUI_FINISHPAGE_RUN_TEXT "$(LaunchSidey)"
 !define MUI_LANGDLL_REGISTRY_ROOT "HKLM"

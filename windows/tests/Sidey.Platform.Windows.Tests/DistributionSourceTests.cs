@@ -94,6 +94,22 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
+    public void SetupExeUsesAWhiteSideyWelcomeBitmap()
+    {
+        string setup = ReadSetupScript();
+        byte[] bitmap = File.ReadAllBytes(RepositoryPath(
+            "windows", "installer", "Sidey.Setup", "SideyWelcome.bmp"));
+
+        Assert.Contains("MUI_WELCOMEFINISHPAGE_BITMAP", setup, StringComparison.Ordinal);
+        Assert.Contains("SideyWelcome.bmp", setup, StringComparison.Ordinal);
+        Assert.Equal((byte)'B', bitmap[0]);
+        Assert.Equal((byte)'M', bitmap[1]);
+        Assert.Equal(164, BitConverter.ToInt32(bitmap, 18));
+        Assert.Equal(314, BitConverter.ToInt32(bitmap, 22));
+        Assert.Equal(24, BitConverter.ToInt16(bitmap, 28));
+    }
+
+    [Fact]
     public void SameVersionOffersRepairRemoveAndCloseWhileDowngradesAreBlocked()
     {
         string setup = ReadSetupScript();
