@@ -10,7 +10,7 @@ namespace Sidey.App;
 
 public partial class App : Application
 {
-    private static readonly TimeSpan InitialConnectionFailureNotificationDelay = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan ConnectionFailureNotificationDelay = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan ConnectionFailureNotificationCooldown = TimeSpan.FromMinutes(15);
 
     private readonly DispatcherQueue _dispatcherQueue;
@@ -27,9 +27,8 @@ public partial class App : Application
     private bool _startupUpdateCheckStarted;
     private bool _monitorConnectionFailures;
     private bool _connectionFailureNotificationArmed = true;
-    private bool _hasEstablishedServerConnection;
     private DateTimeOffset? _lastConnectionFailureNotificationAt;
-    private DispatcherQueueTimer? _initialConnectionFailureNotificationTimer;
+    private DispatcherQueueTimer? _connectionFailureNotificationTimer;
     private string? _pendingUpdateNotificationVersion;
     private Timer? _uiResponsivenessTimer;
     private bool _shuttingDown;
@@ -668,9 +667,8 @@ public partial class App : Application
     {
         if (connected)
         {
-            _hasEstablishedServerConnection = true;
             _connectionFailureNotificationArmed = true;
-            CancelInitialConnectionFailureNotification();
+            CancelConnectionFailureNotification();
             return;
         }
 
@@ -681,42 +679,36 @@ public partial class App : Application
             return;
         }
 
-        if (!_hasEstablishedServerConnection)
-        {
-            ScheduleInitialConnectionFailureNotification();
-            return;
-        }
-
-        PostConnectionFailureNotification();
+        ScheduleConnectionFailureNotification();
     }
 
-    private void ScheduleInitialConnectionFailureNotification()
+    private void ScheduleConnectionFailureNotification()
     {
-        if (_initialConnectionFailureNotificationTimer is not null)
+        if (_connectionFailureNotificationTimer is not null)
         {
             return;
         }
 
         var timer = _dispatcherQueue.CreateTimer();
-        timer.Interval = InitialConnectionFailureNotificationDelay;
+        timer.Interval = ConnectionFailureNotificationDelay;
         timer.IsRepeating = false;
-        timer.Tick += OnInitialConnectionFailureNotificationElapsed;
-        _initialConnectionFailureNotificationTimer = timer;
+        timer.Tick += OnConnectionFailureNotificationElapsed;
+        _connectionFailureNotificationTimer = timer;
         timer.Start();
         StartupDiagnostics.Stage(
-            $"connection-failure-notification-deferred delay-ms={(long)InitialConnectionFailureNotificationDelay.TotalMilliseconds}");
+            $"connection-failure-notification-deferred delay-ms={(long)ConnectionFailureNotificationDelay.TotalMilliseconds}");
     }
 
-    private void OnInitialConnectionFailureNotificationElapsed(
+    private void OnConnectionFailureNotificationElapsed(
         DispatcherQueueTimer sender,
         object args)
     {
         _ = args;
-        sender.Tick -= OnInitialConnectionFailureNotificationElapsed;
+        sender.Tick -= OnConnectionFailureNotificationElapsed;
         sender.Stop();
-        if (ReferenceEquals(_initialConnectionFailureNotificationTimer, sender))
+        if (ReferenceEquals(_connectionFailureNotificationTimer, sender))
         {
-            _initialConnectionFailureNotificationTimer = null;
+            _connectionFailureNotificationTimer = null;
         }
 
         if (!_shuttingDown && _coordinator?.State.Connected == false)
@@ -725,16 +717,16 @@ public partial class App : Application
         }
     }
 
-    private void CancelInitialConnectionFailureNotification()
+    private void CancelConnectionFailureNotification()
     {
-        if (_initialConnectionFailureNotificationTimer is not { } timer)
+        if (_connectionFailureNotificationTimer is not { } timer)
         {
             return;
         }
 
-        timer.Tick -= OnInitialConnectionFailureNotificationElapsed;
+        timer.Tick -= OnConnectionFailureNotificationElapsed;
         timer.Stop();
-        _initialConnectionFailureNotificationTimer = null;
+        _connectionFailureNotificationTimer = null;
         StartupDiagnostics.Stage("connection-failure-notification-deferred result=cancelled");
     }
 
@@ -825,7 +817,7 @@ public partial class App : Application
         }
 
         _shuttingDown = true;
-        CancelInitialConnectionFailureNotification();
+        CancelConnectionFailureNotification();
         _uiResponsivenessTimer?.Dispose();
         _uiResponsivenessTimer = null;
         if (_mainWindow is not null)

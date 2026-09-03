@@ -35,7 +35,7 @@
         OpenPaneLength="210"
         PaneClosed="OnNavigationPaneClosed"
         PaneDisplayMode="Auto"
-        PaneOpened="OnNavigationPaneOpened"
+        PaneOpening="OnNavigationPaneOpening"
         SelectionChanged="OnNavigationSelectionChanged">
       <NavigationView.Resources>
         <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
@@ -50,7 +50,7 @@
         <NavigationViewItem Content="{i18n:I18n Key=navigation.settings}" Icon="Setting" Tag="settings" ToolTipService.ToolTip="{i18n:I18n Key=navigation.settings}" />
       </NavigationView.MenuItems>
       <NavigationView.PaneFooter>
-        <Grid Height="52">
+        <Grid x:Name="ConnectionStatusRoot" Width="210" Height="52" HorizontalAlignment="Left">
           <Border
               x:Name="ExpandedConnectionStatus"
               Margin="12,4"
@@ -62,15 +62,24 @@
               <TextBlock Text="{Binding ConnectionText}" />
             </StackPanel>
           </Border>
-          <Ellipse
-              x:Name="CompactConnectionDot"
-              Width="9"
-              Height="9"
-              HorizontalAlignment="Center"
-              VerticalAlignment="Center"
-              Fill="{Binding IsConnected, Converter={StaticResource ConnectionBrushConverter}}"
+          <Border
+              x:Name="CompactConnectionStatus"
+              Width="40"
+              Height="44"
+              Margin="4"
+              HorizontalAlignment="Left"
+              Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+              CornerRadius="8"
               IsHitTestVisible="False"
-              Visibility="Collapsed" />
+              Visibility="Collapsed">
+            <Ellipse
+                x:Name="CompactConnectionDot"
+                Width="9"
+                Height="9"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Fill="{Binding IsConnected, Converter={StaticResource ConnectionBrushConverter}}" />
+          </Border>
         </Grid>
       </NavigationView.PaneFooter>
 
@@ -105,6 +114,13 @@
                       SelectedValue="{Binding SelectedCharacterId, Mode=TwoWay}"
                       SelectionMode="Single"
                       SizeChanged="OnCharacterSelectorSizeChanged">
+                    <GridView.Resources>
+                      <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />
+                      <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="Transparent" />
+                      <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="Transparent" />
+                      <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="Transparent" />
+                      <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed" Color="Transparent" />
+                    </GridView.Resources>
                     <GridView.ItemsPanel>
                       <ItemsPanelTemplate>
                         <ItemsWrapGrid MaximumRowsOrColumns="5" Orientation="Horizontal" />

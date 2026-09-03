@@ -132,9 +132,10 @@ public sealed class MacParityUiSourceTests
         var tray = ReadRepositoryFile("windows", "src", "Sidey.Platform.Windows", "TrayIconService.cs");
 
         Assert.Contains("UpdateConnectionFailureNotification", app, StringComparison.Ordinal);
-        Assert.Contains("InitialConnectionFailureNotificationDelay = TimeSpan.FromSeconds(15)", app, StringComparison.Ordinal);
-        Assert.Contains("ScheduleInitialConnectionFailureNotification", app, StringComparison.Ordinal);
-        Assert.Contains("CancelInitialConnectionFailureNotification", app, StringComparison.Ordinal);
+        Assert.Contains("ConnectionFailureNotificationDelay = TimeSpan.FromSeconds(15)", app, StringComparison.Ordinal);
+        Assert.Contains("ScheduleConnectionFailureNotification", app, StringComparison.Ordinal);
+        Assert.Contains("CancelConnectionFailureNotification", app, StringComparison.Ordinal);
+        Assert.DoesNotContain("_hasEstablishedServerConnection", app, StringComparison.Ordinal);
         Assert.Contains("ConnectionFailureNotificationCooldown", app, StringComparison.Ordinal);
         Assert.Contains("NotifyConnectionFailure", tray, StringComparison.Ordinal);
         Assert.Contains("NotifyIconInfo", tray, StringComparison.Ordinal);
@@ -232,6 +233,10 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("CompactPaneLength=\"48\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ExpandedModeThresholdWidth=\"960\"", xaml, StringComparison.Ordinal);
         Assert.Equal(1, CountOccurrences(xaml, "x:Name=\"CompactConnectionDot\""));
+        Assert.Contains("x:Name=\"CompactConnectionStatus\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ConnectionStatusRoot\" Width=\"210\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ConnectionStatusRoot.Width = RootNavigation.CompactPaneLength", source, StringComparison.Ordinal);
+        Assert.Contains("PaneOpening=\"OnNavigationPaneOpening\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ExpandedConnectionStatus\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ExpandedConnectionStatus.Visibility = Visibility.Collapsed", source, StringComparison.Ordinal);
         Assert.Contains("Background=\"{ThemeResource SideyAccentBackground12Brush}\"", xaml, StringComparison.Ordinal);
@@ -258,6 +263,7 @@ public sealed class MacParityUiSourceTests
         var source = ReadRepositoryFile("windows", "src", "Sidey.App", "MainWindow.xaml.cs");
 
         Assert.Contains("MaximumRowsOrColumns=\"5\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ListViewItemBackgroundSelectedPointerOver", xaml, StringComparison.Ordinal);
         Assert.Contains("(CharacterSelector.ActualWidth - 24d) / 5d", source, StringComparison.Ordinal);
         Assert.Contains("ItemsControl ItemsSource=\"{Binding Members}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Content=\"{i18n:I18n Key=groups.rename}\"", xaml, StringComparison.Ordinal);
