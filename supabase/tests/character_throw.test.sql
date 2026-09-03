@@ -21,6 +21,7 @@ values
 select set_config('request.jwt.claim.sub', '61000000-0000-0000-0000-000000000001', true);
 select public.upsert_profile('던지는친구', 'pixel_penguin');
 create temporary table throw_room (room_id uuid, invite_code text);
+grant select on throw_room to authenticated;
 insert into throw_room select room_id, invite_code from public.create_room('던지기 테스트');
 
 select set_config('request.jwt.claim.sub', '61000000-0000-0000-0000-000000000002', true);
@@ -123,8 +124,9 @@ select lives_ok(
     )$$,
   'valid throw is accepted'
 );
+set local role postgres;
 select is(
-  (select payload from realtime.messages where event = 'character_throw'
+  (select payload - 'id' from realtime.messages where event = 'character_throw'
    order by inserted_at desc limit 1),
   jsonb_build_object(
     'schema_version', 1,
