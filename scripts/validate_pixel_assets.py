@@ -197,13 +197,21 @@ def rgba_to_bgra(rgba: bytes) -> bytes:
     return bytes(bgra)
 
 
-def validate_bgra_mirror(rgba: bytes, mirror: Path, *, bottom_up: bool = False) -> None:
+def validate_bgra_mirror(
+    rgba: bytes,
+    mirror: Path,
+    *,
+    bottom_up: bool = False,
+    row_count: int | None = None,
+) -> None:
     if not mirror.is_file():
         fail(f"missing BGRA mirror: {mirror.relative_to(REPOSITORY_ROOT)}")
     data = mirror.read_bytes()
     expected = rgba_to_bgra(rgba)
     if bottom_up:
-        row_bytes = len(expected) // (24 if "action-sheets" in mirror.parts else 16)
+        if row_count is None:
+            fail(f"missing BGRA row count: {mirror.relative_to(REPOSITORY_ROOT)}")
+        row_bytes = len(expected) // row_count
         expected = b"".join(
             expected[offset : offset + row_bytes]
             for offset in range(len(expected) - row_bytes, -1, -row_bytes)
@@ -215,7 +223,7 @@ def validate_bgra_mirror(rgba: bytes, mirror: Path, *, bottom_up: bool = False) 
 def validate_windows_character_manifest(entry: dict, rgba: bytes) -> None:
     path = (
         REPOSITORY_ROOT
-        / "windows/src/Sidey.Overlay/Assets/Characters"
+        / "windows/src/Sidey.Overlay/Assets/Character"
         / entry["id"]
         / "manifest.json"
     )
@@ -224,7 +232,7 @@ def validate_windows_character_manifest(entry: dict, rgba: bytes) -> None:
     data = json.loads(path.read_text(encoding="utf-8"))
     if data.get("character_id") != entry["id"] or data.get("sha256") != entry["base"]["sha256"]:
         fail(f"{path}: source ID or SHA-256 differs from central manifest")
-    bgra_path = path.with_name("frames.bgra")
+    bgra_path = path.with_name("base.bgra")
     runtime = data.get("runtime_bgra", {})
     if runtime.get("byte_length") != len(rgba):
         fail(f"{path}: runtime BGRA byte length is stale")
@@ -311,7 +319,12 @@ def main() -> int:
         for pattern in mirrors["throw_hit_png"]:
             validate_png_mirror(action_path, mirror_path(pattern, entry))
         for pattern in mirrors["throw_hit_bgra"]:
-            validate_bgra_mirror(action_rgba, mirror_path(pattern, entry), bottom_up=True)
+            validate_bgra_mirror(
+                action_rgba,
+                mirror_path(pattern, entry),
+                bottom_up=True,
+                row_count=24,
+            )
         validate_windows_character_manifest(entry, base_rgba)
 
     for entry in throwables:
@@ -322,7 +335,12 @@ def main() -> int:
         for pattern in mirrors["throwable_png"]:
             validate_png_mirror(sprite_path, mirror_path(pattern, entry))
         for pattern in mirrors["throwable_bgra"]:
-            validate_bgra_mirror(sprite_rgba, mirror_path(pattern, entry), bottom_up=True)
+            validate_bgra_mirror(
+                sprite_rgba,
+                mirror_path(pattern, entry),
+                bottom_up=True,
+                row_count=16,
+            )
 
     character_ids = {entry["id"] for entry in characters}
     throwable_ids = {entry["id"] for entry in throwables}

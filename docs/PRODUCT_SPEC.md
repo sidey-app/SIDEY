@@ -175,7 +175,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 애니메이션: idle 2프레임, walk 4프레임, doze 2프레임, offline curled sleep 2프레임
 - 실시간 그림자와 3D 런타임 없음
 
-승인 원본은 최상위 `assets/v1`에 둔다. `manifest.json`이 9종 캐릭터의 `base.png`·`throw_hit.png`, 5종 투척물의 `sprite.png`, 캐릭터→투척물 매핑, fallback과 SHA-256을 단일 관리한다. macOS·Windows·웹에 있는 같은 PNG와 Windows BGRA는 배포용 mirror이며 직접 편집하지 않고 중앙 검사기로 원본과 일치하는지 확인한다. 작업 중 concept·candidate·확대 review 이미지와 일회성 importer는 승인 원본에 포함하지 않는다.
+승인 원본은 최상위 `assets/v1`에 둔다. `manifest.json`이 9종 캐릭터의 `base.png`·`throw_hit.png`, 5종 투척물의 `sprite.png`, 캐릭터→투척물 매핑, fallback과 SHA-256을 단일 관리한다. macOS·Windows·웹에 있는 같은 PNG와 Windows BGRA는 배포용 mirror이며 직접 편집하지 않고 중앙 검사기로 원본과 일치하는지 확인한다. Windows mirror와 설치본은 캐릭터의 기본·throw/hit 시트를 `Assets/Character/<character_id>/`에 함께 두고, 여러 캐릭터가 공유할 수 있는 투척물은 `Assets/Throwable/<throwable_id>/`에 둔다. 작업 중 concept·candidate·확대 review 이미지와 일회성 importer는 승인 원본에 포함하지 않는다.
 
 `manifest.json`의 `licensing`에 등록된 유료 캐릭터 4종과 전용 투척물 4종 및 그 mirror에는 `SIDEY Paid Asset License 1.0`을 적용한다. 파일은 공개 저장소에서 열람할 수 있지만 오픈소스 에셋은 아니며, 공식 SIDEY의 계정·entitlement 규칙에 따른 표시와 SIDEY 개발·검토 목적의 로컬 확인만 허용한다. 다른 앱·게임·웹사이트·상품에서 복제·추출·수정·재배포·판매할 수 없다. 유료 에셋 기여는 PR 제출만으로 판매나 수익 배분이 확정되지 않으며, 판매·정산·환불·배포 권한을 정한 별도 서면 계약 뒤에만 병합한다.
 
