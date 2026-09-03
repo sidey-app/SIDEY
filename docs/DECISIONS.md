@@ -1,6 +1,6 @@
 # SIDEY 결정 기록
 
-- 최종 갱신: 2026-09-03
+- 최종 갱신: 2026-09-04
 - 관련 문서: [제품 기획서](PRODUCT_SPEC.md)
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
 
@@ -70,7 +70,7 @@
 | 공개 에셋 프리뷰어 | Pages의 `/contribute/asset-previewer/`에서 SIDEY v1 PNG의 상태·가장자리·던지기·피격·파티클을 30 FPS로 미리 보고 프리뷰 Canvas만 최대 30초 무음 녹화한다. 업로드는 서버 전송·저장 없이 현재 브라우저 메모리에서만 처리한다 | 앱 로그인·그룹·메시지를 제공하는 웹 클라이언트가 아니라 제출 전 규격과 동작을 확인하는 공개 컨트리뷰터 도구로 경계를 고정한다. 랜딩 내비게이션에는 노출하지 않는다. |
 | 과거 캐릭터 호환 | 클라이언트에서 `minty_pup`을 `pixel_hamster`로 표시하는 alias 제공 | DB 프로필을 즉시 일괄 수정하지 않아도 새 런타임이 안전하게 표시할 수 있다. |
 | 메시지·Realtime 스키마 | Postgres 메시지가 원본이다. 방마다 `realtime_epoch`을 두고 `room:<id>:<epoch>:db`와 `room:<id>:<epoch>:ephemeral` private topic을 분리한다. DB topic은 서버만 발행하고 message UUID·operation만 전달하며 클라이언트는 RLS 재조회 후 확정한다. typing·`character_pulse`와 전용 `broadcast_character_throw`도 직접 Broadcast하지 않고 인증 RPC가 방·epoch·사용자·대상·event·rate를 검증한 뒤 서버 발행한다 | Realtime 연결 시 평가된 권한은 연결 동안 캐시되므로 client Broadcast payload를 신뢰할 수 없다. 멤버 변경 때 epoch을 올려 추방된 기존 WebSocket을 새 채널에서 격리하고, 픽셀 위치나 애니메이션 frame은 계속 전송하지 않는다. |
-| Realtime 자동 복구 | macOS 클라이언트가 5초마다 실제 WebSocket·두 채널의 구독 상태를 검사한다. 비정상이 8초 이상 지속되면 generation을 올려 재생성하고, 실패 시 8→16→30초 backoff로 snapshot·활성 방 최근 메시지를 함께 재조정한 뒤에만 online으로 확정한다. 이벤트 stream은 최근 256개로 제한하고 overflow는 snapshot 재동기화로 복구한다 | 구독 객체만 살아 있는 stale 상태, reconnect 전의 과거 Presence, 누락 메시지·가입·추방·삭제를 앱 재실행 없이 교정한다. 무제한 task와 stream 축적도 막는다. |
+| Realtime 자동 복구 | macOS 클라이언트가 OS 네트워크 경로와 5초 주기의 실제 WebSocket·방별 DB/ephemeral 채널 쌍을 함께 검사한다. 네트워크가 돌아오면 350ms 안정화 뒤 모든 방 채널을 하나의 generation으로 재생성하고 Presence·snapshot·활성 방 최근 메시지를 함께 재조정한 뒤에만 online으로 확정한다. 일반 실패는 8→16→30초 backoff로 전체 topology를 직렬 재시도하며 이전 generation callback은 무시한다. 이벤트 stream은 최근 256개로 제한하고 overflow는 snapshot 재동기화로 복구한다 | 구독 객체만 살아 있는 stale 상태, 일부 채널만 복구되는 경합, reconnect 전의 과거 Presence, 누락 메시지·가입·추방·삭제를 앱 재실행 없이 교정한다. 방별 복구 task가 서로 소켓과 Presence를 흔드는 문제와 무제한 task·stream 축적도 막는다. |
 | 초대 코드 보안 | 128-bit 난수를 32자리 hex로 만들고 API 비노출 `private.room_invites`에 Vault pepper 기반 HMAC-SHA256만 저장한다. 기존 짧은 코드는 migration에서 모두 비활성화하고 방장에게 1회 재발급을 요구한다 | public `rooms` 조회·Realtime row에 hash를 노출하면 짧은 코드가 오프라인 대입으로 복구될 수 있다. pepper와 hash는 Data API role에 공개하지 않는다. |
 | 데이터 보안 | Supabase RLS 적용, 방 멤버십·12명·사용자당 5개 방 제한과 메시지·transient event rate limit을 서버에서 강제한다. 오래된 익명 계정 정리는 7일 초과·프로필 없음·방 없음인 미완성 가입만 삭제한다 | 클라이언트 우회, 메시지 폭주, 정상 사용자의 계정·세션 유실을 막는다. 초대 시도 제한은 사용자 advisory lock으로 직렬화하고 오래된 attempt 정리는 별도 cron에서 수행한다. |
 | 개인정보 | 전역 활동은 마지막 시스템 입력 후 경과 시간과 화면 잠금만 사용. 화면 내용, 활성 앱 목록, 다른 앱의 키, 마우스 좌표, 파일, 마이크, 카메라는 수집하지 않음 | 오버레이 편의를 이유로 불필요한 민감 정보를 수집하지 않는다. |
@@ -84,7 +84,7 @@
 | Homebrew 배포 | 공개 third-party tap `sidey-app/homebrew-tap`의 `sidey` Cask가 버전 고정 공증 DMG와 SHA-256을 사용. arm64·macOS 26+만 허용하고 `auto_updates true`, 안전한 앱 종료, `SIDEY.app` 설치를 선언하며 사용자 데이터 `zap`은 두지 않음 | `brew install --cask sidey-app/tap/sidey`를 재현 가능하게 제공하면서 uninstall이 계정·설정을 임의 삭제하지 않게 한다. 공식 `homebrew/cask` 등록은 별도 결정 전까지 범위 밖이다. |
 | macOS 로컬 개발 설치 | `Sidey-dev`는 bundle ID `app.sidey.desktop.dev`, dev login item·Keychain service·UserDefaults suite, callback `sidey-dev`를 사용하고 Sparkle을 비활성화한다. staging URL·publishable key가 없거나 운영 ref `whtejsviizgejauasqqt`면 설치 스크립트가 빌드를 거부한다. | production 세션·설정·운영 결제를 개발 테스트와 섞지 않는다. 이 결정은 과거 production 식별자 공유 결정을 폐기·대체한다. |
 | 업데이트 전환 | Sparkle이 없는 기존 alpha는 최신 공증 DMG로 한 번 수동 교체하고, Sparkle 내장 production 빌드부터 앱 내부 업데이트를 사용 | 기존 설치에 프레임워크를 원격으로 소급 탑재할 수 없고, ad-hoc development 자동 업데이트는 Gatekeeper·코드 서명 연속성을 깨뜨릴 수 있다. |
-| 배포 채널 | 현재 공개본은 버전 `1.0.5`, 빌드 `16`의 `v1.0.5` macOS GitHub 정식 stable release이며 Windows 공개본은 `windows-v1.0.5`다 | macOS production 상점은 잠금 상태로 내고 PortOne 판매는 열지 않는다. Windows v1.0.5는 v1.0.4의 캐릭터 던지기와 유료 4종 원격 렌더링을 유지하며 업데이트 다운로드 오류를 수정한다. |
+| 배포 채널 | 현재 공개본은 버전 `1.0.6`, 빌드 `17`의 `v1.0.6` macOS GitHub 정식 stable release이며 Windows 공개본은 `windows-v1.0.5`다 | macOS v1.0.6은 네트워크 단절 뒤 Realtime 전체 topology와 상태를 앱 재실행 없이 복구하며 production 상점은 잠금 상태로 유지한다. Windows v1.0.5는 v1.0.4의 캐릭터 던지기와 유료 4종 원격 렌더링을 유지하며 업데이트 다운로드 오류를 수정한다. |
 | Windows 인증 | Supabase 익명 인증 + Windows Credential Manager | 기존 익명 세션을 먼저 복구하고 신규 설치에서만 새 익명 계정을 만든다. access·refresh token과 평문 초대 코드는 일반 설정이 아닌 Credential Manager에 보관하며 Google OAuth·PKCE·callback은 사용하지 않는다. |
 | Windows 정식 배포 | 정식 출시 버전은 `1.0.5`, 태그 `windows-v1.0.5`, WiX Toolset `6.0.2`의 머신 단위 단일 파일 `SIDEY-Windows-x64-v1.0.5.msi`, GitHub Release | unpackaged·multi-file self-contained WinUI 3 앱을 루트 `SIDEY.exe` 런처와 `Runtime` 앱·런타임, `Assets`, `Langs`로 나눈다. MSI는 전체 트리를 하나의 버전 단위로 `C:\Program Files\SIDEY`에 설치하며 별도 런타임을 요구하지 않는다. Release에는 MSI 하나만 게시하고 Setup EXE·ZIP·MSIX·별도 인증서·`.sha256` 파일은 게시하지 않는다. |
 | Windows 서명 | 공인 코드 서명 인증서를 도입하기 전에는 SIDEY 제작 실행 파일·DLL·MSI를 자체 서명하지 않고, Release에 자체 서명 인증서를 제공하거나 설치하도록 안내하지 않음 | 신뢰되지 않은 자체 서명 인증서 설치를 사용자에게 요구하지 않는다. 공인 인증서 도입은 별도 검증 후 결정한다. |
