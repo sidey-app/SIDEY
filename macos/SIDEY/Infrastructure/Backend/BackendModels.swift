@@ -41,6 +41,7 @@ enum BackendEvent: Sendable {
     case presence(roomID: UUID, userID: UUID, state: PresenceState)
     case typing(roomID: UUID, userID: UUID, active: Bool)
     case characterPulse(CharacterPulseEvent)
+    case characterThrow(CharacterThrowEvent)
     case connection(BackendConnectionStatus)
     case technicalError(String)
 }
@@ -484,6 +485,24 @@ struct CharacterPulsePayload: Codable, Sendable {
     }
 }
 
+struct CharacterThrowPayload: Codable, Sendable {
+    let schemaVersion: Int
+    let roomID: UUID
+    let eventID: UUID
+    let actorUserID: UUID
+    let targetUserID: UUID
+    let sourceCharacterID: String
+
+    enum CodingKeys: String, CodingKey {
+        case schemaVersion = "schema_version"
+        case roomID = "room_id"
+        case eventID = "event_id"
+        case actorUserID = "actor_user_id"
+        case targetUserID = "target_user_id"
+        case sourceCharacterID = "source_character_id"
+    }
+}
+
 struct DatabaseChangePayload: Codable, Sendable {
     let roomID: UUID
     let operation: String?
@@ -510,6 +529,20 @@ struct BroadcastRoomEventParameters: Encodable, Sendable {
         case realtimeEpoch = "p_realtime_epoch"
         case event = "p_event"
         case eventID = "p_event_id"
+    }
+}
+
+struct BroadcastCharacterThrowParameters: Encodable, Sendable {
+    let roomID: UUID
+    let realtimeEpoch: Int
+    let eventID: UUID
+    let targetUserID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case roomID = "p_room_id"
+        case realtimeEpoch = "p_realtime_epoch"
+        case eventID = "p_event_id"
+        case targetUserID = "p_target_user_id"
     }
 }
 

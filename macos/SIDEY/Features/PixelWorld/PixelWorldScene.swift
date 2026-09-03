@@ -122,12 +122,25 @@ private struct CharacterPulseKey: Hashable {
     let userID: UUID
 }
 
+private struct ActiveCharacterProjectile {
+    let event: CharacterThrowEvent
+    let node: SKSpriteNode
+    let startedAt: TimeInterval
+    let flightDuration: TimeInterval
+    let startPoint: CGPoint
+    let inwardArcHeight: CGFloat
+}
+
 final class PixelWorldScene: SKScene {
     private var characterNodes: [UUID: PixelCharacterNode] = [:]
     private var agents: [UUID: PixelMovementAgent] = [:]
     private var members: [UUID: PixelWorldMember] = [:]
     private var activeBubbles: [UUID: ActiveBubble] = [:]
     private var lastPulseEventIDs: [CharacterPulseKey: UUID] = [:]
+    private var recentThrowEventIDs: [UUID] = []
+    private var recentThrowEventIDSet: Set<UUID> = []
+    private var projectiles: [ActiveCharacterProjectile] = []
+    private var hitUntil: [UUID: TimeInterval] = [:]
     private var currentRoomID: UUID?
     private var installationSeed: UInt64 = 0
     private var edge: OverlayEdge = .bottom
@@ -135,8 +148,9 @@ final class PixelWorldScene: SKScene {
     private var composerVisible = false
     private var lastUpdateTime: TimeInterval?
     private var lastHotspotReportTime: TimeInterval = 0
-    private var lastHotspotFrame: CGRect?
+    private var lastHotspotFrames: [UUID: CGRect] = [:]
     private var onCurrentUserFrameChanged: ((CGRect?) -> Void)?
+    private var onCharacterFramesChanged: (([UUID: CGRect]) -> Void)?
 
     override init(size: CGSize) {
         super.init(size: size)
@@ -166,7 +180,7 @@ final class PixelWorldScene: SKScene {
             agents[id] = agent
             characterNodes[id]?.position = geometry.point(for: agent.trackPosition)
         }
-        reportCurrentUserFrame(force: true)
+        reportCharacterFrames(force: true)
     }
 
     func apply(
@@ -178,9 +192,12 @@ final class PixelWorldScene: SKScene {
         installationSeed: UInt64,
         composerVisible: Bool = false,
         characterPulse: CharacterPulseEvent? = nil,
-        onCurrentUserFrameChanged: ((CGRect?) -> Void)? = nil
+        characterThrow: CharacterThrowEvent? = nil,
+        onCurrentUserFrameChanged: ((CGRect?) -> Void)? = nil,
+        onCharacterFramesChanged: (([UUID: CGRect]) -> Void)? = nil
     ) {
         self.onCurrentUserFrameChanged = onCurrentUserFrameChanged
+        self.onCharacterFramesChanged = onCharacterFramesChanged
         let roomChanged = roomID != currentRoomID
         currentRoomID = roomID
         self.installationSeed = installationSeed
@@ -192,7 +209,10 @@ final class PixelWorldScene: SKScene {
             characterNodes.values.forEach { $0.removeFromParent() }
             characterNodes.removeAll()
             agents.removeAll()
-            lastHotspotFrame = nil
+            lastHotspotFrames.removeAll()
+            projectiles.forEach { $0.node.removeFromParent() }
+            projectiles.removeAll()
+            hitUntil.removeAll()
         }
 
         let requestedByID = Dictionary(uniqueKeysWithValues: requestedMembers.map { ($0.id, $0) })
@@ -251,13 +271,18 @@ final class PixelWorldScene: SKScene {
                 node.playPulse()
             }
         }
-        reportCurrentUserFrame(force: true)
+        if let characterThrow, characterThrow.roomID == roomID {
+            beginThrow(characterThrow)
+        }
+        reportCharacterFrames(force: true)
     }
 
     override func update(_ currentTime: TimeInterval) {
         let deltaTime = lastUpdateTime.map { currentTime - $0 } ?? (1.0 / 30.0)
         lastUpdateTime = currentTime
+        hitUntil = hitUntil.filter { $0.value > currentTime }
         let stoppedIDs = PixelMovementPolicy.stoppedMemberIDs(in: members.values)
+            .union(hitUntil.keys)
         let geometry = trackGeometry
         var orderedAgents = agents.values.sorted { $0.id.uuidString < $1.id.uuidString }
         PixelMovementSimulation.step(
@@ -289,9 +314,10 @@ final class PixelWorldScene: SKScene {
                 edge: edge
             )
         }
+        updateProjectiles(currentTime: currentTime)
         if currentTime - lastHotspotReportTime >= 1.0 / 15.0 {
             lastHotspotReportTime = currentTime
-            reportCurrentUserFrame(force: false)
+            reportCharacterFrames(force: false)
         }
     }
 
@@ -354,6 +380,16 @@ final class PixelWorldScene: SKScene {
         characterNodes[memberID]?.pulseSparkleSpawnCount ?? 0
     }
 
+    var activeProjectileCount: Int { projectiles.count }
+
+    func renderedThrowCount(for memberID: UUID) -> Int {
+        characterNodes[memberID]?.throwPlayCount ?? 0
+    }
+
+    func renderedHitCount(for memberID: UUID) -> Int {
+        characterNodes[memberID]?.hitPlayCount ?? 0
+    }
+
     private var composerAvoidanceRects: [CGRect] {
         PixelWorldAvoidanceLayout.composerRects(
             activityFrame: effectiveActivityFrame,
@@ -403,28 +439,122 @@ final class PixelWorldScene: SKScene {
         return withUnsafeBytes(of: &value) { Array($0) }
     }
 
-    private func reportCurrentUserFrame(force: Bool) {
-        guard let member = members.values.first(where: \.isCurrentUser),
-              let node = characterNodes[member.id]
-        else {
-            if lastHotspotFrame != nil || force {
-                lastHotspotFrame = nil
-                onCurrentUserFrameChanged?(nil)
-            }
-            return
+    private func reportCharacterFrames(force: Bool) {
+        let frames = characterNodes.reduce(into: [UUID: CGRect]()) { result, entry in
+            result[entry.key] = CGRect(
+                x: entry.value.position.x - EdgeTrackGeometry.hotspotPointSize / 2,
+                y: entry.value.position.y - EdgeTrackGeometry.hotspotPointSize / 2,
+                width: EdgeTrackGeometry.hotspotPointSize,
+                height: EdgeTrackGeometry.hotspotPointSize
+            )
         }
-        let frame = CGRect(
-            x: node.position.x - EdgeTrackGeometry.hotspotPointSize / 2,
-            y: node.position.y - EdgeTrackGeometry.hotspotPointSize / 2,
-            width: EdgeTrackGeometry.hotspotPointSize,
-            height: EdgeTrackGeometry.hotspotPointSize
-        )
-        let moved = lastHotspotFrame.map {
-            hypot($0.midX - frame.midX, $0.midY - frame.midY) >= 1
-        } ?? true
+        let moved = frames.count != lastHotspotFrames.count || frames.contains { id, frame in
+            guard let old = lastHotspotFrames[id] else { return true }
+            return hypot(old.midX - frame.midX, old.midY - frame.midY) >= 1
+        }
         guard force || moved else { return }
-        lastHotspotFrame = frame
-        onCurrentUserFrameChanged?(frame)
+        lastHotspotFrames = frames
+        onCharacterFramesChanged?(frames)
+        let currentID = members.values.first(where: \.isCurrentUser)?.id
+        onCurrentUserFrameChanged?(currentID.flatMap { frames[$0] })
+    }
+
+    private func beginThrow(_ event: CharacterThrowEvent) {
+        guard !recentThrowEventIDSet.contains(event.id),
+              event.actorUserID != event.targetUserID,
+              characterNodes[event.actorUserID] != nil,
+              characterNodes[event.targetUserID] != nil
+        else { return }
+        recentThrowEventIDSet.insert(event.id)
+        recentThrowEventIDs.append(event.id)
+        if recentThrowEventIDs.count > 256 {
+            recentThrowEventIDSet.remove(recentThrowEventIDs.removeFirst())
+        }
+        characterNodes[event.actorUserID]?.playThrow(sourceCharacterID: event.sourceCharacterID)
+        guard projectiles.count < PixelCharacterThrowStyle.maximumActiveProjectiles,
+              let actor = characterNodes[event.actorUserID],
+              let target = characterNodes[event.targetUserID]
+        else { return }
+
+        let textures = PixelCharacterThrowTextureStore.shared.textures(for: event.sourceCharacterID)
+        guard let first = textures.rotationFrames.first else { return }
+        let projectileNode = SKSpriteNode(texture: first, size: CGSize(width: 32, height: 32))
+        projectileNode.texture?.filteringMode = .nearest
+        projectileNode.zPosition = 100
+        projectileNode.isHidden = true
+        addChild(projectileNode)
+        let start = actor.position
+        let distance = hypot(target.position.x - start.x, target.position.y - start.y)
+        projectiles.append(ActiveCharacterProjectile(
+            event: event,
+            node: projectileNode,
+            startedAt: ProcessInfo.processInfo.systemUptime,
+            flightDuration: PixelCharacterThrowStyle.flightDuration(for: distance),
+            startPoint: start,
+            inwardArcHeight: PixelCharacterThrowStyle.arcHeight(for: distance)
+        ))
+    }
+
+    private func updateProjectiles(currentTime: TimeInterval) {
+        var survivors: [ActiveCharacterProjectile] = []
+        for projectile in projectiles {
+            let elapsed = currentTime - projectile.startedAt
+            if elapsed < PixelCharacterThrowStyle.releaseDelay {
+                survivors.append(projectile)
+                continue
+            }
+            guard let targetNode = characterNodes[projectile.event.targetUserID] else {
+                projectile.node.removeFromParent()
+                continue
+            }
+            let progress = min(1, max(0, CGFloat(
+                (elapsed - PixelCharacterThrowStyle.releaseDelay) / projectile.flightDuration
+            )))
+            projectile.node.isHidden = false
+            let end = targetNode.position
+            let midpoint = CGPoint(x: (projectile.startPoint.x + end.x) / 2, y: (projectile.startPoint.y + end.y) / 2)
+            let control: CGPoint = switch edge {
+            case .bottom: CGPoint(x: midpoint.x, y: midpoint.y + projectile.inwardArcHeight)
+            case .top: CGPoint(x: midpoint.x, y: midpoint.y - projectile.inwardArcHeight)
+            case .left: CGPoint(x: midpoint.x + projectile.inwardArcHeight, y: midpoint.y)
+            case .right: CGPoint(x: midpoint.x - projectile.inwardArcHeight, y: midpoint.y)
+            }
+            let inverse = 1 - progress
+            projectile.node.position = CGPoint(
+                x: inverse * inverse * projectile.startPoint.x + 2 * inverse * progress * control.x + progress * progress * end.x,
+                y: inverse * inverse * projectile.startPoint.y + 2 * inverse * progress * control.y + progress * progress * end.y
+            )
+            let textures = PixelCharacterThrowTextureStore.shared.textures(
+                for: projectile.event.sourceCharacterID
+            ).rotationFrames
+            let frame = Int(max(0, elapsed - PixelCharacterThrowStyle.releaseDelay) / PixelCharacterThrowStyle.rotationFrameInterval)
+            projectile.node.texture = textures[frame % textures.count]
+            if progress < 1 {
+                survivors.append(projectile)
+            } else {
+                projectile.node.removeFromParent()
+                playImpact(at: end, sourceCharacterID: projectile.event.sourceCharacterID)
+                if let target = members[projectile.event.targetUserID],
+                   target.presence == .online || target.presence == .typing {
+                    hitUntil[projectile.event.targetUserID] = currentTime + PixelCharacterThrowStyle.hitDuration
+                    targetNode.playHit(sourceCharacterID: target.characterID)
+                }
+            }
+        }
+        projectiles = survivors
+    }
+
+    private func playImpact(at point: CGPoint, sourceCharacterID: String) {
+        let frames = PixelCharacterThrowTextureStore.shared.textures(for: sourceCharacterID).impactFrames
+        guard let first = frames.first else { return }
+        let node = SKSpriteNode(texture: first, size: CGSize(width: 40, height: 40))
+        node.position = point
+        node.zPosition = 101
+        addChild(node)
+        node.run(.sequence([
+            .animate(with: frames, timePerFrame: PixelCharacterThrowStyle.impactDuration / Double(frames.count)),
+            .removeFromParent()
+        ]))
     }
 }
 
@@ -466,10 +596,13 @@ private final class PixelCharacterNode: SKNode {
     private let dozeLabel = SKLabelNode(fontNamed: "AppleSDGothicNeo-Bold")
     private var bubbleNode: PixelBubbleNode?
     private var currentMotion: PixelCharacterMotion?
+    private var actionUntil: TimeInterval = 0
     private var currentBubbleKey: String?
     private(set) var characterID: String
     private(set) var pulsePlayCount = 0
     private(set) var pulseSparkleSpawnCount = 0
+    private(set) var throwPlayCount = 0
+    private(set) var hitPlayCount = 0
     private var sparkleEffect: PixelSparkleEffect?
 
     var bubbleBody: String? { bubbleNode?.body }
@@ -604,6 +737,33 @@ private final class PixelCharacterNode: SKNode {
         spawnPulseSparkles()
     }
 
+    func playThrow(sourceCharacterID: String) {
+        throwPlayCount += 1
+        playActionFrames(
+            PixelCharacterThrowTextureStore.shared.textures(for: sourceCharacterID).throwFrames,
+            duration: PixelCharacterThrowStyle.throwDuration
+        )
+    }
+
+    func playHit(sourceCharacterID: String) {
+        hitPlayCount += 1
+        playActionFrames(
+            PixelCharacterThrowTextureStore.shared.textures(for: sourceCharacterID).hitFrames,
+            duration: PixelCharacterThrowStyle.hitDuration
+        )
+    }
+
+    private func playActionFrames(_ frames: [SKTexture], duration: TimeInterval) {
+        guard !frames.isEmpty else { return }
+        actionUntil = ProcessInfo.processInfo.systemUptime + duration
+        sprite.removeAction(forKey: Self.animationKey)
+        currentMotion = nil
+        sprite.run(.sequence([
+            .animate(with: frames, timePerFrame: duration / Double(frames.count)),
+            .run { [weak self] in self?.currentMotion = nil }
+        ]), withKey: Self.animationKey)
+    }
+
     func updateMotion(
         member: PixelWorldMember,
         moving: Bool,
@@ -635,6 +795,7 @@ private final class PixelCharacterNode: SKNode {
         setDozeVisible(member.presence == .away)
         setAmbientSparklesActive(PixelSparkleVisibilityPolicy.showsAmbient(for: member.presence))
 
+        guard ProcessInfo.processInfo.systemUptime >= actionUntil else { return }
         guard requested != currentMotion else { return }
         currentMotion = requested
         sprite.removeAction(forKey: Self.animationKey)

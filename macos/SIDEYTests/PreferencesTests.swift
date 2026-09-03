@@ -8,6 +8,7 @@ final class PreferencesTests: XCTestCase {
         value.overlayVisible = false
         value.quietModeEnabled = true
         value.showOfflineMembers = false
+        value.requiresRightClickToThrow = true
         value.selectedCharacterID = "pixel_penguin"
         value.overlayRegion = OverlayRegionPreference(
             edge: .right,
@@ -38,6 +39,7 @@ final class PreferencesTests: XCTestCase {
         XCTAssertEqual(value.overlayRegion.edge, .bottom)
         XCTAssertEqual(value.overlayRegion.span, .full)
         XCTAssertTrue(value.showOfflineMembers)
+        XCTAssertFalse(value.requiresRightClickToThrow)
         XCTAssertEqual(value.nickname, "민지")
         XCTAssertEqual(value.selectedCharacterID, "pixel_hamster")
     }
@@ -58,7 +60,7 @@ final class PreferencesTests: XCTestCase {
 
         let value = try JSONDecoder().decode(AppPreferences.self, from: Data(json.utf8))
 
-        XCTAssertEqual(value.schemaVersion, 7)
+        XCTAssertEqual(value.schemaVersion, 8)
         XCTAssertFalse(value.keychainTransitionComplete)
         XCTAssertTrue(value.hasShownNativeLanding)
         XCTAssertTrue(value.onboardingComplete)
@@ -70,7 +72,17 @@ final class PreferencesTests: XCTestCase {
     }
 
     func testFreshInstallSkipsLegacyKeychainTransitionNotice() {
-        XCTAssertEqual(AppPreferences.defaults.schemaVersion, 7)
+        XCTAssertEqual(AppPreferences.defaults.schemaVersion, 8)
         XCTAssertTrue(AppPreferences.defaults.keychainTransitionComplete)
+        XCTAssertFalse(AppPreferences.defaults.requiresRightClickToThrow)
+    }
+
+    func testVersionSevenMigratesThrowInteractionToDefaultOffWithoutRepeatingKeychainNotice() throws {
+        let json = #"{"schemaVersion":7,"keychainTransitionComplete":true,"overlayVisible":true}"#
+        let value = try JSONDecoder().decode(AppPreferences.self, from: Data(json.utf8))
+
+        XCTAssertEqual(value.schemaVersion, 8)
+        XCTAssertTrue(value.keychainTransitionComplete)
+        XCTAssertFalse(value.requiresRightClickToThrow)
     }
 }

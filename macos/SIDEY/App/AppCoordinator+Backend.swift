@@ -49,6 +49,7 @@ extension AppCoordinator {
                 backendBootstrapState = .ready
                 model.preferences.keychainTransitionComplete = true
                 applyRequestedOverlayVisibility()
+                overlayWindows.refreshThrowHotspots()
                 refreshStatusItem()
                 persistPreferences()
                 advanceFirstRunTransition()
@@ -58,6 +59,7 @@ extension AppCoordinator {
                 model.errorMessage = "서버 연결 실패: \(error.localizedDescription)"
                 backendBootstrapState = .failed
                 applyRequestedOverlayVisibility()
+                overlayWindows.refreshThrowHotspots()
                 refreshStatusItem()
                 if launchReason == .loginItem { showSettings() }
                 advanceFirstRunTransition()
@@ -179,6 +181,7 @@ extension AppCoordinator {
         }
         if model.activeRoom?.id == roomID, model.groupOperation == .idle { return }
         overlayWindows.dismissComposer()
+        overlayWindows.invalidateThrowInteraction()
         typingChanged(false)
         model.errorMessage = nil
         roomSwitchPipeline.request(roomID)
@@ -201,6 +204,7 @@ extension AppCoordinator {
         model.clearBubbles()
         model.connectionState = .online
         model.errorMessage = nil
+        overlayWindows.invalidateThrowInteraction()
         refreshStatusItem()
         persistPreferences()
     }
@@ -353,6 +357,7 @@ extension AppCoordinator {
             model.replaceMessages(roomID: roomID, with: messages)
         case .presence(let roomID, let userID, let state):
             model.updatePresence(roomID: roomID, userID: userID, state: state)
+            overlayWindows.refreshThrowHotspots()
         case .typing(let roomID, let userID, let active):
             model.updateTyping(roomID: roomID, userID: userID, active: active)
         case .characterPulse(let event):
@@ -365,6 +370,17 @@ extension AppCoordinator {
                   )
             else { return }
             overlayWindows.playCharacterPulse(event)
+        case .characterThrow(let event):
+            guard event.roomID == model.activeRoom?.id,
+                  event.actorUserID != event.targetUserID,
+                  model.activeRoom?.members.contains(where: { $0.userID == event.actorUserID }) == true,
+                  model.activeRoom?.members.contains(where: { $0.userID == event.targetUserID }) == true,
+                  characterThrowCooldown.accept(
+                    actorUserID: event.actorUserID,
+                    uptime: ProcessInfo.processInfo.systemUptime
+                  )
+            else { return }
+            overlayWindows.playCharacterThrow(event)
         case .connection(let status):
             let previousStatus = backendConnectionStatus
             backendConnectionStatus = status
@@ -372,10 +388,12 @@ extension AppCoordinator {
             if previousStatus?.transportConnected == true,
                !status.transportConnected {
                 model.setRealtimeConnected(false)
+                overlayWindows.invalidateThrowInteraction()
             } else if status.transportConnected,
                       previousStatus?.transportConnected != true {
                 model.setRealtimeConnected(true)
             }
+            overlayWindows.refreshThrowHotspots()
         case .technicalError(let message):
             model.errorMessage = message
         }
@@ -451,6 +469,40 @@ extension AppCoordinator {
         overlayWindows.playCharacterPulse(event)
         guard let backend else { return }
         Task { try? await backend.broadcastCharacterPulse(roomID: room.id, eventID: event.id) }
+    }
+
+    func characterThrowRequested(targetUserID: UUID) {
+        guard model.connectionState == .online,
+              let room = model.activeRoom,
+              let actorUserID = model.currentUserID,
+              actorUserID != targetUserID,
+              let actor = room.members.first(where: { $0.userID == actorUserID }),
+              model.pixelWorldMembers.contains(where: {
+                  $0.id == targetUserID && !$0.isCurrentUser
+                      && ($0.presence == .online || $0.presence == .typing)
+              }),
+              characterThrowCooldown.accept(
+                  actorUserID: actorUserID,
+                  uptime: ProcessInfo.processInfo.systemUptime
+              )
+        else { return }
+
+        let event = CharacterThrowEvent(
+            id: UUID(),
+            roomID: room.id,
+            actorUserID: actorUserID,
+            targetUserID: targetUserID,
+            sourceCharacterID: PixelCharacterCatalog.canonicalID(for: actor.characterID)
+        )
+        overlayWindows.playCharacterThrow(event)
+        guard let backend else { return }
+        Task {
+            try? await backend.broadcastCharacterThrow(
+                roomID: room.id,
+                eventID: event.id,
+                targetUserID: targetUserID
+            )
+        }
     }
 
     func refreshCommerceState(productID: String? = nil) {

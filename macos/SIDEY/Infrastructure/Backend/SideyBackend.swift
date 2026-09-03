@@ -119,6 +119,21 @@ actor SideyBackend {
         ).execute()
     }
 
+    func broadcastCharacterThrow(roomID: UUID, eventID: UUID, targetUserID: UUID) async throws {
+        guard roomID == activeRoomID,
+              let roomChannels = subscribedChannels(roomID: roomID)
+        else { return }
+        _ = try await client.rpc(
+            "broadcast_character_throw",
+            params: BroadcastCharacterThrowParameters(
+                roomID: roomID,
+                realtimeEpoch: roomChannels.epoch,
+                eventID: eventID,
+                targetUserID: targetUserID
+            )
+        ).execute()
+    }
+
     func shutdown() async {
         isShuttingDown = true
         connectionTracker.replaceDesiredRoomIDs([])
@@ -560,6 +575,7 @@ actor SideyBackend {
         let typingStart = ephemeralChannel.broadcastStream(event: "typing_start")
         let typingStop = ephemeralChannel.broadcastStream(event: "typing_stop")
         let characterPulse = ephemeralChannel.broadcastStream(event: "character_pulse")
+        let characterThrow = ephemeralChannel.broadcastStream(event: "character_throw")
         let presenceChanges = ephemeralChannel.presenceChange()
         let ephemeralStatuses = ephemeralChannel.statusChange
 
@@ -604,6 +620,11 @@ actor SideyBackend {
             Task { [weak self] in
                 for await payload in characterPulse {
                     await self?.handleCharacterPulse(roomID: roomID, payload: payload)
+                }
+            },
+            Task { [weak self] in
+                for await payload in characterThrow {
+                    await self?.handleCharacterThrow(roomID: roomID, payload: payload)
                 }
             },
             Task { [weak self] in
@@ -1052,6 +1073,23 @@ actor SideyBackend {
             id: pulse.eventID,
             roomID: roomID,
             userID: pulse.userID
+        )))
+    }
+
+    private func handleCharacterThrow(roomID: UUID, payload: JSONObject) {
+        let inner = payload["payload"]?.objectValue ?? payload
+        guard let value = try? inner.decode(as: CharacterThrowPayload.self),
+              value.schemaVersion == 1,
+              value.roomID == roomID,
+              value.actorUserID != value.targetUserID,
+              value.actorUserID != client.auth.currentUser?.id
+        else { return }
+        emit(.characterThrow(CharacterThrowEvent(
+            id: value.eventID,
+            roomID: roomID,
+            actorUserID: value.actorUserID,
+            targetUserID: value.targetUserID,
+            sourceCharacterID: value.sourceCharacterID
         )))
     }
 

@@ -551,6 +551,18 @@ final class PresenceAndRealtimeTests: XCTestCase {
         XCTAssertEqual(CharacterPulseCooldown.duration, 1)
     }
 
+    func testCharacterThrowCooldownIsGlobalPerActorAtHalfASecond() {
+        let actor = UUID()
+        var cooldown = CharacterThrowCooldown()
+
+        XCTAssertTrue(cooldown.accept(actorUserID: actor, uptime: 10))
+        XCTAssertFalse(cooldown.accept(actorUserID: actor, uptime: 10.499))
+        XCTAssertTrue(cooldown.accept(actorUserID: actor, uptime: 10.5))
+        XCTAssertTrue(cooldown.accept(actorUserID: UUID(), uptime: 10.5))
+        XCTAssertFalse(cooldown.accept(actorUserID: actor, uptime: .infinity))
+        XCTAssertEqual(CharacterThrowCooldown.duration, 0.5)
+    }
+
 
     func testLatestRoomSelectionWinsWithoutApplyingCompletedStaleSwitch() async {
         let roomB = UUID()

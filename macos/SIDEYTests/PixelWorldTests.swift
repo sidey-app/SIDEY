@@ -696,6 +696,63 @@ final class PixelWorldTests: XCTestCase {
         XCTAssertEqual(PixelCharacterPulseStyle.totalDuration, 0.80, accuracy: 0.001)
     }
 
+    func testCharacterThrowDeduplicatesEventAndCompletesWithHit() {
+        let roomID = UUID()
+        let actor = makeMember(isCurrentUser: true)
+        let target = PixelWorldMember(
+            id: UUID(), nickname: "친구", characterID: "pixel_cat",
+            presence: .online, isTyping: false, isCurrentUser: false
+        )
+        let event = CharacterThrowEvent(
+            id: UUID(), roomID: roomID, actorUserID: actor.id,
+            targetUserID: target.id, sourceCharacterID: PixelCharacterCatalog.pixelHamsterID
+        )
+        let scene = PixelWorldScene(size: CGSize(width: 720, height: 360))
+
+        scene.apply(
+            roomID: roomID, members: [actor, target], bubbles: [], edge: .bottom,
+            installationSeed: 1, characterThrow: event
+        )
+        scene.apply(
+            roomID: roomID, members: [actor, target], bubbles: [], edge: .bottom,
+            installationSeed: 1, characterThrow: event
+        )
+        XCTAssertEqual(scene.renderedThrowCount(for: actor.id), 1)
+        XCTAssertEqual(scene.activeProjectileCount, 1)
+
+        scene.update(ProcessInfo.processInfo.systemUptime + 2)
+        XCTAssertEqual(scene.activeProjectileCount, 0)
+        XCTAssertEqual(scene.renderedHitCount(for: target.id), 1)
+    }
+
+    func testCharacterThrowCatalogMappingAndTimingContract() {
+        XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_cat"), "patch_soft_ball")
+        XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_guinea_pig"), "mini_paprika")
+        XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_monkey"), "banana")
+        XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_chinchilla"), "dust_bath_pouch")
+        XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_starlight_upalupa"), "starlight_orb")
+        XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "unknown"), "patch_soft_ball")
+        XCTAssertEqual(PixelCharacterThrowStyle.arcHeight(for: 10), 24)
+        XCTAssertEqual(PixelCharacterThrowStyle.arcHeight(for: 1_000), 96)
+        XCTAssertEqual(PixelCharacterThrowStyle.flightDuration(for: 0), 0.35, accuracy: 0.001)
+        XCTAssertEqual(PixelCharacterThrowStyle.flightDuration(for: 2_000), 0.95, accuracy: 0.001)
+        XCTAssertEqual(PixelCharacterThrowStyle.maximumActiveProjectiles, 32)
+    }
+
+    func testCharacterFramesCallbackReportsEveryMemberAs52Points() {
+        let members = [makeMember(isCurrentUser: true), makeMember(isCurrentUser: false)]
+        var reported: [UUID: CGRect] = [:]
+        let scene = PixelWorldScene(size: CGSize(width: 720, height: 240))
+
+        scene.apply(
+            roomID: UUID(), members: members, bubbles: [], edge: .bottom,
+            installationSeed: 1, onCharacterFramesChanged: { reported = $0 }
+        )
+
+        XCTAssertEqual(Set(reported.keys), Set(members.map(\.id)))
+        XCTAssertTrue(reported.values.allSatisfy { $0.size == CGSize(width: 52, height: 52) })
+    }
+
     func testStarlightSparklesAreCatalogDrivenAndStopOutsideOnlinePresence() {
         let roomID = UUID()
         let memberID = UUID()
