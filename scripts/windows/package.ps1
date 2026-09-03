@@ -182,6 +182,20 @@ $termsLicenseFile = Join-Path $internalDir 'SideyTerms.txt'
 if (-not (Test-Path -LiteralPath $termsLicenseFile -PathType Leaf)) {
     throw 'SIDEY installer terms file was not generated.'
 }
+$termsBytes = [IO.File]::ReadAllBytes($termsLicenseFile)
+if ($termsBytes.Length -lt 3 -or
+    $termsBytes[0] -ne 0xEF -or
+    $termsBytes[1] -ne 0xBB -or
+    $termsBytes[2] -ne 0xBF) {
+    throw 'SIDEY installer terms must be UTF-8 with BOM.'
+}
+$strictUtf8 = [Text.UTF8Encoding]::new($true, $true)
+try {
+    [void]$strictUtf8.GetString($termsBytes, 3, $termsBytes.Length - 3)
+}
+catch {
+    throw 'SIDEY installer terms contain invalid UTF-8 bytes.'
+}
 
 $makensisCandidates = @()
 if (-not [string]::IsNullOrWhiteSpace($MakensisPath)) {

@@ -63,6 +63,6 @@ foreach ($requiredText in @(
 [IO.File]::WriteAllText(
     $resolvedOutputPath,
     $plainText,
-    [Text.UTF8Encoding]::new($false))
+    [Text.UTF8Encoding]::new($true))
 
 Write-Host "Created SIDEY installer terms: $resolvedOutputPath"

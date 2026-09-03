@@ -99,6 +99,8 @@ public sealed class DistributionSourceTests
         string setup = ReadSetupScript();
         string package = File.ReadAllText(RepositoryPath(
             "scripts", "windows", "package.ps1"));
+        string generator = File.ReadAllText(RepositoryPath(
+            "scripts", "windows", "generate-installer-terms.ps1"));
 
         Assert.Contains("MUI_LICENSEPAGE_CHECKBOX", setup, StringComparison.Ordinal);
         Assert.Contains("MUI_LICENSEPAGE_CHECKBOX_TEXT \"$(AcceptTerms)\"", setup, StringComparison.Ordinal);
@@ -109,6 +111,9 @@ public sealed class DistributionSourceTests
         Assert.Contains("$InstallState == \"repair\"", setup, StringComparison.Ordinal);
         Assert.Contains("generate-installer-terms.ps1", package, StringComparison.Ordinal);
         Assert.Contains("/DTERMS_LICENSE_FILE=", package, StringComparison.Ordinal);
+        Assert.Contains("termsBytes[0] -ne 0xEF", package, StringComparison.Ordinal);
+        Assert.Contains("[Text.UTF8Encoding]::new($true, $true)", package, StringComparison.Ordinal);
+        Assert.Contains("[Text.UTF8Encoding]::new($true)", generator, StringComparison.Ordinal);
     }
 
     [Fact]
