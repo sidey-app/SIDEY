@@ -2,7 +2,7 @@
 
 Windows 11 25H2(build 26200)+ x64용 네이티브 클라이언트입니다. 첫 기능 빌드부터 `pixel_hamster`, `pixel_cat`, `pixel_puppy`, `pixel_rabbit`, `pixel_penguin` 5종을 같은 catalog 기반 renderer로 다룹니다. 햄스터 1종 검증은 별도 제품 구현이 아니라 같은 renderer의 Debug 제한 모드입니다.
 
-현재 Windows 정식 출시 버전은 `v1.0.3`입니다.
+현재 Windows 정식 출시 버전은 `v1.0.4`입니다.
 
 ## 필수 환경
 
@@ -87,18 +87,18 @@ WiX Toolset `6.0.2`는 게시 트리 전체를 포함하는 머신 단위 MSI를
 ```powershell
 dotnet publish ./windows/src/Sidey.App/Sidey.App.csproj `
   -c Release -r win-x64 --self-contained true `
-  -p:PublishSingleFile=false -p:Version=1.0.3 `
+  -p:PublishSingleFile=false -p:Version=1.0.4 `
   -o ./build/windows/publish
 
 pwsh ./scripts/windows/package.ps1 `
   -PublishDir ./build/windows/publish `
   -OutDir ./build/windows/artifacts `
-  -Version 1.0.3
+  -Version 1.0.4
 ```
 
-CI 아티팩트와 GitHub 정식 Release에는 `SIDEY-Windows-x64-v1.0.3.msi` 하나만 게시합니다. Setup EXE, ZIP, MSIX, 자체 서명 인증서, `.sha256` 파일은 Release에 포함하지 않습니다. MSI는 관리자 승인 뒤 `C:\Program Files\SIDEY`에 설치하고 공용 시작 메뉴에 앱과 제거 바로가기를 추가합니다. 앱 목록의 MSI 제품 정보와 설치된 `Uninstall.exe`에는 SIDEY 아이콘을 사용합니다. 바탕화면 바로가기와 설치 중 로그인 자동 실행은 만들지 않습니다.
+CI 아티팩트와 GitHub 정식 Release에는 `SIDEY-Windows-x64-v1.0.4.msi` 하나만 게시합니다. Setup EXE, ZIP, MSIX, 자체 서명 인증서, `.sha256` 파일은 Release에 포함하지 않습니다. MSI는 관리자 승인 뒤 `C:\Program Files\SIDEY`에 설치하고 공용 시작 메뉴에 앱과 제거 바로가기를 추가합니다. 앱 목록의 MSI 제품 정보와 설치된 `Uninstall.exe`에는 SIDEY 아이콘을 사용합니다. 바탕화면 바로가기와 설치 중 로그인 자동 실행은 만들지 않습니다.
 
-기존 Windows 테스트 버전이 설치되어 있으면 Windows 설정에서 먼저 제거한 뒤 v1.0.3을 설치합니다. 설치 폴더나 시작 메뉴에서 `Uninstall.exe`를 직접 실행하면 Windows Installer 제거를 시작합니다. Windows 설정·MSI·`Uninstall.exe`의 일반 제거 화면에는 `설정, 로그 및 로그인 정보도 삭제` 옵션을 기본 미선택으로 표시하고, 선택한 경우에만 `Uninstall.exe --cleanup`이 `%LOCALAPPDATA%\SIDEY`와 Credential Manager의 `SIDEY/` 자격 증명을 삭제합니다. repair와 major upgrade는 이 데이터를 보존합니다.
+기존 Windows 테스트 버전이 설치되어 있으면 Windows 설정에서 먼저 제거한 뒤 v1.0.4를 설치합니다. 설치 폴더나 시작 메뉴에서 `Uninstall.exe`를 직접 실행하면 Windows Installer 제거를 시작합니다. Windows 설정·MSI·`Uninstall.exe`의 일반 제거 화면에는 `설정, 로그 및 로그인 정보도 삭제` 옵션을 기본 미선택으로 표시하고, 선택한 경우에만 `Uninstall.exe --cleanup`이 `%LOCALAPPDATA%\SIDEY`와 Credential Manager의 `SIDEY/` 자격 증명을 삭제합니다. repair와 major upgrade는 이 데이터를 보존합니다.
 
 Windows와 macOS는 같은 GitHub 저장소를 사용하지만 릴리스 주기는 독립적입니다. Windows 릴리스 태그는 `windows-v<version>`, macOS 릴리스 태그는 기존 `v<version>` 형식을 사용합니다. Windows 앱은 Pages의 `website/windows-latest.json`만 확인하며, 호환 경로인 `website/windows/update.json`도 같은 내용으로 유지합니다.
 
@@ -106,11 +106,11 @@ Windows와 macOS는 같은 GitHub 저장소를 사용하지만 릴리스 주기�
 
 ```powershell
 ./scripts/windows/verify-release.ps1 `
-  -Version 1.0.3 `
-  -CandidateMsi ./build/windows/artifacts/SIDEY-Windows-x64-v1.0.3.msi
+  -Version 1.0.4 `
+  -CandidateMsi ./build/windows/artifacts/SIDEY-Windows-x64-v1.0.4.msi
 ```
 
-실제 GitHub Release에서 다시 받은 MSI의 hash가 후보와 일치한 뒤에만 웹사이트 Windows 다운로드 버튼과 업데이트 manifest를 v1.0.3으로 갱신합니다.
+실제 GitHub Release에서 다시 받은 MSI의 hash가 후보와 일치한 뒤에만 웹사이트 Windows 다운로드 버튼과 업데이트 manifest를 v1.0.4로 갱신합니다.
 
 시작 직후 종료되거나 오류창이 나타나면 `%LOCALAPPDATA%\SIDEY\Logs\startup.log`를 확인합니다. 이 로그에는 시작 단계와 예외 유형·HRESULT·stack만 남기며 token·메시지 본문·초대 코드는 기록하지 않습니다.
 
@@ -119,7 +119,7 @@ Windows와 macOS는 같은 GitHub 저장소를 사용하지만 릴리스 주기�
 패키징 명령은 MSI의 SHA-256을 CI 로그에 출력합니다. Release에 별도 checksum 파일을 첨부하지 않고, 검증한 값을 두 Windows 업데이트 manifest에 기록합니다.
 
 ```powershell
-Get-FileHash .\SIDEY-Windows-x64-v1.0.3.msi -Algorithm SHA256
+Get-FileHash .\SIDEY-Windows-x64-v1.0.4.msi -Algorithm SHA256
 ```
 
 ## 정식 출시 후 지속 검증

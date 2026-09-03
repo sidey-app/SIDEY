@@ -6,7 +6,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$OutDir,
 
-    [string]$Version = '1.0.3',
+    [string]$Version = '1.0.4',
 
     [switch]$SuppressInstallerValidation
 )

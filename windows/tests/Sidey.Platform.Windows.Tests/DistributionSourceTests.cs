@@ -15,9 +15,9 @@ public sealed class DistributionSourceTests
         Assert.Equal("true", Value(project, "EnableMsixTooling"));
         Assert.Equal("false", Value(project, "IncludeAllContentForSelfExtract"));
         Assert.Equal("false", Value(project, "PublishTrimmed"));
-        Assert.Equal("1.0.3", Value(project, "Version"));
-        Assert.Equal("1.0.3.0", Value(project, "FileVersion"));
-        Assert.Equal("1.0.3.0", Value(project, "AssemblyVersion"));
+        Assert.Equal("1.0.4", Value(project, "Version"));
+        Assert.Equal("1.0.4.0", Value(project, "FileVersion"));
+        Assert.Equal("1.0.4.0", Value(project, "AssemblyVersion"));
         Assert.Equal("SIDEY.Host", Value(project, "AssemblyName"));
         Assert.Equal("SIDEY", Value(project, "AssemblyTitle"));
         Assert.Equal("SIDEY", Value(project, "Product"));

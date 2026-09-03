@@ -25,8 +25,8 @@ public sealed class WindowsUpdateServiceTests
         const string manifest = """
             {
               "channel": "production",
-              "version": "1.0.3",
-              "tag": "windows-v1.0.3"
+              "version": "1.0.4",
+              "tag": "windows-v1.0.4"
             }
             """;
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -47,9 +47,9 @@ public sealed class WindowsUpdateServiceTests
         const string manifest = """
             {
               "channel": "production",
-              "version": "1.0.4",
-              "tag": "windows-v1.0.4",
-              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.4/SIDEY-Windows-x64-v1.0.4.msi",
+              "version": "1.0.5",
+              "tag": "windows-v1.0.5",
+              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.5/SIDEY-Windows-x64-v1.0.5.msi",
               "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             }
             """;
@@ -63,10 +63,10 @@ public sealed class WindowsUpdateServiceTests
         WindowsUpdateManifest? update = await service.CheckAsync();
 
         Assert.NotNull(update);
-        Assert.Equal("1.0.4", update.Version);
+        Assert.Equal("1.0.5", update.Version);
         Assert.Equal(
-            "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.4/" +
-            "SIDEY-Windows-x64-v1.0.4.msi",
+            "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.5/" +
+            "SIDEY-Windows-x64-v1.0.5.msi",
             update.InstallerUri.AbsoluteUri);
         Assert.Equal(
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -79,8 +79,8 @@ public sealed class WindowsUpdateServiceTests
         const string manifest = """
             {
               "channel": "production",
-              "version": "1.0.4",
-              "tag": "windows-v1.0.4"
+              "version": "1.0.5",
+              "tag": "windows-v1.0.5"
             }
             """;
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -99,9 +99,9 @@ public sealed class WindowsUpdateServiceTests
         const string manifest = """
             {
               "channel": "production",
-              "version": "1.0.4",
-              "tag": "windows-v1.0.4",
-              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.4/SIDEY-Windows-x64-v1.0.4-Setup.exe",
+              "version": "1.0.5",
+              "tag": "windows-v1.0.5",
+              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.5/SIDEY-Windows-x64-v1.0.5-Setup.exe",
               "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             }
             """;
