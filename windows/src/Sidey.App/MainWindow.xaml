@@ -4,19 +4,38 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:i18n="using:Sidey.App.Localization">
   <Grid x:Name="MainRoot" Background="Transparent">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto" />
+      <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+    <TitleBar
+        x:Name="AppTitleBar"
+        Grid.Row="0"
+        BackRequested="OnTitleBarBackRequested"
+        IsBackButtonEnabled="False"
+        IsBackButtonVisible="True"
+        IsPaneToggleButtonVisible="True"
+        PaneToggleRequested="OnTitleBarPaneToggleRequested"
+        Title="SIDEY">
+      <TitleBar.IconSource>
+        <ImageIconSource ImageSource="/Assets/Icons/SideyAppIcon-20.png" />
+      </TitleBar.IconSource>
+    </TitleBar>
     <NavigationView
         x:Name="RootNavigation"
+        Grid.Row="1"
         Background="Transparent"
         CompactModeThresholdWidth="0"
         CompactPaneLength="48"
         ExpandedModeThresholdWidth="960"
         IsBackButtonVisible="Collapsed"
+        IsPaneToggleButtonVisible="False"
         IsSettingsVisible="False"
+        IsTitleBarAutoPaddingEnabled="False"
         OpenPaneLength="210"
         PaneClosed="OnNavigationPaneClosed"
         PaneDisplayMode="Auto"
         PaneOpened="OnNavigationPaneOpened"
-        PaneTitle="SIDEY"
         SelectionChanged="OnNavigationSelectionChanged">
       <NavigationView.Resources>
         <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent" />
@@ -439,6 +458,7 @@
     </NavigationView>
     <Ellipse
         x:Name="CompactConnectionDot"
+        Grid.Row="1"
         Width="9"
         Height="9"
         Margin="20,0,0,25"

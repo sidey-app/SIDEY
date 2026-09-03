@@ -200,8 +200,10 @@ public sealed class MacParityUiSourceTests
     {
         var xaml = ReadRepositoryFile("windows", "src", "Sidey.App", "MainWindow.xaml");
         var source = ReadRepositoryFile("windows", "src", "Sidey.App", "MainWindow.xaml.cs");
+        var minimumSize = ReadRepositoryFile(
+            "windows", "src", "Sidey.Platform.Windows", "WindowsMinimumSizeController.cs");
 
-        Assert.Contains("PaneTitle=\"SIDEY\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("PaneTitle=", xaml, StringComparison.Ordinal);
         Assert.Contains("Key=settings.overlayDescription", xaml, StringComparison.Ordinal);
         Assert.Contains("Key=settings.quietModeDescription", xaml, StringComparison.Ordinal);
         Assert.Contains("Key=settings.rightClickThrowDescription", xaml, StringComparison.Ordinal);
@@ -215,11 +217,19 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("CompactModeThresholdWidth=\"0\"", xaml, StringComparison.Ordinal);
         Assert.Contains("CompactPaneLength=\"48\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ExpandedModeThresholdWidth=\"960\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("<TitleBar", xaml, StringComparison.Ordinal);
+        Assert.Contains("BackRequested=\"OnTitleBarBackRequested\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("PaneToggleRequested=\"OnTitleBarPaneToggleRequested\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsPaneToggleButtonVisible=\"False\"", xaml, StringComparison.Ordinal);
         Assert.Contains("MicaKind.Base", source, StringComparison.Ordinal);
-        Assert.Contains(
-            "_minimumWindowSize = ResponsiveWindowSizePolicy.Minimum(",
-            source,
-            StringComparison.Ordinal);
+        Assert.Contains("ExtendsContentIntoTitleBar = true", source, StringComparison.Ordinal);
+        Assert.Contains("SetTitleBar(AppTitleBar)", source, StringComparison.Ordinal);
+        Assert.Contains("_navigationHistory.Push", source, StringComparison.Ordinal);
+        Assert.Contains("_navigationHistory.Pop", source, StringComparison.Ordinal);
+        Assert.Contains("WindowsMinimumSizeController", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("AppWindow.Changed +=", source, StringComparison.Ordinal);
+        Assert.Contains("GetMinMaxInfoMessage = 0x0024", minimumSize, StringComparison.Ordinal);
+        Assert.Contains("SetWindowSubclass", minimumSize, StringComparison.Ordinal);
     }
 
     [Fact]
