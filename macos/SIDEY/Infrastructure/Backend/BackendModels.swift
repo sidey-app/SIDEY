@@ -15,6 +15,17 @@ struct BackendReconciliation: Equatable, Sendable {
 struct BackendConnectionStatus: Equatable, Sendable {
     let transportConnected: Bool
     let recoveryReconciled: Bool
+    let activeRoomTransportConnected: Bool
+
+    init(
+        transportConnected: Bool,
+        recoveryReconciled: Bool,
+        activeRoomTransportConnected: Bool? = nil
+    ) {
+        self.transportConnected = transportConnected
+        self.recoveryReconciled = recoveryReconciled
+        self.activeRoomTransportConnected = activeRoomTransportConnected ?? transportConnected
+    }
 
     var isReady: Bool {
         transportConnected && recoveryReconciled

@@ -176,7 +176,11 @@ final class OverlayInteractionWindowController: NSObject, NSWindowDelegate {
         panel.isOpaque = false
         panel.hasShadow = false
         panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        // The world and character hotspots exist on every Space, but the
+        // focusable composer belongs on the Space where the click happened.
+        // moveToActiveSpace prevents a previously hidden panel from remaining
+        // attached to Desktop 1 when it is opened from Desktop 2.
+        panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
         panel.canHide = false
         panel.isReleasedWhenClosed = false

@@ -931,7 +931,10 @@ actor SideyBackend {
     private func emitConnectionState() {
         let status = BackendConnectionStatus(
             transportConnected: connectionTracker.isConnected,
-            recoveryReconciled: recoveryReconciled
+            recoveryReconciled: recoveryReconciled,
+            activeRoomTransportConnected: activeRoomID.map {
+                connectionTracker.isSubscribed(roomID: $0)
+            } ?? connectionTracker.isConnected
         )
         guard lastEmittedConnectionStatus != status else { return }
         lastEmittedConnectionStatus = status

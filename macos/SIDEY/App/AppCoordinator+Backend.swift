@@ -22,6 +22,7 @@ extension AppCoordinator {
         }
         let requireExistingSession = model.preferences.onboardingComplete
         backendConnectionStatus = nil
+        model.setActiveRoomRealtimeConnected(false)
         model.connectionState = .connecting
         backendEventTask?.cancel()
         backendEventTask = Task { [weak self] in
@@ -44,6 +45,7 @@ extension AppCoordinator {
                     activeRoomID: model.activeRoom?.id
                 )
                 applyBackendReconciliation(reconciliation)
+                model.setActiveRoomRealtimeConnected(true)
                 model.connectionState = .online
                 model.errorMessage = nil
                 backendBootstrapState = .ready
@@ -212,7 +214,7 @@ extension AppCoordinator {
     func handleRoomSwitchFailure(_ error: any Error, restoreError: (any Error)?) {
         if let restoreError {
             model.connectionState = .failed(restoreError.localizedDescription)
-            model.setRealtimeConnected(false)
+            model.setActiveRoomRealtimeConnected(false)
             model.errorMessage = "실시간 연결 복구 실패: \(restoreError.localizedDescription)"
         } else {
             model.errorMessage = "그룹 전환 실패: \(error.localizedDescription)"
@@ -385,13 +387,10 @@ extension AppCoordinator {
             let previousStatus = backendConnectionStatus
             backendConnectionStatus = status
             model.connectionState = status.isReady ? .online : .connecting
-            if previousStatus?.transportConnected == true,
-               !status.transportConnected {
-                model.setRealtimeConnected(false)
+            model.setActiveRoomRealtimeConnected(status.activeRoomTransportConnected)
+            if previousStatus?.activeRoomTransportConnected == true,
+               !status.activeRoomTransportConnected {
                 overlayWindows.invalidateThrowInteraction()
-            } else if status.transportConnected,
-                      previousStatus?.transportConnected != true {
-                model.setRealtimeConnected(true)
             }
             overlayWindows.refreshThrowHotspots()
         case .technicalError(let message):
@@ -472,7 +471,7 @@ extension AppCoordinator {
     }
 
     func characterThrowRequested(targetUserID: UUID) {
-        guard model.connectionState == .online,
+        guard model.activeRoomRealtimeAvailable,
               let room = model.activeRoom,
               let actorUserID = model.currentUserID,
               actorUserID != targetUserID,

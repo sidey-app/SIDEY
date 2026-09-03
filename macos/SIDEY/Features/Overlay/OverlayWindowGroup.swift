@@ -304,7 +304,7 @@ final class OverlayWindowGroup {
 
     func refreshThrowHotspots() {
         let canTarget = overlayVisible
-            && model.connectionState == .online
+            && model.activeRoomRealtimeAvailable
             && model.activeRoom != nil
             && currentUserLocalFrame != nil
             && (!model.preferences.requiresRightClickToThrow || throwTargetingActive)
@@ -451,7 +451,7 @@ final class OverlayWindowGroup {
     private func activateThrowTargeting() {
         guard model.preferences.requiresRightClickToThrow,
               overlayVisible,
-              model.connectionState == .online,
+              model.activeRoomRealtimeAvailable,
               currentUserLocalFrame != nil
         else { return }
         throwTargetingActive = true

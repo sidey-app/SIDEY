@@ -634,6 +634,10 @@ struct RealtimeConnectionTracker: Equatable, Sendable {
         }
     }
 
+    func isSubscribed(roomID: UUID) -> Bool {
+        subscribedRoomIDs.contains(roomID)
+    }
+
     var isConnected: Bool {
         subscribedRoomIDs == desiredRoomIDs
     }

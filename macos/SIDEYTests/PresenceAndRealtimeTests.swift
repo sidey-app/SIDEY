@@ -71,6 +71,38 @@ final class PresenceAndRealtimeTests: XCTestCase {
         XCTAssertEqual(model.pixelWorldMembers.first?.presence, .reconnecting)
     }
 
+    func testLocalPresenceUsesRecoveredTransportWhileReconciliationIsPending() {
+        let roomID = UUID()
+        let userID = UUID()
+        let model = AppModel(preferences: .defaults)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(id: userID, nickname: "나", characterID: "pixel_hamster"),
+                rooms: [Room(
+                    id: roomID,
+                    name: "복구 테스트",
+                    ownerID: userID,
+                    members: [RoomMember(
+                        userID: userID,
+                        nickname: "나",
+                        characterID: "pixel_hamster",
+                        presence: .offline
+                    )],
+                    inviteCodeHint: "AB••••",
+                    inviteVersion: 1
+                )]
+            ),
+            currentUserID: userID
+        )
+        model.connectionState = .connecting
+        model.presence = .online
+
+        model.setActiveRoomRealtimeConnected(true)
+
+        XCTAssertTrue(model.activeRoomTransportConnected)
+        XCTAssertEqual(model.pixelWorldMembers.first?.presence, .online)
+    }
+
     func testOfflinePresenceUsesRedIndicatorWhileReconnectRemainsGray() {
         XCTAssertEqual(PresenceIndicatorTone.tone(for: .offline), .red)
         XCTAssertEqual(PresenceIndicatorTone.tone(for: .reconnecting), .gray)
@@ -315,6 +347,26 @@ final class PresenceAndRealtimeTests: XCTestCase {
         ).isReady)
     }
 
+    func testActiveRoomTransportCanRecoverBeforeEveryDesiredRoom() {
+        let activeRoomID = UUID()
+        let delayedRoomID = UUID()
+        var tracker = RealtimeConnectionTracker()
+        tracker.replaceDesiredRoomIDs([activeRoomID, delayedRoomID])
+        tracker.setSubscribed(true, roomID: activeRoomID)
+
+        XCTAssertTrue(tracker.isSubscribed(roomID: activeRoomID))
+        XCTAssertFalse(tracker.isSubscribed(roomID: delayedRoomID))
+        XCTAssertFalse(tracker.isConnected)
+
+        let status = BackendConnectionStatus(
+            transportConnected: tracker.isConnected,
+            recoveryReconciled: false,
+            activeRoomTransportConnected: tracker.isSubscribed(roomID: activeRoomID)
+        )
+        XCTAssertFalse(status.isReady)
+        XCTAssertTrue(status.activeRoomTransportConnected)
+    }
+
     func testProfileApplyChangesIdentityWithoutDiscardingFriendPresence() {
         let roomID = UUID()
         let userID = UUID()
@@ -476,9 +528,9 @@ final class PresenceAndRealtimeTests: XCTestCase {
             currentUserID: UUID()
         )
 
-        model.setRealtimeConnected(false)
+        model.setActiveRoomRealtimeConnected(false)
         XCTAssertEqual(model.rooms[0].members[0].presence, .reconnecting)
-        model.setRealtimeConnected(true)
+        model.setActiveRoomRealtimeConnected(true)
         XCTAssertEqual(model.rooms[0].members[0].presence, .offline)
     }
 
@@ -509,9 +561,9 @@ final class PresenceAndRealtimeTests: XCTestCase {
         model.updateTyping(roomID: roomID, userID: friendID, active: true)
         XCTAssertEqual(model.rooms[0].members[0].presence, .typing)
 
-        model.setRealtimeConnected(false)
+        model.setActiveRoomRealtimeConnected(false)
         XCTAssertEqual(model.rooms[0].members[0].presence, .reconnecting)
-        model.setRealtimeConnected(true)
+        model.setActiveRoomRealtimeConnected(true)
         XCTAssertEqual(model.rooms[0].members[0].presence, .offline)
     }
 
