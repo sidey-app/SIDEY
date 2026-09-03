@@ -657,8 +657,46 @@ struct RealtimeTopology: Equatable, Sendable {
     }
 }
 
+struct RealtimeDesiredTopology: Equatable, Sendable {
+    private(set) var roomEpochs: [UUID: Int] = [:]
+
+    mutating func replace(rooms: some Sequence<Room>) {
+        roomEpochs = Dictionary(uniqueKeysWithValues: rooms.prefix(5).map {
+            ($0.id, $0.realtimeEpoch)
+        })
+    }
+
+    var roomIDs: Set<UUID> {
+        Set(roomEpochs.keys)
+    }
+
+    func epoch(for roomID: UUID) -> Int? {
+        roomEpochs[roomID]
+    }
+}
+
+enum RealtimeChannelPairPolicy {
+    static func isSubscribed(database: Bool, ephemeral: Bool) -> Bool {
+        database && ephemeral
+    }
+}
+
+enum RealtimeChannelGenerationPolicy {
+    static func accepts(
+        candidateGeneration: Int,
+        currentGeneration: Int,
+        desiredEpoch: Int?,
+        channelEpoch: Int?
+    ) -> Bool {
+        candidateGeneration == currentGeneration
+            && desiredEpoch != nil
+            && desiredEpoch == channelEpoch
+    }
+}
+
 enum RealtimeRecoveryPolicy {
     static let watchdogInterval: TimeInterval = 5
+    static let pathRecoveryDebounce: TimeInterval = 0.35
     static let maximumDelay: TimeInterval = 30
 
     static func delay(forAttempt attempt: Int) -> TimeInterval {
