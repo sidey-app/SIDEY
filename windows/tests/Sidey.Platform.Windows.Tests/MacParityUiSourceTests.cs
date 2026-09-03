@@ -91,6 +91,7 @@ public sealed class MacParityUiSourceTests
     public void TrayAndHistoryPreserveMacInteractionContract()
     {
         var tray = ReadRepositoryFile("windows", "src", "Sidey.Platform.Windows", "TrayIconService.cs");
+        var appXaml = ReadRepositoryFile("windows", "src", "Sidey.App", "App.xaml");
         var historyXaml = ReadRepositoryFile("windows", "src", "Sidey.App", "HistoryWindow.xaml");
         var historyViewModel = ReadRepositoryFile(
             "windows", "src", "Sidey.Presentation", "ViewModels", "HistoryWindowViewModel.cs");
@@ -102,6 +103,12 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("tray.exit", tray, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding EmptyMessage}\"", historyXaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding EmptyDescription}\"", historyXaml, StringComparison.Ordinal);
+        Assert.Contains("SideyAccentBackground10Brush", historyXaml, StringComparison.Ordinal);
+        Assert.Contains("SideyAccentBackground12Brush", historyXaml, StringComparison.Ordinal);
+        Assert.Contains("SideyAccentForegroundBrush", historyXaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("AccentFillColorSecondaryBrush", historyXaml, StringComparison.Ordinal);
+        Assert.Contains("Opacity=\"0.10\"", appXaml, StringComparison.Ordinal);
+        Assert.Contains("Opacity=\"0.12\"", appXaml, StringComparison.Ordinal);
         Assert.Contains("history.empty", historyViewModel, StringComparison.Ordinal);
         Assert.Contains("history.emptyDescription", historyViewModel, StringComparison.Ordinal);
         Assert.DoesNotContain("새로 고침", historyXaml, StringComparison.Ordinal);
@@ -217,6 +224,8 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("CompactModeThresholdWidth=\"0\"", xaml, StringComparison.Ordinal);
         Assert.Contains("CompactPaneLength=\"48\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ExpandedModeThresholdWidth=\"960\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Background=\"{ThemeResource SubtleFillColorSecondaryBrush}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Foreground=\"{ThemeResource TextFillColorSecondaryBrush}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("<TitleBar", xaml, StringComparison.Ordinal);
         Assert.Contains("BackRequested=\"OnTitleBarBackRequested\"", xaml, StringComparison.Ordinal);
         Assert.Contains("PaneToggleRequested=\"OnTitleBarPaneToggleRequested\"", xaml, StringComparison.Ordinal);

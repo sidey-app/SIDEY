@@ -10,6 +10,9 @@
       </ResourceDictionary.MergedDictionaries>
       <Color x:Key="SideyPeriwinkle">#FF8587E8</Color>
       <Color x:Key="SideyOrange">#FFFF9A52</Color>
+      <SolidColorBrush x:Key="SideyAccentForegroundBrush" Color="{ThemeResource SystemAccentColor}" />
+      <SolidColorBrush x:Key="SideyAccentBackground10Brush" Color="{ThemeResource SystemAccentColor}" Opacity="0.10" />
+      <SolidColorBrush x:Key="SideyAccentBackground12Brush" Color="{ThemeResource SystemAccentColor}" Opacity="0.12" />
       <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
       <converters:CharacterImageConverter x:Key="CharacterImageConverter" />
       <converters:ConnectionBrushConverter x:Key="ConnectionBrushConverter" />

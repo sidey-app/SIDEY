@@ -38,7 +38,7 @@
                   <ColumnDefinition Width="40" />
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <Border Width="40" Height="40" Background="{ThemeResource AccentFillColorSecondaryBrush}" CornerRadius="10">
+                <Border Width="40" Height="40" Background="{ThemeResource SideyAccentBackground10Brush}" CornerRadius="12">
                   <Border Width="24" Height="24">
                     <Border.Clip>
                       <RectangleGeometry Rect="0,0,24,24" />
@@ -62,11 +62,11 @@
                     <TextBlock FontWeight="SemiBold" Text="{Binding SenderName}" />
                     <Border
                         Grid.Column="1"
-                        Padding="6,1"
-                        Background="{ThemeResource AccentFillColorSecondaryBrush}"
+                        Padding="6,2"
+                        Background="{ThemeResource SideyAccentBackground12Brush}"
                         CornerRadius="8"
                         Visibility="{Binding IsCurrentUser, Converter={StaticResource BooleanToVisibilityConverter}}">
-                      <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Text="{i18n:I18n Key=common.me}" />
+                      <TextBlock FontSize="11" FontWeight="Bold" Foreground="{ThemeResource SideyAccentForegroundBrush}" Text="{i18n:I18n Key=common.me}" />
                     </Border>
                     <TextBlock
                         Grid.Column="3"
