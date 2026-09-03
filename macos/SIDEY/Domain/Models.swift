@@ -634,6 +634,10 @@ struct RealtimeConnectionTracker: Equatable, Sendable {
         }
     }
 
+    func isSubscribed(roomID: UUID) -> Bool {
+        subscribedRoomIDs.contains(roomID)
+    }
+
     var isConnected: Bool {
         subscribedRoomIDs == desiredRoomIDs
     }
@@ -707,6 +711,34 @@ struct CharacterPulseEvent: Equatable, Identifiable, Sendable {
     let id: UUID
     let roomID: UUID
     let userID: UUID
+}
+
+struct CharacterThrowEvent: Equatable, Identifiable, Sendable {
+    let id: UUID
+    let roomID: UUID
+    let actorUserID: UUID
+    let targetUserID: UUID
+    let sourceCharacterID: String
+}
+
+enum CharacterThrowTargetPolicy {
+    static func canTarget(_ member: PixelWorldMember) -> Bool {
+        !member.isCurrentUser
+    }
+}
+
+struct CharacterThrowCooldown: Equatable, Sendable {
+    static let duration: TimeInterval = 0.5
+    private var lastAcceptedUptimeByActor: [UUID: TimeInterval] = [:]
+
+    mutating func accept(actorUserID: UUID, uptime: TimeInterval) -> Bool {
+        guard uptime.isFinite else { return false }
+        if let last = lastAcceptedUptimeByActor[actorUserID], uptime - last < Self.duration {
+            return false
+        }
+        lastAcceptedUptimeByActor[actorUserID] = uptime
+        return true
+    }
 }
 
 struct CharacterPulseCooldown: Equatable, Sendable {

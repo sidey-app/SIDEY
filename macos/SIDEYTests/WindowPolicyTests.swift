@@ -254,7 +254,8 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertTrue(group.worldIsRendering)
         XCTAssertTrue(group.worldCollectionBehavior.contains(.canJoinAllSpaces))
         XCTAssertTrue(group.worldCollectionBehavior.contains(.fullScreenAuxiliary))
-        XCTAssertTrue(group.interactionCollectionBehavior.contains(.canJoinAllSpaces))
+        XCTAssertTrue(group.interactionCollectionBehavior.contains(.moveToActiveSpace))
+        XCTAssertFalse(group.interactionCollectionBehavior.contains(.canJoinAllSpaces))
         XCTAssertTrue(settings.window?.childWindows?.isEmpty ?? false)
 
         group.presentComposer()

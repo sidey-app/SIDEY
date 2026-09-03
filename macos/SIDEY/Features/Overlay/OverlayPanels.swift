@@ -13,9 +13,11 @@ private final class CharacterHotspotPanel: NSPanel {
 
 private final class CharacterHotspotView: NSView {
     let onClick: (Int) -> Void
+    let onRightClick: () -> Void
 
-    init(onClick: @escaping (Int) -> Void) {
+    init(onClick: @escaping (Int) -> Void, onRightClick: @escaping () -> Void) {
         self.onClick = onClick
+        self.onRightClick = onRightClick
         super.init(frame: .zero)
     }
 
@@ -23,6 +25,7 @@ private final class CharacterHotspotView: NSView {
     required init?(coder: NSCoder) { nil }
 
     override func mouseDown(with event: NSEvent) { onClick(event.clickCount) }
+    override func rightMouseDown(with event: NSEvent) { onRightClick() }
 }
 
 enum OverlayWindowIdentifier {
@@ -41,16 +44,17 @@ final class PixelWorldWindowController {
     private var hostingView: NSHostingView<PixelWorldView>?
     private var composerVisible = false
     private var characterPulse: CharacterPulseEvent?
+    private var characterThrow: CharacterThrowEvent?
     private var localActivityFrame: CGRect = .zero
-    private let onCurrentUserFrameChanged: (CGRect?) -> Void
+    private let onCharacterFramesChanged: ([UUID: CGRect]) -> Void
 
     init(
         model: AppModel,
         frame: CGRect,
-        onCurrentUserFrameChanged: @escaping (CGRect?) -> Void = { _ in }
+        onCharacterFramesChanged: @escaping ([UUID: CGRect]) -> Void = { _ in }
     ) {
         self.model = model
-        self.onCurrentUserFrameChanged = onCurrentUserFrameChanged
+        self.onCharacterFramesChanged = onCharacterFramesChanged
         panel = NSPanel(
             contentRect: frame,
             styleMask: [.borderless, .nonactivatingPanel],
@@ -95,11 +99,18 @@ final class PixelWorldWindowController {
         hostingView.rootView = makeRootView()
     }
 
+    func playCharacterThrow(_ event: CharacterThrowEvent) {
+        guard event.roomID == model.activeRoom?.id, let hostingView else { return }
+        characterThrow = event
+        hostingView.rootView = makeRootView()
+    }
+
     func orderOut() {
         panel.orderOut(nil)
         panel.contentView = nil
         hostingView = nil
         characterPulse = nil
+        characterThrow = nil
     }
 
     var level: NSWindow.Level { panel.level }
@@ -116,7 +127,8 @@ final class PixelWorldWindowController {
             activityFrame: localActivityFrame,
             composerVisible: composerVisible,
             characterPulse: characterPulse,
-            onCurrentUserFrameChanged: onCurrentUserFrameChanged
+            characterThrow: characterThrow,
+            onCharacterFramesChanged: onCharacterFramesChanged
         )
     }
 }
@@ -164,7 +176,11 @@ final class OverlayInteractionWindowController: NSObject, NSWindowDelegate {
         panel.isOpaque = false
         panel.hasShadow = false
         panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        // The world and character hotspots exist on every Space, but the
+        // focusable composer belongs on the Space where the click happened.
+        // moveToActiveSpace prevents a previously hidden panel from remaining
+        // attached to Desktop 1 when it is opened from Desktop 2.
+        panel.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
         panel.canHide = false
         panel.isReleasedWhenClosed = false
@@ -268,7 +284,10 @@ final class CharacterHotspotWindowController {
     private var requestedVisible = false
     private var hasFrame = false
 
-    init(onClick: @escaping (Int) -> Void) {
+    init(
+        onClick: @escaping (Int) -> Void,
+        onRightClick: @escaping () -> Void = {}
+    ) {
         panel = CharacterHotspotPanel(
             contentRect: CGRect(origin: .zero, size: Self.panelSize),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -285,7 +304,7 @@ final class CharacterHotspotWindowController {
         panel.canHide = false
         panel.ignoresMouseEvents = false
         panel.isReleasedWhenClosed = false
-        panel.contentView = CharacterHotspotView(onClick: onClick)
+        panel.contentView = CharacterHotspotView(onClick: onClick, onRightClick: onRightClick)
     }
 
     func setFrame(_ frame: CGRect?) {

@@ -356,6 +356,8 @@ private actor BackendEventProbe {
                 if active { typingStarted = true } else { typingStopped = true }
             case .characterPulse(let event):
                 characterPulseEventIDs.insert(event.id)
+            case .characterThrow:
+                break
             case .presence(_, let userID, let state):
                 presence[userID] = state
                 presenceUpdateCounts[userID, default: 0] += 1

@@ -18,7 +18,7 @@ struct CodableRect: Codable, Equatable, Sendable {
 }
 
 struct AppPreferences: Codable, Equatable, Sendable {
-    static let currentSchemaVersion = 7
+    static let currentSchemaVersion = 8
 
     var schemaVersion = currentSchemaVersion
     var hasShownNativeLanding = false
@@ -28,6 +28,7 @@ struct AppPreferences: Codable, Equatable, Sendable {
     var overlayVisible = true
     var overlayRegion = OverlayRegionPreference.defaultValue
     var showOfflineMembers = true
+    var requiresRightClickToThrow = false
     var overlayLocked = true
     var overlayScale = 1.5
     var quietModeEnabled = false
@@ -49,6 +50,7 @@ struct AppPreferences: Codable, Equatable, Sendable {
         case overlayVisible
         case overlayRegion
         case showOfflineMembers
+        case requiresRightClickToThrow
         case overlayLocked
         case overlayScale
         case quietModeEnabled
@@ -71,10 +73,14 @@ struct AppPreferences: Codable, Equatable, Sendable {
         keychainTransitionComplete = try values.decodeIfPresent(
             Bool.self,
             forKey: .keychainTransitionComplete
-        ) ?? (decodedSchemaVersion >= Self.currentSchemaVersion)
+        ) ?? (decodedSchemaVersion >= 7)
         onboardingComplete = try values.decodeIfPresent(Bool.self, forKey: .onboardingComplete) ?? false
         overlayVisible = try values.decodeIfPresent(Bool.self, forKey: .overlayVisible) ?? true
         showOfflineMembers = try values.decodeIfPresent(Bool.self, forKey: .showOfflineMembers) ?? true
+        requiresRightClickToThrow = try values.decodeIfPresent(
+            Bool.self,
+            forKey: .requiresRightClickToThrow
+        ) ?? false
         // frame/lock/scale remain decodable for rollback compatibility, but the
         // pixel world migrates them to the bottom/full region contract.
         overlayLocked = try values.decodeIfPresent(Bool.self, forKey: .overlayLocked) ?? true

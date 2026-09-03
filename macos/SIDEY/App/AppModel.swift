@@ -20,6 +20,7 @@ final class AppModel {
     var availableScreens: [OverlayScreenOption] = []
     var activeSettingsPage: SettingsPage = .profile
     var connectionState: BackendConnectionState = .idle
+    private(set) var activeRoomTransportConnected = false
     var rooms: [Room] = []
     var hasProfile = false
     var currentUserID: UUID?
@@ -205,14 +206,23 @@ final class AppModel {
     }
 
     var effectiveLocalPresence: PresenceState {
-        switch connectionState {
-        case .online:
-            presence
+        // Snapshot/message reconciliation may still be running after the
+        // Realtime transport has already recovered. Presence is published on
+        // that transport, so do not leave only the local character gray while
+        // peers can already see it online.
+        if activeRoomRealtimeAvailable {
+            return presence
+        }
+        return switch connectionState {
         case .connecting:
             .reconnecting
-        case .idle, .failed:
+        case .idle, .failed, .online:
             .offline
         }
+    }
+
+    var activeRoomRealtimeAvailable: Bool {
+        activeRoomTransportConnected || connectionState == .online
     }
 
     var pixelWorldMembers: [PixelWorldMember] {
@@ -287,7 +297,8 @@ final class AppModel {
         }
     }
 
-    func setRealtimeConnected(_ connected: Bool) {
+    func setActiveRoomRealtimeConnected(_ connected: Bool) {
+        activeRoomTransportConnected = connected
         // Typing is a transient Broadcast lease. A disconnect can lose the
         // matching typing_stop event, so never carry typing across reconnect.
         if !connected { typingMembers.removeAll() }

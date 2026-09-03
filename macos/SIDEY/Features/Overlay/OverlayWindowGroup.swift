@@ -161,11 +161,12 @@ final class OverlayWindowGroup {
     private let onSend: (String) -> Void
     private let onTypingChanged: (Bool) -> Void
     private let onCharacterDoubleClick: () -> Void
+    private let onTargetCharacterClick: (UUID) -> Void
     private let onRegionChanged: () -> Void
     private lazy var worldWindow = PixelWorldWindowController(
         model: model,
         frame: .zero,
-        onCurrentUserFrameChanged: { [weak self] frame in self?.currentUserFrameChanged(frame) }
+        onCharacterFramesChanged: { [weak self] frames in self?.characterFramesChanged(frames) }
     )
     private lazy var interactionWindow = OverlayInteractionWindowController(
         model: model,
@@ -175,8 +176,10 @@ final class OverlayWindowGroup {
         onCancel: { [weak self] in self?.dismissComposer() }
     )
     private lazy var hotspotWindow = CharacterHotspotWindowController(
-        onClick: { [weak self] clickCount in self?.handleCharacterClick(clickCount: clickCount) }
+        onClick: { [weak self] clickCount in self?.handleCharacterClick(clickCount: clickCount) },
+        onRightClick: { [weak self] in self?.activateThrowTargeting() }
     )
+    private var targetHotspotWindows: [UUID: CharacterHotspotWindowController] = [:]
     private var screenObserver: ScreenObserverToken?
     private(set) var activityFrame: CGRect = .zero
     private(set) var renderFrame: CGRect = .zero
@@ -185,6 +188,9 @@ final class OverlayWindowGroup {
     private var overlayVisible = false
     private(set) var composerVisible = false
     private var currentUserLocalFrame: CGRect?
+    private var characterLocalFrames: [UUID: CGRect] = [:]
+    private var throwTargetingTask: Task<Void, Never>?
+    private var throwTargetingActive = false
     private let composerAutoDismissDelay: Duration
     private let composerAutoDismissScheduler: any ComposerAutoDismissScheduling
 
@@ -193,6 +199,7 @@ final class OverlayWindowGroup {
         onSend: @escaping (String) -> Void = { _ in },
         onTypingChanged: @escaping (Bool) -> Void = { _ in },
         onCharacterDoubleClick: @escaping () -> Void = {},
+        onTargetCharacterClick: @escaping (UUID) -> Void = { _ in },
         onRegionChanged: @escaping () -> Void = {},
         composerAutoDismissDelay: Duration = OverlayWindowGroup.defaultComposerAutoDismissDelay,
         composerAutoDismissScheduler: (any ComposerAutoDismissScheduling)? = nil
@@ -201,6 +208,7 @@ final class OverlayWindowGroup {
         self.onSend = onSend
         self.onTypingChanged = onTypingChanged
         self.onCharacterDoubleClick = onCharacterDoubleClick
+        self.onTargetCharacterClick = onTargetCharacterClick
         self.onRegionChanged = onRegionChanged
         self.composerAutoDismissDelay = composerAutoDismissDelay
         self.composerAutoDismissScheduler = composerAutoDismissScheduler ?? TaskComposerAutoDismissScheduler()
@@ -229,9 +237,11 @@ final class OverlayWindowGroup {
             apply(preference: model.preferences.overlayRegion, persistFallback: true)
             worldWindow.orderFront()
             hotspotWindow.setVisible(true)
+            refreshThrowHotspots()
         } else {
             dismissComposer()
             hotspotWindow.setVisible(false)
+            resetThrowTargeting()
             worldWindow.orderOut()
         }
     }
@@ -276,6 +286,47 @@ final class OverlayWindowGroup {
 
     func playCharacterPulse(_ event: CharacterPulseEvent) {
         worldWindow.playCharacterPulse(event)
+    }
+
+    func playCharacterThrow(_ event: CharacterThrowEvent) {
+        worldWindow.playCharacterThrow(event)
+    }
+
+    func throwInteractionPreferenceChanged() {
+        resetThrowTargeting(clearOnly: !model.preferences.requiresRightClickToThrow)
+        refreshThrowHotspots()
+    }
+
+    func invalidateThrowInteraction() {
+        resetThrowTargeting()
+        refreshThrowHotspots()
+    }
+
+    func refreshThrowHotspots() {
+        let canTarget = overlayVisible
+            && model.activeRoomRealtimeAvailable
+            && model.activeRoom != nil
+            && currentUserLocalFrame != nil
+            && (!model.preferences.requiresRightClickToThrow || throwTargetingActive)
+        let eligibleIDs: Set<UUID> = canTarget ? Set(model.pixelWorldMembers.compactMap { member -> UUID? in
+            guard CharacterThrowTargetPolicy.canTarget(member) else { return nil }
+            return member.id
+        }) : []
+
+        for id in targetHotspotWindows.keys where !eligibleIDs.contains(id) {
+            targetHotspotWindows.removeValue(forKey: id)?.setVisible(false)
+        }
+        for id in eligibleIDs.prefix(11) {
+            let controller = targetHotspotWindows[id] ?? CharacterHotspotWindowController(
+                onClick: { [weak self] clickCount in
+                    guard clickCount == 1 else { return }
+                    self?.onTargetCharacterClick(id)
+                }
+            )
+            targetHotspotWindows[id] = controller
+            controller.setFrame(screenFrame(for: characterLocalFrames[id]))
+            controller.setVisible(true)
+        }
     }
 
     func submitComposerMessage(_ body: String) {
@@ -323,7 +374,9 @@ final class OverlayWindowGroup {
         activityFrame = frames.activityFrame
         renderFrame = frames.renderFrame
         currentUserLocalFrame = nil
+        characterLocalFrames.removeAll()
         hotspotWindow.setFrame(nil)
+        resetThrowTargeting()
         worldWindow.setLayout(
             renderFrame: frames.renderFrame,
             localActivityFrame: frames.localActivityFrame
@@ -368,22 +421,58 @@ final class OverlayWindowGroup {
         composerAutoDismissScheduler.cancel()
     }
 
-    private func currentUserFrameChanged(_ localFrame: CGRect?) {
-        currentUserLocalFrame = localFrame
+    private func characterFramesChanged(_ frames: [UUID: CGRect]) {
+        characterLocalFrames = frames
+        currentUserLocalFrame = model.currentUserID.flatMap { frames[$0] }
+        let localFrame = currentUserLocalFrame
         guard localFrame != nil else {
             hotspotWindow.setFrame(nil)
             dismissComposer()
+            resetThrowTargeting()
             return
         }
         positionHotspot()
+        refreshThrowHotspots()
     }
 
     private func positionHotspot() {
         guard let localFrame = currentUserLocalFrame else { return }
-        hotspotWindow.setFrame(OverlayRegionFrames(
+        hotspotWindow.setFrame(screenFrame(for: localFrame))
+    }
+
+    private func screenFrame(for localFrame: CGRect?) -> CGRect? {
+        guard let localFrame else { return nil }
+        return OverlayRegionFrames(
             activityFrame: activityFrame,
             renderFrame: renderFrame
-        ).screenFrame(forRenderLocalFrame: localFrame))
+        ).screenFrame(forRenderLocalFrame: localFrame)
+    }
+
+    private func activateThrowTargeting() {
+        guard model.preferences.requiresRightClickToThrow,
+              overlayVisible,
+              model.activeRoomRealtimeAvailable,
+              currentUserLocalFrame != nil
+        else { return }
+        throwTargetingActive = true
+        refreshThrowHotspots()
+        throwTargetingTask?.cancel()
+        throwTargetingTask = Task { @MainActor [weak self] in
+            do { try await Task.sleep(for: .seconds(10)) } catch { return }
+            guard let self else { return }
+            self.throwTargetingActive = false
+            self.refreshThrowHotspots()
+        }
+    }
+
+    private func resetThrowTargeting(clearOnly: Bool = false) {
+        throwTargetingTask?.cancel()
+        throwTargetingTask = nil
+        throwTargetingActive = false
+        if !clearOnly {
+            targetHotspotWindows.values.forEach { $0.setVisible(false) }
+            targetHotspotWindows.removeAll()
+        }
     }
 
     private var screenGeometries: [OverlayScreenGeometry] {

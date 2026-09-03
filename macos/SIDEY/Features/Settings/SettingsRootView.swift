@@ -5,6 +5,7 @@ struct SettingsActions {
     var onOverlayVisibilityChanged: (Bool) -> Void
     var onOverlayRegionChanged: (OverlayRegionPreference) -> Void
     var onShowOfflineMembersChanged: (Bool) -> Void
+    var onRequiresRightClickToThrowChanged: (Bool) -> Void
     var onQuietModeChanged: (Bool) -> Void
     var onLaunchAtLoginChanged: (Bool) -> Void
     var onCheckForUpdates: () -> Void
@@ -25,6 +26,7 @@ struct SettingsActions {
         onOverlayVisibilityChanged: { _ in },
         onOverlayRegionChanged: { _ in },
         onShowOfflineMembersChanged: { _ in },
+        onRequiresRightClickToThrowChanged: { _ in },
         onQuietModeChanged: { _ in },
         onLaunchAtLoginChanged: { _ in },
         onCheckForUpdates: {},

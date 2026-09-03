@@ -20,6 +20,7 @@ final class AppCoordinator {
         onSend: { [weak self] body in self?.sendMessage(body) },
         onTypingChanged: { [weak self] active in self?.typingChanged(active) },
         onCharacterDoubleClick: { [weak self] in self?.characterDoubleClicked() },
+        onTargetCharacterClick: { [weak self] userID in self?.characterThrowRequested(targetUserID: userID) },
         onRegionChanged: { [weak self] in self?.persistPreferences() }
     )
     private lazy var historyWindow = makeHistoryWindow()
@@ -29,6 +30,9 @@ final class AppCoordinator {
             onOverlayVisibilityChanged: { [weak self] visible in self?.setOverlayVisible(visible) },
             onOverlayRegionChanged: { [weak self] preference in self?.setOverlayRegion(preference) },
             onShowOfflineMembersChanged: { [weak self] visible in self?.setShowOfflineMembers(visible) },
+            onRequiresRightClickToThrowChanged: { [weak self] required in
+                self?.setRequiresRightClickToThrow(required)
+            },
             onQuietModeChanged: { [weak self] enabled in self?.setQuietMode(enabled) },
             onLaunchAtLoginChanged: { [weak self] enabled in self?.setLaunchAtLogin(enabled) },
             onCheckForUpdates: { [weak self] in self?.updateController.checkForUpdates() },
@@ -83,6 +87,7 @@ final class AppCoordinator {
     var backendBootstrapState: BackendBootstrapState = .pending
     var typingLease = TypingLease()
     var characterPulseCooldown = CharacterPulseCooldown()
+    var characterThrowCooldown = CharacterThrowCooldown()
     var backendConnectionStatus: BackendConnectionStatus?
     private lazy var activityMonitor = SystemActivityMonitor { [weak self] state in
         self?.localPresenceChanged(state)
@@ -362,6 +367,13 @@ final class AppCoordinator {
 
     private func setShowOfflineMembers(_ visible: Bool) {
         model.preferences.showOfflineMembers = visible
+        overlayWindows.refreshThrowHotspots()
+        persistPreferences()
+    }
+
+    private func setRequiresRightClickToThrow(_ required: Bool) {
+        model.preferences.requiresRightClickToThrow = required
+        overlayWindows.throwInteractionPreferenceChanged()
         persistPreferences()
     }
 
