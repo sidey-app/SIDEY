@@ -76,18 +76,18 @@ test("Windows production release is staged for verified MSI deployment", async (
     read("windows-latest.json").then(JSON.parse),
     read("windows/update.json").then(JSON.parse),
   ]);
-  const installerURL = "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.3/SIDEY-Windows-x64-v1.0.3.msi";
+  const installerURL = "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.4/SIDEY-Windows-x64-v1.0.4.msi";
 
   assert.deepEqual(latest, compatibility);
   assert.equal(latest.channel, "production");
-  assert.equal(latest.version, "1.0.3");
-  assert.equal(latest.tag, "windows-v1.0.3");
+  assert.equal(latest.version, "1.0.4");
+  assert.equal(latest.tag, "windows-v1.0.4");
   assert.equal(latest.installer_url, installerURL);
   assert.equal(latest.sha256, null);
   for (const page of [korean, english]) {
     assert.ok(page.includes('id="windows-hero-download-action"'));
     assert.ok(page.includes('id="windows-download-action"'));
-    assert.ok(page.includes("v1.0.3"));
+    assert.ok(page.includes("v1.0.4"));
     assert.ok(!page.includes("Setup.exe"));
     assert.ok(!page.includes("SmartScreen"));
   }

@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.8
 - 최종 갱신: 2026-09-03
-- 상태: macOS `v1.0.5`(build 16) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.0.3` 정식 출시
+- 상태: macOS `v1.0.5`(build 16) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.0.4` 정식 출시
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
 
@@ -32,7 +32,7 @@
 ### 2.2 Windows 구현 목표
 
 - Windows 11 25H2(build 26200) 이상 x64 네이티브 클라이언트를 C#/.NET 10 LTS·WinUI 3·Win32로 구현한다.
-- 일반 창은 SIDEY 브랜드의 Windows Fluent UI로 만들고, 투명 월드는 전용 Win32 HWND가 소유한다. 첫 기능 빌드부터 `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러가 무료 5종의 사전 생성 premultiplied BGRA frame을 표시한다.
+- 일반 창은 SIDEY 브랜드의 Windows Fluent UI로 만들고, 투명 월드는 전용 Win32 HWND가 소유한다. `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러가 무료 5종과 다른 사용자가 선택한 유료 4종의 사전 생성 BGRA frame을 표시한다. Windows 프로필 선택은 무료 5종만 제공하고 구매는 지원하지 않는다.
 - 햄스터 1종 실기 계측은 같은 5종 렌더러의 입력 snapshot을 제한하는 Debug 전용 내부 모드로 수행한다. 햄스터 전용 제품 구현을 만들거나 이 모드를 Release에 노출하지 않으며, 나머지 4종 구현을 계측 뒤로 미루지 않는다.
 - 최종 목표는 macOS와 서버 계약·제품 행동이 동등한 Windows 판이며, 플랫폼 창·설정 UI는 Windows 관례를 따른다.
 - Godot·WPF·Electron·WebView는 사용하지 않는다.
@@ -165,7 +165,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 
 결제 확인과 동시에 디지털 캐릭터 사용권 제공을 시작한다. 제공 시작 뒤 단순 변심에 따른 청약철회와 환불은 허용하지 않으며, 사용권 미제공·표시 또는 계약 내용 불일치·중복 결제·본인이 승인하지 않은 결제 등 관련 법령상 사유가 확인된 경우에만 전액 환불한다. 환불은 PortOne 취소 상태를 다시 확인한 뒤 구매 entitlement를 회수하며, 법이 보장하는 취소·피해구제 권리는 제한하지 않는다.
 
-전환 시 지정 활동 계정 5개(`9c169b9f-e95c-4a3e-b0e9-ab329a035c6f`, `e68ec90f-6f5a-4a93-be0a-364f6a3f378f`, `839ec4d5-ada1-466d-bb1d-2a100dea2185`, `b4877c8c-3147-46ef-b035-5dbb95e86d4f`, `f0462289-2465-4a27-b90d-d4820ccf4b8c`)에는 기니피그·원숭이·친칠라 complimentary entitlement를 각각 지급한다. 주문과 분리된 총 15개 지급이며 `grant_reference`로 감사 근거를 남긴다. Windows의 무료 5종 renderer와 구매 미지원 정책은 변경하지 않는다.
+전환 시 지정 활동 계정 5개(`9c169b9f-e95c-4a3e-b0e9-ab329a035c6f`, `e68ec90f-6f5a-4a93-be0a-364f6a3f378f`, `839ec4d5-ada1-466d-bb1d-2a100dea2185`, `b4877c8c-3147-46ef-b035-5dbb95e86d4f`, `f0462289-2465-4a27-b90d-d4820ccf4b8c`)에는 기니피그·원숭이·친칠라 complimentary entitlement를 각각 지급한다. 주문과 분리된 총 15개 지급이며 `grant_reference`로 감사 근거를 남긴다. Windows는 무료 5종 선택과 구매 미지원 정책을 유지하되 유료 4종을 원격 친구 모습으로 렌더링한다.
 
 - 논리 프레임: 24×24 픽셀
 - 화면 크기: 2배 정수 확대, 약 48pt
@@ -278,7 +278,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 
 ### 6.5 Windows 창과 트레이
 
-- 월드는 WinUI XAML 창에 투명 표현을 위임하지 않고 `WS_POPUP` 기반 전용 Win32 HWND가 소유한다. 무료 5종은 24px 원본에서 정수 nearest-neighbor로 미리 만든 premultiplied BGRA frame을 같은 `UpdateLayeredWindow` 렌더러로 표시하며 tick마다 bitmap이나 surface를 새로 할당하지 않는다.
+- 월드는 WinUI XAML 창에 투명 표현을 위임하지 않고 `WS_POPUP` 기반 전용 Win32 HWND가 소유한다. 무료 5종과 유료 4종은 24px 원본에서 정수 nearest-neighbor로 만든 premultiplied BGRA frame을 같은 `UpdateLayeredWindow` 렌더러로 표시하며 tick마다 bitmap이나 surface를 새로 할당하지 않는다.
 - 월드 HWND는 작업 표시줄·Alt-Tab에 나타나지 않고 활성화되지 않으며 외부 앱으로 포인터를 통과시킨다.
 - 내 캐릭터 상호작용 52×52 hotspot은 별도 HWND가 소유하고 최대 15Hz·1 DIP 임계값으로 위치를 갱신한다. `우클릭 후 던지기`가 OFF이면 화면에 표시되는 친구별 hotspot HWND를 Presence 상태와 무관하게 계속 유지하고, ON이면 내 캐릭터 우클릭 뒤 10초 동안만 만든다. 전역 마우스 hook·전역 좌표 수집은 금지한다.
 - composer는 400×56 DIP 별도 WinUI 창이며, 내 캐릭터 클릭·트레이 `메시지 작성`만 이 창을 활성화한다.
@@ -356,7 +356,7 @@ OverlayRegionPreference(
 - `Sidey.Core`는 프로필·방·Presence·message ledger·bubble ledger·이동 시뮬레이션·검증 규칙을 소유하고 WinUI·Win32·Supabase를 참조하지 않는다.
 - `Sidey.App`의 feature ViewModel은 화면에 표시할 상태와 사용자 명령만 소유한다. Supabase endpoint·Realtime payload·HWND를 직접 다루지 않는다.
 - `Sidey.Infrastructure`는 `IAuthService`·`IBackendGateway`·`ICredentialStore`·`IPreferencesStore`를 구현하고 community Supabase C# client를 교체 가능한 adapter 뒤에 격리한다.
-- `Sidey.Overlay`는 전용 Win32 message-loop thread와 30FPS 고정 step을 소유하고 불변 `WorldSnapshot`을 UUID diff로 반영한다. 위치·속도·animation frame은 앱 세션 상태에 저장하지 않는다. 무료 5종과 승인된 throw/hit·물체 PNG를 premultiplied BGRA frame으로 시작할 때만 변환·캐시하고 종료 시 모두 해제하며 tick마다 bitmap·surface·projectile buffer를 새로 할당하지 않는다. Debug 검증 모드는 같은 렌더러의 캐릭터 목록만 햄스터로 제한한다. Windows가 유료 source character 이벤트를 받으면 캐릭터 action은 햄스터로 fallback하되 서버 source character ID에 맞는 고유 물체는 표시한다.
+- `Sidey.Overlay`는 전용 Win32 message-loop thread와 30FPS 고정 step을 소유하고 불변 `WorldSnapshot`을 UUID diff로 반영한다. 위치·속도·animation frame은 앱 세션 상태에 저장하지 않는다. 무료 5종과 유료 4종 기본 시트, 승인된 throw/hit·물체 PNG를 BGRA frame으로 시작할 때만 변환·캐시하고 종료 시 모두 해제하며 tick마다 bitmap·surface·projectile buffer를 새로 할당하지 않는다. Debug 검증 모드는 같은 렌더러의 캐릭터 목록만 햄스터로 제한한다. 유료 source character 이벤트는 해당 캐릭터의 action과 서버 source character ID에 맞는 고유 물체를 표시하고, 알 수 없는 ID만 햄스터와 패치 말랑공으로 fallback한다.
 - `Sidey.Platform.Windows`는 창 정책·모니터·DPI·트레이·로그인 실행·입력 유휴·잠금·절전 이벤트와 Windows update manifest·다운로드 hash 검증을 소유한다.
 - Windows 일반 설정은 `%LOCALAPPDATA%\SIDEY\preferences.json`에 atomic replace로 저장하고, Supabase 익명 세션과 평문 초대 코드는 Windows Credential Manager에만 저장한다.
 - 24px sprite는 물리 픽셀 기준 `max(2, round-away-from-zero(2 × dpi / 96))` 정수 배율로 렌더한다.
@@ -469,7 +469,7 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 
 ### 10.3 Windows 지속 검증 기준
 
-1. 첫 기능 빌드부터 무료 5종을 `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러로 제공하고 asset·frame·발 기준선·방향·fallback 계약을 자동 검증한다.
+1. 무료 5종과 원격 유료 4종을 `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러로 제공하고 asset·frame·발 기준선·방향·fallback 계약을 자동 검증한다. 선택 목록은 무료 5종만 유지한다.
 2. 같은 렌더러를 햄스터 1종으로 제한하는 Debug 내부 모드에서 투명·최상위·외부 앱 클릭 통과·52×52 hotspot·composer 포커스·100/125/150/200% DPI를 Windows 11 25H2 x64 실기에서 통과한다. 이 모드는 Release에 노출하지 않는다.
 3. 연결형 검증에서 익명 세션 복구·생성, 프로필, 방, 메시지, Presence, typing lease, `character_pulse`, `character_throw`를 staging의 기존 macOS 클라이언트와 양방향 확인한다.
 4. 최종 12명 월드를 2시간, 20노드 합성 부하를 30분 실행해 p95 frame time 40ms 이하, 100ms 이상 UI-thread hang 없음, warm-up 후 working set 20MB 초과 증가 없음, GDI/USER handle·COM surface 지속 증가 없음을 확인한다.
@@ -501,16 +501,16 @@ Keychain 접근은 앱 실행 동안 하나의 `LAContext`를 공유하고 `loca
 
 자동화 테스트와 공개 배포는 장시간 수동 기준을 대신하지 않는다. 수행하지 않은 장시간 항목을 통과했다고 기록하지 않고 정식판에서도 지속 검증한다.
 
-### 10.5 Windows v1.0.3 정식 배포 절차
+### 10.5 Windows v1.0.4 정식 배포 절차
 
 1. Windows 전체 단위·계약·창 정책·업데이트·배포 source 테스트와 10.3의 실기·장시간 기준을 통과한다.
 2. staging에서 익명 세션·RLS·private Realtime을 통과한 뒤 production publishable 구성에서도 다시 확인한다. service-role·secret key는 클라이언트·저장소·CI 산출물에 넣지 않는다.
 3. CI에서 `win-x64` unpackaged·multi-file self-contained 앱을 `PublishSingleFile=false`로 게시한다. 루트 `SIDEY.exe` 런처가 인수를 `Runtime\SIDEY.Host.exe`로 전달하고, 앱·.NET·Windows App SDK 런타임은 `Runtime`, 사용자 콘텐츠는 `Assets`, SIDEY 번역은 `Langs`에 둔다. 게시한 런처와 호스트를 실제 시작해 main 또는 미지원 OS 창 활성화 로그가 남고 프로세스가 유지되는지 확인한다.
-4. WiX Toolset `6.0.2`로 전체 payload와 내부 cabinet을 포함한 머신 단위 `SIDEY-Windows-x64-v1.0.3.msi`를 만든다. Burn Setup EXE·ZIP·MSIX는 만들거나 공개하지 않는다.
+4. WiX Toolset `6.0.2`로 전체 payload와 내부 cabinet을 포함한 머신 단위 `SIDEY-Windows-x64-v1.0.4.msi`를 만든다. Burn Setup EXE·ZIP·MSIX는 만들거나 공개하지 않는다.
 5. 자체 서명 인증서·임시 PFX·공개 CER를 만들지 않고 Release용 MSI와 내부 검증용 SHA-256만 생성한다. `.sha256` 파일은 Release 자산으로 게시하지 않는다.
-6. clean install·공용 시작 메뉴·아이콘이 포함된 `Uninstall.exe`·repair·실행 중 upgrade·downgrade 차단을 확인한다. Windows 설정·MSI·`Uninstall.exe`의 일반 제거에서 데이터 삭제 옵션이 기본 미선택이고, 선택 시에만 현재 사용자의 설정·로그·로그인 정보를 삭제하며 upgrade·repair에는 삭제하지 않는지 검증한 뒤, 검증된 커밋에 `windows-v1.0.3` 태그와 GitHub 정식 Release를 만든다. Release에는 MSI 하나만 게시하고 제거 옵션의 영향을 명시한다.
+6. clean install·공용 시작 메뉴·아이콘이 포함된 `Uninstall.exe`·repair·실행 중 upgrade·downgrade 차단을 확인한다. Windows 설정·MSI·`Uninstall.exe`의 일반 제거에서 데이터 삭제 옵션이 기본 미선택이고, 선택 시에만 현재 사용자의 설정·로그·로그인 정보를 삭제하며 upgrade·repair에는 삭제하지 않는지 검증한 뒤, 검증된 커밋에 `windows-v1.0.4` 태그와 GitHub 정식 Release를 만든다. Release에는 MSI 하나만 게시하고 제거 옵션의 영향을 명시한다.
 7. Windows Actions가 성공하면 Pages Actions가 GitHub 정식 Release의 단일 MSI를 다시 내려받아 SHA-256을 계산한다. 태그·고정 MSI URL·자산 구성이 모두 맞을 때 배포 아티팩트의 `website/windows-latest.json`과 호환 경로 `website/windows/update.json`에 64자리 SHA-256을 기록하고 Windows 다운로드 버튼을 활성화한다. 앱은 시작 시 한 번 새 버전을 확인하고 트레이·설정에서 수동 확인하며, 사용자 승인 뒤 다운로드·hash 검증을 통과한 설치기만 실행한다.
 
 공개 MSI는 관리자 승인 뒤 모든 사용자용으로 `C:\Program Files\SIDEY`에 설치하고 공용 시작 메뉴에 앱과 제거 바로가기를 만든다. 설치 폴더에는 앱 아이콘을 포함한 `Uninstall.exe`를 두고, MSI 제품 정보에는 같은 아이콘을 등록한다. 기존 per-user·Burn 테스트 설치는 등록 방식이 달라 자동 전환하지 않으며 먼저 Windows 설정에서 제거하도록 안내한다. `Uninstall.exe`를 직접 실행하면 Windows Installer 제거를 시작하고, Windows 설정과 MSI 유지 관리 화면을 포함한 일반 제거에는 `설정, 로그 및 로그인 정보도 삭제` 체크박스를 기본 미선택으로 표시한다. 선택하면 MSI가 `Uninstall.exe --cleanup`을 실행해 현재 사용자의 `%LOCALAPPDATA%\SIDEY`와 Credential Manager의 `SIDEY/` 자격 증명을 삭제한다. 선택하지 않으면 사용자 데이터를 보존하며 major upgrade와 repair에서는 이 정리를 실행하지 않는다.
 
-SHA-256은 PowerShell에서 `Get-FileHash .\SIDEY-Windows-x64-v1.0.3.msi -Algorithm SHA256`으로 계산한다. GitHub에서 다시 내려받은 MSI와 CI 후보가 같은지 검증하고 이 값을 업데이트 manifest에 기록하되 별도 `.sha256` Release 자산은 만들지 않는다.
+SHA-256은 PowerShell에서 `Get-FileHash .\SIDEY-Windows-x64-v1.0.4.msi -Algorithm SHA256`으로 계산한다. GitHub에서 다시 내려받은 MSI와 CI 후보가 같은지 검증하고 이 값을 업데이트 manifest에 기록하되 별도 `.sha256` Release 자산은 만들지 않는다.
