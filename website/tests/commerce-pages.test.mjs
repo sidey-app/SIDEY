@@ -100,8 +100,8 @@ test("store renders a stable four-product catalog without duplicated footer deta
   for (const name of ["별빛 우파루파", "아기 기니피그", "아기 원숭이", "아기 친칠라"]) {
     assert.ok(store.includes(name), `missing product: ${name}`);
   }
-  assert.equal(store.match(/class="store-catalog-card"/g)?.length, 4);
-  assert.equal(store.match(/990원/g)?.length, 3);
+  assert.equal(store.match(/class="store-catalog-card"/g)?.length, 34);
+  assert.equal(store.match(/990원/g)?.length, 33);
   assert.equal(store.match(/1,900원/g)?.length, 1);
   assert.ok(store.includes("macOS SIDEY 앱"));
   assert.ok(store.includes("꾸미기·상점"));
