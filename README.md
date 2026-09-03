@@ -85,10 +85,8 @@ SIDEY를 함께 만들어 주신 분들께 감사드립니다.
 ### 캐릭터 에셋 기여
 
 새로운 픽셀 캐릭터와 투척물 에셋 기여를 기다리고 있습니다.
-[에셋 제작 규격](assets/README.md)을 확인하고
-[공개 에셋 프리뷰어](https://sidey-app.github.io/SIDEY/contribute/asset-previewer/)에서
-동작을 검증해 주세요.
+[에셋 제작 규격과 제출 방법](assets/README.md)을 읽고 파일을 `assets/v1`에 추가한 뒤
+[캐릭터 에셋 전용 PR 양식](.github/PULL_REQUEST_TEMPLATE/character_asset.md)으로 제출해 주세요.
 
-무료 캐릭터는 [캐릭터 에셋 전용 PR 양식](.github/PULL_REQUEST_TEMPLATE/character_asset.md)으로 바로 제출할 수 있습니다.
-유료 캐릭터 기여는 판매·정산 조건을 먼저 협의해야 하므로 PR을 열기 전에
+유료 캐릭터는 PR을 열기 전에 판매·정산 조건을 협의해야 합니다.
 [ryu200112@gmail.com](mailto:ryu200112@gmail.com)으로 문의해 주세요.
