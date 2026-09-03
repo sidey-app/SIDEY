@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sidey.app/schemas/character-throw-event-v1.json",
+  "title": "SIDEY Character Throw Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "room_id",
+    "event_id",
+    "actor_user_id",
+    "target_user_id",
+    "source_character_id"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "room_id": { "type": "string", "format": "uuid" },
+    "event_id": { "type": "string", "format": "uuid" },
+    "actor_user_id": { "type": "string", "format": "uuid" },
+    "target_user_id": { "type": "string", "format": "uuid" },
+    "source_character_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]{1,40}$"
+    }
+  }
+}
