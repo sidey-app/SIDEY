@@ -78,6 +78,9 @@ UninstPage custom un.CleanupPageCreate un.CleanupPageLeave
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "Korean"
 
+LangString ^Font ${LANG_ENGLISH} "Segoe UI"
+LangString ^Font ${LANG_KOREAN} "맑은 고딕"
+
 LangString LaunchSidey ${LANG_ENGLISH} "Launch SIDEY"
 LangString LaunchSidey ${LANG_KOREAN} "SIDEY 실행"
 LangString MaintenanceTitle ${LANG_ENGLISH} "SIDEY is already installed"

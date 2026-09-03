@@ -85,6 +85,8 @@ public sealed class DistributionSourceTests
 
         Assert.Contains("MUI_LANGUAGE \"English\"", setup, StringComparison.Ordinal);
         Assert.Contains("MUI_LANGUAGE \"Korean\"", setup, StringComparison.Ordinal);
+        Assert.Contains("LangString ^Font ${LANG_ENGLISH} \"Segoe UI\"", setup, StringComparison.Ordinal);
+        Assert.Contains("LangString ^Font ${LANG_KOREAN} \"맑은 고딕\"", setup, StringComparison.Ordinal);
         Assert.Contains("LangString MaintenanceTitle ${LANG_ENGLISH}", setup, StringComparison.Ordinal);
         Assert.Contains("LangString MaintenanceTitle ${LANG_KOREAN}", setup, StringComparison.Ordinal);
         Assert.Contains("LangString DeleteLocalData ${LANG_KOREAN}", setup, StringComparison.Ordinal);
