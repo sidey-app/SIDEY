@@ -138,6 +138,20 @@ public sealed class RealtimePolicyTests
     }
 
     [Theory]
+    [InlineData(PresenceState.Online)]
+    [InlineData(PresenceState.Typing)]
+    [InlineData(PresenceState.Away)]
+    [InlineData(PresenceState.Offline)]
+    [InlineData(PresenceState.Reconnecting)]
+    public void ThrowTargetIgnoresPresence(PresenceState presence)
+    {
+        Assert.True(CharacterThrowTargetPolicy.CanTarget(new PixelWorldMember(
+            Guid.NewGuid(), "friend", "pixel_hamster", presence, false, false)));
+        Assert.False(CharacterThrowTargetPolicy.CanTarget(new PixelWorldMember(
+            Guid.NewGuid(), "self", "pixel_hamster", presence, false, true)));
+    }
+
+    [Theory]
     [InlineData(1, 8)]
     [InlineData(2, 16)]
     [InlineData(3, 30)]

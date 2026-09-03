@@ -664,8 +664,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         var world = CurrentWorldSnapshot();
         var target = world.Members.FirstOrDefault(member => member.Id == targetUserId);
         if (world.RoomId != roomId || target is null
-            || target.IsCurrentUser
-            || target.Presence is not (PresenceState.Online or PresenceState.Typing))
+            || !CharacterThrowTargetPolicy.CanTarget(target))
         {
             return;
         }

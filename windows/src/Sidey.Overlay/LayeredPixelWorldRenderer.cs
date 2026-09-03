@@ -368,8 +368,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             {
                 currentUserHotspot = HotspotBounds(baseDestination, cached.PixelSize, foot);
             }
-            else if (node.Member.Presence is PresenceState.Online or PresenceState.Typing
-                && _targetHotspots.Count < NativeOverlayWindowThread.MaximumTargetHotspots)
+            else if (_targetHotspots.Count < NativeOverlayWindowThread.MaximumTargetHotspots)
             {
                 _targetHotspots.Add(new CharacterHotspotFrame(
                     node.Member.Id,
@@ -657,10 +656,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             if (projectile.ImpactStartedAt is null && elapsed - ThrowReleaseSeconds >= duration)
             {
                 projectile.ImpactStartedAt = Stopwatch.GetTimestamp();
-                if (target.Member.Presence is PresenceState.Online or PresenceState.Typing)
-                {
-                    _hitStartedAt[target.Member.Id] = projectile.ImpactStartedAt.Value;
-                }
+                _hitStartedAt[target.Member.Id] = projectile.ImpactStartedAt.Value;
             }
             if (projectile.ImpactStartedAt is { } impactStarted
                 && Stopwatch.GetElapsedTime(impactStarted).TotalSeconds >= ImpactSeconds)

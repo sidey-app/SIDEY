@@ -76,6 +76,11 @@ public sealed record CharacterThrowEvent(
     Guid TargetUserId,
     string SourceCharacterId);
 
+public static class CharacterThrowTargetPolicy
+{
+    public static bool CanTarget(PixelWorldMember member) => !member.IsCurrentUser;
+}
+
 public sealed record ActiveBubble(
     Guid SenderId,
     Guid MessageId,
