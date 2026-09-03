@@ -165,8 +165,11 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("Height=\"56\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding CloseCommand}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding SendCommand}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("<SymbolIcon Symbol=\"Send\" />", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("&#xE74D;", xaml, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("FocusAttemptCount = 3", source, StringComparison.Ordinal);
         Assert.Contains("MessageInput.Focus(FocusState.Programmatic)", source, StringComparison.Ordinal);
+        Assert.Equal(2, CountOccurrences(source, "SideyWindowActivation.BringToForeground(this);"));
         Assert.Contains("WindowActivationState.Deactivated", source, StringComparison.Ordinal);
         Assert.Contains("HideComposer();", source, StringComparison.Ordinal);
         Assert.Contains("ViewModel.OnHidden();", source, StringComparison.Ordinal);

@@ -61,7 +61,7 @@
             Command="{Binding SendCommand}"
             IsTabStop="False"
             ToolTipService.ToolTip="{i18n:I18n Key=composer.sendTooltip}">
-          <FontIcon FontSize="18" Glyph="&#xE74D;" />
+          <SymbolIcon Symbol="Send" />
         </Button>
       </Grid>
     </Border>
