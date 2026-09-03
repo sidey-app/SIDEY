@@ -281,11 +281,11 @@ def main() -> int:
 
     characters = manifest["characters"]
     throwables = manifest["throwables"]
-    if len(characters) != 9 or len(throwables) != 5:
-        fail("manifest must contain nine characters and five throwables")
-    if len({entry["id"] for entry in characters}) != 9:
+    if len(characters) != 39 or len(throwables) != 7:
+        fail("manifest must contain thirty-nine characters and seven throwables")
+    if len({entry["id"] for entry in characters}) != 39:
         fail("duplicate character ID")
-    if len({entry["id"] for entry in throwables}) != 5:
+    if len({entry["id"] for entry in throwables}) != 7:
         fail("duplicate throwable ID")
 
     mirrors = manifest["mirrors"]
@@ -386,8 +386,9 @@ def main() -> int:
         fail(f"canonical assets and manifest differ: {paths}")
 
     print(
-        "Validated 9 base sheets, 9 throw/hit sheets, 5 throwables, all mirrors, "
-        "baselines, mappings, paid asset licensing, formats, and SHA-256 values."
+        f"Validated {len(characters)} base sheets, {len(characters)} throw/hit sheets, "
+        f"{len(throwables)} throwables, all mirrors, baselines, mappings, paid asset "
+        "licensing, formats, and SHA-256 values."
     )
     return 0
 

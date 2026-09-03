@@ -1,0 +1,46 @@
+{
+  "character_id": "pixel_shiba",
+  "display_name": "아기 시바견",
+  "legacy_aliases": [],
+  "frame_pixel_size": [
+    24,
+    24
+  ],
+  "render_dip_size": [
+    48,
+    48
+  ],
+  "sheet_pixel_size": [
+    240,
+    24
+  ],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": {
+    "idle": [
+      0,
+      1
+    ],
+    "walk": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "doze": [
+      6,
+      7
+    ],
+    "offline": [
+      8,
+      9
+    ]
+  },
+  "sha256": "298650cf84e4958a372f8e406d92365b66f2c9b185f1fc69b904ac2cd1dc5832",
+  "runtime_bgra": {
+    "byte_order": "BGRA",
+    "alpha": "straight",
+    "byte_length": 23040,
+    "sha256": "c23eefd2fdc9af20a88b99435f1bce965d0b5c9335c2a1fa898e9d6f2273b9c6"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "character_id": "pixel_unicorn",
+  "display_name": "아기 유니콘",
+  "legacy_aliases": [],
+  "frame_pixel_size": [
+    24,
+    24
+  ],
+  "render_dip_size": [
+    48,
+    48
+  ],
+  "sheet_pixel_size": [
+    240,
+    24
+  ],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": {
+    "idle": [
+      0,
+      1
+    ],
+    "walk": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "doze": [
+      6,
+      7
+    ],
+    "offline": [
+      8,
+      9
+    ]
+  },
+  "sha256": "3e059ccaf26840e06dfcca4ab2f5b3cce862476223e67c91b9e67644f0e02abc",
+  "runtime_bgra": {
+    "byte_order": "BGRA",
+    "alpha": "straight",
+    "byte_length": 23040,
+    "sha256": "48c0453519488cf4a7fc214fedd7b57b0010159e08041ceec2459dbed487f5bf"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "character_id": "pixel_tofu",
+  "display_name": "두부",
+  "legacy_aliases": [],
+  "frame_pixel_size": [
+    24,
+    24
+  ],
+  "render_dip_size": [
+    48,
+    48
+  ],
+  "sheet_pixel_size": [
+    240,
+    24
+  ],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": {
+    "idle": [
+      0,
+      1
+    ],
+    "walk": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "doze": [
+      6,
+      7
+    ],
+    "offline": [
+      8,
+      9
+    ]
+  },
+  "sha256": "d7acd5a24ac008043c5fcd9a5b6b8058c5363000ee071a62912aff1c32a33ff9",
+  "runtime_bgra": {
+    "byte_order": "BGRA",
+    "alpha": "straight",
+    "byte_length": 23040,
+    "sha256": "3f6a2e3417d46d132f9a7fb1be65ccacfb27ef99b5d740f9b4543bd4b47ed5d6"
+  }
+}

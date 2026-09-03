@@ -228,6 +228,66 @@ enum CommerceCatalog {
     static let monkeyEntitlementKey = "character:pixel_monkey"
     static let chinchillaProductID = "character_chinchilla"
     static let chinchillaEntitlementKey = "character:pixel_chinchilla"
+    static let poopProductID = "character_poop"
+    static let poopEntitlementKey = "character:pixel_poop"
+    static let capybaraProductID = "character_capybara"
+    static let capybaraEntitlementKey = "character:pixel_capybara"
+    static let hedgehogProductID = "character_hedgehog"
+    static let hedgehogEntitlementKey = "character:pixel_hedgehog"
+    static let unicornProductID = "character_unicorn"
+    static let unicornEntitlementKey = "character:pixel_unicorn"
+    static let shibaProductID = "character_shiba"
+    static let shibaEntitlementKey = "character:pixel_shiba"
+    static let salmonSushiProductID = "character_salmon_sushi"
+    static let salmonSushiEntitlementKey = "character:pixel_salmon_sushi"
+    static let grandpaProductID = "character_grandpa"
+    static let grandpaEntitlementKey = "character:pixel_grandpa"
+    static let spiderHeroProductID = "character_spider_hero"
+    static let spiderHeroEntitlementKey = "character:pixel_spider_hero"
+    static let crowProductID = "character_crow"
+    static let crowEntitlementKey = "character:pixel_crow"
+    static let kimchiProductID = "character_kimchi"
+    static let kimchiEntitlementKey = "character:pixel_kimchi"
+    static let quokkaProductID = "character_quokka"
+    static let quokkaEntitlementKey = "character:pixel_quokka"
+    static let redPandaProductID = "character_red_panda"
+    static let redPandaEntitlementKey = "character:pixel_red_panda"
+    static let otterProductID = "character_otter"
+    static let otterEntitlementKey = "character:pixel_otter"
+    static let duckProductID = "character_duck"
+    static let duckEntitlementKey = "character:pixel_duck"
+    static let pandaProductID = "character_panda"
+    static let pandaEntitlementKey = "character:pixel_panda"
+    static let frogProductID = "character_frog"
+    static let frogEntitlementKey = "character:pixel_frog"
+    static let octopusProductID = "character_octopus"
+    static let octopusEntitlementKey = "character:pixel_octopus"
+    static let bungeoppangProductID = "character_bungeoppang"
+    static let bungeoppangEntitlementKey = "character:pixel_bungeoppang"
+    static let friedEggProductID = "character_fried_egg"
+    static let friedEggEntitlementKey = "character:pixel_fried_egg"
+    static let samgakGimbapProductID = "character_samgak_gimbap"
+    static let samgakGimbapEntitlementKey = "character:pixel_samgak_gimbap"
+    static let tteokbokkiProductID = "character_tteokbokki"
+    static let tteokbokkiEntitlementKey = "character:pixel_tteokbokki"
+    static let avocadoProductID = "character_avocado"
+    static let avocadoEntitlementKey = "character:pixel_avocado"
+    static let slimeProductID = "character_slime"
+    static let slimeEntitlementKey = "character:pixel_slime"
+    static let cactusPotProductID = "character_cactus_pot"
+    static let cactusPotEntitlementKey = "character:pixel_cactus_pot"
+    static let tofuProductID = "character_tofu"
+    static let tofuEntitlementKey = "character:pixel_tofu"
+    static let cupRamenProductID = "character_cup_ramen"
+    static let cupRamenEntitlementKey = "character:pixel_cup_ramen"
+    static let grandmaProductID = "character_grandma"
+    static let grandmaEntitlementKey = "character:pixel_grandma"
+    static let babyProductID = "character_baby"
+    static let babyEntitlementKey = "character:pixel_baby"
+    static let santaProductID = "character_santa"
+    static let santaEntitlementKey = "character:pixel_santa"
+    static let jungjiyuProductID = "character_jungjiyu"
+    static let jungjiyuEntitlementKey = "character:pixel_jungjiyu"
 
     /// Product order is a presentation contract. Registering a future product
     /// here is enough for the existing store grid to render it.
@@ -236,6 +296,36 @@ enum CommerceCatalog {
         .guineaPig,
         .monkey,
         .chinchilla,
+        .poop,
+        .capybara,
+        .hedgehog,
+        .unicorn,
+        .shiba,
+        .salmonSushi,
+        .grandpa,
+        .spiderHero,
+        .crow,
+        .kimchi,
+        .quokka,
+        .redPanda,
+        .otter,
+        .duck,
+        .panda,
+        .frog,
+        .octopus,
+        .bungeoppang,
+        .friedEgg,
+        .samgakGimbap,
+        .tteokbokki,
+        .avocado,
+        .slime,
+        .cactusPot,
+        .tofu,
+        .cupRamen,
+        .grandma,
+        .baby,
+        .santa,
+        .jungjiyu,
     ]
 
     static func product(id: String) -> CommerceProduct? {
@@ -292,6 +382,337 @@ struct CommerceProduct: Equatable, Sendable {
         description: "크고 둥근 귀와 포근한 회색 털, 파란 목도리를 가진 친구예요.",
         characterID: PixelCharacterCatalog.pixelChinchillaID,
         entitlementKey: CommerceCatalog.chinchillaEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+
+    static let poop = CommerceProduct(
+        id: CommerceCatalog.poopProductID,
+        displayName: "똥",
+        description: "부드러운 코코아색 소용돌이에 반짝이는 눈이 달린 장난꾸러기 친구예요.",
+        characterID: PixelCharacterCatalog.pixelPoopID,
+        entitlementKey: CommerceCatalog.poopEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let capybara = CommerceProduct(
+        id: CommerceCatalog.capybaraProductID,
+        displayName: "아기 카피바라",
+        description: "머리에 귤 하나를 얹고 느긋하게 산책하는 세상 편한 친구예요.",
+        characterID: PixelCharacterCatalog.pixelCapybaraID,
+        entitlementKey: CommerceCatalog.capybaraEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let hedgehog = CommerceProduct(
+        id: CommerceCatalog.hedgehogProductID,
+        displayName: "아기 고슴도치",
+        description: "뾰족한 가시 아래 크림색 얼굴이 숨어 있는 수줍은 친구예요.",
+        characterID: PixelCharacterCatalog.pixelHedgehogID,
+        entitlementKey: CommerceCatalog.hedgehogEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let unicorn = CommerceProduct(
+        id: CommerceCatalog.unicornProductID,
+        displayName: "아기 유니콘",
+        description: "금빛 뿔과 세 가지 색 갈기를 가진 반짝이는 친구예요.",
+        characterID: PixelCharacterCatalog.pixelUnicornID,
+        entitlementKey: CommerceCatalog.unicornEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let shiba = CommerceProduct(
+        id: CommerceCatalog.shibaProductID,
+        displayName: "아기 시바견",
+        description: "동그란 눈썹 무늬와 말린 꼬리로 씩씩하게 걷는 친구예요.",
+        characterID: PixelCharacterCatalog.pixelShibaID,
+        entitlementKey: CommerceCatalog.shibaEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let salmonSushi = CommerceProduct(
+        id: CommerceCatalog.salmonSushiProductID,
+        displayName: "연어초밥",
+        description: "밥 위에 연어 한 점을 얹고 김 띠를 두른 든든한 친구예요.",
+        characterID: PixelCharacterCatalog.pixelSalmonSushiID,
+        entitlementKey: CommerceCatalog.salmonSushiEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let grandpa = CommerceProduct(
+        id: CommerceCatalog.grandpaProductID,
+        displayName: "할아버지",
+        description: "흰 수염과 동그란 안경, 파란 가디건이 포근한 친구예요.",
+        characterID: PixelCharacterCatalog.pixelGrandpaID,
+        entitlementKey: CommerceCatalog.grandpaEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let spiderHero = CommerceProduct(
+        id: CommerceCatalog.spiderHeroProductID,
+        displayName: "거미맨",
+        description: "빨간 마스크와 큰 흰 눈, 파란 슈트로 화면 가장자리를 지키는 친구예요.",
+        characterID: PixelCharacterCatalog.pixelSpiderHeroID,
+        entitlementKey: CommerceCatalog.spiderHeroEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let crow = CommerceProduct(
+        id: CommerceCatalog.crowProductID,
+        displayName: "아기 까마귀",
+        description: "까만 깃털에 노란 부리, 머리 위 작은 깃 두 개가 귀여운 친구예요.",
+        characterID: PixelCharacterCatalog.pixelCrowID,
+        entitlementKey: CommerceCatalog.crowEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let kimchi = CommerceProduct(
+        id: CommerceCatalog.kimchiProductID,
+        displayName: "김치",
+        description: "새빨간 양념 옷을 입고 초록 배춧잎을 머리에 얹은 매콤한 친구예요.",
+        characterID: PixelCharacterCatalog.pixelKimchiID,
+        entitlementKey: CommerceCatalog.kimchiEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let quokka = CommerceProduct(
+        id: CommerceCatalog.quokkaProductID,
+        displayName: "아기 쿼카",
+        description: "세상에서 가장 행복한 미소로 화면 가장자리를 밝히는 친구예요.",
+        characterID: PixelCharacterCatalog.pixelQuokkaID,
+        entitlementKey: CommerceCatalog.quokkaEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let redPanda = CommerceProduct(
+        id: CommerceCatalog.redPandaProductID,
+        displayName: "아기 레서판다",
+        description: "주황 털에 흰 눈썹 무늬, 줄무늬 꼬리를 살랑이는 친구예요.",
+        characterID: PixelCharacterCatalog.pixelRedPandaID,
+        entitlementKey: CommerceCatalog.redPandaEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let otter = CommerceProduct(
+        id: CommerceCatalog.otterProductID,
+        displayName: "아기 수달",
+        description: "두 손으로 노란 조개를 꼭 안고 다니는 친구예요.",
+        characterID: PixelCharacterCatalog.pixelOtterID,
+        entitlementKey: CommerceCatalog.otterEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let duck = CommerceProduct(
+        id: CommerceCatalog.duckProductID,
+        displayName: "아기 오리",
+        description: "노란 솜털에 주황 부리, 머리 위 작은 깃이 귀여운 친구예요.",
+        characterID: PixelCharacterCatalog.pixelDuckID,
+        entitlementKey: CommerceCatalog.duckEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let panda = CommerceProduct(
+        id: CommerceCatalog.pandaProductID,
+        displayName: "아기 판다",
+        description: "까만 귀와 눈 무늬, 대나무색 목도리를 두른 친구예요.",
+        characterID: PixelCharacterCatalog.pixelPandaID,
+        entitlementKey: CommerceCatalog.pandaEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let frog = CommerceProduct(
+        id: CommerceCatalog.frogProductID,
+        displayName: "아기 개구리",
+        description: "머리 위로 볼록 솟은 눈과 넓은 미소가 사랑스러운 친구예요.",
+        characterID: PixelCharacterCatalog.pixelFrogID,
+        entitlementKey: CommerceCatalog.frogEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let octopus = CommerceProduct(
+        id: CommerceCatalog.octopusProductID,
+        displayName: "아기 문어",
+        description: "동글동글한 머리 아래 여덟 다리를 꼬물거리는 친구예요.",
+        characterID: PixelCharacterCatalog.pixelOctopusID,
+        entitlementKey: CommerceCatalog.octopusEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let bungeoppang = CommerceProduct(
+        id: CommerceCatalog.bungeoppangProductID,
+        displayName: "붕어빵",
+        description: "노릇한 격자 무늬와 양쪽 지느러미가 살아 있는 겨울 간식 친구예요.",
+        characterID: PixelCharacterCatalog.pixelBungeoppangID,
+        entitlementKey: CommerceCatalog.bungeoppangEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let friedEgg = CommerceProduct(
+        id: CommerceCatalog.friedEggProductID,
+        displayName: "계란후라이",
+        description: "하얀 흰자 위에 노른자 얼굴이 톡 올라간 아침 친구예요.",
+        characterID: PixelCharacterCatalog.pixelFriedEggID,
+        entitlementKey: CommerceCatalog.friedEggEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let samgakGimbap = CommerceProduct(
+        id: CommerceCatalog.samgakGimbapProductID,
+        displayName: "삼각김밥",
+        description: "까만 김에 하얀 밥과 빨간 라벨을 두른 삼각형 친구예요.",
+        characterID: PixelCharacterCatalog.pixelSamgakGimbapID,
+        entitlementKey: CommerceCatalog.samgakGimbapEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let tteokbokki = CommerceProduct(
+        id: CommerceCatalog.tteokbokkiProductID,
+        displayName: "떡볶이",
+        description: "빨간 양념 위로 떡 세 개가 봉긋 올라온 컵 친구예요.",
+        characterID: PixelCharacterCatalog.pixelTteokbokkiID,
+        entitlementKey: CommerceCatalog.tteokbokkiEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let avocado = CommerceProduct(
+        id: CommerceCatalog.avocadoProductID,
+        displayName: "아보카도",
+        description: "연둣빛 과육 가운데 갈색 씨앗 얼굴이 웃고 있는 친구예요.",
+        characterID: PixelCharacterCatalog.pixelAvocadoID,
+        entitlementKey: CommerceCatalog.avocadoEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let slime = CommerceProduct(
+        id: CommerceCatalog.slimeProductID,
+        displayName: "슬라임",
+        description: "반짝이는 물방울 하이라이트를 품은 말랑한 민트 친구예요.",
+        characterID: PixelCharacterCatalog.pixelSlimeID,
+        entitlementKey: CommerceCatalog.slimeEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let cactusPot = CommerceProduct(
+        id: CommerceCatalog.cactusPotProductID,
+        displayName: "화분",
+        description: "테라코타 화분 위에서 두 팔 벌린 선인장 친구예요.",
+        characterID: PixelCharacterCatalog.pixelCactusPotID,
+        entitlementKey: CommerceCatalog.cactusPotEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let tofu = CommerceProduct(
+        id: CommerceCatalog.tofuProductID,
+        displayName: "두부",
+        description: "파 조각을 얹은 새하얀 네모 두부 친구예요.",
+        characterID: PixelCharacterCatalog.pixelTofuID,
+        entitlementKey: CommerceCatalog.tofuEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let cupRamen = CommerceProduct(
+        id: CommerceCatalog.cupRamenProductID,
+        displayName: "라면",
+        description: "김이 모락모락 나는 국물 위에 면과 파를 얹은 야근 친구예요.",
+        characterID: PixelCharacterCatalog.pixelCupRamenID,
+        entitlementKey: CommerceCatalog.cupRamenEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let grandma = CommerceProduct(
+        id: CommerceCatalog.grandmaProductID,
+        displayName: "할머니",
+        description: "뽀글 파마와 분홍 가디건, 다정한 미소의 친구예요.",
+        characterID: PixelCharacterCatalog.pixelGrandmaID,
+        entitlementKey: CommerceCatalog.grandmaEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let baby = CommerceProduct(
+        id: CommerceCatalog.babyProductID,
+        displayName: "아기",
+        description: "머리에 곱슬 한 가닥, 쪽쪽이를 문 파란 턱받이 친구예요.",
+        characterID: PixelCharacterCatalog.pixelBabyID,
+        entitlementKey: CommerceCatalog.babyEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let santa = CommerceProduct(
+        id: CommerceCatalog.santaProductID,
+        displayName: "산타",
+        description: "빨간 모자와 하얀 수염, 검은 벨트를 맨 선물 배달 친구예요.",
+        characterID: PixelCharacterCatalog.pixelSantaID,
+        entitlementKey: CommerceCatalog.santaEntitlementKey,
+        amountKRW: 990,
+        currency: "KRW",
+        taxInclusive: true
+    )
+
+    static let jungjiyu = CommerceProduct(
+        id: CommerceCatalog.jungjiyuProductID,
+        displayName: "정지유",
+        description: "앞머리를 내린 긴 갈색 생머리에 흰 이너와 연핑크 가디건, 청바지를 입은 친구예요.",
+        characterID: PixelCharacterCatalog.pixelJungjiyuID,
+        entitlementKey: CommerceCatalog.jungjiyuEntitlementKey,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true

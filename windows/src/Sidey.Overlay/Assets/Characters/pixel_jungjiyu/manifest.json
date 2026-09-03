@@ -1,0 +1,46 @@
+{
+  "character_id": "pixel_jungjiyu",
+  "display_name": "정지유",
+  "legacy_aliases": [],
+  "frame_pixel_size": [
+    24,
+    24
+  ],
+  "render_dip_size": [
+    48,
+    48
+  ],
+  "sheet_pixel_size": [
+    240,
+    24
+  ],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": {
+    "idle": [
+      0,
+      1
+    ],
+    "walk": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "doze": [
+      6,
+      7
+    ],
+    "offline": [
+      8,
+      9
+    ]
+  },
+  "sha256": "1739b168fa32e16559804bcad92703f5f22df7df567d5546413116cd965c649b",
+  "runtime_bgra": {
+    "byte_order": "BGRA",
+    "alpha": "straight",
+    "byte_length": 23040,
+    "sha256": "a8b29f5cebcd33ca7ae6629e877d6df075b435fe39f916284b809030c650c637"
+  }
+}

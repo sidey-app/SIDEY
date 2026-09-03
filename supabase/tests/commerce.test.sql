@@ -12,14 +12,44 @@ select has_table('public', 'commerce_orders', 'commerce orders exist');
 select has_table('public', 'commerce_entitlements', 'commerce entitlements exist');
 select has_column('public', 'commerce_entitlements', 'grant_kind', 'grant kind records provenance');
 select has_column('public', 'commerce_entitlements', 'grant_reference', 'grant reference records provenance');
-select is((select count(*)::integer from public.commerce_products where active), 4, 'four products are active');
+select is((select count(*)::integer from public.commerce_products where active), 34, 'thirty-four products are active');
 select results_eq(
   $$select product_id, amount_krw from public.commerce_prices where active order by product_id$$,
   $$values
+      ('character_avocado'::text, 990),
+      ('character_baby'::text, 990),
+      ('character_bungeoppang'::text, 990),
+      ('character_cactus_pot'::text, 990),
+      ('character_capybara'::text, 990),
       ('character_chinchilla'::text, 990),
+      ('character_crow'::text, 990),
+      ('character_cup_ramen'::text, 990),
+      ('character_duck'::text, 990),
+      ('character_fried_egg'::text, 990),
+      ('character_frog'::text, 990),
+      ('character_grandma'::text, 990),
+      ('character_grandpa'::text, 990),
       ('character_guinea_pig'::text, 990),
+      ('character_hedgehog'::text, 990),
+      ('character_jungjiyu'::text, 990),
+      ('character_kimchi'::text, 990),
       ('character_monkey'::text, 990),
-      ('character_starlight_upalupa'::text, 1900)$$,
+      ('character_octopus'::text, 990),
+      ('character_otter'::text, 990),
+      ('character_panda'::text, 990),
+      ('character_poop'::text, 990),
+      ('character_quokka'::text, 990),
+      ('character_red_panda'::text, 990),
+      ('character_salmon_sushi'::text, 990),
+      ('character_samgak_gimbap'::text, 990),
+      ('character_santa'::text, 990),
+      ('character_shiba'::text, 990),
+      ('character_slime'::text, 990),
+      ('character_spider_hero'::text, 990),
+      ('character_starlight_upalupa'::text, 1900),
+      ('character_tofu'::text, 990),
+      ('character_tteokbokki'::text, 990),
+      ('character_unicorn'::text, 990)$$,
   'active prices are server-owned'
 );
 select is(

@@ -1,0 +1,46 @@
+{
+  "character_id": "pixel_fried_egg",
+  "display_name": "계란후라이",
+  "legacy_aliases": [],
+  "frame_pixel_size": [
+    24,
+    24
+  ],
+  "render_dip_size": [
+    48,
+    48
+  ],
+  "sheet_pixel_size": [
+    240,
+    24
+  ],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": {
+    "idle": [
+      0,
+      1
+    ],
+    "walk": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "doze": [
+      6,
+      7
+    ],
+    "offline": [
+      8,
+      9
+    ]
+  },
+  "sha256": "dd24d5960f3bdf1018a60af0c2ffcdd882890a99c1bd75201565e0772fba0bbb",
+  "runtime_bgra": {
+    "byte_order": "BGRA",
+    "alpha": "straight",
+    "byte_length": 23040,
+    "sha256": "d1d572253cd480b6fd76d49d6c37b7ca027ddd1b0117884565839e90dddb1fb2"
+  }
+}
