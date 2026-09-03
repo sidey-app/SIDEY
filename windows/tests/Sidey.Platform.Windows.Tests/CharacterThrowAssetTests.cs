@@ -1,5 +1,7 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
+using Sidey.Core.Domain;
+using Sidey.Overlay;
 
 namespace Sidey.Platform.Windows.Tests;
 
@@ -38,6 +40,36 @@ public sealed class CharacterThrowAssetTests
             Assert.Equal(pair.Key.StartsWith("action-sheets/", StringComparison.Ordinal) ? 24 : 16, height);
             Assert.Equal(width * height * 4, File.ReadAllBytes(AssetPath(pair.Key + ".bgra")).Length);
         }
+    }
+
+    [Fact]
+    public void PaidCharacterThrowsKeepTheirUniqueObjectsAndUseTheHamsterActionFallback()
+    {
+        using var cache = new CharacterThrowFrameCache(
+            Path.Combine(AppContext.BaseDirectory, "Assets", "CharacterThrow"),
+            scale: 1,
+            edge: OverlayEdge.Bottom);
+
+        var hamsterAction = cache.ActionFrame("pixel_hamster", frame: 0, flipped: false).ToArray();
+        Assert.Equal(
+            hamsterAction,
+            cache.ActionFrame("pixel_guinea_pig", frame: 0, flipped: false).ToArray());
+        Assert.Equal(
+            hamsterAction,
+            cache.ActionFrame("pixel_monkey", frame: 0, flipped: false).ToArray());
+        Assert.Equal(
+            hamsterAction,
+            cache.ActionFrame("pixel_chinchilla", frame: 0, flipped: false).ToArray());
+        Assert.Equal(
+            hamsterAction,
+            cache.ActionFrame("pixel_starlight_upalupa", frame: 0, flipped: false).ToArray());
+
+        var patchBall = cache.ObjectFrame("pixel_hamster", frame: 0).ToArray();
+        Assert.False(patchBall.SequenceEqual(cache.ObjectFrame("pixel_guinea_pig", frame: 0).ToArray()));
+        Assert.False(patchBall.SequenceEqual(cache.ObjectFrame("pixel_monkey", frame: 0).ToArray()));
+        Assert.False(patchBall.SequenceEqual(cache.ObjectFrame("pixel_chinchilla", frame: 0).ToArray()));
+        Assert.False(patchBall.SequenceEqual(cache.ObjectFrame("pixel_starlight_upalupa", frame: 0).ToArray()));
+        Assert.Equal(patchBall, cache.ObjectFrame("unknown_character", frame: 0).ToArray());
     }
 
     private static string AssetPath(string relative) => Path.Combine(
