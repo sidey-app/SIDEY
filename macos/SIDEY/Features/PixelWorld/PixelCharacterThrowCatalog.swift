@@ -11,13 +11,22 @@ enum PixelCharacterThrowCatalog {
     static let rotationFrames = 0..<8
     static let impactFrames = 8..<12
 
+    static let paidObjectID = "heart_cushion"
+
     static func objectID(for characterID: String) -> String {
-        switch PixelCharacterCatalog.canonicalID(for: characterID) {
+        let id = PixelCharacterCatalog.canonicalID(for: characterID)
+        return switch id {
         case PixelCharacterCatalog.pixelGuineaPigID: "mini_paprika"
         case PixelCharacterCatalog.pixelMonkeyID: "banana"
         case PixelCharacterCatalog.pixelChinchillaID: "dust_bath_pouch"
         case PixelCharacterCatalog.pixelStarlightUpalupaID: "starlight_orb"
-        default: fallbackObjectID
+        // The asset licence keeps paid characters off the free patch ball, so every
+        // other paid character throws the licensed cushion.
+        // 정지유 carries the licensed cup; every other paid character throws the cushion.
+        case PixelCharacterCatalog.pixelJungjiyuID: "ice_americano"
+        default: PixelCharacterCatalog.definition(for: id).entitlementKey == nil
+            ? fallbackObjectID
+            : paidObjectID
         }
     }
 

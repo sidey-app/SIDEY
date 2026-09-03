@@ -93,6 +93,18 @@ enum PixelCharacterFacingPolicy {
     }
 }
 
+enum PixelCharacterIdleAnimation {
+    /// Idle frames hold for different lengths, so a closed-eyed second frame reads as a
+    /// blink instead of an even see-saw. `SKAction.animate` only takes one duration.
+    static func action(textures: [SKTexture], timing: PixelCharacterIdleTiming) -> SKAction {
+        let durations = timing.frameDurations(frameCount: textures.count)
+        guard !durations.isEmpty else { return .wait(forDuration: 1) }
+        return .sequence(zip(textures, durations).flatMap { texture, duration in
+            [SKAction.setTexture(texture), SKAction.wait(forDuration: duration)]
+        })
+    }
+}
+
 enum PixelSparkleVisibilityPolicy {
     static func showsAmbient(for presence: PresenceState) -> Bool {
         presence == .online || presence == .typing
@@ -809,8 +821,15 @@ private final class PixelCharacterNode: SKNode {
         let duration: TimeInterval
         switch requested {
         case .idle:
-            textures = set.idle
-            duration = 0.55
+            set.idle.forEach { $0.filteringMode = .nearest }
+            sprite.run(
+                .repeatForever(PixelCharacterIdleAnimation.action(
+                    textures: set.idle,
+                    timing: PixelCharacterCatalog.definition(for: characterID).idleTiming
+                )),
+                withKey: Self.animationKey
+            )
+            return
         case .walk:
             textures = set.walk
             duration = 0.16
