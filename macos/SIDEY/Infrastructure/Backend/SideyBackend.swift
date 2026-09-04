@@ -555,6 +555,10 @@ actor SideyBackend {
         let liveTopology = RealtimeTopology(channelEpochs: Dictionary(
             uniqueKeysWithValues: channels.map { ($0.key, $0.value.epoch) }
         ))
+        let updatePlan = RealtimeTopologyUpdatePlan.make(
+            live: liveTopology,
+            requestedRooms: requestedRooms
+        )
         desiredTopology.replace(rooms: requestedRooms)
         let desiredRoomIDs = desiredTopology.roomIDs
         let resolvedActiveRoomID = activeRoomID.flatMap {
@@ -581,12 +585,14 @@ actor SideyBackend {
             realtimeRecoveryTask?.cancel()
             realtimeRecoveryTask = nil
             realtimeRecoveryAttempt = 0
-            realtimeGeneration += 1
             let generation = realtimeGeneration
-            markAllRoomsUnsubscribed()
             emitConnectionState()
             do {
-                try await replaceAllChannels(rooms: requestedRooms, generation: generation)
+                try await applyChannelUpdate(
+                    updatePlan,
+                    rooms: requestedRooms,
+                    generation: generation
+                )
             } catch {
                 scheduleRealtimeRecovery(trigger: .channel, immediate: false)
                 throw error
@@ -598,16 +604,22 @@ actor SideyBackend {
         startRealtimeWatchdogIfNeeded()
     }
 
-    private func replaceAllChannels(rooms: [Room], generation: Int) async throws {
+    private func applyChannelUpdate(
+        _ plan: RealtimeTopologyUpdatePlan,
+        rooms: [Room],
+        generation: Int
+    ) async throws {
         rebuildingGeneration = generation
         defer {
             if rebuildingGeneration == generation {
                 rebuildingGeneration = nil
             }
         }
-        await removeAllChannels()
+        for roomID in plan.removals {
+            await removeChannel(roomID)
+        }
         try ensureCurrentRealtimeGeneration(generation)
-        for room in rooms {
+        for room in rooms where plan.additions.contains(room.id) {
             try await addChannel(
                 roomID: room.id,
                 epoch: room.realtimeEpoch,

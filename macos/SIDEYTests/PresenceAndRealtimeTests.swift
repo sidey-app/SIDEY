@@ -473,6 +473,113 @@ final class PresenceAndRealtimeTests: XCTestCase {
         XCTAssertEqual(desired.epoch(for: roomID), 7)
     }
 
+    func testRealtimeTopologyUpdateAddsRoomWithoutReplacingStableChannels() {
+        let stableRoom = Room(
+            id: UUID(),
+            name: "기존 방",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "AB••••",
+            realtimeEpoch: 3
+        )
+        let addedRoom = Room(
+            id: UUID(),
+            name: "추가 방",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "CD••••",
+            realtimeEpoch: 1
+        )
+        let plan = RealtimeTopologyUpdatePlan.make(
+            live: RealtimeTopology(rooms: [stableRoom]),
+            requestedRooms: [stableRoom, addedRoom]
+        )
+
+        XCTAssertEqual(plan.additions, [addedRoom.id])
+        XCTAssertTrue(plan.removals.isEmpty)
+    }
+
+    func testRealtimeTopologyUpdateRemovesOnlyDepartedRoom() {
+        let stableRoom = Room(
+            id: UUID(),
+            name: "유지 방",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "AB••••",
+            realtimeEpoch: 3
+        )
+        let departedRoom = Room(
+            id: UUID(),
+            name: "나간 방",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "CD••••",
+            realtimeEpoch: 1
+        )
+        let plan = RealtimeTopologyUpdatePlan.make(
+            live: RealtimeTopology(rooms: [stableRoom, departedRoom]),
+            requestedRooms: [stableRoom]
+        )
+
+        XCTAssertTrue(plan.additions.isEmpty)
+        XCTAssertEqual(plan.removals, [departedRoom.id])
+    }
+
+    func testRealtimeTopologyUpdateReplacesOnlyChangedEpoch() {
+        let stableRoom = Room(
+            id: UUID(),
+            name: "유지 방",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "AB••••",
+            realtimeEpoch: 3
+        )
+        let changedRoomID = UUID()
+        let liveChangedRoom = Room(
+            id: changedRoomID,
+            name: "변경 방",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "CD••••",
+            realtimeEpoch: 1
+        )
+        var requestedChangedRoom = liveChangedRoom
+        requestedChangedRoom.realtimeEpoch = 2
+        let plan = RealtimeTopologyUpdatePlan.make(
+            live: RealtimeTopology(rooms: [stableRoom, liveChangedRoom]),
+            requestedRooms: [stableRoom, requestedChangedRoom]
+        )
+
+        XCTAssertEqual(plan.additions, [changedRoomID])
+        XCTAssertEqual(plan.removals, [changedRoomID])
+    }
+
+    func testRealtimeTopologyUpdateIgnoresMetadataOnlyChanges() {
+        let liveRoom = Room(
+            id: UUID(),
+            name: "이전 이름",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "AB••••",
+            realtimeEpoch: 3
+        )
+        var requestedRoom = liveRoom
+        requestedRoom.name = "새 이름"
+        requestedRoom.members = [RoomMember(
+            userID: UUID(),
+            nickname: "친구",
+            characterID: "pixel_penguin",
+            presence: .offline
+        )]
+        let plan = RealtimeTopologyUpdatePlan.make(
+            live: RealtimeTopology(rooms: [liveRoom]),
+            requestedRooms: [requestedRoom]
+        )
+
+        XCTAssertTrue(plan.additions.isEmpty)
+        XCTAssertTrue(plan.removals.isEmpty)
+    }
+
     func testRealtimeGenerationRejectsStaleCallbacksAndEpochs() {
         XCTAssertTrue(RealtimeChannelGenerationPolicy.accepts(
             candidateGeneration: 4,
