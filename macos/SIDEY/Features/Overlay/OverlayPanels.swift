@@ -182,6 +182,7 @@ final class OverlayInteractionWindowController: NSObject, NSWindowDelegate {
     private let panel: NSPanel
     private let onDismissRequested: () -> Void
     private let focusLossScheduler: any ComposerFocusLossScheduling
+    private let isApplicationActive: @MainActor () -> Bool
     private var focusRequestID = 0
     private var isProgrammaticallyHiding = false
     private(set) var hasPendingFocusLossDismiss = false
@@ -192,10 +193,12 @@ final class OverlayInteractionWindowController: NSObject, NSWindowDelegate {
         onInputActivity: @escaping () -> Void,
         onTypingChanged: @escaping (Bool) -> Void,
         onCancel: @escaping () -> Void,
-        focusLossScheduler: (any ComposerFocusLossScheduling)? = nil
+        focusLossScheduler: (any ComposerFocusLossScheduling)? = nil,
+        isApplicationActive: @escaping @MainActor () -> Bool = { NSApplication.shared.isActive }
     ) {
         onDismissRequested = onCancel
         self.focusLossScheduler = focusLossScheduler ?? TaskComposerFocusLossScheduler()
+        self.isApplicationActive = isApplicationActive
         panel = InteractiveOverlayPanel(
             contentRect: CGRect(origin: .zero, size: Self.panelSize),
             styleMask: [.borderless],
@@ -203,6 +206,12 @@ final class OverlayInteractionWindowController: NSObject, NSWindowDelegate {
             defer: false
         )
         super.init()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applicationDidResignActive(_:)),
+            name: NSApplication.didResignActiveNotification,
+            object: nil
+        )
         panel.identifier = OverlayWindowIdentifier.composer
         panel.delegate = self
         panel.backgroundColor = .clear
@@ -254,11 +263,34 @@ final class OverlayInteractionWindowController: NSObject, NSWindowDelegate {
 
     func windowDidResignKey(_ notification: Notification) {
         guard !isProgrammaticallyHiding, panel.isVisible else { return }
+        scheduleFocusLossDismissCheck()
+    }
+
+    @objc private func applicationDidResignActive(_ notification: Notification) {
+        guard hasPendingFocusLossDismiss, panel.isVisible, !panel.isKeyWindow else { return }
+        scheduleFocusLossDismissCheck()
+    }
+
+    private func scheduleFocusLossDismissCheck() {
         hasPendingFocusLossDismiss = true
         focusLossScheduler.schedule(after: Self.focusLossDismissDelay) { [weak self] in
             guard let self, self.hasPendingFocusLossDismiss else { return }
+            guard self.panel.isVisible else {
+                self.cancelPendingFocusLossDismiss()
+                return
+            }
+            guard !self.panel.isKeyWindow else {
+                self.cancelPendingFocusLossDismiss()
+                return
+            }
+            if self.isApplicationActive() {
+                // The macOS character palette becomes the key window while SIDEY
+                // remains active. Wait without polling until it inserts text,
+                // returns focus, or the application deactivates.
+                self.focusLossScheduler.cancel()
+                return
+            }
             self.hasPendingFocusLossDismiss = false
-            guard self.panel.isVisible, !self.panel.isKeyWindow else { return }
             self.onDismissRequested()
         }
     }
@@ -310,7 +342,8 @@ final class OverlayInteractionWindowController: NSObject, NSWindowDelegate {
     }
 
     private func inputDidChange() {
-        guard hasPendingFocusLossDismiss else { return }
+        let shouldRestoreFocus = hasPendingFocusLossDismiss || !panel.isKeyWindow
+        guard shouldRestoreFocus else { return }
         cancelPendingFocusLossDismiss()
         requestMessageFieldFocus(activateApplication: true)
     }
@@ -318,6 +351,10 @@ final class OverlayInteractionWindowController: NSObject, NSWindowDelegate {
     private func cancelPendingFocusLossDismiss() {
         focusLossScheduler.cancel()
         hasPendingFocusLossDismiss = false
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     var level: NSWindow.Level { panel.level }
