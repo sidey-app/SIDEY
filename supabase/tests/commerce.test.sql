@@ -174,11 +174,11 @@ insert into public.commerce_entitlements (
 );
 select lives_ok($$select public.upsert_profile('무료친구', 'pixel_guinea_pig')$$, 'complimentary grant permits selection');
 select results_eq(
-  $$select grant_kind, source_order_id is null from public.commerce_entitlements
+  $$select status, grant_kind is null from public.commerce_entitlements
     where user_id = '20000000-0000-0000-0000-000000000002'
       and entitlement_key = 'character:pixel_guinea_pig'$$,
-  $$values ('complimentary'::text, true)$$,
-  'complimentary provenance has no order'
+  $$values ('active'::text, true)$$,
+  'public entitlement is a source-agnostic active projection'
 );
 select throws_ok(
   $$select * from public.create_commerce_order('character_guinea_pig', repeat('e', 64))$$,
