@@ -7,36 +7,31 @@ param(
     [string]$OutputDir,
 
     [Parameter(Mandatory = $true)]
-    [Alias('ReleaseMsi')]
+    [string]$ReleaseManifest,
+
+    [Parameter(Mandatory = $true)]
     [string]$ReleaseInstaller
 )
 
 $ErrorActionPreference = 'Stop'
 $resolvedWebsiteDir = (Resolve-Path -LiteralPath $WebsiteDir).Path
+$resolvedReleaseManifest = (Resolve-Path -LiteralPath $ReleaseManifest).Path
 $resolvedReleaseInstaller = (Resolve-Path -LiteralPath $ReleaseInstaller).Path
 $resolvedOutputDir = [IO.Path]::GetFullPath($OutputDir)
-$sourceManifestPath = Join-Path $resolvedWebsiteDir 'windows-latest.json'
-$manifest = Get-Content -LiteralPath $sourceManifestPath -Raw -Encoding UTF8 |
+$manifest = Get-Content -LiteralPath $resolvedReleaseManifest -Raw -Encoding UTF8 |
     ConvertFrom-Json
 
-if ($manifest.channel -ne 'production' -or
+if ($manifest.schema -ne 1 -or
+    $manifest.platform -ne 'windows' -or
+    $manifest.channel -ne 'production' -or
     [string]$manifest.version -notmatch '^\d+\.\d+\.\d+$') {
-    throw 'Windows Pages manifest must describe a stable production release.'
+    throw 'release/windows.json must describe a stable production Windows release.'
 }
 
 $version = [string]$manifest.version
 $tag = "windows-v$version"
-$installerName = if ([Version]::Parse($version) -le [Version]'1.0.5') {
-    "SIDEY-Windows-x64-v$version.msi"
-}
-else {
-    "SIDEY-Windows-x64-v${version}-Setup.exe"
-}
+$installerName = "SIDEY-Windows-x64-v${version}-Setup.exe"
 $installerUrl = "https://github.com/sidey-app/SIDEY/releases/download/$tag/$installerName"
-if ([string]$manifest.tag -ne $tag -or
-    [string]$manifest.installer_url -ne $installerUrl) {
-    throw 'Windows Pages manifest tag or installer URL does not match its version.'
-}
 if ([IO.Path]::GetFileName($resolvedReleaseInstaller) -ne $installerName) {
     throw "Release installer filename does not match the public contract: $installerName"
 }
@@ -66,6 +61,7 @@ $manifestJson = $publishedManifest | ConvertTo-Json
 $utf8NoBom = [Text.UTF8Encoding]::new($false)
 foreach ($relativePath in @('windows-latest.json', 'windows/update.json')) {
     $path = Join-Path $resolvedOutputDir $relativePath
+    [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($path)) | Out-Null
     [IO.File]::WriteAllText($path, "$manifestJson`n", $utf8NoBom)
 }
 

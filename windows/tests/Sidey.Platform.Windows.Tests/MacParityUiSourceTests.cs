@@ -481,40 +481,57 @@ public sealed class MacParityUiSourceTests
     }
 
     [Fact]
-    public void WindowsUpdateManifestsArePublishedWithTheWebsite()
+    public void WindowsReleaseManifestIsTheSingleCheckedInSource()
     {
-        AssertWindowsManifest("website", "windows-latest.json");
-        AssertWindowsManifest("website", "windows", "update.json");
+        using var document = System.Text.Json.JsonDocument.Parse(
+            File.ReadAllBytes(RepositoryPath("release", "windows.json")));
+        var root = document.RootElement;
+
+        Assert.Equal(1, root.GetProperty("schema").GetInt32());
+        Assert.Equal("windows", root.GetProperty("platform").GetString());
+        Assert.Equal("production", root.GetProperty("channel").GetString());
+        Assert.Equal(WindowsUpdateService.CurrentVersion, root.GetProperty("version").GetString());
+        Assert.False(File.Exists(RepositoryPath("website", "windows-latest.json")));
+        Assert.False(File.Exists(RepositoryPath("website", "windows", "update.json")));
+
+        var publisher = ReadRepositoryFile("scripts", "website", "prepare-windows-release.ps1");
+        Assert.Contains("windows-latest.json", publisher, StringComparison.Ordinal);
+        Assert.Contains("windows/update.json", publisher, StringComparison.Ordinal);
     }
 
     [Fact]
     public void WindowsReleaseUsesAPlatformScopedTag()
     {
-        var workflow = ReadRepositoryFile(".github", "workflows", "windows.yml");
+        var ciWorkflow = ReadRepositoryFile(".github", "workflows", "windows.yml");
+        var releaseWorkflow = ReadRepositoryFile(".github", "workflows", "windows-release.yml");
+        var metadata = ReadRepositoryFile("scripts", "verify_release_consistency.py");
         var verifier = ReadRepositoryFile("scripts", "windows", "verify-release.ps1");
 
-        Assert.Contains("tags: ['windows-v*']", workflow, StringComparison.Ordinal);
-        Assert.Contains("$expectedTag = \"windows-v$version\"", workflow, StringComparison.Ordinal);
-        Assert.DoesNotContain("refs/tags/v", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("tags:", ciWorkflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("tags:", releaseWorkflow, StringComparison.Ordinal);
+        Assert.Contains("tag = f\"windows-v{version}\"", metadata, StringComparison.Ordinal);
+        Assert.DoesNotContain("refs/tags/v", releaseWorkflow, StringComparison.Ordinal);
         Assert.Contains("$tag = \"windows-v$Version\"", verifier, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void WindowsPackagingRunsOnlyForManualOrTaggedBuilds()
+    public void WindowsPackagingHasOneManualVerifiedReleaseEntryPoint()
     {
-        var workflow = ReadRepositoryFile(".github", "workflows", "windows.yml");
+        var ciWorkflow = ReadRepositoryFile(".github", "workflows", "windows.yml");
+        var workflow = ReadRepositoryFile(".github", "workflows", "windows-release.yml");
 
+        Assert.DoesNotContain("workflow_dispatch:", ciWorkflow, StringComparison.Ordinal);
+        Assert.Contains("workflow_dispatch:", workflow, StringComparison.Ordinal);
+        Assert.Contains("confirm_version:", workflow, StringComparison.Ordinal);
         Assert.Contains("validate:", workflow, StringComparison.Ordinal);
-        Assert.Contains("github.event_name == 'workflow_dispatch'", workflow, StringComparison.Ordinal);
-        Assert.Contains("startsWith(github.ref, 'refs/tags/windows-v')", workflow, StringComparison.Ordinal);
-        Assert.Contains("SIDEY-Windows-x64-v${{ needs.validate.outputs.version }}-Setup.exe", workflow, StringComparison.Ordinal);
-        Assert.Contains("docs/releases/windows-v$version.md", workflow, StringComparison.Ordinal);
-        Assert.DoesNotContain("Upload test results", workflow, StringComparison.Ordinal);
-        Assert.DoesNotContain("Upload CI-only MSI", workflow, StringComparison.Ordinal);
+        Assert.Contains("--draft", workflow, StringComparison.Ordinal);
+        Assert.Contains("gh release download", workflow, StringComparison.Ordinal);
+        Assert.Contains("Get-FileHash", workflow, StringComparison.Ordinal);
+        Assert.Contains("gh release edit $tag --draft=false", workflow, StringComparison.Ordinal);
+        Assert.Contains("uses: ./.github/workflows/pages.yml", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("--prerelease", workflow, StringComparison.Ordinal);
         Assert.Contains("winget install NSIS.NSIS", workflow, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("--version 3.12", workflow, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(".sha256", workflow, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("SelfSigned", workflow, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -539,23 +556,6 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("_startupUpdateCheckStarted = true", app, StringComparison.Ordinal);
         Assert.Contains("startup-update-checked", app, StringComparison.Ordinal);
         Assert.DoesNotContain("CheckForUpdates();\n        SideyWindowActivation", mainWindow, StringComparison.Ordinal);
-    }
-
-    private static void AssertWindowsManifest(params string[] pathSegments)
-    {
-        using var document = System.Text.Json.JsonDocument.Parse(
-            File.ReadAllBytes(RepositoryPath(pathSegments)));
-        var root = document.RootElement;
-
-        string channel = root.GetProperty("channel").GetString()!;
-        Assert.Contains(channel, new[] { "alpha", "production" });
-        string version = root.GetProperty("version").GetString()!;
-        Assert.False(WindowsUpdateService.IsNewerVersion(
-            version,
-            WindowsUpdateService.CurrentVersion));
-        Assert.Equal(
-            $"windows-v{version}",
-            root.GetProperty("tag").GetString());
     }
 
     private static int CountOccurrences(string value, string search) =>

@@ -1,0 +1,53 @@
+name: Release metadata
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'release/**'
+      - 'macos/SIDEY.xcodeproj/project.pbxproj'
+      - 'windows/src/Sidey.App/Sidey.App.csproj'
+      - 'windows/src/Sidey.Platform.Windows/WindowsUpdateService.cs'
+      - 'docs/releases/**'
+      - 'updates/appcast.xml'
+      - 'README.md'
+      - 'docs/DECISIONS.md'
+      - 'docs/PRODUCT_SPEC.md'
+      - 'website/index.html'
+      - 'website/en/index.html'
+      - 'scripts/verify_release_consistency.py'
+      - 'scripts/verify_release_consistency.sh'
+      - 'scripts/release_macos.sh'
+      - '.github/workflows/release-metadata.yml'
+  pull_request:
+    paths:
+      - 'release/**'
+      - 'macos/SIDEY.xcodeproj/project.pbxproj'
+      - 'windows/src/Sidey.App/Sidey.App.csproj'
+      - 'windows/src/Sidey.Platform.Windows/WindowsUpdateService.cs'
+      - 'docs/releases/**'
+      - 'updates/appcast.xml'
+      - 'README.md'
+      - 'docs/DECISIONS.md'
+      - 'docs/PRODUCT_SPEC.md'
+      - 'website/index.html'
+      - 'website/en/index.html'
+      - 'scripts/verify_release_consistency.py'
+      - 'scripts/verify_release_consistency.sh'
+      - 'scripts/release_macos.sh'
+      - '.github/workflows/release-metadata.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Verify release manifests and mirrors
+        run: ./scripts/verify_release_consistency.sh --allow-pending-appcast

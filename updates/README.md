@@ -4,18 +4,20 @@
 Sparkle EdDSA key stored under the `sidey-app` account in the release operator's login
 Keychain. Never edit a signed feed by hand.
 
-Create and notarize the release ZIP with the signing environment documented in the
-repository README, upload that exact ZIP to its GitHub Release, then regenerate the feed
-with the release's committed notes file:
+The supported release entry point is `scripts/release_macos.sh`. It packages and notarizes
+the app, creates a draft GitHub Release, downloads and compares all four assets, publishes
+the release, and opens the signed appcast and Homebrew Cask pull requests:
 
 ```sh
-SIDEY_RELEASE_NOTES=docs/releases/v1.0.3.md \
-  ./scripts/macos/prepare_sparkle_appcast.sh \
-  v1.0.3 \
-  build/releases/v1.0.3/SIDEY-macOS-arm64-v1.0.3.zip
+SIDEY_CODE_SIGN_IDENTITY='Developer ID Application: Example (TEAMID)' \
+SIDEY_HARDENED_RUNTIME=YES \
+SIDEY_NOTARYTOOL_PROFILE=sidey-notary \
+  ./scripts/release_macos.sh
 ```
 
-Commit and push the generated `appcast.xml` only after the ZIP URL is live. The script
+The lower-level `scripts/macos/prepare_sparkle_appcast.sh` remains an implementation detail
+and recovery tool. Commit and push the generated `appcast.xml` only after the ZIP URL is
+live. The script
 rejects ad-hoc and development-channel builds by default and verifies the Developer ID
 signature, Hardened Runtime, stapled notarization ticket, production display name and
 channel, embedded public key, feed URL, signed-feed security flags, and that the
