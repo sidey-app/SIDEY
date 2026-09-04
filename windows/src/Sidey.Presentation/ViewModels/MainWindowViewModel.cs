@@ -620,14 +620,30 @@ public sealed partial class MainWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private async Task CreateRoomAsync() => await RunCommandAsync(
-        () => _coordinator.CreateRoomAsync(CreateRoomName),
-        I18n.Get("groups.createdSimple"));
+    private async Task CreateRoomAsync()
+    {
+        string submittedName = CreateRoomName;
+        if (await RunCommandAsync(
+            () => _coordinator.CreateRoomAsync(submittedName),
+            I18n.Get("groups.createdSimple"))
+            && StringComparer.Ordinal.Equals(CreateRoomName, submittedName))
+        {
+            CreateRoomName = string.Empty;
+        }
+    }
 
     [RelayCommand]
-    private async Task JoinRoomAsync() => await RunCommandAsync(
-        () => _coordinator.JoinRoomAsync(InviteCode),
-        I18n.Get("groups.joinedSimple"));
+    private async Task JoinRoomAsync()
+    {
+        string submittedCode = InviteCode;
+        if (await RunCommandAsync(
+            () => _coordinator.JoinRoomAsync(submittedCode),
+            I18n.Get("groups.joinedSimple"))
+            && StringComparer.Ordinal.Equals(InviteCode, submittedCode))
+        {
+            InviteCode = string.Empty;
+        }
+    }
 
     [RelayCommand]
     private void Compose() => _coordinator.RequestComposer();
@@ -1043,7 +1059,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             I18n.Get("groups.deleted"));
     }
 
-    private async Task RunCommandAsync(Func<Task> action, string? successMessage)
+    private async Task<bool> RunCommandAsync(Func<Task> action, string? successMessage)
     {
         try
         {
@@ -1052,10 +1068,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
             {
                 RaiseNotice(successMessage, NoticeKind.Success);
             }
+            return true;
         }
         catch (Exception exception)
         {
             RaiseNotice(exception.Message, NoticeKind.Error);
+            return false;
         }
     }
 

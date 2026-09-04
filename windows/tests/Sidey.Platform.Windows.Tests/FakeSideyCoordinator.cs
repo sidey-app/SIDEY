@@ -30,7 +30,11 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
 
     public int CreateRoomCallCount { get; private set; }
 
+    public Func<string, CancellationToken, Task>? CreateRoomHandler { get; set; }
+
     public int JoinRoomCallCount { get; private set; }
+
+    public Func<string, CancellationToken, Task>? JoinRoomHandler { get; set; }
 
     public int SwitchRoomCallCount { get; private set; }
 
@@ -63,13 +67,13 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
     public Task CreateRoomAsync(string name, CancellationToken cancellationToken = default)
     {
         CreateRoomCallCount++;
-        return Task.CompletedTask;
+        return CreateRoomHandler?.Invoke(name, cancellationToken) ?? Task.CompletedTask;
     }
 
     public Task JoinRoomAsync(string inviteCode, CancellationToken cancellationToken = default)
     {
         JoinRoomCallCount++;
-        return Task.CompletedTask;
+        return JoinRoomHandler?.Invoke(inviteCode, cancellationToken) ?? Task.CompletedTask;
     }
 
     public Task SwitchRoomAsync(Guid roomId, CancellationToken cancellationToken = default)

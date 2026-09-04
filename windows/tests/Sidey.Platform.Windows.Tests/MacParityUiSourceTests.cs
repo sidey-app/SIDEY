@@ -238,6 +238,8 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("x:Name=\"CompactConnectionStatus\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ConnectionStatusRoot\" Width=\"210\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ConnectionStatusRoot.Width = RootNavigation.CompactPaneLength", source, StringComparison.Ordinal);
+        Assert.Contains("PaneClosing=\"OnNavigationPaneClosing\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("PaneOpened=\"OnNavigationPaneOpened\"", xaml, StringComparison.Ordinal);
         Assert.Contains("PaneOpening=\"OnNavigationPaneOpening\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ExpandedConnectionStatus\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ExpandedConnectionContent\"", xaml, StringComparison.Ordinal);
@@ -249,6 +251,14 @@ public sealed class MacParityUiSourceTests
         Assert.Equal("Center", expandedConnectionContent.Attribute("VerticalAlignment")?.Value);
         Assert.All(expandedConnectionContent.Elements(), element =>
             Assert.Equal("Center", element.Attribute("VerticalAlignment")?.Value));
+        System.Xml.Linq.XElement connectionText = expandedConnectionContent.Elements().Single(
+            element => element.Name.LocalName == "TextBlock");
+        Assert.Equal("0,2,0,0", connectionText.Attribute("Margin")?.Value);
+        Assert.Equal("20", connectionText.Attribute("LineHeight")?.Value);
+        Assert.Contains("OnNavigationPaneClosing", source, StringComparison.Ordinal);
+        Assert.Contains("ShowCompactConnectionStatus();", source, StringComparison.Ordinal);
+        Assert.Contains("OnNavigationPaneOpened", source, StringComparison.Ordinal);
+        Assert.Contains("ShowExpandedConnectionStatus();", source, StringComparison.Ordinal);
         Assert.Contains("ExpandedConnectionStatus.Visibility = Visibility.Collapsed", source, StringComparison.Ordinal);
         Assert.Contains("Background=\"{ThemeResource SideyAccentBackground12Brush}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Foreground=\"{ThemeResource SideyAccentForegroundBrush}\"", xaml, StringComparison.Ordinal);

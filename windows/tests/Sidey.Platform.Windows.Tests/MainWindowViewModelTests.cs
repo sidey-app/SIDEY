@@ -128,6 +128,83 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task SuccessfulCreateAndJoinClearTheirSubmittedFields()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService())
+        {
+            CreateRoomName = "새 그룹",
+            InviteCode = "ABCD-EFGH",
+        };
+
+        await viewModel.CreateRoomCommand.ExecuteAsync(null);
+        await viewModel.JoinRoomCommand.ExecuteAsync(null);
+
+        Assert.Equal(string.Empty, viewModel.CreateRoomName);
+        Assert.Equal(string.Empty, viewModel.InviteCode);
+        Assert.Equal(1, coordinator.CreateRoomCallCount);
+        Assert.Equal(1, coordinator.JoinRoomCallCount);
+    }
+
+    [Fact]
+    public async Task FailedCreateAndJoinPreserveTheirSubmittedFields()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        coordinator.CreateRoomHandler = (_, _) =>
+            Task.FromException(new InvalidOperationException("create failed"));
+        coordinator.JoinRoomHandler = (_, _) =>
+            Task.FromException(new InvalidOperationException("join failed"));
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService())
+        {
+            CreateRoomName = "다시 쓸 그룹 이름",
+            InviteCode = "KEEP-CODE",
+        };
+
+        await viewModel.CreateRoomCommand.ExecuteAsync(null);
+        await viewModel.JoinRoomCommand.ExecuteAsync(null);
+
+        Assert.Equal("다시 쓸 그룹 이름", viewModel.CreateRoomName);
+        Assert.Equal("KEEP-CODE", viewModel.InviteCode);
+    }
+
+    [Fact]
+    public async Task LateSuccessDoesNotClearAChangedCreateOrJoinDraft()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var createCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var joinCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.CreateRoomHandler = (_, _) => createCompletion.Task;
+        coordinator.JoinRoomHandler = (_, _) => joinCompletion.Task;
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService())
+        {
+            CreateRoomName = "제출한 그룹",
+            InviteCode = "SUBMITTED-CODE",
+        };
+
+        Task createRequest = viewModel.CreateRoomCommand.ExecuteAsync(null);
+        viewModel.CreateRoomName = "새 그룹 초안";
+        createCompletion.SetResult();
+        await createRequest;
+
+        Task joinRequest = viewModel.JoinRoomCommand.ExecuteAsync(null);
+        viewModel.InviteCode = "NEW-DRAFT";
+        joinCompletion.SetResult();
+        await joinRequest;
+
+        Assert.Equal("새 그룹 초안", viewModel.CreateRoomName);
+        Assert.Equal("NEW-DRAFT", viewModel.InviteCode);
+    }
+
+    [Fact]
     public async Task InviteCopyShowsPerRoomConfirmation()
     {
         (FakeSideyCoordinator coordinator, _) = CreateRoomState();

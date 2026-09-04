@@ -34,7 +34,9 @@
         IsTitleBarAutoPaddingEnabled="False"
         OpenPaneLength="210"
         PaneClosed="OnNavigationPaneClosed"
+        PaneClosing="OnNavigationPaneClosing"
         PaneDisplayMode="Auto"
+        PaneOpened="OnNavigationPaneOpened"
         PaneOpening="OnNavigationPaneOpening"
         SelectionChanged="OnNavigationSelectionChanged">
       <NavigationView.Resources>
@@ -68,7 +70,10 @@
                   VerticalAlignment="Center"
                   Fill="{Binding IsConnected, Converter={StaticResource ConnectionBrushConverter}}" />
               <TextBlock
+                  Margin="0,2,0,0"
                   VerticalAlignment="Center"
+                  LineHeight="20"
+                  LineStackingStrategy="BlockLineHeight"
                   Text="{Binding ConnectionText}" />
             </StackPanel>
           </Border>

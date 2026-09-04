@@ -289,18 +289,44 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     {
         _ = sender;
         _ = args;
-        ConnectionStatusRoot.Width = RootNavigation.OpenPaneLength;
-        ExpandedConnectionStatus.Visibility = Visibility.Visible;
-        CompactConnectionStatus.Visibility = Visibility.Collapsed;
+        ShowCompactConnectionStatus();
+    }
+
+    private void OnNavigationPaneOpened(NavigationView sender, object args)
+    {
+        _ = sender;
+        _ = args;
+        ShowExpandedConnectionStatus();
+    }
+
+    private void OnNavigationPaneClosing(
+        NavigationView sender,
+        NavigationViewPaneClosingEventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        ShowCompactConnectionStatus();
     }
 
     private void OnNavigationPaneClosed(NavigationView sender, object args)
     {
         _ = sender;
         _ = args;
+        ShowCompactConnectionStatus();
+    }
+
+    private void ShowCompactConnectionStatus()
+    {
         ConnectionStatusRoot.Width = RootNavigation.CompactPaneLength;
         ExpandedConnectionStatus.Visibility = Visibility.Collapsed;
         CompactConnectionStatus.Visibility = Visibility.Visible;
+    }
+
+    private void ShowExpandedConnectionStatus()
+    {
+        ConnectionStatusRoot.Width = RootNavigation.OpenPaneLength;
+        CompactConnectionStatus.Visibility = Visibility.Collapsed;
+        ExpandedConnectionStatus.Visibility = Visibility.Visible;
     }
 
     private void OnCharacterSelectorLoaded(object sender, RoutedEventArgs args)
