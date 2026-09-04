@@ -145,6 +145,11 @@ test("public policy URLs keep seller scope and PortOne refund terms", async () =
   assert.ok(publishedPolicies.includes("경기도 용인시 기흥구 서천동로21번길 20-6"));
   assert.ok(publishedPolicies.includes("신고 면제(간이과세자)"));
   assert.ok(`${terms}\n${refund}`.includes("PortOne"));
+  assert.ok(`${store}\n${terms}\n${privacy}\n${refund}`.includes("Mac App Store"));
+  assert.ok(terms.includes("Sign in with Apple"));
+  assert.ok(privacy.includes("앱 설정에서 삭제"));
+  assert.ok(refund.includes("Apple의 구매 문제 신고"));
+  assert.ok(refund.includes("계정 삭제는 구매 환불 요청이 아닙니다"));
   assert.ok(terms.includes("macOS SIDEY 앱의 꾸미기·상점"));
   assert.ok(!terms.includes("production 판매"));
   for (const document of [landing, store, terms, refund]) {
@@ -152,7 +157,7 @@ test("public policy URLs keep seller scope and PortOne refund terms", async () =
     assert.ok(!document.includes("사용 여부와 관계없이"));
   }
   assert.ok(refund.includes("제공 시작 후 단순 변심 환불 불가"));
-  assert.ok(refund.includes("정책 버전 2026-09-03-portone-v2"));
+  assert.ok(refund.includes("정책 버전 2026-09-04-macos-commerce"));
   assert.ok(migration.includes("policy_version = '2026-09-03-portone-v2'"));
   assert.ok(migration.includes("제공 시작 뒤 단순 변심에 따른 청약철회와 환불은 불가합니다"));
   for (const fixedPolicyURL of ["store.html", "terms.html", "privacy.html", "refund.html"]) {

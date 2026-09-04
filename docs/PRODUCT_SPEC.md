@@ -29,6 +29,15 @@
 - 기존 설치의 인증 세션과 설정을 잃지 않도록 Swift 기반 legacy migration 호환만 유지한다.
 - macOS 설정과 메뉴바에서 유료 캐릭터 4종 상점을 제공하되 production은 출시 예정 잠금으로 배포한다. 격리된 Sidey-dev만 Google identity를 연결한 뒤 PortOne 테스트 결제를 시작한다.
 
+#### 2.1.1 Mac App Store 병행 배포 계약
+
+- 기존 Developer ID DMG·Homebrew판은 `app.sidey.desktop`과 익명 인증, 구매 시 Google 연결, Sparkle 업데이트 구조를 유지한다. production 판매 잠금도 별도 결정 전까지 유지한다.
+- Mac App Store판은 별도 bundle ID `app.sidey.desktop.appstore`와 App Sandbox를 사용한다. 핵심 메시징·오버레이·캐릭터 소스는 공유하되 Sparkle, PortOne, Google OAuth와 외부 구매 경로를 링크하거나 노출하지 않는다.
+- App Store판은 네이티브 Sign in with Apple 승인을 첫 실행에 요구하고 이후 Supabase 세션을 전용 Keychain service에서 복구한다. App Store 로그인 상태를 앱 사용자 identity로 자동 간주하지 않는다.
+- direct판 계정과 App Store판 계정은 이전·병합하지 않는다. 그룹을 이어 쓰려면 새 Apple 계정을 기존 방에 초대해야 하며 두 계정은 방 정원에서 별도 멤버다.
+- App Store판의 추가 캐릭터 4종은 StoreKit 2 비소모성 상품이며 서버가 Apple JWS와 App Store Server API 결과를 검증한 뒤에만 entitlement를 지급한다. 한국 가격은 기존 1,900원·990원 가격과 일치하는 App Store 가격 포인트를 우선하고 없으면 바로 위 가격 포인트를 사용하며, 실제 표시는 StoreKit 현지화 가격을 따른다.
+- App Store판의 업데이트는 App Store가 담당한다. 로그인 시 실행은 sandboxed main app의 `SMAppService.mainApp`을 사용한다.
+
 ### 2.2 Windows 구현 목표
 
 - Windows 11 25H2(build 26200) 이상 x64 네이티브 클라이언트를 C#/.NET 10 LTS·WinUI 3·Win32로 구현한다.
@@ -92,6 +101,8 @@
 - macOS는 익명 인증과 기존 세션 복구 정책을 유지한다. 복구 실패를 새 익명 계정 생성으로 조용히 덮어쓰지 않는다.
 - Windows는 저장된 Supabase 익명 세션을 먼저 복구하고, 세션이 없는 신규 설치에서만 새 익명 계정을 만든다. access·refresh token과 평문 초대 코드는 Windows Credential Manager에 보관하며 Google OAuth·PKCE·callback은 사용하지 않는다.
 - Windows와 macOS의 서로 다른 사용자 UUID가 같은 방에 참가하는 것을 지원하며, Mac↔Windows 계정 이전은 범위 밖이다.
+- App Store판은 설정의 계정·개인정보 화면에서 Apple 재인증 뒤 계정을 삭제할 수 있다. 삭제는 모든 방의 탈퇴와 방장 이전 또는 빈 방 삭제, 개인 데이터 제거, 결제 원장의 사용자 연결 해제, Supabase Auth 사용자 삭제를 수행한다. Apple credential 철회를 먼저 시도하되 실패가 SIDEY 데이터 삭제를 막지는 않는다.
+- App Store 계정 삭제는 구매 환불이 아니다. 삭제로 연결이 끊긴 유효한 비소모성 transaction은 해당 Apple 구매 계정의 `Transaction.currentEntitlements`에서 다시 확인될 때 새 SIDEY 계정에 복원할 수 있으며, 활성 SIDEY 계정에 묶인 transaction을 다른 계정으로 이동할 수 없다.
 
 ## 4. 픽셀 월드
 
@@ -281,6 +292,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - production은 각 상품 카드 전체를 `Color.black.opacity(0.68)`로 덮고 흰 픽셀 자물쇠와 `추후 오픈 예정입니다.`만 접근성에 노출한다. 카드의 인터랙티브 콘텐츠는 접근성 트리에서 숨긴다.
 - production 잠금 경로는 구매 버튼, 상태 새로고침, Google 연결, 반응 미리보기, `TimelineView`, 별 애니메이션 Task를 생성하지 않는다. `AppCoordinator.purchase`도 production 채널 요청을 거부하고 운영 서버는 `sales_enabled=false`를 유지한다.
 - development는 오버레이 없이 실제 카드·상태 조회·Google 연결·PortOne 테스트 결제·반응 미리보기를 활성화한다. 상품별 상태와 구매 action은 `AppModel`·`AppCoordinator`·`SideyBackend`가 소유한다.
+- App Store 배포 타깃은 `.appStore` availability를 사용한다. StoreKit에서 받은 상품명·설명·현지화 가격과 구매·pending·복원·보유·오류 상태를 표시하고 외부 결제 안내는 표시하지 않는다. 구매 성공 transaction은 서버 승인 전까지 finish하지 않으며 시작·foreground에서 `currentEntitlements`, 사용자가 누른 복원에서만 `AppStore.sync()`를 사용한다.
 
 ### 6.5 Windows 창과 트레이
 
@@ -400,6 +412,15 @@ forward-only `20260903000000_commerce_refund_policy_v2.sql`은 기존 주문에 
 
 forward-only `20260903010000_character_throw.sql`은 `broadcast_character_throw(p_room_id, p_realtime_epoch, p_event_id, p_target_user_id)` 전용 RPC를 추가한다. 서버는 인증, 최신 room epoch, 송신자·대상 멤버십, 자기 자신 대상 금지와 필수 UUID를 검증하고 송신자 프로필에서 `source_character_id`를 읽는다. 송신자당 10초 20회 제한을 적용한 뒤 schema version, room/event/actor/target UUID와 source character ID만 현재 private ephemeral topic의 `character_throw`로 발행한다. 이벤트는 Postgres 메시지나 기록에 저장하지 않고 재접속 뒤 재생하지 않는다.
 
+forward-only `20260904000000_app_store_foundation.sql`은 다음 계약을 추가한다.
+
+- `private.commerce_grants`가 PortOne·App Store·complimentary 지급을 출처별로 보존하고 `public.commerce_entitlements`는 활성 grant 존재 여부를 보여주는 RLS projection으로 바뀐다.
+- `private.app_store_transactions`와 `private.app_store_notification_events`가 transaction·notification 멱등성, 환불, 삭제 후 unbind와 복원을 기록한다. 일반 사용자는 이 원장을 읽거나 변경할 수 없다.
+- service role 전용 `admin_apply_app_store_transaction`은 검증 서비스가 전달한 bundle 고정 상품, environment, transaction ID, app account token과 서명 시각을 적용한다. 신규 구매의 app account token은 현재 Supabase UUID와 일치해야 하며 활성 계정에 묶인 transaction은 다른 계정에 지급하지 않는다.
+- 유료 계정을 삭제할 수 있도록 order 감사 기록은 사용자 연결을 끊어 보존하고, auth 사용자 삭제 trigger가 모든 방의 소유권 이전·빈 방 삭제와 App Store transaction unbind를 같은 DB 삭제 흐름에서 수행한다.
+
+`services/app-store-verifier`는 Apple 공식 Node App Store Server Library로 기기 JWS와 Server Notifications V2를 검증하고 App Store Server API에서 transaction을 다시 조회한다. Production과 Sandbox 서비스·키를 분리하며 bundle ID, app Apple ID, product ID, environment와 서명을 모두 확인한다. 계정 삭제 endpoint는 새 Sign in with Apple token의 subject를 현재 Supabase Apple identity와 비교하고 Apple token 철회 뒤 Auth 사용자를 삭제한다.
+
 Edge Functions는 책임을 다음처럼 분리한다.
 
 - `commerce-order`: 인증·Google 연결·상품·소유 여부를 확인하고 서버 가격의 PortOne `paymentId`와 256-bit checkout token hash를 생성한다.
@@ -440,6 +461,8 @@ E2EE는 현재 설계·구현·검증되지 않았다. 전송 암호화, Postgre
 Windows는 Supabase 익명 인증만 사용하며 Google email·provider identity나 OAuth callback을 처리하지 않는다. 로컬 로그에는 access·refresh token, 메시지 본문, 평문 초대 코드, 닉네임·email·UUID 원문, 입력 키·마우스 좌표·화면 및 활성 앱 목록·로컬 파일 내용·Credential Manager 데이터를 남기지 않는다.
 
 macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀키, service-role key, 일회용 주문 token, 전체 결제 식별자를 남기지 않는다. 결제 성공 redirect만으로 소유권을 지급하지 않고 PortOne V2 재조회, 결제 당시 정책 동의와 Postgres 기록이 모두 일치해야 한다. 카드 번호·결제 비밀번호는 SIDEY가 수집하지 않는다.
+
+App Store판은 Apple subject와 사용자가 공유한 경우의 relay email, StoreKit transaction과 구매·환불 상태를 로그인 복구·소유권·환불·분쟁 처리 목적으로 사용한다. Apple private key, Supabase service role key, 원본 JWS와 전체 transaction 식별자는 앱이나 공개 로그에 넣지 않는다. App Store privacy label과 `PrivacyInfo.xcprivacy`는 실제 수집 항목과 Required Reason API 사용을 기준으로 갱신하며 tracking은 사용하지 않는다.
 
 ## 10. 검증과 승격 기준
 
