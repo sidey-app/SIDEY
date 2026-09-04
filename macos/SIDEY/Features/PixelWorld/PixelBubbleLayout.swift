@@ -12,7 +12,9 @@ struct PixelBubbleLayout: Equatable, Sendable {
         isTyping: Bool,
         tangentPosition: CGFloat,
         tangentLength: CGFloat,
-        edge: OverlayEdge
+        edge: OverlayEdge,
+        bodyMinY: CGFloat = 52,
+        includesTail: Bool = true
     ) -> Self {
         let maximumWidth = min(220, max(24, tangentLength - 16))
         let size: CGSize
@@ -38,12 +40,17 @@ struct PixelBubbleLayout: Equatable, Sendable {
         let tailTipX = -localCenterX
         let bodyFrame = CGRect(
             x: localCenterX - halfWidth,
-            y: 52,
+            y: bodyMinY,
             width: size.width,
             height: size.height
         )
-        let tailPoint = CGPoint(x: 0, y: 44)
-        let total = bodyFrame.union(CGRect(origin: tailPoint, size: CGSize(width: 0.001, height: 0.001)))
+        let total: CGRect
+        if includesTail {
+            let tailPoint = CGPoint(x: 0, y: 44)
+            total = bodyFrame.union(CGRect(origin: tailPoint, size: CGSize(width: 0.001, height: 0.001)))
+        } else {
+            total = bodyFrame
+        }
         return Self(
             size: size,
             localCenterX: localCenterX,
@@ -61,6 +68,68 @@ struct PixelBubbleLayout: Equatable, Sendable {
         let first = tangentPosition + bodyFrame.minX * tangentSign
         let second = tangentPosition + bodyFrame.maxX * tangentSign
         return min(first, second)...max(first, second)
+    }
+}
+
+struct PixelBubbleStackEntry: Equatable, Sendable {
+    let bubble: ActiveBubble
+    let layout: PixelBubbleLayout
+    let includesTail: Bool
+}
+
+enum PixelBubbleStackLayout {
+    static let bodySpacing: CGFloat = 6
+
+    static func make(
+        bubbles: [ActiveBubble],
+        tangentPosition: CGFloat,
+        tangentLength: CGFloat,
+        edge: OverlayEdge
+    ) -> [PixelBubbleStackEntry] {
+        let ordered = bubbles.sorted(by: ActiveBubble.presentationOrder)
+        var nextBodyMinY: CGFloat = 52
+        var reversedEntries: [PixelBubbleStackEntry] = []
+
+        for bubble in ordered.suffix(ActiveBubbleLedger.maximumVisiblePerSender).reversed() {
+            let isLatest = bubble.messageID == ordered.last?.messageID
+            let layout = PixelBubbleLayout.make(
+                text: bubble.body,
+                isTyping: false,
+                tangentPosition: tangentPosition,
+                tangentLength: tangentLength,
+                edge: edge,
+                bodyMinY: nextBodyMinY,
+                includesTail: isLatest
+            )
+            reversedEntries.append(PixelBubbleStackEntry(
+                bubble: bubble,
+                layout: layout,
+                includesTail: isLatest
+            ))
+            nextBodyMinY = layout.bodyFrame.maxY + bodySpacing
+        }
+
+        return Array(reversedEntries.reversed())
+    }
+
+    static func bodyTangentRange(
+        for entries: [PixelBubbleStackEntry],
+        at tangentPosition: CGFloat,
+        edge: OverlayEdge
+    ) -> ClosedRange<CGFloat>? {
+        let ranges = entries.map { $0.layout.bodyTangentRange(at: tangentPosition, edge: edge) }
+        guard let first = ranges.first else { return nil }
+        return ranges.dropFirst().reduce(first) { partial, range in
+            min(partial.lowerBound, range.lowerBound)...max(partial.upperBound, range.upperBound)
+        }
+    }
+}
+
+private extension ActiveBubble {
+    static func presentationOrder(_ lhs: ActiveBubble, _ rhs: ActiveBubble) -> Bool {
+        lhs.expiresAt == rhs.expiresAt
+            ? lhs.messageID.uuidString < rhs.messageID.uuidString
+            : lhs.expiresAt < rhs.expiresAt
     }
 }
 
