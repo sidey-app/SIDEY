@@ -453,8 +453,70 @@ final class PresenceAndRealtimeTests: XCTestCase {
         )
     }
 
+    func testDesiredRealtimeTopologyKeepsEpochWithoutLiveChannels() {
+        let roomID = UUID()
+        let room = Room(
+            id: roomID,
+            name: "복구 대상",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "AB••••",
+            realtimeEpoch: 7
+        )
+        var desired = RealtimeDesiredTopology()
+
+        desired.replace(rooms: [room])
+
+        XCTAssertEqual(desired.roomIDs, [roomID])
+        XCTAssertEqual(desired.epoch(for: roomID), 7)
+        XCTAssertEqual(RealtimeTopology(channelEpochs: [:]).roomEpochs, [:])
+        XCTAssertEqual(desired.epoch(for: roomID), 7)
+    }
+
+    func testRealtimeGenerationRejectsStaleCallbacksAndEpochs() {
+        XCTAssertTrue(RealtimeChannelGenerationPolicy.accepts(
+            candidateGeneration: 4,
+            currentGeneration: 4,
+            desiredEpoch: 9,
+            channelEpoch: 9
+        ))
+        XCTAssertFalse(RealtimeChannelGenerationPolicy.accepts(
+            candidateGeneration: 3,
+            currentGeneration: 4,
+            desiredEpoch: 9,
+            channelEpoch: 9
+        ))
+        XCTAssertFalse(RealtimeChannelGenerationPolicy.accepts(
+            candidateGeneration: 4,
+            currentGeneration: 4,
+            desiredEpoch: 10,
+            channelEpoch: 9
+        ))
+    }
+
+    func testRealtimeChannelPairRequiresBothSubscriptions() {
+        XCTAssertFalse(RealtimeChannelPairPolicy.isSubscribed(database: true, ephemeral: false))
+        XCTAssertFalse(RealtimeChannelPairPolicy.isSubscribed(database: false, ephemeral: true))
+        XCTAssertTrue(RealtimeChannelPairPolicy.isSubscribed(database: true, ephemeral: true))
+    }
+
+    func testNetworkAvailabilityTransitionsCoalesceDuplicateUpdates() {
+        var state = NetworkAvailabilityState()
+
+        XCTAssertEqual(state.update(.available), .initialAvailable)
+        XCTAssertEqual(state.update(.available), .unchanged)
+        XCTAssertEqual(state.update(.unavailable), .becameUnavailable)
+        XCTAssertEqual(state.update(.unavailable), .unchanged)
+        XCTAssertEqual(state.update(.available), .becameAvailable)
+
+        var initiallyOfflineState = NetworkAvailabilityState()
+        XCTAssertEqual(initiallyOfflineState.update(.unavailable), .becameUnavailable)
+        XCTAssertEqual(initiallyOfflineState.update(.available), .becameAvailable)
+    }
+
     func testRealtimeRecoveryBackoffStartsAtEightSecondsAndCapsAtThirty() {
         XCTAssertEqual(RealtimeRecoveryPolicy.watchdogInterval, 5)
+        XCTAssertEqual(RealtimeRecoveryPolicy.pathRecoveryDebounce, 0.35)
         XCTAssertEqual(RealtimeRecoveryPolicy.delay(forAttempt: 1), 8)
         XCTAssertEqual(RealtimeRecoveryPolicy.delay(forAttempt: 2), 16)
         XCTAssertEqual(RealtimeRecoveryPolicy.delay(forAttempt: 3), 30)
