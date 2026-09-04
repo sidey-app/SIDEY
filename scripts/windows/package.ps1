@@ -63,7 +63,8 @@ if (Test-Path -LiteralPath $legacyExecutable -PathType Leaf) {
 
 $deployableFiles = @(Get-ChildItem -LiteralPath $resolvedPublishDir -Recurse -File |
     Where-Object { $_.Extension -ne '.pdb' })
-$assetRoot = Join-Path $resolvedPublishDir 'Assets/Characters'
+$characterAssetRoot = Join-Path $resolvedPublishDir 'Assets/Character'
+$throwableAssetRoot = Join-Path $resolvedPublishDir 'Assets/Throwable'
 $iconRoot = Join-Path $resolvedPublishDir 'Assets/Icons'
 $languageRoot = Join-Path $resolvedPublishDir 'Langs'
 $requiredSideyBinaries = @(
@@ -100,7 +101,7 @@ $unexpectedRootItems = @(Get-ChildItem -LiteralPath $resolvedPublishDir -Force |
 if ($unexpectedRootItems.Count -gt 0) {
     throw "Unexpected item at the publish root: $($unexpectedRootItems.Name -join ', ')"
 }
-foreach ($directory in @($assetRoot, $iconRoot, $languageRoot)) {
+foreach ($directory in @($characterAssetRoot, $throwableAssetRoot, $iconRoot, $languageRoot)) {
     if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
         throw "Required publish directory is missing: $directory"
     }
@@ -118,14 +119,25 @@ if ($sourceIconNames.Count -eq 0 -or
     throw 'Published SIDEY icon variants do not match the source icon set.'
 }
 
-$assetFiles = @(Get-ChildItem -LiteralPath $assetRoot -Recurse -File)
-$manifests = @($assetFiles | Where-Object { $_.Name -eq 'manifest.json' })
-$sourceAssetRoot = Join-Path $repositoryRoot 'windows/src/Sidey.Overlay/Assets/Characters'
-$sourceManifestNames = @(Get-ChildItem -LiteralPath $sourceAssetRoot -Filter 'manifest.json' -Recurse -File |
-    ForEach-Object { Get-SideyRelativePath $sourceAssetRoot $_.FullName } |
+$legacyAssetDirectories = @(
+    (Join-Path $resolvedPublishDir 'Assets/Characters'),
+    (Join-Path $resolvedPublishDir 'Assets/CharacterThrow')
+)
+$presentLegacyAssetDirectories = @($legacyAssetDirectories | Where-Object {
+    Test-Path -LiteralPath $_ -PathType Container
+})
+if ($presentLegacyAssetDirectories.Count -gt 0) {
+    throw "Legacy character asset directories remain in the publish output: $($presentLegacyAssetDirectories -join ', ')"
+}
+
+$characterAssetFiles = @(Get-ChildItem -LiteralPath $characterAssetRoot -Recurse -File)
+$manifests = @($characterAssetFiles | Where-Object { $_.Name -eq 'manifest.json' })
+$sourceCharacterAssetRoot = Join-Path $repositoryRoot 'windows/src/Sidey.Overlay/Assets/Character'
+$sourceManifestNames = @(Get-ChildItem -LiteralPath $sourceCharacterAssetRoot -Filter 'manifest.json' -Recurse -File |
+    ForEach-Object { Get-SideyRelativePath $sourceCharacterAssetRoot $_.FullName } |
     Sort-Object)
 $publishedManifestNames = @($manifests |
-    ForEach-Object { Get-SideyRelativePath $assetRoot $_.FullName } |
+    ForEach-Object { Get-SideyRelativePath $characterAssetRoot $_.FullName } |
     Sort-Object)
 if ($sourceManifestNames.Count -eq 0 -or
     @(Compare-Object $sourceManifestNames $publishedManifestNames).Count -gt 0) {
@@ -142,7 +154,7 @@ foreach ($manifest in $manifests) {
         $manifest.Directory.Name -ne $characterId) {
         throw "캐릭터 폴더 이름과 character_id가 일치하지 않음: $($manifest.FullName)"
     }
-    foreach ($name in @('sprite.png', 'frames.bgra', 'manifest.json')) {
+    foreach ($name in @('base.png', 'base.bgra', 'throw_hit.png', 'throw_hit.bgra', 'manifest.json')) {
         $path = Join-Path $manifest.Directory.FullName $name
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
             throw "캐릭터 외부 에셋이 누락됨: $characterId/$name"
@@ -150,11 +162,32 @@ foreach ($manifest in $manifests) {
         [void]$expectedAssets.Add([System.IO.Path]::GetFullPath($path))
     }
 }
-$unexpectedAssets = @($assetFiles | Where-Object {
+$unexpectedCharacterAssets = @($characterAssetFiles | Where-Object {
     -not $expectedAssets.Contains($_.FullName)
 })
-if ($unexpectedAssets.Count -gt 0 -or $assetFiles.Count -ne $expectedAssets.Count) {
-    throw '캐릭터 외부 에셋에는 PNG/BGRA/manifest 세트만 둘 수 있음'
+if ($unexpectedCharacterAssets.Count -gt 0 -or
+    $characterAssetFiles.Count -ne $expectedAssets.Count) {
+    throw '캐릭터 외부 에셋에는 base/throw_hit PNG·BGRA와 manifest 세트만 둘 수 있음'
+}
+
+$sourceThrowableAssetRoot = Join-Path $repositoryRoot 'windows/src/Sidey.Overlay/Assets/Throwable'
+$sourceThrowableFiles = @(Get-ChildItem -LiteralPath $sourceThrowableAssetRoot -Recurse -File |
+    ForEach-Object { Get-SideyRelativePath $sourceThrowableAssetRoot $_.FullName } |
+    Sort-Object)
+$publishedThrowableFiles = @(Get-ChildItem -LiteralPath $throwableAssetRoot -Recurse -File |
+    ForEach-Object { Get-SideyRelativePath $throwableAssetRoot $_.FullName } |
+    Sort-Object)
+if ($sourceThrowableFiles.Count -eq 0 -or
+    @(Compare-Object $sourceThrowableFiles $publishedThrowableFiles).Count -gt 0) {
+    throw '소스와 게시 폴더의 투척물 에셋 목록이 일치하지 않음'
+}
+foreach ($throwableDirectory in @(Get-ChildItem -LiteralPath $throwableAssetRoot -Directory)) {
+    $fileNames = @(Get-ChildItem -LiteralPath $throwableDirectory.FullName -File |
+        Select-Object -ExpandProperty Name |
+        Sort-Object)
+    if (@(Compare-Object @('sprite.bgra', 'sprite.png') $fileNames).Count -gt 0) {
+        throw "투척물 외부 에셋에는 sprite PNG·BGRA 세트만 둘 수 있음: $($throwableDirectory.FullName)"
+    }
 }
 
 if ($Version -notmatch '^\d+\.\d+\.\d+$') {

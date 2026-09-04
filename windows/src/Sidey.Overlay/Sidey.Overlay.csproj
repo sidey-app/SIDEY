@@ -16,11 +16,11 @@
     <ProjectReference Include="../Sidey.Platform.Windows/Sidey.Platform.Windows.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <None Update="Assets/Characters/**/*">
+    <None Update="Assets/Character/**/*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
-    <None Update="Assets/CharacterThrow/**/*">
+    <None Update="Assets/Throwable/**/*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>

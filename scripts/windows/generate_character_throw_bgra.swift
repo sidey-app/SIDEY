@@ -6,7 +6,7 @@ import ImageIO
 
 let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 let sourceRoot = root.appendingPathComponent("assets/v1")
-let outputRoot = root.appendingPathComponent("windows/src/Sidey.Overlay/Assets/CharacterThrow")
+let outputRoot = root.appendingPathComponent("windows/src/Sidey.Overlay/Assets")
 
 struct AssetManifest: Decodable {
     struct Source: Decodable { let path: String }
@@ -25,9 +25,9 @@ let decoder = JSONDecoder()
 decoder.keyDecodingStrategy = .convertFromSnakeCase
 let manifest = try decoder.decode(AssetManifest.self, from: manifestData)
 let assets = manifest.characters.map {
-    (sourceRoot.appendingPathComponent($0.throwHit.path), "action-sheets", "\($0.id)_throw_hit")
+    (sourceRoot.appendingPathComponent($0.throwHit.path), "Character/\($0.id)", "throw_hit")
 } + manifest.throwables.map {
-    (sourceRoot.appendingPathComponent($0.sprite.path), "object-sheets", $0.id)
+    (sourceRoot.appendingPathComponent($0.sprite.path), "Throwable/\($0.id)", "sprite")
 }
 
 try FileManager.default.createDirectory(at: outputRoot, withIntermediateDirectories: true)

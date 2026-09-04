@@ -45,29 +45,29 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
     <_SideyExternalIconAsset Include="Assets\Icons\*" />
-    <_SideyExternalCharacterAsset Include="../Sidey.Overlay/Assets/Characters/**/*" />
-    <_SideyExternalThrowAsset Include="../Sidey.Overlay/Assets/CharacterThrow/**/*" />
-    <None Include="@(_SideyExternalCharacterAsset)" Link="Assets/Characters/%(RecursiveDir)%(Filename)%(Extension)">
+    <_SideyExternalCharacterAsset Include="../Sidey.Overlay/Assets/Character/**/*" />
+    <_SideyExternalThrowableAsset Include="../Sidey.Overlay/Assets/Throwable/**/*" />
+    <None Include="@(_SideyExternalCharacterAsset)" Link="Assets/Character/%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
-    <None Include="@(_SideyExternalThrowAsset)" Link="Assets/CharacterThrow/%(RecursiveDir)%(Filename)%(Extension)">
+    <None Include="@(_SideyExternalThrowableAsset)" Link="Assets/Throwable/%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
   </ItemGroup>
   <Target Name="CopyExternalCharacterAssetsAfterPublish" AfterTargets="Publish">
-    <MakeDir Directories="@(_SideyExternalCharacterAsset->'$(PublishDir)Assets\Characters\%(RecursiveDir)')" />
+    <MakeDir Directories="@(_SideyExternalCharacterAsset->'$(PublishDir)Assets\Character\%(RecursiveDir)')" />
     <Copy
         SourceFiles="@(_SideyExternalCharacterAsset)"
-        DestinationFiles="@(_SideyExternalCharacterAsset->'$(PublishDir)Assets\Characters\%(RecursiveDir)%(Filename)%(Extension)')"
+        DestinationFiles="@(_SideyExternalCharacterAsset->'$(PublishDir)Assets\Character\%(RecursiveDir)%(Filename)%(Extension)')"
         SkipUnchangedFiles="true" />
   </Target>
-  <Target Name="CopyExternalThrowAssetsAfterPublish" AfterTargets="Publish">
-    <MakeDir Directories="@(_SideyExternalThrowAsset->'$(PublishDir)Assets\CharacterThrow\%(RecursiveDir)')" />
+  <Target Name="CopyExternalThrowableAssetsAfterPublish" AfterTargets="Publish">
+    <MakeDir Directories="@(_SideyExternalThrowableAsset->'$(PublishDir)Assets\Throwable\%(RecursiveDir)')" />
     <Copy
-        SourceFiles="@(_SideyExternalThrowAsset)"
-        DestinationFiles="@(_SideyExternalThrowAsset->'$(PublishDir)Assets\CharacterThrow\%(RecursiveDir)%(Filename)%(Extension)')"
+        SourceFiles="@(_SideyExternalThrowableAsset)"
+        DestinationFiles="@(_SideyExternalThrowableAsset->'$(PublishDir)Assets\Throwable\%(RecursiveDir)%(Filename)%(Extension)')"
         SkipUnchangedFiles="true" />
   </Target>
   <Target Name="CopySideyAppIconsAfterPublish" AfterTargets="Publish">
@@ -80,7 +80,7 @@
   <Target
       Name="OrganizeStructuredPublish"
       AfterTargets="Publish"
-      DependsOnTargets="CopyExternalCharacterAssetsAfterPublish;CopyExternalThrowAssetsAfterPublish;CopySideyAppIconsAfterPublish">
+      DependsOnTargets="CopyExternalCharacterAssetsAfterPublish;CopyExternalThrowableAssetsAfterPublish;CopySideyAppIconsAfterPublish">
     <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\..\scripts\windows\organize-publish.ps1&quot; -PublishDir &quot;$(PublishDir).&quot; -LauncherSource &quot;$(MSBuildProjectDirectory)\..\Sidey.Launcher\Program.cs&quot; -UninstallerSource &quot;$(MSBuildProjectDirectory)\..\Sidey.Uninstaller\Program.cs&quot; -Version &quot;$(Version)&quot; -FileVersion &quot;$(FileVersion)&quot;" />
   </Target>
 </Project>

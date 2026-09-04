@@ -120,11 +120,12 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 _integerScale,
                 edge,
                 initialCharacterIds);
-            var throwAssetRoot = Path.Combine(
+            var throwableAssetRoot = Path.Combine(
                 Directory.GetParent(assetRoot)?.FullName ?? assetRoot,
-                "CharacterThrow");
+                "Throwable");
             throwFrameCache = new CharacterThrowFrameCache(
-                throwAssetRoot,
+                assetRoot,
+                throwableAssetRoot,
                 _integerScale,
                 edge);
             textVisuals = new PixelTextVisualCache(dpi, edge);
