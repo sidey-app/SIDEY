@@ -1,6 +1,15 @@
 name: Download metrics
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/download-metrics/**'
+      - '.github/workflows/download-metrics.yml'
+  pull_request:
+    paths:
+      - 'scripts/download-metrics/**'
+      - '.github/workflows/download-metrics.yml'
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
@@ -13,20 +22,34 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  collect:
+  test:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
 
       - name: Verify asset classification
         run: node --test scripts/download-metrics/*.test.mjs
+
+  collect:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
 
       - name: Record stable installation asset counters
         env:

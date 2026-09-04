@@ -1,0 +1,227 @@
+name: Windows Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_version:
+        description: 'release/windows.json의 버전을 정확히 입력하세요.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-production-release
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+      tag: ${{ steps.metadata.outputs.tag }}
+      installer_name: ${{ steps.metadata.outputs.installer_name }}
+      release_notes: ${{ steps.metadata.outputs.release_notes }}
+      commit: ${{ steps.commit.outputs.sha }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Read and validate release metadata
+        id: metadata
+        env:
+          CONFIRM_VERSION: ${{ inputs.confirm_version }}
+        run: |
+          python ./scripts/verify_release_consistency.py `
+            --platform windows `
+            --github-output $env:GITHUB_OUTPUT
+
+          $manifest = Get-Content ./release/windows.json -Raw | ConvertFrom-Json
+          $version = [string]$manifest.version
+          if ($env:CONFIRM_VERSION -cne $version) {
+            throw "Version confirmation must exactly match release/windows.json: $version"
+          }
+
+      - name: Record release commit
+        id: commit
+        run: |
+          "sha=$(git rev-parse HEAD)" >> $env:GITHUB_OUTPUT
+
+      - name: Validate central pixel assets and mirrors
+        run: python ./scripts/validate_pixel_assets.py
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore windows/SIDEY.Windows.slnx
+
+      - name: Verify formatting
+        run: dotnet format windows/SIDEY.Windows.slnx --no-restore --verify-no-changes --verbosity minimal
+
+      - name: Build
+        run: dotnet build windows/SIDEY.Windows.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build --logger trx --collect:"XPlat Code Coverage" --settings windows/coverlet.runsettings --results-directory artifacts/coverage
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: windows-release-code-coverage-${{ steps.metadata.outputs.version }}
+          path: artifacts/coverage/**/coverage.cobertura.xml
+          if-no-files-found: error
+
+  package:
+    needs: validate
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.validate.outputs.commit }}
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install pinned NSIS compiler
+        id: nsis
+        run: |
+          winget install NSIS.NSIS `
+            --exact `
+            --version 3.12 `
+            --silent `
+            --accept-package-agreements `
+            --accept-source-agreements `
+            --disable-interactivity
+          $makensis = Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'
+          if (-not (Test-Path -LiteralPath $makensis -PathType Leaf)) {
+            throw 'NSIS 3.12 makensis.exe was not installed.'
+          }
+          "makensis_path=$makensis" >> $env:GITHUB_OUTPUT
+
+      - name: Build Setup EXE candidate
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet restore windows/SIDEY.Windows.slnx
+          dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            --no-restore `
+            -p:PublishSingleFile=false `
+            --output build/windows/publish
+          ./scripts/windows/smoke-launch.ps1 `
+            -PublishDir ./build/windows/publish
+          ./scripts/windows/package.ps1 `
+            -PublishDir ./build/windows/publish `
+            -OutDir ./build/windows/artifacts `
+            -Version '${{ needs.validate.outputs.version }}' `
+            -MakensisPath '${{ steps.nsis.outputs.makensis_path }}'
+
+      - name: Upload Windows candidate
+        uses: actions/upload-artifact@v5
+        with:
+          name: windows-release-candidate-${{ needs.validate.outputs.version }}
+          path: build/windows/artifacts/${{ needs.validate.outputs.installer_name }}
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: [validate, package]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: windows-production
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.validate.outputs.commit }}
+          persist-credentials: false
+
+      - name: Download Windows candidate
+        uses: actions/download-artifact@v5
+        with:
+          name: windows-release-candidate-${{ needs.validate.outputs.version }}
+          path: release-assets
+
+      - name: Create, verify, and publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $tag = '${{ needs.validate.outputs.tag }}'
+          $installerName = '${{ needs.validate.outputs.installer_name }}'
+          $candidate = Join-Path ./release-assets $installerName
+
+          $PSNativeCommandUseErrorActionPreference = $false
+          gh release view $tag *> $null
+          $releaseExists = $LASTEXITCODE -eq 0
+          $PSNativeCommandUseErrorActionPreference = $true
+          if ($releaseExists) {
+            throw "Release already exists: $tag"
+          }
+
+          gh release create $tag $candidate `
+            --target '${{ needs.validate.outputs.commit }}' `
+            --title "SIDEY Windows v${{ needs.validate.outputs.version }}" `
+            --notes-file '${{ needs.validate.outputs.release_notes }}' `
+            --draft
+
+          $release = gh release view $tag --json isDraft,isPrerelease,assets |
+            ConvertFrom-Json
+          if (-not $release.isDraft -or $release.isPrerelease) {
+            throw "Release verification expected a regular draft: $tag"
+          }
+          $assetNames = @($release.assets | ForEach-Object { [string]$_.name })
+          if ($assetNames.Count -ne 1 -or $assetNames[0] -cne $installerName) {
+            throw "Draft release must contain only $installerName"
+          }
+
+          New-Item -ItemType Directory -Path ./release-verify -Force | Out-Null
+          gh release download $tag `
+            --pattern $installerName `
+            --dir ./release-verify `
+            --clobber
+          $candidateHash = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash
+          $downloadedHash = (Get-FileHash `
+            -LiteralPath (Join-Path ./release-verify $installerName) `
+            -Algorithm SHA256).Hash
+          if ($candidateHash -cne $downloadedHash) {
+            throw 'Downloaded draft asset does not match the validated candidate.'
+          }
+
+          gh release edit $tag --draft=false
+          $published = gh release view $tag --json isDraft,isPrerelease |
+            ConvertFrom-Json
+          if ($published.isDraft -or $published.isPrerelease) {
+            throw "Release was not published as a regular release: $tag"
+          }
+
+  pages:
+    needs: publish
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml

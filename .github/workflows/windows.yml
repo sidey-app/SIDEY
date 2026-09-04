@@ -1,54 +1,51 @@
-name: Windows
+name: Windows CI
 
 on:
   push:
     branches: [main]
-    tags: ['windows-v*']
     paths:
       - 'assets/**'
+      - 'release/windows.json'
       - 'windows/**'
       - 'scripts/windows/**'
       - 'scripts/validate_pixel_assets.py'
+      - 'scripts/verify_release_consistency.py'
       - 'shared/character-throw/**'
-      - 'website/windows-latest.json'
-      - 'website/windows/**'
       - '.github/workflows/windows.yml'
+      - '.github/workflows/windows-release.yml'
   pull_request:
     paths:
       - 'assets/**'
+      - 'release/windows.json'
       - 'windows/**'
       - 'scripts/windows/**'
       - 'scripts/validate_pixel_assets.py'
+      - 'scripts/verify_release_consistency.py'
       - 'shared/character-throw/**'
-      - 'website/windows-latest.json'
-      - 'website/windows/**'
       - '.github/workflows/windows.yml'
-  workflow_dispatch:
-    inputs:
-      publish_release:
-        description: '검증한 Windows Setup EXE를 GitHub 정식 Release로 게시'
-        required: true
-        default: false
-        type: boolean
+      - '.github/workflows/windows-release.yml'
 
 permissions:
   contents: read
 
 concurrency:
-  group: windows-${{ github.ref }}
+  group: windows-ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
     runs-on: windows-latest
     timeout-minutes: 20
-    outputs:
-      version: ${{ steps.metadata.outputs.version }}
     defaults:
       run:
         shell: pwsh
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validate Windows release metadata
+        run: python ./scripts/verify_release_consistency.py --platform windows
 
       - name: Validate central pixel assets and mirrors
         run: python ./scripts/validate_pixel_assets.py
@@ -56,25 +53,6 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
-
-      - name: Read Windows version
-        id: metadata
-        run: |
-          [xml]$project = Get-Content ./windows/src/Sidey.App/Sidey.App.csproj -Raw
-          $properties = $project.Project.PropertyGroup |
-            Where-Object { -not [string]::IsNullOrWhiteSpace($_.Version) } |
-            Select-Object -First 1
-          $version = [string]$properties.Version
-          if ([string]::IsNullOrWhiteSpace($version)) {
-            throw 'Windows version metadata is missing.'
-          }
-          if ($env:GITHUB_REF_TYPE -eq 'tag') {
-            $expectedTag = "windows-v$version"
-            if ($env:GITHUB_REF_NAME -ne $expectedTag) {
-              throw "Tag must match the project version: $expectedTag"
-            }
-          }
-          "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Restore
         run: dotnet restore windows/SIDEY.Windows.slnx
@@ -90,109 +68,8 @@ jobs:
 
       - name: Upload coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: windows-code-coverage
           path: artifacts/coverage/**/coverage.cobertura.xml
           if-no-files-found: error
-
-  package:
-    if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/windows-v')
-    needs: validate
-    runs-on: windows-latest
-    timeout-minutes: 20
-    defaults:
-      run:
-        shell: pwsh
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Install pinned NSIS compiler
-        id: nsis
-        run: |
-          winget install NSIS.NSIS `
-            --exact `
-            --version 3.12 `
-            --silent `
-            --accept-package-agreements `
-            --accept-source-agreements `
-            --disable-interactivity
-          $makensis = Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'
-          if (-not (Test-Path -LiteralPath $makensis -PathType Leaf)) {
-            throw 'NSIS 3.12 makensis.exe was not installed.'
-          }
-          "makensis_path=$makensis" >> $env:GITHUB_OUTPUT
-
-      - name: Build Setup EXE candidate
-        run: |
-          $PSNativeCommandUseErrorActionPreference = $true
-          $version = '${{ needs.validate.outputs.version }}'
-
-          dotnet restore windows/SIDEY.Windows.slnx
-          dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
-            --configuration Release `
-            --runtime win-x64 `
-            --self-contained true `
-            --no-restore `
-            -p:PublishSingleFile=false `
-            --output build/windows/publish
-          ./scripts/windows/smoke-launch.ps1 `
-            -PublishDir ./build/windows/publish
-          ./scripts/windows/package.ps1 `
-            -PublishDir ./build/windows/publish `
-            -OutDir ./build/windows/artifacts `
-            -Version $version `
-            -MakensisPath '${{ steps.nsis.outputs.makensis_path }}'
-
-      - name: Upload Windows candidate
-        uses: actions/upload-artifact@v4
-        with:
-          name: SIDEY-Windows-x64-v${{ needs.validate.outputs.version }}
-          path: build/windows/artifacts/SIDEY-Windows-x64-v${{ needs.validate.outputs.version }}-Setup.exe
-          if-no-files-found: error
-          retention-days: 7
-
-  release:
-    if: >-
-      (github.event_name == 'workflow_dispatch' && inputs.publish_release)
-      || startsWith(github.ref, 'refs/tags/windows-v')
-    needs: [validate, package]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    defaults:
-      run:
-        shell: pwsh
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Download Windows candidate
-        uses: actions/download-artifact@v4
-        with:
-          name: SIDEY-Windows-x64-v${{ needs.validate.outputs.version }}
-          path: release-assets
-
-      - name: Publish Windows release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          $version = '${{ needs.validate.outputs.version }}'
-          $tag = "windows-v$version"
-          $setup = "./release-assets/SIDEY-Windows-x64-v${version}-Setup.exe"
-          $notes = "./docs/releases/windows-v$version.md"
-          if (-not (Test-Path -LiteralPath $notes -PathType Leaf)) {
-            throw "Windows release notes are missing: $notes"
-          }
-
-          gh release create $tag $setup `
-            --target $env:GITHUB_SHA `
-            --title "SIDEY Windows v$version" `
-            --notes-file $notes
-          if ($LASTEXITCODE -ne 0) {
-            throw 'Windows Release 게시 실패'
-          }

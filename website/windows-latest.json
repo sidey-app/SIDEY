@@ -1,7 +1,0 @@
-{
-  "channel": "production",
-  "version": "1.0.6",
-  "tag": "windows-v1.0.6",
-  "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.6/SIDEY-Windows-x64-v1.0.6-Setup.exe",
-  "sha256": null
-}

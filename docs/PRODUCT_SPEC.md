@@ -60,12 +60,12 @@
 
 - 공식 주소는 GitHub 프로젝트 Pages `https://sidey-app.github.io/SIDEY/`다. 루트는 한국어, `/en/`은 영어이며 각 페이지에서 언어를 전환할 수 있다.
 - `website/`의 정적 HTML·CSS·최소 JavaScript만 배포한다. 랜딩과 정책 페이지는 제품 소개와 다운로드·상점 안내를 담당하며 로그인·그룹·메시지 기능을 제공하는 웹 클라이언트가 아니다.
-- macOS 기본 CTA는 현재 공개 버전의 고정 공증 DMG를 직접 가리키고 `brew install --cask sidey-app/tap/sidey`를 함께 제공한다. 다음 공개 릴리스에서는 버전 표기와 고정 DMG URL을 같은 배포 작업에서 갱신한다.
+- macOS 기본 CTA는 `release/macos.json`의 현재 공개 버전에 해당하는 고정 공증 DMG를 직접 가리키고 `brew install --cask sidey-app/tap/sidey`를 함께 제공한다. Pages는 그 버전의 정식 Release에 DMG와 Sparkle ZIP이 모두 있을 때만 사이트를 교체한다.
 - Windows 기본 CTA는 현재 정식 v1.0.6의 고정 Setup EXE를 직접 가리킨다. 저장소의 다운로드 버튼은 Release 검증 전까지 비활성 상태로 두고, Pages Actions가 버전에 맞는 정식 Release의 단일 Windows 설치 자산을 확인한 배포 아티팩트에서만 링크로 활성화한다.
-- Windows 업데이트 채널은 macOS Release와 분리된 `windows-v<version>` 태그와 `website/windows-latest.json`을 사용한다. 호환 경로 `website/windows/update.json`은 같은 내용을 유지한다. 저장소 manifest의 `sha256`은 `null`로 두고, Pages Actions가 v1.0.5의 MSI 또는 이후 릴리스의 Setup EXE를 다시 내려받아 계산한 64자리 SHA-256으로 두 배포 manifest를 완성한다. Release가 없거나 draft·pre-release이거나 해당 버전의 예상 설치 파일 외 자산이 있으면 기존 Pages를 교체하지 않는다.
+- Windows 업데이트 채널은 macOS Release와 분리된 `windows-v<version>` 태그와 `release/windows.json`을 원본으로 사용한다. Pages Actions가 정식 Release의 단일 Setup EXE를 다시 내려받아 계산한 64자리 SHA-256과 파생 태그·고정 URL을 배포 artifact의 `windows-latest.json`과 호환 경로 `windows/update.json`에 기록한다. 생성된 두 파일은 저장소에서 별도 원본으로 관리하지 않는다. Release가 없거나 draft·pre-release이거나 예상 설치 파일 외 자산이 있으면 기존 Pages를 교체하지 않는다.
 - 첫 화면에서 플랫폼·아키텍처·정식 배포 상태를 밝히고, 개인정보 수집 경계, E2EE 미지원, 보안 화면·DRM·권한 상승 앱·모든 독점 전체화면 위 표시를 보장하지 않는다는 제한을 숨기지 않는다.
 - `/contribute/asset-previewer/`는 랜딩 내비게이션에 넣지 않는 공개 컨트리뷰터 도구다. 공식 햄스터 세트를 기본으로 불러오고 사용자가 넣은 `base.png`·`throw_hit.png`·`sprite.png`의 형식과 동작을 현재 탭에서만 검증한다. 파일은 서버로 보내거나 저장하지 않으며 외부 이미지 URL이나 사용자 JavaScript를 받지 않는다. 녹화는 프리뷰 Canvas의 30 FPS stream만 최대 30초 무음으로 저장하고 카메라·마이크·화면 녹화 권한을 요청하지 않는다.
-- `main`의 웹 파일 또는 Pages 워크플로가 바뀌면 GitHub Actions가 `website/`만 Pages artifact로 올리고 `github-pages` 환경에 배포한다. custom domain과 별도 Sites 호스팅은 사용하지 않는다.
+- `main`의 웹 파일 또는 Pages 워크플로가 바뀌면 GitHub Actions가 현재 macOS·Windows 정식 Release를 확인하고 생성된 업데이트 manifest를 포함한 `website/`만 Pages artifact로 올려 `github-pages` 환경에 배포한다. Windows 정식 릴리스 성공 시에도 같은 재사용 워크플로를 직접 호출한다. custom domain과 별도 Sites 호스팅은 사용하지 않는다.
 
 ### 2.5 공개 업데이트 문서와 향후 계획
 
@@ -520,9 +520,9 @@ App Store판은 Apple subject와 사용자가 공유한 경우의 relay email, S
 2. production에는 PortOne V2 Edge Functions를 배포하되 PortOne 시크릿은 설정하지 않고 실패 폐쇄를 확인한다. 예전 `commerce-return`과 Toss 시크릿은 제거한다.
 3. 전체 Swift 테스트, 로컬 2클라이언트 Realtime 통합 테스트, pgTAP, 웹 계약 테스트와 Release 빌드를 통과한다.
 4. Developer ID Application과 Hardened Runtime으로 앱·로그인 항목·Sparkle 중첩 코드를 서명하고 Apple 공증 뒤 ticket을 staple한다.
-5. `scripts/package_macos_release.sh`로 arm64·production 메타데이터, DMG·ZIP·SHA-256을 검증한다. production 카드 잠금과 구매 action 0회를 최종 확인한다.
-6. 검증된 동일 커밋에 릴리스 태그와 GitHub Release를 만든 뒤 DMG와 ZIP을 업로드하고, 다시 받은 파일이 로컬 SHA-256과 같은지 확인한다.
-7. Release ZIP이 실제 다운로드된 뒤에만 `scripts/macos/prepare_sparkle_appcast.sh`로 signed appcast를 게시한다. 이어 웹 다운로드 링크와 `sidey-app/homebrew-tap` Cask를 같은 DMG URL·SHA-256으로 갱신한다.
+5. 공개 버전·build와 관련 문서·링크를 `release/macos.json`에서 파생하고 일관성 검사를 통과한다. production 카드 잠금과 구매 action 0회를 최종 확인한다.
+6. 운영자 Mac에서 `scripts/release_macos.sh` 한 명령으로 Developer ID·Hardened Runtime 서명과 공증을 거친 DMG·ZIP·SHA-256을 만든다. 스크립트가 동일 `main` 커밋의 draft Release에 네 자산을 올리고 다시 내려받아 byte 단위로 대조한 뒤에만 정식 공개한다.
+7. 같은 명령이 Release ZIP의 공개 다운로드를 재검증해 signed appcast PR을 만들고, 공증 DMG의 URL·SHA-256으로 `sidey-app/homebrew-tap` Cask PR을 만든다. 개인 서명키·공증 profile·Sparkle 키는 운영자 Mac 밖으로 내보내지 않는다.
 8. `SIDEY-staging`이 준비되면 같은 migration·Google OAuth·PortOne test Store/Channel/Webhook을 구성하고 Sidey-dev로 주문→결제→지급→프로필 선택→전액 환불→회수를 실제 검증한다.
 9. 추후 실판매는 별도 결정과 법률·운영 검증 뒤 production 앱의 `StoreAvailability`를 여는 새 버전을 먼저 배포하고, 마지막 단계에서만 운영 `sales_enabled=true`와 live 시크릿을 설정한다.
 
@@ -565,3 +565,5 @@ v1.0.6부터 Windows 릴리스는 NSIS `3.12`로 만든 머신 단위 `SIDEY-Win
 Setup EXE는 기존 정식 WiX MSI를 감지하면 SIDEY 프로세스를 종료하고 MSI를 무인 제거한 뒤 새 파일을 설치한다. 이 전환과 일반 업데이트·복구에서는 설정·로그·로그인 자격 증명을 삭제하지 않는다. 과거 per-user·Burn 테스트 설치는 자동 전환 대상이 아니므로 먼저 Windows 설정에서 제거한다.
 
 일반 제거 화면은 설정·로그와 저장된 로그인 자격 증명을 별도 항목으로 제공하며 둘 다 기본 미선택이다. 선택한 항목만 현재 사용자 프로필에서 삭제한다. CI는 게시 런처 스모크, 전체 자동 테스트, NSIS 컴파일, 단일 Setup EXE 자산명과 SHA-256을 검증한다. 실제 Windows 검증에서는 신규 설치·선택 위치·동일 버전 복구/제거·실행 중 업데이트·downgrade 차단·v1.0.5 MSI 전환·각 데이터 삭제 선택을 확인한다.
+
+Windows CI는 PR과 `main` 검증만 담당하며 태그 push로 배포하지 않는다. 정식 배포는 `main`에서 `release/windows.json`의 버전을 다시 입력하는 수동 `Windows Release` 워크플로 하나만 사용한다. 이 워크플로가 전체 검사와 패키징을 다시 수행하고 draft Release의 단일 Setup EXE를 내려받아 후보 SHA-256과 대조한 뒤 공개하며, 성공한 경우에만 Pages 재사용 워크플로를 호출한다.

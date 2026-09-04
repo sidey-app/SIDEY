@@ -1,0 +1,48 @@
+name: macOS CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'assets/**'
+      - 'release/macos.json'
+      - 'macos/**'
+      - 'scripts/export_macos.sh'
+      - 'scripts/package_macos_release.sh'
+      - 'scripts/release_macos.sh'
+      - 'scripts/macos/**'
+      - 'scripts/validate_pixel_assets.py'
+      - 'shared/character-throw/**'
+      - '.github/workflows/macos.yml'
+  pull_request:
+    paths:
+      - 'assets/**'
+      - 'release/macos.json'
+      - 'macos/**'
+      - 'scripts/export_macos.sh'
+      - 'scripts/package_macos_release.sh'
+      - 'scripts/release_macos.sh'
+      - 'scripts/macos/**'
+      - 'scripts/validate_pixel_assets.py'
+      - 'shared/character-throw/**'
+      - '.github/workflows/macos.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: Native tests
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validate central pixel assets and mirrors
+        run: python3 ./scripts/validate_pixel_assets.py
+
+      - name: Run native test suite
+        run: ./scripts/macos/test_native.sh

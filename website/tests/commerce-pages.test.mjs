@@ -69,21 +69,17 @@ test("Korean landing links to the separate store and keeps seller details in the
   }
 });
 
-test("Windows production release is staged for verified Setup EXE deployment", async () => {
-  const [korean, english, latest, compatibility] = await Promise.all([
+test("Windows production release is derived from the central release manifest", async () => {
+  const [korean, english, manifest] = await Promise.all([
     read("index.html"),
     read("en/index.html"),
-    read("windows-latest.json").then(JSON.parse),
-    read("windows/update.json").then(JSON.parse),
+    read("../release/windows.json").then(JSON.parse),
   ]);
-  const installerURL = "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.6/SIDEY-Windows-x64-v1.0.6-Setup.exe";
 
-  assert.deepEqual(latest, compatibility);
-  assert.equal(latest.channel, "production");
-  assert.equal(latest.version, "1.0.6");
-  assert.equal(latest.tag, "windows-v1.0.6");
-  assert.equal(latest.installer_url, installerURL);
-  assert.equal(latest.sha256, null);
+  assert.equal(manifest.schema, 1);
+  assert.equal(manifest.platform, "windows");
+  assert.equal(manifest.channel, "production");
+  assert.equal(manifest.version, "1.0.6");
   for (const page of [korean, english]) {
     assert.ok(page.includes('id="windows-hero-download-action"'));
     assert.ok(page.includes('id="windows-download-action"'));
