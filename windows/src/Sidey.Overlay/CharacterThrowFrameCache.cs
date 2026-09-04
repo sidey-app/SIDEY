@@ -49,20 +49,20 @@ internal sealed class CharacterThrowFrameCache : IDisposable
     private static readonly IReadOnlyDictionary<string, string> BgraHashes =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["Character/pixel_hamster/throw_hit"] = "584b27d59d525c3d0e21d6ed9260a07cbba99f74069a4c95db601dd03cc3fb99",
-            ["Character/pixel_cat/throw_hit"] = "c5113a573980ae66ec3f93c05dac75120cdd30c30501ee90d1701876a6c574b7",
-            ["Character/pixel_puppy/throw_hit"] = "17b33fe94b2a76791b2d5002f720038ae1299d2185540866110e3258bb9b724a",
-            ["Character/pixel_rabbit/throw_hit"] = "5f715868aff1a2606c1f637f35ab1042d4b11f154ce91b5ddf21db33189b55c2",
-            ["Character/pixel_penguin/throw_hit"] = "658a54d43d8cd3c8a85b823a1dda11296addf45cad6ce58b7172128882666d0b",
-            ["Character/pixel_guinea_pig/throw_hit"] = "d9d96bb33233b9bbe0bf2e8effc6077bdfef978f4c3b61c00124fb8fc0715690",
-            ["Character/pixel_monkey/throw_hit"] = "b859c2e4bf6d890070c1ba085f47349771e84514e9ee2e50378da87ac7f0db6a",
-            ["Character/pixel_chinchilla/throw_hit"] = "b5bf003b3374a2d26f1c324c71ffbbe8acad54c19d9697861555edf0add0369c",
-            ["Character/pixel_starlight_upalupa/throw_hit"] = "3c27f23d45f14da7191850c4ec8c5a99d11d79bf415b0acd9445058e6c1db572",
-            ["Throwable/patch_soft_ball/sprite"] = "64d4792b32df1c9dcae113d9a19dcee1f6fc5b6653a8dc4e80ffb1a2793f6e2f",
-            ["Throwable/mini_paprika/sprite"] = "1e9f6181ef51c8e0f84f45f1dc12c14bf6141edb132c7131007e8937e969673f",
-            ["Throwable/banana/sprite"] = "f42c588b897b5e33b3ca5f676dab15ce9e3aa3be02aad424c6b9ade8d01c372f",
-            ["Throwable/dust_bath_pouch/sprite"] = "4d32c76073a8397379c33a42d9ee8e7656f6bf936af343a7d88e6c1d711d2205",
-            ["Throwable/starlight_orb/sprite"] = "1719218f94d0686294b56fd836a74700e03312815043e050f0f0dbf4a90ba8ec",
+            ["Characters/pixel_hamster/throw_hit"] = "584b27d59d525c3d0e21d6ed9260a07cbba99f74069a4c95db601dd03cc3fb99",
+            ["Characters/pixel_cat/throw_hit"] = "c5113a573980ae66ec3f93c05dac75120cdd30c30501ee90d1701876a6c574b7",
+            ["Characters/pixel_puppy/throw_hit"] = "17b33fe94b2a76791b2d5002f720038ae1299d2185540866110e3258bb9b724a",
+            ["Characters/pixel_rabbit/throw_hit"] = "5f715868aff1a2606c1f637f35ab1042d4b11f154ce91b5ddf21db33189b55c2",
+            ["Characters/pixel_penguin/throw_hit"] = "658a54d43d8cd3c8a85b823a1dda11296addf45cad6ce58b7172128882666d0b",
+            ["Characters/pixel_guinea_pig/throw_hit"] = "d9d96bb33233b9bbe0bf2e8effc6077bdfef978f4c3b61c00124fb8fc0715690",
+            ["Characters/pixel_monkey/throw_hit"] = "b859c2e4bf6d890070c1ba085f47349771e84514e9ee2e50378da87ac7f0db6a",
+            ["Characters/pixel_chinchilla/throw_hit"] = "b5bf003b3374a2d26f1c324c71ffbbe8acad54c19d9697861555edf0add0369c",
+            ["Characters/pixel_starlight_upalupa/throw_hit"] = "3c27f23d45f14da7191850c4ec8c5a99d11d79bf415b0acd9445058e6c1db572",
+            ["Throwables/patch_soft_ball/sprite"] = "64d4792b32df1c9dcae113d9a19dcee1f6fc5b6653a8dc4e80ffb1a2793f6e2f",
+            ["Throwables/mini_paprika/sprite"] = "1e9f6181ef51c8e0f84f45f1dc12c14bf6141edb132c7131007e8937e969673f",
+            ["Throwables/banana/sprite"] = "f42c588b897b5e33b3ca5f676dab15ce9e3aa3be02aad424c6b9ade8d01c372f",
+            ["Throwables/dust_bath_pouch/sprite"] = "4d32c76073a8397379c33a42d9ee8e7656f6bf936af343a7d88e6c1d711d2205",
+            ["Throwables/starlight_orb/sprite"] = "1719218f94d0686294b56fd836a74700e03312815043e050f0f0dbf4a90ba8ec",
         };
 
     private readonly Dictionary<string, byte[][]> _actions = new(StringComparer.Ordinal);
@@ -92,7 +92,7 @@ internal sealed class CharacterThrowFrameCache : IDisposable
             _objects.Add(objectId, LoadSheet(
                 Path.Combine(throwableRoot, objectId),
                 "sprite",
-                $"Throwable/{objectId}/sprite",
+                $"Throwables/{objectId}/sprite",
                 ObjectHashes[objectId],
                 cellSize: 16,
                 frameCount: ObjectFrameCount,
@@ -150,7 +150,7 @@ internal sealed class CharacterThrowFrameCache : IDisposable
         var normal = LoadSheet(
             Path.Combine(characterRoot, characterId),
             "throw_hit",
-            $"Character/{characterId}/throw_hit",
+            $"Characters/{characterId}/throw_hit",
             hash,
             cellSize: 24,
             frameCount: ActionFrameCount,
@@ -160,7 +160,7 @@ internal sealed class CharacterThrowFrameCache : IDisposable
         var flipped = LoadSheet(
             Path.Combine(characterRoot, characterId),
             "throw_hit",
-            $"Character/{characterId}/throw_hit",
+            $"Characters/{characterId}/throw_hit",
             hash,
             cellSize: 24,
             frameCount: ActionFrameCount,

@@ -37,6 +37,9 @@
     <None Include="../../src/Sidey.Infrastructure/SupabaseRealtimeTransport.cs" Link="TestAssets/SupabaseRealtimeTransport.cs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="../../src/Sidey.Infrastructure/SystemNetworkAvailabilityMonitor.cs" Link="TestAssets/SystemNetworkAvailabilityMonitor.cs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="../../src/Sidey.App/AppCoordinator.cs" Link="TestAssets/AppCoordinator.cs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>

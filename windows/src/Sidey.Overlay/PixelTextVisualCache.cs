@@ -30,11 +30,12 @@ internal sealed class PixelTextVisualCache : IDisposable
     private const float NameplateHorizontalPaddingDip = 4f;
     private const float NameplateStatusSpacingDip = 5f;
     private const float NameplateStatusRadiusDip = 3f;
+    private const float NameplateFontSizeDip = 11f;
     private const float BubbleMaximumWidthDip = 220f;
     private const float BubbleMinimumWidthDip = 28f;
     private const float BubbleHorizontalPaddingDip = 8f;
     private const float BubbleVerticalPaddingDip = 7f;
-    private const float BubbleFontSizeDip = 10.5f;
+    private const float BubbleFontSizeDip = NameplateFontSizeDip;
     private const float BubbleCornerRadiusDip = 9f;
     private const float BubbleBorderWidthDip = 1f;
     private const float TypingBubbleWidthDip = 42f;
@@ -329,7 +330,7 @@ internal sealed class PixelTextVisualCache : IDisposable
         using var format = new CanvasTextFormat
         {
             FontFamily = "Segoe UI",
-            FontSize = 11f,
+            FontSize = NameplateFontSizeDip,
             HorizontalAlignment = CanvasHorizontalAlignment.Center,
             VerticalAlignment = CanvasVerticalAlignment.Center,
             WordWrapping = CanvasWordWrapping.NoWrap,

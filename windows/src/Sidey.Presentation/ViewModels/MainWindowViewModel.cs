@@ -123,7 +123,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 "store.chinchillaDescription",
                 "store.price990"),
         ];
-        Monitors = _coordinator.GetMonitors();
+        RefreshMonitors();
         ApplyState(coordinator.State);
         UpdateCharacterSelectionState();
         RefreshUpdateInformation();
@@ -135,7 +135,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public IReadOnlyList<StoreProductPreviewViewModel> StoreProducts { get; }
 
-    public IReadOnlyList<MonitorOption> Monitors { get; }
+    public ObservableCollection<MonitorOption> Monitors { get; } = [];
 
     public ObservableCollection<RoomCardViewModel> Rooms { get; } = [];
 
@@ -220,8 +220,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
             StartAtLogin = state.Preferences.StartAtLogin;
             SelectedEdgeIndex = (int)state.Preferences.OverlayRegion.Edge;
             SelectedSpanIndex = (int)state.Preferences.OverlayRegion.Span;
-            SelectedMonitorIdentifier = state.Preferences.OverlayRegion.MonitorIdentifier
-                ?? Monitors.FirstOrDefault(monitor => monitor.IsPrimary)?.Identifier;
+            string? preferredMonitor = state.Preferences.OverlayRegion.MonitorIdentifier;
+            SelectedMonitorIdentifier = Monitors.Any(monitor =>
+                    StringComparer.Ordinal.Equals(monitor.Identifier, preferredMonitor))
+                ? preferredMonitor
+                : Monitors.FirstOrDefault(monitor => monitor.IsPrimary)?.Identifier
+                    ?? Monitors.FirstOrDefault()?.Identifier;
             RefreshValidationMetrics();
             RaiseConnectionNotice(state);
             _previousState = state;
@@ -489,6 +493,36 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 character.Id,
                 character.DisplayName,
                 character.Id));
+        }
+    }
+
+    public void RefreshMonitors()
+    {
+        IReadOnlyList<MonitorOption> desired = _coordinator.GetMonitors();
+        if (Monitors.SequenceEqual(desired))
+        {
+            return;
+        }
+
+        Monitors.Clear();
+        foreach (MonitorOption monitor in desired)
+        {
+            Monitors.Add(monitor);
+        }
+
+        _isApplyingState = true;
+        try
+        {
+            string? preferredMonitor = _state.Preferences.OverlayRegion.MonitorIdentifier;
+            SelectedMonitorIdentifier = Monitors.Any(monitor =>
+                    StringComparer.Ordinal.Equals(monitor.Identifier, preferredMonitor))
+                ? preferredMonitor
+                : Monitors.FirstOrDefault(monitor => monitor.IsPrimary)?.Identifier
+                    ?? Monitors.FirstOrDefault()?.Identifier;
+        }
+        finally
+        {
+            _isApplyingState = false;
         }
     }
 

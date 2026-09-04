@@ -22,9 +22,9 @@ public sealed class CharacterCatalogTests
 
         Assert.All(PixelCharacterCatalog.All, character =>
         {
-            Assert.Equal($"Character/{character.Id}/base.png", character.SpriteSheetResource);
-            Assert.Equal($"Character/{character.Id}/base.bgra", character.RawBgraResource);
-            Assert.Equal($"Character/{character.Id}/manifest.json", character.ManifestResource);
+            Assert.Equal($"Characters/{character.Id}/base.png", character.SpriteSheetResource);
+            Assert.Equal($"Characters/{character.Id}/base.bgra", character.RawBgraResource);
+            Assert.Equal($"Characters/{character.Id}/manifest.json", character.ManifestResource);
             Assert.Equal(24, character.FrameWidth);
             Assert.Equal(24, character.FrameHeight);
             Assert.Equal(10, character.FrameCount);

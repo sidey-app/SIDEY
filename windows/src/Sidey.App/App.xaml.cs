@@ -12,6 +12,7 @@ public partial class App : Application
 {
     private static readonly TimeSpan ConnectionFailureNotificationDelay = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan ConnectionFailureNotificationCooldown = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan DisplayTopologyRefreshDelay = TimeSpan.FromMilliseconds(500);
 
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly IUpdateService _updateService;
@@ -31,6 +32,7 @@ public partial class App : Application
     private bool _connectionFailureNotificationArmed = true;
     private DateTimeOffset? _lastConnectionFailureNotificationAt;
     private DispatcherQueueTimer? _connectionFailureNotificationTimer;
+    private DispatcherQueueTimer? _displayTopologyRefreshTimer;
     private string? _pendingUpdateNotificationVersion;
     private Timer? _uiResponsivenessTimer;
     private bool _shuttingDown;
@@ -139,6 +141,7 @@ public partial class App : Application
             _tray = TrayIconService.Start();
             _tray.CommandInvoked += OnTrayCommandInvoked;
             _tray.RoomSelected += OnTrayRoomSelected;
+            _tray.DisplayTopologyChanged += OnDisplayTopologyChanged;
             _mainWindow?.SetTrayAvailable(true);
             StartupDiagnostics.Stage("tray-started");
             if (_pendingUpdateNotificationVersion is { } pendingVersion)
@@ -547,6 +550,77 @@ public partial class App : Application
         });
     }
 
+    private void OnDisplayTopologyChanged()
+    {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
+        _dispatcherQueue.TryEnqueue(ScheduleDisplayTopologyRefresh);
+    }
+
+    private void ScheduleDisplayTopologyRefresh()
+    {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
+        if (_displayTopologyRefreshTimer is { } pending)
+        {
+            pending.Stop();
+            pending.Start();
+            return;
+        }
+
+        var timer = _dispatcherQueue.CreateTimer();
+        timer.Interval = DisplayTopologyRefreshDelay;
+        timer.IsRepeating = false;
+        timer.Tick += OnDisplayTopologyRefreshElapsed;
+        _displayTopologyRefreshTimer = timer;
+        timer.Start();
+    }
+
+    private void OnDisplayTopologyRefreshElapsed(DispatcherQueueTimer sender, object args)
+    {
+        _ = args;
+        sender.Tick -= OnDisplayTopologyRefreshElapsed;
+        sender.Stop();
+        if (ReferenceEquals(_displayTopologyRefreshTimer, sender))
+        {
+            _displayTopologyRefreshTimer = null;
+        }
+
+        if (_shuttingDown || _coordinator is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _coordinator.RefreshDisplayTopology();
+            _mainWindow?.RefreshMonitors();
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal("display-topology-refresh", exception);
+            _mainWindow?.ShowFatalError(exception);
+        }
+    }
+
+    private void CancelDisplayTopologyRefresh()
+    {
+        if (_displayTopologyRefreshTimer is not { } timer)
+        {
+            return;
+        }
+
+        timer.Tick -= OnDisplayTopologyRefreshElapsed;
+        timer.Stop();
+        _displayTopologyRefreshTimer = null;
+    }
+
     private void HandleTrayCommand(TrayCommand command)
     {
         if (_coordinator is null)
@@ -765,6 +839,7 @@ public partial class App : Application
 
         _shuttingDown = true;
         CancelConnectionFailureNotification();
+        CancelDisplayTopologyRefresh();
         _uiResponsivenessTimer?.Dispose();
         _uiResponsivenessTimer = null;
         if (_mainWindow is not null)
@@ -782,6 +857,7 @@ public partial class App : Application
         {
             _tray.CommandInvoked -= OnTrayCommandInvoked;
             _tray.RoomSelected -= OnTrayRoomSelected;
+            _tray.DisplayTopologyChanged -= OnDisplayTopologyChanged;
             try
             {
                 _tray.Dispose();

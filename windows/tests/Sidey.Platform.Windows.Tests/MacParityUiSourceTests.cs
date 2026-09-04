@@ -89,8 +89,6 @@ public sealed class MacParityUiSourceTests
     public void TrayAndHistoryPreserveMacInteractionContract()
     {
         var tray = ReadRepositoryFile("windows", "src", "Sidey.Platform.Windows", "TrayIconService.cs");
-        var trayIcons = ReadRepositoryFile(
-            "windows", "src", "Sidey.Platform.Windows", "TrayMenuIconSet.cs");
         var appXaml = ReadRepositoryFile("windows", "src", "Sidey.App", "App.xaml");
         var historyXaml = ReadRepositoryFile("windows", "src", "Sidey.App", "HistoryWindow.xaml");
         var historyViewModel = ReadRepositoryFile(
@@ -101,13 +99,12 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("tray.history", tray, StringComparison.Ordinal);
         Assert.Contains("tray.store", tray, StringComparison.Ordinal);
         Assert.Contains("tray.exit", tray, StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            "Append(menu, TrayCommand.Open",
-            tray,
-            StringComparison.Ordinal);
+        Assert.DoesNotContain("Append(menu, TrayCommand.Open", tray, StringComparison.Ordinal);
         Assert.DoesNotContain("SetMenuDefaultItem", tray, StringComparison.Ordinal);
-        Assert.Contains("ApplyMenuIcon", tray, StringComparison.Ordinal);
-        Assert.Contains("Segoe MDL2 Assets", trayIcons, StringComparison.Ordinal);
+        Assert.DoesNotContain("ApplyMenuIcon", tray, StringComparison.Ordinal);
+        Assert.DoesNotContain("TrayMenuIconSet", tray, StringComparison.Ordinal);
+        Assert.Contains("NativeMenuFlags", tray, StringComparison.Ordinal);
+        Assert.Contains("OverlayHiddenCheckState", tray, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding EmptyMessage}\"", historyXaml, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding EmptyDescription}\"", historyXaml, StringComparison.Ordinal);
         Assert.Contains("SideyAccentBackground10Brush", historyXaml, StringComparison.Ordinal);
@@ -197,6 +194,17 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("<SymbolIcon Symbol=\"Send\" />", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("&#xE74D;", xaml, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("FocusAttemptCount = 3", source, StringComparison.Ordinal);
+        Assert.Contains("DispatcherQueue _uiDispatcherQueue", source, StringComparison.Ordinal);
+        Assert.Contains("DispatcherQueue.GetForCurrentThread()", source, StringComparison.Ordinal);
+        Assert.Contains("_uiDispatcherQueue.TryEnqueue(HideComposer)", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "OnCloseRequested() => DispatcherQueue.TryEnqueue",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("if (!_isVisible || _isHiding)", source, StringComparison.Ordinal);
+        Assert.Contains("_isHiding = true", source, StringComparison.Ordinal);
+        Assert.Contains("_isVisible = false", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("AppWindow.IsVisible", source, StringComparison.Ordinal);
         Assert.Contains("MessageInput.Focus(FocusState.Programmatic)", source, StringComparison.Ordinal);
         Assert.Equal(2, CountOccurrences(source, "SideyWindowActivation.BringToForeground(this);"));
         Assert.Contains("WindowActivationState.Deactivated", source, StringComparison.Ordinal);
@@ -220,7 +228,8 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("BubbleMinimumWidthDip = 28f", source, StringComparison.Ordinal);
         Assert.Contains("BubbleHorizontalPaddingDip = 8f", source, StringComparison.Ordinal);
         Assert.Contains("BubbleVerticalPaddingDip = 7f", source, StringComparison.Ordinal);
-        Assert.Contains("BubbleFontSizeDip = 10.5f", source, StringComparison.Ordinal);
+        Assert.Contains("NameplateFontSizeDip = 11f", source, StringComparison.Ordinal);
+        Assert.Contains("BubbleFontSizeDip = NameplateFontSizeDip", source, StringComparison.Ordinal);
         Assert.Contains("var (width, height) = MeasureBubble(bubble.Body)", source, StringComparison.Ordinal);
         Assert.Contains("naturalLayout.LayoutBoundsIncludingTrailingWhitespace", source, StringComparison.Ordinal);
         Assert.Contains("wrappedLayout.LayoutBoundsIncludingTrailingWhitespace", source, StringComparison.Ordinal);
@@ -280,8 +289,11 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("OnNavigationPaneClosing", source, StringComparison.Ordinal);
         Assert.Contains("ShowCompactConnectionStatus();", source, StringComparison.Ordinal);
         Assert.Contains("OnNavigationPaneOpened", source, StringComparison.Ordinal);
+        Assert.Contains("OnNavigationPaneOpening", source, StringComparison.Ordinal);
         Assert.Contains("ShowExpandedConnectionStatus();", source, StringComparison.Ordinal);
-        Assert.Contains("ExpandedConnectionStatus.Visibility = Visibility.Collapsed", source, StringComparison.Ordinal);
+        Assert.Contains("ExpandedConnectionStatus.Opacity = 0", source, StringComparison.Ordinal);
+        Assert.Contains("ExpandedConnectionStatus.Opacity = 1", source, StringComparison.Ordinal);
+        Assert.Contains("<ScalarTransition Duration=\"0:0:0.16\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Background=\"{ThemeResource SideyAccentBackground12Brush}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Foreground=\"{ThemeResource SideyAccentForegroundBrush}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("<TitleBar", xaml, StringComparison.Ordinal);
@@ -327,10 +339,36 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("<UniformGridLayout", xaml, StringComparison.Ordinal);
         Assert.Contains("MaximumRowsOrColumns=\"2\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Style=\"{StaticResource SideySettingsCardStyle}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Source=\"{Binding CharacterId, Converter={StaticResource CharacterImageConverter}}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains(
+            "<controls:PixelCharacterPreview CharacterId=\"{Binding CharacterId}\"",
+            xaml,
+            StringComparison.Ordinal);
         Assert.Contains("IsEnabled=\"False\"", xaml, StringComparison.Ordinal);
         Assert.Contains("pixel_starlight_upalupa", viewModel, StringComparison.Ordinal);
         Assert.DoesNotContain("PurchaseCommand", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CharacterPreviewsUseNearestNeighborRenderingLikeMac()
+    {
+        var main = ReadRepositoryFile("windows", "src", "Sidey.App", "MainWindow.xaml");
+        var onboarding = ReadRepositoryFile(
+            "windows", "src", "Sidey.App", "OnboardingWindow.xaml");
+        var history = ReadRepositoryFile("windows", "src", "Sidey.App", "HistoryWindow.xaml");
+        var preview = ReadRepositoryFile(
+            "windows", "src", "Sidey.App", "Controls", "PixelCharacterPreview.xaml.cs");
+
+        Assert.Equal(3, CountOccurrences(main, "<controls:PixelCharacterPreview"));
+        Assert.Contains("<controls:PixelCharacterPreview", onboarding, StringComparison.Ordinal);
+        Assert.Contains("<controls:PixelCharacterPreview", history, StringComparison.Ordinal);
+        Assert.DoesNotContain("CharacterImageConverter", main, StringComparison.Ordinal);
+        Assert.DoesNotContain("CharacterImageConverter", onboarding, StringComparison.Ordinal);
+        Assert.DoesNotContain("CharacterImageConverter", history, StringComparison.Ordinal);
+        Assert.Contains("CanvasImageInterpolation.NearestNeighbor", preview, StringComparison.Ordinal);
+        Assert.Contains(
+            "new Rect(0, 0, definition.FrameWidth, definition.FrameHeight)",
+            preview,
+            StringComparison.Ordinal);
     }
 
     [Fact]

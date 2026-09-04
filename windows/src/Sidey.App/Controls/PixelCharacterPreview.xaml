@@ -1,0 +1,14 @@
+<UserControl
+    x:Class="Sidey.App.Controls.PixelCharacterPreview"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml">
+  <canvas:CanvasControl
+      x:Name="PreviewCanvas"
+      CreateResources="OnCreateResources"
+      Draw="OnDraw"
+      IsHitTestVisible="False"
+      Loaded="OnLoaded"
+      Unloaded="OnUnloaded"
+      UseLayoutRounding="True" />
+</UserControl>

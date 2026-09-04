@@ -63,8 +63,8 @@ if (Test-Path -LiteralPath $legacyExecutable -PathType Leaf) {
 
 $deployableFiles = @(Get-ChildItem -LiteralPath $resolvedPublishDir -Recurse -File |
     Where-Object { $_.Extension -ne '.pdb' })
-$characterAssetRoot = Join-Path $resolvedPublishDir 'Assets/Character'
-$throwableAssetRoot = Join-Path $resolvedPublishDir 'Assets/Throwable'
+$characterAssetRoot = Join-Path $resolvedPublishDir 'Assets/Characters'
+$throwableAssetRoot = Join-Path $resolvedPublishDir 'Assets/Throwables'
 $iconRoot = Join-Path $resolvedPublishDir 'Assets/Icons'
 $languageRoot = Join-Path $resolvedPublishDir 'Langs'
 $requiredSideyBinaries = @(
@@ -119,7 +119,8 @@ if ($sourceIconNames.Count -eq 0 -or
 }
 
 $legacyAssetDirectories = @(
-    (Join-Path $resolvedPublishDir 'Assets/Characters'),
+    (Join-Path $resolvedPublishDir 'Assets/Character'),
+    (Join-Path $resolvedPublishDir 'Assets/Throwable'),
     (Join-Path $resolvedPublishDir 'Assets/CharacterThrow')
 )
 $presentLegacyAssetDirectories = @($legacyAssetDirectories | Where-Object {
@@ -131,7 +132,7 @@ if ($presentLegacyAssetDirectories.Count -gt 0) {
 
 $characterAssetFiles = @(Get-ChildItem -LiteralPath $characterAssetRoot -Recurse -File)
 $manifests = @($characterAssetFiles | Where-Object { $_.Name -eq 'manifest.json' })
-$sourceCharacterAssetRoot = Join-Path $repositoryRoot 'windows/src/Sidey.Overlay/Assets/Character'
+$sourceCharacterAssetRoot = Join-Path $repositoryRoot 'windows/src/Sidey.Overlay/Assets/Characters'
 $sourceManifestNames = @(Get-ChildItem -LiteralPath $sourceCharacterAssetRoot -Filter 'manifest.json' -Recurse -File |
     ForEach-Object { Get-SideyRelativePath $sourceCharacterAssetRoot $_.FullName } |
     Sort-Object)
@@ -169,7 +170,7 @@ if ($unexpectedCharacterAssets.Count -gt 0 -or
     throw '캐릭터 외부 에셋에는 base/throw_hit PNG·BGRA와 manifest 세트만 둘 수 있음'
 }
 
-$sourceThrowableAssetRoot = Join-Path $repositoryRoot 'windows/src/Sidey.Overlay/Assets/Throwable'
+$sourceThrowableAssetRoot = Join-Path $repositoryRoot 'windows/src/Sidey.Overlay/Assets/Throwables'
 $sourceThrowableFiles = @(Get-ChildItem -LiteralPath $sourceThrowableAssetRoot -Recurse -File |
     ForEach-Object { Get-SideyRelativePath $sourceThrowableAssetRoot $_.FullName } |
     Sort-Object)

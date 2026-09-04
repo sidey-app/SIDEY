@@ -16,12 +16,16 @@ public sealed partial class ComposerWindow : Window
     private const int ComposerHeight = 56;
     private const int FocusAttemptCount = 3;
 
+    private readonly Microsoft.UI.Dispatching.DispatcherQueue _uiDispatcherQueue;
     private bool _focusRequested;
+    private bool _isHiding;
+    private bool _isVisible;
     private int _focusRequestId;
 
     public ComposerWindow(ComposerViewModel viewModel)
     {
         ViewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+        _uiDispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
         InitializeComponent();
         ComposerRoot.DataContext = ViewModel;
         Title = I18n.Get("window.composerTitle");
@@ -48,6 +52,7 @@ public sealed partial class ComposerWindow : Window
     {
         ViewModel.OnShown();
         ResizeAndCenter(monitorIdentifier);
+        _isVisible = true;
         AppWindow.Show();
         Activate();
         SideyWindowActivation.BringToForeground(this);
@@ -56,15 +61,32 @@ public sealed partial class ComposerWindow : Window
 
     public void HideComposer()
     {
-        _focusRequestId++;
-        _focusRequested = false;
-        ViewModel.OnHidden();
-        AppWindow.Hide();
+        if (!_isVisible || _isHiding)
+        {
+            return;
+        }
+
+        _isHiding = true;
+        _isVisible = false;
+        try
+        {
+            _focusRequestId++;
+            _focusRequested = false;
+            ViewModel.OnHidden();
+            StartupDiagnostics.Stage("composer-hide-started");
+            AppWindow.Hide();
+            StartupDiagnostics.Stage("composer-hidden");
+        }
+        finally
+        {
+            _isHiding = false;
+        }
     }
 
     public void RestoreDraftAndFocus(string body)
     {
         ViewModel.RestoreDraft(body);
+        _isVisible = true;
         AppWindow.Show();
         Activate();
         SideyWindowActivation.BringToForeground(this);
@@ -111,7 +133,7 @@ public sealed partial class ComposerWindow : Window
         _ = sender;
         if (args.WindowActivationState == WindowActivationState.Deactivated)
         {
-            if (!_focusRequested && AppWindow.IsVisible)
+            if (!_focusRequested && _isVisible && !_isHiding)
             {
                 HideComposer();
             }
@@ -119,18 +141,27 @@ public sealed partial class ComposerWindow : Window
             return;
         }
 
-        if (AppWindow.IsVisible)
+        if (_isVisible)
         {
             RequestMessageInputFocus();
         }
     }
 
-    private void OnCloseRequested() => DispatcherQueue.TryEnqueue(HideComposer);
+    private void OnCloseRequested()
+    {
+        if (!_uiDispatcherQueue.TryEnqueue(HideComposer))
+        {
+            StartupDiagnostics.Stage("composer-hide-queue-rejected");
+        }
+    }
 
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
         _ = sender;
         _ = args;
+        _focusRequestId++;
+        _focusRequested = false;
+        _isVisible = false;
         ViewModel.CloseRequested -= OnCloseRequested;
         ViewModel.Dispose();
     }
@@ -146,7 +177,7 @@ public sealed partial class ComposerWindow : Window
     {
         DispatcherQueue.TryEnqueue(() =>
         {
-            if (requestId != _focusRequestId || !AppWindow.IsVisible)
+            if (requestId != _focusRequestId || !_isVisible)
             {
                 return;
             }

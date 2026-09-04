@@ -54,14 +54,20 @@ public sealed class RealtimeSecuritySourceTests
     }
 
     [Fact]
-    public void RealtimeHealthAllowsDelayedHeartbeatsAndLogsTheMessagePipeline()
+    public void RealtimeHealthUsesLowCostPathEventsAndLogsTheMessagePipeline()
     {
         var gateway = Read("SupabaseBackendGateway.cs");
         var transport = Read("SupabaseRealtimeTransport.cs");
+        var networkMonitor = Read("SystemNetworkAvailabilityMonitor.cs");
         var coordinator = Read("AppCoordinator.cs");
         var session = Read("NativePixelWorldSession.cs");
 
-        Assert.Contains("UnhealthyAfter = TimeSpan.FromSeconds(30)", transport, StringComparison.Ordinal);
+        Assert.Contains("UnhealthyAfter = TimeSpan.FromSeconds(15)", transport, StringComparison.Ordinal);
+        Assert.Contains("RealtimeRecoveryPolicy.PathRecoveryDebounce", transport, StringComparison.Ordinal);
+        Assert.Contains("ScheduleRecovery(immediate: true)", transport, StringComparison.Ordinal);
+        Assert.Contains("NetworkChange.NetworkAvailabilityChanged +=", networkMonitor, StringComparison.Ordinal);
+        Assert.Contains("NetworkChange.NetworkAvailabilityChanged -=", networkMonitor, StringComparison.Ordinal);
+        Assert.DoesNotContain("PeriodicTimer", networkMonitor, StringComparison.Ordinal);
         Assert.Contains("Realtime WebSocket heartbeat timed out.", transport, StringComparison.Ordinal);
         Assert.Contains("realtime-health silence-ms=", transport, StringComparison.Ordinal);
         Assert.Contains("realtime-websocket-closed code=", transport, StringComparison.Ordinal);
@@ -93,6 +99,27 @@ public sealed class RealtimeSecuritySourceTests
         Assert.Contains("_joinReferences[descriptor.PhoenixTopic] = reference", transport, StringComparison.Ordinal);
         Assert.Contains("presence_state", transport, StringComparison.Ordinal);
         Assert.Contains("presence_diff", transport, StringComparison.Ordinal);
+        Assert.Contains("PresenceSnapshotPlan.Updates(current, previous)", transport, StringComparison.Ordinal);
+        Assert.Contains("_presentUsersByRoom[roomId] = current.Keys.ToHashSet()", transport, StringComparison.Ordinal);
+        Assert.Contains("_presentUsersByRoom.TryRemove(roomId, out _)", transport, StringComparison.Ordinal);
+        Assert.Contains("_presentUsersByRoom.Clear()", transport, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ShutdownLeavesJoinedTopicsBeforeClosingTheSocket()
+    {
+        var transport = Read("SupabaseRealtimeTransport.cs");
+        var disposeStart = transport.IndexOf("public async ValueTask DisposeAsync()", StringComparison.Ordinal);
+        var disposeEnd = transport.IndexOf(
+            "private async Task TryLeaveTopicsBeforeShutdownAsync()",
+            disposeStart,
+            StringComparison.Ordinal);
+        var dispose = transport[disposeStart..disposeEnd];
+
+        Assert.True(
+            dispose.IndexOf("TryLeaveTopicsBeforeShutdownAsync", StringComparison.Ordinal)
+            < dispose.IndexOf("_shutdown.Cancel();", StringComparison.Ordinal));
+        Assert.Contains("\"phx_leave\"", transport[disposeEnd..], StringComparison.Ordinal);
     }
 
     [Fact]

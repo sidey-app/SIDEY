@@ -154,7 +154,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 initialCharacterIds);
             var throwableAssetRoot = Path.Combine(
                 Directory.GetParent(assetRoot)?.FullName ?? assetRoot,
-                "Throwable");
+                "Throwables");
             throwFrameCache = new CharacterThrowFrameCache(
                 assetRoot,
                 throwableAssetRoot,

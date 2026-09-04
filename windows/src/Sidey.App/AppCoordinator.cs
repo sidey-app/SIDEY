@@ -580,6 +580,25 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             monitor.IsPrimary))
         .ToArray();
 
+    public void RefreshDisplayTopology()
+    {
+        IReadOnlyList<MonitorOption> monitors = GetMonitors();
+        StartupDiagnostics.Stage(
+            $"display-topology-refreshed monitors={monitors.Count} "
+            + $"primary={monitors.FirstOrDefault(monitor => monitor.IsPrimary)?.Identifier ?? "none"}");
+        if (_overlay is not null)
+        {
+            if (_backend is null && _previewSnapshot is not null)
+            {
+                StartPreviewOverlay(_state.Preferences);
+            }
+            else
+            {
+                RestartOverlayForRegionChange();
+            }
+        }
+    }
+
     public async Task SetTypingAsync(bool active, CancellationToken cancellationToken = default)
     {
         if (_backend is null)

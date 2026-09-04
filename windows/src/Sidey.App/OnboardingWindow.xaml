@@ -2,6 +2,7 @@
     x:Class="Sidey.App.OnboardingWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Sidey.App.Controls"
     xmlns:i18n="using:Sidey.App.Localization">
   <Grid x:Name="OnboardingRoot" Background="Transparent">
     <Grid.RowDefinitions>
@@ -163,8 +164,7 @@
                       <Grid MinHeight="94">
                         <StackPanel Padding="8" Spacing="6">
                           <Border Width="48" Height="48" HorizontalAlignment="Center">
-                            <Border.Clip><RectangleGeometry Rect="0,0,48,48" /></Border.Clip>
-                            <Image Width="480" Height="48" HorizontalAlignment="Left" Source="{Binding CharacterId, Converter={StaticResource CharacterImageConverter}}" Stretch="Fill" />
+                            <controls:PixelCharacterPreview CharacterId="{Binding CharacterId}" />
                           </Border>
                           <TextBlock HorizontalAlignment="Center" Text="{Binding DisplayName}" />
                         </StackPanel>
