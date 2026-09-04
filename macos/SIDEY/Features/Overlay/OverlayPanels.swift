@@ -11,6 +11,34 @@ private final class CharacterHotspotPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+@MainActor
+protocol ComposerFocusLossScheduling: AnyObject {
+    func schedule(after delay: Duration, action: @escaping @MainActor () -> Void)
+    func cancel()
+}
+
+@MainActor
+private final class TaskComposerFocusLossScheduler: ComposerFocusLossScheduling {
+    private var task: Task<Void, Never>?
+
+    func schedule(after delay: Duration, action: @escaping @MainActor () -> Void) {
+        cancel()
+        task = Task { @MainActor in
+            do {
+                try await Task.sleep(for: delay)
+            } catch {
+                return
+            }
+            action()
+        }
+    }
+
+    func cancel() {
+        task?.cancel()
+        task = nil
+    }
+}
+
 private final class CharacterHotspotView: NSView {
     let onClick: (Int) -> Void
     let onRightClick: () -> Void
@@ -150,19 +178,27 @@ enum OverlayComposerLayout {
 @MainActor
 final class OverlayInteractionWindowController: NSObject, NSWindowDelegate {
     static let panelSize = OverlayComposerLayout.panelSize
+    static let focusLossDismissDelay: Duration = .milliseconds(250)
     private let panel: NSPanel
     private let onDismissRequested: () -> Void
+    private let focusLossScheduler: any ComposerFocusLossScheduling
+    private let isApplicationActive: @MainActor () -> Bool
     private var focusRequestID = 0
     private var isProgrammaticallyHiding = false
+    private(set) var hasPendingFocusLossDismiss = false
 
     init(
         model: AppModel,
         onSend: @escaping (String) -> Void,
         onInputActivity: @escaping () -> Void,
         onTypingChanged: @escaping (Bool) -> Void,
-        onCancel: @escaping () -> Void
+        onCancel: @escaping () -> Void,
+        focusLossScheduler: (any ComposerFocusLossScheduling)? = nil,
+        isApplicationActive: @escaping @MainActor () -> Bool = { NSApplication.shared.isActive }
     ) {
         onDismissRequested = onCancel
+        self.focusLossScheduler = focusLossScheduler ?? TaskComposerFocusLossScheduler()
+        self.isApplicationActive = isApplicationActive
         panel = InteractiveOverlayPanel(
             contentRect: CGRect(origin: .zero, size: Self.panelSize),
             styleMask: [.borderless],
@@ -170,6 +206,12 @@ final class OverlayInteractionWindowController: NSObject, NSWindowDelegate {
             defer: false
         )
         super.init()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applicationDidResignActive(_:)),
+            name: NSApplication.didResignActiveNotification,
+            object: nil
+        )
         panel.identifier = OverlayWindowIdentifier.composer
         panel.delegate = self
         panel.backgroundColor = .clear
@@ -188,7 +230,10 @@ final class OverlayInteractionWindowController: NSObject, NSWindowDelegate {
             rootView: OverlayComposerView(
                 model: model,
                 onSend: onSend,
-                onInputActivity: onInputActivity,
+                onInputActivity: { [weak self] in
+                    self?.inputDidChange()
+                    onInputActivity()
+                },
                 onTypingChanged: onTypingChanged,
                 onCancel: onCancel
             )
@@ -208,6 +253,7 @@ final class OverlayInteractionWindowController: NSObject, NSWindowDelegate {
             // Showing the composer must not steal focus from the current app.
             panel.orderFrontRegardless()
         } else {
+            cancelPendingFocusLossDismiss()
             focusRequestID &+= 1
             isProgrammaticallyHiding = true
             panel.orderOut(nil)
@@ -217,11 +263,53 @@ final class OverlayInteractionWindowController: NSObject, NSWindowDelegate {
 
     func windowDidResignKey(_ notification: Notification) {
         guard !isProgrammaticallyHiding, panel.isVisible else { return }
-        onDismissRequested()
+        scheduleFocusLossDismissCheck()
+    }
+
+    @objc private func applicationDidResignActive(_ notification: Notification) {
+        guard hasPendingFocusLossDismiss, panel.isVisible, !panel.isKeyWindow else { return }
+        scheduleFocusLossDismissCheck()
+    }
+
+    private func scheduleFocusLossDismissCheck() {
+        hasPendingFocusLossDismiss = true
+        focusLossScheduler.schedule(after: Self.focusLossDismissDelay) { [weak self] in
+            guard let self, self.hasPendingFocusLossDismiss else { return }
+            guard self.panel.isVisible else {
+                self.cancelPendingFocusLossDismiss()
+                return
+            }
+            guard !self.panel.isKeyWindow else {
+                self.cancelPendingFocusLossDismiss()
+                return
+            }
+            if self.isApplicationActive() {
+                // The macOS character palette becomes the key window while SIDEY
+                // remains active. Wait without polling until it inserts text,
+                // returns focus, or the application deactivates.
+                self.focusLossScheduler.cancel()
+                return
+            }
+            self.hasPendingFocusLossDismiss = false
+            self.onDismissRequested()
+        }
+    }
+
+    func windowDidBecomeKey(_ notification: Notification) {
+        guard hasPendingFocusLossDismiss else { return }
+        cancelPendingFocusLossDismiss()
+        requestMessageFieldFocus(activateApplication: false)
     }
 
     func focusMessageField() {
-        NSApplication.shared.activate(ignoringOtherApps: true)
+        cancelPendingFocusLossDismiss()
+        requestMessageFieldFocus(activateApplication: true)
+    }
+
+    private func requestMessageFieldFocus(activateApplication: Bool) {
+        if activateApplication {
+            NSApplication.shared.activate(ignoringOtherApps: true)
+        }
         panel.makeKeyAndOrderFront(nil)
         focusRequestID &+= 1
         let requestID = focusRequestID
@@ -253,6 +341,22 @@ final class OverlayInteractionWindowController: NSObject, NSWindowDelegate {
         }
     }
 
+    private func inputDidChange() {
+        let shouldRestoreFocus = hasPendingFocusLossDismiss || !panel.isKeyWindow
+        guard shouldRestoreFocus else { return }
+        cancelPendingFocusLossDismiss()
+        requestMessageFieldFocus(activateApplication: true)
+    }
+
+    private func cancelPendingFocusLossDismiss() {
+        focusLossScheduler.cancel()
+        hasPendingFocusLossDismiss = false
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
     var level: NSWindow.Level { panel.level }
     var isVisible: Bool { panel.isVisible }
     var size: CGSize { panel.frame.size }
@@ -273,6 +377,11 @@ final class OverlayInteractionWindowController: NSObject, NSWindowDelegate {
     var messageFieldIsFirstResponder: Bool {
         (panel.firstResponder as? NSView)?.identifier
             == NSUserInterfaceItemIdentifier("sidey.message-field")
+    }
+    var messageTextView: NSTextView? {
+        panel.contentView?.firstDescendant(
+            withIdentifier: NSUserInterfaceItemIdentifier("sidey.message-field")
+        ) as? NSTextView
     }
     var collectionBehavior: NSWindow.CollectionBehavior { panel.collectionBehavior }
 }

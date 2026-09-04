@@ -615,6 +615,155 @@ final class PixelWorldTests: XCTestCase {
         }
     }
 
+    func testTwoMaximumLengthBubblesStackInsideCanvasOnAllEdges() {
+        let senderID = UUID()
+        let bubbles = [
+            ActiveBubble(
+                senderID: senderID,
+                messageID: UUID(),
+                body: String(repeating: "가", count: 200),
+                expiresAt: Date(timeIntervalSince1970: 10)
+            ),
+            ActiveBubble(
+                senderID: senderID,
+                messageID: UUID(),
+                body: String(repeating: "나", count: 200),
+                expiresAt: Date(timeIntervalSince1970: 11)
+            )
+        ]
+
+        for edge in OverlayEdge.allCases {
+            let bounds = edge.isHorizontal
+                ? CGRect(x: 0, y: 0, width: 720, height: 360)
+                : CGRect(x: 0, y: 0, width: 360, height: 720)
+            let geometry = EdgeTrackGeometry(bounds: bounds, edge: edge)
+            for tangent in [geometry.trackRange.lowerBound, geometry.trackRange.upperBound] {
+                let entries = PixelBubbleStackLayout.make(
+                    bubbles: bubbles,
+                    tangentPosition: tangent,
+                    tangentLength: geometry.tangentLength,
+                    edge: edge
+                )
+
+                XCTAssertEqual(entries.map(\.bubble.body), bubbles.map(\.body))
+                XCTAssertEqual(entries.map(\.includesTail), [false, true])
+                XCTAssertEqual(
+                    entries[0].layout.bodyFrame.minY - entries[1].layout.bodyFrame.maxY,
+                    PixelBubbleStackLayout.bodySpacing,
+                    accuracy: 0.001
+                )
+                for entry in entries {
+                    let worldFrame = geometry.worldFrame(for: entry.layout.totalFrame, at: tangent)
+                    XCTAssertTrue(
+                        bounds.insetBy(dx: -0.5, dy: -0.5).contains(worldFrame),
+                        "\(edge) \(tangent): \(worldFrame)"
+                    )
+                }
+            }
+        }
+    }
+
+    func testSceneRendersOlderBubbleAboveNewestWithOnlyNewestTailAndUnionCollisionRange() {
+        let roomID = UUID()
+        let member = makeMember()
+        let bubbles = [
+            ActiveBubble(
+                senderID: member.id,
+                messageID: UUID(),
+                body: "이전 " + String(repeating: "긴메시지", count: 20),
+                expiresAt: Date(timeIntervalSince1970: 10)
+            ),
+            ActiveBubble(
+                senderID: member.id,
+                messageID: UUID(),
+                body: "최신",
+                expiresAt: Date(timeIntervalSince1970: 11)
+            )
+        ]
+        let scene = PixelWorldScene(size: CGSize(width: 720, height: 360))
+        scene.apply(
+            roomID: roomID,
+            members: [member],
+            bubbles: bubbles,
+            edge: .bottom,
+            installationSeed: 9
+        )
+
+        XCTAssertEqual(scene.renderedBubbleBodies(for: member.id), bubbles.map(\.body))
+        XCTAssertEqual(scene.renderedBubbleTailFlags(for: member.id), [false, true])
+        let frames = scene.renderedBubbleBodyFrames(for: member.id)
+        XCTAssertEqual(frames.count, 2)
+        XCTAssertEqual(
+            frames[0].minY - frames[1].maxY,
+            PixelBubbleStackLayout.bodySpacing,
+            accuracy: 0.001
+        )
+
+        let range = scene.messageBubbleTangentRanges[member.id]
+        let geometry = scene.trackGeometry
+        let tangent = try! XCTUnwrap(scene.agentStates.first?.trackPosition)
+        let expectedEntries = PixelBubbleStackLayout.make(
+            bubbles: bubbles,
+            tangentPosition: tangent,
+            tangentLength: geometry.tangentLength,
+            edge: .bottom
+        )
+        XCTAssertEqual(
+            range,
+            PixelBubbleStackLayout.bodyTangentRange(
+                for: expectedEntries,
+                at: tangent,
+                edge: .bottom
+            )
+        )
+    }
+
+    func testSceneKeepsTwoBubblesForAllTwelveMembers() {
+        let roomID = UUID()
+        let members = (0..<12).map { index in
+            PixelWorldMember(
+                id: UUID(),
+                nickname: "친구\(index)",
+                characterID: "pixel_hamster",
+                presence: .online,
+                isTyping: true,
+                isCurrentUser: index == 0
+            )
+        }
+        let bubbles = members.flatMap { member in
+            [
+                ActiveBubble(
+                    senderID: member.id,
+                    messageID: UUID(),
+                    body: "이전",
+                    expiresAt: Date(timeIntervalSince1970: 10)
+                ),
+                ActiveBubble(
+                    senderID: member.id,
+                    messageID: UUID(),
+                    body: "최신",
+                    expiresAt: Date(timeIntervalSince1970: 11)
+                )
+            ]
+        }
+        let scene = PixelWorldScene(size: CGSize(width: 1_200, height: 360))
+
+        scene.apply(
+            roomID: roomID,
+            members: members,
+            bubbles: bubbles,
+            edge: .bottom,
+            installationSeed: 10
+        )
+
+        XCTAssertEqual(scene.messageBubbleTangentRanges.count, 12)
+        for member in members {
+            XCTAssertEqual(scene.renderedBubbleBodies(for: member.id), ["이전", "최신"])
+            XCTAssertEqual(scene.renderedBubbleTailFlags(for: member.id), [false, true])
+            XCTAssertFalse(scene.renderedBubbleIsTyping(for: member.id))
+        }
+    }
+
     func testBubbleUsesExplicitDarkInkOnLightBackground() throws {
         let text = PixelBubbleStyle.textColor.usingColorSpace(.sRGB) ?? PixelBubbleStyle.textColor
         let background = PixelBubbleStyle.backgroundColor.usingColorSpace(.sRGB)
@@ -658,9 +807,32 @@ final class PixelWorldTests: XCTestCase {
             body: "도착",
             expiresAt: .now.addingTimeInterval(10)
         )
-        scene.apply(roomID: roomID, members: [member], bubbles: [message], edge: .bottom, installationSeed: 1)
+        let newerMessage = ActiveBubble(
+            senderID: member.id,
+            messageID: UUID(),
+            body: "또 도착",
+            expiresAt: .now.addingTimeInterval(11)
+        )
+        scene.apply(
+            roomID: roomID,
+            members: [member],
+            bubbles: [message, newerMessage],
+            edge: .bottom,
+            installationSeed: 1
+        )
         XCTAssertFalse(scene.renderedBubbleIsTyping(for: member.id))
-        XCTAssertEqual(scene.renderedBubbleBody(for: member.id), "도착")
+        XCTAssertEqual(scene.renderedBubbleBodies(for: member.id), ["도착", "또 도착"])
+        XCTAssertEqual(scene.renderedBubbleBody(for: member.id), "또 도착")
+
+        scene.apply(
+            roomID: roomID,
+            members: [member],
+            bubbles: [newerMessage],
+            edge: .bottom,
+            installationSeed: 1
+        )
+        XCTAssertFalse(scene.renderedBubbleIsTyping(for: member.id))
+        XCTAssertEqual(scene.renderedBubbleBodies(for: member.id), ["또 도착"])
 
         scene.apply(roomID: roomID, members: [member], bubbles: [], edge: .bottom, installationSeed: 1)
         XCTAssertTrue(scene.renderedBubbleIsTyping(for: member.id))

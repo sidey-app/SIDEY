@@ -546,7 +546,7 @@ struct ActiveBubble: Equatable, Identifiable, Sendable {
 }
 
 struct ActiveBubbleLedger: Equatable, Sendable {
-    static let maximumVisible = 4
+    static let maximumVisiblePerSender = 2
     static let defaultLifetime: TimeInterval = 10
 
     private(set) var bubbles: [ActiveBubble] = []
@@ -557,7 +557,7 @@ struct ActiveBubbleLedger: Equatable, Sendable {
         body: String,
         expiresAt: Date = .now.addingTimeInterval(Self.defaultLifetime)
     ) {
-        bubbles.removeAll { $0.senderID == senderID || $0.messageID == messageID }
+        bubbles.removeAll { $0.messageID == messageID }
         bubbles.append(ActiveBubble(
             senderID: senderID,
             messageID: messageID,
@@ -569,8 +569,14 @@ struct ActiveBubbleLedger: Equatable, Sendable {
                 ? lhs.messageID.uuidString < rhs.messageID.uuidString
                 : lhs.expiresAt < rhs.expiresAt
         }
-        if bubbles.count > Self.maximumVisible {
-            bubbles.removeFirst(bubbles.count - Self.maximumVisible)
+        let senderBubbles = bubbles.filter { $0.senderID == senderID }
+        if senderBubbles.count > Self.maximumVisiblePerSender {
+            let removedIDs = Set(
+                senderBubbles
+                    .prefix(senderBubbles.count - Self.maximumVisiblePerSender)
+                    .map(\.messageID)
+            )
+            bubbles.removeAll { removedIDs.contains($0.messageID) }
         }
     }
 
