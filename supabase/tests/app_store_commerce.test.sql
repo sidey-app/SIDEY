@@ -87,11 +87,16 @@ select throws_ok(
   'an active account cannot steal an already bound transaction'
 );
 
-insert into public.commerce_entitlements (
-  user_id, entitlement_key, status, grant_kind, grant_reference
+insert into private.commerce_grants (
+  user_id, entitlement_key, source_kind, source_reference, status
 ) values (
   '61000000-0000-0000-0000-000000000001',
-  'character:pixel_guinea_pig', 'active', 'complimentary', 'app-store-test-grant'
+  'character:pixel_guinea_pig', 'complimentary',
+  'app-store-test-grant', 'active'
+);
+select private.refresh_commerce_entitlement(
+  '61000000-0000-0000-0000-000000000001',
+  'character:pixel_guinea_pig'
 );
 select is(
   (select count(*)::integer from private.commerce_grants
@@ -118,11 +123,11 @@ select is(
   'refunding one source preserves another active grant'
 );
 
-insert into public.rooms (id, name, owner_id, invite_code_hash, invite_code_hint)
+insert into public.rooms (id, name, owner_id, invite_code_hint, invite_code_ready)
 values (
   '62000000-0000-0000-0000-000000000001', '삭제테스트',
   '61000000-0000-0000-0000-000000000001',
-  extensions.digest('app-store-delete-room', 'sha256'), '••••-••01'
+  '••••-••01', false
 );
 insert into public.room_members (room_id, user_id, joined_at) values
   ('62000000-0000-0000-0000-000000000001', '61000000-0000-0000-0000-000000000001', now() - interval '1 hour'),
