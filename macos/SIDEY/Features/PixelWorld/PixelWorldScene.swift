@@ -135,7 +135,7 @@ final class PixelWorldScene: SKScene {
     private var characterNodes: [UUID: PixelCharacterNode] = [:]
     private var agents: [UUID: PixelMovementAgent] = [:]
     private var members: [UUID: PixelWorldMember] = [:]
-    private var activeBubbles: [UUID: ActiveBubble] = [:]
+    private var activeBubbles: [UUID: [ActiveBubble]] = [:]
     private var lastPulseEventIDs: [CharacterPulseKey: UUID] = [:]
     private var recentThrowEventIDs: [UUID] = []
     private var recentThrowEventIDSet: Set<UUID> = []
@@ -223,7 +223,13 @@ final class PixelWorldScene: SKScene {
         }
 
         members = requestedByID
-        activeBubbles = Dictionary(uniqueKeysWithValues: bubbles.map { ($0.senderID, $0) })
+        activeBubbles = Dictionary(grouping: bubbles, by: \.senderID).mapValues { senderBubbles in
+            senderBubbles.sorted {
+                $0.expiresAt == $1.expiresAt
+                    ? $0.messageID.uuidString < $1.messageID.uuidString
+                    : $0.expiresAt < $1.expiresAt
+            }
+        }
         let geometry = trackGeometry
         for member in requestedMembers {
             let node: PixelCharacterNode
@@ -246,7 +252,7 @@ final class PixelWorldScene: SKScene {
             let tangent = agents[member.id]?.trackPosition ?? geometry.trackRange.lowerBound
             node.apply(
                 member: member,
-                bubble: activeBubbles[member.id],
+                bubbles: activeBubbles[member.id] ?? [],
                 edge: edge,
                 tangentPosition: tangent,
                 tangentLength: geometry.tangentLength
@@ -330,14 +336,14 @@ final class PixelWorldScene: SKScene {
         let geometry = trackGeometry
         return activeBubbles.reduce(into: [:]) { ranges, entry in
             guard let agent = agents[entry.key], members[entry.key] != nil else { return }
-            let layout = PixelBubbleLayout.make(
-                text: entry.value.body,
-                isTyping: false,
+            let layouts = PixelBubbleStackLayout.make(
+                bubbles: entry.value,
                 tangentPosition: agent.trackPosition,
                 tangentLength: geometry.tangentLength,
                 edge: edge
             )
-            ranges[entry.key] = layout.bodyTangentRange(
+            ranges[entry.key] = PixelBubbleStackLayout.bodyTangentRange(
+                for: layouts,
                 at: agent.trackPosition,
                 edge: edge
             )
@@ -350,6 +356,18 @@ final class PixelWorldScene: SKScene {
 
     func renderedBubbleBody(for memberID: UUID) -> String? {
         characterNodes[memberID]?.bubbleBody
+    }
+
+    func renderedBubbleBodies(for memberID: UUID) -> [String] {
+        characterNodes[memberID]?.bubbleBodies ?? []
+    }
+
+    func renderedBubbleTailFlags(for memberID: UUID) -> [Bool] {
+        characterNodes[memberID]?.bubbleTailFlags ?? []
+    }
+
+    func renderedBubbleBodyFrames(for memberID: UUID) -> [CGRect] {
+        characterNodes[memberID]?.bubbleBodyFrames ?? []
     }
 
     func renderedBubbleIsTyping(for memberID: UUID) -> Bool {
@@ -599,10 +617,12 @@ private final class PixelCharacterNode: SKNode {
     private let statusDot = SKShapeNode(circleOfRadius: PixelNameplateLayout.statusDotRadius)
     private let dozeEffect = SKNode()
     private let dozeLabel = SKLabelNode(fontNamed: "AppleSDGothicNeo-Bold")
-    private var bubbleNode: PixelBubbleNode?
+    private var messageBubbleNodes: [UUID: MessageBubbleNode] = [:]
+    private var orderedMessageIDs: [UUID] = []
+    private var messageBubbles: [ActiveBubble] = []
+    private var typingBubbleNode: TypingIndicatorNode?
     private var currentMotion: PixelCharacterMotion?
     private var actionUntil: TimeInterval = 0
-    private var currentBubbleKey: String?
     private(set) var characterID: String
     private(set) var pulsePlayCount = 0
     private(set) var pulseSparkleSpawnCount = 0
@@ -610,8 +630,20 @@ private final class PixelCharacterNode: SKNode {
     private(set) var hitPlayCount = 0
     private var sparkleEffect: PixelSparkleEffect?
 
-    var bubbleBody: String? { bubbleNode?.body }
-    var bubbleIsTyping: Bool { bubbleNode?.isTyping ?? false }
+    var bubbleBody: String? {
+        orderedMessageIDs.last.flatMap { messageBubbleNodes[$0]?.body }
+            ?? typingBubbleNode?.body
+    }
+    var bubbleBodies: [String] {
+        orderedMessageIDs.compactMap { messageBubbleNodes[$0]?.body }
+    }
+    var bubbleTailFlags: [Bool] {
+        orderedMessageIDs.compactMap { messageBubbleNodes[$0]?.includesTail }
+    }
+    var bubbleBodyFrames: [CGRect] {
+        orderedMessageIDs.compactMap { messageBubbleNodes[$0]?.bodyFrame }
+    }
+    var bubbleIsTyping: Bool { typingBubbleNode != nil }
     var dozeText: String? { dozeLabel.text }
     var hasDozeActions: Bool {
         dozeEffect.action(forKey: Self.dozeMotionKey) != nil
@@ -693,7 +725,7 @@ private final class PixelCharacterNode: SKNode {
 
     func apply(
         member: PixelWorldMember,
-        bubble: ActiveBubble?,
+        bubbles: [ActiveBubble],
         edge: OverlayEdge,
         tangentPosition: CGFloat,
         tangentLength: CGFloat
@@ -719,9 +751,9 @@ private final class PixelCharacterNode: SKNode {
         nameplateBackground.path = backgroundPath
         statusDot.position = PixelNameplateLayout.statusDotPosition(nicknameFrame: nickname.frame)
         statusDot.fillColor = PresenceIndicatorTone.tone(for: member.presence).color
-        updateBubble(
-            bubble: bubble,
-            isTyping: bubble == nil && member.isTyping,
+        updateBubbles(
+            bubbles: bubbles,
+            isTyping: bubbles.isEmpty && member.isTyping,
             tangentPosition: tangentPosition,
             tangentLength: tangentLength,
             edge: edge
@@ -829,49 +861,98 @@ private final class PixelCharacterNode: SKNode {
     }
 
     func updatePresentationLayout(tangentPosition: CGFloat, tangentLength: CGFloat, edge: OverlayEdge) {
-        guard let bubbleNode else { return }
-        bubbleNode.apply(layout: PixelBubbleLayout.make(
-            text: bubbleNode.body,
-            isTyping: bubbleNode.isTyping,
+        if messageBubbles.isEmpty {
+            guard let typingBubbleNode else { return }
+            typingBubbleNode.apply(layout: PixelBubbleLayout.make(
+                text: typingBubbleNode.body,
+                isTyping: true,
+                tangentPosition: tangentPosition,
+                tangentLength: tangentLength,
+                edge: edge
+            ))
+            return
+        }
+
+        applyMessageLayouts(
             tangentPosition: tangentPosition,
             tangentLength: tangentLength,
             edge: edge
-        ))
+        )
     }
 
-    private func updateBubble(
-        bubble: ActiveBubble?,
+    private func updateBubbles(
+        bubbles: [ActiveBubble],
         isTyping: Bool,
         tangentPosition: CGFloat,
         tangentLength: CGFloat,
         edge: OverlayEdge
     ) {
-        let body = bubble?.body ?? (isTyping ? "." : nil)
-        let key = bubble.map { "message:\($0.messageID.uuidString)" } ?? (isTyping ? "typing" : nil)
-        guard let body, let key else {
-            bubbleNode?.removeFromParent()
-            bubbleNode = nil
-            currentBubbleKey = nil
+        messageBubbles = Array(bubbles.suffix(ActiveBubbleLedger.maximumVisiblePerSender))
+        guard !messageBubbles.isEmpty else {
+            messageBubbleNodes.values.forEach { $0.removeFromParent() }
+            messageBubbleNodes.removeAll()
+            orderedMessageIDs.removeAll()
+
+            guard isTyping else {
+                typingBubbleNode?.removeFromParent()
+                typingBubbleNode = nil
+                return
+            }
+
+            let layout = PixelBubbleLayout.make(
+                text: ".",
+                isTyping: true,
+                tangentPosition: tangentPosition,
+                tangentLength: tangentLength,
+                edge: edge
+            )
+            if let typingBubbleNode {
+                typingBubbleNode.apply(layout: layout)
+            } else {
+                let node = TypingIndicatorNode(layout: layout)
+                presentation.addChild(node)
+                typingBubbleNode = node
+            }
             return
         }
 
-        let layout = PixelBubbleLayout.make(
-            text: body,
-            isTyping: isTyping,
+        typingBubbleNode?.removeFromParent()
+        typingBubbleNode = nil
+        let requestedIDs = Set(messageBubbles.map(\.messageID))
+        for id in Array(messageBubbleNodes.keys) where !requestedIDs.contains(id) {
+            messageBubbleNodes.removeValue(forKey: id)?.removeFromParent()
+        }
+        applyMessageLayouts(
             tangentPosition: tangentPosition,
             tangentLength: tangentLength,
             edge: edge
         )
-        if currentBubbleKey != key {
-            bubbleNode?.removeFromParent()
-            let node: PixelBubbleNode = isTyping
-                ? TypingIndicatorNode(layout: layout)
-                : MessageBubbleNode(body: body, layout: layout)
-            presentation.addChild(node)
-            bubbleNode = node
-            currentBubbleKey = key
-        } else {
-            bubbleNode?.apply(layout: layout)
+    }
+
+    private func applyMessageLayouts(
+        tangentPosition: CGFloat,
+        tangentLength: CGFloat,
+        edge: OverlayEdge
+    ) {
+        let entries = PixelBubbleStackLayout.make(
+            bubbles: messageBubbles,
+            tangentPosition: tangentPosition,
+            tangentLength: tangentLength,
+            edge: edge
+        )
+        orderedMessageIDs = entries.map { $0.bubble.messageID }
+        for entry in entries {
+            if let node = messageBubbleNodes[entry.bubble.messageID] {
+                node.apply(layout: entry.layout, includesTail: entry.includesTail)
+            } else {
+                let node = MessageBubbleNode(
+                    body: entry.bubble.body,
+                    layout: entry.layout,
+                    includesTail: entry.includesTail
+                )
+                presentation.addChild(node)
+                messageBubbleNodes[entry.bubble.messageID] = node
+            }
         }
     }
 
@@ -1050,13 +1131,21 @@ enum PixelBubbleStyle {
 class PixelBubbleNode: SKNode {
     let body: String
     let isTyping: Bool
+    private(set) var includesTail: Bool
+    private(set) var bodyFrame: CGRect = .zero
     fileprivate let background = SKShapeNode()
     fileprivate let label = SKLabelNode(fontNamed: "AppleSDGothicNeo-Medium")
     private var lastLayout: PixelBubbleLayout?
 
-    init(body: String, isTyping: Bool, layout: PixelBubbleLayout) {
+    init(
+        body: String,
+        isTyping: Bool,
+        layout: PixelBubbleLayout,
+        includesTail: Bool = true
+    ) {
         self.body = body
         self.isTyping = isTyping
+        self.includesTail = includesTail
         super.init()
         zPosition = 20
         background.fillColor = PixelBubbleStyle.backgroundColor
@@ -1075,7 +1164,7 @@ class PixelBubbleNode: SKNode {
         label.verticalAlignmentMode = .center
         label.horizontalAlignmentMode = .center
         addChild(label)
-        apply(layout: layout)
+        apply(layout: layout, includesTail: includesTail)
     }
 
     required init?(coder aDecoder: NSCoder) {
@@ -1083,9 +1172,15 @@ class PixelBubbleNode: SKNode {
     }
 
     func apply(layout: PixelBubbleLayout) {
-        guard layout != lastLayout else { return }
+        apply(layout: layout, includesTail: includesTail)
+    }
+
+    func apply(layout: PixelBubbleLayout, includesTail: Bool) {
+        guard layout != lastLayout || self.includesTail != includesTail else { return }
         lastLayout = layout
-        position = CGPoint(x: layout.localCenterX, y: 52 + layout.size.height / 2)
+        self.includesTail = includesTail
+        bodyFrame = layout.bodyFrame
+        position = CGPoint(x: layout.localCenterX, y: layout.bodyFrame.midY)
         label.preferredMaxLayoutWidth = max(8, layout.size.width - 16)
         let rect = CGRect(
             x: -layout.size.width / 2,
@@ -1095,19 +1190,21 @@ class PixelBubbleNode: SKNode {
         )
         let path = CGMutablePath()
         path.addRoundedRect(in: rect, cornerWidth: 9, cornerHeight: 9)
-        let halfBase: CGFloat = 6
-        let baseCenter = min(max(layout.tailTipX, rect.minX + 10), rect.maxX - 10)
-        path.move(to: CGPoint(x: baseCenter - halfBase, y: rect.minY + 1))
-        path.addLine(to: CGPoint(x: layout.tailTipX, y: rect.minY - 8))
-        path.addLine(to: CGPoint(x: baseCenter + halfBase, y: rect.minY + 1))
-        path.closeSubpath()
+        if includesTail {
+            let halfBase: CGFloat = 6
+            let baseCenter = min(max(layout.tailTipX, rect.minX + 10), rect.maxX - 10)
+            path.move(to: CGPoint(x: baseCenter - halfBase, y: rect.minY + 1))
+            path.addLine(to: CGPoint(x: layout.tailTipX, y: rect.minY - 8))
+            path.addLine(to: CGPoint(x: baseCenter + halfBase, y: rect.minY + 1))
+            path.closeSubpath()
+        }
         background.path = path
     }
 }
 
 private final class MessageBubbleNode: PixelBubbleNode {
-    init(body: String, layout: PixelBubbleLayout) {
-        super.init(body: body, isTyping: false, layout: layout)
+    init(body: String, layout: PixelBubbleLayout, includesTail: Bool = true) {
+        super.init(body: body, isTyping: false, layout: layout, includesTail: includesTail)
         label.text = body
     }
 

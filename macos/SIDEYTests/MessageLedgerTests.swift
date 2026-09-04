@@ -112,41 +112,47 @@ final class MessageLedgerTests: XCTestCase {
         XCTAssertEqual(entries.last?.body, "메시지 0")
     }
 
-    func testActiveBubblesReplacePerSenderEvictOldestAndExpireIndependently() {
+    func testActiveBubblesKeepTwoPerSenderWithoutGlobalEvictionAndExpireIndependently() {
         var bubbles = ActiveBubbleLedger()
         let start = Date(timeIntervalSince1970: 1_000)
-        let senders = (0..<5).map { _ in UUID() }
+        let senders = (0..<12).map { _ in UUID() }
+        var messageIDs: [[UUID]] = []
 
-        for index in 0..<4 {
-            bubbles.show(
-                senderID: senders[index],
-                messageID: UUID(),
-                body: "메시지 \(index)",
-                expiresAt: start.addingTimeInterval(TimeInterval(index + 1))
-            )
+        for (senderIndex, senderID) in senders.enumerated() {
+            let ids = [UUID(), UUID()]
+            messageIDs.append(ids)
+            for messageIndex in 0..<2 {
+                bubbles.show(
+                    senderID: senderID,
+                    messageID: ids[messageIndex],
+                    body: "\(senderIndex)-\(messageIndex)",
+                    expiresAt: start.addingTimeInterval(TimeInterval(10 + messageIndex))
+                )
+            }
         }
-        let replacementID = UUID()
+
+        XCTAssertEqual(bubbles.bubbles.count, 24)
+        XCTAssertEqual(Set(bubbles.bubbles.map(\.senderID)), Set(senders))
+
+        let thirdID = UUID()
         bubbles.show(
             senderID: senders[0],
-            messageID: replacementID,
-            body: "교체",
-            expiresAt: start.addingTimeInterval(20)
+            messageID: thirdID,
+            body: "세 번째",
+            expiresAt: start.addingTimeInterval(12)
         )
-        XCTAssertEqual(bubbles.bubbles.count, 4)
-        XCTAssertEqual(bubbles.bubbles.first(where: { $0.senderID == senders[0] })?.messageID, replacementID)
+        XCTAssertEqual(bubbles.bubbles.count, 24)
+        XCTAssertFalse(bubbles.bubbles.contains { $0.messageID == messageIDs[0][0] })
+        XCTAssertTrue(bubbles.bubbles.contains { $0.messageID == messageIDs[0][1] })
+        XCTAssertTrue(bubbles.bubbles.contains { $0.messageID == thirdID })
 
-        bubbles.show(
-            senderID: senders[4],
-            messageID: UUID(),
-            body: "다섯 번째 발신자",
-            expiresAt: start.addingTimeInterval(21)
-        )
-        XCTAssertEqual(bubbles.bubbles.count, 4)
-        XCTAssertFalse(bubbles.bubbles.contains(where: { $0.senderID == senders[1] }))
+        bubbles.remove(messageID: thirdID)
+        XCTAssertFalse(bubbles.bubbles.contains { $0.messageID == thirdID })
+        XCTAssertEqual(bubbles.bubbles.filter { $0.senderID == senders[0] }.count, 1)
 
-        bubbles.prune(at: start.addingTimeInterval(20.5))
-        XCTAssertEqual(bubbles.bubbles.count, 1)
-        XCTAssertEqual(bubbles.bubbles.first?.senderID, senders[4])
+        bubbles.prune(at: start.addingTimeInterval(10.5))
+        XCTAssertEqual(bubbles.bubbles.count, 12)
+        XCTAssertTrue(bubbles.bubbles.allSatisfy { $0.expiresAt > start.addingTimeInterval(10.5) })
     }
 
     @MainActor

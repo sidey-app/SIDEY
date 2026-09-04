@@ -5,6 +5,61 @@ import XCTest
 
 @MainActor
 final class NativeMessageFieldTests: XCTestCase {
+    func testEmojiVariantsBindAndPreserveUTF16InsertionCursor() {
+        let (_, textView) = makeTextView(width: 240, height: 40)
+        var boundDraft = ""
+        let field = NativeMessageField(
+            text: Binding(get: { boundDraft }, set: { boundDraft = $0 }),
+            onInputActivity: {},
+            onSubmit: {},
+            onCancel: {}
+        )
+        let coordinator = field.makeCoordinator()
+        textView.delegate = coordinator
+
+        for emoji in ["🙂", "👨‍👩‍👧‍👦", "👍🏽", "🇰🇷"] {
+            let candidate = "앞\(emoji)뒤"
+            let cursor = ("앞\(emoji)" as NSString).length
+            textView.string = candidate
+            textView.setSelectedRange(NSRange(location: cursor, length: 0))
+            coordinator.textDidChange(
+                Notification(name: NSText.didChangeNotification, object: textView)
+            )
+
+            XCTAssertEqual(boundDraft, candidate)
+            XCTAssertEqual(textView.selectedRange(), NSRange(location: cursor, length: 0))
+            XCTAssertEqual(coordinator.lastValidSelection, NSRange(location: cursor, length: 0))
+        }
+    }
+
+    func testComposedEmojiRespectTwoHundredCharacterLimit() {
+        let (_, textView) = makeTextView(width: 240, height: 40)
+        let validDraft = String(repeating: "👨‍👩‍👧‍👦", count: 200)
+        var boundDraft = validDraft
+        let field = NativeMessageField(
+            text: Binding(get: { boundDraft }, set: { boundDraft = $0 }),
+            onInputActivity: {},
+            onSubmit: {},
+            onCancel: {}
+        )
+        let coordinator = field.makeCoordinator()
+        coordinator.lastValidText = validDraft
+        coordinator.lastValidSelection = NSRange(location: (validDraft as NSString).length, length: 0)
+        textView.delegate = coordinator
+
+        XCTAssertEqual(validDraft.count, 200)
+        XCTAssertTrue(MessageValidator.isValidDraft(validDraft))
+        XCTAssertFalse(MessageValidator.isValidDraft(validDraft + "🙂"))
+
+        textView.string = validDraft + "🙂"
+        textView.setSelectedRange(NSRange(location: (textView.string as NSString).length, length: 0))
+        coordinator.textDidChange(Notification(name: NSText.didChangeNotification, object: textView))
+
+        XCTAssertEqual(textView.string, validDraft)
+        XCTAssertEqual(boundDraft, validDraft)
+        XCTAssertEqual(textView.selectedRange().location, (validDraft as NSString).length)
+    }
+
     func testLongUnbrokenDraftWrapsVerticallyAndKeepsEndSelectionVisible() async {
         let (scrollView, textView) = makeTextView(width: 130, height: 40)
         let draft = String(repeating: "abcdefghij", count: 20)
