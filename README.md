@@ -69,8 +69,6 @@ Windows 버전은 현재 공인 코드 서명 전 정식판입니다. SmartScree
 
 SIDEY를 함께 만들어 주신 분들께 감사드립니다.
 
-### Windows 개발
-
 <table>
   <tr>
     <td align="center" width="120">
