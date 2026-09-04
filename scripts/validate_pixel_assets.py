@@ -223,7 +223,7 @@ def validate_bgra_mirror(
 def validate_windows_character_manifest(entry: dict, rgba: bytes) -> None:
     path = (
         REPOSITORY_ROOT
-        / "windows/src/Sidey.Overlay/Assets/Character"
+        / "windows/src/Sidey.Overlay/Assets/Characters"
         / entry["id"]
         / "manifest.json"
     )

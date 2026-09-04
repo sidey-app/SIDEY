@@ -173,9 +173,9 @@ public static class PixelCharacterCatalog
         PixelCharacterVisualEffect visualEffect = PixelCharacterVisualEffect.None) => new(
             id,
             displayName,
-            $"Character/{id}/base.png",
-            $"Character/{id}/base.bgra",
-            $"Character/{id}/manifest.json",
+            $"Characters/{id}/base.png",
+            $"Characters/{id}/base.bgra",
+            $"Characters/{id}/manifest.json",
             spriteSheetSha256,
             FrameWidth: 24,
             FrameHeight: 24,

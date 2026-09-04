@@ -2,7 +2,7 @@ using Sidey.Core.Abstractions;
 using Sidey.Core.Domain;
 using Sidey.Presentation.Services;
 
-namespace Sidey.Platform.Windows.Tests;
+namespace Sidey.Presentation.Tests;
 
 internal sealed class FakeSideyCoordinator : ISideyCoordinator
 {
@@ -27,6 +27,10 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
     public int SaveProfileCallCount { get; private set; }
 
     public Func<string, string, CancellationToken, Task>? SaveProfileHandler { get; set; }
+
+    public int CompleteOnboardingCallCount { get; private set; }
+
+    public Func<CancellationToken, Task>? CompleteOnboardingHandler { get; set; }
 
     public int CreateRoomCallCount { get; private set; }
 
@@ -62,6 +66,12 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
         SaveProfileCallCount++;
         return SaveProfileHandler?.Invoke(nickname, characterId, cancellationToken)
             ?? Task.CompletedTask;
+    }
+
+    public Task CompleteOnboardingAsync(CancellationToken cancellationToken = default)
+    {
+        CompleteOnboardingCallCount++;
+        return CompleteOnboardingHandler?.Invoke(cancellationToken) ?? Task.CompletedTask;
     }
 
     public Task CreateRoomAsync(string name, CancellationToken cancellationToken = default)

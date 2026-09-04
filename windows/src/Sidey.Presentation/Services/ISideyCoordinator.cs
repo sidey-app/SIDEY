@@ -3,21 +3,23 @@ using Sidey.Core.Domain;
 
 namespace Sidey.Presentation.Services;
 
-public interface ISideyCoordinator
+public interface ICoordinatorStateSource
 {
     CoordinatorState State { get; }
+}
 
-    bool IsValidationMode { get; }
-
-    string? ValidationMetricsPath { get; }
-
-    ValidationMetricsSnapshot? ValidationMetricsSummary { get; }
-
+public interface IHistoryCoordinator : ICoordinatorStateSource
+{
     Task<MessageHistoryPage> FetchMessagePageAsync(
         Guid roomId,
         MessageHistoryCursor? before,
         int limit = 50,
         CancellationToken cancellationToken = default);
+}
+
+public interface IOnboardingCoordinator : ICoordinatorStateSource
+{
+    Task CompleteOnboardingAsync(CancellationToken cancellationToken = default);
 
     Task SaveProfileAsync(
         string nickname,
@@ -27,6 +29,15 @@ public interface ISideyCoordinator
     Task CreateRoomAsync(string name, CancellationToken cancellationToken = default);
 
     Task JoinRoomAsync(string inviteCode, CancellationToken cancellationToken = default);
+}
+
+public interface IMainWindowCoordinator : IOnboardingCoordinator
+{
+    bool IsValidationMode { get; }
+
+    string? ValidationMetricsPath { get; }
+
+    ValidationMetricsSnapshot? ValidationMetricsSummary { get; }
 
     Task SwitchRoomAsync(Guid roomId, CancellationToken cancellationToken = default);
 
@@ -71,4 +82,10 @@ public interface ISideyCoordinator
     void RequestComposer();
 
     Task<string?> ExportValidationMetricsAsync(CancellationToken cancellationToken = default);
+}
+
+public interface ISideyCoordinator :
+    IMainWindowCoordinator,
+    IHistoryCoordinator
+{
 }

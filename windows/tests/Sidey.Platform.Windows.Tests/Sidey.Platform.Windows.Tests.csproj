@@ -11,7 +11,10 @@
     <RootNamespace>Sidey.Platform.Windows.Tests</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="coverlet.collector">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">
@@ -21,7 +24,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Sidey.Overlay/Sidey.Overlay.csproj" />
-    <ProjectReference Include="../../src/Sidey.Presentation/Sidey.Presentation.csproj" />
     <ProjectReference Include="../../src/Sidey.Infrastructure/Sidey.Infrastructure.csproj" />
     <ProjectReference Include="../../src/Sidey.Platform.Windows/Sidey.Platform.Windows.csproj" />
   </ItemGroup>
@@ -33,6 +35,9 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="../../src/Sidey.Infrastructure/SupabaseRealtimeTransport.cs" Link="TestAssets/SupabaseRealtimeTransport.cs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="../../src/Sidey.Infrastructure/SystemNetworkAvailabilityMonitor.cs" Link="TestAssets/SystemNetworkAvailabilityMonitor.cs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="../../src/Sidey.App/AppCoordinator.cs" Link="TestAssets/AppCoordinator.cs">

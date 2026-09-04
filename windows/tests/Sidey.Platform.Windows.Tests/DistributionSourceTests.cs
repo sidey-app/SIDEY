@@ -35,7 +35,7 @@ public sealed class DistributionSourceTests
         Assert.DoesNotContain(
             project.Descendants("Content"),
             element => ((string?)element.Attribute("Include"))?.Contains(
-                "Assets/Character",
+                "Assets/Characters",
                 StringComparison.Ordinal) == true);
 
         var throwableAssets = project.Descendants("None").Single(element =>
@@ -53,7 +53,7 @@ public sealed class DistributionSourceTests
             (string?)element.Attribute("Name") == "CopyExternalThrowableAssetsAfterPublish");
         Assert.Equal("Publish", (string?)copyThrowables.Attribute("AfterTargets"));
         Assert.Contains(
-            "Assets\\Throwable",
+            "Assets\\Throwables",
             copyThrowables.Descendants("Copy").Single().Attribute("DestinationFiles")?.Value,
             StringComparison.Ordinal);
 
@@ -87,7 +87,10 @@ public sealed class DistributionSourceTests
         Assert.Contains("StrCpy $InstallState \"upgrade\"", setup, StringComparison.Ordinal);
         Assert.Contains("$InstallState == \"repair\"", setup, StringComparison.Ordinal);
         Assert.Contains("StrCpy $HasNsisInstall \"true\"", setup, StringComparison.Ordinal);
-        Assert.Contains("ExecWait '\"$INSTDIR\\Uninstall.exe\" /S'", setup, StringComparison.Ordinal);
+        Assert.Contains(
+            "ExecWait '\"$INSTDIR\\Uninstall.exe\" /S _?=$INSTDIR'",
+            setup,
+            StringComparison.Ordinal);
     }
 
     [Fact]

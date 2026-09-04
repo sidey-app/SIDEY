@@ -26,7 +26,11 @@
     <ApplicationIcon>Assets\Icons\SideyAppIcon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Graphics.Win2D" />
     <PackageReference Include="Microsoft.WindowsAppSDK" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)' != 'Debug'">
+    <Compile Remove="DevelopmentUpdateService.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Sidey.Core/Sidey.Core.csproj" />
@@ -45,29 +49,29 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
     <_SideyExternalIconAsset Include="Assets\Icons\*" />
-    <_SideyExternalCharacterAsset Include="../Sidey.Overlay/Assets/Character/**/*" />
-    <_SideyExternalThrowableAsset Include="../Sidey.Overlay/Assets/Throwable/**/*" />
-    <None Include="@(_SideyExternalCharacterAsset)" Link="Assets/Character/%(RecursiveDir)%(Filename)%(Extension)">
+    <_SideyExternalCharacterAsset Include="../Sidey.Overlay/Assets/Characters/**/*" />
+    <_SideyExternalThrowableAsset Include="../Sidey.Overlay/Assets/Throwables/**/*" />
+    <None Include="@(_SideyExternalCharacterAsset)" Link="Assets/Characters/%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
-    <None Include="@(_SideyExternalThrowableAsset)" Link="Assets/Throwable/%(RecursiveDir)%(Filename)%(Extension)">
+    <None Include="@(_SideyExternalThrowableAsset)" Link="Assets/Throwables/%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
   </ItemGroup>
   <Target Name="CopyExternalCharacterAssetsAfterPublish" AfterTargets="Publish">
-    <MakeDir Directories="@(_SideyExternalCharacterAsset->'$(PublishDir)Assets\Character\%(RecursiveDir)')" />
+    <MakeDir Directories="@(_SideyExternalCharacterAsset->'$(PublishDir)Assets\Characters\%(RecursiveDir)')" />
     <Copy
         SourceFiles="@(_SideyExternalCharacterAsset)"
-        DestinationFiles="@(_SideyExternalCharacterAsset->'$(PublishDir)Assets\Character\%(RecursiveDir)%(Filename)%(Extension)')"
+        DestinationFiles="@(_SideyExternalCharacterAsset->'$(PublishDir)Assets\Characters\%(RecursiveDir)%(Filename)%(Extension)')"
         SkipUnchangedFiles="true" />
   </Target>
   <Target Name="CopyExternalThrowableAssetsAfterPublish" AfterTargets="Publish">
-    <MakeDir Directories="@(_SideyExternalThrowableAsset->'$(PublishDir)Assets\Throwable\%(RecursiveDir)')" />
+    <MakeDir Directories="@(_SideyExternalThrowableAsset->'$(PublishDir)Assets\Throwables\%(RecursiveDir)')" />
     <Copy
         SourceFiles="@(_SideyExternalThrowableAsset)"
-        DestinationFiles="@(_SideyExternalThrowableAsset->'$(PublishDir)Assets\Throwable\%(RecursiveDir)%(Filename)%(Extension)')"
+        DestinationFiles="@(_SideyExternalThrowableAsset->'$(PublishDir)Assets\Throwables\%(RecursiveDir)%(Filename)%(Extension)')"
         SkipUnchangedFiles="true" />
   </Target>
   <Target Name="CopySideyAppIconsAfterPublish" AfterTargets="Publish">

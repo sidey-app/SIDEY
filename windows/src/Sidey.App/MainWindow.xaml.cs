@@ -30,10 +30,12 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     private readonly Stack<string> _navigationHistory = new();
     private readonly WindowsMinimumSizeController _minimumSizeController;
 
-    public MainWindow(AppCoordinator coordinator)
+    public MainWindow(
+        IMainWindowCoordinator coordinator,
+        IUpdateService updateService)
     {
         InitializeComponent();
-        ViewModel = new MainWindowViewModel(coordinator, this, new WindowsUpdateServiceAdapter());
+        ViewModel = new MainWindowViewModel(coordinator, this, updateService);
         MainRoot.DataContext = ViewModel;
         ViewModel.PrepareGroupsForPresentation();
         Title = "SIDEY";
@@ -61,6 +63,8 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     public bool ShouldExitOnClose => _allowClose || !_trayAvailable;
 
     public void ApplyState(CoordinatorState state) => ViewModel.ApplyState(state);
+
+    public void RefreshMonitors() => ViewModel.RefreshMonitors();
 
     public void ShowFatalError(Exception exception) => ViewModel.ReportError(exception);
 
@@ -289,7 +293,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     {
         _ = sender;
         _ = args;
-        ShowCompactConnectionStatus();
+        ShowExpandedConnectionStatus();
     }
 
     private void OnNavigationPaneOpened(NavigationView sender, object args)
@@ -318,15 +322,15 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     private void ShowCompactConnectionStatus()
     {
         ConnectionStatusRoot.Width = RootNavigation.CompactPaneLength;
-        ExpandedConnectionStatus.Visibility = Visibility.Collapsed;
-        CompactConnectionStatus.Visibility = Visibility.Visible;
+        ExpandedConnectionStatus.Opacity = 0;
+        CompactConnectionStatus.Opacity = 1;
     }
 
     private void ShowExpandedConnectionStatus()
     {
         ConnectionStatusRoot.Width = RootNavigation.OpenPaneLength;
-        CompactConnectionStatus.Visibility = Visibility.Collapsed;
-        ExpandedConnectionStatus.Visibility = Visibility.Visible;
+        CompactConnectionStatus.Opacity = 0;
+        ExpandedConnectionStatus.Opacity = 1;
     }
 
     private void OnCharacterSelectorLoaded(object sender, RoutedEventArgs args)

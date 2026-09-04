@@ -138,7 +138,7 @@ public interface IBackendGateway
 public interface IOverlayHost
 {
     bool IsVisible { get; }
-    ValueTask ApplyAsync(WorldSnapshot snapshot, CancellationToken cancellationToken = default);
+    void Apply(WorldSnapshot snapshot);
     ValueTask SetVisibleAsync(bool visible, CancellationToken cancellationToken = default);
 }
 

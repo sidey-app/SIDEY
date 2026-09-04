@@ -2,6 +2,7 @@
     x:Class="Sidey.App.HistoryWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Sidey.App.Controls"
     xmlns:i18n="using:Sidey.App.Localization">
     <Grid x:Name="HistoryRoot" Padding="20" RowSpacing="14" Background="Transparent">
       <Grid.RowDefinitions>
@@ -40,15 +41,7 @@
                 </Grid.ColumnDefinitions>
                 <Border Width="40" Height="40" Background="{ThemeResource SideyAccentBackground10Brush}" CornerRadius="12">
                   <Border Width="24" Height="24">
-                    <Border.Clip>
-                      <RectangleGeometry Rect="0,0,24,24" />
-                    </Border.Clip>
-                    <Image
-                        Width="240"
-                        Height="24"
-                        HorizontalAlignment="Left"
-                        Source="{Binding CharacterId, Converter={StaticResource CharacterImageConverter}}"
-                        Stretch="Fill" />
+                    <controls:PixelCharacterPreview CharacterId="{Binding CharacterId}" />
                   </Border>
                 </Border>
                 <StackPanel Grid.Column="1" Spacing="5">

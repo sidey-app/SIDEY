@@ -26,8 +26,8 @@ $sectionCount = [regex]::Matches(
     $terms,
     '<section\b',
     [Text.RegularExpressions.RegexOptions]::IgnoreCase).Count
-if ($sectionCount -ne 9) {
-    throw "Expected 9 terms sections but found $sectionCount in $resolvedSourceHtml"
+if ($sectionCount -ne 10) {
+    throw "Expected 10 terms sections but found $sectionCount in $resolvedSourceHtml"
 }
 
 $terms = [regex]::Replace(
@@ -51,7 +51,7 @@ $plainText = ($lines -join "`r`n`r`n") + "`r`n"
 foreach ($requiredText in @(
     'SIDEY',
     '1.',
-    '9.',
+    '10.',
     '388-53-01259',
     'ryu200112@gmail.com')) {
     if ($plainText.IndexOf($requiredText, [StringComparison]::Ordinal) -lt 0) {

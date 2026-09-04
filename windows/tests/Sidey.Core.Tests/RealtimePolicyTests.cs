@@ -38,6 +38,20 @@ public sealed class RealtimePolicyTests
     }
 
     [Fact]
+    public void FullPresenceStateMarksPreviouslyKnownMissingUsersOffline()
+    {
+        var online = Guid.NewGuid();
+        var departed = Guid.NewGuid();
+
+        var updates = PresenceSnapshotPlan.Updates(
+            new Dictionary<Guid, PresenceState> { [online] = PresenceState.Online },
+            new HashSet<Guid> { online, departed });
+
+        Assert.Contains(updates, update => update.UserId == online && update.State == PresenceState.Online);
+        Assert.Contains(updates, update => update.UserId == departed && update.State == PresenceState.Offline);
+    }
+
+    [Fact]
     public void PresencePublicationUsesOnlyActiveRoom()
     {
         var active = Guid.NewGuid();
@@ -106,6 +120,14 @@ public sealed class RealtimePolicyTests
         Assert.Empty(lease.Update(false, null));
         Assert.Equal(TimeSpan.FromSeconds(2), TypingLease.KeepaliveInterval);
         Assert.Equal(TimeSpan.FromSeconds(4), TypingLease.RemoteExpiry);
+    }
+
+    [Fact]
+    public void NetworkPathRecoveryDebouncesBeforeTheFirstImmediateAttempt()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(5), RealtimeRecoveryPolicy.WatchdogInterval);
+        Assert.Equal(TimeSpan.FromMilliseconds(350), RealtimeRecoveryPolicy.PathRecoveryDebounce);
+        Assert.Equal(TimeSpan.FromSeconds(8), RealtimeRecoveryPolicy.DelayForAttempt(1));
     }
 
     [Fact]

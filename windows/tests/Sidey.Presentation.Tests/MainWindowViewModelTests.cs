@@ -3,7 +3,7 @@ using Sidey.Core.Domain;
 using Sidey.Presentation.Services;
 using Sidey.Presentation.ViewModels;
 
-namespace Sidey.Platform.Windows.Tests;
+namespace Sidey.Presentation.Tests;
 
 public sealed class MainWindowViewModelTests
 {
@@ -103,6 +103,30 @@ public sealed class MainWindowViewModelTests
 
         Assert.False(viewModel.IsConnected);
         Assert.Equal("연결 안 됨", viewModel.ConnectionText);
+    }
+
+    [Fact]
+    public void MonitorRefreshIncludesHotPluggedDisplays()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        coordinator.Monitors =
+        [
+            new MonitorOption("display-1", "Laptop", true),
+        ];
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        coordinator.Monitors =
+        [
+            new MonitorOption("display-2", "4K", true),
+            new MonitorOption("display-1", "Laptop", false),
+        ];
+        viewModel.RefreshMonitors();
+
+        Assert.Equal(["display-2", "display-1"], viewModel.Monitors.Select(monitor => monitor.Identifier));
+        Assert.Equal("display-2", viewModel.SelectedMonitorIdentifier);
     }
 
     [Fact]

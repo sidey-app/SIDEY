@@ -42,8 +42,8 @@ InstallDir "$PROGRAMFILES64\SIDEY"
 InstallDirRegKey HKLM "${PRODUCT_REGISTRY_KEY}" "InstallLocation"
 RequestExecutionLevel admin
 ManifestDPIAware true
-SetCompressor /SOLID lzma
-SetCompressorDictSize 64
+SetCompressor lzma
+SetCompressorDictSize 8
 CRCCheck on
 ShowInstDetails show
 ShowUninstDetails show
@@ -273,7 +273,7 @@ Section "SIDEY" MainSection
   ${If} $HasNsisInstall == "true"
     StrCpy $0 2
     IfFileExists "$INSTDIR\Uninstall.exe" 0 existing_uninstall_failed
-    ExecWait '"$INSTDIR\Uninstall.exe" /S' $0
+    ExecWait '"$INSTDIR\Uninstall.exe" /S _?=$INSTDIR' $0
     ${If} $0 != 0
       Goto existing_uninstall_failed
     ${EndIf}

@@ -86,7 +86,15 @@ jobs:
         run: dotnet build windows/SIDEY.Windows.slnx --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build --logger trx
+        run: dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build --logger trx --collect:"XPlat Code Coverage" --settings windows/coverlet.runsettings --results-directory artifacts/coverage
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-code-coverage
+          path: artifacts/coverage/**/coverage.cobertura.xml
+          if-no-files-found: error
 
   package:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/windows-v')

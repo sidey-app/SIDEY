@@ -10,10 +10,10 @@ namespace Sidey.App;
 
 public sealed partial class OnboardingWindow : Window
 {
-    public OnboardingWindow(AppCoordinator coordinator, bool isPreviewMode = false)
+    public OnboardingWindow(AppCoordinator coordinator)
     {
         InitializeComponent();
-        ViewModel = new OnboardingViewModel(coordinator, isPreviewMode);
+        ViewModel = new OnboardingViewModel(coordinator);
         OnboardingRoot.DataContext = ViewModel;
         ViewModel.Completed += OnCompleted;
         Closed += OnWindowClosed;

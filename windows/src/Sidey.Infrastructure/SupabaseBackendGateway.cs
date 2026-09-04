@@ -424,6 +424,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         CancellationToken cancellationToken)
     {
         CancellationTokenSource? structuralDelay = null;
+        Task structuralRefresh = Task.CompletedTask;
         RealtimeConnectionStatus connectionStatus = RealtimeConnectionStatus.Disconnected;
         try
         {
@@ -481,10 +482,15 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
 
                 if (backendEvent is BackendEvent.RoomStructureChanged)
                 {
-                    structuralDelay?.Cancel();
-                    structuralDelay?.Dispose();
+                    if (structuralDelay is not null)
+                    {
+                        structuralDelay.Cancel();
+                        await structuralRefresh.ConfigureAwait(false);
+                        structuralDelay.Dispose();
+                    }
+
                     structuralDelay = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    _ = EmitCoalescedSnapshotAsync(output, structuralDelay.Token);
+                    structuralRefresh = EmitCoalescedSnapshotAsync(output, structuralDelay.Token);
                     continue;
                 }
 
@@ -526,8 +532,13 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         }
         finally
         {
-            structuralDelay?.Cancel();
-            structuralDelay?.Dispose();
+            if (structuralDelay is not null)
+            {
+                structuralDelay.Cancel();
+                await structuralRefresh.ConfigureAwait(false);
+                structuralDelay.Dispose();
+            }
+
             output.TryComplete();
         }
     }

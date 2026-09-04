@@ -94,6 +94,18 @@ public static class PresenceChangePlan
             .ToArray();
 }
 
+public static class PresenceSnapshotPlan
+{
+    public static IReadOnlyList<PresenceUpdate> Updates(
+        IReadOnlyDictionary<Guid, PresenceState> current,
+        IReadOnlySet<Guid> previouslyPresent) =>
+        previouslyPresent.Except(current.Keys)
+            .Select(userId => new PresenceUpdate(userId, PresenceState.Offline))
+            .Concat(current.Select(pair => new PresenceUpdate(pair.Key, pair.Value)))
+            .OrderBy(update => update.UserId.ToString("D"), StringComparer.Ordinal)
+            .ToArray();
+}
+
 public abstract record TypingLeaseAction(Guid RoomId)
 {
     public sealed record Start(Guid TargetRoomId) : TypingLeaseAction(TargetRoomId);
@@ -188,6 +200,7 @@ public sealed class CharacterThrowCooldown
 public static class RealtimeRecoveryPolicy
 {
     public static readonly TimeSpan WatchdogInterval = TimeSpan.FromSeconds(5);
+    public static readonly TimeSpan PathRecoveryDebounce = TimeSpan.FromMilliseconds(350);
 
     public static TimeSpan DelayForAttempt(int attempt) => attempt switch
     {

@@ -47,6 +47,11 @@ csharp_space_around_binary_operators = before_and_after
 csharp_space_between_method_declaration_parameter_list_parentheses = false
 csharp_space_between_method_call_parameter_list_parentheses = false
 
+# Async resource lifetime defects fail the build. Broader analyzer adoption is
+# reviewed rule by rule so UI-thread and Win32 boundaries are not buried in noise.
+dotnet_diagnostic.CA2012.severity = error
+dotnet_diagnostic.CA2025.severity = error
+
 # Naming follows .NET conventions: interfaces start with I, types/members use PascalCase,
 # and private instance fields use _camelCase.
 dotnet_naming_rule.interfaces_should_be_prefixed.severity = suggestion

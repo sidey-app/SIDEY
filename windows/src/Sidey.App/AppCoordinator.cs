@@ -240,6 +240,25 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         ApplyWorldSnapshot();
     }
 
+    public async Task CompleteOnboardingAsync(CancellationToken cancellationToken = default)
+    {
+        AppPreferences previousPreferences = _state.Preferences;
+        SetState(_state with
+        {
+            Preferences = previousPreferences with { OnboardingCompleted = true },
+            ErrorMessage = null,
+        });
+        try
+        {
+            await PersistPreferencesAsync(cancellationToken);
+        }
+        catch
+        {
+            SetState(_state with { Preferences = previousPreferences });
+            throw;
+        }
+    }
+
     public async Task CreateRoomAsync(string name, CancellationToken cancellationToken = default)
     {
         EnsureMutationsAvailable();
@@ -560,6 +579,25 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             monitor.Name,
             monitor.IsPrimary))
         .ToArray();
+
+    public void RefreshDisplayTopology()
+    {
+        IReadOnlyList<MonitorOption> monitors = GetMonitors();
+        StartupDiagnostics.Stage(
+            $"display-topology-refreshed monitors={monitors.Count} "
+            + $"primary={monitors.FirstOrDefault(monitor => monitor.IsPrimary)?.Identifier ?? "none"}");
+        if (_overlay is not null)
+        {
+            if (_backend is null && _previewSnapshot is not null)
+            {
+                StartPreviewOverlay(_state.Preferences);
+            }
+            else
+            {
+                RestartOverlayForRegionChange();
+            }
+        }
+    }
 
     public async Task SetTypingAsync(bool active, CancellationToken cancellationToken = default)
     {
@@ -1124,8 +1162,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             ActiveRoomId = activeRoomId,
             Preferences = _state.Preferences with
             {
-                OnboardingCompleted = _state.Preferences.OnboardingCompleted
-                    || (profile is not null && snapshot.Rooms.Count > 0),
+                OnboardingCompleted = _state.Preferences.OnboardingCompleted,
                 ActiveRoomId = activeRoomId,
                 CachedNickname = profile?.Nickname ?? _state.Preferences.CachedNickname,
                 CachedCharacterId = profile is null
@@ -1281,7 +1318,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             StartupDiagnostics.Stage(
                 $"overlay-snapshot-dispatched context={diagnosticContext} visible={_overlay.IsVisible.ToString().ToLowerInvariant()} members={snapshot.Members.Count} bubbles={snapshot.Bubbles.Count}");
         }
-        _overlay.ApplyAsync(snapshot).GetAwaiter().GetResult();
+        _overlay.Apply(snapshot);
         if (diagnosticContext is not null)
         {
             StartupDiagnostics.Stage($"overlay-snapshot-accepted context={diagnosticContext}");

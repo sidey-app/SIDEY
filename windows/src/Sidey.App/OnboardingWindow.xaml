@@ -2,6 +2,7 @@
     x:Class="Sidey.App.OnboardingWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Sidey.App.Controls"
     xmlns:i18n="using:Sidey.App.Localization">
   <Grid x:Name="OnboardingRoot" Background="Transparent">
     <Grid.RowDefinitions>
@@ -77,15 +78,6 @@
             HorizontalAlignment="Center"
             Foreground="#8A202024"
             Text="{i18n:I18n Key=onboarding.landingDescription}" />
-        <Border
-            Margin="0,0,0,4"
-            Padding="12,6"
-            HorizontalAlignment="Center"
-            Background="#1A6558D8"
-            CornerRadius="14"
-            Visibility="{Binding IsPreviewMode, Converter={StaticResource BooleanToVisibilityConverter}}">
-          <TextBlock FontSize="12" Foreground="#FF5147B8" Text="{i18n:I18n Key=onboarding.previewNotice}" />
-        </Border>
         <Button
             MinWidth="150"
             HorizontalAlignment="Center"
@@ -172,8 +164,7 @@
                       <Grid MinHeight="94">
                         <StackPanel Padding="8" Spacing="6">
                           <Border Width="48" Height="48" HorizontalAlignment="Center">
-                            <Border.Clip><RectangleGeometry Rect="0,0,48,48" /></Border.Clip>
-                            <Image Width="480" Height="48" HorizontalAlignment="Left" Source="{Binding CharacterId, Converter={StaticResource CharacterImageConverter}}" Stretch="Fill" />
+                            <controls:PixelCharacterPreview CharacterId="{Binding CharacterId}" />
                           </Border>
                           <TextBlock HorizontalAlignment="Center" Text="{Binding DisplayName}" />
                         </StackPanel>
@@ -268,6 +259,12 @@
           <Ellipse Width="8" Height="8" Fill="{ThemeResource SystemFillColorSuccessBrush}" Visibility="{Binding IsConnected, Converter={StaticResource BooleanToVisibilityConverter}}" />
           <TextBlock VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding ConnectionText}" />
         </StackPanel>
+        <Button
+            HorizontalAlignment="Right"
+            AutomationProperties.Name="{i18n:I18n Key=common.skip}"
+            Command="{Binding SkipGroupCommand}"
+            Content="{i18n:I18n Key=common.skip}"
+            Visibility="{Binding IsGroupStep, Converter={StaticResource BooleanToVisibilityConverter}}" />
       </Grid>
     </Grid>
 

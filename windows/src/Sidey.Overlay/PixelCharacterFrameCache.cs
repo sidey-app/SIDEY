@@ -112,7 +112,7 @@ internal sealed class PixelCharacterFrameCache : IDisposable
 
     private static string ResolveAssetPath(string assetRoot, string catalogResource)
     {
-        const string catalogPrefix = "Character/";
+        const string catalogPrefix = "Characters/";
         var relativePath = catalogResource.StartsWith(catalogPrefix, StringComparison.Ordinal)
             ? catalogResource[catalogPrefix.Length..]
             : catalogResource;

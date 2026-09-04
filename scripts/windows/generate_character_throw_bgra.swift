@@ -25,9 +25,9 @@ let decoder = JSONDecoder()
 decoder.keyDecodingStrategy = .convertFromSnakeCase
 let manifest = try decoder.decode(AssetManifest.self, from: manifestData)
 let assets = manifest.characters.map {
-    (sourceRoot.appendingPathComponent($0.throwHit.path), "Character/\($0.id)", "throw_hit")
+    (sourceRoot.appendingPathComponent($0.throwHit.path), "Characters/\($0.id)", "throw_hit")
 } + manifest.throwables.map {
-    (sourceRoot.appendingPathComponent($0.sprite.path), "Throwable/\($0.id)", "sprite")
+    (sourceRoot.appendingPathComponent($0.sprite.path), "Throwables/\($0.id)", "sprite")
 }
 
 try FileManager.default.createDirectory(at: outputRoot, withIntermediateDirectories: true)

@@ -9,7 +9,8 @@ SIDEY/
 ├─ SIDEY-Onboarding-Preview.cmd      # Debug 온보딩 미리보기
 ├─ Assets/
 │  ├─ Icons/
-│  └─ Characters/
+│  ├─ Characters/
+│  └─ Throwables/
 ├─ Langs/                            # SIDEY 자체 JSON 번역 리소스
 │  ├─ ko-KR.json                     # 기본·한국어 카탈로그
 │  └─ en-US.json                     # 영어 카탈로그

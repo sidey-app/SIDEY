@@ -196,11 +196,9 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         return session;
     }
 
-    public ValueTask ApplyAsync(
-        WorldSnapshot snapshot,
-        CancellationToken cancellationToken = default)
+    public void Apply(WorldSnapshot snapshot)
     {
-        cancellationToken.ThrowIfCancellationRequested();
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (_roomId != snapshot.RoomId)
         {
             lock (_throwGate)
@@ -211,7 +209,6 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
             }
         }
         _renderer.ApplySnapshot(snapshot);
-        return ValueTask.CompletedTask;
     }
 
     public ValueTask SetVisibleAsync(bool visible, CancellationToken cancellationToken = default)
@@ -279,7 +276,7 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         {
             try
             {
-                _metrics.ExportAsync().GetAwaiter().GetResult();
+                _metrics.Export();
             }
             catch (Exception exception)
             {

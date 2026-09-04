@@ -3,7 +3,7 @@ using Sidey.Core.Domain;
 using Sidey.Presentation.Services;
 using Sidey.Presentation.ViewModels;
 
-namespace Sidey.Platform.Windows.Tests;
+namespace Sidey.Presentation.Tests;
 
 public sealed class OnboardingViewModelTests
 {
@@ -39,79 +39,6 @@ public sealed class OnboardingViewModelTests
     }
 
     [Fact]
-    public async Task PreviewModeWalksEveryStepWithoutServerMutations()
-    {
-        var coordinator = new FakeSideyCoordinator
-        {
-            State = CoordinatorState.Initial with
-            {
-                Preferences = AppPreferences.Default with { OnboardingCompleted = true },
-                RealtimeConnection = RealtimeConnectionStatus.Disconnected,
-            },
-        };
-        var viewModel = new OnboardingViewModel(coordinator, isPreviewMode: true)
-        {
-            Nickname = "미리보기",
-            RoomName = "미리보기 그룹",
-        };
-
-        viewModel.BeginCommand.Execute(null);
-        Assert.True(viewModel.IsProfileStep);
-        Assert.True(viewModel.CanSaveProfile);
-
-        await viewModel.SaveProfileCommand.ExecuteAsync(null);
-        Assert.True(viewModel.IsGroupStep);
-
-        await viewModel.CreateRoomCommand.ExecuteAsync(null);
-        Assert.True(viewModel.IsReadyStep);
-        Assert.Equal(0, coordinator.SaveProfileCallCount);
-        Assert.Equal(0, coordinator.CreateRoomCallCount);
-        Assert.Equal(0, coordinator.JoinRoomCallCount);
-    }
-
-    [Fact]
-    public async Task PreviewModePrefillsExistingDataButDoesNotSkipSteps()
-    {
-        Guid userId = Guid.NewGuid();
-        var profile = new Profile(userId, "기존 이름", "pixel_penguin");
-        var room = new Room(
-            Guid.NewGuid(),
-            "기존 그룹",
-            userId,
-            [new RoomMember(userId, profile.Nickname, profile.CharacterId, PresenceState.Online)],
-            "ABCD",
-            true,
-            1);
-        var coordinator = new FakeSideyCoordinator
-        {
-            State = CoordinatorState.Initial with
-            {
-                Profile = profile,
-                Rooms = [room],
-                ActiveRoomId = room.Id,
-                Preferences = AppPreferences.Default with { OnboardingCompleted = true },
-                RealtimeConnection = ConnectedStatus(),
-            },
-        };
-        var viewModel = new OnboardingViewModel(coordinator, isPreviewMode: true);
-
-        Assert.Equal("기존 이름", viewModel.Nickname);
-        Assert.Equal("pixel_penguin", viewModel.SelectedCharacterId);
-        Assert.Equal("기존 그룹", viewModel.RoomName);
-        Assert.True(viewModel.IsLanding);
-
-        viewModel.BeginCommand.Execute(null);
-        Assert.True(viewModel.IsProfileStep);
-
-        await viewModel.SaveProfileCommand.ExecuteAsync(null);
-        Assert.True(viewModel.IsGroupStep);
-        Assert.Equal("기존 그룹", viewModel.RoomName);
-
-        await viewModel.CreateRoomCommand.ExecuteAsync(null);
-        Assert.True(viewModel.IsReadyStep);
-    }
-
-    [Fact]
     public void NewInstallationStartsWithLandingThenMovesToProfile()
     {
         var viewModel = new OnboardingViewModel(new FakeSideyCoordinator());
@@ -125,30 +52,10 @@ public sealed class OnboardingViewModelTests
     }
 
     [Fact]
-    public void RestoredProfileContinuesAtGroupStep()
-    {
-        var coordinator = new FakeSideyCoordinator
-        {
-            State = CoordinatorState.Initial with
-            {
-                Profile = new Profile(Guid.NewGuid(), "사이드", "pixel_cat"),
-                RealtimeConnection = ConnectedStatus(),
-            },
-        };
-        var viewModel = new OnboardingViewModel(coordinator);
-
-        viewModel.BeginCommand.Execute(null);
-
-        Assert.True(viewModel.IsGroupStep);
-        Assert.Equal("사이드", viewModel.Nickname);
-        Assert.Equal("pixel_cat", viewModel.SelectedCharacterId);
-    }
-
-    [Fact]
-    public void ProfileAndRoomCompletionMovesToReadyStep()
+    public async Task RestoredProfileAndGroupArePrefilledButRequireExplicitProgress()
     {
         Guid userId = Guid.NewGuid();
-        var profile = new Profile(userId, "사이드", "pixel_hamster");
+        var profile = new Profile(userId, "사이드", "pixel_cat");
         var room = new Room(
             Guid.NewGuid(),
             "친구들",
@@ -162,21 +69,91 @@ public sealed class OnboardingViewModelTests
             State = CoordinatorState.Initial with
             {
                 Profile = profile,
+                Rooms = [room],
+                ActiveRoomId = room.Id,
                 RealtimeConnection = ConnectedStatus(),
             },
         };
         var viewModel = new OnboardingViewModel(coordinator);
+
+        Assert.True(viewModel.IsLanding);
+        Assert.Equal("사이드", viewModel.Nickname);
+        Assert.Equal("pixel_cat", viewModel.SelectedCharacterId);
+        Assert.Equal("친구들", viewModel.RoomName);
+
         viewModel.BeginCommand.Execute(null);
 
+        Assert.True(viewModel.IsProfileStep);
         viewModel.ApplyState(coordinator.State with
         {
-            Rooms = [room],
-            ActiveRoomId = room.Id,
             Preferences = coordinator.State.Preferences with { OnboardingCompleted = true },
         });
+        Assert.True(viewModel.IsProfileStep);
+
+        await viewModel.SaveProfileCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsGroupStep);
+        viewModel.ApplyState(coordinator.State);
+        Assert.True(viewModel.IsGroupStep);
+
+        viewModel.SkipGroupCommand.Execute(null);
 
         Assert.True(viewModel.IsReadyStep);
-        Assert.False(viewModel.CanGoBack);
+        Assert.Equal(0, coordinator.CreateRoomCallCount);
+        Assert.Equal(0, coordinator.JoinRoomCallCount);
+    }
+
+    [Fact]
+    public async Task FinishingPersistsExplicitCompletionBeforeClosingOnboarding()
+    {
+        var coordinator = new FakeSideyCoordinator();
+        var viewModel = new OnboardingViewModel(coordinator) { Step = 2 };
+        bool completed = false;
+        viewModel.Completed += () => completed = true;
+
+        viewModel.SkipGroupCommand.Execute(null);
+        await viewModel.FinishCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsReadyStep);
+        Assert.True(completed);
+        Assert.Equal(1, coordinator.CompleteOnboardingCallCount);
+    }
+
+    [Fact]
+    public async Task CompletionFailureKeepsTheReadyStepOpen()
+    {
+        var coordinator = new FakeSideyCoordinator
+        {
+            CompleteOnboardingHandler = _ => throw new IOException("설정을 저장하지 못했습니다."),
+        };
+        var viewModel = new OnboardingViewModel(coordinator) { Step = 3 };
+        bool completed = false;
+        viewModel.Completed += () => completed = true;
+
+        await viewModel.FinishCommand.ExecuteAsync(null);
+
+        Assert.False(completed);
+        Assert.True(viewModel.IsReadyStep);
+        Assert.Equal("설정을 저장하지 못했습니다.", viewModel.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task SuccessfulRoomCreationMovesToReadyStep()
+    {
+        var coordinator = new FakeSideyCoordinator
+        {
+            State = CoordinatorState.Initial with { RealtimeConnection = ConnectedStatus() },
+        };
+        var viewModel = new OnboardingViewModel(coordinator)
+        {
+            Step = 2,
+            RoomName = "친구들",
+        };
+
+        await viewModel.CreateRoomCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsReadyStep);
+        Assert.Equal(1, coordinator.CreateRoomCallCount);
     }
 
     [Fact]

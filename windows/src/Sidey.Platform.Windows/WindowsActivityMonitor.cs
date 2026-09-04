@@ -15,7 +15,7 @@ public sealed class WindowsActivityMonitor(
     TimeSpan? sampleInterval = null) : IActivityMonitor
 {
     private readonly TimeSpan _awayThreshold = awayThreshold ?? TimeSpan.FromMinutes(5);
-    private readonly TimeSpan _sampleInterval = sampleInterval ?? TimeSpan.FromSeconds(5);
+    private readonly TimeSpan _sampleInterval = sampleInterval ?? TimeSpan.FromSeconds(1);
     private readonly CancellationTokenSource _shutdown = new();
 
     public async IAsyncEnumerable<PresenceState> ObserveAsync(
