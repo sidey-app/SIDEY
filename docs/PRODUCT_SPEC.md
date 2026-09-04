@@ -182,7 +182,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 
 기본 시트는 240×24 RGBA이며 idle 2·walk 4·doze 2·offline 2프레임을 가진다. 물체 던지기 action 시트는 9종 각각 192×24 RGBA이며 24×24 셀의 throw 4프레임과 hit 4프레임을 가진다. 물체 시트는 5종 각각 192×16 RGBA이며 16×16 셀의 고정 중심 회전 8프레임과 충돌 4프레임을 가진다. 무료 5종은 비대칭 패치와 봉제선이 있는 패치 말랑공을 공유하고, 기니피그는 미니 파프리카, 원숭이는 바나나, 친칠라는 매듭 달린 먼지목욕 모래주머니, 별빛 우파루파는 회전 광점이 있는 별빛 구슬을 사용한다. 투명 배경, sRGB, 8-bit RGBA, hard alpha, 아래쪽 3px 발 기준선과 integer nearest-neighbor를 유지하고 안티앨리어싱과 실시간 그림자는 사용하지 않는다. 알 수 없는 캐릭터 ID는 햄스터 action과 패치 말랑공으로 fallback한다.
 
-별빛 우파루파처럼 ambient sparkle과 더블클릭 particle burst를 제안할 수 있지만 이는 PNG가 아니라 별도 렌더러 효과다. 성능·색상·밀도·지속 시간을 검토하고 각 플랫폼에서 구현해야 하며 에셋 제출만으로 제품에서 자동 활성화하지 않는다. 공개 프리뷰어의 효과 토글은 제안 영상을 위한 로컬 시뮬레이션일 뿐 앱 설정이나 서버 payload를 만들지 않는다.
+별빛 우파루파의 ambient sparkle과 더블클릭 particle burst는 PNG가 아니라 캐릭터 catalog의 시각 효과 플래그로 각 플랫폼 렌더러가 구현한다. 민트·보라·금색 입자와 약 1.05초 ambient 지속 시간, 최대 0.78초 burst를 사용하고 기존 30 FPS·실시간 그림자 금지·렌더 영역 제한을 지킨다. 공개 프리뷰어의 효과 토글은 제안 영상을 위한 로컬 시뮬레이션일 뿐 앱 설정이나 서버 payload를 만들지 않는다.
 
 ## 5. 메시지와 타이핑
 
@@ -195,7 +195,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 각 방은 멤버 변경마다 증가하는 `realtime_epoch`을 가지며 DB·ephemeral private topic을 분리한다. DB event에는 message UUID와 operation만 담고, macOS는 RLS를 거쳐 해당 row를 재조회한 뒤 확정한다.
 - macOS 클라이언트는 5초마다 WebSocket과 각 방 채널의 실제 구독 상태를 확인한다. 비정상이 8초 이상 지속되면 채널 및 수신 스트림을 재생성하고, 실패가 이어지면 8초·16초·최대 30초 간격으로 재시도한다.
 - 재구독 중에는 로컬 상태를 재연결로 표시한다. 성공하면 현재 Presence를 다시 publish하고 방·멤버 snapshot과 최근 메시지를 다시 읽어 단절 중 누락된 가입·메시지를 보정한다.
-- macOS는 전체 방 채널 구독 상태인 `transportConnected`, 현재 활성 방 채널 구독 상태인 `activeRoomTransportConnected`, 단절 복구 보정 상태인 `recoveryReconciled`를 별도로 관리한다. 원격 Presence 캐시는 실제 transport 단절에서만 폐기한다. 자기 캐릭터와 던지기 상호작용은 활성 방 transport가 끊긴 동안에만 회색·비활성 상태를 사용하며, 절전 복귀 뒤 해당 transport가 복구되면 다른 방 또는 snapshot·메시지 보정이 진행 중이어도 현재 로컬 Presence와 상호작용을 즉시 되돌린다. 프로필·닉네임·방 이름 `structure_changed`는 연결 상태를 바꾸지 않고 metadata snapshot만 갱신하며, 조회 실패도 transport를 online으로 유지한 채 metadata 작업만 backoff 재시도한다.
+- macOS와 Windows는 전체 방 채널 구독 상태인 `transportConnected`, 현재 활성 방 채널 구독 상태인 `activeRoomTransportConnected`, 단절 복구 보정 상태인 `recoveryReconciled`를 별도로 관리한다. 원격 Presence 캐시는 실제 transport 단절에서만 폐기한다. 자기 캐릭터와 던지기 상호작용은 활성 방 transport가 끊긴 동안에만 회색·비활성 상태를 사용하며, 절전 복귀 뒤 해당 transport가 복구되면 다른 방 또는 snapshot·메시지 보정이 진행 중이어도 현재 로컬 Presence와 상호작용을 즉시 되돌린다. 프로필·닉네임·방 이름 `structure_changed`는 연결 상태를 바꾸지 않고 metadata snapshot만 갱신하며, 조회 실패도 transport를 online으로 유지한 채 metadata 작업만 backoff 재시도한다.
 - confirmed message ledger는 `senderID`를 보존하며 방별 최근 50개·7일 범위로 제한한다. pending·failed 전송은 방별 outbox에 분리한다.
 - macOS 최근 기록은 최신순 카드 목록이며 각 카드에 40pt 슬롯 안의 24×24 무배율 픽셀 캐릭터, 닉네임·`나` 표식, 로컬 시각, 본문과 pending·failed 상태를 표시한다. 발신자 UUID가 현재 방 멤버 snapshot에 없으면 햄스터와 `알 수 없는 친구`로 표시한다.
 - 최근 기록의 최초·추가 조회는 RLS가 적용된 `messages`를 `created_at DESC, id DESC`로 51개 읽어 50개를 표시하고, 마지막 표시 row의 원본 `created_at` 문자열과 UUID를 keyset cursor로 사용한다. 하단 도달 시 자동으로 다음 페이지를 가져오며 서버 보관 정책과 같은 최근 7일 cutoff를 모든 조회에 적용한다.
@@ -289,6 +289,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - Windows 최근 기록의 40 DIP 캐릭터 슬롯은 시스템 accent 10% 배경과 12 DIP 모서리를 사용한다. 최근 기록과 그룹 설정의 현재 사용자 `나` 표식은 모두 accent 글자와 accent 12% 배경을 사용하며 라이트·다크 테마에 맞춰 갱신한다.
 - Windows `꾸미기·상점`은 Mica 배경 위에 전체 목록용 외곽 카드를 두지 않고 추가 캐릭터 4종의 독립 Fluent 카드를 2열로 배치한다. 각 카드는 96 DIP 정수 배율 픽셀 미리보기, 이름, 예정 가격, 설명과 비활성 `구매 준비 중` 상태를 보여준다. 구매·결제·소유권 변경 action은 만들지 않으며 프로필 선택 목록은 무료 5종과 서버에서 확인한 현재 계정의 활성 entitlement 캐릭터를 보여준다.
 - Windows 그룹 설정의 펼친 각 카드에는 `그룹 나가기`를 이름 변경·삭제와 같은 하단 작업 영역에 표시한다. 나가기·이름 변경·삭제·추방은 다른 그룹 mutation 중 함께 비활성화한다.
+- 프로필 저장과 그룹 생성·참여·전환·나가기·이름 변경·삭제·추방·초대 코드 재발급처럼 서버 응답을 기다리는 action은 요청 즉시 해당 버튼을 비활성화하고 성공·실패 완료 뒤 다시 활성화한다. 동일 action의 동시 실행을 금지하며 그룹 mutation은 진행 중 관련 입력과 다른 mutation 버튼도 함께 비활성화한다.
 - 월드는 WinUI XAML 창에 투명 표현을 위임하지 않고 `WS_POPUP` 기반 전용 Win32 HWND가 소유한다. 무료 5종과 유료 4종은 24px 원본에서 정수 nearest-neighbor로 만든 premultiplied BGRA frame을 같은 `UpdateLayeredWindow` 렌더러로 표시하며 tick마다 bitmap이나 surface를 새로 할당하지 않는다.
 - 월드 HWND는 작업 표시줄·Alt-Tab에 나타나지 않고 활성화되지 않으며 외부 앱으로 포인터를 통과시킨다. 월드와 모든 hotspot HWND는 작업 표시줄·Start·검색·트레이 팝업을 감지하면 함께 그 셸 표면 뒤로 이동하고 주기적으로 Z-order를 재확인한다.
 - 내 캐릭터 상호작용 52×52 hotspot은 별도 HWND가 소유하고 최대 15Hz·1 DIP 임계값으로 위치를 갱신한다. `우클릭 후 던지기`가 OFF이면 화면에 표시되는 친구별 hotspot HWND를 Presence 상태와 무관하게 계속 유지하고, ON이면 내 캐릭터 우클릭 뒤 10초 동안만 만든다. Windows 셸 표면 위에서는 캐릭터 클릭·우클릭을 받지 않는다. 전역 마우스 hook·전역 좌표 수집은 금지한다.
@@ -327,7 +328,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 
 macOS 최근 기록의 페이지·cursor·최초 및 추가 로딩 상태는 창 수명에 묶인 `MessageHistoryStore`가 소유한다. `AppModel`의 방별 50개 confirmed ledger와 outbox 계약은 바꾸지 않으며, 화면에 표시할 때만 페이지 결과·실시간 신규 메시지·pending·failed 항목을 UUID로 병합한다. `SideyBackend`는 RLS가 적용된 페이지 조회만 담당하고 offset이나 별도 서버 schema를 추가하지 않는다.
 
-그룹 설정의 각 행은 펼침 여부, 이름 변경 draft, 삭제·추방 확인 대상과 초대 코드 복사 피드백을 로컬 UI 상태로 소유한다. 복사 성공 시 해당 행의 버튼만 초록 `checkmark.circle.fill`과 `복사 완료`를 3초 동안 표시하고, 3초 안 재클릭하면 타이머를 다시 시작하며 행 제거 시 취소한다. 성공 전역 배너는 표시하지 않고 실패만 기존 오류 배너를 사용한다. 실제 Keychain 읽기와 클립보드 처리는 `AppCoordinator`가 담당한다. 서버에서 읽은 방·멤버 배열을 행 상태로 복제하거나 mutation 성공을 가정해 임의 수정하지 않는다.
+그룹 설정의 각 행은 펼침 여부, 이름 변경 draft, 삭제·추방 확인 대상과 초대 코드 복사 피드백을 로컬 UI 상태로 소유한다. 복사 성공 시 해당 행의 버튼만 초록 체크와 `복사 완료`를 3초 동안 표시하고, 3초 안 재클릭하면 타이머를 다시 시작하며 행 제거 시 취소한다. 성공 전역 배너는 표시하지 않고 실패만 기존 오류 배너를 사용한다. 실제 Keychain 또는 Credential Manager 읽기와 클립보드 처리는 `AppCoordinator`가 담당한다. 서버에서 읽은 방·멤버 배열을 행 상태로 복제하거나 mutation 성공을 가정해 임의 수정하지 않는다.
 
 macOS 설정창은 `fullSizeContentView`를 유지하되 투명 커스텀 타이틀바 대신 AppKit 네이티브 타이틀바 머티리얼과 자동 구분선을 사용한다. 스크롤 콘텐츠가 상단 타이틀바 뒤에 들어가면 시스템 재질이 해당 영역을 블러 처리한다. 온보딩의 캐릭터 선택은 4열로 배치하고 다섯 번째 항목부터 다음 줄에 표시한다. 설정 상세 화면은 가로 44pt·세로 40pt 바깥 여백과 카드 안 24pt 여백을 사용한다. 각 섹션은 아이콘·제목·설명을 카드 위에 표시하고, 카드는 `Color.primary.opacity(0.025)` 기반 배경과 각각 약 0.05·0.025의 테두리·그림자를 사용한다. 카드의 토글·선택 항목은 왼쪽 제목 아래 효과 설명과 240pt 오른쪽 컨트롤 영역을 한 행으로 대응시키며 Picker·버튼·토글의 보이는 오른쪽 끝을 맞춘다. 토글은 macOS 26 네이티브 switch를 유지하고 개발 세부 정보인 `동작 정보`는 표시하지 않는다. 그룹 화면은 폭이 짧은 `person.2` 아이콘을 사용하고 현재 그룹, 새 그룹 만들기, 초대 코드로 참여를 독립 카드로 구성하며 각 카드는 기존 `AppModel` 상태와 `SettingsActions` mutation만 호출한다.
 
@@ -455,10 +456,11 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 - 에셋: 무료 5종과 유료 4종 기본 시트의 240×24 RGBA·10프레임, throw/hit 시트 9개의 192×24 RGBA·8프레임, 물체 시트 5개의 192×16 RGBA·12프레임, 공통 발 기준선·회전 중심·hard alpha·결정적 SHA-256·Release 번들 포함과 캐릭터→물체/fallback 매핑, 메뉴 아이콘 1x·2x template/unread variant
 - 던지기 렌더링: 9종 throw/hit, 5종 물체 매핑, 4개 화면 가장자리, 이동 목표 추적, 다중 피격 재시작, 대상 상태 전환, 방 전환 중 stale 이벤트를 검증한다. 12명이 0.5초마다 던지는 초당 24개 부하에서 활성 투사체 32개 이하, p95 frame time 40ms 이하, 100ms 이상 UI hang과 지속 메모리·handle 증가가 없어야 한다.
 - 설정: schema 7 이하에서 `requiresRightClickToThrow=false` migration과 저장·복원·즉시 ON/OFF 전환, 860×640 최소 크기와 1000×760 안팎 권장 크기의 라이트·다크 렌더, 960 DIP 경계의 210→48 DIP 자동 탐색 전환과 최소 폭 아이콘 레일 유지, 상단바의 뒤로가기·탐색 열기와 방문 이력, native 최소 tracking size에서 반복 resize·깜빡임 없음, 옅은 카드 명도, 240pt 컨트롤 영역과 Picker·버튼·토글 오른쪽 정렬, `동작 정보` 제거, 두 사람 그룹 아이콘, 그룹 현재 사용자 표식의 accent 글자·12% 배경, 활성·비활성 그룹별 나가기 확인과 방장 영향 안내·mutation 중 비활성화, 한글 IME 조합 확정 후 닉네임 저장
+- 서버 action: 응답을 지연시킨 프로필 저장과 각 그룹 mutation에서 첫 요청 직후 버튼이 비활성화되고 추가 실행이 전달되지 않으며 성공·실패 뒤 다시 활성화되는지 검증한다.
 - 입력 필드: 200자 끝, 한글 조합, 영문 긴 단어, 이모지, Shift+Enter 3줄, 중간 커서 이동·전체 선택, undo·redo, 외부 draft와 잘못된 입력 복구에서 마지막 글자와 커서가 보이고 텍스트 손실·IME 중복 확정·가로 스크롤이 없는지 검증한다.
 - 상점: 2열 4종 카드의 독립 상태·정렬과 `보유 중` 유지, entitlement 선택 목록, Google callback·저장소 분리, 860×640·1000×760 라이트·다크 렌더를 검증한다. production은 action 호출과 animation Task가 0개이고 검정 68%·픽셀 자물쇠·잠금 안내만 접근성에 노출되어야 한다.
 - commerce 서버·웹: 활성 가격 1,900/990/990/990, 4종 프로필 소유권 검사, complimentary grant·RLS, 판매 기본 잠금, 만료 token, 최신 정책 버전과 단순 변심 환불 불가 동의, PortOne Store·Channel·V2·환경·상태·금액·통화·수단 불일치, 중복 웹훅·서명 오류, 법정 사유 전액 환불과 purchase/complimentary 격리를 검증한다.
-- 그룹 설정: 0·1·12명 멤버 목록, 기본 접힘·제목 영역 및 오른쪽 단일 화살표 펼침, `그룹 참가` 문구, 생성·참여·전환별 진행 문구와 라이트·다크 대상 카드 강조, A→B→C 연속 선택에서 C만 commit, UUID 기반 방장 왕관과 펼친 목록 아래 방장 전용 이름 변경·삭제 버튼, 이름 변경 저장·취소, 대상 명시 추방 확인, 영구 삭제 2단계 확인, 활성·비활성·마지막 그룹 삭제 fallback, 초대 코드 복사 성공·실패와 3초 표시·재클릭 갱신·행 제거 취소
+- 그룹 설정: 0·1·12명 멤버 목록, 기본 접힘·제목 영역 및 오른쪽 단일 화살표 펼침, `그룹 참가` 문구, 생성·참여·전환별 진행 문구와 라이트·다크 대상 카드 강조, A→B→C 연속 선택에서 C만 commit, UUID 기반 방장 왕관과 펼친 목록 아래 방장 전용 이름 변경·삭제 버튼, 이름 변경 저장·취소, 대상 명시 추방 확인, 영구 삭제 2단계 확인, 활성·비활성·마지막 그룹 삭제 fallback, macOS·Windows 초대 코드 복사 성공·실패와 3초 표시·재클릭 갱신·행 제거 취소
 - DMG: 660×420 배경, `SIDEY.app`, `/Applications` 심볼릭 링크, 기존 5종 idle 프레임, `.DS_Store`를 자동 생성·마운트 검증하고 Finder에서 아이콘 위치·안내 문구·nearest-neighbor 픽셀 선명도를 수동 확인
 - Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단
 - 서버: 실제 anon/authenticated role의 RLS, 12번째 성공·13번째 거부와 여섯 번째 방 경합, 병렬 초대 제한, invite hash API 비노출, current epoch topic 권한, client Broadcast INSERT 봉쇄, transient event whitelist·rate, `broadcast_character_throw`의 인증·epoch·양쪽 membership·자기 대상·필수 UUID·20회/10초 제한과 서버 source character, 메시지 멱등성·rate, 7일 retention, 비방장 관리 거부와 cascade를 SQL 테스트한다.
@@ -480,7 +482,7 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 
 ### 10.3 Windows 지속 검증 기준
 
-1. 무료 5종과 원격 유료 4종을 `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러로 제공하고 asset·frame·발 기준선·방향·fallback 계약을 자동 검증한다. 선택 목록은 무료 5종과 서버가 반환한 현재 계정의 활성 entitlement 캐릭터를 보여주고 상점에서는 추가 4종을 구매 action 없이 미리 본다.
+1. 무료 5종과 원격 유료 4종을 `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러로 제공하고 asset·frame·발 기준선·방향·fallback 계약, 별빛 우파루파의 catalog 기반 sparkle 효과를 자동 검증한다. 선택 목록은 무료 5종과 서버가 반환한 현재 계정의 활성 entitlement 캐릭터를 보여주고 상점에서는 추가 4종을 구매 action 없이 미리 본다. 성공한 snapshot에서 현재 캐릭터 entitlement가 회수되면 로컬 프로필·방 표시·캐시가 햄스터로 fallback해야 한다.
 2. 같은 렌더러를 햄스터 1종으로 제한하는 Debug 내부 모드에서 투명·최상위·외부 앱 클릭 통과·52×52 hotspot·composer 포커스·100/125/150/200% DPI를 Windows 11 25H2 x64 실기에서 통과한다. 이 모드는 Release에 노출하지 않는다.
 3. 연결형 검증에서 익명 세션 복구·생성, 프로필, 방, 메시지, Presence, typing lease, `character_pulse`, `character_throw`를 staging의 기존 macOS 클라이언트와 양방향 확인한다.
 4. 최종 12명 월드를 2시간, 20노드 합성 부하를 30분 실행해 p95 frame time 40ms 이하, 100ms 이상 UI-thread hang 없음, warm-up 후 working set 20MB 초과 증가 없음, GDI/USER handle·COM surface 지속 증가 없음을 확인한다.
