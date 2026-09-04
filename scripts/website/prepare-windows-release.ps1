@@ -7,12 +7,13 @@ param(
     [string]$OutputDir,
 
     [Parameter(Mandatory = $true)]
-    [string]$ReleaseMsi
+    [Alias('ReleaseMsi')]
+    [string]$ReleaseInstaller
 )
 
 $ErrorActionPreference = 'Stop'
 $resolvedWebsiteDir = (Resolve-Path -LiteralPath $WebsiteDir).Path
-$resolvedReleaseMsi = (Resolve-Path -LiteralPath $ReleaseMsi).Path
+$resolvedReleaseInstaller = (Resolve-Path -LiteralPath $ReleaseInstaller).Path
 $resolvedOutputDir = [IO.Path]::GetFullPath($OutputDir)
 $sourceManifestPath = Join-Path $resolvedWebsiteDir 'windows-latest.json'
 $manifest = Get-Content -LiteralPath $sourceManifestPath -Raw -Encoding UTF8 |
@@ -25,14 +26,19 @@ if ($manifest.channel -ne 'production' -or
 
 $version = [string]$manifest.version
 $tag = "windows-v$version"
-$msiName = "SIDEY-Windows-x64-v$version.msi"
-$installerUrl = "https://github.com/sidey-app/SIDEY/releases/download/$tag/$msiName"
+$installerName = if ([Version]::Parse($version) -le [Version]'1.0.5') {
+    "SIDEY-Windows-x64-v$version.msi"
+}
+else {
+    "SIDEY-Windows-x64-v${version}-Setup.exe"
+}
+$installerUrl = "https://github.com/sidey-app/SIDEY/releases/download/$tag/$installerName"
 if ([string]$manifest.tag -ne $tag -or
     [string]$manifest.installer_url -ne $installerUrl) {
     throw 'Windows Pages manifest tag or installer URL does not match its version.'
 }
-if ([IO.Path]::GetFileName($resolvedReleaseMsi) -ne $msiName) {
-    throw "Release MSI filename does not match the public contract: $msiName"
+if ([IO.Path]::GetFileName($resolvedReleaseInstaller) -ne $installerName) {
+    throw "Release installer filename does not match the public contract: $installerName"
 }
 
 if (Test-Path -LiteralPath $resolvedOutputDir) {
@@ -48,7 +54,7 @@ else {
 Get-ChildItem -LiteralPath $resolvedWebsiteDir -Force |
     Copy-Item -Destination $resolvedOutputDir -Recurse -Force
 
-$hash = (Get-FileHash -LiteralPath $resolvedReleaseMsi -Algorithm SHA256).Hash.ToLowerInvariant()
+$hash = (Get-FileHash -LiteralPath $resolvedReleaseInstaller -Algorithm SHA256).Hash.ToLowerInvariant()
 $publishedManifest = [ordered]@{
     channel = 'production'
     version = $version

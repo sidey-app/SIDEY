@@ -52,8 +52,8 @@
 - 공식 주소는 GitHub 프로젝트 Pages `https://sidey-app.github.io/SIDEY/`다. 루트는 한국어, `/en/`은 영어이며 각 페이지에서 언어를 전환할 수 있다.
 - `website/`의 정적 HTML·CSS·최소 JavaScript만 배포한다. 랜딩과 정책 페이지는 제품 소개와 다운로드·상점 안내를 담당하며 로그인·그룹·메시지 기능을 제공하는 웹 클라이언트가 아니다.
 - macOS 기본 CTA는 현재 공개 버전의 고정 공증 DMG를 직접 가리키고 `brew install --cask sidey-app/tap/sidey`를 함께 제공한다. 다음 공개 릴리스에서는 버전 표기와 고정 DMG URL을 같은 배포 작업에서 갱신한다.
-- Windows 기본 CTA는 현재 정식 버전의 고정 MSI를 직접 가리킨다. 저장소의 다운로드 버튼은 Release 검증 전까지 비활성 상태로 두고, Pages Actions가 정식 Release의 단일 MSI를 확인한 배포 아티팩트에서만 링크로 활성화한다.
-- Windows 업데이트 채널은 macOS Release와 분리된 `windows-v<version>` 태그와 `website/windows-latest.json`을 사용한다. 호환 경로 `website/windows/update.json`은 같은 내용을 유지한다. 저장소 manifest의 `sha256`은 `null`로 두고, Pages Actions가 Release MSI를 다시 내려받아 계산한 64자리 SHA-256으로 두 배포 manifest를 완성한다. Release가 없거나 draft·pre-release이거나 MSI 외 자산이 있으면 기존 Pages를 교체하지 않는다.
+- Windows 기본 CTA는 현재 정식 v1.0.5의 고정 MSI를 직접 가리키고 다음 릴리스부터 고정 Setup EXE를 사용한다. 저장소의 다운로드 버튼은 Release 검증 전까지 비활성 상태로 두고, Pages Actions가 버전에 맞는 정식 Release의 단일 Windows 설치 자산을 확인한 배포 아티팩트에서만 링크로 활성화한다.
+- Windows 업데이트 채널은 macOS Release와 분리된 `windows-v<version>` 태그와 `website/windows-latest.json`을 사용한다. 호환 경로 `website/windows/update.json`은 같은 내용을 유지한다. 저장소 manifest의 `sha256`은 `null`로 두고, Pages Actions가 v1.0.5의 MSI 또는 이후 릴리스의 Setup EXE를 다시 내려받아 계산한 64자리 SHA-256으로 두 배포 manifest를 완성한다. Release가 없거나 draft·pre-release이거나 해당 버전의 예상 설치 파일 외 자산이 있으면 기존 Pages를 교체하지 않는다.
 - 첫 화면에서 플랫폼·아키텍처·정식 배포 상태를 밝히고, 개인정보 수집 경계, E2EE 미지원, 보안 화면·DRM·권한 상승 앱·모든 독점 전체화면 위 표시를 보장하지 않는다는 제한을 숨기지 않는다.
 - `/contribute/asset-previewer/`는 랜딩 내비게이션에 넣지 않는 공개 컨트리뷰터 도구다. 공식 햄스터 세트를 기본으로 불러오고 사용자가 넣은 `base.png`·`throw_hit.png`·`sprite.png`의 형식과 동작을 현재 탭에서만 검증한다. 파일은 서버로 보내거나 저장하지 않으며 외부 이미지 URL이나 사용자 JavaScript를 받지 않는다. 녹화는 프리뷰 Canvas의 30 FPS stream만 최대 30초 무음으로 저장하고 카메라·마이크·화면 녹화 권한을 요청하지 않는다.
 - `main`의 웹 파일 또는 Pages 워크플로가 바뀌면 GitHub Actions가 `website/`만 Pages artifact로 올리고 `github-pages` 환경에 배포한다. custom domain과 별도 Sites 호스팅은 사용하지 않는다.
@@ -288,7 +288,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 내 캐릭터 상호작용 52×52 hotspot은 별도 HWND가 소유하고 최대 15Hz·1 DIP 임계값으로 위치를 갱신한다. `우클릭 후 던지기`가 OFF이면 화면에 표시되는 친구별 hotspot HWND를 Presence 상태와 무관하게 계속 유지하고, ON이면 내 캐릭터 우클릭 뒤 10초 동안만 만든다. 전역 마우스 hook·전역 좌표 수집은 금지한다.
 - composer는 400×56 DIP 별도 WinUI 창이며, 내 캐릭터 클릭·트레이 `메시지 작성`만 이 창을 활성화한다.
 - 트레이 메뉴는 macOS 메뉴바의 제품 행동에 맞춰 오버레이, 메시지 작성, 활성 그룹, 조용히 모드, 최근 기록, 상점, 그룹 설정, 로그인 실행, 업데이트 확인, 설정, 종료를 제공한다. 익명 세션을 사용하는 Windows판에는 로그아웃 메뉴를 두지 않는다.
-- 앱은 Pages의 Windows 전용 manifest를 시작 시 한 번 확인하고 트레이·설정에서 수동 확인도 제공한다. 새 버전의 고정 GitHub Release MSI URL과 SHA-256이 모두 유효할 때만 사용자 승인을 받아 내려받고 hash 검증 뒤 설치기를 실행하며 무인 자동 설치는 하지 않는다.
+- 앱은 Pages의 Windows 전용 manifest를 시작 시 한 번 확인하고 트레이·설정에서 수동 확인도 제공한다. 현재 v1.0.5 이후 새 버전의 고정 GitHub Release Setup EXE URL과 SHA-256이 모두 유효할 때만 사용자 승인을 받아 내려받고 hash 검증 뒤 설치기를 실행하며 무인 자동 설치는 하지 않는다.
 - 시작 단계와 예외 유형·HRESULT·stack은 `%LOCALAPPDATA%\SIDEY\Logs\startup.log`에 기록하되 token·메시지 본문·평문 초대 코드는 기록하지 않는다. WinUI 창 생성 전 실패하면 네이티브 오류창으로 로그 경로를 알리고, 트레이 아이콘 초기화만 실패한 경우 설정창은 계속 유지하며 창을 닫으면 앱을 종료한다.
 - 보안 화면·DRM·관리자 권한 앱·모든 독점 전체화면 위 표시는 보장하지 않는다.
 
@@ -404,7 +404,7 @@ Edge Functions는 책임을 다음처럼 분리한다.
 
 `20260903010000_admin_observability.sql`은 private download snapshot과 service role 전용 `admin_overview`, `admin_rooms`, `admin_room_members`, `admin_users`, `admin_downloads`, `admin_payments`, `admin_ingest_download_metrics`를 추가한다. `anon`과 일반 `authenticated`에는 모든 함수 실행 권한을 명시적으로 회수한다. 검색·상태·기간·정렬·page size는 Node API와 SQL 양쪽에서 allowlist 검증한다.
 
-GitHub download collector는 정식 Release만 읽고 `SIDEY-macOS-arm64-v<version>.dmg`, `SIDEY-macOS-arm64-v<version>-homebrew.dmg`, `SIDEY-Windows-x64-v<version>.msi`만 집계한다. 같은 macOS Release에 Homebrew 전용 자산이 없으면 해당 DMG의 기존 누적 수는 직접·Homebrew가 섞인 `legacy_unclassified`로 보존한다. 자산별 최초 snapshot은 누적 총계 baseline으로만 사용하고 관측 전 다운로드를 수집 당일 증가량으로 재분류하지 않는다. 이후 일별·오늘 수치는 Asia/Seoul 자정 전후 snapshot 차이이며 최대 약 15분의 경계 오차와 마지막 수집 시각을 함께 보여준다. 현재 `sidey-app/tap`은 third-party tap이므로 `homebrew/homebrew-cask` 공식 30/90/365일 익명 통계를 제공받지 못하며, 공식 Cask 편입 전에는 교차 확인 수치를 비워 둔다.
+GitHub download collector는 정식 Release만 읽고 `SIDEY-macOS-arm64-v<version>.dmg`, `SIDEY-macOS-arm64-v<version>-homebrew.dmg`, `SIDEY-Windows-x64-v<version>.msi`, `SIDEY-Windows-x64-v<version>-Setup.exe`만 집계한다. Windows MSI와 Setup EXE는 기존 `windows_msi` 지표 키 아래 하나의 Windows 설치 채널로 연속 집계한다. 같은 macOS Release에 Homebrew 전용 자산이 없으면 해당 DMG의 기존 누적 수는 직접·Homebrew가 섞인 `legacy_unclassified`로 보존한다. 자산별 최초 snapshot은 누적 총계 baseline으로만 사용하고 관측 전 다운로드를 수집 당일 증가량으로 재분류하지 않는다. 이후 일별·오늘 수치는 Asia/Seoul 자정 전후 snapshot 차이이며 최대 약 15분의 경계 오차와 마지막 수집 시각을 함께 보여준다. 현재 `sidey-app/tap`은 third-party tap이므로 `homebrew/homebrew-cask` 공식 30/90/365일 익명 통계를 제공받지 못하며, 공식 Cask 편입 전에는 교차 확인 수치를 비워 둔다.
 
 공개 웹사이트는 4종·가격·macOS 앱 내 구매 경로·구매와 환불 조건을 `store.html`에 고정형 사용자 문구로 표시한다. 상점은 결제·개인정보 설명 카드와 랜딩 하단에 이미 있는 판매자 정보를 반복하지 않고 관련 정책 링크만 제공한다. 한국어 제목과 본문에는 적절한 폭과 `word-break: keep-all`, `text-wrap`을 적용해 한 글자만 다음 줄에 남는 줄바꿈을 막고, 상점 타이포그래피는 홈 랜딩보다 작은 페이지 전용 크기를 사용한다. 상품 소개에는 production·staging·Sidey-dev·테스트 채널·출시 준비 상태 같은 내부 운영 정보를 노출하지 않는다. `checkout.html`과 `checkout-result.html`은 상품 ID별 이름·가격·이미지를 사용하고 공개 구매 링크로 노출하지 않으며 staging/dev 주문 token으로만 접근한다. 결제 카드 정보는 SIDEY가 수집하지 않고 PortOne을 통해 열린 실제 PG 결제창이 처리한다.
 
@@ -457,7 +457,7 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 - Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단
 - 서버: 실제 anon/authenticated role의 RLS, 12번째 성공·13번째 거부와 여섯 번째 방 경합, 병렬 초대 제한, invite hash API 비노출, current epoch topic 권한, client Broadcast INSERT 봉쇄, transient event whitelist·rate, `broadcast_character_throw`의 인증·epoch·양쪽 membership·자기 대상·필수 UUID·20회/10초 제한과 서버 source character, 메시지 멱등성·rate, 7일 retention, 비방장 관리 거부와 cascade를 SQL 테스트한다.
 - 운영 어드민: 모든 `admin_*` 조회·수집 RPC의 anon·authenticated 거부와 service role 허용, 다운로드 baseline·분리 경로·KST 경계·카운터 증가·정체·역행 거부·수집 지연을 SQL 테스트한다. 로컬 API는 환경변수 누락·잘못된 production ref·LAN Host·외부 Origin·잘못된 query와 upstream 응답을 거부해야 하며 lint·typecheck·unit·production build·Secret 번들 scan과 1280×800·1440×900의 두 테마 Playwright 검증을 통과해야 한다.
-- Windows 설치·업데이트: clean install, `C:\Program Files\SIDEY`, 공용 시작 메뉴, 아이콘이 포함된 `Uninstall.exe`, 게시된 런처·호스트 시작 스모크, repair, 실행 중 upgrade의 정상 종료 요청, downgrade 차단을 Windows CI·실기에서 확인한다. Windows 설정·MSI·`Uninstall.exe`의 일반 제거에서 기본 미선택 데이터 삭제 옵션이 동작하고, 선택 시에만 현재 사용자의 `%LOCALAPPDATA%\SIDEY`와 Credential Manager `SIDEY/` 자격 증명을 삭제하며 upgrade·repair에는 실행하지 않는지도 검증한다. `windows-v<version>` manifest의 버전·태그·고정 MSI URL·SHA-256도 검증하며 기존 per-user·Burn 테스트 설치가 있으면 설치 전에 제거하도록 안내한다.
+- Windows 설치·업데이트: clean install, 기본 `C:\Program Files\SIDEY`와 사용자 선택 설치 위치, 공용 시작 메뉴, 아이콘이 포함된 `Uninstall.exe`, 게시된 런처·호스트 시작 스모크, repair, 실행 중 upgrade 종료, downgrade 차단, 기존 v1.0.5 MSI 전환을 Windows CI·실기에서 확인한다. Windows 설정·`Uninstall.exe`의 일반 제거에서 설정·로그와 자격 증명의 독립적인 기본 미선택 삭제 옵션이 동작하고, 선택한 항목만 현재 사용자의 `%LOCALAPPDATA%\SIDEY` 또는 Credential Manager `SIDEY/` 자격 증명에서 삭제하며 upgrade·repair·MSI 전환에는 실행하지 않는지도 검증한다. `windows-v<version>` manifest의 버전·태그·고정 Setup EXE URL·SHA-256도 검증하며 기존 per-user·Burn 테스트 설치가 있으면 설치 전에 제거하도록 안내한다.
 
 ### 10.2 macOS 장시간 수동·계측 테스트
 
@@ -521,3 +521,13 @@ Keychain 접근은 앱 실행 동안 하나의 `LAContext`를 공유하고 `loca
 v1.0.3·v1.0.4의 앱 내 업데이트는 SHA-256 검사에 사용한 파일 스트림이 열린 상태에서 설치 파일 이름을 바꾸려 해 Windows 파일 잠금 오류로 실패한다. 따라서 기존 사용자는 v1.0.5 MSI를 한 번 수동 설치해야 하며, 설정·로그인 정보는 major upgrade에서 보존한다. v1.0.5는 검사 스트림을 닫은 뒤 검증된 MSI를 게시하고 설치기를 실행한다.
 
 SHA-256은 PowerShell에서 `Get-FileHash .\SIDEY-Windows-x64-v1.0.5.msi -Algorithm SHA256`으로 계산한다. GitHub에서 다시 내려받은 MSI와 CI 후보가 같은지 검증하고 이 값을 업데이트 manifest에 기록하되 별도 `.sha256` Release 자산은 만들지 않는다.
+
+### 10.6 Windows Setup EXE 전환 기준
+
+v1.0.5 이후 Windows 릴리스는 NSIS `3.12`로 만든 머신 단위 `SIDEY-Windows-x64-v<version>-Setup.exe` 하나만 게시한다. 새 설치에서는 기본 `C:\Program Files\SIDEY` 대신 다른 위치를 선택할 수 있으며 업데이트와 복구는 저장된 위치를 다시 사용한다. 같은 버전을 실행하면 복구·제거·닫기를 제공하고 더 낮은 버전은 차단한다.
+
+신규 설치와 새 버전 업그레이드에서는 `website/terms.html`의 `<main>` 약관 본문을 패키징 시 UTF-8 일반 텍스트로 변환해 설치기 안에 포함한다. 약관 페이지는 본문과 필수 동의 체크박스를 표시하며, 사용자가 직접 체크하기 전에는 다음 단계로 진행할 수 없다. 같은 버전의 복구·제거·닫기와 일반 제거 흐름에는 약관 동의를 다시 요구하지 않는다.
+
+Setup EXE는 기존 정식 WiX MSI를 감지하면 SIDEY 프로세스를 종료하고 MSI를 무인 제거한 뒤 새 파일을 설치한다. 이 전환과 일반 업데이트·복구에서는 설정·로그·로그인 자격 증명을 삭제하지 않는다. 과거 per-user·Burn 테스트 설치는 자동 전환 대상이 아니므로 먼저 Windows 설정에서 제거한다.
+
+일반 제거 화면은 설정·로그와 저장된 로그인 자격 증명을 별도 항목으로 제공하며 둘 다 기본 미선택이다. 선택한 항목만 현재 사용자 프로필에서 삭제한다. CI는 게시 런처 스모크, 전체 자동 테스트, NSIS 컴파일, 단일 Setup EXE 자산명과 SHA-256을 검증한다. 실제 Windows 검증에서는 신규 설치·선택 위치·동일 버전 복구/제거·실행 중 업데이트·downgrade 차단·v1.0.5 MSI 전환·각 데이터 삭제 선택을 확인한다.

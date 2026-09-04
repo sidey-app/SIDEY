@@ -48,7 +48,7 @@ public sealed class WindowsUpdateServiceTests
         byte[] installerBytes = Encoding.UTF8.GetBytes("SIDEY update regression fixture");
         string sha256 = Convert.ToHexStringLower(SHA256.HashData(installerBytes));
         string version = $"1.0.6-file-handle-{Guid.NewGuid():N}";
-        string installerName = $"SIDEY-Windows-x64-v{version}.msi";
+        string installerName = $"SIDEY-Windows-x64-v{version}-Setup.exe";
         string updateDirectory = Path.Combine(
             Path.GetTempPath(),
             "SIDEY",
@@ -93,7 +93,7 @@ public sealed class WindowsUpdateServiceTests
               "channel": "production",
               "version": "1.0.6",
               "tag": "windows-v1.0.6",
-              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.6/SIDEY-Windows-x64-v1.0.6.msi",
+              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.6/SIDEY-Windows-x64-v1.0.6-Setup.exe",
               "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             }
             """;
@@ -110,7 +110,7 @@ public sealed class WindowsUpdateServiceTests
         Assert.Equal("1.0.6", update.Version);
         Assert.Equal(
             "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.6/" +
-            "SIDEY-Windows-x64-v1.0.6.msi",
+            "SIDEY-Windows-x64-v1.0.6-Setup.exe",
             update.InstallerUri.AbsoluteUri);
         Assert.Equal(
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -138,14 +138,14 @@ public sealed class WindowsUpdateServiceTests
     }
 
     [Fact]
-    public async Task NewerManifestRejectsTheFormerSetupExecutableContract()
+    public async Task NewerManifestRejectsTheFormerMsiContract()
     {
         const string manifest = """
             {
               "channel": "production",
               "version": "1.0.6",
               "tag": "windows-v1.0.6",
-              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.6/SIDEY-Windows-x64-v1.0.6-Setup.exe",
+              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.6/SIDEY-Windows-x64-v1.0.6.msi",
               "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             }
             """;

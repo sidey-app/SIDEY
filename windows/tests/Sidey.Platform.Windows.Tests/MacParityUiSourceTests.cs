@@ -365,12 +365,13 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("validate:", workflow, StringComparison.Ordinal);
         Assert.Contains("github.event_name == 'workflow_dispatch'", workflow, StringComparison.Ordinal);
         Assert.Contains("startsWith(github.ref, 'refs/tags/windows-v')", workflow, StringComparison.Ordinal);
-        Assert.Contains("SIDEY-Windows-x64-v${{ needs.validate.outputs.version }}.msi", workflow, StringComparison.Ordinal);
+        Assert.Contains("SIDEY-Windows-x64-v${{ needs.validate.outputs.version }}-Setup.exe", workflow, StringComparison.Ordinal);
         Assert.Contains("docs/releases/windows-v$version.md", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("Upload test results", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("Upload CI-only MSI", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("--prerelease", workflow, StringComparison.Ordinal);
-        Assert.DoesNotContain("Setup.exe", workflow, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("winget install NSIS.NSIS", workflow, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("--version 3.12", workflow, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(".sha256", workflow, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("SelfSigned", workflow, StringComparison.OrdinalIgnoreCase);
     }
