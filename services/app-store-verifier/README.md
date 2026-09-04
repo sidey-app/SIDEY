@@ -1,6 +1,6 @@
 # SIDEY App Store verifier
 
-서명된 StoreKit 2 transaction과 App Store Server Notifications V2를 Apple 공식 라이브러리로 검증한 뒤 Supabase의 비공개 commerce 원장에 반영하는 Node 20 서비스다. App Store용 키와 Supabase service role key는 저장소에 두지 않는다.
+서명된 StoreKit 2 transaction과 App Store Server Notifications V2를 Apple 공식 라이브러리로 검증한 뒤 Supabase의 비공개 commerce 원장에 반영하는 Node 22 서비스다. App Store용 키와 Supabase secret key는 저장소에 두지 않는다.
 
 ## Endpoints
 
