@@ -348,13 +348,87 @@
                 <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="{i18n:I18n Key=store.title}" />
                 <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=store.description}" />
               </StackPanel>
-              <Border Style="{StaticResource SideySettingsCardStyle}">
-                <StackPanel HorizontalAlignment="Center" Spacing="10">
-                  <FontIcon FontSize="40" Glyph="&#xE719;" />
-                  <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="{i18n:I18n Key=store.comingSoon}" HorizontalAlignment="Center" />
-                  <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=store.comingSoonDescription}" TextWrapping="Wrap" />
-                </StackPanel>
-              </Border>
+              <ItemsRepeater ItemsSource="{Binding StoreProducts}">
+                <ItemsRepeater.Layout>
+                  <UniformGridLayout
+                      ItemsJustification="Start"
+                      ItemsStretch="Fill"
+                      MaximumRowsOrColumns="2"
+                      MinColumnSpacing="18"
+                      MinItemHeight="372"
+                      MinItemWidth="300"
+                      MinRowSpacing="18"
+                      Orientation="Horizontal" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                  <DataTemplate>
+                    <Border MinHeight="372" Style="{StaticResource SideySettingsCardStyle}">
+                      <Grid RowSpacing="14">
+                        <Grid.RowDefinitions>
+                          <RowDefinition Height="156" />
+                          <RowDefinition Height="Auto" />
+                          <RowDefinition Height="*" />
+                          <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Border Background="{ThemeResource SideyAccentBackground10Brush}" CornerRadius="12">
+                          <Grid>
+                            <Border
+                                Margin="12"
+                                Padding="9,5"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                                CornerRadius="12">
+                              <StackPanel Orientation="Horizontal" Spacing="6">
+                                <FontIcon FontSize="12" Glyph="&#xE72E;" />
+                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{i18n:I18n Key=store.previewOnly}" />
+                              </StackPanel>
+                            </Border>
+                            <Border Width="96" Height="96" HorizontalAlignment="Center" VerticalAlignment="Center">
+                              <Border.Clip><RectangleGeometry Rect="0,0,96,96" /></Border.Clip>
+                              <Image
+                                  Width="960"
+                                  Height="96"
+                                  HorizontalAlignment="Left"
+                                  Source="{Binding CharacterId, Converter={StaticResource CharacterImageConverter}}"
+                                  Stretch="Fill" />
+                            </Border>
+                          </Grid>
+                        </Border>
+                        <Grid Grid.Row="1" ColumnSpacing="12">
+                          <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                          </Grid.ColumnDefinitions>
+                          <TextBlock FontSize="20" FontWeight="SemiBold" Text="{Binding DisplayName}" TextWrapping="Wrap" />
+                          <TextBlock
+                              Grid.Column="1"
+                              VerticalAlignment="Center"
+                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                              FontWeight="SemiBold"
+                              Text="{Binding FormattedPrice}" />
+                        </Grid>
+                        <TextBlock
+                            Grid.Row="2"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="{Binding Description}"
+                            TextWrapping="Wrap" />
+                        <Button
+                            Grid.Row="3"
+                            HorizontalAlignment="Stretch"
+                            Content="{i18n:I18n Key=store.comingSoon}"
+                            IsEnabled="False" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+              </ItemsRepeater>
+              <TextBlock
+                  HorizontalAlignment="Center"
+                  Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                  Text="{i18n:I18n Key=store.comingSoonDescription}"
+                  TextAlignment="Center"
+                  TextWrapping="Wrap" />
             </StackPanel>
           </ScrollViewer>
 

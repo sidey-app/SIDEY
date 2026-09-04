@@ -274,6 +274,23 @@ public sealed class MacParityUiSourceTests
     }
 
     [Fact]
+    public void StoreUsesIndividualFluentPreviewCardsWithoutACommerceAction()
+    {
+        var xaml = ReadRepositoryFile("windows", "src", "Sidey.App", "MainWindow.xaml");
+        var viewModel = ReadRepositoryFile(
+            "windows", "src", "Sidey.Presentation", "ViewModels", "MainWindowViewModel.cs");
+
+        Assert.Contains("ItemsSource=\"{Binding StoreProducts}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("<UniformGridLayout", xaml, StringComparison.Ordinal);
+        Assert.Contains("MaximumRowsOrColumns=\"2\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Style=\"{StaticResource SideySettingsCardStyle}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Source=\"{Binding CharacterId, Converter={StaticResource CharacterImageConverter}}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsEnabled=\"False\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("pixel_starlight_upalupa", viewModel, StringComparison.Ordinal);
+        Assert.DoesNotContain("PurchaseCommand", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void GroupManagementShowsTargetProgressAndConfirmsDestructiveActions()
     {
         var app = ReadRepositoryFile("windows", "src", "Sidey.App", "App.xaml.cs");

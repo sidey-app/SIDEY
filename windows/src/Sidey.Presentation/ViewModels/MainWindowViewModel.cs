@@ -18,6 +18,12 @@ public enum NoticeKind
 
 public sealed record NoticeMessage(string Message, NoticeKind Kind);
 
+public sealed record StoreProductPreviewViewModel(
+    string CharacterId,
+    string DisplayName,
+    string Description,
+    string FormattedPrice);
+
 public sealed partial class CharacterSelectionItemViewModel : ObservableObject
 {
     public CharacterSelectionItemViewModel(string id, string displayName, string characterId)
@@ -390,6 +396,25 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 character.DisplayName,
                 character.Id))
             .ToArray();
+        StoreProducts =
+        [
+            CreateStorePreview(
+                "pixel_starlight_upalupa",
+                "store.starlightUpalupaDescription",
+                "store.price1900"),
+            CreateStorePreview(
+                "pixel_guinea_pig",
+                "store.guineaPigDescription",
+                "store.price990"),
+            CreateStorePreview(
+                "pixel_monkey",
+                "store.monkeyDescription",
+                "store.price990"),
+            CreateStorePreview(
+                "pixel_chinchilla",
+                "store.chinchillaDescription",
+                "store.price990"),
+        ];
         Monitors = _coordinator.GetMonitors();
         ApplyState(coordinator.State);
         UpdateCharacterSelectionState();
@@ -400,11 +425,26 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public IReadOnlyList<CharacterSelectionItemViewModel> CharacterSelections { get; }
 
+    public IReadOnlyList<StoreProductPreviewViewModel> StoreProducts { get; }
+
     public IReadOnlyList<MonitorOption> Monitors { get; }
 
     public ObservableCollection<RoomCardViewModel> Rooms { get; } = [];
 
     public bool IsValidationMode => _coordinator.IsValidationMode;
+
+    private static StoreProductPreviewViewModel CreateStorePreview(
+        string characterId,
+        string descriptionKey,
+        string priceKey)
+    {
+        PixelCharacterDefinition character = PixelCharacterCatalog.Get(characterId);
+        return new StoreProductPreviewViewModel(
+            character.Id,
+            character.DisplayName,
+            I18n.Get(descriptionKey),
+            I18n.Get(priceKey));
+    }
 
     public void PrepareGroupsForPresentation()
     {

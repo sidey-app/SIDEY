@@ -21,6 +21,26 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void StorePreviewsTheFourAdditionalCharactersWithoutAddingThemToThePicker()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        Assert.Equal(
+            ["pixel_starlight_upalupa", "pixel_guinea_pig", "pixel_monkey", "pixel_chinchilla"],
+            viewModel.StoreProducts.Select(product => product.CharacterId));
+        Assert.Equal(["1,900원", "990원", "990원", "990원"],
+            viewModel.StoreProducts.Select(product => product.FormattedPrice));
+        Assert.All(viewModel.StoreProducts, product => Assert.NotEmpty(product.Description));
+        Assert.DoesNotContain(
+            viewModel.StoreProducts.Select(product => product.CharacterId),
+            characterId => viewModel.CharacterSelections.Any(character => character.Id == characterId));
+    }
+
+    [Fact]
     public void ApplyingEquivalentSnapshotPreservesRoomItemIdentity()
     {
         (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();

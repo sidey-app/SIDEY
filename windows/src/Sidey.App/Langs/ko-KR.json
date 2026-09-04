@@ -154,9 +154,16 @@
   },
   "store": {
     "title": "꾸미기·상점",
-    "description": "캐릭터와 픽셀 월드 꾸미기 항목을 확인할 수 있습니다.",
-    "comingSoon": "준비 중입니다",
-    "comingSoonDescription": "현재 사용할 수 있는 기본 캐릭터는 내 프로필에서 선택할 수 있습니다."
+    "description": "기본 캐릭터 외에 준비 중인 새로운 캐릭터를 미리 만나보세요.",
+    "previewOnly": "미리보기",
+    "comingSoon": "구매 준비 중",
+    "comingSoonDescription": "현재 상점은 미리보기만 제공하며 구매 기능은 아직 사용할 수 없습니다.",
+    "starlightUpalupaDescription": "진주빛 몸과 별빛 아가미를 가진 신비로운 우파루파예요.",
+    "guineaPigDescription": "낮고 동글동글한 몸에 비대칭 삼색 무늬가 매력인 작은 친구예요.",
+    "monkeyDescription": "세 갈래 머리털과 시안 목도리로 씩씩하게 산책하는 친구예요.",
+    "chinchillaDescription": "크고 둥근 귀와 포근한 회색 털, 파란 목도리를 가진 친구예요.",
+    "price1900": "1,900원",
+    "price990": "990원"
   },
   "settings": {
     "generalTitle": "일반",
