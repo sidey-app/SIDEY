@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.8
 - 최종 갱신: 2026-09-04
-- 상태: macOS `v1.0.6`(build 17) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.0.6` 정식 출시
+- 상태: macOS `v1.0.7`(build 18) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.0.6` 정식 출시
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
 
