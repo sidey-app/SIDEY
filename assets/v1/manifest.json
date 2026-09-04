@@ -170,20 +170,20 @@
     },
     "character_base_png": [
       "macos/SIDEY/Resources/Characters/{macos_directory}/{id}.png",
-      "windows/src/Sidey.Overlay/Assets/Character/{id}/base.png",
+      "windows/src/Sidey.Overlay/Assets/Characters/{id}/base.png",
       "website/assets/characters/{id}.png"
     ],
-    "character_base_bgra": ["windows/src/Sidey.Overlay/Assets/Character/{id}/base.bgra"],
+    "character_base_bgra": ["windows/src/Sidey.Overlay/Assets/Characters/{id}/base.bgra"],
     "throw_hit_png": [
       "macos/SIDEY/Resources/CharacterThrow/ActionSheets/{id}_throw_hit.png",
-      "windows/src/Sidey.Overlay/Assets/Character/{id}/throw_hit.png"
+      "windows/src/Sidey.Overlay/Assets/Characters/{id}/throw_hit.png"
     ],
-    "throw_hit_bgra": ["windows/src/Sidey.Overlay/Assets/Character/{id}/throw_hit.bgra"],
+    "throw_hit_bgra": ["windows/src/Sidey.Overlay/Assets/Characters/{id}/throw_hit.bgra"],
     "throwable_png": [
       "macos/SIDEY/Resources/CharacterThrow/ObjectSheets/{id}.png",
-      "windows/src/Sidey.Overlay/Assets/Throwable/{id}/sprite.png"
+      "windows/src/Sidey.Overlay/Assets/Throwables/{id}/sprite.png"
     ],
-    "throwable_bgra": ["windows/src/Sidey.Overlay/Assets/Throwable/{id}/sprite.bgra"],
+    "throwable_bgra": ["windows/src/Sidey.Overlay/Assets/Throwables/{id}/sprite.bgra"],
     "previewer_defaults": {
       "pixel_hamster_throw_hit": "website/assets/previewer/pixel_hamster_throw_hit.png",
       "patch_soft_ball": "website/assets/previewer/patch_soft_ball.png"
