@@ -118,6 +118,8 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("created_at.lt.", gateway, StringComparison.Ordinal);
         Assert.Contains("id.lt.", gateway, StringComparison.Ordinal);
         Assert.Contains("boundedLimit + 1", gateway, StringComparison.Ordinal);
+        Assert.Contains("commerce_entitlements?status=eq.active", gateway, StringComparison.Ordinal);
+        Assert.Contains("LoadActiveEntitlementKeysIfAvailableAsync", gateway, StringComparison.Ordinal);
         Assert.Contains("MessageLedger.ConfirmedRetention", gateway, StringComparison.Ordinal);
         Assert.Contains(
             "(!isActiveRoom || _state.Preferences.QuietMode)",

@@ -41,6 +41,40 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void IssuedCharactersAppearInTheProfilePickerAndTrackSelection()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        state = state with
+        {
+            Profile = state.Profile! with { CharacterId = "pixel_guinea_pig" },
+            ActiveEntitlementKeys = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "character:pixel_guinea_pig",
+                "character:pixel_monkey",
+                "character:pixel_chinchilla",
+            },
+        };
+        coordinator.State = state;
+
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        Assert.Equal(
+            [
+                "pixel_hamster", "pixel_cat", "pixel_puppy", "pixel_rabbit", "pixel_penguin",
+                "pixel_guinea_pig", "pixel_monkey", "pixel_chinchilla",
+            ],
+            viewModel.CharacterSelections.Select(character => character.Id));
+        Assert.True(viewModel.CharacterSelections.Single(
+            character => character.Id == "pixel_guinea_pig").IsSelected);
+        Assert.DoesNotContain(
+            viewModel.CharacterSelections,
+            character => character.Id == "pixel_starlight_upalupa");
+    }
+
+    [Fact]
     public void ApplyingEquivalentSnapshotPreservesRoomItemIdentity()
     {
         (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();

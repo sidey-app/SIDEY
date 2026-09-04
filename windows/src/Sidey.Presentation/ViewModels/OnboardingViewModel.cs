@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sidey.Core.Domain;
@@ -18,18 +19,12 @@ public sealed partial class OnboardingViewModel : ObservableObject
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         IsPreviewMode = isPreviewMode;
         _state = coordinator.State;
-        CharacterSelections = PixelCharacterCatalog.Selectable
-            .Select(character => new CharacterSelectionItemViewModel(
-                character.Id,
-                character.DisplayName,
-                character.Id))
-            .ToArray();
         ApplyState(coordinator.State);
     }
 
     public event Action? Completed;
 
-    public IReadOnlyList<CharacterSelectionItemViewModel> CharacterSelections { get; }
+    public ObservableCollection<CharacterSelectionItemViewModel> CharacterSelections { get; } = [];
 
     public bool IsPreviewMode { get; }
 
@@ -120,6 +115,7 @@ public sealed partial class OnboardingViewModel : ObservableObject
         _syncedProfileCharacterId = syncedCharacterId;
 
         _state = state;
+        RefreshCharacterSelections(state.ActiveEntitlementKeys);
         IsConnected = state.Connected;
         OnPropertyChanged(nameof(ConnectionText));
 
@@ -293,6 +289,26 @@ public sealed partial class OnboardingViewModel : ObservableObject
             character.IsSelected = StringComparer.Ordinal.Equals(
                 character.Id,
                 SelectedCharacterId);
+        }
+    }
+
+    private void RefreshCharacterSelections(IReadOnlySet<string> activeEntitlementKeys)
+    {
+        IReadOnlyList<PixelCharacterDefinition> desired =
+            PixelCharacterCatalog.SelectableFor(activeEntitlementKeys);
+        if (CharacterSelections.Select(character => character.Id)
+            .SequenceEqual(desired.Select(character => character.Id), StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        CharacterSelections.Clear();
+        foreach (PixelCharacterDefinition character in desired)
+        {
+            CharacterSelections.Add(new CharacterSelectionItemViewModel(
+                character.Id,
+                character.DisplayName,
+                character.Id));
         }
     }
 

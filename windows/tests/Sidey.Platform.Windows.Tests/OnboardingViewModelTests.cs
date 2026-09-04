@@ -17,6 +17,27 @@ public sealed class OnboardingViewModelTests
     }
 
     [Fact]
+    public void IssuedCharactersAppearInTheOnboardingProfilePicker()
+    {
+        var coordinator = new FakeSideyCoordinator
+        {
+            State = CoordinatorState.Initial with
+            {
+                ActiveEntitlementKeys = new HashSet<string>(StringComparer.Ordinal)
+                {
+                    "character:pixel_starlight_upalupa",
+                },
+            },
+        };
+
+        var viewModel = new OnboardingViewModel(coordinator);
+
+        Assert.Contains(
+            viewModel.CharacterSelections,
+            character => character.Id == "pixel_starlight_upalupa");
+    }
+
+    [Fact]
     public async Task PreviewModeWalksEveryStepWithoutServerMutations()
     {
         var coordinator = new FakeSideyCoordinator

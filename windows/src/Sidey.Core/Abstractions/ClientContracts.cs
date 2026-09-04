@@ -56,7 +56,8 @@ public static class AnonymousSessionBootstrapper
 public sealed record BackendSnapshot(
     Profile? Profile,
     IReadOnlyList<Room> Rooms,
-    Guid CurrentUserId);
+    Guid CurrentUserId,
+    IReadOnlySet<string> ActiveEntitlementKeys);
 
 public sealed record CreateRoomResult(Room Room, string InviteCode);
 

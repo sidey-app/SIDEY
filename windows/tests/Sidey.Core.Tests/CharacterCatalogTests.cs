@@ -36,6 +36,43 @@ public sealed class CharacterCatalogTests
         });
     }
 
+    [Fact]
+    public void ActiveEntitlementsAddOnlyTheOwnedCharactersToTheSelectableCatalog()
+    {
+        var entitlements = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "character:pixel_guinea_pig",
+            "character:pixel_chinchilla",
+        };
+
+        Assert.Equal(
+            [
+                "pixel_hamster", "pixel_cat", "pixel_puppy", "pixel_rabbit", "pixel_penguin",
+                "pixel_guinea_pig", "pixel_chinchilla",
+            ],
+            PixelCharacterCatalog.SelectableFor(entitlements).Select(character => character.Id));
+    }
+
+    [Fact]
+    public void UnavailableCommerceSnapshotPreservesTheSelectedEntitledCharacter()
+    {
+        IReadOnlySet<string> resolved = PixelCharacterCatalog.ResolveActiveEntitlementKeys(
+            remoteKeys: null,
+            profileCharacterId: "pixel_monkey");
+
+        Assert.Equal(["character:pixel_monkey"], resolved);
+    }
+
+    [Fact]
+    public void SuccessfulEmptyCommerceSnapshotDoesNotPreserveARevokedCharacter()
+    {
+        IReadOnlySet<string> resolved = PixelCharacterCatalog.ResolveActiveEntitlementKeys(
+            new HashSet<string>(StringComparer.Ordinal),
+            "pixel_monkey");
+
+        Assert.Empty(resolved);
+    }
+
     [Theory]
     [InlineData("pixel_cat", "pixel_cat")]
     [InlineData("pixel_guinea_pig", "pixel_guinea_pig")]

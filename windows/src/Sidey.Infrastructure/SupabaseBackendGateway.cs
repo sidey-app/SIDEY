@@ -1,8 +1,8 @@
-using System.Net.Sockets;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
-using System.Security.Authentication;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Security.Authentication;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
@@ -56,8 +56,9 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         var profilesTask = GetAsync<DatabaseProfile[]>(
             "/rest/v1/profiles?select=*",
             cancellationToken);
+        var entitlementsTask = LoadActiveEntitlementKeysIfAvailableAsync(cancellationToken);
 
-        await Task.WhenAll(profileTask, roomsTask, membershipsTask, profilesTask)
+        await Task.WhenAll(profileTask, roomsTask, membershipsTask, profilesTask, entitlementsTask)
             .ConfigureAwait(false);
         var peers = (await profilesTask.ConfigureAwait(false)).ToDictionary(profile => profile.Id);
         var memberships = (await membershipsTask.ConfigureAwait(false))
@@ -86,6 +87,9 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             await _credentials.DeleteInviteCodeAsync(room.Id, cancellationToken).ConfigureAwait(false);
         }
         var profile = (await profileTask.ConfigureAwait(false)).FirstOrDefault();
+        IReadOnlySet<string> activeEntitlementKeys = PixelCharacterCatalog.ResolveActiveEntitlementKeys(
+            await entitlementsTask.ConfigureAwait(false),
+            profile?.CharacterId);
         return new BackendSnapshot(
             profile is null
                 ? null
@@ -94,7 +98,32 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                     profile.Nickname,
                     PixelCharacterCatalog.NormalizeId(profile.CharacterId)),
             rooms,
-            session.UserId);
+            session.UserId,
+            activeEntitlementKeys);
+    }
+
+    /// <summary>
+    /// Commerce is optional. A missing or temporarily unavailable commerce
+    /// schema must not turn the core messenger snapshot into a connection failure.
+    /// </summary>
+    private async Task<IReadOnlySet<string>?> LoadActiveEntitlementKeysIfAvailableAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            DatabaseCommerceEntitlement[] rows = await GetAsync<DatabaseCommerceEntitlement[]>(
+                "/rest/v1/commerce_entitlements?status=eq.active&select=entitlement_key,status",
+                cancellationToken).ConfigureAwait(false);
+            return rows.Select(row => row.EntitlementKey).ToHashSet(StringComparer.Ordinal);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public async Task<Profile> SaveProfileAsync(
@@ -792,6 +821,10 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         Guid Id,
         string Nickname,
         [property: JsonPropertyName("character_id")] string CharacterId);
+
+    private sealed record DatabaseCommerceEntitlement(
+        [property: JsonPropertyName("entitlement_key")] string EntitlementKey,
+        string Status);
 
     private sealed record DatabaseRoom(
         Guid Id,

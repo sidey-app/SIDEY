@@ -1094,6 +1094,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         {
             Profile = snapshot.Profile,
             Rooms = projectedRooms,
+            ActiveEntitlementKeys = snapshot.ActiveEntitlementKeys,
             ActiveRoomId = activeRoomId,
             Preferences = _state.Preferences with
             {
