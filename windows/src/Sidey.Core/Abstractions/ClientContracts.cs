@@ -67,6 +67,21 @@ public sealed record MessageHistoryPage(
     IReadOnlyList<ChatMessage> Messages,
     MessageHistoryCursor? NextCursor);
 
+public sealed record RealtimeConnectionStatus(
+    bool TransportConnected,
+    bool ActiveRoomTransportConnected,
+    bool RecoveryReconciled)
+{
+    public static RealtimeConnectionStatus Disconnected { get; } = new(false, false, false);
+
+    public bool IsReady => TransportConnected && RecoveryReconciled;
+
+    public RealtimeConnectionStatus WithRecoveryReconciled(bool reconciled) => this with
+    {
+        RecoveryReconciled = TransportConnected && reconciled,
+    };
+}
+
 public abstract record BackendEvent
 {
     public sealed record SnapshotReceived(BackendSnapshot Snapshot) : BackendEvent;
@@ -80,7 +95,7 @@ public abstract record BackendEvent
     public sealed record CharacterPulsed(CharacterPulseEvent Pulse) : BackendEvent;
     public sealed record CharacterThrown(CharacterThrowEvent Throw) : BackendEvent;
     public sealed record RoomStructureChanged(Guid RoomId) : BackendEvent;
-    public sealed record ConnectionChanged(bool Connected) : BackendEvent;
+    public sealed record ConnectionChanged(RealtimeConnectionStatus Status) : BackendEvent;
     public sealed record ReconciliationRequired : BackendEvent;
     public sealed record Diagnostic(string Stage) : BackendEvent;
     public sealed record TechnicalError(string Message) : BackendEvent;

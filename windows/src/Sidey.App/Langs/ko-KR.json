@@ -95,6 +95,7 @@
     "joinTooltip": "이 그룹을 활성 그룹으로 전환합니다.",
     "invite": "초대",
     "copyInvite": "초대 코드 복사",
+    "inviteCopyComplete": "복사 완료",
     "copyInviteTooltip": "그룹 초대 코드를 클립보드에 복사합니다.",
     "upgrade": "인원 확장",
     "upgradeTooltip": "그룹 최대 인원을 확장합니다.",

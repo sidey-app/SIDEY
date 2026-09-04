@@ -4,7 +4,7 @@ public static class WindowsVersionGuard
 {
     // Windows App SDK 1.8 supports Windows 10 version 1809 and later. Mica is
     // enabled separately on Windows 11, with a normal WinUI surface fallback.
-    public const int MinimumBuild = 17763;
+    public const int MinimumBuild = 26200;
     public const string StartupSmokeEnvironmentVariable = "SIDEY_STARTUP_SMOKE";
 
     public static bool IsSupported() =>

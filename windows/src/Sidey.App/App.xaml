@@ -16,6 +16,7 @@
       <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
       <converters:CharacterImageConverter x:Key="CharacterImageConverter" />
       <converters:ConnectionBrushConverter x:Key="ConnectionBrushConverter" />
+      <converters:InverseBooleanConverter x:Key="InverseBooleanConverter" />
       <converters:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
       <converters:OneToVisibilityConverter x:Key="OneToVisibilityConverter" />
       <converters:ZeroToVisibilityConverter x:Key="ZeroToVisibilityConverter" />

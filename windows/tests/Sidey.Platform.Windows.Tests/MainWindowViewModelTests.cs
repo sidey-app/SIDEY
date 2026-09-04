@@ -1,3 +1,4 @@
+using Sidey.Core.Abstractions;
 using Sidey.Core.Domain;
 using Sidey.Presentation.Services;
 using Sidey.Presentation.ViewModels;
@@ -84,7 +85,7 @@ public sealed class MainWindowViewModelTests
             new FakeUpdateService());
         RoomCardViewModel firstCard = Assert.Single(viewModel.Rooms);
 
-        viewModel.ApplyState(state with { Connected = true });
+        viewModel.ApplyState(state with { RealtimeConnection = ConnectedStatus() });
 
         Assert.Same(firstCard, Assert.Single(viewModel.Rooms));
         Assert.True(viewModel.IsConnected);
@@ -102,6 +103,45 @@ public sealed class MainWindowViewModelTests
 
         Assert.False(viewModel.IsConnected);
         Assert.Equal("연결 안 됨", viewModel.ConnectionText);
+    }
+
+    [Fact]
+    public async Task ProfileSaveIsDisabledUntilTheServerRequestCompletes()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.SaveProfileHandler = (_, _, _) => completion.Task;
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        Task pending = viewModel.SaveProfileCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsSavingProfile);
+        Assert.False(viewModel.SaveProfileCommand.CanExecute(null));
+        completion.SetResult();
+        await pending;
+        Assert.False(viewModel.IsSavingProfile);
+        Assert.True(viewModel.SaveProfileCommand.CanExecute(null));
+        Assert.Equal(1, coordinator.SaveProfileCallCount);
+    }
+
+    [Fact]
+    public async Task InviteCopyShowsPerRoomConfirmation()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+        RoomCardViewModel room = Assert.Single(viewModel.Rooms);
+
+        await room.InviteCommand.ExecuteAsync(null);
+
+        Assert.True(room.IsInviteCopyConfirmed);
+        Assert.Equal("복사 완료", room.InviteActionText);
+        room.Dispose();
     }
 
     [Fact]
@@ -155,7 +195,7 @@ public sealed class MainWindowViewModelTests
             SelectedCharacterId = "pixel_cat",
         };
 
-        viewModel.ApplyState(state with { Connected = true });
+        viewModel.ApplyState(state with { RealtimeConnection = ConnectedStatus() });
 
         Assert.Equal("draft-name", viewModel.Nickname);
         Assert.Equal("pixel_cat", viewModel.SelectedCharacterId);
@@ -510,10 +550,12 @@ public sealed class MainWindowViewModelTests
             Profile = profile,
             Rooms = [room],
             ActiveRoomId = roomId,
-            Connected = false,
+            RealtimeConnection = RealtimeConnectionStatus.Disconnected,
         };
         return (new FakeSideyCoordinator { State = state }, state);
     }
+
+    private static RealtimeConnectionStatus ConnectedStatus() => new(true, true, true);
 
     private static (FakeSideyCoordinator Coordinator, CoordinatorState State) CreateMultiRoomState()
     {

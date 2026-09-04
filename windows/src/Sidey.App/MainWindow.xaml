@@ -179,7 +179,7 @@
                     </GridView.ItemTemplate>
                   </GridView>
                   <TextBlock Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="{i18n:I18n Key=profile.duplicateNotice}" />
-                  <Button Command="{Binding SaveProfileCommand}" Content="{i18n:I18n Key=profile.save}" HorizontalAlignment="Right" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{i18n:I18n Key=profile.saveTooltip}" />
+                  <Button Command="{Binding SaveProfileCommand}" Content="{i18n:I18n Key=profile.save}" HorizontalAlignment="Right" IsEnabled="{Binding IsSavingProfile, Converter={StaticResource InverseBooleanConverter}}" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{i18n:I18n Key=profile.saveTooltip}" />
                 </StackPanel>
               </Border>
             </StackPanel>
@@ -255,7 +255,15 @@
                               <TextBlock Foreground="{ThemeResource SystemFillColorSuccessBrush}" Text="{i18n:I18n Key=groups.active}" VerticalAlignment="Center" Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}" />
                               <ProgressRing Width="18" Height="18" IsActive="{Binding IsSwitching}" Visibility="{Binding IsSwitching, Converter={StaticResource BooleanToVisibilityConverter}}" />
                               <Button Command="{Binding JoinCommand}" Content="{Binding JoinActionText}" IsEnabled="{Binding IsJoinEnabled}" ToolTipService.ToolTip="{i18n:I18n Key=groups.joinTooltip}" Visibility="{Binding CanJoin, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                              <Button Command="{Binding InviteCommand}" Content="{Binding InviteActionText}" IsEnabled="{Binding IsInviteActionEnabled}" ToolTipService.ToolTip="{Binding InviteActionText}" />
+                              <Button Command="{Binding InviteCommand}" IsEnabled="{Binding IsInviteActionEnabled}" ToolTipService.ToolTip="{Binding InviteActionText}">
+                                <Grid>
+                                  <TextBlock Text="{Binding InviteActionText}" Visibility="{Binding IsInviteCopyConfirmed, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                                  <StackPanel Orientation="Horizontal" Spacing="6" Visibility="{Binding IsInviteCopyConfirmed, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <FontIcon FontSize="14" Foreground="{ThemeResource SystemFillColorSuccessBrush}" Glyph="&#xE73E;" />
+                                    <TextBlock Foreground="{ThemeResource SystemFillColorSuccessBrush}" Text="{Binding InviteActionText}" />
+                                  </StackPanel>
+                                </Grid>
+                              </Button>
                               <Button
                                   Width="36"
                                   Height="36"

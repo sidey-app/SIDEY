@@ -73,6 +73,33 @@ public sealed class CharacterCatalogTests
         Assert.Empty(resolved);
     }
 
+    [Fact]
+    public void RevokedEntitledCharacterFallsBackToTheDefaultSelection()
+    {
+        var noEntitlements = new HashSet<string>(StringComparer.Ordinal);
+
+        Assert.False(PixelCharacterCatalog.CanSelect("pixel_monkey", noEntitlements));
+        Assert.Equal(
+            PixelCharacterCatalog.FallbackId,
+            PixelCharacterCatalog.SelectableId("pixel_monkey", noEntitlements));
+        Assert.Equal(
+            "pixel_monkey",
+            PixelCharacterCatalog.SelectableId(
+                "pixel_monkey",
+                new HashSet<string>(["character:pixel_monkey"], StringComparer.Ordinal)));
+    }
+
+    [Fact]
+    public void StarlightUpalupaDeclaresItsCatalogDrivenSparkleEffect()
+    {
+        Assert.Equal(
+            PixelCharacterVisualEffect.StarlightSparkles,
+            PixelCharacterCatalog.Get("pixel_starlight_upalupa").VisualEffect);
+        Assert.All(
+            PixelCharacterCatalog.All.Where(character => character.Id != "pixel_starlight_upalupa"),
+            character => Assert.Equal(PixelCharacterVisualEffect.None, character.VisualEffect));
+    }
+
     [Theory]
     [InlineData("pixel_cat", "pixel_cat")]
     [InlineData("pixel_guinea_pig", "pixel_guinea_pig")]

@@ -1,5 +1,11 @@
 namespace Sidey.Core.Domain;
 
+public enum PixelCharacterVisualEffect
+{
+    None,
+    StarlightSparkles,
+}
+
 public sealed record PixelCharacterDefinition(
     string Id,
     string DisplayName,
@@ -13,6 +19,7 @@ public sealed record PixelCharacterDefinition(
     int FootBaselinePixel,
     PixelCharacterFrameContract Frames,
     string? EntitlementKey,
+    PixelCharacterVisualEffect VisualEffect,
     IReadOnlyList<string> CompatibleAliases);
 
 public sealed record PixelCharacterFrameContract(
@@ -79,7 +86,8 @@ public static class PixelCharacterCatalog
             "pixel_starlight_upalupa",
             Localization.I18n.Get("characters.starlightUpalupa"),
             "d180810a8796280077f3f70f6da681888c583c2f8d74776d0f5d300e943a079a",
-            entitlementKey: "character:pixel_starlight_upalupa"),
+            entitlementKey: "character:pixel_starlight_upalupa",
+            visualEffect: PixelCharacterVisualEffect.StarlightSparkles),
     ];
 
     private static readonly PixelCharacterDefinition[] SelectableDefinitions = Definitions[..5];
@@ -139,12 +147,30 @@ public static class PixelCharacterCatalog
 
     public static PixelCharacterDefinition Get(string? characterId) => ById[NormalizeId(characterId)];
 
+    public static bool CanSelect(
+        string? characterId,
+        IReadOnlySet<string> activeEntitlementKeys)
+    {
+        ArgumentNullException.ThrowIfNull(activeEntitlementKeys);
+        PixelCharacterDefinition definition = Get(characterId);
+        return definition.EntitlementKey is null
+            || activeEntitlementKeys.Contains(definition.EntitlementKey);
+    }
+
+    public static string SelectableId(
+        string? characterId,
+        IReadOnlySet<string> activeEntitlementKeys) =>
+        CanSelect(characterId, activeEntitlementKeys)
+            ? NormalizeId(characterId)
+            : FallbackId;
+
     private static PixelCharacterDefinition Create(
         string id,
         string displayName,
         string spriteSheetSha256,
         IReadOnlyList<string>? aliases = null,
-        string? entitlementKey = null) => new(
+        string? entitlementKey = null,
+        PixelCharacterVisualEffect visualEffect = PixelCharacterVisualEffect.None) => new(
             id,
             displayName,
             $"Characters/{id}/sprite.png",
@@ -157,5 +183,6 @@ public static class PixelCharacterCatalog
             FootBaselinePixel: 3,
             Frames: PixelCharacterFrameContract.Standard,
             EntitlementKey: entitlementKey,
+            VisualEffect: visualEffect,
             CompatibleAliases: aliases ?? Array.Empty<string>());
 }

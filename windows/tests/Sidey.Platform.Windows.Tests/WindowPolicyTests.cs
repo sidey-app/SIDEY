@@ -40,7 +40,7 @@ public sealed class WindowPolicyTests
     [Fact]
     public void ProductMinimumOsIsWindowsElevenTwentyFiveH2()
     {
-        Assert.Equal(17763, WindowsVersionGuard.MinimumBuild);
+        Assert.Equal(26200, WindowsVersionGuard.MinimumBuild);
     }
 
     [Theory]

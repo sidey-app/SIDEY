@@ -50,6 +50,8 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
     private long _connectionGeneration;
     private long _lastReceiveTimestamp = Stopwatch.GetTimestamp();
     private long _lastConnectionHealthTimestamp = Stopwatch.GetTimestamp();
+    private RealtimeConnectionStatus _lastEmittedConnectionStatus =
+        RealtimeConnectionStatus.Disconnected;
     private int _recovering;
     private int _overflowed;
     private long _overflowCount;
@@ -62,6 +64,9 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         _presenceQueue = new CoalescingPublicationQueue<RealtimePresenceIntent>(PublishPresenceBatchAsync);
     }
+
+    internal RealtimeConnectionStatus ConnectionStatus =>
+        Volatile.Read(ref _lastEmittedConnectionStatus);
 
     public async IAsyncEnumerable<BackendEvent> ReadEventsAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -113,7 +118,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 && !_shutdown.IsCancellationRequested)
             {
                 Emit(new BackendEvent.TechnicalError(ConnectionFailureMessage(exception)));
-                Emit(new BackendEvent.ConnectionChanged(false));
+                EmitDisconnected();
                 _ = RecoverAsync();
                 return;
             }
@@ -138,10 +143,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             {
                 await JoinTopicAsync(descriptor, cancellationToken).ConfigureAwait(false);
             }
-            if (openedNewSocket)
-            {
-                Emit(new BackendEvent.ConnectionChanged(true));
-            }
+            EmitConnectionStatus(CurrentTransportStatus());
             Emit(new BackendEvent.Diagnostic(
                 $"realtime-synchronization-completed rooms={desired.Count}"));
         }
@@ -492,7 +494,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             }
 
             Emit(new BackendEvent.TechnicalError(ConnectionFailureMessage(exception)));
-            Emit(new BackendEvent.ConnectionChanged(false));
+            EmitDisconnected();
             _ = RecoverAsync();
         }
     }
@@ -505,7 +507,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             var socket = _socket;
             if (socket?.State != WebSocketState.Open)
             {
-                Emit(new BackendEvent.ConnectionChanged(false));
+                EmitDisconnected();
                 _ = RecoverAsync();
                 continue;
             }
@@ -517,7 +519,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                     $"realtime-heartbeat-timeout silence-ms={(long)silence.TotalMilliseconds}"));
                 socket.Abort();
                 Emit(new BackendEvent.TechnicalError("Realtime WebSocket heartbeat timed out."));
-                Emit(new BackendEvent.ConnectionChanged(false));
+                EmitDisconnected();
                 _ = RecoverAsync();
                 continue;
             }
@@ -601,12 +603,12 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 {
                     Emit(new BackendEvent.Diagnostic(
                         $"realtime-reconnect-failed attempt={attempt} stage=presence {ConnectionFailureMessage(exception)}"));
-                    Emit(new BackendEvent.ConnectionChanged(false));
+                    EmitDisconnected();
                     continue;
                 }
                 Emit(new BackendEvent.Diagnostic(
                     $"realtime-reconnect-completed attempt={attempt}"));
-                Emit(new BackendEvent.ConnectionChanged(true));
+                EmitConnectionStatus(CurrentTransportStatus());
                 return;
             }
         }
@@ -617,6 +619,37 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         {
             Interlocked.Exchange(ref _recovering, 0);
         }
+    }
+
+    private RealtimeConnectionStatus CurrentTransportStatus()
+    {
+        bool socketConnected = _socket?.State == WebSocketState.Open;
+        bool transportConnected = socketConnected
+            && _desiredRoomEpochs.All(room => RealtimeEpochSubscriptionPlan
+                .Descriptors(room.Key, room.Value)
+                .All(descriptor => _joinReferences.ContainsKey(descriptor.PhoenixTopic)));
+        bool activeRoomConnected = transportConnected
+            && _activeRoomId is { } activeRoomId
+            && _desiredRoomEpochs.TryGetValue(activeRoomId, out long epoch)
+            && RealtimeEpochSubscriptionPlan.Descriptors(activeRoomId, epoch)
+                .All(descriptor => _joinReferences.ContainsKey(descriptor.PhoenixTopic));
+        return new RealtimeConnectionStatus(
+            transportConnected,
+            activeRoomConnected,
+            RecoveryReconciled: false);
+    }
+
+    private void EmitDisconnected() => EmitConnectionStatus(RealtimeConnectionStatus.Disconnected);
+
+    private void EmitConnectionStatus(RealtimeConnectionStatus status)
+    {
+        if (status == Volatile.Read(ref _lastEmittedConnectionStatus))
+        {
+            return;
+        }
+
+        Volatile.Write(ref _lastEmittedConnectionStatus, status);
+        Emit(new BackendEvent.ConnectionChanged(status));
     }
 
     private void HandleMessage(ReadOnlyMemory<byte> utf8)

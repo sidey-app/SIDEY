@@ -424,6 +424,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         CancellationToken cancellationToken)
     {
         CancellationTokenSource? structuralDelay = null;
+        RealtimeConnectionStatus connectionStatus = RealtimeConnectionStatus.Disconnected;
         try
         {
             await foreach (var backendEvent in _realtime.ReadEventsAsync(cancellationToken))
@@ -489,15 +490,35 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
 
                 if (backendEvent is BackendEvent.ReconciliationRequired)
                 {
+                    connectionStatus = connectionStatus.WithRecoveryReconciled(false);
+                    await output.WriteAsync(
+                        new BackendEvent.ConnectionChanged(connectionStatus),
+                        cancellationToken).ConfigureAwait(false);
                     await EmitReconciliationWithRetryAsync(output, cancellationToken)
                         .ConfigureAwait(false);
+                    connectionStatus = _realtime.ConnectionStatus.WithRecoveryReconciled(true);
+                    await output.WriteAsync(
+                        new BackendEvent.ConnectionChanged(connectionStatus),
+                        cancellationToken).ConfigureAwait(false);
                     continue;
                 }
 
-                if (backendEvent is BackendEvent.ConnectionChanged { Connected: true })
+                if (backendEvent is BackendEvent.ConnectionChanged connection)
                 {
-                    await EmitReconciliationWithRetryAsync(output, cancellationToken)
-                        .ConfigureAwait(false);
+                    connectionStatus = connection.Status;
+                    await output.WriteAsync(
+                        new BackendEvent.ConnectionChanged(connectionStatus),
+                        cancellationToken).ConfigureAwait(false);
+                    if (connectionStatus.TransportConnected)
+                    {
+                        await EmitReconciliationWithRetryAsync(output, cancellationToken)
+                            .ConfigureAwait(false);
+                        connectionStatus = _realtime.ConnectionStatus.WithRecoveryReconciled(true);
+                        await output.WriteAsync(
+                            new BackendEvent.ConnectionChanged(connectionStatus),
+                            cancellationToken).ConfigureAwait(false);
+                    }
+                    continue;
                 }
 
                 await output.WriteAsync(backendEvent, cancellationToken).ConfigureAwait(false);
@@ -535,9 +556,6 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                 await output.WriteAsync(
                     new BackendEvent.TechnicalError(
                         I18n.Format("backend.realtimeResyncFailed", exception.Message)),
-                    cancellationToken).ConfigureAwait(false);
-                await output.WriteAsync(
-                    new BackendEvent.ConnectionChanged(false),
                     cancellationToken).ConfigureAwait(false);
                 await Task.Delay(
                     RealtimeRecoveryPolicy.DelayForAttempt(attempt + 1),

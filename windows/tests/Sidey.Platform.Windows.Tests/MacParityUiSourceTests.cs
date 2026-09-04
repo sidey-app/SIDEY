@@ -25,7 +25,7 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("MicaKind.Base", window, StringComparison.Ordinal);
         Assert.DoesNotContain("MicaKind.BaseAlt", window, StringComparison.Ordinal);
         Assert.Contains("OnboardingCompleted = _state.Preferences.OnboardingCompleted", coordinator, StringComparison.Ordinal);
-        Assert.Contains("|| (snapshot.Profile is not null && snapshot.Rooms.Count > 0)", coordinator, StringComparison.Ordinal);
+        Assert.Contains("|| (profile is not null && snapshot.Rooms.Count > 0)", coordinator, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -152,9 +152,9 @@ public sealed class MacParityUiSourceTests
         var visuals = ReadRepositoryFile("windows", "src", "Sidey.Overlay", "PixelTextVisualCache.cs");
         var renderer = ReadRepositoryFile("windows", "src", "Sidey.Overlay", "LayeredPixelWorldRenderer.cs");
 
-        Assert.Contains("&& _state.Connected", coordinator, StringComparison.Ordinal);
-        Assert.Contains("private void SetRealtimeConnected(bool connected)", coordinator, StringComparison.Ordinal);
-        Assert.DoesNotContain("_state = _state with { Connected = true", coordinator, StringComparison.Ordinal);
+        Assert.Contains("&& _state.ActiveRoomConnected", coordinator, StringComparison.Ordinal);
+        Assert.Contains("private void SetRealtimeConnection(RealtimeConnectionStatus status)", coordinator, StringComparison.Ordinal);
+        Assert.Contains("RecoveryReconciled", coordinator, StringComparison.Ordinal);
         Assert.Contains("PresenceState.Offline => Color.FromArgb(255, 255, 59, 48)", visuals, StringComparison.Ordinal);
         Assert.Contains("PresenceState.Reconnecting => Color.FromArgb(255, 142, 142, 147)", visuals, StringComparison.Ordinal);
         Assert.Contains("desaturate: node.Member.Presence == PresenceState.Offline", renderer, StringComparison.Ordinal);

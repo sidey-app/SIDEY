@@ -26,6 +26,8 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
 
     public int SaveProfileCallCount { get; private set; }
 
+    public Func<string, string, CancellationToken, Task>? SaveProfileHandler { get; set; }
+
     public int CreateRoomCallCount { get; private set; }
 
     public int JoinRoomCallCount { get; private set; }
@@ -54,7 +56,8 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
         CancellationToken cancellationToken = default)
     {
         SaveProfileCallCount++;
-        return Task.CompletedTask;
+        return SaveProfileHandler?.Invoke(nickname, characterId, cancellationToken)
+            ?? Task.CompletedTask;
     }
 
     public Task CreateRoomAsync(string name, CancellationToken cancellationToken = default)

@@ -126,10 +126,10 @@ public sealed class RealtimeSecuritySourceTests
         Assert.True(overlayStart >= 0, "Reconciliation must start an overlay for the first active room.");
         Assert.True(realtimeSync >= 0, "Reconciliation must synchronize Realtime state.");
         Assert.True(overlayStart > realtimeSync, "Overlay startup must wait for Realtime synchronization.");
-        Assert.Contains("&& _state.Connected", reconcile, StringComparison.Ordinal);
+        Assert.Contains("&& _state.ActiveRoomConnected", reconcile, StringComparison.Ordinal);
 
         var connectionStart = coordinator.IndexOf(
-            "private void SetRealtimeConnected(bool connected)",
+            "private void SetRealtimeConnection(RealtimeConnectionStatus status)",
             StringComparison.Ordinal);
         var connectionEnd = coordinator.IndexOf(
             "private void ApplySnapshot",
