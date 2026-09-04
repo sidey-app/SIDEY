@@ -95,11 +95,14 @@
     "joinTooltip": "이 그룹을 활성 그룹으로 전환합니다.",
     "invite": "초대",
     "copyInvite": "초대 코드 복사",
+    "inviteCopyComplete": "복사 완료",
     "copyInviteTooltip": "그룹 초대 코드를 클립보드에 복사합니다.",
     "upgrade": "인원 확장",
     "upgradeTooltip": "그룹 최대 인원을 확장합니다.",
     "removeMember": "내보내기",
     "removeMemberTooltip": "이 멤버를 그룹에서 내보냅니다.",
+    "leave": "그룹 나가기",
+    "leaveTooltip": "이 그룹에서 나갑니다.",
     "rename": "✎  이름 변경",
     "renameTooltip": "그룹 이름을 변경합니다.",
     "delete": "그룹 삭제",
@@ -152,9 +155,16 @@
   },
   "store": {
     "title": "꾸미기·상점",
-    "description": "캐릭터와 픽셀 월드 꾸미기 항목을 확인할 수 있습니다.",
-    "comingSoon": "준비 중입니다",
-    "comingSoonDescription": "현재 사용할 수 있는 기본 캐릭터는 내 프로필에서 선택할 수 있습니다."
+    "description": "기본 캐릭터 외에 준비 중인 새로운 캐릭터를 미리 만나보세요.",
+    "previewOnly": "미리보기",
+    "comingSoon": "구매 준비 중",
+    "comingSoonDescription": "현재 상점은 미리보기만 제공하며 구매 기능은 아직 사용할 수 없습니다.",
+    "starlightUpalupaDescription": "진주빛 몸과 별빛 아가미를 가진 신비로운 우파루파예요.",
+    "guineaPigDescription": "낮고 동글동글한 몸에 비대칭 삼색 무늬가 매력인 작은 친구예요.",
+    "monkeyDescription": "세 갈래 머리털과 시안 목도리로 씩씩하게 산책하는 친구예요.",
+    "chinchillaDescription": "크고 둥근 귀와 포근한 회색 털, 파란 목도리를 가진 친구예요.",
+    "price1900": "1,900원",
+    "price990": "990원"
   },
   "settings": {
     "generalTitle": "일반",
@@ -182,6 +192,11 @@
     "checkUpdateDescription": "새 버전이 있으면 안전하게 내려받아 설치할 수 있습니다.",
     "checkNow": "지금 확인",
     "checkNowTooltip": "새로운 SIDEY 버전이 있는지 확인합니다.",
+    "releaseNotes": "릴리스 정보",
+    "updateNeverChecked": "마지막으로 확인한 날짜: 확인한 적 없음",
+    "updateCheckedToday": "오늘 {0}",
+    "updateCheckedYesterday": "어제 {0}",
+    "updateLastChecked": "마지막으로 확인한 날짜: {0}",
     "worldTitle": "월드 배치",
     "worldDescription": "픽셀 캐릭터를 표시할 화면과 위치를 선택할 수 있습니다.",
     "edge": "가장자리",
@@ -210,7 +225,7 @@
     "activeRoomRequired": "활성 그룹과 프로필이 필요합니다."
   },
   "tray": {
-    "hideOverlay": "오버레이 숨기기", "showOverlay": "오버레이 보이기", "compose": "메시지 작성…", "noGroups": "연결된 그룹 없음", "activeGroup": "활성 그룹", "quietMode": "조용히 모드", "history": "최근 기록…", "store": "상점…", "groups": "그룹 설정…", "startup": "로그인 시 자동 실행", "checkUpdates": "업데이트 확인…", "settings": "설정…", "exit": "SIDEY 종료", "unreadTooltip": "SIDEY · 미확인 메시지 {0}개"
+    "open": "열기", "hideOverlay": "오버레이 숨기기", "showOverlay": "오버레이 보이기", "compose": "메시지 작성…", "noGroups": "연결된 그룹 없음", "activeGroup": "활성 그룹", "quietMode": "조용히 모드", "history": "최근 기록…", "store": "상점…", "groups": "그룹 설정…", "startup": "로그인 시 자동 실행", "checkUpdates": "업데이트 확인…", "settings": "설정…", "exit": "종료", "unreadTooltip": "SIDEY · 미확인 메시지 {0}개", "connectionFailedTitle": "SIDEY 연결 안 됨", "connectionFailedBody": "SIDEY 서버와 연결할 수 없습니다. 네트워크 상태를 확인해 주세요."
   },
   "history": {
     "retentionNotice": "메시지는 서버에서 7일 후 자동 삭제됩니다.",
@@ -252,6 +267,10 @@
     "removeMemberTitle": "‘{0}’ 님을 내보낼까요?",
     "removeMemberBody": "이 멤버는 그룹과 메시지 기록에 더 이상 접근할 수 없습니다.",
     "removeMemberPrimary": "내보내기",
+    "leaveRoomTitle": "‘{0}’ 그룹에서 나갈까요?",
+    "leaveRoomBody": "이 그룹과 최근 메시지에 더 이상 접근할 수 없습니다.",
+    "leaveOwnedRoomBody": "나가면 가장 먼저 참여한 멤버에게 방장이 이전됩니다. 남은 멤버가 없으면 그룹이 삭제됩니다.",
+    "leaveRoomPrimary": "나가기",
     "deleteRoomTitle": "‘{0}’ 그룹을 삭제할까요?",
     "deleteRoomBody": "멤버십과 메시지가 서버에서 함께 삭제되며 되돌릴 수 없습니다.",
     "deleteRoomContinue": "계속",
@@ -264,6 +283,7 @@
   },
   "connection": {
     "connected": "연결됨",
+    "disconnected": "연결 안 됨",
     "reconnecting": "연결 중",
     "offline": "오프라인",
     "serverConnected": "SIDEY 서버와 연결되었습니다.",
@@ -277,6 +297,7 @@
     "downloading": "업데이트를 다운로드하는 중입니다.",
     "installerLaunched": "다운로드가 완료되어 설치 프로그램을 실행했습니다.",
     "startupAvailable": "새 버전 {0}이 있습니다. 업데이트 확인에서 Release 페이지를 열 수 있습니다.",
+    "releaseNotesFailed": "릴리스 정보를 열지 못했습니다: {0}",
     "notPublished": "Windows 업데이트 정보가 아직 게시되지 않았습니다.",
     "invalidManifest": "SIDEY Windows 업데이트 manifest가 올바르지 않습니다.",
     "invalidInstaller": "SIDEY Windows 업데이트 설치 파일 정보가 올바르지 않습니다.",

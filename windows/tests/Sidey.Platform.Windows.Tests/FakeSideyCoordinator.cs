@@ -26,15 +26,25 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
 
     public int SaveProfileCallCount { get; private set; }
 
+    public Func<string, string, CancellationToken, Task>? SaveProfileHandler { get; set; }
+
     public int CreateRoomCallCount { get; private set; }
 
+    public Func<string, CancellationToken, Task>? CreateRoomHandler { get; set; }
+
     public int JoinRoomCallCount { get; private set; }
+
+    public Func<string, CancellationToken, Task>? JoinRoomHandler { get; set; }
 
     public int SwitchRoomCallCount { get; private set; }
 
     public int RemoveRoomMemberCallCount { get; private set; }
 
     public int DeleteRoomCallCount { get; private set; }
+
+    public int LeaveRoomCallCount { get; private set; }
+
+    public Guid? LastLeftRoomId { get; private set; }
 
     public Task<MessageHistoryPage> FetchMessagePageAsync(
         Guid roomId,
@@ -50,19 +60,20 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
         CancellationToken cancellationToken = default)
     {
         SaveProfileCallCount++;
-        return Task.CompletedTask;
+        return SaveProfileHandler?.Invoke(nickname, characterId, cancellationToken)
+            ?? Task.CompletedTask;
     }
 
     public Task CreateRoomAsync(string name, CancellationToken cancellationToken = default)
     {
         CreateRoomCallCount++;
-        return Task.CompletedTask;
+        return CreateRoomHandler?.Invoke(name, cancellationToken) ?? Task.CompletedTask;
     }
 
     public Task JoinRoomAsync(string inviteCode, CancellationToken cancellationToken = default)
     {
         JoinRoomCallCount++;
-        return Task.CompletedTask;
+        return JoinRoomHandler?.Invoke(inviteCode, cancellationToken) ?? Task.CompletedTask;
     }
 
     public Task SwitchRoomAsync(Guid roomId, CancellationToken cancellationToken = default)
@@ -94,8 +105,12 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
         return Task.CompletedTask;
     }
 
-    public Task LeaveRoomAsync(Guid roomId, CancellationToken cancellationToken = default) =>
-        Task.CompletedTask;
+    public Task LeaveRoomAsync(Guid roomId, CancellationToken cancellationToken = default)
+    {
+        LeaveRoomCallCount++;
+        LastLeftRoomId = roomId;
+        return Task.CompletedTask;
+    }
 
     public Task<bool> CopyInviteCodeAsync(Guid roomId, CancellationToken cancellationToken = default) =>
         Task.FromResult(true);
@@ -139,7 +154,13 @@ internal sealed class FakeMainWindowDialogService : IMainWindowDialogService
 
     public bool ConfirmRoomDeletion { get; set; } = true;
 
+    public bool ConfirmRoomLeave { get; set; } = true;
+
     public string? ConfirmedRemovalNickname { get; private set; }
+
+    public string? ConfirmedLeaveRoomName { get; private set; }
+
+    public bool? ConfirmedLeaveRoomIsOwner { get; private set; }
 
     public Task<bool> ConfirmInviteCodeRotationAsync() => Task.FromResult(true);
 
@@ -155,6 +176,13 @@ internal sealed class FakeMainWindowDialogService : IMainWindowDialogService
     public Task<bool> ConfirmRoomDeletionAsync(string roomName) =>
         Task.FromResult(ConfirmRoomDeletion);
 
+    public Task<bool> ConfirmRoomLeaveAsync(string roomName, bool isOwner)
+    {
+        ConfirmedLeaveRoomName = roomName;
+        ConfirmedLeaveRoomIsOwner = isOwner;
+        return Task.FromResult(ConfirmRoomLeave);
+    }
+
     public Task<bool> ConfirmUpdateDownloadAsync(string version)
     {
         _ = version;
@@ -164,12 +192,24 @@ internal sealed class FakeMainWindowDialogService : IMainWindowDialogService
 
 internal sealed class FakeUpdateService : IUpdateService
 {
+    public string CurrentVersion { get; set; } = "1.0.5";
+
+    public DateTimeOffset? LastCheckedAt { get; set; }
+
+    public Uri CurrentReleaseNotesUri { get; set; } = new(
+        "https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.5");
+
     public AvailableUpdate? AvailableUpdate { get; set; }
 
     public int InstallerLaunchCount { get; private set; }
 
-    public Task<AvailableUpdate?> CheckAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult(AvailableUpdate);
+    public int ReleaseNotesLaunchCount { get; private set; }
+
+    public Task<AvailableUpdate?> CheckAsync(CancellationToken cancellationToken = default)
+    {
+        LastCheckedAt = DateTimeOffset.UtcNow;
+        return Task.FromResult(AvailableUpdate);
+    }
 
     public Task DownloadAndLaunchInstallerAsync(
         AvailableUpdate update,
@@ -178,6 +218,13 @@ internal sealed class FakeUpdateService : IUpdateService
         _ = update;
         _ = cancellationToken;
         InstallerLaunchCount++;
+        return Task.CompletedTask;
+    }
+
+    public Task OpenReleaseNotesAsync(Uri releaseNotesUri)
+    {
+        _ = releaseNotesUri;
+        ReleaseNotesLaunchCount++;
         return Task.CompletedTask;
     }
 }

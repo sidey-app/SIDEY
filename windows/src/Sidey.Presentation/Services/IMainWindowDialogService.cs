@@ -8,6 +8,8 @@ public interface IMainWindowDialogService
 
     Task<bool> ConfirmMemberRemovalAsync(string nickname);
 
+    Task<bool> ConfirmRoomLeaveAsync(string roomName, bool isOwner);
+
     Task<bool> ConfirmRoomDeletionAsync(string roomName);
 
     Task<bool> ConfirmUpdateDownloadAsync(string version);

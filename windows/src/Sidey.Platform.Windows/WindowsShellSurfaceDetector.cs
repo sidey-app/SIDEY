@@ -17,6 +17,12 @@ public static class WindowsShellSurfaceDetector
             return nint.Zero;
         }
 
+        nint taskbar = VisibleTaskbarSurface();
+        if (taskbar != nint.Zero)
+        {
+            return taskbar;
+        }
+
         nint transientPopup = VisibleTransientPopup();
         if (transientPopup != nint.Zero)
         {
@@ -74,6 +80,29 @@ public static class WindowsShellSurfaceDetector
             return false;
         }, nint.Zero);
         return popup;
+    }
+
+    private static nint VisibleTaskbarSurface()
+    {
+        nint taskbar = nint.Zero;
+        _ = NativeMethods.EnumWindows((window, _) =>
+        {
+            if (!NativeMethods.IsWindowVisible(window))
+            {
+                return true;
+            }
+
+            var className = new StringBuilder(256);
+            _ = NativeMethods.GetClassName(window, className, className.Capacity);
+            if (!WindowsShellSurfacePolicy.IsTaskbarWindow(className.ToString()))
+            {
+                return true;
+            }
+
+            taskbar = window;
+            return true;
+        }, nint.Zero);
+        return taskbar;
     }
 
     private static bool IsShellSurface(nint window)
@@ -168,6 +197,10 @@ public static class WindowsShellSurfacePolicy
             && IsExplorerTaskbarSurface(windowClass);
     }
 
+    public static bool IsTaskbarWindow(string? windowClass) =>
+        StringComparer.OrdinalIgnoreCase.Equals(windowClass, "Shell_TrayWnd")
+        || StringComparer.OrdinalIgnoreCase.Equals(windowClass, "Shell_SecondaryTrayWnd");
+
     public static bool IsTransientPopup(
         string? windowClass,
         nint style = default,
@@ -198,8 +231,7 @@ public static class WindowsShellSurfacePolicy
     private static bool IsPersistentShellWindow(string windowClass) =>
         StringComparer.OrdinalIgnoreCase.Equals(windowClass, "Progman")
         || StringComparer.OrdinalIgnoreCase.Equals(windowClass, "WorkerW")
-        || StringComparer.OrdinalIgnoreCase.Equals(windowClass, "Shell_TrayWnd")
-        || StringComparer.OrdinalIgnoreCase.Equals(windowClass, "Shell_SecondaryTrayWnd");
+        || IsTaskbarWindow(windowClass);
 
     private static bool IsExplorerTaskbarSurface(string? windowClass)
     {
@@ -213,7 +245,6 @@ public static class WindowsShellSurfacePolicy
             || windowClass.Contains("NotifyIconOverflow", StringComparison.OrdinalIgnoreCase)
             || windowClass.Contains("OverflowXamlIsland", StringComparison.OrdinalIgnoreCase)
             || windowClass.Contains("XamlExplorerHostIsland", StringComparison.OrdinalIgnoreCase)
-            || StringComparer.OrdinalIgnoreCase.Equals(windowClass, "Shell_TrayWnd")
-            || StringComparer.OrdinalIgnoreCase.Equals(windowClass, "Shell_SecondaryTrayWnd");
+            || IsTaskbarWindow(windowClass);
     }
 }

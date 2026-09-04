@@ -20,6 +20,9 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private const double ThrowReleaseSeconds = 0.2d;
     private const double HitActionSeconds = 0.44d;
     private const double ImpactSeconds = 0.24d;
+    private const double AmbientSparkleCycleSeconds = 2.25d;
+    private const double AmbientSparkleDurationSeconds = 1.05d;
+    private const double SparklePulseDurationSeconds = 0.78d;
     private static readonly IReadOnlyList<RectD> NoAvoidanceRects = Array.Empty<RectD>();
 
     private readonly object _gate = new();
@@ -28,9 +31,12 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private readonly int _hotspotPixelSize;
     private readonly int _integerScale;
     private readonly int _dozeFloatingDistancePixels;
+    private readonly double _dpiScale;
     private readonly OverlayEdge _edge;
     private readonly Action<NativePixelRect?, IReadOnlyList<CharacterHotspotFrame>> _hotspotsMoved;
     private readonly Action<Exception> _renderingFailed;
+    private readonly Action<int>? _messageBubblesPresented;
+    private readonly Action<double, double, long, long>? _performanceSampled;
     private readonly ValidationMetricsCollector? _metrics;
     private readonly Random _random;
     private readonly long _initialPositionSeed;
@@ -48,6 +54,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private readonly Dictionary<Guid, long> _dozeStartedAt = [];
     private readonly Dictionary<Guid, ActiveBubble> _bubbleBySender = [];
     private readonly List<Guid> _expiredBubbleSenders = [];
+    private readonly HashSet<Guid> _drawnBubbleIds = [];
+    private readonly HashSet<Guid> _presentedBubbleIds = [];
     private readonly List<MessageBubbleTrackBounds> _bubbleTrackBounds = [];
     private readonly List<CharacterHotspotFrame> _targetHotspots = new(11);
     private readonly PixelMovementScratch _movementScratch = new();
@@ -61,6 +69,11 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private readonly Timer _timer;
     private double _hotspotTrackingElapsed = double.PositiveInfinity;
     private long _tick;
+    private long _performanceWindowStarted = Stopwatch.GetTimestamp();
+    private long _performanceFrameCount;
+    private long _performanceSkippedTicks;
+    private double _performanceTotalMilliseconds;
+    private double _performanceMaximumMilliseconds;
     private int _tickRunning;
     private double _edgeInsetPixels;
     private int _targetEdgeInsetPixels;
@@ -77,6 +90,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         WorldSnapshot initialSnapshot,
         Action<NativePixelRect?, IReadOnlyList<CharacterHotspotFrame>> hotspotsMoved,
         Action<Exception> renderingFailed,
+        Action<int>? messageBubblesPresented,
+        Action<double, double, long, long>? performanceSampled,
         IReadOnlySet<string>? cachedCharacterIds = null,
         ValidationMetricsCollector? metrics = null,
         int initialEdgeInsetPixels = 0)
@@ -90,11 +105,14 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         _renderBounds = renderBounds;
         _hotspotsMoved = hotspotsMoved ?? throw new ArgumentNullException(nameof(hotspotsMoved));
         _renderingFailed = renderingFailed ?? throw new ArgumentNullException(nameof(renderingFailed));
+        _messageBubblesPresented = messageBubblesPresented;
+        _performanceSampled = performanceSampled;
         _metrics = metrics;
         _edge = edge;
         _edgeInsetPixels = ClampEdgeInset(initialEdgeInsetPixels);
         _targetEdgeInsetPixels = (int)_edgeInsetPixels;
         _integerScale = PixelScalePolicy.IntegerScale(dpi);
+        _dpiScale = Math.Max(1d, dpi / 96d);
         _dozeFloatingDistancePixels = Math.Max(1, DipToPixels(DozeFloatingDistanceDip, dpi));
         _hotspotPixelSize = Math.Max(1, DipToPixels(52, dpi));
         _initialPositionSeed = OverlayPlacementPolicy.CreateSessionSeed(
@@ -199,6 +217,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     {
         if (Interlocked.Exchange(ref _tickRunning, 1) != 0)
         {
+            Interlocked.Increment(ref _performanceSkippedTicks);
             return;
         }
 
@@ -234,9 +253,11 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         }
         finally
         {
+            TimeSpan elapsed = Stopwatch.GetElapsedTime(started);
             try
             {
-                _metrics?.RecordFrame(Stopwatch.GetElapsedTime(started));
+                _metrics?.RecordFrame(elapsed);
+                RecordRuntimePerformance(elapsed);
             }
             catch (Exception exception)
             {
@@ -247,6 +268,35 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 Volatile.Write(ref _tickRunning, 0);
             }
         }
+    }
+
+    private void RecordRuntimePerformance(TimeSpan frameTime)
+    {
+        _performanceFrameCount++;
+        _performanceTotalMilliseconds += frameTime.TotalMilliseconds;
+        _performanceMaximumMilliseconds = Math.Max(
+            _performanceMaximumMilliseconds,
+            frameTime.TotalMilliseconds);
+        if (_performanceSampled is null
+            || Stopwatch.GetElapsedTime(_performanceWindowStarted) < TimeSpan.FromMinutes(1))
+        {
+            return;
+        }
+
+        long frameCount = _performanceFrameCount;
+        double averageMilliseconds = frameCount == 0
+            ? 0
+            : _performanceTotalMilliseconds / frameCount;
+        long skippedTicks = Interlocked.Exchange(ref _performanceSkippedTicks, 0);
+        _performanceSampled(
+            averageMilliseconds,
+            _performanceMaximumMilliseconds,
+            frameCount,
+            skippedTicks);
+        _performanceWindowStarted = Stopwatch.GetTimestamp();
+        _performanceFrameCount = 0;
+        _performanceTotalMilliseconds = 0;
+        _performanceMaximumMilliseconds = 0;
     }
 
     private void Tick()
@@ -329,6 +379,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     {
         Span<byte> destinationPixels = _surface.Pixels;
         destinationPixels.Clear();
+        _drawnBubbleIds.Clear();
         NativePixelRect? currentUserHotspot = null;
         _targetHotspots.Clear();
         UpdateProjectiles();
@@ -338,6 +389,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             var moving = Math.Abs(node.Agent.Velocity) >= 0.5d;
             var actionFrame = ActionFrame(node.Member.Id);
             var frame = FrameIndex(node.Member.Presence, moving, cached.Definition.Frames);
+            var pulseElapsed = PulseElapsed(node.Member.Id);
             var pulseScale = PulseScale(node.Member.Id);
             var foot = FootPoint(node.Agent.TrackPosition);
             var baseDestination = DestinationForFoot(
@@ -364,6 +416,10 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 pulseScale,
                 node.Member.Presence == PresenceState.Offline ? 0.75d : 1d,
                 desaturate: node.Member.Presence == PresenceState.Offline);
+            if (cached.Definition.VisualEffect == PixelCharacterVisualEffect.StarlightSparkles)
+            {
+                DrawStarlightSparkles(destinationPixels, node, pulseElapsed);
+            }
 
             if (node.Member.IsCurrentUser)
             {
@@ -383,9 +439,10 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 visuals.Nameplate,
                 cached.OnlineContentBounds);
             CompositeVisual(destinationPixels, visuals.Nameplate, nameplate.X, nameplate.Y);
-            var bubble = _bubbleBySender.ContainsKey(node.Member.Id)
-                ? visuals.MessageBubble
-                : visuals.TypingBubble;
+            bool hasMessageBubble = _bubbleBySender.TryGetValue(
+                node.Member.Id,
+                out var activeBubble);
+            var bubble = hasMessageBubble ? visuals.MessageBubble : visuals.TypingBubble;
             if (bubble is not null)
             {
                 var bubblePosition = PlaceBeyondNameplate(
@@ -396,6 +453,10 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                     visuals.Nameplate,
                     nameplate);
                 CompositeVisual(destinationPixels, bubble, bubblePosition.X, bubblePosition.Y);
+                if (activeBubble is not null)
+                {
+                    _drawnBubbleIds.Add(activeBubble.MessageId);
+                }
             }
             if (visuals.Doze is { } doze)
             {
@@ -417,10 +478,30 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         RenderProjectiles(destinationPixels);
 
         _surface.Present(_renderBounds.X, _renderBounds.Y);
+        ReportPresentedMessageBubbles();
         if (_hotspotTrackingElapsed >= HotspotTrackingPolicy.MinimumUpdateInterval.TotalSeconds)
         {
             _hotspotsMoved(currentUserHotspot, _targetHotspots);
             _hotspotTrackingElapsed = 0d;
+        }
+    }
+
+    private void ReportPresentedMessageBubbles()
+    {
+        int newlyPresented = 0;
+        foreach (Guid bubbleId in _drawnBubbleIds)
+        {
+            if (!_presentedBubbleIds.Contains(bubbleId))
+            {
+                newlyPresented++;
+            }
+        }
+
+        _presentedBubbleIds.Clear();
+        _presentedBubbleIds.UnionWith(_drawnBubbleIds);
+        if (newlyPresented > 0)
+        {
+            _messageBubblesPresented?.Invoke(newlyPresented);
         }
     }
 
@@ -793,6 +874,168 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         _pulseStartedAt.Remove(userId);
         return 1d;
     }
+
+    private double? PulseElapsed(Guid userId) =>
+        _pulseStartedAt.TryGetValue(userId, out long started)
+            ? Stopwatch.GetElapsedTime(started).TotalSeconds
+            : null;
+
+    private void DrawStarlightSparkles(
+        Span<byte> destination,
+        WorldNode node,
+        double? pulseElapsed)
+    {
+        var center = BodyPoint(node);
+        if (node.Member.Presence is not PresenceState.Offline and not PresenceState.Reconnecting)
+        {
+            double seedOffset = PositiveUnit(node.Member.Id.GetHashCode()) * 0.4d;
+            double phase = ((_tick * FixedDeltaTime) + seedOffset) % AmbientSparkleCycleSeconds;
+            for (var index = 0; index < 5; index++)
+            {
+                double progress = (phase - (index * 0.07d)) / AmbientSparkleDurationSeconds;
+                if (progress is < 0d or > 1d)
+                {
+                    continue;
+                }
+
+                double angle = (Math.PI * 2d * PositiveUnit(
+                    node.Member.Id.GetHashCode() ^ (index * 7919))) - (Math.PI / 2d);
+                double distanceDip = 8d + (29d * PositiveUnit(
+                    node.Member.Id.GetHashCode() ^ (index * 1543) ^ 0x51A7));
+                double rise = 4d * progress * _dpiScale;
+                double opacity = Math.Sin(Math.PI * progress) * 0.86d;
+                double radius = (2.6d + (1.4d * PositiveUnit(index * 3571))) * _dpiScale;
+                DrawSparkle(
+                    destination,
+                    center.X + (Math.Cos(angle) * distanceDip * _dpiScale),
+                    center.Y + (Math.Sin(angle) * distanceDip * _dpiScale) - rise,
+                    radius,
+                    opacity,
+                    SparkleColor(index));
+            }
+        }
+
+        if (pulseElapsed is not { } elapsed || elapsed < 0d || elapsed > SparklePulseDurationSeconds)
+        {
+            return;
+        }
+
+        double pulseProgress = elapsed / SparklePulseDurationSeconds;
+        double pulseOpacity = 1d - (pulseProgress * pulseProgress);
+        if (elapsed <= 0.32d)
+        {
+            double flashProgress = elapsed / 0.32d;
+            DrawSparkle(
+                destination,
+                center.X,
+                center.Y,
+                34d * _dpiScale * (0.25d + (0.75d * flashProgress)),
+                Math.Sin(Math.PI * flashProgress) * 0.75d,
+                SparkleColor(2));
+        }
+
+        DrawSparkleWave(destination, node.Member.Id, center, 18, 126d, 168d, 8d, 13d,
+            pulseProgress, pulseOpacity, angleOffset: 0d);
+        double innerProgress = Math.Clamp((elapsed - 0.06d) / 0.72d, 0d, 1d);
+        DrawSparkleWave(destination, node.Member.Id, center, 24, 82d, 132d, 4.5d, 8d,
+            innerProgress, 1d - (innerProgress * innerProgress), angleOffset: 0.13d);
+    }
+
+    private void DrawSparkleWave(
+        Span<byte> destination,
+        Guid userId,
+        (double X, double Y) center,
+        int count,
+        double minimumDistanceDip,
+        double maximumDistanceDip,
+        double minimumRadiusDip,
+        double maximumRadiusDip,
+        double progress,
+        double opacity,
+        double angleOffset)
+    {
+        if (progress <= 0d || opacity <= 0d)
+        {
+            return;
+        }
+
+        int seed = userId.GetHashCode();
+        for (var index = 0; index < count; index++)
+        {
+            double jitter = PositiveUnit(seed ^ (index * 6151));
+            double angle = ((Math.PI * 2d * index) / count) + angleOffset + ((jitter - 0.5d) * 0.18d);
+            double maximumDistance = minimumDistanceDip
+                + ((maximumDistanceDip - minimumDistanceDip) * PositiveUnit(seed ^ (index * 3253) ^ 0x24B7));
+            double distance = maximumDistance * EaseOutCubic(progress) * _dpiScale;
+            double radius = (minimumRadiusDip
+                + ((maximumRadiusDip - minimumRadiusDip) * PositiveUnit(seed ^ (index * 1879))))
+                * _dpiScale * (1d - (0.45d * progress));
+            DrawSparkle(
+                destination,
+                center.X + (Math.Cos(angle) * distance),
+                center.Y + (Math.Sin(angle) * distance),
+                radius,
+                opacity,
+                SparkleColor(index));
+        }
+    }
+
+    private void DrawSparkle(
+        Span<byte> destination,
+        double worldCenterX,
+        double worldCenterY,
+        double radius,
+        double opacity,
+        (byte Red, byte Green, byte Blue) color)
+    {
+        int centerX = (int)Math.Round(worldCenterX) - _renderBounds.X;
+        int centerY = (int)Math.Round(worldCenterY) - _renderBounds.Y;
+        int extent = Math.Max(1, (int)Math.Ceiling(radius));
+        byte alpha = (byte)Math.Clamp((int)Math.Round(255d * opacity), 0, 255);
+        for (var y = -extent; y <= extent; y++)
+        {
+            int destinationY = centerY + y;
+            if (destinationY < 0 || destinationY >= _renderBounds.Height)
+            {
+                continue;
+            }
+
+            for (var x = -extent; x <= extent; x++)
+            {
+                int destinationX = centerX + x;
+                if (destinationX < 0 || destinationX >= _renderBounds.Width)
+                {
+                    continue;
+                }
+
+                double normalizedX = Math.Abs(x) / Math.Max(1d, radius);
+                double normalizedY = Math.Abs(y) / Math.Max(1d, radius);
+                if (normalizedX + normalizedY > 1d
+                    || (normalizedX > 0.24d && normalizedY > 0.24d))
+                {
+                    continue;
+                }
+
+                int pixel = ((destinationY * _renderBounds.Width) + destinationX) * 4;
+                int inverseAlpha = 255 - alpha;
+                destination[pixel] = Blend((byte)(color.Blue * alpha / 255), destination[pixel], inverseAlpha);
+                destination[pixel + 1] = Blend((byte)(color.Green * alpha / 255), destination[pixel + 1], inverseAlpha);
+                destination[pixel + 2] = Blend((byte)(color.Red * alpha / 255), destination[pixel + 2], inverseAlpha);
+                destination[pixel + 3] = Blend(alpha, destination[pixel + 3], inverseAlpha);
+            }
+        }
+    }
+
+    private static double EaseOutCubic(double value) => 1d - Math.Pow(1d - value, 3d);
+
+    private static double PositiveUnit(int value) => (uint)value / (double)uint.MaxValue;
+
+    private static (byte Red, byte Green, byte Blue) SparkleColor(int index) => (index % 3) switch
+    {
+        0 => (120, 194, 173),
+        1 => (168, 135, 214),
+        _ => (245, 186, 56),
+    };
 
     private (double X, double Y) FootPoint(double tangent) => _edge switch
     {

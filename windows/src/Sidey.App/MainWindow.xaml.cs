@@ -25,8 +25,10 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
 
     private bool _allowClose;
     private bool _trayAvailable;
-    private bool _enforcingMinimumSize;
-    private ResponsiveWindowSize _minimumWindowSize;
+    private bool _navigatingBack;
+    private string _currentNavigationTag = "profile";
+    private readonly Stack<string> _navigationHistory = new();
+    private readonly WindowsMinimumSizeController _minimumSizeController;
 
     public MainWindow(AppCoordinator coordinator)
     {
@@ -36,10 +38,14 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         ViewModel.PrepareGroupsForPresentation();
         Title = "SIDEY";
         SideyWindowIcon.Apply(AppWindow);
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(AppTitleBar);
         RootNavigation.SelectedItem = RootNavigation.MenuItems[0];
-        ApplyResponsiveSize();
+        ResponsiveWindowSize minimumWindowSize = ApplyResponsiveSize();
+        _minimumSizeController = new WindowsMinimumSizeController(
+            WinRT.Interop.WindowNative.GetWindowHandle(this),
+            minimumWindowSize);
         ApplyBackdrop();
-        AppWindow.Changed += OnAppWindowChanged;
         AppWindow.Closing += OnAppWindowClosing;
         Closed += OnWindowClosed;
         ViewModel.NoticeRaised += OnNoticeRaised;
@@ -141,6 +147,22 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
+    public async Task<bool> ConfirmRoomLeaveAsync(string roomName, bool isOwner)
+    {
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = I18n.Format("dialogs.leaveRoomTitle", roomName),
+            Content = I18n.Get(isOwner
+                ? "dialogs.leaveOwnedRoomBody"
+                : "dialogs.leaveRoomBody"),
+            PrimaryButtonText = I18n.Get("dialogs.leaveRoomPrimary"),
+            CloseButtonText = I18n.Get("common.cancel"),
+            DefaultButton = ContentDialogButton.Close,
+        };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+    }
+
     public async Task<bool> ConfirmRoomDeletionAsync(string roomName)
     {
         var impactDialog = new ContentDialog
@@ -203,6 +225,17 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     {
         _ = sender;
         string tag = (args.SelectedItemContainer?.Tag as string) ?? "profile";
+        if (!StringComparer.Ordinal.Equals(tag, _currentNavigationTag))
+        {
+            if (!_navigatingBack)
+            {
+                _navigationHistory.Push(_currentNavigationTag);
+            }
+
+            _currentNavigationTag = tag;
+        }
+
+        AppTitleBar.IsBackButtonEnabled = _navigationHistory.Count > 0;
         if (tag == "groups")
         {
             ViewModel.PrepareGroupsForPresentation();
@@ -214,18 +247,86 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         SettingsPage.Visibility = tag == "settings" ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    private void OnTitleBarBackRequested(TitleBar sender, object args)
+    {
+        _ = sender;
+        _ = args;
+        if (_navigationHistory.Count == 0)
+        {
+            return;
+        }
+
+        string tag = _navigationHistory.Pop();
+        NavigationViewItem? item = RootNavigation.MenuItems
+            .OfType<NavigationViewItem>()
+            .FirstOrDefault(candidate =>
+                StringComparer.Ordinal.Equals(candidate.Tag as string, tag));
+        if (item is null)
+        {
+            AppTitleBar.IsBackButtonEnabled = _navigationHistory.Count > 0;
+            return;
+        }
+
+        _navigatingBack = true;
+        try
+        {
+            RootNavigation.SelectedItem = item;
+        }
+        finally
+        {
+            _navigatingBack = false;
+        }
+    }
+
+    private void OnTitleBarPaneToggleRequested(TitleBar sender, object args)
+    {
+        _ = sender;
+        _ = args;
+        RootNavigation.IsPaneOpen = !RootNavigation.IsPaneOpen;
+    }
+
+    private void OnNavigationPaneOpening(NavigationView sender, object args)
+    {
+        _ = sender;
+        _ = args;
+        ShowCompactConnectionStatus();
+    }
+
     private void OnNavigationPaneOpened(NavigationView sender, object args)
     {
         _ = sender;
         _ = args;
-        CompactConnectionDot.Visibility = Visibility.Collapsed;
+        ShowExpandedConnectionStatus();
+    }
+
+    private void OnNavigationPaneClosing(
+        NavigationView sender,
+        NavigationViewPaneClosingEventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        ShowCompactConnectionStatus();
     }
 
     private void OnNavigationPaneClosed(NavigationView sender, object args)
     {
         _ = sender;
         _ = args;
-        CompactConnectionDot.Visibility = Visibility.Visible;
+        ShowCompactConnectionStatus();
+    }
+
+    private void ShowCompactConnectionStatus()
+    {
+        ConnectionStatusRoot.Width = RootNavigation.CompactPaneLength;
+        ExpandedConnectionStatus.Visibility = Visibility.Collapsed;
+        CompactConnectionStatus.Visibility = Visibility.Visible;
+    }
+
+    private void ShowExpandedConnectionStatus()
+    {
+        ConnectionStatusRoot.Width = RootNavigation.OpenPaneLength;
+        CompactConnectionStatus.Visibility = Visibility.Collapsed;
+        ExpandedConnectionStatus.Visibility = Visibility.Visible;
     }
 
     private void OnCharacterSelectorLoaded(object sender, RoutedEventArgs args)
@@ -288,54 +389,30 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
     }
 
-    private void ApplyResponsiveSize()
+    private ResponsiveWindowSize ApplyResponsiveSize()
     {
         WindowsMonitorInfo monitor = WindowsMonitorService.Select(identifier: null);
         ResponsiveWindowSize size = ResponsiveWindowSizePolicy.Calculate(
             monitor,
             SideyWindowKind.Settings);
-        _minimumWindowSize = size;
+        ResponsiveWindowSize minimumWindowSize = ResponsiveWindowSizePolicy.Minimum(
+            monitor,
+            SideyWindowKind.Settings);
         AppWindow.Resize(new Windows.Graphics.SizeInt32(size.Width, size.Height));
         AppWindow.Move(new Windows.Graphics.PointInt32(
             monitor.WorkAreaPixels.X + ((monitor.WorkAreaPixels.Width - size.Width) / 2),
             monitor.WorkAreaPixels.Y + ((monitor.WorkAreaPixels.Height - size.Height) / 2)));
-    }
-
-    private void OnAppWindowChanged(
-        Microsoft.UI.Windowing.AppWindow sender,
-        Microsoft.UI.Windowing.AppWindowChangedEventArgs args)
-    {
-        if (!args.DidSizeChange || _enforcingMinimumSize)
-        {
-            return;
-        }
-
-        int width = Math.Max(sender.Size.Width, _minimumWindowSize.Width);
-        int height = Math.Max(sender.Size.Height, _minimumWindowSize.Height);
-        if (width == sender.Size.Width && height == sender.Size.Height)
-        {
-            return;
-        }
-
-        _enforcingMinimumSize = true;
-        try
-        {
-            sender.Resize(new Windows.Graphics.SizeInt32(width, height));
-        }
-        finally
-        {
-            _enforcingMinimumSize = false;
-        }
+        return minimumWindowSize;
     }
 
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
         _ = sender;
         _ = args;
-        AppWindow.Changed -= OnAppWindowChanged;
         AppWindow.Closing -= OnAppWindowClosing;
         Closed -= OnWindowClosed;
         ViewModel.NoticeRaised -= OnNoticeRaised;
+        _minimumSizeController.Dispose();
         _statusDismissTimer.Stop();
         _statusDismissTimer.Tick -= OnStatusDismissTimerTick;
 #if DEBUG

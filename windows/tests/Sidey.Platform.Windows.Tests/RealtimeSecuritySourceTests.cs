@@ -40,6 +40,7 @@ public sealed class RealtimeSecuritySourceTests
         Assert.Contains("CreateBounded<BackendEvent>", transport, StringComparison.Ordinal);
         Assert.Contains("ReconciliationRequired", transport, StringComparison.Ordinal);
         Assert.Contains("EmitReconciliationWithRetryAsync", gateway, StringComparison.Ordinal);
+        Assert.Contains("realtime-event-queue-overflow capacity=256 dropped=", transport, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -50,6 +51,36 @@ public sealed class RealtimeSecuritySourceTests
         Assert.Contains("catch (WebSocketException exception)", transport, StringComparison.Ordinal);
         Assert.Contains("_ = RecoverAsync();", transport, StringComparison.Ordinal);
         Assert.Contains("socket.Dispose();", transport, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void RealtimeHealthAllowsDelayedHeartbeatsAndLogsTheMessagePipeline()
+    {
+        var gateway = Read("SupabaseBackendGateway.cs");
+        var transport = Read("SupabaseRealtimeTransport.cs");
+        var coordinator = Read("AppCoordinator.cs");
+        var session = Read("NativePixelWorldSession.cs");
+
+        Assert.Contains("UnhealthyAfter = TimeSpan.FromSeconds(30)", transport, StringComparison.Ordinal);
+        Assert.Contains("Realtime WebSocket heartbeat timed out.", transport, StringComparison.Ordinal);
+        Assert.Contains("realtime-health silence-ms=", transport, StringComparison.Ordinal);
+        Assert.Contains("realtime-websocket-closed code=", transport, StringComparison.Ordinal);
+        Assert.Contains("realtime-reconnect-scheduled attempt=", transport, StringComparison.Ordinal);
+        Assert.Contains("realtime-reconnect-completed attempt=", transport, StringComparison.Ordinal);
+        Assert.Contains("realtime-topic-subscribe-completed kind=", transport, StringComparison.Ordinal);
+        Assert.Contains("realtime-message-change-received", gateway, StringComparison.Ordinal);
+        Assert.Contains("message-recheck-started", gateway, StringComparison.Ordinal);
+        Assert.Contains("message-recheck-completed result=found", gateway, StringComparison.Ordinal);
+        Assert.Contains("message-recheck-completed result=failed", gateway, StringComparison.Ordinal);
+        Assert.Contains("realtime-message-received", coordinator, StringComparison.Ordinal);
+        Assert.Contains("message-ledger-confirmed", coordinator, StringComparison.Ordinal);
+        Assert.Contains("message-bubble-enqueued", coordinator, StringComparison.Ordinal);
+        Assert.Contains("overlay-snapshot-dispatched", coordinator, StringComparison.Ordinal);
+        Assert.Contains("overlay-snapshot-accepted", coordinator, StringComparison.Ordinal);
+        Assert.Contains("overlay-message-presented", coordinator, StringComparison.Ordinal);
+        Assert.Contains("realtime-messages-reconciled", coordinator, StringComparison.Ordinal);
+        Assert.Contains("MessageBubblesPresented", session, StringComparison.Ordinal);
+        Assert.DoesNotContain("message.Message.Body}", coordinator, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -95,10 +126,10 @@ public sealed class RealtimeSecuritySourceTests
         Assert.True(overlayStart >= 0, "Reconciliation must start an overlay for the first active room.");
         Assert.True(realtimeSync >= 0, "Reconciliation must synchronize Realtime state.");
         Assert.True(overlayStart > realtimeSync, "Overlay startup must wait for Realtime synchronization.");
-        Assert.Contains("&& _state.Connected", reconcile, StringComparison.Ordinal);
+        Assert.Contains("&& _state.ActiveRoomConnected", reconcile, StringComparison.Ordinal);
 
         var connectionStart = coordinator.IndexOf(
-            "private void SetRealtimeConnected(bool connected)",
+            "private void SetRealtimeConnection(RealtimeConnectionStatus status)",
             StringComparison.Ordinal);
         var connectionEnd = coordinator.IndexOf(
             "private void ApplySnapshot",

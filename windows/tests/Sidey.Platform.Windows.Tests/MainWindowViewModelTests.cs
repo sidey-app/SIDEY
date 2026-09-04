@@ -1,3 +1,4 @@
+using Sidey.Core.Abstractions;
 using Sidey.Core.Domain;
 using Sidey.Presentation.Services;
 using Sidey.Presentation.ViewModels;
@@ -21,6 +22,60 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void StorePreviewsTheFourAdditionalCharactersWithoutAddingThemToThePicker()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        Assert.Equal(
+            ["pixel_starlight_upalupa", "pixel_guinea_pig", "pixel_monkey", "pixel_chinchilla"],
+            viewModel.StoreProducts.Select(product => product.CharacterId));
+        Assert.Equal(["1,900원", "990원", "990원", "990원"],
+            viewModel.StoreProducts.Select(product => product.FormattedPrice));
+        Assert.All(viewModel.StoreProducts, product => Assert.NotEmpty(product.Description));
+        Assert.DoesNotContain(
+            viewModel.StoreProducts.Select(product => product.CharacterId),
+            characterId => viewModel.CharacterSelections.Any(character => character.Id == characterId));
+    }
+
+    [Fact]
+    public void IssuedCharactersAppearInTheProfilePickerAndTrackSelection()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        state = state with
+        {
+            Profile = state.Profile! with { CharacterId = "pixel_guinea_pig" },
+            ActiveEntitlementKeys = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "character:pixel_guinea_pig",
+                "character:pixel_monkey",
+                "character:pixel_chinchilla",
+            },
+        };
+        coordinator.State = state;
+
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        Assert.Equal(
+            [
+                "pixel_hamster", "pixel_cat", "pixel_puppy", "pixel_rabbit", "pixel_penguin",
+                "pixel_guinea_pig", "pixel_monkey", "pixel_chinchilla",
+            ],
+            viewModel.CharacterSelections.Select(character => character.Id));
+        Assert.True(viewModel.CharacterSelections.Single(
+            character => character.Id == "pixel_guinea_pig").IsSelected);
+        Assert.DoesNotContain(
+            viewModel.CharacterSelections,
+            character => character.Id == "pixel_starlight_upalupa");
+    }
+
+    [Fact]
     public void ApplyingEquivalentSnapshotPreservesRoomItemIdentity()
     {
         (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
@@ -30,11 +85,140 @@ public sealed class MainWindowViewModelTests
             new FakeUpdateService());
         RoomCardViewModel firstCard = Assert.Single(viewModel.Rooms);
 
-        viewModel.ApplyState(state with { Connected = true });
+        viewModel.ApplyState(state with { RealtimeConnection = ConnectedStatus() });
 
         Assert.Same(firstCard, Assert.Single(viewModel.Rooms));
         Assert.True(viewModel.IsConnected);
         Assert.Equal("연결됨", viewModel.ConnectionText);
+    }
+
+    [Fact]
+    public void DisconnectedStateUsesAnExplicitOfflineLabel()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        Assert.False(viewModel.IsConnected);
+        Assert.Equal("연결 안 됨", viewModel.ConnectionText);
+    }
+
+    [Fact]
+    public async Task ProfileSaveIsDisabledUntilTheServerRequestCompletes()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.SaveProfileHandler = (_, _, _) => completion.Task;
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        Task pending = viewModel.SaveProfileCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsSavingProfile);
+        Assert.False(viewModel.SaveProfileCommand.CanExecute(null));
+        completion.SetResult();
+        await pending;
+        Assert.False(viewModel.IsSavingProfile);
+        Assert.True(viewModel.SaveProfileCommand.CanExecute(null));
+        Assert.Equal(1, coordinator.SaveProfileCallCount);
+    }
+
+    [Fact]
+    public async Task SuccessfulCreateAndJoinClearTheirSubmittedFields()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService())
+        {
+            CreateRoomName = "새 그룹",
+            InviteCode = "ABCD-EFGH",
+        };
+
+        await viewModel.CreateRoomCommand.ExecuteAsync(null);
+        await viewModel.JoinRoomCommand.ExecuteAsync(null);
+
+        Assert.Equal(string.Empty, viewModel.CreateRoomName);
+        Assert.Equal(string.Empty, viewModel.InviteCode);
+        Assert.Equal(1, coordinator.CreateRoomCallCount);
+        Assert.Equal(1, coordinator.JoinRoomCallCount);
+    }
+
+    [Fact]
+    public async Task FailedCreateAndJoinPreserveTheirSubmittedFields()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        coordinator.CreateRoomHandler = (_, _) =>
+            Task.FromException(new InvalidOperationException("create failed"));
+        coordinator.JoinRoomHandler = (_, _) =>
+            Task.FromException(new InvalidOperationException("join failed"));
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService())
+        {
+            CreateRoomName = "다시 쓸 그룹 이름",
+            InviteCode = "KEEP-CODE",
+        };
+
+        await viewModel.CreateRoomCommand.ExecuteAsync(null);
+        await viewModel.JoinRoomCommand.ExecuteAsync(null);
+
+        Assert.Equal("다시 쓸 그룹 이름", viewModel.CreateRoomName);
+        Assert.Equal("KEEP-CODE", viewModel.InviteCode);
+    }
+
+    [Fact]
+    public async Task LateSuccessDoesNotClearAChangedCreateOrJoinDraft()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var createCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var joinCompletion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.CreateRoomHandler = (_, _) => createCompletion.Task;
+        coordinator.JoinRoomHandler = (_, _) => joinCompletion.Task;
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService())
+        {
+            CreateRoomName = "제출한 그룹",
+            InviteCode = "SUBMITTED-CODE",
+        };
+
+        Task createRequest = viewModel.CreateRoomCommand.ExecuteAsync(null);
+        viewModel.CreateRoomName = "새 그룹 초안";
+        createCompletion.SetResult();
+        await createRequest;
+
+        Task joinRequest = viewModel.JoinRoomCommand.ExecuteAsync(null);
+        viewModel.InviteCode = "NEW-DRAFT";
+        joinCompletion.SetResult();
+        await joinRequest;
+
+        Assert.Equal("새 그룹 초안", viewModel.CreateRoomName);
+        Assert.Equal("NEW-DRAFT", viewModel.InviteCode);
+    }
+
+    [Fact]
+    public async Task InviteCopyShowsPerRoomConfirmation()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+        RoomCardViewModel room = Assert.Single(viewModel.Rooms);
+
+        await room.InviteCommand.ExecuteAsync(null);
+
+        Assert.True(room.IsInviteCopyConfirmed);
+        Assert.Equal("복사 완료", room.InviteActionText);
+        room.Dispose();
     }
 
     [Fact]
@@ -88,7 +272,7 @@ public sealed class MainWindowViewModelTests
             SelectedCharacterId = "pixel_cat",
         };
 
-        viewModel.ApplyState(state with { Connected = true });
+        viewModel.ApplyState(state with { RealtimeConnection = ConnectedStatus() });
 
         Assert.Equal("draft-name", viewModel.Nickname);
         Assert.Equal("pixel_cat", viewModel.SelectedCharacterId);
@@ -246,6 +430,26 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task UpdateInformationShowsVersionLastCheckAndOpensReleaseNotes()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var updates = new FakeUpdateService { CurrentVersion = "1.0.5" };
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            updates);
+
+        Assert.Equal("v1.0.5", viewModel.CurrentVersionText);
+        Assert.NotEmpty(viewModel.LastUpdateCheckText);
+
+        await viewModel.CheckForUpdatesOnStartupAsync();
+        await viewModel.OpenReleaseNotesCommand.ExecuteAsync(null);
+
+        Assert.NotNull(updates.LastCheckedAt);
+        Assert.Equal(1, updates.ReleaseNotesLaunchCount);
+    }
+
+    [Fact]
     public async Task ManualUpdateCheckReportsTheLatestVersion()
     {
         (FakeSideyCoordinator coordinator, _) = CreateRoomState();
@@ -317,6 +521,7 @@ public sealed class MainWindowViewModelTests
         Assert.False(target.IsJoinEnabled);
         Assert.False(active.IsSwitching);
         Assert.False(viewModel.AreGroupMutationsEnabled);
+        Assert.All(viewModel.Rooms, room => Assert.False(room.AreRoomActionsEnabled));
         Assert.All(viewModel.Rooms, room => Assert.False(room.AreOwnerActionsEnabled));
         Assert.All(viewModel.Rooms.SelectMany(room => room.Members), member =>
             Assert.False(member.CanRemove));
@@ -379,6 +584,31 @@ public sealed class MainWindowViewModelTests
         Assert.Equal("멤버를 내보냈습니다.", notice?.Message);
     }
 
+    [Fact]
+    public async Task LeavingAnyRoomRequiresConfirmationAndUsesTheSelectedRoom()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateMultiRoomState();
+        var dialogs = new FakeMainWindowDialogService { ConfirmRoomLeave = false };
+        var viewModel = new MainWindowViewModel(coordinator, dialogs, new FakeUpdateService());
+        RoomCardViewModel room = viewModel.Rooms[1];
+
+        await room.LeaveCommand.ExecuteAsync(null);
+
+        Assert.Equal("Second", dialogs.ConfirmedLeaveRoomName);
+        Assert.True(dialogs.ConfirmedLeaveRoomIsOwner);
+        Assert.Equal(0, coordinator.LeaveRoomCallCount);
+
+        dialogs.ConfirmRoomLeave = true;
+        NoticeMessage? notice = null;
+        viewModel.NoticeRaised += value => notice = value;
+        await room.LeaveCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, coordinator.LeaveRoomCallCount);
+        Assert.Equal(room.Room.Id, coordinator.LastLeftRoomId);
+        Assert.Equal(NoticeKind.Success, notice?.Kind);
+        Assert.Equal("그룹에서 나왔습니다.", notice?.Message);
+    }
+
     private static (FakeSideyCoordinator Coordinator, CoordinatorState State) CreateRoomState()
     {
         Guid userId = Guid.NewGuid();
@@ -397,10 +627,12 @@ public sealed class MainWindowViewModelTests
             Profile = profile,
             Rooms = [room],
             ActiveRoomId = roomId,
-            Connected = false,
+            RealtimeConnection = RealtimeConnectionStatus.Disconnected,
         };
         return (new FakeSideyCoordinator { State = state }, state);
     }
+
+    private static RealtimeConnectionStatus ConnectedStatus() => new(true, true, true);
 
     private static (FakeSideyCoordinator Coordinator, CoordinatorState State) CreateMultiRoomState()
     {

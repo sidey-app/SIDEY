@@ -1,5 +1,11 @@
 namespace Sidey.Core.Domain;
 
+public enum PixelCharacterVisualEffect
+{
+    None,
+    StarlightSparkles,
+}
+
 public sealed record PixelCharacterDefinition(
     string Id,
     string DisplayName,
@@ -12,6 +18,8 @@ public sealed record PixelCharacterDefinition(
     int FrameCount,
     int FootBaselinePixel,
     PixelCharacterFrameContract Frames,
+    string? EntitlementKey,
+    PixelCharacterVisualEffect VisualEffect,
     IReadOnlyList<string> CompatibleAliases);
 
 public sealed record PixelCharacterFrameContract(
@@ -61,20 +69,25 @@ public static class PixelCharacterCatalog
         Create(
             "pixel_guinea_pig",
             Localization.I18n.Get("characters.guineaPig"),
-            "1a0bf85dae86f2e6bb460e8b0b852c2bd010d5ff6f7efd1477cbd6986da64f5b"),
+            "1a0bf85dae86f2e6bb460e8b0b852c2bd010d5ff6f7efd1477cbd6986da64f5b",
+            entitlementKey: "character:pixel_guinea_pig"),
         Create(
             "pixel_monkey",
             Localization.I18n.Get("characters.monkey"),
-            "515fe377f5344dd4cbaa2b0faf58de3ce72fdc62be5aff6a9d9de683983c783b"),
+            "515fe377f5344dd4cbaa2b0faf58de3ce72fdc62be5aff6a9d9de683983c783b",
+            entitlementKey: "character:pixel_monkey"),
         Create(
             "pixel_chinchilla",
             Localization.I18n.Get("characters.chinchilla"),
             "c0009e007a7a63029fb58ad6f94d2b9a8c9ae7a55f139dd4892050f11614c5d4",
-            ["pixel_koala"]),
+            ["pixel_koala"],
+            "character:pixel_chinchilla"),
         Create(
             "pixel_starlight_upalupa",
             Localization.I18n.Get("characters.starlightUpalupa"),
-            "d180810a8796280077f3f70f6da681888c583c2f8d74776d0f5d300e943a079a"),
+            "d180810a8796280077f3f70f6da681888c583c2f8d74776d0f5d300e943a079a",
+            entitlementKey: "character:pixel_starlight_upalupa",
+            visualEffect: PixelCharacterVisualEffect.StarlightSparkles),
     ];
 
     private static readonly PixelCharacterDefinition[] SelectableDefinitions = Definitions[..5];
@@ -89,11 +102,34 @@ public static class PixelCharacterCatalog
     public static IReadOnlyList<PixelCharacterDefinition> All => Definitions;
 
     /// <summary>
-    /// Characters that Windows can select without opening macOS commerce.
-    /// Paid characters remain renderable through <see cref="All"/> so friends
-    /// keep their actual appearance across platforms.
+    /// Characters that every account can select without an entitlement.
     /// </summary>
     public static IReadOnlyList<PixelCharacterDefinition> Selectable => SelectableDefinitions;
+
+    public static IReadOnlyList<PixelCharacterDefinition> SelectableFor(
+        IReadOnlySet<string> activeEntitlementKeys)
+    {
+        ArgumentNullException.ThrowIfNull(activeEntitlementKeys);
+        return Definitions
+            .Where(definition => definition.EntitlementKey is null
+                || activeEntitlementKeys.Contains(definition.EntitlementKey))
+            .ToArray();
+    }
+
+    public static IReadOnlySet<string> ResolveActiveEntitlementKeys(
+        IReadOnlySet<string>? remoteKeys,
+        string? profileCharacterId)
+    {
+        if (remoteKeys is not null)
+        {
+            return new HashSet<string>(remoteKeys, StringComparer.Ordinal);
+        }
+
+        string? entitlementKey = Get(profileCharacterId).EntitlementKey;
+        return entitlementKey is null
+            ? new HashSet<string>(StringComparer.Ordinal)
+            : new HashSet<string>([entitlementKey], StringComparer.Ordinal);
+    }
 
     public static PixelCharacterDefinition Fallback => ById[FallbackId];
 
@@ -111,11 +147,30 @@ public static class PixelCharacterCatalog
 
     public static PixelCharacterDefinition Get(string? characterId) => ById[NormalizeId(characterId)];
 
+    public static bool CanSelect(
+        string? characterId,
+        IReadOnlySet<string> activeEntitlementKeys)
+    {
+        ArgumentNullException.ThrowIfNull(activeEntitlementKeys);
+        PixelCharacterDefinition definition = Get(characterId);
+        return definition.EntitlementKey is null
+            || activeEntitlementKeys.Contains(definition.EntitlementKey);
+    }
+
+    public static string SelectableId(
+        string? characterId,
+        IReadOnlySet<string> activeEntitlementKeys) =>
+        CanSelect(characterId, activeEntitlementKeys)
+            ? NormalizeId(characterId)
+            : FallbackId;
+
     private static PixelCharacterDefinition Create(
         string id,
         string displayName,
         string spriteSheetSha256,
-        IReadOnlyList<string>? aliases = null) => new(
+        IReadOnlyList<string>? aliases = null,
+        string? entitlementKey = null,
+        PixelCharacterVisualEffect visualEffect = PixelCharacterVisualEffect.None) => new(
             id,
             displayName,
             $"Character/{id}/base.png",
@@ -127,5 +182,7 @@ public static class PixelCharacterCatalog
             FrameCount: 10,
             FootBaselinePixel: 3,
             Frames: PixelCharacterFrameContract.Standard,
+            EntitlementKey: entitlementKey,
+            VisualEffect: visualEffect,
             CompatibleAliases: aliases ?? Array.Empty<string>());
 }

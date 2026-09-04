@@ -1,3 +1,4 @@
+using Sidey.Core.Abstractions;
 using Sidey.Core.Domain;
 using Sidey.Presentation.Services;
 using Sidey.Presentation.ViewModels;
@@ -17,6 +18,27 @@ public sealed class OnboardingViewModelTests
     }
 
     [Fact]
+    public void IssuedCharactersAppearInTheOnboardingProfilePicker()
+    {
+        var coordinator = new FakeSideyCoordinator
+        {
+            State = CoordinatorState.Initial with
+            {
+                ActiveEntitlementKeys = new HashSet<string>(StringComparer.Ordinal)
+                {
+                    "character:pixel_starlight_upalupa",
+                },
+            },
+        };
+
+        var viewModel = new OnboardingViewModel(coordinator);
+
+        Assert.Contains(
+            viewModel.CharacterSelections,
+            character => character.Id == "pixel_starlight_upalupa");
+    }
+
+    [Fact]
     public async Task PreviewModeWalksEveryStepWithoutServerMutations()
     {
         var coordinator = new FakeSideyCoordinator
@@ -24,7 +46,7 @@ public sealed class OnboardingViewModelTests
             State = CoordinatorState.Initial with
             {
                 Preferences = AppPreferences.Default with { OnboardingCompleted = true },
-                Connected = false,
+                RealtimeConnection = RealtimeConnectionStatus.Disconnected,
             },
         };
         var viewModel = new OnboardingViewModel(coordinator, isPreviewMode: true)
@@ -68,7 +90,7 @@ public sealed class OnboardingViewModelTests
                 Rooms = [room],
                 ActiveRoomId = room.Id,
                 Preferences = AppPreferences.Default with { OnboardingCompleted = true },
-                Connected = true,
+                RealtimeConnection = ConnectedStatus(),
             },
         };
         var viewModel = new OnboardingViewModel(coordinator, isPreviewMode: true);
@@ -110,7 +132,7 @@ public sealed class OnboardingViewModelTests
             State = CoordinatorState.Initial with
             {
                 Profile = new Profile(Guid.NewGuid(), "사이드", "pixel_cat"),
-                Connected = true,
+                RealtimeConnection = ConnectedStatus(),
             },
         };
         var viewModel = new OnboardingViewModel(coordinator);
@@ -140,7 +162,7 @@ public sealed class OnboardingViewModelTests
             State = CoordinatorState.Initial with
             {
                 Profile = profile,
-                Connected = true,
+                RealtimeConnection = ConnectedStatus(),
             },
         };
         var viewModel = new OnboardingViewModel(coordinator);
@@ -168,7 +190,7 @@ public sealed class OnboardingViewModelTests
 
         Assert.False(viewModel.CanSaveProfile);
 
-        viewModel.ApplyState(coordinator.State with { Connected = true });
+        viewModel.ApplyState(coordinator.State with { RealtimeConnection = ConnectedStatus() });
 
         Assert.True(viewModel.CanSaveProfile);
     }
@@ -182,7 +204,7 @@ public sealed class OnboardingViewModelTests
             State = CoordinatorState.Initial with
             {
                 Profile = profile,
-                Connected = true,
+                RealtimeConnection = ConnectedStatus(),
             },
         };
         var viewModel = new OnboardingViewModel(coordinator)
@@ -191,9 +213,14 @@ public sealed class OnboardingViewModelTests
             SelectedCharacterId = "pixel_cat",
         };
 
-        viewModel.ApplyState(coordinator.State with { Connected = false });
+        viewModel.ApplyState(coordinator.State with
+        {
+            RealtimeConnection = RealtimeConnectionStatus.Disconnected,
+        });
 
         Assert.Equal("draft-name", viewModel.Nickname);
         Assert.Equal("pixel_cat", viewModel.SelectedCharacterId);
     }
+
+    private static RealtimeConnectionStatus ConnectedStatus() => new(true, true, true);
 }

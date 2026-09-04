@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using Sidey.Core.Abstractions;
 using Sidey.Core.Domain;
 using Sidey.Core.Localization;
@@ -137,6 +138,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 #endif
         if (configuration is null)
         {
+            StartupDiagnostics.Stage("server-configuration result=missing");
 #if DEBUG
             StartPreviewOverlay(preferences);
             SetState(_state with
@@ -155,22 +157,38 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         }
 
         var auth = new SupabaseAnonymousAuthService(configuration, _credentialStore);
+        StartupDiagnostics.Stage("auth-session-read-started");
         var stored = await _credentialStore.ReadAsync(
             CredentialKey.SupabaseSession,
             cancellationToken);
+        bool restoringSession = !string.IsNullOrWhiteSpace(stored);
+        StartupDiagnostics.Stage(
+            $"auth-session-read-completed result={(restoringSession ? "present" : "missing")}");
+        StartupDiagnostics.Stage(
+            $"auth-session-bootstrap-started mode={(restoringSession ? "restore" : "create")}");
         await AnonymousSessionBootstrapper.RestoreOrCreateAsync(
             auth,
-            hasStoredSession: !string.IsNullOrWhiteSpace(stored),
+            hasStoredSession: restoringSession,
             cancellationToken);
+        StartupDiagnostics.Stage(
+            $"auth-session-bootstrap-completed mode={(restoringSession ? "restore" : "create")}");
         var backend = new SupabaseBackendGateway(configuration, auth, _credentialStore);
         _auth = auth;
         _backend = backend;
 
+        StartupDiagnostics.Stage("server-snapshot-fetch-started");
         var snapshot = await backend.FetchSnapshotAsync(cancellationToken);
+        StartupDiagnostics.Stage(
+            $"server-snapshot-fetch-completed rooms={snapshot.Rooms.Count} profile={(snapshot.Profile is null ? "missing" : "present")}");
         var activeRoomId = SelectActiveRoom(preferences.ActiveRoomId, snapshot.Rooms);
         _state = _state with { ActiveRoomId = activeRoomId };
         ApplySnapshot(snapshot);
-        _state = _state with { ActiveRoomId = activeRoomId, Connected = false, ErrorMessage = null };
+        _state = _state with
+        {
+            ActiveRoomId = activeRoomId,
+            RealtimeConnection = RealtimeConnectionStatus.Disconnected,
+            ErrorMessage = null,
+        };
 
         _roomSwitch = new RoomSwitchPipeline(
             PerformRoomSwitchAsync,
@@ -178,15 +196,22 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             CommitRoomSwitch);
         _roomSwitch.InitializeCommittedRoom(activeRoomId);
         _eventPump = PumpBackendEventsAsync();
+        StartupDiagnostics.Stage(
+            $"realtime-subscription-sync-started rooms={snapshot.Rooms.Count}");
         await backend.SynchronizeRealtimeRoomsAsync(
             RoomEpochs(snapshot.Rooms),
             activeRoomId,
             _localPresence,
             cancellationToken);
+        StartupDiagnostics.Stage(
+            $"realtime-subscription-sync-completed rooms={snapshot.Rooms.Count}");
         if (activeRoomId is { } roomId)
         {
+            StartupDiagnostics.Stage("message-history-fetch-started active=true");
             var history = await backend.FetchRecentMessagesAsync(roomId, cancellationToken);
             _messages.ReplaceConfirmed(roomId, history);
+            StartupDiagnostics.Stage(
+                $"message-history-fetch-completed result=success count={history.Count}");
         }
         _activityPump = PumpActivityAsync();
         await PersistPreferencesAsync(cancellationToken);
@@ -514,7 +539,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             Preferences = _state.Preferences with { RequiresRightClickToThrow = enabled },
         });
         await PersistPreferencesAsync(cancellationToken);
-        _overlay?.ConfigureThrowInteraction(enabled, _backend is null || _state.Connected);
+        _overlay?.ConfigureThrowInteraction(enabled, _backend is null || _state.ActiveRoomConnected);
     }
 
     public async Task SetStartAtLoginAsync(
@@ -656,7 +681,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             ?? _previewSnapshot?.Members.FirstOrDefault(member => member.IsCurrentUser)?.CharacterId;
         if (roomId is null || actorUserId is null || sourceCharacterId is null
             || actorUserId == targetUserId
-            || (_backend is not null && !_state.Connected))
+            || (_backend is not null && !_state.ActiveRoomConnected))
         {
             return;
         }
@@ -803,12 +828,17 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                         await ReconcileSnapshotAsync(snapshot.Snapshot, _lifetime.Token);
                         break;
                     case BackendEvent.MessageReceived message:
+                        bool isActiveRoom = message.Message.RoomId == _state.ActiveRoomId;
+                        StartupDiagnostics.Stage(
+                            $"realtime-message-received active={isActiveRoom.ToString().ToLowerInvariant()}");
                         _messages.Confirm(message.Message);
+                        StartupDiagnostics.Stage("message-ledger-confirmed");
                         _bubbles.Show(
                             message.Message.SenderId,
                             message.Message.Id,
                             message.Message.Body);
-                        bool isActiveRoom = message.Message.RoomId == _state.ActiveRoomId;
+                        StartupDiagnostics.Stage(
+                            $"message-bubble-enqueued active={isActiveRoom.ToString().ToLowerInvariant()} quiet={_state.Preferences.QuietMode.ToString().ToLowerInvariant()}");
                         if (message.Message.SenderId != _state.Profile?.Id
                             && (!isActiveRoom || _state.Preferences.QuietMode))
                         {
@@ -817,7 +847,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                                 _unreadByRoom.GetValueOrDefault(message.Message.RoomId) + 1);
                         }
                         PublishState();
-                        ApplyWorldSnapshot();
+                        ApplyWorldSnapshot("message");
                         break;
                     case BackendEvent.MessageDeleted deleted:
                         _messages.Remove(deleted.RoomId, deleted.MessageId);
@@ -826,6 +856,8 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                         ApplyWorldSnapshot();
                         break;
                     case BackendEvent.MessagesReplaced replaced:
+                        StartupDiagnostics.Stage(
+                            $"realtime-messages-reconciled active={(replaced.RoomId == _state.ActiveRoomId).ToString().ToLowerInvariant()}");
                         _messages.ReplaceConfirmed(replaced.RoomId, replaced.Messages);
                         if (replaced.RoomId == _state.ActiveRoomId)
                         {
@@ -883,11 +915,16 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                         break;
                     case BackendEvent.ConnectionChanged connection:
                         StartupDiagnostics.Stage(
-                            $"realtime-connection connected={connection.Connected.ToString().ToLowerInvariant()}");
-                        SetRealtimeConnected(connection.Connected);
+                            $"realtime-connection transport={connection.Status.TransportConnected.ToString().ToLowerInvariant()} "
+                            + $"active-room={connection.Status.ActiveRoomTransportConnected.ToString().ToLowerInvariant()} "
+                            + $"reconciled={connection.Status.RecoveryReconciled.ToString().ToLowerInvariant()}");
+                        SetRealtimeConnection(connection.Status);
+                        break;
+                    case BackendEvent.Diagnostic diagnostic:
+                        StartupDiagnostics.Stage(diagnostic.Stage);
                         break;
                     case BackendEvent.TechnicalError error:
-                        StartupDiagnostics.Stage($"realtime-technical-error {error.Message}");
+                        StartupDiagnostics.Stage("realtime-technical-error");
                         SetState(_state with { ErrorMessage = error.Message });
                         break;
                 }
@@ -898,7 +935,12 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         }
         catch (Exception exception)
         {
-            SetState(_state with { Connected = false, ErrorMessage = exception.Message });
+            StartupDiagnostics.NonFatal("backend-event-pump", exception);
+            SetState(_state with
+            {
+                RealtimeConnection = RealtimeConnectionStatus.Disconnected,
+                ErrorMessage = exception.Message,
+            });
         }
     }
 
@@ -925,7 +967,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             }
             catch when (!_lifetime.IsCancellationRequested)
             {
-                SetState(_state with { Connected = false });
+                SetRealtimeConnection(RealtimeConnectionStatus.Disconnected);
             }
         }
     }
@@ -969,46 +1011,50 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         });
     }
 
-    private void SetRealtimeConnected(bool connected)
+    private void SetRealtimeConnection(RealtimeConnectionStatus status)
     {
-        if (!connected)
+        bool activeRoomConnectionChanged =
+            status.ActiveRoomTransportConnected != _state.ActiveRoomConnected;
+        if (activeRoomConnectionChanged && !status.ActiveRoomTransportConnected)
         {
             _typing.Clear();
         }
 
         var currentUserId = _state.Profile?.Id;
-        var rooms = _state.Rooms.Select(room => room with
-        {
-            Members = room.Members.Select(member =>
+        IReadOnlyList<Room> rooms = activeRoomConnectionChanged
+            ? _state.Rooms.Select(room => room with
             {
-                var key = (room.Id, member.UserId);
-                if (connected)
+                Members = room.Members.Select(member =>
                 {
-                    return member with
+                    var key = (room.Id, member.UserId);
+                    if (status.ActiveRoomTransportConnected)
                     {
-                        Presence = member.UserId == currentUserId
-                            ? _localPresence
-                            : _basePresence.GetValueOrDefault(key, PresenceState.Offline),
-                    };
-                }
+                        return member with
+                        {
+                            Presence = member.UserId == currentUserId
+                                ? _localPresence
+                                : _basePresence.GetValueOrDefault(key, PresenceState.Offline),
+                        };
+                    }
 
-                if (member.Presence == PresenceState.Offline)
-                {
-                    return member;
-                }
+                    if (member.Presence == PresenceState.Offline)
+                    {
+                        return member;
+                    }
 
-                if (member.UserId != currentUserId)
-                {
-                    _basePresence[key] = PresenceState.Offline;
-                }
-                return member with { Presence = PresenceState.Reconnecting };
-            }).ToArray(),
-        }).ToArray();
+                    if (member.UserId != currentUserId)
+                    {
+                        _basePresence[key] = PresenceState.Offline;
+                    }
+                    return member with { Presence = PresenceState.Reconnecting };
+                }).ToArray(),
+            }).ToArray()
+            : _state.Rooms;
 
-        SetState(_state with { Rooms = rooms, Connected = connected });
+        SetState(_state with { Rooms = rooms, RealtimeConnection = status });
         _overlay?.ConfigureThrowInteraction(
             _state.Preferences.RequiresRightClickToThrow,
-            connected);
+            status.ActiveRoomTransportConnected);
         if (_overlay is null
             && _state.ActiveRoomId is not null
             && _state.Preferences.OverlayVisible)
@@ -1024,6 +1070,14 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
     private void ApplySnapshot(BackendSnapshot snapshot)
     {
         var activeRoomId = SelectActiveRoom(_state.ActiveRoomId, snapshot.Rooms);
+        Profile? profile = snapshot.Profile is null
+            ? null
+            : snapshot.Profile with
+            {
+                CharacterId = PixelCharacterCatalog.SelectableId(
+                    snapshot.Profile.CharacterId,
+                    snapshot.ActiveEntitlementKeys),
+            };
         PresenceState? KnownPresence(Guid roomId, Guid userId) =>
             _basePresence.TryGetValue((roomId, userId), out var presence)
                 ? presence
@@ -1032,6 +1086,9 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         {
             Members = room.Members.Select(member => member with
             {
+                CharacterId = member.UserId == snapshot.CurrentUserId && profile is not null
+                    ? profile.CharacterId
+                    : member.CharacterId,
                 Presence = LocalPresenceProjection.ForSnapshotMember(
                     member.UserId,
                     snapshot.CurrentUserId,
@@ -1061,18 +1118,19 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         }
         _state = _state with
         {
-            Profile = snapshot.Profile,
+            Profile = profile,
             Rooms = projectedRooms,
+            ActiveEntitlementKeys = snapshot.ActiveEntitlementKeys,
             ActiveRoomId = activeRoomId,
             Preferences = _state.Preferences with
             {
                 OnboardingCompleted = _state.Preferences.OnboardingCompleted
-                    || (snapshot.Profile is not null && snapshot.Rooms.Count > 0),
+                    || (profile is not null && snapshot.Rooms.Count > 0),
                 ActiveRoomId = activeRoomId,
-                CachedNickname = snapshot.Profile?.Nickname ?? _state.Preferences.CachedNickname,
-                CachedCharacterId = snapshot.Profile is null
+                CachedNickname = profile?.Nickname ?? _state.Preferences.CachedNickname,
+                CachedCharacterId = profile is null
                     ? _state.Preferences.CachedCharacterId
-                    : PixelCharacterCatalog.NormalizeId(snapshot.Profile.CharacterId),
+                    : profile.CharacterId,
             },
         };
         PublishState();
@@ -1121,7 +1179,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             _localPresence,
             cancellationToken);
         if (_overlay is null
-            && _state.Connected
+            && _state.ActiveRoomConnected
             && _state.ActiveRoomId is not null
             && _state.Preferences.OverlayVisible)
         {
@@ -1164,18 +1222,36 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         }
 
         _overlay?.Dispose();
-        _overlay = NativePixelWorldSession.Start(
-            _state.Preferences.OverlayRegion,
-            snapshot,
-            RequestComposer,
-            RequestCharacterPulse,
-            RequestCharacterThrow,
-            _state.Preferences.RequiresRightClickToThrow,
-            _backend is null || _state.Connected,
-            exception => RenderingFailed?.Invoke(exception),
-            new NativePixelWorldSessionOptions(
-                ValidationCharacterIds: validationIds,
-                CollectValidationMetrics: validationIds is not null));
+        try
+        {
+            _overlay = NativePixelWorldSession.Start(
+                _state.Preferences.OverlayRegion,
+                snapshot,
+                RequestComposer,
+                RequestCharacterPulse,
+                RequestCharacterThrow,
+                _state.Preferences.RequiresRightClickToThrow,
+                _backend is null || _state.ActiveRoomConnected,
+                exception => RenderingFailed?.Invoke(exception),
+                new NativePixelWorldSessionOptions(
+                    ValidationCharacterIds: validationIds,
+                    CollectValidationMetrics: validationIds is not null,
+                    MessageBubblesPresented: count => StartupDiagnostics.Stage(
+                        $"overlay-message-presented count={count}"),
+                    Diagnostic: StartupDiagnostics.Stage,
+                    DiagnosticFailure: StartupDiagnostics.NonFatal,
+                    RendererPerformanceSampled: (average, maximum, frames, skipped) =>
+                        StartupDiagnostics.Stage(
+                            $"renderer-health frames={frames} "
+                            + $"average-ms={average.ToString("F2", CultureInfo.InvariantCulture)} "
+                            + $"maximum-ms={maximum.ToString("F2", CultureInfo.InvariantCulture)} "
+                            + $"skipped={skipped}")));
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal("overlay-window-create", exception);
+            throw;
+        }
         StartupDiagnostics.Stage("overlay-started");
     }
 
@@ -1187,14 +1263,29 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         StartOverlay(snapshot);
     }
 
-    private void ApplyWorldSnapshot()
+    private void ApplyWorldSnapshot(string? diagnosticContext = null)
     {
         if (_overlay is null)
         {
+            if (diagnosticContext is not null)
+            {
+                StartupDiagnostics.Stage(
+                    $"overlay-snapshot-skipped context={diagnosticContext} reason=not-started");
+            }
             return;
         }
         _bubbles.Prune();
-        _overlay.ApplyAsync(CurrentWorldSnapshot()).GetAwaiter().GetResult();
+        WorldSnapshot snapshot = CurrentWorldSnapshot();
+        if (diagnosticContext is not null)
+        {
+            StartupDiagnostics.Stage(
+                $"overlay-snapshot-dispatched context={diagnosticContext} visible={_overlay.IsVisible.ToString().ToLowerInvariant()} members={snapshot.Members.Count} bubbles={snapshot.Bubbles.Count}");
+        }
+        _overlay.ApplyAsync(snapshot).GetAwaiter().GetResult();
+        if (diagnosticContext is not null)
+        {
+            StartupDiagnostics.Stage($"overlay-snapshot-accepted context={diagnosticContext}");
+        }
         _pendingPulses.Clear();
         _pendingThrows.Clear();
     }
@@ -1314,7 +1405,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             _typingLease.Update(active: false, requestedRoomId: null);
             SetState(_state with
             {
-                Connected = false,
+                RealtimeConnection = RealtimeConnectionStatus.Disconnected,
                 ErrorMessage = I18n.Format("error.typingUpdateFailed", exception.Message),
             });
         }

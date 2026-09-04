@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sidey.Core.Domain;
@@ -16,6 +17,12 @@ public enum NoticeKind
 }
 
 public sealed record NoticeMessage(string Message, NoticeKind Kind);
+
+public sealed record StoreProductPreviewViewModel(
+    string CharacterId,
+    string DisplayName,
+    string Description,
+    string FormattedPrice);
 
 public sealed partial class CharacterSelectionItemViewModel : ObservableObject
 {
@@ -46,7 +53,7 @@ public sealed record RoomMemberCardViewModel(
     bool CanRemove,
     IAsyncRelayCommand RemoveCommand);
 
-public sealed class RoomCardViewModel : ObservableObject
+public sealed class RoomCardViewModel : ObservableObject, IDisposable
 {
     private Room _room;
     private string _name = string.Empty;
@@ -58,17 +65,22 @@ public sealed class RoomCardViewModel : ObservableObject
     private string _expansionGlyph = string.Empty;
     private string _expansionActionText = string.Empty;
     private string _inviteActionText = string.Empty;
+    private string _defaultInviteActionText = string.Empty;
     private bool _isInviteActionEnabled;
     private string _joinActionText = string.Empty;
     private bool _isJoinEnabled;
     private bool _isSwitching;
+    private bool _areRoomActionsEnabled;
     private bool _areOwnerActionsEnabled;
+    private bool _isInviteCopyConfirmed;
+    private CancellationTokenSource? _inviteCopyFeedback;
 
     public RoomCardViewModel(
         Room room,
         IAsyncRelayCommand joinCommand,
         IRelayCommand toggleCommand,
         IAsyncRelayCommand inviteCommand,
+        IAsyncRelayCommand leaveCommand,
         IAsyncRelayCommand renameCommand,
         IAsyncRelayCommand deleteCommand)
     {
@@ -76,8 +88,29 @@ public sealed class RoomCardViewModel : ObservableObject
         JoinCommand = joinCommand;
         ToggleCommand = toggleCommand;
         InviteCommand = inviteCommand;
+        LeaveCommand = leaveCommand;
         RenameCommand = renameCommand;
         DeleteCommand = deleteCommand;
+        foreach (IAsyncRelayCommand command in new[]
+        {
+            JoinCommand,
+            InviteCommand,
+            LeaveCommand,
+            RenameCommand,
+            DeleteCommand,
+        })
+        {
+            command.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName == nameof(IAsyncRelayCommand.IsRunning))
+                {
+                    OnPropertyChanged(nameof(IsJoinEnabled));
+                    OnPropertyChanged(nameof(IsInviteActionEnabled));
+                    OnPropertyChanged(nameof(AreRoomActionsEnabled));
+                    OnPropertyChanged(nameof(AreOwnerActionsEnabled));
+                }
+            };
+        }
     }
 
     public Room Room => _room;
@@ -138,7 +171,7 @@ public sealed class RoomCardViewModel : ObservableObject
 
     public bool IsInviteActionEnabled
     {
-        get => _isInviteActionEnabled;
+        get => _isInviteActionEnabled && !InviteCommand.IsRunning;
         private set => SetProperty(ref _isInviteActionEnabled, value);
     }
 
@@ -150,7 +183,7 @@ public sealed class RoomCardViewModel : ObservableObject
 
     public bool IsJoinEnabled
     {
-        get => _isJoinEnabled;
+        get => _isJoinEnabled && !JoinCommand.IsRunning;
         private set => SetProperty(ref _isJoinEnabled, value);
     }
 
@@ -162,8 +195,22 @@ public sealed class RoomCardViewModel : ObservableObject
 
     public bool AreOwnerActionsEnabled
     {
-        get => _areOwnerActionsEnabled;
+        get => _areOwnerActionsEnabled
+            && !RenameCommand.IsRunning
+            && !DeleteCommand.IsRunning;
         private set => SetProperty(ref _areOwnerActionsEnabled, value);
+    }
+
+    public bool AreRoomActionsEnabled
+    {
+        get => _areRoomActionsEnabled && !LeaveCommand.IsRunning;
+        private set => SetProperty(ref _areRoomActionsEnabled, value);
+    }
+
+    public bool IsInviteCopyConfirmed
+    {
+        get => _isInviteCopyConfirmed;
+        private set => SetProperty(ref _isInviteCopyConfirmed, value);
     }
 
     public ObservableCollection<RoomMemberCardViewModel> Members { get; } = [];
@@ -173,6 +220,8 @@ public sealed class RoomCardViewModel : ObservableObject
     public IRelayCommand ToggleCommand { get; }
 
     public IAsyncRelayCommand InviteCommand { get; }
+
+    public IAsyncRelayCommand LeaveCommand { get; }
 
     public IAsyncRelayCommand RenameCommand { get; }
 
@@ -189,6 +238,7 @@ public sealed class RoomCardViewModel : ObservableObject
         bool isSwitching,
         string inviteActionText,
         bool isInviteActionEnabled,
+        bool areRoomActionsEnabled,
         bool areOwnerActionsEnabled,
         IReadOnlyList<RoomMemberCardViewModel> members)
     {
@@ -206,10 +256,51 @@ public sealed class RoomCardViewModel : ObservableObject
         ExpansionActionText = isExpanded
             ? I18n.Get("groups.collapse")
             : I18n.Get("groups.expand");
-        InviteActionText = inviteActionText;
+        _defaultInviteActionText = inviteActionText;
+        if (!IsInviteCopyConfirmed)
+        {
+            InviteActionText = inviteActionText;
+        }
         IsInviteActionEnabled = isInviteActionEnabled;
+        AreRoomActionsEnabled = areRoomActionsEnabled;
         AreOwnerActionsEnabled = areOwnerActionsEnabled;
         UpdateMembers(members);
+    }
+
+    internal void ShowInviteCopyConfirmation()
+    {
+        _inviteCopyFeedback?.Cancel();
+        _inviteCopyFeedback?.Dispose();
+        var feedback = new CancellationTokenSource();
+        _inviteCopyFeedback = feedback;
+        InviteActionText = I18n.Get("groups.inviteCopyComplete");
+        IsInviteCopyConfirmed = true;
+        _ = ResetInviteCopyConfirmationAsync(feedback);
+    }
+
+    public void Dispose()
+    {
+        _inviteCopyFeedback?.Cancel();
+        _inviteCopyFeedback?.Dispose();
+        _inviteCopyFeedback = null;
+    }
+
+    private async Task ResetInviteCopyConfirmationAsync(CancellationTokenSource feedback)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3), feedback.Token);
+            if (ReferenceEquals(_inviteCopyFeedback, feedback))
+            {
+                IsInviteCopyConfirmed = false;
+                InviteActionText = _defaultInviteActionText;
+                _inviteCopyFeedback.Dispose();
+                _inviteCopyFeedback = null;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private void UpdateMembers(IReadOnlyList<RoomMemberCardViewModel> desiredMembers)
@@ -290,6 +381,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private bool _roomExpansionInitialized;
     private string _syncedProfileNickname = string.Empty;
     private string _syncedProfileCharacterId = PixelCharacterCatalog.FallbackId;
+    private AvailableUpdate? _lastAvailableUpdate;
 
     [ObservableProperty]
     public partial string Nickname { get; set; } = string.Empty;
@@ -311,6 +403,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool AreGroupMutationsEnabled { get; set; } = true;
+
+    [ObservableProperty]
+    public partial bool IsSavingProfile { get; set; }
 
     [ObservableProperty]
     public partial bool IsConnected { get; set; }
@@ -350,6 +445,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial bool IsCheckingForUpdates { get; set; }
 
     [ObservableProperty]
+    public partial string CurrentVersionText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string LastUpdateCheckText { get; set; } = string.Empty;
+
+    [ObservableProperty]
     public partial string ValidationPathText { get; set; } = I18n.Get("metrics.rendererNotStarted");
 
     [ObservableProperty]
@@ -363,26 +464,55 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _updates = updates ?? throw new ArgumentNullException(nameof(updates));
-        CharacterSelections = PixelCharacterCatalog.Selectable
-            .Select(character => new CharacterSelectionItemViewModel(
-                character.Id,
-                character.DisplayName,
-                character.Id))
-            .ToArray();
+        StoreProducts =
+        [
+            CreateStorePreview(
+                "pixel_starlight_upalupa",
+                "store.starlightUpalupaDescription",
+                "store.price1900"),
+            CreateStorePreview(
+                "pixel_guinea_pig",
+                "store.guineaPigDescription",
+                "store.price990"),
+            CreateStorePreview(
+                "pixel_monkey",
+                "store.monkeyDescription",
+                "store.price990"),
+            CreateStorePreview(
+                "pixel_chinchilla",
+                "store.chinchillaDescription",
+                "store.price990"),
+        ];
         Monitors = _coordinator.GetMonitors();
         ApplyState(coordinator.State);
         UpdateCharacterSelectionState();
+        RefreshUpdateInformation();
     }
 
     public event Action<NoticeMessage>? NoticeRaised;
 
-    public IReadOnlyList<CharacterSelectionItemViewModel> CharacterSelections { get; }
+    public ObservableCollection<CharacterSelectionItemViewModel> CharacterSelections { get; } = [];
+
+    public IReadOnlyList<StoreProductPreviewViewModel> StoreProducts { get; }
 
     public IReadOnlyList<MonitorOption> Monitors { get; }
 
     public ObservableCollection<RoomCardViewModel> Rooms { get; } = [];
 
     public bool IsValidationMode => _coordinator.IsValidationMode;
+
+    private static StoreProductPreviewViewModel CreateStorePreview(
+        string characterId,
+        string descriptionKey,
+        string priceKey)
+    {
+        PixelCharacterDefinition character = PixelCharacterCatalog.Get(characterId);
+        return new StoreProductPreviewViewModel(
+            character.Id,
+            character.DisplayName,
+            I18n.Get(descriptionKey),
+            I18n.Get(priceKey));
+    }
 
     public void PrepareGroupsForPresentation()
     {
@@ -423,6 +553,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             }
 
             _state = state;
+            RefreshCharacterSelections(state.ActiveEntitlementKeys);
             if (shouldApplyProfileDraft)
             {
                 Nickname = syncedNickname;
@@ -441,7 +572,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             IsConnected = state.Connected;
             ConnectionText = state.Connected
                 ? I18n.Get("connection.connected")
-                : I18n.Get("connection.reconnecting");
+                : I18n.Get("connection.disconnected");
             IsOverlayVisible = state.Preferences.OverlayVisible;
             IsQuietMode = state.Preferences.QuietMode;
             ShowOfflineMembers = state.Preferences.ShowOfflineMembers;
@@ -468,35 +599,54 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public void RefreshDiagnostics() => RefreshValidationMetrics();
 
     [RelayCommand]
-    private async Task SaveProfileAsync() => await RunCommandAsync(
-        () => _coordinator.SaveProfileAsync(Nickname, SelectedCharacterId),
-        I18n.Get("profile.saved"));
-
-    [RelayCommand]
-    private async Task CreateRoomAsync() => await RunCommandAsync(
-        () => _coordinator.CreateRoomAsync(CreateRoomName),
-        I18n.Get("groups.createdSimple"));
-
-    [RelayCommand]
-    private async Task JoinRoomAsync() => await RunCommandAsync(
-        () => _coordinator.JoinRoomAsync(InviteCode),
-        I18n.Get("groups.joinedSimple"));
-
-    [RelayCommand]
-    private void Compose() => _coordinator.RequestComposer();
-
-    [RelayCommand]
-    private async Task LeaveActiveRoomAsync()
+    private async Task SaveProfileAsync()
     {
-        if (ActiveRoom() is not { } room)
+        if (IsSavingProfile)
         {
             return;
         }
 
-        await RunCommandAsync(
-            () => _coordinator.LeaveRoomAsync(room.Id),
-            I18n.Get("groups.left"));
+        IsSavingProfile = true;
+        try
+        {
+            await RunCommandAsync(
+                () => _coordinator.SaveProfileAsync(Nickname, SelectedCharacterId),
+                I18n.Get("profile.saved"));
+        }
+        finally
+        {
+            IsSavingProfile = false;
+        }
     }
+
+    [RelayCommand]
+    private async Task CreateRoomAsync()
+    {
+        string submittedName = CreateRoomName;
+        if (await RunCommandAsync(
+            () => _coordinator.CreateRoomAsync(submittedName),
+            I18n.Get("groups.createdSimple"))
+            && StringComparer.Ordinal.Equals(CreateRoomName, submittedName))
+        {
+            CreateRoomName = string.Empty;
+        }
+    }
+
+    [RelayCommand]
+    private async Task JoinRoomAsync()
+    {
+        string submittedCode = InviteCode;
+        if (await RunCommandAsync(
+            () => _coordinator.JoinRoomAsync(submittedCode),
+            I18n.Get("groups.joinedSimple"))
+            && StringComparer.Ordinal.Equals(InviteCode, submittedCode))
+        {
+            InviteCode = string.Empty;
+        }
+    }
+
+    [RelayCommand]
+    private void Compose() => _coordinator.RequestComposer();
 
     [RelayCommand(CanExecute = nameof(CanCheckForUpdates))]
     private async Task CheckForUpdatesAsync()
@@ -505,6 +655,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         try
         {
             AvailableUpdate? update = await _updates.CheckAsync();
+            _lastAvailableUpdate = update;
             if (update is null)
             {
                 RaiseNotice(I18n.Get("update.latest"), NoticeKind.Success);
@@ -528,32 +679,76 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
         finally
         {
+            RefreshUpdateInformation();
             IsCheckingForUpdates = false;
         }
     }
 
-    public async Task CheckForUpdatesOnStartupAsync()
+    public async Task<AvailableUpdate?> CheckForUpdatesOnStartupAsync()
     {
         if (IsCheckingForUpdates)
         {
-            return;
+            return null;
         }
 
         IsCheckingForUpdates = true;
         try
         {
             AvailableUpdate? update = await _updates.CheckAsync();
+            _lastAvailableUpdate = update;
             if (update is not null)
             {
                 RaiseNotice(
                     I18n.Format("update.startupAvailable", update.Version),
                     NoticeKind.Informational);
             }
+            return update;
         }
         finally
         {
+            RefreshUpdateInformation();
             IsCheckingForUpdates = false;
         }
+    }
+
+    [RelayCommand]
+    private async Task OpenReleaseNotesAsync()
+    {
+        try
+        {
+            Uri releaseNotesUri = _lastAvailableUpdate?.ReleaseNotesUri
+                ?? _updates.CurrentReleaseNotesUri;
+            await _updates.OpenReleaseNotesAsync(releaseNotesUri);
+        }
+        catch (Exception exception)
+        {
+            RaiseNotice(
+                I18n.Format("update.releaseNotesFailed", exception.Message),
+                NoticeKind.Error);
+        }
+    }
+
+    private void RefreshUpdateInformation()
+    {
+        CurrentVersionText = $"v{_updates.CurrentVersion}";
+        if (_updates.LastCheckedAt is not { } checkedAt)
+        {
+            LastUpdateCheckText = I18n.Get("settings.updateNeverChecked");
+            return;
+        }
+
+        DateTimeOffset local = checkedAt.ToLocalTime();
+        DateTime today = DateTime.Today;
+        string display = local.Date == today
+            ? I18n.Format(
+                "settings.updateCheckedToday",
+                local.ToString("t", CultureInfo.CurrentCulture))
+            : local.Date == today.AddDays(-1)
+                ? I18n.Format(
+                    "settings.updateCheckedYesterday",
+                    local.ToString("t", CultureInfo.CurrentCulture))
+                : local.ToString("g", CultureInfo.CurrentCulture);
+        LastUpdateCheckText = I18n.Format("settings.updateLastChecked", display);
     }
 
     [RelayCommand]
@@ -637,6 +832,26 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
+    private void RefreshCharacterSelections(IReadOnlySet<string> activeEntitlementKeys)
+    {
+        IReadOnlyList<PixelCharacterDefinition> desired =
+            PixelCharacterCatalog.SelectableFor(activeEntitlementKeys);
+        if (CharacterSelections.Select(character => character.Id)
+            .SequenceEqual(desired.Select(character => character.Id), StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        CharacterSelections.Clear();
+        foreach (PixelCharacterDefinition character in desired)
+        {
+            CharacterSelections.Add(new CharacterSelectionItemViewModel(
+                character.Id,
+                character.DisplayName,
+                character.Id));
+        }
+    }
+
     private bool ProfileDraftMatchesSyncedState() =>
         StringComparer.Ordinal.Equals(Nickname, _syncedProfileNickname)
         && StringComparer.Ordinal.Equals(SelectedCharacterId, _syncedProfileCharacterId);
@@ -676,6 +891,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             new AsyncRelayCommand(() => SwitchRoomAsync(room.Id)),
             new RelayCommand(() => ToggleRoom(room.Id)),
             new AsyncRelayCommand(() => UseInviteCodeAsync(room.Id)),
+            new AsyncRelayCommand(() => LeaveRoomAsync(room.Id)),
             new AsyncRelayCommand(() => RenameRoomAsync(room.Id)),
             new AsyncRelayCommand(() => DeleteRoomAsync(room.Id)));
         UpdateRoomCard(card, room);
@@ -718,6 +934,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 ? I18n.Get("groups.copyInvite")
                 : I18n.Get("groups.rotateInvite"),
             mutationsEnabled && (room.InviteCodeReady || isOwner),
+            mutationsEnabled,
             mutationsEnabled && isOwner,
             members);
     }
@@ -770,7 +987,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
             {
                 throw new InvalidOperationException(I18n.Get("groups.inviteMissing"));
             }
-        }, I18n.Get("groups.inviteCopied"));
+            Rooms.FirstOrDefault(card => card.Room.Id == room.Id)
+                ?.ShowInviteCopyConfirmation();
+        }, null);
     }
 
     private async Task RenameRoomAsync(Guid roomId)
@@ -805,6 +1024,24 @@ public sealed partial class MainWindowViewModel : ObservableObject
             I18n.Get("groups.memberRemoved"));
     }
 
+    private async Task LeaveRoomAsync(Guid roomId)
+    {
+        if (RoomById(roomId) is not { } room)
+        {
+            return;
+        }
+
+        bool isOwner = room.OwnerId == _state.Profile?.Id;
+        if (!await _dialogs.ConfirmRoomLeaveAsync(room.Name, isOwner))
+        {
+            return;
+        }
+
+        await RunCommandAsync(
+            () => _coordinator.LeaveRoomAsync(room.Id),
+            I18n.Get("groups.left"));
+    }
+
     private async Task DeleteRoomAsync(Guid roomId)
     {
         if (RoomById(roomId) is not { } room)
@@ -822,7 +1059,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             I18n.Get("groups.deleted"));
     }
 
-    private async Task RunCommandAsync(Func<Task> action, string? successMessage)
+    private async Task<bool> RunCommandAsync(Func<Task> action, string? successMessage)
     {
         try
         {
@@ -831,10 +1068,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
             {
                 RaiseNotice(successMessage, NoticeKind.Success);
             }
+            return true;
         }
         catch (Exception exception)
         {
             RaiseNotice(exception.Message, NoticeKind.Error);
+            return false;
         }
     }
 
@@ -870,6 +1109,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             if (!desiredIds.Contains(Rooms[index].Room.Id))
             {
+                Rooms[index].Dispose();
                 Rooms.RemoveAt(index);
             }
         }

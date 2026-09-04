@@ -66,7 +66,24 @@ public sealed class ResponsiveWindowSizePolicyTests
     {
         var size = ResponsiveWindowSizePolicy.Minimum(Qhd125Percent, SideyWindowKind.Settings);
 
-        Assert.Equal(800, size.Width);
-        Assert.Equal(700, size.Height);
+        Assert.Equal(1075, size.Width);
+        Assert.Equal(800, size.Height);
+    }
+
+    [Fact]
+    public void NativeTrackingConstraintClampsEachDimensionWithoutShrinkingTheOther()
+    {
+        var minimum = new ResponsiveWindowSize(1075, 800);
+
+        Assert.Equal(
+            new ResponsiveWindowSize(1075, 900),
+            WindowsMinimumSizeController.ClampMinimumTrackSize(
+                new ResponsiveWindowSize(900, 900),
+                minimum));
+        Assert.Equal(
+            new ResponsiveWindowSize(1200, 800),
+            WindowsMinimumSizeController.ClampMinimumTrackSize(
+                new ResponsiveWindowSize(1200, 700),
+                minimum));
     }
 }

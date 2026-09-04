@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Sidey.Core.Localization;
@@ -9,6 +10,9 @@ namespace Sidey.App;
 
 public partial class App : Application
 {
+    private static readonly TimeSpan ConnectionFailureNotificationDelay = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan ConnectionFailureNotificationCooldown = TimeSpan.FromMinutes(15);
+
     private readonly DispatcherQueue _dispatcherQueue;
     private Window? _window;
     private MainWindow? _mainWindow;
@@ -21,6 +25,12 @@ public partial class App : Application
     private DevelopmentUpdateService? _developmentUpdate;
     private bool _closeAppWhenOnboardingCloses = true;
     private bool _startupUpdateCheckStarted;
+    private bool _monitorConnectionFailures;
+    private bool _connectionFailureNotificationArmed = true;
+    private DateTimeOffset? _lastConnectionFailureNotificationAt;
+    private DispatcherQueueTimer? _connectionFailureNotificationTimer;
+    private string? _pendingUpdateNotificationVersion;
+    private Timer? _uiResponsivenessTimer;
     private bool _shuttingDown;
 
     public App()
@@ -86,6 +96,7 @@ public partial class App : Application
             StartupDiagnostics.Stage($"secondary-instance-request request={request}");
             _singleInstance.Dispose();
             _singleInstance = null;
+            StartupDiagnostics.CompleteSession();
             Exit();
             return;
         }
@@ -98,6 +109,7 @@ public partial class App : Application
             _window.Activate();
             StartupDiagnostics.Stage("unsupported-window-activated");
             StartupDiagnostics.MarkRunning();
+            StartUiResponsivenessMonitor();
             return;
         }
 
@@ -141,6 +153,10 @@ public partial class App : Application
             _tray.RoomSelected += OnTrayRoomSelected;
             _mainWindow?.SetTrayAvailable(true);
             StartupDiagnostics.Stage("tray-started");
+            if (_pendingUpdateNotificationVersion is { } pendingVersion)
+            {
+                PostUpdateNotification(pendingVersion);
+            }
         }
         catch (Exception exception)
         {
@@ -162,7 +178,36 @@ public partial class App : Application
             _onboardingWindow?.ShowError(exception);
         }
 
+        _monitorConnectionFailures = true;
+        UpdateConnectionFailureNotification(_coordinator.State.Connected);
+
         StartupDiagnostics.MarkRunning();
+        StartUiResponsivenessMonitor();
+    }
+
+    private void StartUiResponsivenessMonitor()
+    {
+        _uiResponsivenessTimer ??= new Timer(
+            static state => ((App)state!).ProbeUiResponsiveness(),
+            this,
+            TimeSpan.FromMinutes(1),
+            TimeSpan.FromMinutes(1));
+    }
+
+    private void ProbeUiResponsiveness()
+    {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
+        long started = Stopwatch.GetTimestamp();
+        if (!_dispatcherQueue.TryEnqueue(() =>
+            StartupDiagnostics.Stage(
+                $"ui-heartbeat delay-ms={(long)Stopwatch.GetElapsedTime(started).TotalMilliseconds}")))
+        {
+            StartupDiagnostics.Stage("ui-heartbeat dispatch=failed");
+        }
     }
 
     private static bool IsOnboardingPreviewRequested(string? arguments)
@@ -201,23 +246,42 @@ public partial class App : Application
         }
 
         _mainWindow = new MainWindow(_coordinator);
+        StartupDiagnostics.Stage("settings-window-created result=success");
         _mainWindow.Closed += OnMainWindowClosed;
         _mainWindow.SetTrayAvailable(_tray is not null);
         StartStartupUpdateCheck();
         return _mainWindow;
     }
 
-    private static async Task CheckForUpdatesOnStartupAsync(MainWindow mainWindow)
+    private async Task CheckForUpdatesOnStartupAsync(MainWindow mainWindow)
     {
         try
         {
-            await mainWindow.ViewModel.CheckForUpdatesOnStartupAsync();
+            StartupDiagnostics.Stage("startup-update-check-started");
+            AvailableUpdate? update = await mainWindow.ViewModel.CheckForUpdatesOnStartupAsync();
             StartupDiagnostics.Stage("startup-update-checked");
+            if (update is not null)
+            {
+                PostUpdateNotification(update.Version);
+            }
         }
         catch (Exception exception)
         {
             StartupDiagnostics.NonFatal("startup-update-check", exception);
         }
+    }
+
+    private void PostUpdateNotification(string version)
+    {
+        if (_tray is null)
+        {
+            _pendingUpdateNotificationVersion = version;
+            return;
+        }
+
+        _pendingUpdateNotificationVersion = null;
+        _tray.NotifyUpdateAvailable(version);
+        StartupDiagnostics.Stage("update-available-notification-posted");
     }
 
     private async Task DisposeAfterFailedLaunchAsync()
@@ -381,6 +445,7 @@ public partial class App : Application
 
     private void OnRenderingFailed(Exception exception)
     {
+        StartupDiagnostics.NonFatal("overlay-render", exception);
         _dispatcherQueue.TryEnqueue(() => EnsureMainWindow().ShowFatalError(exception));
     }
 
@@ -495,6 +560,7 @@ public partial class App : Application
         var coordinator = _coordinator;
         _dispatcherQueue.TryEnqueue(() =>
         {
+            UpdateConnectionFailureNotification(state.Connected);
             _mainWindow?.ApplyState(state);
             _onboardingWindow?.ApplyState(state);
             _historyWindow?.ApplyState(state);
@@ -554,6 +620,9 @@ public partial class App : Application
         }
         switch (command)
         {
+            case TrayCommand.Open:
+                ShowPrimaryWindow();
+                break;
             case TrayCommand.ToggleOverlay:
                 _ = RunCoordinatorCommandAsync(
                     () => _coordinator.SetOverlayVisibleAsync(
@@ -592,6 +661,93 @@ public partial class App : Application
                 BeginShutdown();
                 break;
         }
+    }
+
+    private void UpdateConnectionFailureNotification(bool connected)
+    {
+        if (connected)
+        {
+            _connectionFailureNotificationArmed = true;
+            CancelConnectionFailureNotification();
+            return;
+        }
+
+        if (_shuttingDown
+            || !_monitorConnectionFailures
+            || !_connectionFailureNotificationArmed)
+        {
+            return;
+        }
+
+        ScheduleConnectionFailureNotification();
+    }
+
+    private void ScheduleConnectionFailureNotification()
+    {
+        if (_connectionFailureNotificationTimer is not null)
+        {
+            return;
+        }
+
+        var timer = _dispatcherQueue.CreateTimer();
+        timer.Interval = ConnectionFailureNotificationDelay;
+        timer.IsRepeating = false;
+        timer.Tick += OnConnectionFailureNotificationElapsed;
+        _connectionFailureNotificationTimer = timer;
+        timer.Start();
+        StartupDiagnostics.Stage(
+            $"connection-failure-notification-deferred delay-ms={(long)ConnectionFailureNotificationDelay.TotalMilliseconds}");
+    }
+
+    private void OnConnectionFailureNotificationElapsed(
+        DispatcherQueueTimer sender,
+        object args)
+    {
+        _ = args;
+        sender.Tick -= OnConnectionFailureNotificationElapsed;
+        sender.Stop();
+        if (ReferenceEquals(_connectionFailureNotificationTimer, sender))
+        {
+            _connectionFailureNotificationTimer = null;
+        }
+
+        if (!_shuttingDown && _coordinator?.State.Connected == false)
+        {
+            PostConnectionFailureNotification();
+        }
+    }
+
+    private void CancelConnectionFailureNotification()
+    {
+        if (_connectionFailureNotificationTimer is not { } timer)
+        {
+            return;
+        }
+
+        timer.Tick -= OnConnectionFailureNotificationElapsed;
+        timer.Stop();
+        _connectionFailureNotificationTimer = null;
+        StartupDiagnostics.Stage("connection-failure-notification-deferred result=cancelled");
+    }
+
+    private void PostConnectionFailureNotification()
+    {
+        if (_tray is null)
+        {
+            return;
+        }
+
+        _connectionFailureNotificationArmed = false;
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        if (_lastConnectionFailureNotificationAt is { } previous
+            && now - previous < ConnectionFailureNotificationCooldown)
+        {
+            return;
+        }
+
+        _lastConnectionFailureNotificationAt = now;
+        _tray.NotifyConnectionFailure();
+        StartupDiagnostics.Stage("connection-failure-notification-posted");
     }
 
     private void ShowHistory()
@@ -661,6 +817,9 @@ public partial class App : Application
         }
 
         _shuttingDown = true;
+        CancelConnectionFailureNotification();
+        _uiResponsivenessTimer?.Dispose();
+        _uiResponsivenessTimer = null;
         if (_mainWindow is not null)
         {
             MainWindow mainWindow = _mainWindow;
@@ -724,7 +883,7 @@ public partial class App : Application
         }
         _singleInstance?.Dispose();
         _singleInstance = null;
-        StartupDiagnostics.Stage("shutdown-complete");
+        StartupDiagnostics.CompleteSession();
         Exit();
     }
 
@@ -740,6 +899,8 @@ public partial class App : Application
             {
                 // This callback runs on the watcher thread so it remains
                 // independent from UI and network initialization stalls.
+                StartupDiagnostics.Stage("update-handoff-complete");
+                StartupDiagnostics.CompleteSession();
                 Environment.Exit(0);
             }
         }

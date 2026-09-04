@@ -138,7 +138,9 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException(
-                I18n.Format("auth.requestFailed", (int)response.StatusCode));
+                I18n.Format("auth.requestFailed", (int)response.StatusCode),
+                inner: null,
+                response.StatusCode);
         }
 
         var envelope = await response.Content.ReadFromJsonAsync<AuthEnvelope>(
