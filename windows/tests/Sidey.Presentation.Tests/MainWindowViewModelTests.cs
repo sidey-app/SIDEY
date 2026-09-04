@@ -3,7 +3,7 @@ using Sidey.Core.Domain;
 using Sidey.Presentation.Services;
 using Sidey.Presentation.ViewModels;
 
-namespace Sidey.Platform.Windows.Tests;
+namespace Sidey.Presentation.Tests;
 
 public sealed class MainWindowViewModelTests
 {

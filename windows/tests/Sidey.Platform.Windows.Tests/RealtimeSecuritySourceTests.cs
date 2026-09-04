@@ -49,7 +49,7 @@ public sealed class RealtimeSecuritySourceTests
         var transport = Read("SupabaseRealtimeTransport.cs");
 
         Assert.Contains("catch (WebSocketException exception)", transport, StringComparison.Ordinal);
-        Assert.Contains("_ = RecoverAsync();", transport, StringComparison.Ordinal);
+        Assert.Contains("ScheduleRecovery();", transport, StringComparison.Ordinal);
         Assert.Contains("socket.Dispose();", transport, StringComparison.Ordinal);
     }
 

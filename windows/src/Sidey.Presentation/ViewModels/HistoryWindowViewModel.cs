@@ -9,22 +9,11 @@ using Sidey.Presentation.Services;
 
 namespace Sidey.Presentation.ViewModels;
 
-public sealed record HistoryEntryViewModel(
-    Guid Id,
-    string SenderName,
-    string Body,
-    string LocalTimeText,
-    string CharacterId,
-    bool IsCurrentUser,
-    bool IsPending,
-    bool IsFailed,
-    DateTimeOffset CreatedAt);
-
 public sealed partial class HistoryWindowViewModel : ObservableObject, IDisposable
 {
     private const int PageSize = 50;
 
-    private readonly ISideyCoordinator _coordinator;
+    private readonly IHistoryCoordinator _coordinator;
     private readonly Dictionary<Guid, ChatMessage> _pagedMessages = [];
     private CoordinatorState _state;
     private Guid? _loadedRoomId;
@@ -67,7 +56,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject, IDisposab
     [ObservableProperty]
     public partial bool IsExhaustedVisible { get; set; }
 
-    public HistoryWindowViewModel(ISideyCoordinator coordinator)
+    public HistoryWindowViewModel(IHistoryCoordinator coordinator)
     {
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         _state = coordinator.State;

@@ -31,6 +31,13 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private readonly int _hotspotPixelSize;
     private readonly int _integerScale;
     private readonly int _dozeFloatingDistancePixels;
+    private readonly int _bubbleBodySpacingPixels;
+    private readonly int _bubbleTailHeightPixels;
+    private readonly int _bubbleTailHalfBasePixels;
+    private readonly int _bubbleTailBaseInsetPixels;
+    private readonly int _bubbleTailBodyOverlapPixels;
+    private readonly int _bubbleCharacterGapPixels;
+    private readonly double _bubbleTangentMarginPixels;
     private readonly double _dpiScale;
     private readonly OverlayEdge _edge;
     private readonly Action<NativePixelRect?, IReadOnlyList<CharacterHotspotFrame>> _hotspotsMoved;
@@ -52,7 +59,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private readonly HashSet<Guid> _incomingMemberIds = [];
     private readonly Dictionary<Guid, long> _pulseStartedAt = [];
     private readonly Dictionary<Guid, long> _dozeStartedAt = [];
-    private readonly Dictionary<Guid, ActiveBubble> _bubbleBySender = [];
+    private readonly Dictionary<Guid, List<ActiveBubble>> _bubblesBySender = [];
     private readonly List<Guid> _expiredBubbleSenders = [];
     private readonly HashSet<Guid> _drawnBubbleIds = [];
     private readonly HashSet<Guid> _presentedBubbleIds = [];
@@ -114,6 +121,13 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         _integerScale = PixelScalePolicy.IntegerScale(dpi);
         _dpiScale = Math.Max(1d, dpi / 96d);
         _dozeFloatingDistancePixels = Math.Max(1, DipToPixels(DozeFloatingDistanceDip, dpi));
+        _bubbleBodySpacingPixels = Math.Max(1, DipToPixels(MessageBubbleLayoutPolicy.BodySpacingDip, dpi));
+        _bubbleTailHeightPixels = Math.Max(1, DipToPixels(MessageBubbleLayoutPolicy.TailHeightDip, dpi));
+        _bubbleTailHalfBasePixels = Math.Max(1, DipToPixels(MessageBubbleLayoutPolicy.TailHalfBaseDip, dpi));
+        _bubbleTailBaseInsetPixels = Math.Max(1, DipToPixels(MessageBubbleLayoutPolicy.TailBaseInsetDip, dpi));
+        _bubbleTailBodyOverlapPixels = Math.Max(1, DipToPixels(MessageBubbleLayoutPolicy.TailBodyOverlapDip, dpi));
+        _bubbleCharacterGapPixels = Math.Max(1, DipToPixels(MessageBubbleLayoutPolicy.CharacterGapDip, dpi));
+        _bubbleTangentMarginPixels = MessageBubbleLayoutPolicy.TangentMarginDip * _dpiScale;
         _hotspotPixelSize = Math.Max(1, DipToPixels(52, dpi));
         _initialPositionSeed = OverlayPlacementPolicy.CreateSessionSeed(
             initialSnapshot.InstallationSeed);
@@ -146,7 +160,13 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 throwableAssetRoot,
                 _integerScale,
                 edge);
-            textVisuals = new PixelTextVisualCache(dpi, edge);
+            var tangentLengthDip = (edge is OverlayEdge.Bottom or OverlayEdge.Top
+                ? activityBounds.Width
+                : activityBounds.Height) / _dpiScale;
+            var bubbleMaximumWidthDip = (float)Math.Min(
+                220d,
+                Math.Max(24d, tangentLengthDip - 16d));
+            textVisuals = new PixelTextVisualCache(dpi, edge, bubbleMaximumWidthDip);
             surface = new NativeLayeredBitmap(
                 windowHandle,
                 renderBounds.Width,
@@ -331,37 +351,45 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 _movementScratch);
             _expiredBubbleSenders.Clear();
             var now = DateTimeOffset.UtcNow;
-            foreach (var bubble in _bubbleBySender)
+            foreach (var senderBubbles in _bubblesBySender)
             {
-                if (bubble.Value.ExpiresAt <= now)
+                for (var index = senderBubbles.Value.Count - 1; index >= 0; index--)
                 {
-                    _expiredBubbleSenders.Add(bubble.Key);
+                    if (senderBubbles.Value[index].ExpiresAt <= now)
+                    {
+                        senderBubbles.Value.RemoveAt(index);
+                    }
+                }
+                if (senderBubbles.Value.Count == 0)
+                {
+                    _expiredBubbleSenders.Add(senderBubbles.Key);
                 }
             }
             foreach (var senderId in _expiredBubbleSenders)
             {
-                _bubbleBySender.Remove(senderId);
+                _bubblesBySender.Remove(senderId);
             }
             _bubbleTrackBounds.Clear();
-            foreach (var bubble in _bubbleBySender.Values)
+            foreach (var senderBubbles in _bubblesBySender)
             {
-                if (!_nodeById.TryGetValue(bubble.SenderId, out var node))
+                if (!_nodeById.TryGetValue(senderBubbles.Key, out var node))
                 {
                     continue;
                 }
-                var visual = _textVisuals.Get(bubble.SenderId).MessageBubble;
-                if (visual is null)
+                var visuals = _textVisuals.Get(senderBubbles.Key);
+                if (!TryGetBubbleTangentRange(
+                    node.Agent.TrackPosition,
+                    senderBubbles.Value,
+                    visuals,
+                    out var lower,
+                    out var upper))
                 {
                     continue;
                 }
-                var tangentWidth = _edge is OverlayEdge.Left or OverlayEdge.Right
-                    ? visual.Height
-                    : visual.Width;
-                var halfWidth = tangentWidth / 2d;
                 _bubbleTrackBounds.Add(new MessageBubbleTrackBounds(
-                    bubble.SenderId,
-                    node.Agent.TrackPosition - halfWidth,
-                    node.Agent.TrackPosition + halfWidth));
+                    senderBubbles.Key,
+                    lower,
+                    upper));
             }
             MessageBubbleCollisionResolver.Apply(
                 _agents,
@@ -439,24 +467,25 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 visuals.Nameplate,
                 cached.OnlineContentBounds);
             CompositeVisual(destinationPixels, visuals.Nameplate, nameplate.X, nameplate.Y);
-            bool hasMessageBubble = _bubbleBySender.TryGetValue(
-                node.Member.Id,
-                out var activeBubble);
-            var bubble = hasMessageBubble ? visuals.MessageBubble : visuals.TypingBubble;
-            if (bubble is not null)
+            if (_bubblesBySender.TryGetValue(node.Member.Id, out var activeBubbles)
+                && activeBubbles.Count > 0)
             {
-                var bubblePosition = PlaceBeyondNameplate(
-                    baseDestination,
-                    cached.PixelSize,
-                    bubble,
-                    gap: 4,
+                RenderMessageBubbles(
+                    destinationPixels,
+                    node.Agent.TrackPosition,
+                    activeBubbles,
+                    visuals,
                     visuals.Nameplate,
                     nameplate);
-                CompositeVisual(destinationPixels, bubble, bubblePosition.X, bubblePosition.Y);
-                if (activeBubble is not null)
-                {
-                    _drawnBubbleIds.Add(activeBubble.MessageId);
-                }
+            }
+            else if (visuals.TypingFrames.Count > 0)
+            {
+                RenderTypingBubble(
+                    destinationPixels,
+                    node.Agent.TrackPosition,
+                    visuals,
+                    visuals.Nameplate,
+                    nameplate);
             }
             if (visuals.Doze is { } doze)
             {
@@ -484,6 +513,90 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             _hotspotsMoved(currentUserHotspot, _targetHotspots);
             _hotspotTrackingElapsed = 0d;
         }
+    }
+
+    private void RenderMessageBubbles(
+        Span<byte> destination,
+        double senderTangent,
+        IReadOnlyList<ActiveBubble> bubbles,
+        PixelMemberVisuals visuals,
+        PremultipliedVisual nameplate,
+        (int X, int Y) nameplatePosition)
+    {
+        var normalDistance = _bubbleCharacterGapPixels + _bubbleTailHeightPixels;
+        for (var index = bubbles.Count - 1; index >= 0; index--)
+        {
+            var activeBubble = bubbles[index];
+            if (!visuals.MessageBubbles.TryGetValue(activeBubble.MessageId, out var bubble))
+            {
+                continue;
+            }
+
+            var position = PlaceBubbleBody(
+                senderTangent,
+                bubble,
+                normalDistance,
+                nameplate,
+                nameplatePosition);
+            CompositeVisual(destination, bubble, position.X, position.Y);
+            if (index == bubbles.Count - 1)
+            {
+                CompositeBubbleTail(destination, position, bubble, senderTangent);
+            }
+            _drawnBubbleIds.Add(activeBubble.MessageId);
+            normalDistance += BubbleNormalExtent(bubble) + _bubbleBodySpacingPixels;
+        }
+    }
+
+    private void RenderTypingBubble(
+        Span<byte> destination,
+        double senderTangent,
+        PixelMemberVisuals visuals,
+        PremultipliedVisual nameplate,
+        (int X, int Y) nameplatePosition)
+    {
+        var frameIndex = MessageBubbleLayoutPolicy.TypingFrameIndex(
+            _tick,
+            FramesPerSecond,
+            visuals.TypingFrames.Count);
+        var bubble = visuals.TypingFrames[frameIndex];
+        var position = PlaceBubbleBody(
+            senderTangent,
+            bubble,
+            _bubbleCharacterGapPixels + _bubbleTailHeightPixels,
+            nameplate,
+            nameplatePosition);
+        CompositeVisual(destination, bubble, position.X, position.Y);
+        CompositeBubbleTail(destination, position, bubble, senderTangent);
+    }
+
+    private bool TryGetBubbleTangentRange(
+        double senderTangent,
+        IReadOnlyList<ActiveBubble> bubbles,
+        PixelMemberVisuals visuals,
+        out double lower,
+        out double upper)
+    {
+        lower = double.PositiveInfinity;
+        upper = double.NegativeInfinity;
+        foreach (var activeBubble in bubbles)
+        {
+            if (!visuals.MessageBubbles.TryGetValue(activeBubble.MessageId, out var bubble))
+            {
+                continue;
+            }
+
+            var extent = BubbleTangentExtent(bubble);
+            var start = MessageBubbleLayoutPolicy.ClampedTangentStart(
+                senderTangent,
+                _geometry.TangentLength,
+                extent,
+                _bubbleTangentMarginPixels);
+            lower = Math.Min(lower, start);
+            upper = Math.Max(upper, start + extent);
+        }
+
+        return double.IsFinite(lower) && double.IsFinite(upper);
     }
 
     private void ReportPresentedMessageBubbles()
@@ -583,13 +696,30 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
         RefreshStoppedIds();
 
-        _bubbleBySender.Clear();
+        _bubblesBySender.Clear();
         var now = DateTimeOffset.UtcNow;
         foreach (var bubble in snapshot.Bubbles)
         {
-            if (bubble.ExpiresAt > now)
+            if (bubble.ExpiresAt <= now)
             {
-                _bubbleBySender[bubble.SenderId] = bubble;
+                continue;
+            }
+
+            if (!_bubblesBySender.TryGetValue(bubble.SenderId, out var senderBubbles))
+            {
+                senderBubbles = [];
+                _bubblesBySender.Add(bubble.SenderId, senderBubbles);
+            }
+            senderBubbles.Add(bubble);
+        }
+        foreach (var senderBubbles in _bubblesBySender.Values)
+        {
+            senderBubbles.Sort(CompareBubbles);
+            if (senderBubbles.Count > ActiveBubbleLedger.MaximumVisiblePerSender)
+            {
+                senderBubbles.RemoveRange(
+                    0,
+                    senderBubbles.Count - ActiveBubbleLedger.MaximumVisiblePerSender);
             }
         }
 
@@ -1161,6 +1291,29 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             desaturate);
     }
 
+    private void CompositeBubbleTail(
+        Span<byte> destination,
+        (int X, int Y) bodyPosition,
+        PremultipliedVisual body,
+        double senderTangent)
+    {
+        var bodyBounds = new RectD(bodyPosition.X, bodyPosition.Y, body.Width, body.Height);
+        var tail = MessageBubbleLayoutPolicy.Tail(
+            _edge,
+            bodyBounds,
+            TangentWorldOrigin() + senderTangent,
+            _bubbleTailHeightPixels,
+            _bubbleTailHalfBasePixels,
+            _bubbleTailBaseInsetPixels,
+            baseOverlap: _bubbleTailBodyOverlapPixels);
+        MessageBubbleTailRasterizer.Composite(
+            destination,
+            _renderBounds,
+            tail,
+            bodyBounds,
+            _dpiScale);
+    }
+
     private void CompositeVisual(
         Span<byte> destination,
         PremultipliedVisual visual,
@@ -1280,28 +1433,46 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             _ => throw new ArgumentOutOfRangeException(),
         };
 
-    private (int X, int Y) PlaceBeyondNameplate(
-        (int X, int Y) sprite,
-        int spriteSize,
+    private (int X, int Y) PlaceBubbleBody(
+        double senderTangent,
         PremultipliedVisual visual,
-        int gap,
+        int normalDistance,
         PremultipliedVisual nameplate,
-        (int X, int Y) nameplatePosition) => _edge switch
+        (int X, int Y) nameplatePosition)
+    {
+        var tangentStart = MessageBubbleLayoutPolicy.ClampedTangentStart(
+            senderTangent,
+            _geometry.TangentLength,
+            BubbleTangentExtent(visual),
+            _bubbleTangentMarginPixels);
+        var worldTangentStart = (int)Math.Round(tangentStart) + TangentWorldOrigin();
+        return _edge switch
         {
             OverlayEdge.Bottom => (
-                sprite.X + ((spriteSize - visual.Width) / 2),
-                nameplatePosition.Y - gap - visual.Height),
+                worldTangentStart,
+                nameplatePosition.Y - normalDistance - visual.Height),
             OverlayEdge.Top => (
-                sprite.X + ((spriteSize - visual.Width) / 2),
-                nameplatePosition.Y + nameplate.Height + gap),
+                worldTangentStart,
+                nameplatePosition.Y + nameplate.Height + normalDistance),
             OverlayEdge.Left => (
-                nameplatePosition.X + nameplate.Width + gap,
-                sprite.Y + ((spriteSize - visual.Height) / 2)),
+                nameplatePosition.X + nameplate.Width + normalDistance,
+                worldTangentStart),
             OverlayEdge.Right => (
-                nameplatePosition.X - gap - visual.Width,
-                sprite.Y + ((spriteSize - visual.Height) / 2)),
+                nameplatePosition.X - normalDistance - visual.Width,
+                worldTangentStart),
             _ => throw new ArgumentOutOfRangeException(),
         };
+    }
+
+    private int TangentWorldOrigin() => _edge is OverlayEdge.Bottom or OverlayEdge.Top
+        ? _activityBounds.X
+        : _activityBounds.Y;
+
+    private int BubbleTangentExtent(PremultipliedVisual visual) =>
+        _edge is OverlayEdge.Bottom or OverlayEdge.Top ? visual.Width : visual.Height;
+
+    private int BubbleNormalExtent(PremultipliedVisual visual) =>
+        _edge is OverlayEdge.Bottom or OverlayEdge.Top ? visual.Height : visual.Width;
 
     private (int X, int Y) PlaceDoze(
         (int X, int Y) sprite,
@@ -1337,6 +1508,16 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private static int DipToPixels(double value, uint dpi) =>
         (int)Math.Round(value * dpi / 96d, MidpointRounding.AwayFromZero);
+
+    private static int CompareBubbles(ActiveBubble left, ActiveBubble right)
+    {
+        var dateComparison = left.ExpiresAt.CompareTo(right.ExpiresAt);
+        return dateComparison != 0
+            ? dateComparison
+            : StringComparer.Ordinal.Compare(
+                left.MessageId.ToString("D"),
+                right.MessageId.ToString("D"));
+    }
 
     private sealed class WorldNode(PixelWorldMember member, PixelMovementAgent agent)
     {

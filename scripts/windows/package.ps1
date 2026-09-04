@@ -90,7 +90,6 @@ $allowedRootNames = [Collections.Generic.HashSet[string]]::new(
 foreach ($name in @(
     'SIDEY.exe',
     'Uninstall.exe',
-    'SIDEY-Onboarding-Preview.cmd',
     'Assets',
     'Langs',
     'Runtime')) {
@@ -269,8 +268,7 @@ function ConvertTo-NsisLiteral {
 }
 
 $payloadFiles = @($deployableFiles | Where-Object {
-    $_.FullName -ne $uninstaller -and
-    $_.Name -ne 'SIDEY-Onboarding-Preview.cmd'
+    $_.FullName -ne $uninstaller
 })
 $installInclude = Join-Path $internalDir 'SideyPayloadInstall.nsh'
 $uninstallInclude = Join-Path $internalDir 'SideyPayloadUninstall.nsh'

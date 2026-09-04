@@ -37,15 +37,16 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
     private readonly SemaphoreSlim _sendGate = new(1, 1);
     private readonly CancellationTokenSource _shutdown = new();
     private readonly CoalescingPublicationQueue<RealtimePresenceIntent> _presenceQueue;
-    private readonly ConcurrentDictionary<(Guid RoomId, Guid UserId), CancellationTokenSource> _typingExpiries = [];
+    private readonly ExpiringLeaseRegistry<(Guid RoomId, Guid UserId)> _typingExpiries;
     private readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _pendingReplies = [];
     private readonly ConcurrentDictionary<string, string> _joinReferences = [];
+    private readonly object _recoveryGate = new();
     private IReadOnlyDictionary<Guid, long> _desiredRoomEpochs = new Dictionary<Guid, long>();
     private Guid? _activeRoomId;
     private PresenceState _localPresence = PresenceState.Online;
-    private ClientWebSocket? _socket;
-    private Task? _receiveTask;
+    private RealtimeSocketSession? _socketSession;
     private Task? _watchdogTask;
+    private Task _recoveryTask = Task.CompletedTask;
     private long _reference;
     private long _connectionGeneration;
     private long _lastReceiveTimestamp = Stopwatch.GetTimestamp();
@@ -63,6 +64,9 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
         _presenceQueue = new CoalescingPublicationQueue<RealtimePresenceIntent>(PublishPresenceBatchAsync);
+        _typingExpiries = new ExpiringLeaseRegistry<(Guid RoomId, Guid UserId)>(
+            TypingLease.RemoteExpiry,
+            key => Emit(new BackendEvent.TypingChanged(key.RoomId, key.UserId, false)));
     }
 
     internal RealtimeConnectionStatus ConnectionStatus =>
@@ -109,7 +113,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             _desiredRoomEpochs = desired;
             _activeRoomId = activeRoomId is { } id && desired.ContainsKey(id) ? id : null;
             _localPresence = localPresence;
-            var openedNewSocket = _socket?.State != WebSocketState.Open;
+            var openedNewSocket = _socketSession?.Socket.State != WebSocketState.Open;
             try
             {
                 await EnsureConnectedWithinGateAsync(cancellationToken).ConfigureAwait(false);
@@ -119,7 +123,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             {
                 Emit(new BackendEvent.TechnicalError(ConnectionFailureMessage(exception)));
                 EmitDisconnected();
-                _ = RecoverAsync();
+                ScheduleRecovery();
                 return;
             }
             IEnumerable<RealtimeRoomDescriptor> leaves = openedNewSocket
@@ -175,12 +179,6 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _shutdown.Cancel();
-        foreach (var expiry in _typingExpiries.Values)
-        {
-            expiry.Cancel();
-            expiry.Dispose();
-        }
-        _typingExpiries.Clear();
         foreach (var reply in _pendingReplies.Values)
         {
             reply.TrySetCanceled();
@@ -188,22 +186,14 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         _pendingReplies.Clear();
         _joinReferences.Clear();
         await _presenceQueue.DisposeAsync().ConfigureAwait(false);
-        var socket = Interlocked.Exchange(ref _socket, null);
-        if (socket is not null)
+        await _connectionGate.WaitAsync().ConfigureAwait(false);
+        try
         {
-            socket.Abort();
-            socket.Dispose();
+            await DisconnectSocketWithinGateAsync().ConfigureAwait(false);
         }
-
-        if (_receiveTask is not null)
+        finally
         {
-            try
-            {
-                await _receiveTask.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-            }
+            _connectionGate.Release();
         }
 
         if (_watchdogTask is not null)
@@ -217,6 +207,14 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             }
         }
 
+        Task recoveryTask;
+        lock (_recoveryGate)
+        {
+            recoveryTask = _recoveryTask;
+        }
+        await recoveryTask.ConfigureAwait(false);
+        await _typingExpiries.DisposeAsync().ConfigureAwait(false);
+
         _events.Writer.TryComplete();
         _shutdown.Dispose();
         _connectionGate.Dispose();
@@ -225,7 +223,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 
     private async Task EnsureConnectedWithinGateAsync(CancellationToken cancellationToken)
     {
-        if (_socket?.State == WebSocketState.Open)
+        if (_socketSession?.Socket.State == WebSocketState.Open)
         {
             return;
         }
@@ -254,14 +252,25 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             throw;
         }
 
-        var previous = Interlocked.Exchange(ref _socket, socket);
-        previous?.Abort();
-        previous?.Dispose();
+        await DisconnectSocketWithinGateAsync().ConfigureAwait(false);
         _joinReferences.Clear();
         var generation = Interlocked.Increment(ref _connectionGeneration);
         Volatile.Write(ref _lastReceiveTimestamp, Stopwatch.GetTimestamp());
-        _receiveTask = Task.Run(() => ReceiveLoopAsync(socket, generation), CancellationToken.None);
+        _socketSession = new RealtimeSocketSession(
+            socket,
+            activeSocket => ReceiveLoopAsync(activeSocket, generation));
         _watchdogTask ??= Task.Run(WatchdogLoopAsync, CancellationToken.None);
+    }
+
+    private async Task DisconnectSocketWithinGateAsync()
+    {
+        RealtimeSocketSession? session = Interlocked.Exchange(ref _socketSession, null);
+        Interlocked.Increment(ref _connectionGeneration);
+        if (session is not null)
+        {
+            await session.DisposeAsync().ConfigureAwait(false);
+        }
+        _joinReferences.Clear();
     }
 
     private static string ConnectionFailureMessage(Exception exception)
@@ -398,7 +407,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         CancellationToken cancellationToken,
         TaskCompletionSource<bool>? reply = null)
     {
-        var socket = _socket;
+        var socket = _socketSession?.Socket;
         if (socket?.State != WebSocketState.Open)
         {
             throw new InvalidOperationException(I18n.Get("backend.realtimeUnavailable"));
@@ -495,7 +504,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 
             Emit(new BackendEvent.TechnicalError(ConnectionFailureMessage(exception)));
             EmitDisconnected();
-            _ = RecoverAsync();
+            ScheduleRecovery();
         }
     }
 
@@ -504,11 +513,11 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         using var timer = new PeriodicTimer(RealtimeRecoveryPolicy.WatchdogInterval);
         while (await timer.WaitForNextTickAsync(_shutdown.Token).ConfigureAwait(false))
         {
-            var socket = _socket;
+            var socket = _socketSession?.Socket;
             if (socket?.State != WebSocketState.Open)
             {
                 EmitDisconnected();
-                _ = RecoverAsync();
+                ScheduleRecovery();
                 continue;
             }
 
@@ -520,7 +529,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 socket.Abort();
                 Emit(new BackendEvent.TechnicalError("Realtime WebSocket heartbeat timed out."));
                 EmitDisconnected();
-                _ = RecoverAsync();
+                ScheduleRecovery();
                 continue;
             }
 
@@ -565,9 +574,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 await _connectionGate.WaitAsync(_shutdown.Token).ConfigureAwait(false);
                 try
                 {
-                    var existing = Interlocked.Exchange(ref _socket, null);
-                    existing?.Abort();
-                    existing?.Dispose();
+                    await DisconnectSocketWithinGateAsync().ConfigureAwait(false);
                     await EnsureConnectedWithinGateAsync(_shutdown.Token).ConfigureAwait(false);
                     foreach (var room in _desiredRoomEpochs.OrderBy(pair => pair.Key))
                     {
@@ -623,7 +630,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 
     private RealtimeConnectionStatus CurrentTransportStatus()
     {
-        bool socketConnected = _socket?.State == WebSocketState.Open;
+        bool socketConnected = _socketSession?.Socket.State == WebSocketState.Open;
         bool transportConnected = socketConnected
             && _desiredRoomEpochs.All(room => RealtimeEpochSubscriptionPlan
                 .Descriptors(room.Key, room.Value)
@@ -900,11 +907,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         }
 
         var key = (roomId, userId);
-        if (_typingExpiries.TryRemove(key, out var existing))
-        {
-            existing.Cancel();
-            existing.Dispose();
-        }
+        _typingExpiries.Cancel(key);
 
         Emit(new BackendEvent.TypingChanged(roomId, userId, active));
         if (!active)
@@ -912,31 +915,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             return;
         }
 
-        var expiry = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
-        _typingExpiries[key] = expiry;
-        _ = ExpireTypingAsync(key, expiry);
-    }
-
-    private async Task ExpireTypingAsync(
-        (Guid RoomId, Guid UserId) key,
-        CancellationTokenSource expiry)
-    {
-        try
-        {
-            await Task.Delay(TypingLease.RemoteExpiry, expiry.Token).ConfigureAwait(false);
-            Emit(new BackendEvent.TypingChanged(key.RoomId, key.UserId, false));
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        finally
-        {
-            if (_typingExpiries.TryGetValue(key, out var current) && ReferenceEquals(current, expiry))
-            {
-                _typingExpiries.TryRemove(key, out _);
-                expiry.Dispose();
-            }
-        }
+        _typingExpiries.Restart(key);
     }
 
     private static bool TryGuid(JsonElement element, string name, out Guid value)
@@ -953,7 +932,20 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         {
             Interlocked.Exchange(ref _overflowed, 1);
             Interlocked.Increment(ref _overflowCount);
-            _ = RecoverAsync();
+            ScheduleRecovery();
+        }
+    }
+
+    private void ScheduleRecovery()
+    {
+        lock (_recoveryGate)
+        {
+            if (_shutdown.IsCancellationRequested || !_recoveryTask.IsCompleted)
+            {
+                return;
+            }
+
+            _recoveryTask = RecoverAsync();
         }
     }
 }

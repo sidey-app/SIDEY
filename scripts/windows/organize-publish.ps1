@@ -25,7 +25,6 @@ $legacyLanguageDirectory = Join-Path $resolvedPublishDir 'Lang'
 $launcherPath = Join-Path $resolvedPublishDir 'SIDEY.exe'
 $uninstallerPath = Join-Path $resolvedPublishDir 'Uninstall.exe'
 $hostPath = Join-Path $runtimeDirectory 'SIDEY.Host.exe'
-$previewPath = Join-Path $resolvedPublishDir 'SIDEY-Onboarding-Preview.cmd'
 
 if (Test-Path -LiteralPath $runtimeDirectory) {
     $runtimeParent = [IO.Directory]::GetParent($runtimeDirectory).FullName
@@ -60,8 +59,7 @@ $preservedNames = [Collections.Generic.HashSet[string]]::new(
 foreach ($name in @(
     'Assets',
     'Langs',
-    'Runtime',
-    'SIDEY-Onboarding-Preview.cmd')) {
+    'Runtime')) {
     [void]$preservedNames.Add($name)
 }
 
@@ -159,8 +157,5 @@ Build-SideyExecutable `
     -OutputAssembly $uninstallerPath `
     -Title 'SIDEY Uninstaller' `
     -Description 'SIDEY uninstaller'
-
-$preview = "@echo off`r`nsetlocal`r`nstart `"`" `"%~dp0SIDEY.exe`" --onboarding-preview`r`n"
-[IO.File]::WriteAllText($previewPath, $preview, [Text.ASCIIEncoding]::new())
 
 Write-Host "PublishLayout=SIDEY.exe + Uninstall.exe + Assets + Langs + Runtime/SIDEY.Host.exe"

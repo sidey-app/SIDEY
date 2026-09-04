@@ -1,12 +1,13 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sidey.Core.Domain;
+using Sidey.Presentation.Services;
 
 namespace Sidey.Presentation.ViewModels;
 
 public sealed partial class ComposerViewModel : ObservableObject, IDisposable
 {
-    private CancellationTokenSource? _autoCloseCancellation;
+    private DelayedAction? _autoClose;
     private string _draft = string.Empty;
     private bool _disposed;
 
@@ -78,27 +79,15 @@ public sealed partial class ComposerViewModel : ObservableObject, IDisposable
     private void ScheduleAutoClose()
     {
         CancelAutoClose();
-        _autoCloseCancellation = new CancellationTokenSource();
-        _ = CloseAfterDelayAsync(_autoCloseCancellation.Token);
-    }
-
-    private async Task CloseAfterDelayAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
-            CloseRequested?.Invoke();
-        }
-        catch (OperationCanceledException)
-        {
-        }
+        _autoClose = DelayedAction.Start(
+            TimeSpan.FromSeconds(5),
+            () => CloseRequested?.Invoke());
     }
 
     private void CancelAutoClose()
     {
-        _autoCloseCancellation?.Cancel();
-        _autoCloseCancellation?.Dispose();
-        _autoCloseCancellation = null;
+        _autoClose?.Cancel();
+        _autoClose = null;
     }
 
     public void Dispose()

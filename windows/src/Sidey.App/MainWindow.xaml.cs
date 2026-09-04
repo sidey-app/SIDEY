@@ -30,10 +30,12 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     private readonly Stack<string> _navigationHistory = new();
     private readonly WindowsMinimumSizeController _minimumSizeController;
 
-    public MainWindow(AppCoordinator coordinator)
+    public MainWindow(
+        IMainWindowCoordinator coordinator,
+        IUpdateService updateService)
     {
         InitializeComponent();
-        ViewModel = new MainWindowViewModel(coordinator, this, new WindowsUpdateServiceAdapter());
+        ViewModel = new MainWindowViewModel(coordinator, this, updateService);
         MainRoot.DataContext = ViewModel;
         ViewModel.PrepareGroupsForPresentation();
         Title = "SIDEY";

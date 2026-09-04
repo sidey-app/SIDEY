@@ -44,6 +44,7 @@ public sealed class TrayIconService : IDisposable
     private const uint NotifyIconInfo = 0x10;
     private const uint NotifyIconShowTip = 0x80;
     private const uint NotifyInfoWarning = 0x2;
+    private const int SmallIconMetric = 49;
     private static readonly object RegistrationGate = new();
     private static readonly ConcurrentDictionary<nint, TrayIconService> Instances = new();
     private static readonly NativeMethods.WindowProcedure WindowProcedure = WndProc;
@@ -409,16 +410,21 @@ public sealed class TrayIconService : IDisposable
         {
             return;
         }
+        var menuIcons = new TrayMenuIconSet(
+            Math.Max(16, NativeMethods.GetSystemMetrics(SmallIconMetric)));
         try
         {
             var roomCommands = new Dictionary<uint, Guid>();
-            Append(menu, TrayCommand.Open, I18n.Get("tray.open"));
-            NativeMethods.SetMenuDefaultItem(menu, (uint)TrayCommand.Open, false);
-            NativeMethods.AppendMenu(menu, 0x800, 0, null);
             Append(menu, TrayCommand.ToggleOverlay, _state.OverlayVisible
                 ? I18n.Get("tray.hideOverlay")
-                : I18n.Get("tray.showOverlay"));
-            Append(menu, TrayCommand.Compose, I18n.Get("tray.compose"), isEnabled: _state.Rooms.Count > 0);
+                : I18n.Get("tray.showOverlay"), menuIcons, TrayMenuIcon.Overlay);
+            Append(
+                menu,
+                TrayCommand.Compose,
+                I18n.Get("tray.compose"),
+                menuIcons,
+                TrayMenuIcon.Compose,
+                isEnabled: _state.Rooms.Count > 0);
             NativeMethods.AppendMenu(menu, 0x800, 0, null);
 
             var roomsMenu = NativeMethods.CreatePopupMenu();
@@ -427,6 +433,12 @@ public sealed class TrayIconService : IDisposable
                 if (_state.Rooms.Count == 0)
                 {
                     NativeMethods.AppendMenu(roomsMenu, 0x0001, 0, I18n.Get("tray.noGroups"));
+                    ApplyMenuIcon(
+                        roomsMenu,
+                        0,
+                        byPosition: true,
+                        menuIcons,
+                        TrayMenuIcon.Empty);
                 }
                 else
                 {
@@ -443,21 +455,62 @@ public sealed class TrayIconService : IDisposable
                             room.Id == _state.ActiveRoomId ? 0x0008u : 0u,
                             command,
                             label);
+                        ApplyMenuIcon(
+                            roomsMenu,
+                            command,
+                            byPosition: false,
+                            menuIcons,
+                            TrayMenuIcon.Room);
                     }
                 }
                 var roomsFlags = 0x0010u | (_state.Rooms.Count == 0 ? 0x0001u : 0u);
+                var roomsPosition = (uint)NativeMethods.GetMenuItemCount(menu);
                 NativeMethods.AppendMenu(menu, roomsFlags, (nuint)roomsMenu, I18n.Get("tray.activeGroup"));
+                ApplyMenuIcon(
+                    menu,
+                    roomsPosition,
+                    byPosition: true,
+                    menuIcons,
+                    TrayMenuIcon.Rooms);
             }
-            Append(menu, TrayCommand.ToggleQuietMode, I18n.Get("tray.quietMode"), _state.QuietMode);
-            Append(menu, TrayCommand.History, I18n.Get("tray.history"), isEnabled: _state.Rooms.Count > 0);
-            Append(menu, TrayCommand.Store, I18n.Get("tray.store"));
-            Append(menu, TrayCommand.Groups, I18n.Get("tray.groups"));
-            Append(menu, TrayCommand.ToggleStartAtLogin, I18n.Get("tray.startup"), _state.StartAtLogin);
+            Append(
+                menu,
+                TrayCommand.ToggleQuietMode,
+                I18n.Get("tray.quietMode"),
+                menuIcons,
+                TrayMenuIcon.QuietMode,
+                isChecked: _state.QuietMode);
+            Append(
+                menu,
+                TrayCommand.History,
+                I18n.Get("tray.history"),
+                menuIcons,
+                TrayMenuIcon.History,
+                isEnabled: _state.Rooms.Count > 0);
+            Append(menu, TrayCommand.Store, I18n.Get("tray.store"), menuIcons, TrayMenuIcon.Store);
+            Append(menu, TrayCommand.Groups, I18n.Get("tray.groups"), menuIcons, TrayMenuIcon.Groups);
+            Append(
+                menu,
+                TrayCommand.ToggleStartAtLogin,
+                I18n.Get("tray.startup"),
+                menuIcons,
+                TrayMenuIcon.StartAtLogin,
+                isChecked: _state.StartAtLogin);
             NativeMethods.AppendMenu(menu, 0x800, 0, null);
-            Append(menu, TrayCommand.CheckUpdates, I18n.Get("tray.checkUpdates"));
-            Append(menu, TrayCommand.Settings, I18n.Get("tray.settings"));
+            Append(
+                menu,
+                TrayCommand.CheckUpdates,
+                I18n.Get("tray.checkUpdates"),
+                menuIcons,
+                TrayMenuIcon.CheckUpdates);
+            Append(
+                menu,
+                TrayCommand.Settings,
+                I18n.Get("tray.settings"),
+                menuIcons,
+                TrayMenuIcon.Settings);
             NativeMethods.AppendMenu(menu, 0x800, 0, null);
-            Append(menu, TrayCommand.Exit, I18n.Get("tray.exit"));
+            Append(menu, TrayCommand.Exit, I18n.Get("tray.exit"), menuIcons, TrayMenuIcon.Exit);
 
             NativeMethods.GetCursorPos(out var point);
             NativeMethods.SetForegroundWindow(_window);
@@ -481,6 +534,7 @@ public sealed class TrayIconService : IDisposable
         finally
         {
             NativeMethods.DestroyMenu(menu);
+            menuIcons.Dispose();
         }
     }
 
@@ -488,11 +542,36 @@ public sealed class TrayIconService : IDisposable
         nint menu,
         TrayCommand command,
         string label,
+        TrayMenuIconSet menuIcons,
+        TrayMenuIcon icon,
         bool isChecked = false,
         bool isEnabled = true)
     {
         var flags = (isChecked ? 0x0008u : 0u) | (isEnabled ? 0u : 0x0001u);
         NativeMethods.AppendMenu(menu, flags, (nuint)command, label);
+        ApplyMenuIcon(menu, (uint)command, byPosition: false, menuIcons, icon);
+    }
+
+    private static void ApplyMenuIcon(
+        nint menu,
+        uint item,
+        bool byPosition,
+        TrayMenuIconSet menuIcons,
+        TrayMenuIcon icon)
+    {
+        var bitmap = menuIcons.Get(icon);
+        if (bitmap == nint.Zero)
+        {
+            return;
+        }
+
+        var information = new MenuItemInfo
+        {
+            Size = (uint)Marshal.SizeOf<MenuItemInfo>(),
+            Mask = 0x00000080,
+            ItemBitmap = bitmap,
+        };
+        NativeMethods.SetMenuItemInfo(menu, item, byPosition, ref information);
     }
 
     private static nint WndProc(nint window, uint message, nint wParam, nint lParam)
@@ -632,6 +711,23 @@ public sealed class TrayIconService : IDisposable
     [StructLayout(LayoutKind.Sequential)]
     private struct NativePoint { public int X; public int Y; }
 
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct MenuItemInfo
+    {
+        public uint Size;
+        public uint Mask;
+        public uint Type;
+        public uint State;
+        public uint Id;
+        public nint SubMenu;
+        public nint CheckedBitmap;
+        public nint UncheckedBitmap;
+        public nuint ItemData;
+        public nint TypeData;
+        public uint CharacterCount;
+        public nint ItemBitmap;
+    }
+
     [StructLayout(LayoutKind.Sequential)]
     private struct NativeMessage
     {
@@ -706,7 +802,15 @@ public sealed class TrayIconService : IDisposable
         [DllImport("user32.dll")] public static extern nint CreateIconIndirect(ref IconInfo iconInformation);
         [DllImport("user32.dll")] public static extern nint CreatePopupMenu();
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern bool AppendMenu(nint menu, uint flags, nuint item, string? label);
-        [DllImport("user32.dll")] public static extern bool SetMenuDefaultItem(nint menu, uint item, [MarshalAs(UnmanagedType.Bool)] bool byPosition);
+        [DllImport("user32.dll", EntryPoint = "SetMenuItemInfoW", CharSet = CharSet.Unicode)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetMenuItemInfo(
+            nint menu,
+            uint item,
+            [MarshalAs(UnmanagedType.Bool)] bool byPosition,
+            ref MenuItemInfo information);
+        [DllImport("user32.dll")] public static extern int GetMenuItemCount(nint menu);
+        [DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);
         [DllImport("user32.dll")] public static extern uint TrackPopupMenu(nint menu, uint flags, int x, int y, int reserved, nint window, nint rectangle);
         [DllImport("user32.dll")] public static extern bool DestroyMenu(nint menu);
         [DllImport("user32.dll")] public static extern bool GetCursorPos(out NativePoint point);

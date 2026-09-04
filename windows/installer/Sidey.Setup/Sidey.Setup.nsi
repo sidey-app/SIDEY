@@ -42,8 +42,8 @@ InstallDir "$PROGRAMFILES64\SIDEY"
 InstallDirRegKey HKLM "${PRODUCT_REGISTRY_KEY}" "InstallLocation"
 RequestExecutionLevel admin
 ManifestDPIAware true
-SetCompressor /SOLID lzma
-SetCompressorDictSize 64
+SetCompressor lzma
+SetCompressorDictSize 8
 CRCCheck on
 ShowInstDetails show
 ShowUninstDetails show

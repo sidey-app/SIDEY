@@ -86,7 +86,9 @@ public sealed class StartupDiagnosticsSourceTests
         string app = ReadRepositoryFile("windows", "src", "Sidey.App", "App.xaml.cs");
 
         int loadCache = app.IndexOf("await _coordinator.LoadCachedStateAsync();", StringComparison.Ordinal);
-        int createWindow = app.IndexOf("_mainWindow = new MainWindow(_coordinator);", StringComparison.Ordinal);
+        int createWindow = app.IndexOf(
+            "_mainWindow = new MainWindow(_coordinator, _updateService);",
+            StringComparison.Ordinal);
 
         Assert.True(loadCache >= 0, "The local settings cache must be loaded during launch.");
         Assert.True(createWindow > loadCache, "The settings window must start from cached values.");

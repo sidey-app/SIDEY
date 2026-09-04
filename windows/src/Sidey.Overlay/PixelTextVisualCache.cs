@@ -13,8 +13,8 @@ internal sealed record PremultipliedVisual(byte[] Pixels, int Width, int Height)
 
 internal sealed record PixelMemberVisuals(
     PremultipliedVisual Nameplate,
-    PremultipliedVisual? MessageBubble,
-    PremultipliedVisual? TypingBubble,
+    IReadOnlyDictionary<Guid, PremultipliedVisual> MessageBubbles,
+    IReadOnlyList<PremultipliedVisual> TypingFrames,
     PremultipliedVisual? Doze);
 
 /// <summary>
@@ -35,6 +35,10 @@ internal sealed class PixelTextVisualCache : IDisposable
     private const float BubbleHorizontalPaddingDip = 8f;
     private const float BubbleVerticalPaddingDip = 7f;
     private const float BubbleFontSizeDip = 10.5f;
+    private const float BubbleCornerRadiusDip = 9f;
+    private const float BubbleBorderWidthDip = 1f;
+    private const float TypingBubbleWidthDip = 42f;
+    private const float TypingBubbleHeightDip = 30f;
     private const float DozeWidthDip = 42f;
     private const float DozeHeightDip = 28f;
     private const float DozeFontSizeDip = 14f;
@@ -43,16 +47,24 @@ internal sealed class PixelTextVisualCache : IDisposable
     private readonly CanvasDevice _device = CanvasDevice.GetSharedDevice();
     private readonly float _dpi;
     private readonly OverlayEdge _edge;
+    private readonly float _bubbleMaximumWidthDip;
     private readonly Dictionary<Guid, CacheEntry> _entries = [];
-    private readonly Dictionary<Guid, ActiveBubble> _bubblesBySender = [];
+    private readonly Dictionary<Guid, List<ActiveBubble>> _bubblesBySender = [];
     private readonly HashSet<Guid> _currentMemberIds = [];
     private readonly List<Guid> _removedMemberIds = [];
     private bool _disposed;
 
-    public PixelTextVisualCache(uint dpi, OverlayEdge edge)
+    public PixelTextVisualCache(
+        uint dpi,
+        OverlayEdge edge,
+        float bubbleMaximumWidthDip = BubbleMaximumWidthDip)
     {
         _dpi = dpi;
         _edge = edge;
+        _bubbleMaximumWidthDip = Math.Clamp(
+            bubbleMaximumWidthDip,
+            24f,
+            BubbleMaximumWidthDip);
     }
 
     public void Update(WorldSnapshot snapshot)
@@ -81,19 +93,40 @@ internal sealed class PixelTextVisualCache : IDisposable
         _bubblesBySender.Clear();
         foreach (var bubble in snapshot.Bubbles)
         {
-            _bubblesBySender[bubble.SenderId] = bubble;
+            if (!_bubblesBySender.TryGetValue(bubble.SenderId, out var senderBubbles))
+            {
+                senderBubbles = [];
+                _bubblesBySender.Add(bubble.SenderId, senderBubbles);
+            }
+            senderBubbles.Add(bubble);
+        }
+        foreach (var senderBubbles in _bubblesBySender.Values)
+        {
+            senderBubbles.Sort(CompareBubbles);
+            if (senderBubbles.Count > ActiveBubbleLedger.MaximumVisiblePerSender)
+            {
+                senderBubbles.RemoveRange(
+                    0,
+                    senderBubbles.Count - ActiveBubbleLedger.MaximumVisiblePerSender);
+            }
         }
         foreach (var member in snapshot.Members)
         {
-            _bubblesBySender.TryGetValue(member.Id, out var bubble);
+            _bubblesBySender.TryGetValue(member.Id, out var bubbles);
+            BubbleVisualKey? olderBubble = bubbles is { Count: 2 }
+                ? new BubbleVisualKey(bubbles[0].MessageId, bubbles[0].Body)
+                : null;
+            BubbleVisualKey? latestBubble = bubbles is { Count: > 0 }
+                ? new BubbleVisualKey(bubbles[^1].MessageId, bubbles[^1].Body)
+                : null;
             var key = new VisualKey(
                 member.IsCurrentUser
                     ? I18n.Format("overlay.currentUser", member.Nickname)
                     : member.Nickname,
                 member.Presence,
-                bubble?.MessageId,
-                bubble?.Body,
-                bubble is null && member.IsTyping);
+                olderBubble,
+                latestBubble,
+                member.IsTyping);
             if (_entries.TryGetValue(member.Id, out var existing) && existing.Key == key)
             {
                 continue;
@@ -136,36 +169,58 @@ internal sealed class PixelTextVisualCache : IDisposable
             key.Name,
             StatusColor(key.Presence)), _edge);
 
-        PremultipliedVisual? messageBubble = null;
-        if (key.BubbleBody is { } body)
+        var messageBubbles = new Dictionary<Guid, PremultipliedVisual>(
+            ActiveBubbleLedger.MaximumVisiblePerSender);
+        foreach (var bubble in BubbleKeys(key))
         {
-            var (width, height) = MeasureBubble(body);
-            messageBubble = PixelVisualOrientation.Apply(Rasterize(
-                body,
+            var (width, height) = MeasureBubble(bubble.Body);
+            messageBubbles.Add(bubble.MessageId, PixelVisualOrientation.Apply(Rasterize(
+                bubble.Body,
                 width,
                 height,
                 background: Color.FromArgb(242, 255, 255, 255),
                 foreground: Color.FromArgb(255, 27, 31, 40),
-                cornerRadius: 10f,
+                cornerRadius: BubbleCornerRadiusDip,
                 fontSize: BubbleFontSizeDip,
                 horizontalPadding: BubbleHorizontalPaddingDip,
-                verticalPadding: BubbleVerticalPaddingDip), _edge);
+                verticalPadding: BubbleVerticalPaddingDip,
+                border: Color.FromArgb(41, 20, 23, 31)), _edge));
         }
-        var typingBubble = key.IsTyping
-            ? PixelVisualOrientation.Apply(Rasterize(
-                "•••",
-                48f,
-                28f,
-                background: Color.FromArgb(230, 255, 255, 255),
-                foreground: Color.FromArgb(255, 84, 88, 100),
-                cornerRadius: 10f,
-                fontSize: 13f), _edge)
-            : null;
+        IReadOnlyList<PremultipliedVisual> typingFrames = key.IsTyping
+            ? [
+                BuildTypingFrame("."),
+                BuildTypingFrame(".."),
+                BuildTypingFrame("..."),
+            ]
+            : [];
 
         var doze = key.Presence == PresenceState.Away
             ? PixelVisualOrientation.Apply(RasterizeDoze(), _edge)
             : null;
-        return new PixelMemberVisuals(nameplate, messageBubble, typingBubble, doze);
+        return new PixelMemberVisuals(nameplate, messageBubbles, typingFrames, doze);
+    }
+
+    private PremultipliedVisual BuildTypingFrame(string body) =>
+        PixelVisualOrientation.Apply(Rasterize(
+            body,
+            Math.Min(TypingBubbleWidthDip, _bubbleMaximumWidthDip),
+            TypingBubbleHeightDip,
+            background: Color.FromArgb(242, 255, 255, 255),
+            foreground: Color.FromArgb(255, 84, 88, 100),
+            cornerRadius: BubbleCornerRadiusDip,
+            fontSize: 16f,
+            border: Color.FromArgb(41, 20, 23, 31)), _edge);
+
+    private static IEnumerable<BubbleVisualKey> BubbleKeys(VisualKey key)
+    {
+        if (key.OlderBubble is { } older)
+        {
+            yield return older;
+        }
+        if (key.LatestBubble is { } latest)
+        {
+            yield return latest;
+        }
     }
 
     private PremultipliedVisual RasterizeDoze()
@@ -240,10 +295,11 @@ internal sealed class PixelTextVisualCache : IDisposable
             10_000f,
             1_000f);
         var naturalBounds = naturalLayout.LayoutBoundsIncludingTrailingWhitespace;
-        var width = Math.Clamp(
-            (float)Math.Ceiling(naturalBounds.Width) + (BubbleHorizontalPaddingDip * 2f),
-            BubbleMinimumWidthDip,
-            BubbleMaximumWidthDip);
+        var width = Math.Min(
+            _bubbleMaximumWidthDip,
+            Math.Max(
+                BubbleMinimumWidthDip,
+                (float)Math.Ceiling(naturalBounds.Width) + (BubbleHorizontalPaddingDip * 2f)));
 
         using var wrappedFormat = new CanvasTextFormat
         {
@@ -260,10 +316,9 @@ internal sealed class PixelTextVisualCache : IDisposable
             width - (BubbleHorizontalPaddingDip * 2f),
             1_000f);
         var wrappedBounds = wrappedLayout.LayoutBoundsIncludingTrailingWhitespace;
-        var height = Math.Clamp(
-            (float)Math.Ceiling(wrappedBounds.Height) + (BubbleVerticalPaddingDip * 2f),
+        var height = Math.Max(
             28f,
-            66f);
+            (float)Math.Ceiling(wrappedBounds.Height) + (BubbleVerticalPaddingDip * 2f));
         return (width, height);
     }
 
@@ -342,7 +397,8 @@ internal sealed class PixelTextVisualCache : IDisposable
         float cornerRadius,
         float fontSize,
         float horizontalPadding = 4f,
-        float verticalPadding = 1f)
+        float verticalPadding = 1f,
+        Color? border = null)
     {
         using var target = new CanvasRenderTarget(
             _device,
@@ -372,6 +428,19 @@ internal sealed class PixelTextVisualCache : IDisposable
                     cornerRadius,
                     cornerRadius,
                     background);
+            }
+            if (border is { } borderColor)
+            {
+                var inset = BubbleBorderWidthDip / 2f;
+                drawing.DrawRoundedRectangle(
+                    inset,
+                    inset,
+                    widthDip - BubbleBorderWidthDip,
+                    heightDip - BubbleBorderWidthDip,
+                    cornerRadius,
+                    cornerRadius,
+                    borderColor,
+                    BubbleBorderWidthDip);
             }
             drawing.DrawText(
                 text,
@@ -403,11 +472,11 @@ internal sealed class PixelTextVisualCache : IDisposable
     private static void Clear(PixelMemberVisuals visuals)
     {
         Array.Clear(visuals.Nameplate.Pixels);
-        if (visuals.MessageBubble is { } messageBubble)
+        foreach (var messageBubble in visuals.MessageBubbles.Values)
         {
             Array.Clear(messageBubble.Pixels);
         }
-        if (visuals.TypingBubble is { } typingBubble)
+        foreach (var typingBubble in visuals.TypingFrames)
         {
             Array.Clear(typingBubble.Pixels);
         }
@@ -420,9 +489,21 @@ internal sealed class PixelTextVisualCache : IDisposable
     private sealed record VisualKey(
         string Name,
         PresenceState Presence,
-        Guid? BubbleId,
-        string? BubbleBody,
+        BubbleVisualKey? OlderBubble,
+        BubbleVisualKey? LatestBubble,
         bool IsTyping);
+
+    private readonly record struct BubbleVisualKey(Guid MessageId, string Body);
+
+    private static int CompareBubbles(ActiveBubble left, ActiveBubble right)
+    {
+        var dateComparison = left.ExpiresAt.CompareTo(right.ExpiresAt);
+        return dateComparison != 0
+            ? dateComparison
+            : StringComparer.Ordinal.Compare(
+                left.MessageId.ToString("D"),
+                right.MessageId.ToString("D"));
+    }
 
     private sealed record CacheEntry(VisualKey Key, PixelMemberVisuals Visuals);
 }

@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using Sidey.Core.Localization;
 
-namespace Sidey.Platform.Windows.Tests;
+namespace Sidey.Presentation.Tests;
 
 internal static class TestLocalization
 {

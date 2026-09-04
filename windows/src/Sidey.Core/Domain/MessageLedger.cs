@@ -136,7 +136,7 @@ public sealed class MessageLedger
 
 public sealed class ActiveBubbleLedger
 {
-    public const int MaximumVisible = 4;
+    public const int MaximumVisiblePerSender = 2;
     public static readonly TimeSpan DefaultLifetime = TimeSpan.FromSeconds(10);
 
     private readonly List<ActiveBubble> _bubbles = [];
@@ -149,7 +149,7 @@ public sealed class ActiveBubbleLedger
         string body,
         DateTimeOffset? expiresAt = null)
     {
-        _bubbles.RemoveAll(bubble => bubble.SenderId == senderId || bubble.MessageId == messageId);
+        _bubbles.RemoveAll(bubble => bubble.MessageId == messageId);
         _bubbles.Add(new ActiveBubble(
             senderId,
             messageId,
@@ -163,9 +163,16 @@ public sealed class ActiveBubbleLedger
                 : StringComparer.Ordinal.Compare(left.MessageId.ToString("D"), right.MessageId.ToString("D"));
         });
 
-        if (_bubbles.Count > MaximumVisible)
+        var senderBubbles = _bubbles
+            .Where(bubble => bubble.SenderId == senderId)
+            .ToArray();
+        if (senderBubbles.Length > MaximumVisiblePerSender)
         {
-            _bubbles.RemoveRange(0, _bubbles.Count - MaximumVisible);
+            var removedIds = senderBubbles
+                .Take(senderBubbles.Length - MaximumVisiblePerSender)
+                .Select(bubble => bubble.MessageId)
+                .ToHashSet();
+            _bubbles.RemoveAll(bubble => removedIds.Contains(bubble.MessageId));
         }
     }
 

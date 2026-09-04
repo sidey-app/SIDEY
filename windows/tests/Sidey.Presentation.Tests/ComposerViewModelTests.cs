@@ -1,6 +1,6 @@
 using Sidey.Presentation.ViewModels;
 
-namespace Sidey.Platform.Windows.Tests;
+namespace Sidey.Presentation.Tests;
 
 public sealed class ComposerViewModelTests
 {

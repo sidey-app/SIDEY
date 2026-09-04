@@ -28,6 +28,9 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" />
   </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)' != 'Debug'">
+    <Compile Remove="DevelopmentUpdateService.cs" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Sidey.Core/Sidey.Core.csproj" />
     <ProjectReference Include="../Sidey.Infrastructure/Sidey.Infrastructure.csproj" />

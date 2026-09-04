@@ -47,11 +47,7 @@ dotnet run --project ./windows/src/Sidey.App/Sidey.App.csproj --configuration De
 
 두 환경변수가 없으면 production backend를 사용합니다. 서버 없는 5종 로컬 미리보기와 햄스터 제한 계측은 아래 Debug 검증 모드에서만 실행되며 Release에는 노출되지 않습니다.
 
-완료된 온보딩을 자격증명이나 환경설정 초기화 없이 다시 확인하려면 Debug 전용 미리 보기 인자를 사용합니다. 랜딩부터 프로필·그룹·완료 단계를 모두 진행하지만 프로필과 그룹 변경은 서버에 저장하지 않습니다. Release 빌드에서는 이 인자를 무시합니다.
-
-```powershell
-dotnet run --project ./windows/src/Sidey.App/Sidey.App.csproj --configuration Debug -- --onboarding-preview
-```
+로컬 앱 설정을 초기화했지만 Windows 자격 증명과 서버 데이터가 남아 있으면 온보딩 입력란에 기존 프로필과 활성 그룹 이름을 채웁니다. 복원된 데이터만으로 단계를 자동 진행하지 않으며 사용자가 각 단계를 직접 확인해야 합니다. 그룹 생성이나 참여를 원하지 않으면 그룹 단계에서 `건너뛰기`를 선택할 수 있고, 마지막 `SIDEY 시작`을 누른 뒤에만 온보딩 완료 상태를 저장합니다.
 
 ## 햄스터 제한 실기 검증
 

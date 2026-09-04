@@ -14,6 +14,7 @@ public partial class App : Application
     private static readonly TimeSpan ConnectionFailureNotificationCooldown = TimeSpan.FromMinutes(15);
 
     private readonly DispatcherQueue _dispatcherQueue;
+    private readonly IUpdateService _updateService;
     private Window? _window;
     private MainWindow? _mainWindow;
     private OnboardingWindow? _onboardingWindow;
@@ -22,8 +23,9 @@ public partial class App : Application
     private AppCoordinator? _coordinator;
     private SingleInstanceGuard? _singleInstance;
     private TrayIconService? _tray;
+#if DEBUG
     private DevelopmentUpdateService? _developmentUpdate;
-    private bool _closeAppWhenOnboardingCloses = true;
+#endif
     private bool _startupUpdateCheckStarted;
     private bool _monitorConnectionFailures;
     private bool _connectionFailureNotificationArmed = true;
@@ -36,6 +38,7 @@ public partial class App : Application
     public App()
     {
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+        _updateService = new WindowsUpdateServiceAdapter();
         StartupDiagnostics.BeginSession();
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
@@ -81,19 +84,13 @@ public partial class App : Application
             Environment.GetCommandLineArgs());
         bool backgroundLaunch = WindowsStartupService.IsBackgroundLaunch(args.Arguments)
             || WindowsStartupService.IsBackgroundLaunch(processArguments);
-        bool onboardingPreview = IsOnboardingPreviewRequested(args.Arguments)
-            || IsOnboardingPreviewRequested(processArguments);
         StartupDiagnostics.Stage("launch-entered");
-        StartupDiagnostics.Stage(
-            $"launch-mode background={backgroundLaunch} onboarding-preview={onboardingPreview}");
+        StartupDiagnostics.Stage($"launch-mode background={backgroundLaunch}");
         _singleInstance = SingleInstanceGuard.Acquire();
         if (!_singleInstance.IsPrimary)
         {
-            SingleInstanceRequest request = onboardingPreview
-                ? SingleInstanceRequest.OnboardingPreview
-                : SingleInstanceRequest.Activate;
-            _singleInstance.Signal(request);
-            StartupDiagnostics.Stage($"secondary-instance-request request={request}");
+            _singleInstance.Signal();
+            StartupDiagnostics.Stage("secondary-instance-request request=activate");
             _singleInstance.Dispose();
             _singleInstance = null;
             StartupDiagnostics.CompleteSession();
@@ -125,14 +122,7 @@ public partial class App : Application
         _coordinator.StateChanged += OnCoordinatorStateChanged;
         if (!_coordinator.State.Preferences.OnboardingCompleted)
         {
-            CreateOnboardingWindow(_coordinator, onboardingPreview);
-            _window = _onboardingWindow;
-            _onboardingWindow!.Activate();
-            StartupDiagnostics.Stage("onboarding-window-activated");
-        }
-        else if (onboardingPreview)
-        {
-            CreateOnboardingWindow(_coordinator, isPreviewMode: true);
+            CreateOnboardingWindow(_coordinator);
             _window = _onboardingWindow;
             _onboardingWindow!.Activate();
             StartupDiagnostics.Stage("onboarding-window-activated");
@@ -143,9 +133,7 @@ public partial class App : Application
             _window = _mainWindow;
             StartupDiagnostics.Stage("completed-launch-window-hidden");
         }
-        _singleInstance!.StartListening(
-            RequestPrimaryActivation,
-            RequestOnboardingPreview);
+        _singleInstance!.StartListening(RequestPrimaryActivation);
         try
         {
             _tray = TrayIconService.Start();
@@ -165,7 +153,9 @@ public partial class App : Application
                 I18n.Get("error.trayStart"),
                 exception));
         }
+#if DEBUG
         _developmentUpdate = DevelopmentUpdateService.Start(OnDevelopmentUpdateAccepted);
+#endif
         try
         {
             await _coordinator.InitializeAsync();
@@ -210,18 +200,6 @@ public partial class App : Application
         }
     }
 
-    private static bool IsOnboardingPreviewRequested(string? arguments)
-    {
-#if DEBUG
-        return StringComparer.OrdinalIgnoreCase.Equals(
-            arguments?.Trim(),
-            "--onboarding-preview");
-#else
-        _ = arguments;
-        return false;
-#endif
-    }
-
     private void StartStartupUpdateCheck()
     {
         if (_startupUpdateCheckStarted || _mainWindow is null)
@@ -245,7 +223,7 @@ public partial class App : Application
             throw new InvalidOperationException("The settings window requires an initialized coordinator.");
         }
 
-        _mainWindow = new MainWindow(_coordinator);
+        _mainWindow = new MainWindow(_coordinator, _updateService);
         StartupDiagnostics.Stage("settings-window-created result=success");
         _mainWindow.Closed += OnMainWindowClosed;
         _mainWindow.SetTrayAvailable(_tray is not null);
@@ -286,8 +264,10 @@ public partial class App : Application
 
     private async Task DisposeAfterFailedLaunchAsync()
     {
+#if DEBUG
         _developmentUpdate?.Dispose();
         _developmentUpdate = null;
+#endif
         try
         {
             _tray?.Dispose();
@@ -464,7 +444,6 @@ public partial class App : Application
         MainWindow mainWindow = EnsureMainWindow();
         OnboardingWindow onboarding = _onboardingWindow;
         _onboardingWindow = null;
-        _closeAppWhenOnboardingCloses = false;
         onboarding.Completed -= OnOnboardingCompleted;
         onboarding.Closed -= OnOnboardingClosed;
         _window = mainWindow;
@@ -474,13 +453,9 @@ public partial class App : Application
         StartupDiagnostics.Stage("onboarding-completed");
     }
 
-    private void CreateOnboardingWindow(
-        AppCoordinator coordinator,
-        bool isPreviewMode = false,
-        bool closeAppWhenClosed = true)
+    private void CreateOnboardingWindow(AppCoordinator coordinator)
     {
-        _closeAppWhenOnboardingCloses = closeAppWhenClosed;
-        _onboardingWindow = new OnboardingWindow(coordinator, isPreviewMode);
+        _onboardingWindow = new OnboardingWindow(coordinator);
         _onboardingWindow.Completed += OnOnboardingCompleted;
         _onboardingWindow.Closed += OnOnboardingClosed;
     }
@@ -496,14 +471,7 @@ public partial class App : Application
         _onboardingWindow!.Completed -= OnOnboardingCompleted;
         _onboardingWindow.Closed -= OnOnboardingClosed;
         _onboardingWindow = null;
-        if (_closeAppWhenOnboardingCloses)
-        {
-            BeginShutdown();
-            return;
-        }
-
-        _window = _mainWindow;
-        ShowPrimaryWindow();
+        BeginShutdown();
     }
 
     private void RequestPrimaryActivation()
@@ -523,27 +491,6 @@ public partial class App : Application
                 _onboardingWindow.ShowAndActivate();
             }
         });
-    }
-
-    private void RequestOnboardingPreview()
-    {
-#if DEBUG
-        _dispatcherQueue.TryEnqueue(() =>
-        {
-            if (_onboardingWindow is null && _coordinator is not null)
-            {
-                CreateOnboardingWindow(
-                    _coordinator,
-                    isPreviewMode: true,
-                    closeAppWhenClosed: false);
-                _window = _onboardingWindow;
-            }
-
-            _onboardingWindow?.ShowAndActivate();
-        });
-#else
-        RequestPrimaryActivation();
-#endif
     }
 
     private void ShowPrimaryWindow()
@@ -827,8 +774,10 @@ public partial class App : Application
             mainWindow.Closed -= OnMainWindowClosed;
             mainWindow.CloseForExit();
         }
+#if DEBUG
         _developmentUpdate?.Dispose();
         _developmentUpdate = null;
+#endif
         if (_tray is not null)
         {
             _tray.CommandInvoked -= OnTrayCommandInvoked;
@@ -887,6 +836,7 @@ public partial class App : Application
         Exit();
     }
 
+#if DEBUG
     private void OnDevelopmentUpdateAccepted(DevelopmentUpdateRequest request)
     {
         if (_shuttingDown || _developmentUpdate is null)
@@ -909,4 +859,5 @@ public partial class App : Application
             StartupDiagnostics.NonFatal("development-update-start", exception);
         }
     }
+#endif
 }
