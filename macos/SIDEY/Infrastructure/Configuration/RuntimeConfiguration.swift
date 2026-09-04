@@ -46,7 +46,7 @@ struct RuntimeConfiguration: Equatable, Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         bundleInfo: [String: Any] = Bundle.main.infoDictionary ?? [:]
     ) throws -> Self {
-        if releaseChannel == .production {
+        if releaseChannel == .production || releaseChannel == .appStore {
             return Self(
                 supabaseURL: URL(string: "https://\(productionHost)")!,
                 supabasePublishableKey: "sb_publishable_kkASOI4rRTX8Drob21hkCw_VwUex63Y"

@@ -49,7 +49,7 @@ struct StoreView: View {
                         switch availability {
                         case .comingSoon:
                             StoreLockedProductCard(product: productState.product)
-                        case .enabled:
+                        case .direct, .appStore:
                             StoreProductCard(productState: productState, actions: actions)
                         }
                     }
@@ -62,12 +62,22 @@ struct StoreView: View {
                 Label(footerHeadline, systemImage: "lock.shield")
                 .font(.callout)
 
-                if availability == .enabled {
-                    Text("결제 승인과 서버 소유권 확인이 끝나면 디지털 캐릭터 사용권 제공이 즉시 시작됩니다.")
+                if availability.allowsCommerceActions {
+                    Text(availability.usesAppStore
+                         ? "구매는 Apple이 처리하며, 서버 검증이 끝나면 캐릭터 사용권이 계정에 반영됩니다."
+                         : "결제 승인과 서버 소유권 확인이 끝나면 디지털 캐릭터 사용권 제공이 즉시 시작됩니다.")
                         .font(.caption)
 
-                    Text("구매 승인 후 7일 이내에는 사용 여부와 관계없이 전액 환불합니다. 그 이후에도 미제공·계약 내용 불일치·중복 또는 무단 결제 등 법정 사유가 확인되면 전액 환불합니다.")
+                    Text(availability.usesAppStore
+                         ? "환불과 결제 문의는 Apple의 App Store 정책과 절차를 따릅니다."
+                         : "구매 승인 후 7일 이내에는 사용 여부와 관계없이 전액 환불합니다. 그 이후에도 미제공·계약 내용 불일치·중복 또는 무단 결제 등 법정 사유가 확인되면 전액 환불합니다.")
                         .font(.caption)
+                }
+
+                if availability.usesAppStore {
+                    Button("구매 복원", action: actions.onRestorePurchases)
+                        .buttonStyle(.link)
+                        .disabled(model.accountOperationInProgress)
                 }
             }
             .foregroundStyle(.secondary)
@@ -85,9 +95,14 @@ struct StoreView: View {
     }
 
     private var footerHeadline: String {
-        availability == .enabled
-            ? "표시 가격은 부가세 포함 금액입니다. 구매 전 Google 계정 연결이 필요합니다."
-            : "현재 상점은 준비 중입니다. 보유 중인 캐릭터는 계속 사용할 수 있습니다."
+        switch availability {
+        case .comingSoon:
+            "현재 상점은 준비 중입니다. 보유 중인 캐릭터는 계속 사용할 수 있습니다."
+        case .direct:
+            "표시 가격은 부가세 포함 금액입니다. 구매 전 Google 계정 연결이 필요합니다."
+        case .appStore:
+            "가격과 결제는 App Store에서 표시하고 처리합니다."
+        }
     }
 }
 
@@ -208,7 +223,7 @@ struct StoreProductCard: View {
                     .font(.title3.bold())
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 8)
-                Text(productState.product.formattedPrice)
+                Text(productState.formattedPrice)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .fixedSize()
@@ -313,7 +328,7 @@ struct StoreProductCard: View {
             case .googleConnectionRequired:
                 fullWidthButton("Google 계정 연결", action: requestPurchase)
             case .available:
-                fullWidthButton("\(productState.product.formattedPrice)에 구매", action: requestPurchase)
+                fullWidthButton("\(productState.formattedPrice)에 구매", action: requestPurchase)
             case .openingCheckout, .confirming:
                 disabledProgressButton(productState.purchaseState.label)
             case .owned:

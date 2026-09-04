@@ -306,8 +306,22 @@ struct CommerceProductState: Equatable, Identifiable, Sendable {
     var product: CommerceProduct
     var purchaseState: CommercePurchaseState
     var isWorking: Bool
+    var localizedPrice: String?
+
+    init(
+        product: CommerceProduct,
+        purchaseState: CommercePurchaseState,
+        isWorking: Bool,
+        localizedPrice: String? = nil
+    ) {
+        self.product = product
+        self.purchaseState = purchaseState
+        self.isWorking = isWorking
+        self.localizedPrice = localizedPrice
+    }
 
     var id: String { product.id }
+    var formattedPrice: String { localizedPrice ?? product.formattedPrice }
 }
 
 enum CommercePurchaseState: Equatable, Sendable {

@@ -4,17 +4,19 @@ import AppKit
 final class AppCoordinator {
     let model: AppModel
 
-    private let preferencesStore: PreferencesStore
+    let preferencesStore: PreferencesStore
     private let legacyMigrator: LegacySettingsMigrator
     private let updateController: any AppUpdateChecking
     let releaseChannel: AppReleaseChannel
     var backend: SideyBackend?
     private let runtimeConfiguration: RuntimeConfiguration?
     let configurationError: Error?
-    private let keychainAccessSession: KeychainAccessSession
+    let keychainAccessSession: KeychainAccessSession
     let launchReason: LaunchReason
     private let onLandingFirstFrame: () -> Void
     private let launchAtLoginController: LaunchAtLoginController
+    let appStorePurchaseController: AppStorePurchaseController
+    let appStoreAccountClient: AppStoreAccountClient
     lazy var overlayWindows = OverlayWindowGroup(
         model: model,
         onSend: { [weak self] body in self?.sendMessage(body) },
@@ -41,6 +43,9 @@ final class AppCoordinator {
             onRefreshCommerceState: { [weak self] productID in
                 self?.refreshCommerceState(productID: productID)
             },
+            onRestorePurchases: { [weak self] in self?.restoreAppStorePurchases() },
+            onSignInWithApple: { [weak self] payload in self?.signInWithApple(payload) },
+            onDeleteAccount: { [weak self] payload in self?.deleteAccount(payload) },
             onSaveProfile: { [weak self] in self?.saveProfile() },
             onCreateRoom: { [weak self] in self?.createRoom() },
             onJoinRoom: { [weak self] in self?.joinRoom() },
@@ -105,9 +110,9 @@ final class AppCoordinator {
     ) {
         self.updateController = updateController
         self.releaseChannel = releaseChannel
-        self.launchAtLoginController = LaunchAtLoginController(
-            helperIdentifier: releaseChannel.loginItemIdentifier
-        )
+        self.launchAtLoginController = LaunchAtLoginController(mode: releaseChannel.loginItemMode)
+        self.appStorePurchaseController = AppStorePurchaseController()
+        self.appStoreAccountClient = AppStoreAccountClient()
         self.preferencesStore = preferencesStore
         self.legacyMigrator = legacyMigrator
         self.keychainAccessSession = keychainAccessSession
@@ -218,6 +223,7 @@ final class AppCoordinator {
         commerceProductTasks.values.forEach { $0.cancel() }
         commerceProductTasks.removeAll()
         commerceAuthTask?.cancel()
+        appStorePurchaseController.stopObserving()
         roomSwitchPipeline.cancel()
         activityMonitor.stop()
         mainThreadProbe.stop()
@@ -295,7 +301,10 @@ final class AppCoordinator {
     }
 
     func handleOpenURL(_ url: URL) -> Bool {
-        guard releaseChannel.storeAvailability.allowsCommerceActions,
+#if APP_STORE
+        return false
+#else
+        guard releaseChannel.storeAvailability == .direct,
               SideyAuthCallback.matches(url),
               let backend
         else { return false }
@@ -324,6 +333,7 @@ final class AppCoordinator {
             }
         }
         return true
+#endif
     }
 
     private func settingsDidClose() {

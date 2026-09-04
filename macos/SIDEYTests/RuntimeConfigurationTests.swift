@@ -83,4 +83,41 @@ final class RuntimeConfigurationTests: XCTestCase {
 
         XCTAssertTrue(configuration.isProductionBackend)
     }
+
+    func testAppStoreUsesProductionBackend() throws {
+        let configuration = try RuntimeConfiguration.resolve(
+            releaseChannel: .appStore,
+            environment: [:],
+            bundleInfo: [:]
+        )
+
+        XCTAssertTrue(configuration.isProductionBackend)
+    }
+
+    func testAppStoreVerifierEndpointRequiresHTTPSExceptLocalhost() {
+        XCTAssertEqual(
+            AppStoreServiceEndpoint.resolve(environment: [
+                "SIDEY_APP_STORE_VERIFIER_URL": "https://iap.sidey.app/"
+            ])?.absoluteString,
+            "https://iap.sidey.app/"
+        )
+        XCTAssertNil(AppStoreServiceEndpoint.resolve(environment: [
+            "SIDEY_APP_STORE_VERIFIER_URL": "http://iap.sidey.app"
+        ]))
+        XCTAssertEqual(
+            AppStoreServiceEndpoint.resolve(environment: [
+                "SIDEY_APP_STORE_VERIFIER_URL": "http://localhost:8080"
+            ])?.absoluteString,
+            "http://localhost:8080"
+        )
+        XCTAssertNil(AppStoreServiceEndpoint.resolve(environment: [
+            "SIDEY_APP_STORE_VERIFIER_URL": "https://user:password@iap.sidey.app"
+        ]))
+        XCTAssertNil(AppStoreServiceEndpoint.resolve(environment: [
+            "SIDEY_APP_STORE_VERIFIER_URL": "https://iap.sidey.app?destination=other"
+        ]))
+        XCTAssertNil(AppStoreServiceEndpoint.resolve(environment: [
+            "SIDEY_APP_STORE_VERIFIER_URL": "https://iap.sidey.app#other"
+        ]))
+    }
 }

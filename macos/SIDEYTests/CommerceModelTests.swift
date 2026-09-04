@@ -25,10 +25,14 @@ final class CommerceModelTests: XCTestCase {
     func testReleaseChannelHardCodesStoreAvailabilityAndIsolationIdentifiers() {
         XCTAssertFalse(AppReleaseChannel.production.storeAvailability.allowsCommerceActions)
         XCTAssertTrue(AppReleaseChannel.development.storeAvailability.allowsCommerceActions)
+        XCTAssertTrue(AppReleaseChannel.appStore.storeAvailability.usesAppStore)
         XCTAssertNotEqual(AppReleaseChannel.production.keychainService, AppReleaseChannel.development.keychainService)
-        XCTAssertNotEqual(AppReleaseChannel.production.loginItemIdentifier, AppReleaseChannel.development.loginItemIdentifier)
+        XCTAssertNotEqual(AppReleaseChannel.production.loginItemMode, AppReleaseChannel.development.loginItemMode)
+        XCTAssertEqual(AppReleaseChannel.appStore.loginItemMode, .mainApp)
+        XCTAssertTrue(AppReleaseChannel.appStore.requiresAppleAuthentication)
         XCTAssertNil(AppReleaseChannel.production.preferencesSuiteName)
         XCTAssertEqual(AppReleaseChannel.development.preferencesSuiteName, "app.sidey.desktop.dev")
+        XCTAssertEqual(AppReleaseChannel.appStore.preferencesSuiteName, "app.sidey.desktop.appstore")
     }
 
     func testTwoProductsKeepOrderAndUpdateStateIndependently() throws {
@@ -67,6 +71,18 @@ final class CommerceModelTests: XCTestCase {
         StoreProductCard(productState: state, actions: actions).requestPurchase()
 
         XCTAssertEqual(purchasedProductID, product.id)
+    }
+
+    func testStoreKitLocalizedPriceOverridesDirectPrice() {
+        let product = Self.fixtureProduct(id: "fixture_localized", characterID: "pixel_rabbit")
+        let state = CommerceProductState(
+            product: product,
+            purchaseState: .available,
+            isWorking: false,
+            localizedPrice: "$0.99"
+        )
+
+        XCTAssertEqual(state.formattedPrice, "$0.99")
     }
 
     func testStoreReactionPreviewFitsInsideItsCardWithoutUsingWorldScale() {

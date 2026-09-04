@@ -12,6 +12,9 @@ struct SettingsActions {
     var canCheckForUpdates: () -> Bool
     var onPurchase: (String) -> Void
     var onRefreshCommerceState: (String?) -> Void
+    var onRestorePurchases: () -> Void
+    var onSignInWithApple: (AppleAuthorizationPayload) -> Void
+    var onDeleteAccount: (AppleAuthorizationPayload) -> Void
     var onSaveProfile: @MainActor @Sendable () -> Void
     var onCreateRoom: () -> Void
     var onJoinRoom: () -> Void
@@ -33,6 +36,9 @@ struct SettingsActions {
         canCheckForUpdates: { false },
         onPurchase: { _ in },
         onRefreshCommerceState: { _ in },
+        onRestorePurchases: {},
+        onSignInWithApple: { _ in },
+        onDeleteAccount: { _ in },
         onSaveProfile: {},
         onCreateRoom: {},
         onJoinRoom: {},
@@ -62,7 +68,9 @@ struct SettingsRootView: View {
 
     var body: some View {
         Group {
-            if model.preferences.onboardingComplete {
+            if model.authenticationRequired {
+                AppleSignInView(model: model, onSignIn: actions.onSignInWithApple)
+            } else if model.preferences.onboardingComplete {
                 settingsNavigation
             } else {
                 OnboardingView(model: model, actions: actions)
@@ -100,7 +108,11 @@ struct SettingsRootView: View {
                             availability: storeAvailability
                         )
                     case .app:
-                        AppSettingsView(model: model, actions: actions)
+                        AppSettingsView(
+                            model: model,
+                            actions: actions,
+                            storeAvailability: storeAvailability
+                        )
                     }
                 }
                 .frame(maxWidth: 760, alignment: .topLeading)
