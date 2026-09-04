@@ -17,7 +17,7 @@ public sealed record WindowsUpdateManifest(
 
 public sealed partial class WindowsUpdateService(HttpClient? httpClient = null)
 {
-    public const string CurrentVersion = "1.0.5";
+    public const string CurrentVersion = "1.0.6";
     public static readonly Uri ManifestUri = new(
         "https://sidey-app.github.io/SIDEY/windows-latest.json");
     private readonly HttpClient _httpClient = httpClient ?? new HttpClient();
