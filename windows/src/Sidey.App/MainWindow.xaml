@@ -57,9 +57,19 @@
               Padding="12,8"
               Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
               CornerRadius="8">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <Ellipse Width="9" Height="9" Fill="{Binding IsConnected, Converter={StaticResource ConnectionBrushConverter}}" />
-              <TextBlock Text="{Binding ConnectionText}" />
+            <StackPanel
+                x:Name="ExpandedConnectionContent"
+                VerticalAlignment="Center"
+                Orientation="Horizontal"
+                Spacing="8">
+              <Ellipse
+                  Width="9"
+                  Height="9"
+                  VerticalAlignment="Center"
+                  Fill="{Binding IsConnected, Converter={StaticResource ConnectionBrushConverter}}" />
+              <TextBlock
+                  VerticalAlignment="Center"
+                  Text="{Binding ConnectionText}" />
             </StackPanel>
           </Border>
           <Border

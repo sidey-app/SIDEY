@@ -240,6 +240,15 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("ConnectionStatusRoot.Width = RootNavigation.CompactPaneLength", source, StringComparison.Ordinal);
         Assert.Contains("PaneOpening=\"OnNavigationPaneOpening\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ExpandedConnectionStatus\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ExpandedConnectionContent\"", xaml, StringComparison.Ordinal);
+        var xamlDocument = System.Xml.Linq.XDocument.Parse(xaml);
+        System.Xml.Linq.XElement expandedConnectionContent = xamlDocument.Descendants().Single(
+            element => element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "Name"
+                && attribute.Value == "ExpandedConnectionContent"));
+        Assert.Equal("Center", expandedConnectionContent.Attribute("VerticalAlignment")?.Value);
+        Assert.All(expandedConnectionContent.Elements(), element =>
+            Assert.Equal("Center", element.Attribute("VerticalAlignment")?.Value));
         Assert.Contains("ExpandedConnectionStatus.Visibility = Visibility.Collapsed", source, StringComparison.Ordinal);
         Assert.Contains("Background=\"{ThemeResource SideyAccentBackground12Brush}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Foreground=\"{ThemeResource SideyAccentForegroundBrush}\"", xaml, StringComparison.Ordinal);
