@@ -9,6 +9,37 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <description>Signed macOS updates for SIDEY</description>
         <language>ko</language>
         <item>
+            <title>1.0.7</title>
+            <pubDate>Fri, 04 Sep 2026 14:30:02 +0900</pubDate>
+            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.7</link>
+            <sparkle:version>18</sparkle:version>
+            <sparkle:shortVersionString>1.0.7</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.7
+
+`1.0.7` build `18` · macOS 26+ · Apple Silicon(arm64)
+
+## 변경 사항
+
+- macOS 이모지·기호 선택기에서 고른 이모지가 메시지 입력창에 정상적으로 들어갑니다.
+- 친구마다 최근 메시지를 최대 두 개까지 함께 표시합니다. 이전 메시지는 위에, 최신 메시지는 캐릭터 가까이에 표시됩니다.
+
+## 설치 및 업데이트
+
+- 신규 설치는 `SIDEY-macOS-arm64-v1.0.7.dmg`를 사용하세요.
+- 기존 사용자는 앱의 `업데이트 확인…` 또는 Homebrew로 업데이트할 수 있습니다.
+- 업데이트해도 SIDEY 계정, 그룹, 닉네임과 로컬 설정은 유지됩니다.
+
+## 현재 제한
+
+- 정식판 상점의 실제 캐릭터 판매는 아직 시작하지 않습니다.
+- Windows v1.0.6 배포물과 Windows의 무료 캐릭터 정책은 이번 macOS 릴리스에서 변경되지 않습니다.
+- 보안 화면, DRM 앱, 권한이 더 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
+]]></description>
+            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.7/SIDEY-macOS-arm64-v1.0.7.zip" length="5505964" type="application/octet-stream" sparkle:edSignature="V3eFEWcyP49EH7J2yLegZlYbaC8lEcsSIv4fPcm7B8JOi0iFnRkI6tubb6QYBD39tIfCPmJJglag4FDPMAEKDg=="/>
+        </item>
+        <item>
             <title>1.0.6</title>
             <pubDate>Fri, 04 Sep 2026 01:45:36 +0900</pubDate>
             <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.6</link>
@@ -146,49 +177,9 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
 ]]></description>
             <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.3/SIDEY-macOS-arm64-v1.0.3.zip" length="5264851" type="application/octet-stream" sparkle:edSignature="g6YOMKZXjjg1YoY37PWQzUwDaJmuUg68noZqlU7pNADF6RebVs+u1kt2KbyO573yYY6vzGCufR3XoVJzKwoIBA=="/>
         </item>
-        <item>
-            <title>1.0.2</title>
-            <pubDate>Tue, 01 Sep 2026 16:47:15 +0900</pubDate>
-            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.2</link>
-            <sparkle:version>13</sparkle:version>
-            <sparkle:shortVersionString>1.0.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.2
-
-`1.0.2` build `13` · macOS 26+ · Apple Silicon(arm64) · Presence hotfix
-
-## 설치
-
-- Homebrew: `brew install --cask sidey-app/tap/sidey`
-- 직접 설치: Release의 DMG를 열고 `SIDEY.app`을 Applications로 이동
-
-새 설치에는 공증된 DMG를 사용합니다. ZIP은 앱 내 업데이트용이며 DMG와 ZIP의 SHA-256 파일을 같은 Release에서 제공합니다.
-
-## 변경 사항
-
-- 초대 코드로 그룹에 참여할 때 기존 멤버의 초기 Presence가 snapshot보다 먼저 도착해도 이벤트를 보존하고 UUID 기준으로 병합합니다.
-- 새 그룹 참여 직후 갱신 전 로컬 방 목록이 아니라 서버에서 다시 읽은 snapshot을 기준으로 활성 그룹을 결정해, 참여자가 상대 화면에서 오프라인으로 고착되는 문제를 수정했습니다.
-- 같은 순서 경합이 타이핑 상태에도 남지 않도록 snapshot 전 typing 이벤트를 함께 보존합니다.
-
-## 업데이트 후 확인
-
-- 서버 migration이나 초대 코드 재발급은 필요하지 않습니다.
-- 업데이트 뒤 SIDEY가 자동으로 재실행되면 현재 그룹의 Presence를 새로 게시합니다.
-
-## 제한 사항
-
-- macOS 26 이상 Apple Silicon Mac만 지원합니다.
-- E2EE는 제공하지 않습니다.
-- 보안 화면, DRM 앱, 권한이 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
-- 12명 실제 방의 30분 장시간 RSS·30 FPS 계측은 지속 검증 항목입니다.
-- Windows 개발 파일은 이 macOS 배포에 포함되지 않습니다.
-]]></description>
-            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.2/SIDEY-macOS-arm64-v1.0.2.zip" length="5208795" type="application/octet-stream" sparkle:edSignature="TNZPe+pGSp7pmu32HO4+SH0CUh0yG2NhZveuLSJJlnvFvO/NNIOWofiBlzd0dUtHUTGmWd0KeQ/oyrcAZOfCAA=="/>
-        </item>
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: 4ROol/MRlNuNfEZIiwMynfwl5K+PoQP8ThXvHbpBpE777hVE3h+kZ8DH55b8TABl7/xbdLrxCscDIR0dnPRJAg==
-length: 11974
+edSignature: A8MN0b2qV6YI+e0CQmwM/LkXDwIYt0yqcQ7IsK+Rxa5wgleIHm8IcpBlA6H1bhFCoF2tC21D+miPKmTM3gkLBw==
+length: 11425
 -->
