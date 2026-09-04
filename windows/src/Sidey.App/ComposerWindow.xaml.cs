@@ -50,6 +50,7 @@ public sealed partial class ComposerWindow : Window
         ResizeAndCenter(monitorIdentifier);
         AppWindow.Show();
         Activate();
+        SideyWindowActivation.BringToForeground(this);
         RequestMessageInputFocus();
     }
 
@@ -66,6 +67,7 @@ public sealed partial class ComposerWindow : Window
         ViewModel.RestoreDraft(body);
         AppWindow.Show();
         Activate();
+        SideyWindowActivation.BringToForeground(this);
         RequestMessageInputFocus();
     }
 

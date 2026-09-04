@@ -49,20 +49,20 @@ internal sealed class CharacterThrowFrameCache : IDisposable
     private static readonly IReadOnlyDictionary<string, string> BgraHashes =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["action-sheets/pixel_hamster_throw_hit"] = "584b27d59d525c3d0e21d6ed9260a07cbba99f74069a4c95db601dd03cc3fb99",
-            ["action-sheets/pixel_cat_throw_hit"] = "c5113a573980ae66ec3f93c05dac75120cdd30c30501ee90d1701876a6c574b7",
-            ["action-sheets/pixel_puppy_throw_hit"] = "17b33fe94b2a76791b2d5002f720038ae1299d2185540866110e3258bb9b724a",
-            ["action-sheets/pixel_rabbit_throw_hit"] = "5f715868aff1a2606c1f637f35ab1042d4b11f154ce91b5ddf21db33189b55c2",
-            ["action-sheets/pixel_penguin_throw_hit"] = "658a54d43d8cd3c8a85b823a1dda11296addf45cad6ce58b7172128882666d0b",
-            ["action-sheets/pixel_guinea_pig_throw_hit"] = "d9d96bb33233b9bbe0bf2e8effc6077bdfef978f4c3b61c00124fb8fc0715690",
-            ["action-sheets/pixel_monkey_throw_hit"] = "b859c2e4bf6d890070c1ba085f47349771e84514e9ee2e50378da87ac7f0db6a",
-            ["action-sheets/pixel_chinchilla_throw_hit"] = "b5bf003b3374a2d26f1c324c71ffbbe8acad54c19d9697861555edf0add0369c",
-            ["action-sheets/pixel_starlight_upalupa_throw_hit"] = "3c27f23d45f14da7191850c4ec8c5a99d11d79bf415b0acd9445058e6c1db572",
-            ["object-sheets/patch_soft_ball"] = "64d4792b32df1c9dcae113d9a19dcee1f6fc5b6653a8dc4e80ffb1a2793f6e2f",
-            ["object-sheets/mini_paprika"] = "1e9f6181ef51c8e0f84f45f1dc12c14bf6141edb132c7131007e8937e969673f",
-            ["object-sheets/banana"] = "f42c588b897b5e33b3ca5f676dab15ce9e3aa3be02aad424c6b9ade8d01c372f",
-            ["object-sheets/dust_bath_pouch"] = "4d32c76073a8397379c33a42d9ee8e7656f6bf936af343a7d88e6c1d711d2205",
-            ["object-sheets/starlight_orb"] = "1719218f94d0686294b56fd836a74700e03312815043e050f0f0dbf4a90ba8ec",
+            ["Character/pixel_hamster/throw_hit"] = "584b27d59d525c3d0e21d6ed9260a07cbba99f74069a4c95db601dd03cc3fb99",
+            ["Character/pixel_cat/throw_hit"] = "c5113a573980ae66ec3f93c05dac75120cdd30c30501ee90d1701876a6c574b7",
+            ["Character/pixel_puppy/throw_hit"] = "17b33fe94b2a76791b2d5002f720038ae1299d2185540866110e3258bb9b724a",
+            ["Character/pixel_rabbit/throw_hit"] = "5f715868aff1a2606c1f637f35ab1042d4b11f154ce91b5ddf21db33189b55c2",
+            ["Character/pixel_penguin/throw_hit"] = "658a54d43d8cd3c8a85b823a1dda11296addf45cad6ce58b7172128882666d0b",
+            ["Character/pixel_guinea_pig/throw_hit"] = "d9d96bb33233b9bbe0bf2e8effc6077bdfef978f4c3b61c00124fb8fc0715690",
+            ["Character/pixel_monkey/throw_hit"] = "b859c2e4bf6d890070c1ba085f47349771e84514e9ee2e50378da87ac7f0db6a",
+            ["Character/pixel_chinchilla/throw_hit"] = "b5bf003b3374a2d26f1c324c71ffbbe8acad54c19d9697861555edf0add0369c",
+            ["Character/pixel_starlight_upalupa/throw_hit"] = "3c27f23d45f14da7191850c4ec8c5a99d11d79bf415b0acd9445058e6c1db572",
+            ["Throwable/patch_soft_ball/sprite"] = "64d4792b32df1c9dcae113d9a19dcee1f6fc5b6653a8dc4e80ffb1a2793f6e2f",
+            ["Throwable/mini_paprika/sprite"] = "1e9f6181ef51c8e0f84f45f1dc12c14bf6141edb132c7131007e8937e969673f",
+            ["Throwable/banana/sprite"] = "f42c588b897b5e33b3ca5f676dab15ce9e3aa3be02aad424c6b9ade8d01c372f",
+            ["Throwable/dust_bath_pouch/sprite"] = "4d32c76073a8397379c33a42d9ee8e7656f6bf936af343a7d88e6c1d711d2205",
+            ["Throwable/starlight_orb/sprite"] = "1719218f94d0686294b56fd836a74700e03312815043e050f0f0dbf4a90ba8ec",
         };
 
     private readonly Dictionary<string, byte[][]> _actions = new(StringComparer.Ordinal);
@@ -70,20 +70,29 @@ internal sealed class CharacterThrowFrameCache : IDisposable
     private readonly Dictionary<string, byte[][]> _objects = new(StringComparer.Ordinal);
     private bool _disposed;
 
-    internal CharacterThrowFrameCache(string root, int scale, OverlayEdge edge)
+    internal CharacterThrowFrameCache(
+        string characterRoot,
+        string throwableRoot,
+        int scale,
+        OverlayEdge edge)
     {
         foreach (var characterId in ActionHashes.Keys)
         {
-            var (normal, flipped) = LoadAction(root, characterId, ActionHashes[characterId], scale, edge);
+            var (normal, flipped) = LoadAction(
+                characterRoot,
+                characterId,
+                ActionHashes[characterId],
+                scale,
+                edge);
             _actions.Add(characterId, normal);
             _flippedActions.Add(characterId, flipped);
         }
         foreach (var objectId in ObjectHashes.Keys)
         {
             _objects.Add(objectId, LoadSheet(
-                root,
-                "object-sheets",
-                objectId,
+                Path.Combine(throwableRoot, objectId),
+                "sprite",
+                $"Throwable/{objectId}/sprite",
                 ObjectHashes[objectId],
                 cellSize: 16,
                 frameCount: ObjectFrameCount,
@@ -132,16 +141,16 @@ internal sealed class CharacterThrowFrameCache : IDisposable
     }
 
     private (byte[][] Normal, byte[][] Flipped) LoadAction(
-        string root,
+        string characterRoot,
         string characterId,
         string hash,
         int scale,
         OverlayEdge edge)
     {
         var normal = LoadSheet(
-            root,
-            "action-sheets",
-            characterId + "_throw_hit",
+            Path.Combine(characterRoot, characterId),
+            "throw_hit",
+            $"Character/{characterId}/throw_hit",
             hash,
             cellSize: 24,
             frameCount: ActionFrameCount,
@@ -149,9 +158,9 @@ internal sealed class CharacterThrowFrameCache : IDisposable
             flip: false,
             edge);
         var flipped = LoadSheet(
-            root,
-            "action-sheets",
-            characterId + "_throw_hit",
+            Path.Combine(characterRoot, characterId),
+            "throw_hit",
+            $"Character/{characterId}/throw_hit",
             hash,
             cellSize: 24,
             frameCount: ActionFrameCount,
@@ -162,9 +171,9 @@ internal sealed class CharacterThrowFrameCache : IDisposable
     }
 
     private byte[][] LoadSheet(
-        string root,
-        string group,
+        string directory,
         string name,
+        string resourceId,
         string expectedPngHash,
         int cellSize,
         int frameCount,
@@ -172,7 +181,6 @@ internal sealed class CharacterThrowFrameCache : IDisposable
         bool flip,
         OverlayEdge edge)
     {
-        var directory = Path.Combine(root, group);
         var png = File.ReadAllBytes(Path.Combine(directory, name + ".png"));
         if (!StringComparer.Ordinal.Equals(
                 Convert.ToHexStringLower(SHA256.HashData(png)),
@@ -182,7 +190,6 @@ internal sealed class CharacterThrowFrameCache : IDisposable
         }
 
         var sheet = File.ReadAllBytes(Path.Combine(directory, name + ".bgra"));
-        var resourceId = group + "/" + name;
         var expectedLength = checked(cellSize * frameCount * cellSize * 4);
         if (sheet.Length != expectedLength)
         {

@@ -53,13 +53,7 @@
     <None Include="../../src/Sidey.Overlay/Sidey.Overlay.csproj" Link="TestAssets/Sidey.Overlay.csproj.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="../../installer/Sidey.Msi/Package.wxs" Link="TestAssets/Sidey.Msi.Package.wxs">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="../../installer/Sidey.Msi/Sidey.Msi.wixproj" Link="TestAssets/Sidey.Msi.wixproj.xml">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="../../installer/Sidey.Msi/SideyUI.wxs" Link="TestAssets/Sidey.Msi.SideyUI.wxs">
+    <None Include="../../installer/Sidey.Setup/Sidey.Setup.nsi" Link="TestAssets/Sidey.Setup.nsi">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

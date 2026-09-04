@@ -22,9 +22,9 @@ public sealed class CharacterCatalogTests
 
         Assert.All(PixelCharacterCatalog.All, character =>
         {
-            Assert.Equal($"Characters/{character.Id}/sprite.png", character.SpriteSheetResource);
-            Assert.Equal($"Characters/{character.Id}/frames.bgra", character.RawBgraResource);
-            Assert.Equal($"Characters/{character.Id}/manifest.json", character.ManifestResource);
+            Assert.Equal($"Character/{character.Id}/base.png", character.SpriteSheetResource);
+            Assert.Equal($"Character/{character.Id}/base.bgra", character.RawBgraResource);
+            Assert.Equal($"Character/{character.Id}/manifest.json", character.ManifestResource);
             Assert.Equal(24, character.FrameWidth);
             Assert.Equal(24, character.FrameHeight);
             Assert.Equal(10, character.FrameCount);
@@ -119,7 +119,7 @@ public sealed class CharacterCatalogTests
     {
         foreach (var character in PixelCharacterCatalog.All)
         {
-            var pngPath = AssetPath(character.Id, "sprite.png");
+            var pngPath = AssetPath(character.Id, "base.png");
             var png = File.ReadAllBytes(pngPath);
             Assert.True(png.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }));
             Assert.Equal("IHDR", System.Text.Encoding.ASCII.GetString(png, 12, 4));
@@ -129,7 +129,7 @@ public sealed class CharacterCatalogTests
             Assert.Equal(6, png[25]);
             Assert.Equal(character.SpriteSheetSha256, Convert.ToHexStringLower(SHA256.HashData(png)));
 
-            var raw = File.ReadAllBytes(AssetPath(character.Id, "frames.bgra"));
+            var raw = File.ReadAllBytes(AssetPath(character.Id, "base.bgra"));
             Assert.Equal(240 * 24 * 4, raw.Length);
 
             using var manifest = JsonDocument.Parse(File.ReadAllBytes(

@@ -20,9 +20,9 @@ public sealed class CharacterImageConverter : IValueConverter
         var uri = new Uri(Path.Combine(
             deploymentRoot,
             "Assets",
-            "Characters",
+            "Character",
             characterId,
-            "sprite.png"));
+            "base.png"));
         image = new BitmapImage(uri);
         _cache[characterId] = image;
         return image;
