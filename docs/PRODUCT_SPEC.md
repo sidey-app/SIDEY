@@ -32,7 +32,7 @@
 ### 2.2 Windows 구현 목표
 
 - Windows 11 25H2(build 26200) 이상 x64 네이티브 클라이언트를 C#/.NET 10 LTS·WinUI 3·Win32로 구현한다.
-- 일반 창은 SIDEY 브랜드의 Windows Fluent UI로 만들고, 투명 월드는 전용 Win32 HWND가 소유한다. `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러가 무료 5종과 다른 사용자가 선택한 유료 4종의 사전 생성 BGRA frame을 표시한다. Windows 프로필 선택은 무료 5종만 제공하고 구매는 지원하지 않는다.
+- 일반 창은 SIDEY 브랜드의 Windows Fluent UI로 만들고, 투명 월드는 전용 Win32 HWND가 소유한다. `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러가 무료 5종과 다른 사용자가 선택한 유료 4종의 사전 생성 BGRA frame을 표시한다. Windows 프로필 선택은 무료 5종을 제공하고 상점은 추가 4종의 구매 없는 미리보기 카드를 제공한다.
 - 햄스터 1종 실기 계측은 같은 5종 렌더러의 입력 snapshot을 제한하는 Debug 전용 내부 모드로 수행한다. 햄스터 전용 제품 구현을 만들거나 이 모드를 Release에 노출하지 않으며, 나머지 4종 구현을 계측 뒤로 미루지 않는다.
 - 최종 목표는 macOS와 서버 계약·제품 행동이 동등한 Windows 판이며, 플랫폼 창·설정 UI는 Windows 관례를 따른다.
 - Godot·WPF·Electron·WebView는 사용하지 않는다.
@@ -167,7 +167,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 
 결제 확인과 동시에 디지털 캐릭터 사용권 제공을 시작한다. 제공 시작 뒤 단순 변심에 따른 청약철회와 환불은 허용하지 않으며, 사용권 미제공·표시 또는 계약 내용 불일치·중복 결제·본인이 승인하지 않은 결제 등 관련 법령상 사유가 확인된 경우에만 전액 환불한다. 환불은 PortOne 취소 상태를 다시 확인한 뒤 구매 entitlement를 회수하며, 법이 보장하는 취소·피해구제 권리는 제한하지 않는다.
 
-전환 시 지정 활동 계정 5개(`9c169b9f-e95c-4a3e-b0e9-ab329a035c6f`, `e68ec90f-6f5a-4a93-be0a-364f6a3f378f`, `839ec4d5-ada1-466d-bb1d-2a100dea2185`, `b4877c8c-3147-46ef-b035-5dbb95e86d4f`, `f0462289-2465-4a27-b90d-d4820ccf4b8c`)에는 기니피그·원숭이·친칠라 complimentary entitlement를 각각 지급한다. 주문과 분리된 총 15개 지급이며 `grant_reference`로 감사 근거를 남긴다. Windows는 무료 5종 선택과 구매 미지원 정책을 유지하되 유료 4종을 원격 친구 모습으로 렌더링한다.
+전환 시 지정 활동 계정 5개(`9c169b9f-e95c-4a3e-b0e9-ab329a035c6f`, `e68ec90f-6f5a-4a93-be0a-364f6a3f378f`, `839ec4d5-ada1-466d-bb1d-2a100dea2185`, `b4877c8c-3147-46ef-b035-5dbb95e86d4f`, `f0462289-2465-4a27-b90d-d4820ccf4b8c`)에는 기니피그·원숭이·친칠라 complimentary entitlement를 각각 지급한다. 주문과 분리된 총 15개 지급이며 `grant_reference`로 감사 근거를 남긴다. Windows는 무료 5종 선택과 구매 미지원 정책을 유지하되 추가 4종을 상점에서 미리 보고 원격 친구 모습으로 렌더링한다.
 
 - 논리 프레임: 24×24 픽셀
 - 화면 크기: 2배 정수 확대, 약 48pt
@@ -287,6 +287,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 설정 창은 화면 크기와 DPI에 맞춰 1000×760 DIP 안팎의 권장 크기로 열고 860×640 DIP까지 줄일 수 있다. 창 너비가 960 DIP 미만이 되면 왼쪽 탐색은 210 DIP의 제목·아이콘 보기에서 48 DIP 아이콘 레일로 자동 전환하며, 최소 폭에서도 아이콘 레일을 없애지 않는다. 너비가 다시 확보되면 자동으로 펼치고 전환에는 WinUI `NavigationView`의 표준 애니메이션을 사용한다. WinUI `TitleBar`가 앱 아이콘·이름과 실제 방문 이력 기반 뒤로가기·탐색 열기 버튼을 시스템 caption 버튼 왼쪽에 배치한다. 최소 크기는 리사이즈 뒤 창을 되돌리지 않고 Win32 `WM_GETMINMAXINFO`에서 tracking size로 제한해 경계 드래그가 깜빡이지 않게 한다.
 - 탐색 푸터의 연결 상태는 하나의 레이아웃 자리에서 펼친 카드와 축소 카드를 교체하고 축소 카드를 48 DIP 아이콘 레일 중앙에 맞춰, 전환 중 두 점이나 잘린 카드 배경이 나타나지 않게 한다. 연결 상태는 초록 점과 `연결됨`, 단절 상태는 빨간 점과 `연결 안 됨`으로 표시한다. 최초 연결과 정상 연결 뒤의 재단절 모두 Windows 시스템 알림을 15초 유예하며 그 안에 복구되면 예약을 취소한다. 15초가 지나도 연결되지 않으면 장애당 한 번 알리고, 짧은 연결 반복에 따른 재알림은 15분 동안 억제한다.
 - Windows 최근 기록의 40 DIP 캐릭터 슬롯은 시스템 accent 10% 배경과 12 DIP 모서리를 사용한다. 최근 기록과 그룹 설정의 현재 사용자 `나` 표식은 모두 accent 글자와 accent 12% 배경을 사용하며 라이트·다크 테마에 맞춰 갱신한다.
+- Windows `꾸미기·상점`은 Mica 배경 위에 전체 목록용 외곽 카드를 두지 않고 추가 캐릭터 4종의 독립 Fluent 카드를 2열로 배치한다. 각 카드는 96 DIP 정수 배율 픽셀 미리보기, 이름, 예정 가격, 설명과 비활성 `구매 준비 중` 상태를 보여준다. 구매·결제·소유권 변경 action은 만들지 않으며 프로필 선택 목록은 무료 5종을 유지한다.
 - Windows 그룹 설정의 펼친 각 카드에는 `그룹 나가기`를 이름 변경·삭제와 같은 하단 작업 영역에 표시한다. 나가기·이름 변경·삭제·추방은 다른 그룹 mutation 중 함께 비활성화한다.
 - 월드는 WinUI XAML 창에 투명 표현을 위임하지 않고 `WS_POPUP` 기반 전용 Win32 HWND가 소유한다. 무료 5종과 유료 4종은 24px 원본에서 정수 nearest-neighbor로 만든 premultiplied BGRA frame을 같은 `UpdateLayeredWindow` 렌더러로 표시하며 tick마다 bitmap이나 surface를 새로 할당하지 않는다.
 - 월드 HWND는 작업 표시줄·Alt-Tab에 나타나지 않고 활성화되지 않으며 외부 앱으로 포인터를 통과시킨다. 월드와 모든 hotspot HWND는 작업 표시줄·Start·검색·트레이 팝업을 감지하면 함께 그 셸 표면 뒤로 이동하고 주기적으로 Z-order를 재확인한다.
@@ -479,7 +480,7 @@ macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀�
 
 ### 10.3 Windows 지속 검증 기준
 
-1. 무료 5종과 원격 유료 4종을 `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러로 제공하고 asset·frame·발 기준선·방향·fallback 계약을 자동 검증한다. 선택 목록은 무료 5종만 유지한다.
+1. 무료 5종과 원격 유료 4종을 `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러로 제공하고 asset·frame·발 기준선·방향·fallback 계약을 자동 검증한다. 선택 목록은 무료 5종을 유지하고 상점에서는 추가 4종을 구매 action 없이 미리 본다.
 2. 같은 렌더러를 햄스터 1종으로 제한하는 Debug 내부 모드에서 투명·최상위·외부 앱 클릭 통과·52×52 hotspot·composer 포커스·100/125/150/200% DPI를 Windows 11 25H2 x64 실기에서 통과한다. 이 모드는 Release에 노출하지 않는다.
 3. 연결형 검증에서 익명 세션 복구·생성, 프로필, 방, 메시지, Presence, typing lease, `character_pulse`, `character_throw`를 staging의 기존 macOS 클라이언트와 양방향 확인한다.
 4. 최종 12명 월드를 2시간, 20노드 합성 부하를 30분 실행해 p95 frame time 40ms 이하, 100ms 이상 UI-thread hang 없음, warm-up 후 working set 20MB 초과 증가 없음, GDI/USER handle·COM surface 지속 증가 없음을 확인한다.
