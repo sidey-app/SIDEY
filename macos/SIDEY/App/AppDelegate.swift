@@ -5,7 +5,11 @@ import QuartzCore
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: AppCoordinator?
     private let launchProbe = LaunchPerformanceProbe()
+#if APP_STORE
+    private lazy var updateController = NoUpdateController()
+#else
     private lazy var updateController = SparkleUpdateController()
+#endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let environment = ProcessInfo.processInfo.environment

@@ -20,6 +20,8 @@ final class AppModel {
     var availableScreens: [OverlayScreenOption] = []
     var activeSettingsPage: SettingsPage = .profile
     var connectionState: BackendConnectionState = .idle
+    var authenticationRequired = false
+    var accountOperationInProgress = false
     private(set) var activeRoomTransportConnected = false
     var rooms: [Room] = []
     var hasProfile = false
@@ -93,6 +95,7 @@ final class AppModel {
 
     func apply(snapshot: BackendSnapshot, currentUserID: UUID?) {
         self.currentUserID = currentUserID
+        authenticationRequired = false
         activeEntitlementKeys = snapshot.activeEntitlementKeys
         hasProfile = snapshot.profile != nil
         var updatedRooms = snapshot.rooms
@@ -190,6 +193,12 @@ final class AppModel {
     func setCommercePurchaseState(_ state: CommercePurchaseState, productID: String) {
         guard let index = commerceProducts.firstIndex(where: { $0.id == productID }) else { return }
         commerceProducts[index].purchaseState = state
+    }
+
+    func setCommerceLocalizedPrices(_ prices: [String: String]) {
+        for index in commerceProducts.indices {
+            commerceProducts[index].localizedPrice = prices[commerceProducts[index].id]
+        }
     }
 
     private func enforceSelectableCurrentCharacter() {

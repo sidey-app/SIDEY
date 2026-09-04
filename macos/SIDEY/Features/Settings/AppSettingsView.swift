@@ -1,8 +1,23 @@
 import SwiftUI
+import AuthenticationServices
 
 struct AppSettingsView: View {
     @Bindable var model: AppModel
     let actions: SettingsActions
+    let storeAvailability: StoreAvailability
+    @State private var showsDeletionControls = false
+    @State private var deletionPhrase = ""
+    @State private var deletionNonce = AppleAuthorization.makeNonce()
+
+    init(
+        model: AppModel,
+        actions: SettingsActions,
+        storeAvailability: StoreAvailability = AppReleaseChannel.resolve().storeAvailability
+    ) {
+        self.model = model
+        self.actions = actions
+        self.storeAvailability = storeAvailability
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 34) {
@@ -63,18 +78,20 @@ struct AppSettingsView: View {
                 )
             }
 
-            SettingsSection(
-                title: "업데이트",
-                subtitle: "새로운 SIDEY 버전이 있는지 확인할 수 있습니다.",
-                systemImage: "arrow.triangle.2.circlepath"
-            ) {
-                SettingsControlRow(
-                    title: "업데이트 확인",
-                    description: "새 버전이 있으면 안전하게 내려받아 설치할 수 있습니다."
+            if !storeAvailability.usesAppStore {
+                SettingsSection(
+                    title: "업데이트",
+                    subtitle: "새로운 SIDEY 버전이 있는지 확인할 수 있습니다.",
+                    systemImage: "arrow.triangle.2.circlepath"
                 ) {
-                    Button("지금 확인", action: actions.onCheckForUpdates)
-                        .buttonStyle(.glassProminent)
-                        .disabled(!actions.canCheckForUpdates())
+                    SettingsControlRow(
+                        title: "업데이트 확인",
+                        description: "새 버전이 있으면 안전하게 내려받아 설치할 수 있습니다."
+                    ) {
+                        Button("지금 확인", action: actions.onCheckForUpdates)
+                            .buttonStyle(.glassProminent)
+                            .disabled(!actions.canCheckForUpdates())
+                    }
                 }
             }
 
@@ -123,6 +140,70 @@ struct AppSettingsView: View {
                 }
             }
 
+            if storeAvailability.usesAppStore {
+                accountSection
+            }
+
+        }
+    }
+
+    private var accountSection: some View {
+        SettingsSection(
+            title: "계정 및 개인정보",
+            subtitle: "계정 데이터와 App Store 구매 연결을 관리합니다.",
+            systemImage: "person.crop.circle"
+        ) {
+            HStack(spacing: 18) {
+                Link(
+                    "개인정보 처리방침",
+                    destination: URL(string: "https://sidey-app.github.io/SIDEY/privacy.html")!
+                )
+                Link(
+                    "이용약관",
+                    destination: URL(string: "https://sidey-app.github.io/SIDEY/terms.html")!
+                )
+                Spacer()
+                Button("구매 복원", action: actions.onRestorePurchases)
+                    .disabled(model.accountOperationInProgress)
+            }
+            Divider()
+            VStack(alignment: .leading, spacing: 12) {
+                Text("계정 탈퇴")
+                    .font(.body.weight(.semibold))
+                Text("프로필, 메시지, 그룹 멤버십을 삭제합니다. 구매 기록은 회계·부정 사용 방지에 필요한 범위에서 계정과 분리해 보관될 수 있습니다.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                if showsDeletionControls {
+                    TextField("확인을 위해 ‘탈퇴’ 입력", text: $deletionPhrase)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 280)
+                    SignInWithAppleButton(.continue) { request in
+                        deletionNonce = AppleAuthorization.makeNonce()
+                        AppleAuthorization.prepare(request, nonce: deletionNonce)
+                    } onCompletion: { result in
+                        do {
+                            let payload = try AppleAuthorization.payload(
+                                from: result,
+                                nonce: deletionNonce
+                            )
+                            actions.onDeleteAccount(payload)
+                        } catch {
+                            model.errorMessage = error.localizedDescription
+                        }
+                    }
+                    .signInWithAppleButtonStyle(.black)
+                    .frame(width: 280, height: 40)
+                    .disabled(deletionPhrase != "탈퇴" || model.accountOperationInProgress)
+                    Text("‘탈퇴’를 입력한 뒤 Apple로 다시 인증하면 즉시 삭제됩니다.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button("계정 탈퇴…", role: .destructive) {
+                        showsDeletionControls = true
+                    }
+                }
+            }
         }
     }
 

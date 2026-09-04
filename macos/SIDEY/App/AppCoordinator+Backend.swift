@@ -21,6 +21,7 @@ extension AppCoordinator {
             return
         }
         let requireExistingSession = model.preferences.onboardingComplete
+            || releaseChannel.requiresAppleAuthentication
         backendConnectionStatus = nil
         model.setActiveRoomRealtimeConnected(false)
         model.connectionState = .connecting
@@ -39,6 +40,9 @@ extension AppCoordinator {
                 let userID = await backend.currentUserID()
                 guard !Task.isCancelled else { return }
                 model.apply(snapshot: snapshot, currentUserID: userID)
+                if releaseChannel == .appStore, userID != nil {
+                    await configureAppStoreCommerce(backend: backend)
+                }
                 refreshCommerceState()
                 let reconciliation = try await backend.syncRealtime(
                     rooms: snapshot.rooms,
@@ -57,6 +61,18 @@ extension AppCoordinator {
                 advanceFirstRunTransition()
             } catch {
                 guard !Task.isCancelled else { return }
+                if releaseChannel.requiresAppleAuthentication,
+                   error as? SideyBackendError == .sessionRecoveryFailed {
+                    model.authenticationRequired = true
+                    model.connectionState = .idle
+                    model.errorMessage = nil
+                    backendBootstrapState = .failed
+                    applyRequestedOverlayVisibility()
+                    refreshStatusItem()
+                    if launchReason == .loginItem { showSettings() }
+                    advanceFirstRunTransition()
+                    return
+                }
                 model.connectionState = .failed(error.localizedDescription)
                 model.errorMessage = "서버 연결 실패: \(error.localizedDescription)"
                 backendBootstrapState = .failed
@@ -524,6 +540,10 @@ extension AppCoordinator {
                 do {
                     let state = try await backend.commerceState(productID: productID)
                     model.apply(commerceState: state)
+                    if releaseChannel.storeAvailability.usesAppStore,
+                       state.entitlementStatus != "active" {
+                        model.setCommercePurchaseState(.available, productID: productID)
+                    }
                 } catch is CancellationError {
                     return
                 } catch {
@@ -536,6 +556,7 @@ extension AppCoordinator {
         }
     }
 
+#if !APP_STORE
     private func connectGoogleForCommerce(productID: String) {
         guard releaseChannel.storeAvailability.allowsCommerceActions,
               let backend,
@@ -575,6 +596,7 @@ extension AppCoordinator {
             }
         }
     }
+#endif
 
     func purchase(productID: String) {
         guard releaseChannel.storeAvailability.allowsCommerceActions,
@@ -584,10 +606,13 @@ extension AppCoordinator {
               productState.purchaseState != .owned
         else { return }
 
-        if productState.purchaseState == .googleConnectionRequired {
+#if !APP_STORE
+        if !releaseChannel.storeAvailability.usesAppStore,
+           productState.purchaseState == .googleConnectionRequired {
             connectGoogleForCommerce(productID: productID)
             return
         }
+#endif
         guard productState.purchaseState == .available
                 || productState.purchaseState == .refunded
         else { return }
@@ -603,6 +628,28 @@ extension AppCoordinator {
                 commerceProductTasks[productID] = nil
             }
             do {
+                if releaseChannel.storeAvailability.usesAppStore {
+                    guard let userID = model.currentUserID else {
+                        throw SideyBackendError.sessionRecoveryFailed
+                    }
+                    let purchased = try await appStorePurchaseController.purchase(
+                        productID: productID,
+                        userID: userID,
+                        accessToken: try await backend.currentAccessToken()
+                    )
+                    if purchased {
+                        let snapshot = try await backend.loadSnapshot()
+                        applyBackendSnapshot(snapshot, currentUserID: userID)
+                        model.setCommercePurchaseState(.owned, productID: productID)
+                        model.successMessage = "\(product.displayName) 구매가 완료되었습니다."
+                    } else {
+                        model.setCommercePurchaseState(.available, productID: productID)
+                    }
+                    return
+                }
+#if APP_STORE
+                throw SideyBackendError.remote("App Store 배포 구성이 올바르지 않습니다.")
+#else
                 let checkout = try await backend.createCommerceOrder(productID: productID)
                 guard NSWorkspace.shared.open(checkout.checkoutURL) else {
                     throw SideyBackendError.remote("기본 브라우저를 열지 못했습니다.")
@@ -635,6 +682,7 @@ extension AppCoordinator {
                     .error("결제 승인 확인 시간이 초과되었습니다. 상점 상태를 다시 확인해 주세요."),
                     productID: productID
                 )
+#endif
             } catch is CancellationError {
                 return
             } catch {
@@ -645,5 +693,97 @@ extension AppCoordinator {
                 model.errorMessage = "\(product.displayName) 구매 처리 실패: \(error.localizedDescription)"
             }
         }
+    }
+
+    func signInWithApple(_ payload: AppleAuthorizationPayload) {
+        guard releaseChannel.requiresAppleAuthentication, let backend,
+              !model.accountOperationInProgress else { return }
+        model.accountOperationInProgress = true
+        model.errorMessage = nil
+        Task { [weak self] in
+            guard let self else { return }
+            defer { model.accountOperationInProgress = false }
+            do {
+                try await backend.signInWithApple(
+                    identityToken: payload.identityToken,
+                    nonce: payload.nonce
+                )
+                model.authenticationRequired = false
+                startBackend()
+            } catch {
+                model.authenticationRequired = true
+                model.errorMessage = "Apple 로그인 실패: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func restoreAppStorePurchases() {
+        guard releaseChannel == .appStore, let backend, let userID = model.currentUserID,
+              !model.accountOperationInProgress else { return }
+        model.accountOperationInProgress = true
+        model.errorMessage = nil
+        Task { [weak self] in
+            guard let self else { return }
+            defer { model.accountOperationInProgress = false }
+            do {
+                try await appStorePurchaseController.restore(
+                    accessToken: try await backend.currentAccessToken()
+                )
+                let snapshot = try await backend.loadSnapshot()
+                applyBackendSnapshot(snapshot, currentUserID: userID)
+                refreshCommerceState()
+                model.successMessage = "App Store 구매 내역을 복원했습니다."
+            } catch {
+                model.errorMessage = "구매 복원 실패: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func deleteAccount(_ payload: AppleAuthorizationPayload) {
+        guard releaseChannel == .appStore, let backend,
+              !model.accountOperationInProgress else { return }
+        model.accountOperationInProgress = true
+        model.errorMessage = nil
+        Task { [weak self] in
+            guard let self else { return }
+            defer { model.accountOperationInProgress = false }
+            do {
+                try await appStoreAccountClient.deleteAccount(
+                    payload: payload,
+                    accessToken: try await backend.currentAccessToken()
+                )
+                try? await backend.signOut()
+                try? KeychainStore(
+                    service: releaseChannel.keychainService,
+                    session: keychainAccessSession
+                ).deleteAll()
+                preferencesStore.save(.defaults)
+                NSApplication.shared.terminate(nil)
+            } catch {
+                model.errorMessage = "계정 탈퇴 실패: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func configureAppStoreCommerce(backend: SideyBackend) async {
+        do {
+            model.setCommerceLocalizedPrices(try await appStorePurchaseController.loadProducts())
+        } catch {
+            model.errorMessage = "App Store 상품 정보를 불러오지 못했습니다: \(error.localizedDescription)"
+        }
+        do {
+            try await appStorePurchaseController.reconcileCurrentEntitlements(
+                accessToken: try await backend.currentAccessToken()
+            )
+        } catch {
+            model.errorMessage = "App Store 구매 내역을 반영하지 못했습니다: \(error.localizedDescription)"
+        }
+        appStorePurchaseController.startObserving(
+            accessToken: { try await backend.currentAccessToken() },
+            didChange: { [weak self] in self?.refreshCommerceState() },
+            didFail: { [weak self] message in
+                self?.model.errorMessage = "App Store 거래 반영 실패: \(message)"
+            }
+        )
     }
 }

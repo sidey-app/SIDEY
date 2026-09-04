@@ -82,6 +82,24 @@ actor SideyBackend {
         return try await loadSnapshot()
     }
 
+    func signInWithApple(identityToken: String, nonce: String) async throws {
+        _ = try await client.auth.signInWithIdToken(
+            credentials: OpenIDConnectCredentials(
+                provider: .apple,
+                idToken: identityToken,
+                nonce: nonce
+            )
+        )
+    }
+
+    func currentAccessToken() async throws -> String {
+        try await client.auth.session.accessToken
+    }
+
+    func signOut() async throws {
+        try await client.auth.signOut(scope: .local)
+    }
+
     func syncRealtime(rooms: [Room], activeRoomID: UUID?) async throws -> BackendReconciliation {
         guard !isShuttingDown else { throw CancellationError() }
         startNetworkPathMonitoringIfNeeded()
@@ -255,6 +273,7 @@ actor SideyBackend {
         return state.domain
     }
 
+#if !APP_STORE
     func googleIdentityLinkURL() async throws -> URL {
         let response = try await client.auth.getLinkIdentityURL(
             provider: .google,
@@ -283,6 +302,7 @@ actor SideyBackend {
         )
         return CommerceCheckout(orderID: response.orderID, checkoutURL: response.checkoutURL)
     }
+#endif
 
     @discardableResult
     func upsertProfile(nickname: String, characterID: String = "pixel_hamster") async throws -> Profile {
