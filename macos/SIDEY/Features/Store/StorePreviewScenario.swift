@@ -34,7 +34,7 @@ struct StorePreviewScenario: Equatable, Sendable {
                     moka(characterID: PixelCharacterCatalog.pixelHamsterID),
                     dubu(characterID: "pixel_cat")
                 ],
-                bubbles: [sequence.bubble(at: 0)],
+                bubbles: [],
                 fixedTrackFractions: [:],
                 bubbleSequence: sequence,
                 throwSequence: nil
@@ -84,7 +84,9 @@ struct StorePreviewScenario: Equatable, Sendable {
 }
 
 struct StorePreviewBubbleSequence: Equatable, Sendable {
-    static let interval: TimeInterval = 2
+    static let typingDuration: TimeInterval = 1
+    static let messageDuration: TimeInterval = 2
+    static let cycleDuration = 2 * (typingDuration + messageDuration)
     static let leftBody = "저메추좀 해줘"
     static let rightBody = "곱도리탕 어때?"
     private static let leftMessageID = UUID(uuidString: "08A6BBCF-45BD-45D6-A373-3056DE9A5CBA")!
@@ -95,19 +97,47 @@ struct StorePreviewBubbleSequence: Equatable, Sendable {
     let bubbleStyleID: String
 
     func scheduledOffset(for index: Int) -> TimeInterval {
-        Double(max(0, index)) * Self.interval
+        let normalizedIndex = max(0, index)
+        let cycle = normalizedIndex / 4
+        let phase = normalizedIndex % 4
+        let phaseOffset: TimeInterval = switch phase {
+        case 0: 0
+        case 1: Self.typingDuration
+        case 2: Self.typingDuration + Self.messageDuration
+        default: Self.typingDuration * 2 + Self.messageDuration
+        }
+        return Double(cycle) * Self.cycleDuration + phaseOffset
     }
 
-    func bubble(at index: Int) -> ActiveBubble {
-        let usesLeftMember = index.isMultiple(of: 2)
-        return ActiveBubble(
-            senderID: usesLeftMember ? leftMemberID : rightMemberID,
-            messageID: usesLeftMember ? Self.leftMessageID : Self.rightMessageID,
-            body: usesLeftMember ? Self.leftBody : Self.rightBody,
-            expiresAt: .distantFuture,
-            bubbleStyleID: bubbleStyleID
+    func presentation(at index: Int) -> StorePreviewBubblePresentation {
+        let phase = max(0, index) % 4
+        let usesLeftMember = phase < 2
+        let senderID = usesLeftMember ? leftMemberID : rightMemberID
+        guard !phase.isMultiple(of: 2) else {
+            return StorePreviewBubblePresentation(
+                senderID: senderID,
+                isTyping: true,
+                bubble: nil
+            )
+        }
+        return StorePreviewBubblePresentation(
+            senderID: senderID,
+            isTyping: false,
+            bubble: ActiveBubble(
+                senderID: senderID,
+                messageID: usesLeftMember ? Self.leftMessageID : Self.rightMessageID,
+                body: usesLeftMember ? Self.leftBody : Self.rightBody,
+                expiresAt: .distantFuture,
+                bubbleStyleID: bubbleStyleID
+            )
         )
     }
+}
+
+struct StorePreviewBubblePresentation: Equatable, Sendable {
+    let senderID: UUID
+    let isTyping: Bool
+    let bubble: ActiveBubble?
 }
 
 struct StorePreviewThrowSequence: Equatable, Sendable {

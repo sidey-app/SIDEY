@@ -15,7 +15,7 @@ struct PixelBubbleLayout: Equatable, Sendable {
         edge: OverlayEdge,
         bodyMinY: CGFloat = 52,
         includesTail: Bool = true,
-        leadingDecorationWidth: CGFloat = 0
+        leadingDecorationOverflow: CGFloat = 0
     ) -> Self {
         let maximumWidth = min(220, max(24, tangentLength - 16))
         let size: CGSize
@@ -24,20 +24,22 @@ struct PixelBubbleLayout: Equatable, Sendable {
         } else {
             size = PixelBubbleMeasurementCache.shared.size(
                 text: text,
-                maximumWidth: maximumWidth,
-                leadingDecorationWidth: leadingDecorationWidth
+                maximumWidth: maximumWidth
             )
         }
 
         let halfWidth = size.width / 2
-        let worldCenter = min(
-            max(tangentPosition, halfWidth + 4),
-            max(halfWidth + 4, tangentLength - halfWidth - 4)
-        )
         let tangentSign: CGFloat = switch edge {
         case .bottom, .right: 1
         case .top, .left: -1
         }
+        let minimumCenter = halfWidth + 4 + (tangentSign > 0 ? leadingDecorationOverflow : 0)
+        let maximumCenter = tangentLength - halfWidth - 4
+            - (tangentSign < 0 ? leadingDecorationOverflow : 0)
+        let worldCenter = min(
+            max(tangentPosition, minimumCenter),
+            max(minimumCenter, maximumCenter)
+        )
         let localCenterX = (worldCenter - tangentPosition) * tangentSign
         let tailTipX = -localCenterX
         let bodyFrame = CGRect(
@@ -102,8 +104,8 @@ enum PixelBubbleStackLayout {
                 edge: edge,
                 bodyMinY: nextBodyMinY,
                 includesTail: isLatest,
-                leadingDecorationWidth: PixelBubbleTheme.resolve(bubble.bubbleStyleID)
-                    .decorationAssetName == nil ? 0 : PixelBubbleStyle.decorationLeadingWidth
+                leadingDecorationOverflow: PixelBubbleTheme.resolve(bubble.bubbleStyleID)
+                    .decorationAssetName == nil ? 0 : PixelBubbleStyle.decorationLeadingOverflow
             )
             reversedEntries.append(PixelBubbleStackEntry(
                 bubble: bubble,
@@ -146,17 +148,8 @@ private final class PixelBubbleMeasurementCache: @unchecked Sendable {
         cache.countLimit = 128
     }
 
-    func size(
-        text: String,
-        maximumWidth: CGFloat,
-        leadingDecorationWidth: CGFloat
-    ) -> CGSize {
-        let key = [
-            "10.5",
-            String(Int((maximumWidth * 10).rounded())),
-            String(Int(leadingDecorationWidth)),
-            text
-        ].joined(separator: "|") as NSString
+    func size(text: String, maximumWidth: CGFloat) -> CGSize {
+        let key = "10.5|\(Int((maximumWidth * 10).rounded()))|\(text)" as NSString
         if let cached = cache.object(forKey: key) { return cached.value }
 
         let font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
@@ -164,18 +157,12 @@ private final class PixelBubbleMeasurementCache: @unchecked Sendable {
         paragraph.lineBreakMode = .byCharWrapping
         paragraph.alignment = .center
         let measured = (text as NSString).boundingRect(
-            with: CGSize(
-                width: max(8, maximumWidth - 16 - leadingDecorationWidth),
-                height: .greatestFiniteMagnitude
-            ),
+            with: CGSize(width: max(8, maximumWidth - 16), height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: font, .paragraphStyle: paragraph]
         ).integral.size
         let result = CGSize(
-            width: min(
-                maximumWidth,
-                max(28 + leadingDecorationWidth, ceil(measured.width) + 16 + leadingDecorationWidth)
-            ),
+            width: min(maximumWidth, max(28, ceil(measured.width) + 16)),
             height: max(28, ceil(measured.height) + 14)
         )
         cache.setObject(PixelBubbleMeasuredSize(result), forKey: key)

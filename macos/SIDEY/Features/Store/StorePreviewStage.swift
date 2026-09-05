@@ -121,13 +121,35 @@ private struct StorePreviewSceneView: NSViewRepresentable {
 enum StorePreviewSceneConfiguration {
     static func apply(
         _ scenario: StorePreviewScenario,
-        bubbles: [ActiveBubble]? = nil,
+        bubblePresentation: StorePreviewBubblePresentation? = nil,
         to scene: PixelWorldScene
     ) {
+        let presentation = bubblePresentation ?? scenario.bubbleSequence?.presentation(at: 0)
+        let members: [PixelWorldMember]
+        let bubbles: [ActiveBubble]
+        if let sequence = scenario.bubbleSequence, let presentation {
+            members = scenario.members.map { member in
+                PixelWorldMember(
+                    id: member.id,
+                    nickname: member.nickname,
+                    characterID: member.characterID,
+                    presence: member.presence,
+                    isTyping: presentation.isTyping && member.id == presentation.senderID,
+                    isCurrentUser: member.isCurrentUser,
+                    equippedBubbleStyleID: member.id == presentation.senderID
+                        ? sequence.bubbleStyleID
+                        : nil
+                )
+            }
+            bubbles = presentation.bubble.map { [$0] } ?? []
+        } else {
+            members = scenario.members
+            bubbles = scenario.bubbles
+        }
         scene.apply(
             roomID: StorePreviewScenario.roomID,
-            members: scenario.members,
-            bubbles: bubbles ?? scenario.bubbles,
+            members: members,
+            bubbles: bubbles,
             edge: .bottom,
             activityFrame: CGRect(
                 x: 0,
@@ -227,7 +249,7 @@ final class StorePreviewPlaybackCoordinator {
                     guard let scene else { return }
                     StorePreviewSceneConfiguration.apply(
                         scenario,
-                        bubbles: [sequence.bubble(at: index)],
+                        bubblePresentation: sequence.presentation(at: index),
                         to: scene
                     )
                     index += 1

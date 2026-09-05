@@ -823,9 +823,10 @@ private final class PixelCharacterNode: SKNode {
         orderedMessageIDs.compactMap { messageBubbleNodes[$0]?.includesTail }
     }
     var bubbleDecorationCount: Int {
-        orderedMessageIDs.reduce(into: 0) { count, id in
+        let messageCount = orderedMessageIDs.reduce(into: 0) { count, id in
             if messageBubbleNodes[id]?.hasDecoration == true { count += 1 }
         }
+        return messageCount + (typingBubbleNode?.hasDecoration == true ? 1 : 0)
     }
     var bubbleBodyFrames: [CGRect] {
         orderedMessageIDs.compactMap { messageBubbleNodes[$0]?.bodyFrame }
@@ -1087,8 +1088,8 @@ private final class PixelCharacterNode: SKNode {
                 tangentPosition: tangentPosition,
                 tangentLength: tangentLength,
                 edge: edge,
-                leadingDecorationWidth: typingBubbleNode.hasDecoration
-                    ? PixelBubbleStyle.decorationLeadingWidth
+                leadingDecorationOverflow: typingBubbleNode.hasDecoration
+                    ? PixelBubbleStyle.decorationLeadingOverflow
                     : 0
             ))
             return
@@ -1128,9 +1129,9 @@ private final class PixelCharacterNode: SKNode {
                 tangentPosition: tangentPosition,
                 tangentLength: tangentLength,
                 edge: edge,
-                leadingDecorationWidth: requestedTheme.decorationAssetName == nil
+                leadingDecorationOverflow: requestedTheme.decorationAssetName == nil
                     ? 0
-                    : PixelBubbleStyle.decorationLeadingWidth
+                    : PixelBubbleStyle.decorationLeadingOverflow
             )
             let requestedThemeID = requestedTheme.id
             if let typingBubbleNode, typingBubbleNode.theme.id == requestedThemeID {
@@ -1355,7 +1356,9 @@ enum PixelBubbleStyle {
     static let backgroundColor = NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.96)
     static let textColor = NSColor(srgbRed: 0.11, green: 0.12, blue: 0.16, alpha: 1)
     static let borderColor = NSColor(srgbRed: 0.08, green: 0.09, blue: 0.12, alpha: 0.16)
-    static let decorationLeadingWidth: CGFloat = 20
+    static let decorationSize: CGFloat = 16
+    static let decorationCornerInset: CGFloat = 2
+    static let decorationLeadingOverflow = decorationSize / 2 - decorationCornerInset
 }
 
 struct PixelBubbleTheme {
@@ -1429,7 +1432,10 @@ class PixelBubbleNode: SKNode {
            let image = NSImage(contentsOf: url) {
             let texture = SKTexture(image: image)
             texture.filteringMode = .nearest
-            self.decoration = SKSpriteNode(texture: texture, size: CGSize(width: 16, height: 16))
+            self.decoration = SKSpriteNode(
+                texture: texture,
+                size: CGSize(width: PixelBubbleStyle.decorationSize, height: PixelBubbleStyle.decorationSize)
+            )
         } else {
             self.decoration = nil
         }
@@ -1464,6 +1470,7 @@ class PixelBubbleNode: SKNode {
     }
 
     var hasDecoration: Bool { decoration != nil }
+    var decorationFrame: CGRect? { decoration?.frame }
 
     func apply(layout: PixelBubbleLayout) {
         apply(layout: layout, includesTail: includesTail)
@@ -1475,14 +1482,8 @@ class PixelBubbleNode: SKNode {
         self.includesTail = includesTail
         bodyFrame = layout.bodyFrame
         position = CGPoint(x: layout.localCenterX, y: layout.bodyFrame.midY)
-        let leadingDecorationWidth = decoration == nil
-            ? 0
-            : PixelBubbleStyle.decorationLeadingWidth
-        label.preferredMaxLayoutWidth = max(
-            8,
-            layout.size.width - 16 - leadingDecorationWidth
-        )
-        label.position.x = leadingDecorationWidth / 2
+        label.preferredMaxLayoutWidth = max(8, layout.size.width - 16)
+        label.position.x = 0
         let rect = CGRect(
             x: -layout.size.width / 2,
             y: -layout.size.height / 2,
@@ -1500,7 +1501,10 @@ class PixelBubbleNode: SKNode {
             path.closeSubpath()
         }
         background.path = path
-        decoration?.position = CGPoint(x: rect.minX + 10, y: rect.maxY - 10)
+        decoration?.position = CGPoint(
+            x: rect.minX + PixelBubbleStyle.decorationCornerInset,
+            y: rect.maxY
+        )
     }
 }
 

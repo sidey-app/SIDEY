@@ -31,33 +31,46 @@ final class StorePreviewTests: XCTestCase {
 
             let sequence = try XCTUnwrap(scenario.bubbleSequence)
             XCTAssertEqual(sequence.scheduledOffset(for: 0), 0)
-            XCTAssertEqual(sequence.scheduledOffset(for: 1), 2)
-            XCTAssertEqual(sequence.scheduledOffset(for: 2), 4)
-            let bubbles = (0..<3).map { sequence.bubble(at: $0) }
-            XCTAssertEqual(bubbles.map(\.senderID), [
+            XCTAssertEqual(sequence.scheduledOffset(for: 1), 1)
+            XCTAssertEqual(sequence.scheduledOffset(for: 2), 3)
+            XCTAssertEqual(sequence.scheduledOffset(for: 3), 4)
+            XCTAssertEqual(sequence.scheduledOffset(for: 4), 6)
+            let presentations = (0..<5).map { sequence.presentation(at: $0) }
+            XCTAssertEqual(presentations.map(\.senderID), [
                 StorePreviewScenario.mokaID,
+                StorePreviewScenario.mokaID,
+                StorePreviewScenario.dubuID,
                 StorePreviewScenario.dubuID,
                 StorePreviewScenario.mokaID
             ])
-            XCTAssertEqual(bubbles.map(\.body), [
+            XCTAssertEqual(presentations.map(\.isTyping), [true, false, true, false, true])
+            XCTAssertEqual(presentations.map { $0.bubble?.body }, [
+                nil,
                 "저메추좀 해줘",
+                nil,
                 "곱도리탕 어때?",
-                "저메추좀 해줘"
+                nil
             ])
-            XCTAssertTrue(bubbles.allSatisfy { $0.bubbleStyleID == product.catalogItemID })
+            XCTAssertTrue(
+                presentations.compactMap(\.bubble).allSatisfy {
+                    $0.bubbleStyleID == product.catalogItemID
+                }
+            )
             XCTAssertEqual(PixelBubbleTheme.resolve(product.catalogItemID).id, product.catalogItemID)
             XCTAssertNil(scenario.throwSequence)
 
             let scene = makeScene(for: product)
+            XCTAssertTrue(scene.renderedBubbleIsTyping(for: StorePreviewScenario.mokaID))
             XCTAssertEqual(
                 scene.renderedBubbleDecorationCount(for: StorePreviewScenario.mokaID),
                 1
             )
             StorePreviewSceneConfiguration.apply(
                 scenario,
-                bubbles: [sequence.bubble(at: 1)],
+                bubblePresentation: sequence.presentation(at: 2),
                 to: scene
             )
+            XCTAssertTrue(scene.renderedBubbleIsTyping(for: StorePreviewScenario.dubuID))
             XCTAssertEqual(
                 scene.renderedBubbleDecorationCount(for: StorePreviewScenario.mokaID),
                 0
@@ -207,34 +220,55 @@ final class StorePreviewTests: XCTestCase {
         XCTAssertFalse(coordinator.hasActiveBubbleTask)
         XCTAssertFalse(coordinator.hasActiveThrowTask)
         XCTAssertTrue(view.isPaused)
-        XCTAssertEqual(scene.renderedBubbleBody(for: StorePreviewScenario.mokaID), "저메추좀 해줘")
+        XCTAssertTrue(scene.renderedBubbleIsTyping(for: StorePreviewScenario.mokaID))
         coordinator.stop(detachingScene: true)
         XCTAssertNil(view.scene)
     }
 
-    func testBubbleDecorationReservesLeadingTextSpace() {
-        let plain = PixelBubbleLayout.make(
+    func testBubbleDecorationOverlapsTopLeftCornerWithoutChangingBodySize() throws {
+        let layout = PixelBubbleLayout.make(
             text: "저메추좀 해줘",
             isTyping: false,
             tangentPosition: 270,
             tangentLength: 540,
             edge: .bottom
         )
-        let decorated = PixelBubbleLayout.make(
-            text: "저메추좀 해줘",
+        let node = PixelBubbleNode(
+            body: "저메추좀 해줘",
             isTyping: false,
-            tangentPosition: 270,
-            tangentLength: 540,
-            edge: .bottom,
-            leadingDecorationWidth: PixelBubbleStyle.decorationLeadingWidth
+            layout: layout,
+            bubbleStyleID: CommerceProduct.bunnyPinkBubble.catalogItemID
+        )
+        let decorationFrame = try XCTUnwrap(node.decorationFrame)
+        let bubbleFrame = CGRect(
+            x: -layout.size.width / 2,
+            y: -layout.size.height / 2,
+            width: layout.size.width,
+            height: layout.size.height
         )
 
         XCTAssertEqual(
-            decorated.size.width,
-            plain.size.width + PixelBubbleStyle.decorationLeadingWidth,
+            decorationFrame.midX,
+            bubbleFrame.minX + PixelBubbleStyle.decorationCornerInset,
             accuracy: 0.001
         )
-        XCTAssertEqual(decorated.size.height, plain.size.height, accuracy: 0.001)
+        XCTAssertEqual(decorationFrame.midY, bubbleFrame.maxY, accuracy: 0.001)
+        XCTAssertLessThan(decorationFrame.minX, bubbleFrame.minX)
+        XCTAssertGreaterThan(decorationFrame.maxY, bubbleFrame.maxY)
+
+        let edgeLayout = PixelBubbleLayout.make(
+            text: "저메추좀 해줘",
+            isTyping: false,
+            tangentPosition: 0,
+            tangentLength: 540,
+            edge: .bottom,
+            leadingDecorationOverflow: PixelBubbleStyle.decorationLeadingOverflow
+        )
+        XCTAssertEqual(edgeLayout.size, layout.size)
+        XCTAssertGreaterThanOrEqual(
+            edgeLayout.bodyFrame.minX - PixelBubbleStyle.decorationLeadingOverflow,
+            4
+        )
     }
 
     func testStageLayoutLeavesRoomForPlatformAndThreeTimesPulse() {
@@ -305,6 +339,25 @@ final class StorePreviewTests: XCTestCase {
                     try sceneData.write(
                         to: outputDirectory.appending(path: "\(product.id)-\(mode).png")
                     )
+                    if product.kind == .bubble,
+                       let previewScene = scene as? PixelWorldScene,
+                       let sequence = StorePreviewScenario.make(product: product).bubbleSequence {
+                        StorePreviewSceneConfiguration.apply(
+                            StorePreviewScenario.make(product: product),
+                            bubblePresentation: sequence.presentation(at: 1),
+                            to: previewScene
+                        )
+                        let messageTexture = try XCTUnwrap(spriteView.texture(from: previewScene))
+                        let messageBitmap = NSBitmapImageRep(cgImage: messageTexture.cgImage())
+                        let messageData = try XCTUnwrap(
+                            messageBitmap.representation(using: .png, properties: [:])
+                        )
+                        try messageData.write(
+                            to: outputDirectory.appending(
+                                path: "\(product.id)-message-\(mode).png"
+                            )
+                        )
+                    }
                 }
             }
         }
