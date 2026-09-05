@@ -15,9 +15,7 @@ struct ProfileSettingsView: View {
 
     private var showsCosmeticEquipment: Bool {
         ProfileCosmeticEquipmentPolicy.shouldShow(
-            availability: storeAvailability,
-            bubbleCount: bubbleProducts.count,
-            throwableCount: throwableProducts.count
+            availability: storeAvailability
         )
     }
 
@@ -71,29 +69,23 @@ struct ProfileSettingsView: View {
 
             if showsCosmeticEquipment {
                 Divider()
-                if !bubbleProducts.isEmpty {
-                    ProfileCosmeticEquipmentSection(
-                        kind: .bubble,
-                        products: bubbleProducts,
-                        selectedCatalogItemID: model.equippedBubbleStyleID,
-                        pendingRequest: model.cosmeticEquipmentRequest(for: .bubble),
-                        selectedCharacterID: model.selectedCharacterID,
-                        onSelect: actions.onSetEquippedCosmetic
-                    )
-                }
-                if !bubbleProducts.isEmpty && !throwableProducts.isEmpty {
-                    Divider()
-                }
-                if !throwableProducts.isEmpty {
-                    ProfileCosmeticEquipmentSection(
-                        kind: .throwable,
-                        products: throwableProducts,
-                        selectedCatalogItemID: model.equippedThrowableID,
-                        pendingRequest: model.cosmeticEquipmentRequest(for: .throwable),
-                        selectedCharacterID: model.selectedCharacterID,
-                        onSelect: actions.onSetEquippedCosmetic
-                    )
-                }
+                ProfileCosmeticEquipmentSection(
+                    kind: .bubble,
+                    products: bubbleProducts,
+                    selectedCatalogItemID: model.equippedBubbleStyleID,
+                    pendingRequest: model.cosmeticEquipmentRequest(for: .bubble),
+                    selectedCharacterID: model.selectedCharacterID,
+                    onSelect: actions.onSetEquippedCosmetic
+                )
+                Divider()
+                ProfileCosmeticEquipmentSection(
+                    kind: .throwable,
+                    products: throwableProducts,
+                    selectedCatalogItemID: model.equippedThrowableID,
+                    pendingRequest: model.cosmeticEquipmentRequest(for: .throwable),
+                    selectedCharacterID: model.selectedCharacterID,
+                    onSelect: actions.onSetEquippedCosmetic
+                )
             }
         }
 
@@ -266,11 +258,7 @@ struct ProfileCosmeticTile: View {
 }
 
 enum ProfileCosmeticEquipmentPolicy {
-    static func shouldShow(
-        availability: StoreAvailability,
-        bubbleCount: Int,
-        throwableCount: Int
-    ) -> Bool {
-        availability.allowsCosmeticEquipment && (bubbleCount > 0 || throwableCount > 0)
+    static func shouldShow(availability: StoreAvailability) -> Bool {
+        availability.allowsCosmeticEquipment
     }
 }

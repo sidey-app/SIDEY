@@ -128,26 +128,15 @@ final class CommerceModelTests: XCTestCase {
         XCTAssertTrue(model.ownedProfileCosmeticProducts(for: .bubble).isEmpty)
     }
 
-    func testProfileCosmeticVisibilityKeepsAppStoreCharacterOnly() {
+    func testProfileCosmeticVisibilityAlwaysShowsDefaultsOutsideAppStore() {
         XCTAssertTrue(ProfileCosmeticEquipmentPolicy.shouldShow(
-            availability: .comingSoon,
-            bubbleCount: 1,
-            throwableCount: 0
+            availability: .comingSoon
         ))
         XCTAssertTrue(ProfileCosmeticEquipmentPolicy.shouldShow(
-            availability: .direct,
-            bubbleCount: 0,
-            throwableCount: 1
+            availability: .direct
         ))
         XCTAssertFalse(ProfileCosmeticEquipmentPolicy.shouldShow(
-            availability: .appStore,
-            bubbleCount: 3,
-            throwableCount: 3
-        ))
-        XCTAssertFalse(ProfileCosmeticEquipmentPolicy.shouldShow(
-            availability: .comingSoon,
-            bubbleCount: 0,
-            throwableCount: 0
+            availability: .appStore
         ))
     }
 

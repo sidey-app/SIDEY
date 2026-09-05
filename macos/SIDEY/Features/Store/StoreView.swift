@@ -61,7 +61,7 @@ struct StoreView: View {
                             }
                         }
                         Divider()
-                        Toggle("보유 중 숨기", isOn: $hidesOwned)
+                        Toggle("보유 중 숨기기", isOn: $hidesOwned)
                     } label: {
                         Label("정렬 및 필터", systemImage: "line.3.horizontal.decrease.circle")
                     }
