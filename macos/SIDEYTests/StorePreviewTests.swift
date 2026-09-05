@@ -17,23 +17,55 @@ final class StorePreviewTests: XCTestCase {
             XCTAssertFalse(scenario.members[0].isCurrentUser)
             XCTAssertTrue(scenario.bubbles.isEmpty)
             XCTAssertTrue(scenario.fixedTrackFractions.isEmpty)
+            XCTAssertNil(scenario.bubbleSequence)
             XCTAssertNil(scenario.throwSequence)
         }
     }
 
-    func testBubbleScenariosUseTheActualThemeAndPersistentBody() throws {
+    func testBubbleScenariosAlternateTwoMembersWithTheActualThemeAndDecoration() throws {
         for product in CommerceCatalog.cosmeticProducts where product.kind == .bubble {
             let scenario = StorePreviewScenario.make(product: product)
-            let member = try XCTUnwrap(scenario.members.first)
-            let bubble = try XCTUnwrap(scenario.bubbles.first)
-            XCTAssertEqual(member.characterID, PixelCharacterCatalog.pixelHamsterID)
-            XCTAssertEqual(member.nickname, "모카")
-            XCTAssertEqual(member.presence, .online)
-            XCTAssertEqual(bubble.senderID, member.id)
-            XCTAssertEqual(bubble.body, "저메추좀 해줘")
-            XCTAssertEqual(bubble.bubbleStyleID, product.catalogItemID)
-            XCTAssertEqual(PixelBubbleTheme.resolve(bubble.bubbleStyleID).id, product.catalogItemID)
+            XCTAssertEqual(scenario.members.map(\.nickname), ["모카", "두부"])
+            XCTAssertEqual(scenario.members.map(\.characterID), ["pixel_hamster", "pixel_cat"])
+            XCTAssertTrue(scenario.members.allSatisfy { $0.presence == .online })
+
+            let sequence = try XCTUnwrap(scenario.bubbleSequence)
+            XCTAssertEqual(sequence.scheduledOffset(for: 0), 0)
+            XCTAssertEqual(sequence.scheduledOffset(for: 1), 2)
+            XCTAssertEqual(sequence.scheduledOffset(for: 2), 4)
+            let bubbles = (0..<3).map { sequence.bubble(at: $0) }
+            XCTAssertEqual(bubbles.map(\.senderID), [
+                StorePreviewScenario.mokaID,
+                StorePreviewScenario.dubuID,
+                StorePreviewScenario.mokaID
+            ])
+            XCTAssertEqual(bubbles.map(\.body), [
+                "저메추좀 해줘",
+                "곱도리탕 어때?",
+                "저메추좀 해줘"
+            ])
+            XCTAssertTrue(bubbles.allSatisfy { $0.bubbleStyleID == product.catalogItemID })
+            XCTAssertEqual(PixelBubbleTheme.resolve(product.catalogItemID).id, product.catalogItemID)
             XCTAssertNil(scenario.throwSequence)
+
+            let scene = makeScene(for: product)
+            XCTAssertEqual(
+                scene.renderedBubbleDecorationCount(for: StorePreviewScenario.mokaID),
+                1
+            )
+            StorePreviewSceneConfiguration.apply(
+                scenario,
+                bubbles: [sequence.bubble(at: 1)],
+                to: scene
+            )
+            XCTAssertEqual(
+                scene.renderedBubbleDecorationCount(for: StorePreviewScenario.mokaID),
+                0
+            )
+            XCTAssertEqual(
+                scene.renderedBubbleDecorationCount(for: StorePreviewScenario.dubuID),
+                1
+            )
         }
     }
 
@@ -45,6 +77,7 @@ final class StorePreviewTests: XCTestCase {
             XCTAssertTrue(scenario.members.allSatisfy { $0.presence == .online })
             XCTAssertEqual(scenario.fixedTrackFractions[StorePreviewScenario.mokaID], 0.22)
             XCTAssertEqual(scenario.fixedTrackFractions[StorePreviewScenario.dubuID], 0.78)
+            XCTAssertNil(scenario.bubbleSequence)
 
             let sequence = try XCTUnwrap(scenario.throwSequence)
             XCTAssertEqual(sequence.scheduledOffset(for: 0), 0.35, accuracy: 0.001)
@@ -145,6 +178,7 @@ final class StorePreviewTests: XCTestCase {
 
         coordinator.configure(view: view, scene: scene, scenario: scenario, isPlaying: true)
         XCTAssertTrue(coordinator.hasActiveThrowTask)
+        XCTAssertFalse(coordinator.hasActiveBubbleTask)
         scene.playLocalPreviewThrow(try XCTUnwrap(scenario.throwSequence).event(at: 0))
         XCTAssertEqual(scene.activeProjectileCount, 1)
         coordinator.configure(view: view, scene: scene, scenario: scenario, isPlaying: false)
@@ -154,8 +188,53 @@ final class StorePreviewTests: XCTestCase {
         XCTAssertTrue(coordinator.hasActiveThrowTask)
         coordinator.stop(detachingScene: true)
         XCTAssertFalse(coordinator.hasActiveThrowTask)
+        XCTAssertFalse(coordinator.hasActiveBubbleTask)
         XCTAssertNil(view.scene)
         XCTAssertTrue(view.isPaused)
+    }
+
+    func testBubblePlaybackCoordinatorOwnsAndCancelsAlternationTask() {
+        let scenario = StorePreviewScenario.make(product: .bunnyPinkBubble)
+        let view = StorePreviewSKView(frame: CGRect(origin: .zero, size: StorePreviewStageLayout.size))
+        let scene = makeScene(for: .bunnyPinkBubble)
+        view.presentScene(scene)
+        let coordinator = StorePreviewPlaybackCoordinator()
+
+        coordinator.configure(view: view, scene: scene, scenario: scenario, isPlaying: true)
+        XCTAssertTrue(coordinator.hasActiveBubbleTask)
+        XCTAssertFalse(coordinator.hasActiveThrowTask)
+        coordinator.configure(view: view, scene: scene, scenario: scenario, isPlaying: false)
+        XCTAssertFalse(coordinator.hasActiveBubbleTask)
+        XCTAssertFalse(coordinator.hasActiveThrowTask)
+        XCTAssertTrue(view.isPaused)
+        XCTAssertEqual(scene.renderedBubbleBody(for: StorePreviewScenario.mokaID), "저메추좀 해줘")
+        coordinator.stop(detachingScene: true)
+        XCTAssertNil(view.scene)
+    }
+
+    func testBubbleDecorationReservesLeadingTextSpace() {
+        let plain = PixelBubbleLayout.make(
+            text: "저메추좀 해줘",
+            isTyping: false,
+            tangentPosition: 270,
+            tangentLength: 540,
+            edge: .bottom
+        )
+        let decorated = PixelBubbleLayout.make(
+            text: "저메추좀 해줘",
+            isTyping: false,
+            tangentPosition: 270,
+            tangentLength: 540,
+            edge: .bottom,
+            leadingDecorationWidth: PixelBubbleStyle.decorationLeadingWidth
+        )
+
+        XCTAssertEqual(
+            decorated.size.width,
+            plain.size.width + PixelBubbleStyle.decorationLeadingWidth,
+            accuracy: 0.001
+        )
+        XCTAssertEqual(decorated.size.height, plain.size.height, accuracy: 0.001)
     }
 
     func testStageLayoutLeavesRoomForPlatformAndThreeTimesPulse() {
@@ -169,6 +248,18 @@ final class StorePreviewTests: XCTestCase {
     }
 
     func testStageRendersOneSpriteKitViewForProductsInLightAndDarkModes() throws {
+        let snapshotSentinel = "/private/tmp/sidey-store-preview-snapshots"
+        let outputDirectory = ProcessInfo.processInfo.environment["SIDEY_STORE_PREVIEW_SNAPSHOT_DIR"]
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? (FileManager.default.fileExists(atPath: snapshotSentinel)
+                ? URL(fileURLWithPath: snapshotSentinel, isDirectory: true)
+                : nil)
+        if let outputDirectory {
+            try FileManager.default.createDirectory(
+                at: outputDirectory,
+                withIntermediateDirectories: true
+            )
+        }
         for product in [
             CommerceProduct.guineaPig,
             .bunnyPinkBubble,
@@ -191,13 +282,30 @@ final class StorePreviewTests: XCTestCase {
                 hostingView.layoutSubtreeIfNeeded()
                 hostingView.displayIfNeeded()
 
-                XCTAssertEqual(descendants(of: SKView.self, in: hostingView).count, 1)
+                let spriteViews = descendants(of: SKView.self, in: hostingView)
+                XCTAssertEqual(spriteViews.count, 1)
                 let bitmap = try XCTUnwrap(
                     hostingView.bitmapImageRepForCachingDisplay(in: hostingView.bounds)
                 )
                 hostingView.cacheDisplay(in: hostingView.bounds, to: bitmap)
                 let data = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
                 XCTAssertGreaterThan(data.count, 5_000, "\(product.id) \(scheme)")
+                XCTAssertTrue(descendants(of: NSButton.self, in: hostingView).isEmpty)
+
+                let spriteView = try XCTUnwrap(spriteViews.first)
+                let scene = try XCTUnwrap(spriteView.scene)
+                let sceneTexture = try XCTUnwrap(spriteView.texture(from: scene))
+                let sceneBitmap = NSBitmapImageRep(cgImage: sceneTexture.cgImage())
+                let sceneData = try XCTUnwrap(
+                    sceneBitmap.representation(using: .png, properties: [:])
+                )
+                XCTAssertGreaterThan(sceneData.count, 5_000, "\(product.id) scene \(scheme)")
+                if let outputDirectory {
+                    let mode = scheme == .light ? "light" : "dark"
+                    try sceneData.write(
+                        to: outputDirectory.appending(path: "\(product.id)-\(mode).png")
+                    )
+                }
             }
         }
     }
@@ -224,14 +332,17 @@ final class StorePreviewTests: XCTestCase {
     func testRepeatedPreviewTeardownReleasesSceneAndView() {
         weak var releasedScene: PixelWorldScene?
         weak var releasedView: StorePreviewSKView?
-        let scenario = StorePreviewScenario.make(product: .bouncyHeart)
 
-        for _ in 0..<20 {
+        for index in 0..<20 {
             autoreleasepool {
+                let product = index.isMultiple(of: 2)
+                    ? CommerceProduct.bouncyHeart
+                    : CommerceProduct.bunnyPinkBubble
+                let scenario = StorePreviewScenario.make(product: product)
                 let view = StorePreviewSKView(
                     frame: CGRect(origin: .zero, size: StorePreviewStageLayout.size)
                 )
-                let scene = makeScene(for: .bouncyHeart)
+                let scene = makeScene(for: product)
                 let coordinator = StorePreviewPlaybackCoordinator()
                 view.presentScene(scene)
                 coordinator.configure(
@@ -257,19 +368,7 @@ final class StorePreviewTests: XCTestCase {
                 fixedTrackFractions: scenario.fixedTrackFractions
             )
         )
-        scene.apply(
-            roomID: StorePreviewScenario.roomID,
-            members: scenario.members,
-            bubbles: scenario.bubbles,
-            edge: .bottom,
-            activityFrame: CGRect(
-                x: 0,
-                y: StorePreviewStageLayout.platformHeight,
-                width: StorePreviewStageLayout.size.width,
-                height: StorePreviewStageLayout.size.height - StorePreviewStageLayout.platformHeight
-            ),
-            installationSeed: 0x51_DE_59
-        )
+        StorePreviewSceneConfiguration.apply(scenario, to: scene)
         return scene
     }
 

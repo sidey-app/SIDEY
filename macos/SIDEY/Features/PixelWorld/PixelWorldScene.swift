@@ -460,6 +460,10 @@ final class PixelWorldScene: SKScene {
         characterNodes[memberID]?.lastPulsePeakScale
     }
 
+    func renderedBubbleDecorationCount(for memberID: UUID) -> Int {
+        characterNodes[memberID]?.bubbleDecorationCount ?? 0
+    }
+
     @discardableResult
     func playLocalPreviewPulse(
         memberID: UUID,
@@ -818,6 +822,11 @@ private final class PixelCharacterNode: SKNode {
     var bubbleTailFlags: [Bool] {
         orderedMessageIDs.compactMap { messageBubbleNodes[$0]?.includesTail }
     }
+    var bubbleDecorationCount: Int {
+        orderedMessageIDs.reduce(into: 0) { count, id in
+            if messageBubbleNodes[id]?.hasDecoration == true { count += 1 }
+        }
+    }
     var bubbleBodyFrames: [CGRect] {
         orderedMessageIDs.compactMap { messageBubbleNodes[$0]?.bodyFrame }
     }
@@ -1077,7 +1086,10 @@ private final class PixelCharacterNode: SKNode {
                 isTyping: true,
                 tangentPosition: tangentPosition,
                 tangentLength: tangentLength,
-                edge: edge
+                edge: edge,
+                leadingDecorationWidth: typingBubbleNode.hasDecoration
+                    ? PixelBubbleStyle.decorationLeadingWidth
+                    : 0
             ))
             return
         }
@@ -1109,14 +1121,18 @@ private final class PixelCharacterNode: SKNode {
                 return
             }
 
+            let requestedTheme = PixelBubbleTheme.resolve(typingBubbleStyleID)
             let layout = PixelBubbleLayout.make(
                 text: ".",
                 isTyping: true,
                 tangentPosition: tangentPosition,
                 tangentLength: tangentLength,
-                edge: edge
+                edge: edge,
+                leadingDecorationWidth: requestedTheme.decorationAssetName == nil
+                    ? 0
+                    : PixelBubbleStyle.decorationLeadingWidth
             )
-            let requestedThemeID = PixelBubbleTheme.resolve(typingBubbleStyleID).id
+            let requestedThemeID = requestedTheme.id
             if let typingBubbleNode, typingBubbleNode.theme.id == requestedThemeID {
                 typingBubbleNode.apply(layout: layout)
             } else {
@@ -1339,6 +1355,7 @@ enum PixelBubbleStyle {
     static let backgroundColor = NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.96)
     static let textColor = NSColor(srgbRed: 0.11, green: 0.12, blue: 0.16, alpha: 1)
     static let borderColor = NSColor(srgbRed: 0.08, green: 0.09, blue: 0.12, alpha: 0.16)
+    static let decorationLeadingWidth: CGFloat = 20
 }
 
 struct PixelBubbleTheme {
@@ -1408,7 +1425,7 @@ class PixelBubbleNode: SKNode {
                forResource: assetName,
                withExtension: "png",
                subdirectory: "Bubbles"
-           ),
+           ) ?? Bundle.main.url(forResource: assetName, withExtension: "png"),
            let image = NSImage(contentsOf: url) {
             let texture = SKTexture(image: image)
             texture.filteringMode = .nearest
@@ -1446,6 +1463,8 @@ class PixelBubbleNode: SKNode {
         fatalError("init(coder:) has not been implemented")
     }
 
+    var hasDecoration: Bool { decoration != nil }
+
     func apply(layout: PixelBubbleLayout) {
         apply(layout: layout, includesTail: includesTail)
     }
@@ -1456,7 +1475,14 @@ class PixelBubbleNode: SKNode {
         self.includesTail = includesTail
         bodyFrame = layout.bodyFrame
         position = CGPoint(x: layout.localCenterX, y: layout.bodyFrame.midY)
-        label.preferredMaxLayoutWidth = max(8, layout.size.width - 16)
+        let leadingDecorationWidth = decoration == nil
+            ? 0
+            : PixelBubbleStyle.decorationLeadingWidth
+        label.preferredMaxLayoutWidth = max(
+            8,
+            layout.size.width - 16 - leadingDecorationWidth
+        )
+        label.position.x = leadingDecorationWidth / 2
         let rect = CGRect(
             x: -layout.size.width / 2,
             y: -layout.size.height / 2,

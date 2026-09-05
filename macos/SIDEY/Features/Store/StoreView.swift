@@ -282,8 +282,6 @@ private struct StoreProductDetailSheet: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(productState.formattedPrice)
-                .font(.headline)
             detailAction
         }
         .padding(24)
@@ -300,28 +298,15 @@ private struct StoreProductDetailSheet: View {
         } else if case .error = productState.purchaseState {
             Button("상태 다시 확인") { actions.onRefreshCommerceState(productState.id) }
                 .buttonStyle(.borderedProminent)
-        } else if productState.purchaseState == .owned {
-            switch productState.product.kind {
-            case .character:
-                Text("캐릭터 장착은 내 프로필에서 선택해 주세요.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            case .bubble, .throwable:
-                Button(productState.isEquipped ? "장착 해제" : "장착") {
-                    actions.onSetEquippedCosmetic(
-                        productState.product.kind,
-                        productState.isEquipped ? nil : productState.product.catalogItemID
-                    )
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityLabel(productState.isEquipped
-                                    ? "\(productState.product.displayName) 장착 해제"
-                                    : "\(productState.product.displayName) 장착")
-            }
         } else {
-            Button(purchaseLabel) { actions.onPurchase(productState.id) }
+            Button(productState.purchaseState == .owned ? "보유 중" : purchaseLabel) {
+                actions.onPurchase(productState.id)
+            }
                 .buttonStyle(.borderedProminent)
-                .accessibilityLabel("\(productState.product.displayName) \(purchaseLabel)")
+                .disabled(productState.purchaseState == .owned)
+                .accessibilityLabel(productState.purchaseState == .owned
+                                    ? "\(productState.product.displayName) 보유 중"
+                                    : "\(productState.product.displayName) \(purchaseLabel)")
         }
     }
 
@@ -369,10 +354,6 @@ private struct StoreBubblePreview: View {
         ZStack(alignment: .topLeading) {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(Color(nsColor: theme.backgroundColor))
-            Text("오늘도 같이 있자!")
-                .font(.system(size: 10.5, weight: .medium))
-                .foregroundStyle(Color(nsColor: theme.textColor))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             if let assetName = theme.decorationAssetName,
                let image = StoreAssetPreviewImage.image(
                    name: assetName,

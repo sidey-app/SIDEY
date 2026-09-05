@@ -12,43 +12,27 @@ struct StorePreviewStage: View {
     let product: CommerceProduct
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var playbackOverride: Bool?
 
     private var scenario: StorePreviewScenario {
         StorePreviewScenario.make(product: product)
     }
 
-    private var isPlaying: Bool {
-        playbackOverride ?? !reduceMotion
-    }
-
     var body: some View {
-        VStack(spacing: 10) {
-            ZStack(alignment: .bottom) {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.primary.opacity(0.035))
-                StorePreviewPlatform()
-                StorePreviewSceneView(scenario: scenario, isPlaying: isPlaying)
-                    .accessibilityLabel("\(product.displayName) 동적 미리보기")
-                    .accessibilityHint("캐릭터를 두 번 클릭하면 확대 반응을 볼 수 있습니다.")
-            }
-            .frame(width: StorePreviewStageLayout.size.width, height: StorePreviewStageLayout.size.height)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.primary.opacity(0.09), lineWidth: 1)
-            }
-
-            Button {
-                playbackOverride = !isPlaying
-            } label: {
-                Label(
-                    isPlaying ? "미리보기 일시 정지" : "미리보기 재생",
-                    systemImage: isPlaying ? "pause.fill" : "play.fill"
-                )
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel(isPlaying ? "상품 미리보기 일시 정지" : "상품 미리보기 재생")
+        ZStack(alignment: .bottom) {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.primary.opacity(0.035))
+            StorePreviewPlatform()
+            StorePreviewSceneView(scenario: scenario, isPlaying: !reduceMotion)
+                .accessibilityLabel("\(product.displayName) 미리보기")
+                .accessibilityHint(reduceMotion
+                                   ? "동작 줄이기가 켜져 정지된 장면을 표시합니다."
+                                   : "캐릭터를 두 번 클릭하면 확대 반응을 볼 수 있습니다.")
+        }
+        .frame(width: StorePreviewStageLayout.size.width, height: StorePreviewStageLayout.size.height)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.primary.opacity(0.09), lineWidth: 1)
         }
     }
 }
@@ -105,7 +89,6 @@ private struct StorePreviewSceneView: NSViewRepresentable {
             )
         )
         scene.scaleMode = .resizeFill
-        apply(scenario, to: scene)
         view.presentScene(scene)
         context.coordinator.configure(
             view: view,
@@ -118,7 +101,6 @@ private struct StorePreviewSceneView: NSViewRepresentable {
 
     func updateNSView(_ view: StorePreviewSKView, context: Context) {
         guard let scene = view.scene as? PixelWorldScene else { return }
-        apply(scenario, to: scene)
         context.coordinator.configure(
             view: view,
             scene: scene,
@@ -133,12 +115,19 @@ private struct StorePreviewSceneView: NSViewRepresentable {
     ) {
         coordinator.stop(detachingScene: true)
     }
+}
 
-    private func apply(_ scenario: StorePreviewScenario, to scene: PixelWorldScene) {
+@MainActor
+enum StorePreviewSceneConfiguration {
+    static func apply(
+        _ scenario: StorePreviewScenario,
+        bubbles: [ActiveBubble]? = nil,
+        to scene: PixelWorldScene
+    ) {
         scene.apply(
             roomID: StorePreviewScenario.roomID,
             members: scenario.members,
-            bubbles: scenario.bubbles,
+            bubbles: bubbles ?? scenario.bubbles,
             edge: .bottom,
             activityFrame: CGRect(
                 x: 0,
@@ -158,8 +147,10 @@ final class StorePreviewPlaybackCoordinator {
     private weak var scene: PixelWorldScene?
     private var productID: String?
     private(set) var throwTask: Task<Void, Never>?
+    private(set) var bubbleTask: Task<Void, Never>?
 
     var hasActiveThrowTask: Bool { throwTask != nil }
+    var hasActiveBubbleTask: Bool { bubbleTask != nil }
 
     func configure(
         view: StorePreviewSKView,
@@ -173,11 +164,26 @@ final class StorePreviewPlaybackCoordinator {
             self.view = view
             self.scene = scene
             productID = scenario.productID
+            StorePreviewSceneConfiguration.apply(scenario, to: scene)
         }
         view.isPaused = !isPlaying
-        guard isPlaying, let sequence = scenario.throwSequence else {
-            cancelThrowTask()
+        guard isPlaying else {
+            cancelSequenceTasks()
             scene.cancelLocalPreviewPlayback()
+            StorePreviewSceneConfiguration.apply(scenario, to: scene)
+            return
+        }
+
+        configureThrowSequence(scenario.throwSequence, scene: scene)
+        configureBubbleSequence(scenario.bubbleSequence, scenario: scenario, scene: scene)
+    }
+
+    private func configureThrowSequence(
+        _ sequence: StorePreviewThrowSequence?,
+        scene: PixelWorldScene
+    ) {
+        guard let sequence else {
+            cancelThrowTask()
             return
         }
         guard throwTask == nil else { return }
@@ -200,8 +206,42 @@ final class StorePreviewPlaybackCoordinator {
         }
     }
 
+    private func configureBubbleSequence(
+        _ sequence: StorePreviewBubbleSequence?,
+        scenario: StorePreviewScenario,
+        scene: PixelWorldScene
+    ) {
+        guard let sequence else {
+            cancelBubbleTask()
+            return
+        }
+        guard bubbleTask == nil else { return }
+        bubbleTask = Task { @MainActor [weak scene] in
+            do {
+                let startedAt = ProcessInfo.processInfo.systemUptime
+                var index = 1
+                while !Task.isCancelled {
+                    let deadline = startedAt + sequence.scheduledOffset(for: index)
+                    let delay = max(0, deadline - ProcessInfo.processInfo.systemUptime)
+                    try await Task.sleep(for: .seconds(delay))
+                    guard let scene else { return }
+                    StorePreviewSceneConfiguration.apply(
+                        scenario,
+                        bubbles: [sequence.bubble(at: index)],
+                        to: scene
+                    )
+                    index += 1
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                return
+            }
+        }
+    }
+
     func stop(detachingScene: Bool) {
-        cancelThrowTask()
+        cancelSequenceTasks()
         scene?.cancelLocalPreviewPlayback()
         if detachingScene {
             view?.presentScene(nil)
@@ -219,8 +259,19 @@ final class StorePreviewPlaybackCoordinator {
         throwTask = nil
     }
 
+    private func cancelBubbleTask() {
+        bubbleTask?.cancel()
+        bubbleTask = nil
+    }
+
+    private func cancelSequenceTasks() {
+        cancelThrowTask()
+        cancelBubbleTask()
+    }
+
     deinit {
         throwTask?.cancel()
+        bubbleTask?.cancel()
     }
 }
 

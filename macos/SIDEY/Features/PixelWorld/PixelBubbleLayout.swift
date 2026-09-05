@@ -14,7 +14,8 @@ struct PixelBubbleLayout: Equatable, Sendable {
         tangentLength: CGFloat,
         edge: OverlayEdge,
         bodyMinY: CGFloat = 52,
-        includesTail: Bool = true
+        includesTail: Bool = true,
+        leadingDecorationWidth: CGFloat = 0
     ) -> Self {
         let maximumWidth = min(220, max(24, tangentLength - 16))
         let size: CGSize
@@ -23,7 +24,8 @@ struct PixelBubbleLayout: Equatable, Sendable {
         } else {
             size = PixelBubbleMeasurementCache.shared.size(
                 text: text,
-                maximumWidth: maximumWidth
+                maximumWidth: maximumWidth,
+                leadingDecorationWidth: leadingDecorationWidth
             )
         }
 
@@ -99,7 +101,9 @@ enum PixelBubbleStackLayout {
                 tangentLength: tangentLength,
                 edge: edge,
                 bodyMinY: nextBodyMinY,
-                includesTail: isLatest
+                includesTail: isLatest,
+                leadingDecorationWidth: PixelBubbleTheme.resolve(bubble.bubbleStyleID)
+                    .decorationAssetName == nil ? 0 : PixelBubbleStyle.decorationLeadingWidth
             )
             reversedEntries.append(PixelBubbleStackEntry(
                 bubble: bubble,
@@ -142,8 +146,17 @@ private final class PixelBubbleMeasurementCache: @unchecked Sendable {
         cache.countLimit = 128
     }
 
-    func size(text: String, maximumWidth: CGFloat) -> CGSize {
-        let key = "10.5|\(Int((maximumWidth * 10).rounded()))|\(text)" as NSString
+    func size(
+        text: String,
+        maximumWidth: CGFloat,
+        leadingDecorationWidth: CGFloat
+    ) -> CGSize {
+        let key = [
+            "10.5",
+            String(Int((maximumWidth * 10).rounded())),
+            String(Int(leadingDecorationWidth)),
+            text
+        ].joined(separator: "|") as NSString
         if let cached = cache.object(forKey: key) { return cached.value }
 
         let font = NSFont.systemFont(ofSize: 10.5, weight: .medium)
@@ -151,12 +164,18 @@ private final class PixelBubbleMeasurementCache: @unchecked Sendable {
         paragraph.lineBreakMode = .byCharWrapping
         paragraph.alignment = .center
         let measured = (text as NSString).boundingRect(
-            with: CGSize(width: max(8, maximumWidth - 16), height: .greatestFiniteMagnitude),
+            with: CGSize(
+                width: max(8, maximumWidth - 16 - leadingDecorationWidth),
+                height: .greatestFiniteMagnitude
+            ),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
             attributes: [.font: font, .paragraphStyle: paragraph]
         ).integral.size
         let result = CGSize(
-            width: min(maximumWidth, max(28, ceil(measured.width) + 16)),
+            width: min(
+                maximumWidth,
+                max(28 + leadingDecorationWidth, ceil(measured.width) + 16 + leadingDecorationWidth)
+            ),
             height: max(28, ceil(measured.height) + 14)
         )
         cache.setObject(PixelBubbleMeasuredSize(result), forKey: key)
