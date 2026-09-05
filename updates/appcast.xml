@@ -9,6 +9,39 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <description>Signed macOS updates for SIDEY</description>
         <language>ko</language>
         <item>
+            <title>1.0.8</title>
+            <pubDate>Sat, 05 Sep 2026 19:38:59 +0900</pubDate>
+            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.8</link>
+            <sparkle:version>19</sparkle:version>
+            <sparkle:shortVersionString>1.0.8</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.8
+
+`1.0.8` build `19` · macOS 26+ · Apple Silicon(arm64)
+
+## 변경 사항
+
+- 잠긴 꾸미기 상품을 눌러 캐릭터·말풍선·투척물의 실제 움직임을 미리 볼 수 있습니다.
+- 친구가 사용하는 새 말풍선과 투척물을 기본 모양 대신 실제 디자인으로 표시합니다.
+- 상단 영역에서도 닉네임과 말풍선 글자가 똑바로 표시됩니다.
+- 그룹 정보를 변경할 때 실시간 연결이 불필요하게 끊기지 않도록 안정성을 개선했습니다.
+
+## 설치 및 업데이트
+
+- 신규 설치는 `SIDEY-macOS-arm64-v1.0.8.dmg`를 사용하세요.
+- 기존 사용자는 앱의 `업데이트 확인…` 또는 Homebrew로 업데이트할 수 있습니다.
+- 업데이트해도 SIDEY 계정, 그룹, 닉네임과 로컬 설정은 유지됩니다.
+
+## 현재 제한
+
+- 정식판 상점의 실제 판매는 아직 시작하지 않습니다.
+- Windows v1.0.6 배포물과 Windows의 꾸미기 지원 범위는 이번 macOS 릴리스에서 변경되지 않습니다.
+- 보안 화면, DRM 앱, 권한이 더 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
+]]></description>
+            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.8/SIDEY-macOS-arm64-v1.0.8.zip" length="5652563" type="application/octet-stream" sparkle:edSignature="TF5eD3w7y7bI4uv6li1/M+fs8u9EmkDdCYU5MQ1p1Sk9EIurFcJu2T2hozJLZJwK8l68KLtAemTKqfrjTWfrCQ=="/>
+        </item>
+        <item>
             <title>1.0.7</title>
             <pubDate>Fri, 04 Sep 2026 14:30:02 +0900</pubDate>
             <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.7</link>
@@ -135,51 +168,9 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
 ]]></description>
             <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.4/SIDEY-macOS-arm64-v1.0.4.zip" length="5429977" type="application/octet-stream" sparkle:edSignature="BkyTEbepLkoj+QTxuPMM0FisqbK9riHX9pAC3Fmaec94YeFt9AIBNvGLHW3uaTZ2T8oZTwoEOy2dtq4GvRgSAw=="/>
         </item>
-        <item>
-            <title>1.0.3</title>
-            <pubDate>Tue, 01 Sep 2026 21:35:15 +0900</pubDate>
-            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.3</link>
-            <sparkle:version>14</sparkle:version>
-            <sparkle:shortVersionString>1.0.3</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.3
-
-`1.0.3` build `14` · macOS 26+ · Apple Silicon(arm64) · 최근 기록 개선
-
-## 설치
-
-- Homebrew: `brew install --cask sidey-app/tap/sidey`
-- 직접 설치: Release의 DMG를 열고 `SIDEY.app`을 Applications로 이동
-
-새 설치에는 공증된 DMG를 사용합니다. ZIP은 앱 내 업데이트용이며 DMG와 ZIP의 SHA-256 파일을 같은 Release에서 제공합니다.
-
-## 변경 사항
-
-- 최근 기록을 발신자의 픽셀 캐릭터, 닉네임, 로컬 전송 시각과 메시지 상태를 함께 보여 주는 카드로 개편했습니다.
-- 최신 메시지부터 표시하고 목록 하단에 도달하면 50개씩 자동으로 이전 기록을 가져옵니다. 서버 보존 정책에 따라 최대 7일까지 탐색할 수 있습니다.
-- 실시간 수신 메시지와 전송 대기·실패 메시지를 페이지 결과에 UUID 기준으로 병합해 중복 없이 유지합니다.
-- 탈퇴 등으로 멤버 정보를 찾을 수 없는 발신자는 햄스터 캐릭터와 `알 수 없는 친구`로 안전하게 표시합니다.
-- 최초 로딩, 빈 기록, 오류·재시도, 추가 페이지 로딩·오류를 구분하고 방 전환·창 닫기 시 진행 중인 요청과 적재한 페이지를 정리합니다.
-
-## 업데이트 후 확인
-
-- 서버 migration이나 초대 코드 재발급은 필요하지 않습니다.
-- 최근 기록 창을 열고 아래로 스크롤하면 이전 기록이 자동으로 이어집니다.
-
-## 제한 사항
-
-- macOS 26 이상 Apple Silicon Mac만 지원합니다.
-- E2EE는 제공하지 않습니다.
-- 보안 화면, DRM 앱, 권한이 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
-- 12명 실제 방의 30분 장시간 RSS·30 FPS 계측은 지속 검증 항목입니다.
-- Windows 개발 파일은 이 macOS 배포에 포함되지 않습니다.
-]]></description>
-            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.3/SIDEY-macOS-arm64-v1.0.3.zip" length="5264851" type="application/octet-stream" sparkle:edSignature="g6YOMKZXjjg1YoY37PWQzUwDaJmuUg68noZqlU7pNADF6RebVs+u1kt2KbyO573yYY6vzGCufR3XoVJzKwoIBA=="/>
-        </item>
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: A8MN0b2qV6YI+e0CQmwM/LkXDwIYt0yqcQ7IsK+Rxa5wgleIHm8IcpBlA6H1bhFCoF2tC21D+miPKmTM3gkLBw==
-length: 11425
+edSignature: JP7EM4a2dopnwkLvXwt0lWUOmsrutxGSiDyeFjrDT4QsR5bTkm/puU1X0xmiVkgAmCxQoKEAIRj+azwl4XKcDw==
+length: 10730
 -->
