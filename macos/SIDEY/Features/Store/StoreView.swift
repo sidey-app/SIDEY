@@ -7,6 +7,8 @@ struct StoreView: View {
     let availability: StoreAvailability
     @State private var selectedKind: CommerceProductKind = .character
     @State private var selectedProductID: String?
+    @State private var sortOrder: StoreSortOrder = .catalog
+    @State private var hidesOwned = false
 
     init(
         model: AppModel,
@@ -30,34 +32,63 @@ struct StoreView: View {
     ]
 
     private var visibleProducts: [CommerceProductState] {
-        model.commerceProducts
-            .filter { $0.product.kind == selectedKind }
-            .sorted { $0.product.sortOrder < $1.product.sortOrder }
+        StoreProductFilter.apply(
+            model.commerceProducts,
+            kind: selectedKind,
+            sortOrder: sortOrder,
+            hidesOwned: hidesOwned,
+            activeEntitlementKeys: model.snapshotActiveEntitlements
+        )
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             header
             if !availability.usesAppStore {
-                Picker("상품 종류", selection: $selectedKind) {
-                    ForEach(CommerceProductKind.allCases, id: \.self) { kind in
-                        Text(kind.title).tag(kind)
+                HStack(spacing: 12) {
+                    Picker("상품 종류", selection: $selectedKind) {
+                        ForEach(CommerceProductKind.allCases, id: \.self) { kind in
+                            Text(kind.title).tag(kind)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .accessibilityLabel("상점 상품 종류")
+
+                    Menu {
+                        Picker("정렬", selection: $sortOrder) {
+                            ForEach(StoreSortOrder.allCases) { order in
+                                Text(order.title).tag(order)
+                            }
+                        }
+                        Divider()
+                        Toggle("보유 중 숨기기", isOn: $hidesOwned)
+                    } label: {
+                        Label("정렬 및 필터", systemImage: "line.3.horizontal.decrease.circle")
+                    }
+                    .menuStyle(.button)
+                    .accessibilityLabel("정렬 및 필터")
                 }
-                .pickerStyle(.segmented)
-                .accessibilityLabel("상점 상품 종류")
             }
 
-            LazyVGrid(columns: columns, alignment: .leading, spacing: StoreCardLayout.spacing) {
-                ForEach(visibleProducts) { state in
-                    switch availability {
-                    case .comingSoon:
-                        StoreLockedProductCard(productState: state) {
-                            selectedProductID = state.id
-                        }
-                    case .direct, .appStore:
-                        StoreProductCard(productState: state, actions: actions) {
-                            selectedProductID = state.id
+            if visibleProducts.isEmpty {
+                ContentUnavailableView(
+                    "조건에 맞는 상품 없음",
+                    systemImage: "sparkles",
+                    description: Text("상품 종류나 보유 필터를 바꿔 보세요.")
+                )
+                .frame(maxWidth: .infinity, minHeight: 220)
+            } else {
+                LazyVGrid(columns: columns, alignment: .leading, spacing: StoreCardLayout.spacing) {
+                    ForEach(visibleProducts) { state in
+                        switch availability {
+                        case .comingSoon:
+                            StoreLockedProductCard(productState: state) {
+                                selectedProductID = state.id
+                            }
+                        case .direct, .appStore:
+                            StoreProductCard(productState: state, actions: actions) {
+                                selectedProductID = state.id
+                            }
                         }
                     }
                 }

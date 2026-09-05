@@ -87,6 +87,10 @@ extension AppCoordinator {
 
     func saveProfile() {
         guard let backend else { return }
+        let hadProfile = model.hasProfile
+        guard !hadProfile || model.hasNicknameChanges else { return }
+        let nickname = model.normalizedNicknameDraft
+        guard ProfileValidator.isValidNickname(model.nickname) else { return }
         let characterID = PixelCharacterCatalog.canonicalID(for: model.selectedCharacterID)
         guard model.isCharacterSelectable(characterID) else {
             model.errorMessage = "보유한 캐릭터만 프로필에 선택할 수 있습니다."
@@ -96,22 +100,64 @@ extension AppCoordinator {
         guard !model.isWorking, model.groupOperation == .idle else { return }
         model.isWorking = true
         model.errorMessage = nil
-        model.successMessage = nil
+        model.dismissSuccess()
         Task { [weak self] in
             guard let self else { return }
             defer { model.isWorking = false }
             do {
                 let profile = try await backend.upsertProfile(
-                    nickname: model.nickname,
+                    nickname: nickname,
                     characterID: characterID
                 )
                 model.apply(profile: profile)
-                model.successMessage = "프로필을 저장했습니다."
+                model.presentSuccess(hadProfile ? "닉네임을 변경했습니다." : "프로필을 저장했습니다.")
                 applyRequestedOverlayVisibility()
                 refreshStatusItem()
                 persistPreferences()
             } catch {
                 model.errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func setCharacter(_ requestedCharacterID: String) {
+        guard let backend,
+              let confirmedNickname = model.confirmedNickname,
+              !model.isWorking,
+              model.groupOperation == .idle,
+              characterEquipmentTask == nil,
+              model.beginCharacterEquipmentRequest(characterID: requestedCharacterID)
+        else { return }
+        let characterID = PixelCharacterCatalog.canonicalID(for: requestedCharacterID)
+        let displayName = PixelCharacterCatalog.definition(for: characterID).displayName
+        model.isWorking = true
+        model.errorMessage = nil
+        model.dismissSuccess()
+        characterEquipmentTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                model.isWorking = false
+                model.endCharacterEquipmentRequest()
+                characterEquipmentTask = nil
+            }
+            do {
+                let profile = try await backend.upsertProfile(
+                    nickname: confirmedNickname,
+                    characterID: characterID
+                )
+                guard profile.id == model.currentUserID else {
+                    throw SideyBackendError.malformedResponse
+                }
+                model.apply(profile: profile)
+                model.presentSuccess("\(displayName) 캐릭터를 장착했습니다.")
+                model.errorMessage = nil
+                applyRequestedOverlayVisibility()
+                refreshStatusItem()
+                persistPreferences()
+            } catch is CancellationError {
+                return
+            } catch {
+                model.errorMessage = "캐릭터를 장착하지 못했습니다: \(error.localizedDescription)"
             }
         }
     }
@@ -126,7 +172,7 @@ extension AppCoordinator {
         }
         runMutation(groupOperation: .creating) {
             _ = try await backend.upsertProfile(
-                nickname: self.model.nickname,
+                nickname: self.model.confirmedNickname ?? self.model.normalizedNicknameDraft,
                 characterID: characterID
             )
             let created = try await backend.createRoom(name: roomName)
@@ -149,7 +195,7 @@ extension AppCoordinator {
         }
         runMutation(groupOperation: .joining) {
             _ = try await backend.upsertProfile(
-                nickname: self.model.nickname,
+                nickname: self.model.confirmedNickname ?? self.model.normalizedNicknameDraft,
                 characterID: characterID
             )
             let joined = try await backend.joinRoom(inviteCode: inviteCode)
@@ -176,6 +222,14 @@ extension AppCoordinator {
             .nickname ?? "멤버"
         runMutation(successMessage: "\(nickname)님을 그룹에서 내보냈습니다.") {
             try await backend.removeRoomMember(roomID, userID: userID)
+        }
+    }
+
+    func leaveRoom(_ roomID: UUID) {
+        guard let backend else { return }
+        let roomName = model.rooms.first(where: { $0.id == roomID })?.name ?? "그룹"
+        runMutation(successMessage: "‘\(roomName)’ 그룹에서 나갔습니다.") {
+            try await backend.leaveRoom(roomID)
         }
     }
 
@@ -286,7 +340,7 @@ extension AppCoordinator {
         model.isWorking = true
         if let groupOperation { model.groupOperation = groupOperation }
         model.errorMessage = nil
-        model.successMessage = nil
+        model.dismissSuccess()
         Task { [weak self] in
             guard let self else { return }
             defer {
@@ -309,16 +363,18 @@ extension AppCoordinator {
                 applyBackendReconciliation(reconciliation)
                 model.connectionState = .online
                 model.errorMessage = postCommitWarning
-                model.successMessage = successMessage
+                if let successMessage { model.presentSuccess(successMessage) }
                 if !wasOnboardingComplete && model.preferences.onboardingComplete {
                     model.activeSettingsPage = .groups
                     settingsWindow.transitionFromOnboardingToSettings()
+                } else if wasOnboardingComplete && !model.preferences.onboardingComplete {
+                    settingsWindow.transitionFromSettingsToOnboarding()
                 }
                 applyRequestedOverlayVisibility()
                 refreshStatusItem()
                 persistPreferences()
             } catch {
-                model.successMessage = nil
+                model.dismissSuccess()
                 model.errorMessage = serverMutationCommitted
                     ? "서버 작업은 완료됐지만 상태 동기화에 실패했습니다: \(error.localizedDescription)"
                     : error.localizedDescription
@@ -577,7 +633,7 @@ extension AppCoordinator {
         else { return }
 
         model.errorMessage = nil
-        model.successMessage = nil
+        model.dismissSuccess()
         cosmeticEquipmentTasks[kind] = Task { [weak self] in
             guard let self else { return }
             defer {
@@ -593,9 +649,10 @@ extension AppCoordinator {
                     throw SideyBackendError.malformedResponse
                 }
                 model.apply(profile: profile)
-                model.successMessage = catalogItemID == nil
-                    ? "\(kind.title) 기본값을 사용합니다."
-                    : "\(product?.displayName ?? kind.title)을 사용합니다."
+                model.presentSuccess(CosmeticEquipmentFeedback.successMessage(
+                    kind: kind,
+                    product: product
+                ))
                 model.errorMessage = nil
                 persistPreferences()
             } catch is CancellationError {
@@ -634,7 +691,7 @@ extension AppCoordinator {
                     throw SideyBackendError.remote("기본 브라우저를 열지 못했습니다.")
                 }
                 didOpenBrowser = true
-                model.successMessage = "브라우저에서 Google 계정 연결을 완료해 주세요."
+                model.presentSuccess("브라우저에서 Google 계정 연결을 완료해 주세요.")
             } catch is CancellationError {
                 return
             } catch {
@@ -691,7 +748,7 @@ extension AppCoordinator {
                         let snapshot = try await backend.loadSnapshot()
                         applyBackendSnapshot(snapshot, currentUserID: userID)
                         model.setCommercePurchaseState(.owned, productID: productID)
-                        model.successMessage = "\(product.displayName) 구매가 완료되었습니다."
+                        model.presentSuccess("\(product.displayName) 구매가 완료되었습니다.")
                     } else {
                         model.setCommercePurchaseState(.available, productID: productID)
                     }
@@ -714,7 +771,7 @@ extension AppCoordinator {
                         model.apply(commerceState: state)
                         let snapshot = try await backend.loadSnapshot()
                         applyBackendSnapshot(snapshot, currentUserID: model.currentUserID)
-                        model.successMessage = "\(product.displayName) 구매가 완료되었습니다."
+                        model.presentSuccess("\(product.displayName) 구매가 완료되었습니다.")
                         model.errorMessage = nil
                         persistPreferences()
                         return
@@ -782,7 +839,7 @@ extension AppCoordinator {
                 let snapshot = try await backend.loadSnapshot()
                 applyBackendSnapshot(snapshot, currentUserID: userID)
                 refreshCommerceState()
-                model.successMessage = "App Store 구매 내역을 복원했습니다."
+                model.presentSuccess("App Store 구매 내역을 복원했습니다.")
             } catch {
                 model.errorMessage = "구매 복원 실패: \(error.localizedDescription)"
             }

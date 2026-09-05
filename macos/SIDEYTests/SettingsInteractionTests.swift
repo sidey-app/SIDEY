@@ -16,6 +16,19 @@ final class SettingsInteractionTests: XCTestCase {
         XCTAssertFalse(state.showsConfirmation)
     }
 
+    func testSuccessBannerExpiresAfterThreeSecondsAndNewSuccessInvalidatesOldTimer() throws {
+        var state = SuccessFeedbackState()
+
+        let firstGeneration = state.present("첫 성공")
+        let secondGeneration = state.present("두 번째 성공")
+        state.dismiss(generation: firstGeneration)
+
+        XCTAssertEqual(SuccessFeedbackState.displayDuration, .seconds(3))
+        XCTAssertEqual(state.message, "두 번째 성공")
+        state.dismiss(generation: secondGeneration)
+        XCTAssertNil(state.message)
+    }
+
     func testInviteCopyFailureDoesNotShowConfirmation() {
         var state = InviteCopyFeedbackState()
 
@@ -91,6 +104,11 @@ final class SettingsInteractionTests: XCTestCase {
     func testSwitchingGroupCardRendersInLightAndDarkModes() throws {
         let activeRoomID = UUID()
         let targetRoomID = UUID()
+        let snapshotDirectory = URL(
+            fileURLWithPath: "/private/tmp/sidey-group-snapshots",
+            isDirectory: true
+        )
+        let writesSnapshots = FileManager.default.fileExists(atPath: snapshotDirectory.path)
         for scheme in [ColorScheme.light, .dark] {
             let data = try renderSettings(
                 size: SettingsWindowController.settingsContentSize,
@@ -105,6 +123,10 @@ final class SettingsInteractionTests: XCTestCase {
                 model.groupOperation = .switching(targetRoomID)
             }
             XCTAssertGreaterThan(data.count, 10_000)
+            if writesSnapshots {
+                let mode = scheme == .light ? "light" : "dark"
+                try data.write(to: snapshotDirectory.appending(path: "groups-switching-\(mode).png"))
+            }
         }
     }
 

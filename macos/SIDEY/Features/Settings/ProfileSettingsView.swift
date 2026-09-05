@@ -15,9 +15,7 @@ struct ProfileSettingsView: View {
 
     private var showsCosmeticEquipment: Bool {
         ProfileCosmeticEquipmentPolicy.shouldShow(
-            availability: storeAvailability,
-            bubbleCount: bubbleProducts.count,
-            throwableCount: throwableProducts.count
+            availability: storeAvailability
         )
     }
 
@@ -50,45 +48,44 @@ struct ProfileSettingsView: View {
             CharacterSelectionGrid(
                 maximumColumns: 5,
                 characters: model.selectableCharacters,
-                selection: $model.selectedCharacterID
+                confirmedSelection: model.selectedCharacterID,
+                pendingSelection: model.pendingCharacterID,
+                isDisabled: model.pendingCharacterID != nil || model.groupMutationsDisabled,
+                onSelect: actions.onSetCharacter
             )
             Text("캐릭터와 닉네임은 그룹 안에서 중복해서 선택할 수 있습니다.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            HStack {
-                Spacer()
-                Button("프로필 저장") {
-                    PendingTextInputCommitter.commitThen(actions.onSaveProfile)
+            if model.hasNicknameChanges {
+                HStack {
+                    Spacer()
+                    Button("닉네임 변경하기") {
+                        PendingTextInputCommitter.commitThen(actions.onSaveProfile)
+                    }
+                        .buttonStyle(.glassProminent)
+                        .disabled(model.groupMutationsDisabled || !validNickname)
                 }
-                    .buttonStyle(.glassProminent)
-                    .disabled(model.groupMutationsDisabled || !validNickname)
             }
 
             if showsCosmeticEquipment {
                 Divider()
-                if !bubbleProducts.isEmpty {
-                    ProfileCosmeticEquipmentSection(
-                        kind: .bubble,
-                        products: bubbleProducts,
-                        selectedCatalogItemID: model.equippedBubbleStyleID,
-                        pendingRequest: model.cosmeticEquipmentRequest(for: .bubble),
-                        selectedCharacterID: model.selectedCharacterID,
-                        onSelect: actions.onSetEquippedCosmetic
-                    )
-                }
-                if !bubbleProducts.isEmpty && !throwableProducts.isEmpty {
-                    Divider()
-                }
-                if !throwableProducts.isEmpty {
-                    ProfileCosmeticEquipmentSection(
-                        kind: .throwable,
-                        products: throwableProducts,
-                        selectedCatalogItemID: model.equippedThrowableID,
-                        pendingRequest: model.cosmeticEquipmentRequest(for: .throwable),
-                        selectedCharacterID: model.selectedCharacterID,
-                        onSelect: actions.onSetEquippedCosmetic
-                    )
-                }
+                ProfileCosmeticEquipmentSection(
+                    kind: .bubble,
+                    products: bubbleProducts,
+                    selectedCatalogItemID: model.equippedBubbleStyleID,
+                    pendingRequest: model.cosmeticEquipmentRequest(for: .bubble),
+                    selectedCharacterID: model.selectedCharacterID,
+                    onSelect: actions.onSetEquippedCosmetic
+                )
+                Divider()
+                ProfileCosmeticEquipmentSection(
+                    kind: .throwable,
+                    products: throwableProducts,
+                    selectedCatalogItemID: model.equippedThrowableID,
+                    pendingRequest: model.cosmeticEquipmentRequest(for: .throwable),
+                    selectedCharacterID: model.selectedCharacterID,
+                    onSelect: actions.onSetEquippedCosmetic
+                )
             }
         }
 
@@ -261,11 +258,7 @@ struct ProfileCosmeticTile: View {
 }
 
 enum ProfileCosmeticEquipmentPolicy {
-    static func shouldShow(
-        availability: StoreAvailability,
-        bubbleCount: Int,
-        throwableCount: Int
-    ) -> Bool {
-        availability.allowsCosmeticEquipment && (bubbleCount > 0 || throwableCount > 0)
+    static func shouldShow(availability: StoreAvailability) -> Bool {
+        availability.allowsCosmeticEquipment
     }
 }

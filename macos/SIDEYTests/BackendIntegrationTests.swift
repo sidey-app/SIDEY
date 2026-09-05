@@ -212,6 +212,36 @@ final class BackendIntegrationTests: XCTestCase {
             let deletedRoomStoredCode = try await second.storedInviteCode(roomID: deletionRoom.roomID)
             XCTAssertNil(deletedRoomStoredCode)
 
+            let leaveRoom = try await first.createRoom(name: "나가기 통합 \(Int.random(in: 1000...9999))")
+            createdRoomIDs.insert(leaveRoom.roomID)
+            _ = try await second.joinRoom(inviteCode: leaveRoom.inviteCode)
+            let firstLeaveSnapshot = try await first.loadSnapshot()
+            let secondLeaveSnapshot = try await second.loadSnapshot()
+            _ = try await first.syncRealtime(
+                rooms: firstLeaveSnapshot.rooms,
+                activeRoomID: created.roomID
+            )
+            _ = try await second.syncRealtime(
+                rooms: secondLeaveSnapshot.rooms,
+                activeRoomID: created.roomID
+            )
+
+            let snapshotsBeforeLeave = await firstProbe.snapshotCount
+            try await second.leaveRoom(leaveRoom.roomID)
+            try await waitUntil("일반 멤버 그룹 나가기 수신") {
+                await firstProbe.hasRoomMembers(
+                    after: snapshotsBeforeLeave,
+                    roomID: leaveRoom.roomID,
+                    expected: [firstUserID]
+                )
+            }
+            let afterLeaveSnapshot = try await second.loadSnapshot()
+            XCTAssertFalse(afterLeaveSnapshot.rooms.contains(where: { $0.id == leaveRoom.roomID }))
+            let leftRoomStoredCode = try await second.storedInviteCode(roomID: leaveRoom.roomID)
+            XCTAssertNil(leftRoomStoredCode)
+            try await first.deleteRoom(leaveRoom.roomID)
+            createdRoomIDs.remove(leaveRoom.roomID)
+
             let snapshotsBeforeRemoval = await secondProbe.snapshotCount
             try await first.removeRoomMember(created.roomID, userID: secondUserID)
             try await waitUntil("추방된 클라이언트 그룹 제거 수신") {
@@ -301,6 +331,7 @@ private actor BackendEventProbe {
     private(set) var disconnectedAfterConnectCount = 0
     private(set) var snapshotCount = 0
     private(set) var roomNames: [UUID: String] = [:]
+    private(set) var roomMemberIDs: [UUID: Set<UUID>] = [:]
     private(set) var members: [UUID: Profile] = [:]
     private var hasConnected = false
 
@@ -310,6 +341,10 @@ private actor BackendEventProbe {
 
     func hasSnapshot(after count: Int, roomID: UUID, expectedName: String?) -> Bool {
         snapshotCount > count && roomNames[roomID] == expectedName
+    }
+
+    func hasRoomMembers(after count: Int, roomID: UUID, expected: Set<UUID>) -> Bool {
+        snapshotCount > count && roomMemberIDs[roomID] == expected
     }
 
     func hasMember(
@@ -325,6 +360,9 @@ private actor BackendEventProbe {
     private func apply(_ snapshot: BackendSnapshot) {
         snapshotCount += 1
         roomNames = Dictionary(uniqueKeysWithValues: snapshot.rooms.map { ($0.id, $0.name) })
+        roomMemberIDs = Dictionary(uniqueKeysWithValues: snapshot.rooms.map { room in
+            (room.id, Set(room.members.map(\.userID)))
+        })
         for room in snapshot.rooms {
             for member in room.members {
                 members[member.userID] = Profile(

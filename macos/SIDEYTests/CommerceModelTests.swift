@@ -45,7 +45,7 @@ final class CommerceModelTests: XCTestCase {
         XCTAssertEqual(CommerceProduct.butterChickBubble.amountKRW, 1_900)
         XCTAssertEqual(CommerceProduct.starryCatBubble.amountKRW, 1_900)
         XCTAssertEqual(CommerceProduct.bouncyHeart.amountKRW, 990)
-        XCTAssertEqual(CommerceProduct.toyCannon.amountKRW, 3_900)
+        XCTAssertEqual(CommerceProduct.toyCannon.amountKRW, 2_900)
         XCTAssertEqual(CommerceProduct.squeakyDuck.amountKRW, 990)
         XCTAssertTrue(CommerceCatalog.products.map(\.sortOrder).elementsEqual(
             CommerceCatalog.products.map(\.sortOrder).sorted()
@@ -128,27 +128,106 @@ final class CommerceModelTests: XCTestCase {
         XCTAssertTrue(model.ownedProfileCosmeticProducts(for: .bubble).isEmpty)
     }
 
-    func testProfileCosmeticVisibilityKeepsAppStoreCharacterOnly() {
+    func testProfileCosmeticVisibilityAlwaysShowsDefaultsOutsideAppStore() {
         XCTAssertTrue(ProfileCosmeticEquipmentPolicy.shouldShow(
-            availability: .comingSoon,
-            bubbleCount: 1,
-            throwableCount: 0
+            availability: .comingSoon
         ))
         XCTAssertTrue(ProfileCosmeticEquipmentPolicy.shouldShow(
-            availability: .direct,
-            bubbleCount: 0,
-            throwableCount: 1
+            availability: .direct
         ))
         XCTAssertFalse(ProfileCosmeticEquipmentPolicy.shouldShow(
-            availability: .appStore,
-            bubbleCount: 3,
-            throwableCount: 3
+            availability: .appStore
         ))
-        XCTAssertFalse(ProfileCosmeticEquipmentPolicy.shouldShow(
-            availability: .comingSoon,
-            bubbleCount: 0,
-            throwableCount: 0
+    }
+
+    func testCosmeticEquipmentRPCAlwaysEncodesExplicitNullCatalogKey() throws {
+        let data = try JSONEncoder().encode(SetEquippedCosmeticParameters(
+            productKind: .bubble,
+            catalogItemID: nil
         ))
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+
+        XCTAssertEqual(object["p_product_kind"] as? String, "bubble")
+        XCTAssertTrue(object.keys.contains("p_catalog_item_id"))
+        XCTAssertTrue(object["p_catalog_item_id"] is NSNull)
+    }
+
+    func testCosmeticEquipmentSuccessCopyUsesCompletedEquipmentWording() {
+        XCTAssertEqual(
+            CosmeticEquipmentFeedback.successMessage(kind: .bubble, product: nil),
+            "기본 말풍선을 장착했습니다."
+        )
+        XCTAssertEqual(
+            CosmeticEquipmentFeedback.successMessage(kind: .bubble, product: .bunnyPinkBubble),
+            "핑크 토끼 말풍선 장착했습니다."
+        )
+    }
+
+    func testStoreSortingUsesStableCatalogAndPriceTieBreakers() {
+        let states = [
+            CommerceProductState(product: .toyCannon, purchaseState: .available, isWorking: false),
+            CommerceProductState(product: .squeakyDuck, purchaseState: .available, isWorking: false),
+            CommerceProductState(product: .bouncyHeart, purchaseState: .available, isWorking: false),
+        ]
+
+        XCTAssertEqual(StoreProductFilter.apply(
+            states,
+            kind: .throwable,
+            sortOrder: .catalog,
+            hidesOwned: false,
+            activeEntitlementKeys: []
+        ).map(\.id), [
+            CommerceProduct.bouncyHeart.id,
+            CommerceProduct.toyCannon.id,
+            CommerceProduct.squeakyDuck.id,
+        ])
+        XCTAssertEqual(StoreProductFilter.apply(
+            states,
+            kind: .throwable,
+            sortOrder: .priceAscending,
+            hidesOwned: false,
+            activeEntitlementKeys: []
+        ).map(\.id), [
+            CommerceProduct.bouncyHeart.id,
+            CommerceProduct.squeakyDuck.id,
+            CommerceProduct.toyCannon.id,
+        ])
+        XCTAssertEqual(StoreProductFilter.apply(
+            states,
+            kind: .throwable,
+            sortOrder: .priceDescending,
+            hidesOwned: false,
+            activeEntitlementKeys: []
+        ).map(\.id), [
+            CommerceProduct.toyCannon.id,
+            CommerceProduct.bouncyHeart.id,
+            CommerceProduct.squeakyDuck.id,
+        ])
+    }
+
+    func testStoreOwnedFilterUsesSnapshotEntitlementAndTreatsEquippedAsOwned() {
+        let states = [
+            CommerceProductState(product: .bouncyHeart, purchaseState: .available, isWorking: false),
+            CommerceProductState(
+                product: .toyCannon,
+                purchaseState: .available,
+                isWorking: false,
+                isEquipped: true
+            ),
+            CommerceProductState(product: .squeakyDuck, purchaseState: .owned, isWorking: false),
+        ]
+
+        let visible = StoreProductFilter.apply(
+            states,
+            kind: .throwable,
+            sortOrder: .catalog,
+            hidesOwned: true,
+            activeEntitlementKeys: [CommerceProduct.bouncyHeart.entitlementKey]
+        )
+
+        XCTAssertEqual(visible.map(\.id), [CommerceProduct.squeakyDuck.id])
     }
 
     func testCosmeticEquipmentRequestsBlockOnlyTheSameKindAndDoNotOptimisticallySelect() {

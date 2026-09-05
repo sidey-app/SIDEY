@@ -50,6 +50,7 @@ final class AppCoordinator {
             onSignInWithApple: { [weak self] payload in self?.signInWithApple(payload) },
             onDeleteAccount: { [weak self] payload in self?.deleteAccount(payload) },
             onSaveProfile: { [weak self] in self?.saveProfile() },
+            onSetCharacter: { [weak self] characterID in self?.setCharacter(characterID) },
             onCreateRoom: { [weak self] in self?.createRoom() },
             onJoinRoom: { [weak self] in self?.joinRoom() },
             onSelectRoom: { [weak self] roomID in self?.selectRoom(roomID) },
@@ -59,6 +60,7 @@ final class AppCoordinator {
             onRotateInviteCode: { [weak self] roomID in self?.rotateInviteCode(roomID: roomID) },
             onRenameRoom: { [weak self] roomID, name in self?.renameRoom(roomID, name: name) },
             onRemoveRoomMember: { [weak self] roomID, userID in self?.removeRoomMember(roomID, userID: userID) },
+            onLeaveRoom: { [weak self] roomID in self?.leaveRoom(roomID) },
             onDeleteRoom: { [weak self] roomID in self?.deleteRoom(roomID) }
         ),
         onClose: { [weak self] in self?.settingsDidClose() }
@@ -89,6 +91,7 @@ final class AppCoordinator {
     var bubbleExpiryTask: Task<Void, Never>?
     var commerceProductTasks: [String: Task<Void, Never>] = [:]
     var cosmeticEquipmentTasks: [CommerceProductKind: Task<Void, Never>] = [:]
+    var characterEquipmentTask: Task<Void, Never>?
     var commerceAuthTask: Task<Void, Never>?
     var googleConnectionProductID: String?
     private var landingDidComplete = false
@@ -231,6 +234,9 @@ final class AppCoordinator {
             model.endCosmeticEquipmentRequest(kind: kind)
         }
         cosmeticEquipmentTasks.removeAll()
+        characterEquipmentTask?.cancel()
+        characterEquipmentTask = nil
+        model.endCharacterEquipmentRequest()
         commerceAuthTask?.cancel()
         appStorePurchaseController.stopObserving()
         roomSwitchPipeline.cancel()
@@ -329,7 +335,7 @@ final class AppCoordinator {
             do {
                 try await backend.handleAuthCallback(url)
                 refreshCommerceState()
-                model.successMessage = "Google 계정을 연결했습니다."
+                model.presentSuccess("Google 계정을 연결했습니다.")
                 model.errorMessage = nil
             } catch {
                 if let targetProductID {
@@ -420,12 +426,12 @@ final class AppCoordinator {
 
     private func copyInviteCode(roomID: UUID) async -> Bool {
         guard model.rooms.first(where: { $0.id == roomID })?.inviteCodeReady == true else {
-            model.successMessage = nil
+            model.dismissSuccess()
             model.errorMessage = "이 그룹의 이전 초대 코드는 폐기됐습니다. 방장이 새 코드를 발급해야 합니다."
             return false
         }
         guard let backend else {
-            model.successMessage = nil
+            model.dismissSuccess()
             model.errorMessage = "초대 코드를 읽을 서버 구성이 없습니다."
             return false
         }
@@ -433,21 +439,21 @@ final class AppCoordinator {
             guard let inviteCode = try await backend.storedInviteCode(roomID: roomID),
                   !inviteCode.isEmpty
             else {
-                model.successMessage = nil
+                model.dismissSuccess()
                 model.errorMessage = "이 기기에 이 그룹의 초대 코드 원문이 없습니다. 보안상 데이터베이스의 해시에서는 복구할 수 없습니다."
                 return false
             }
             NSPasteboard.general.clearContents()
             guard NSPasteboard.general.setString(inviteCode, forType: .string) else {
-                model.successMessage = nil
+                model.dismissSuccess()
                 model.errorMessage = "초대 코드를 클립보드에 복사하지 못했습니다."
                 return false
             }
             model.errorMessage = nil
-            model.successMessage = nil
+            model.dismissSuccess()
             return true
         } catch {
-            model.successMessage = nil
+            model.dismissSuccess()
             model.errorMessage = "초대 코드를 읽지 못했습니다: \(error.localizedDescription)"
             return false
         }

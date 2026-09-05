@@ -34,6 +34,7 @@ struct GroupsSettingsView: View {
                             onRemoveMember: { userID in
                                 actions.onRemoveRoomMember(room.id, userID)
                             },
+                            onLeave: { actions.onLeaveRoom(room.id) },
                             onDelete: { actions.onDeleteRoom(room.id) }
                         )
                         if room.id != model.rooms.last?.id { Divider() }
@@ -112,7 +113,8 @@ struct GroupsSettingsView: View {
     }
 
     private var validNickname: Bool {
-        model.nickname.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2
+        model.confirmedNickname.map(ProfileValidator.isValidNickname)
+            ?? ProfileValidator.isValidNickname(model.nickname)
     }
 
     private var validRoomName: Bool {
@@ -131,6 +133,7 @@ struct RoomRow: View {
     let onRotateInviteCode: () -> Void
     let onRename: (String) -> Void
     let onRemoveMember: (UUID) -> Void
+    let onLeave: () -> Void
     let onDelete: () -> Void
 
     @State private var isExpanded = false
@@ -138,6 +141,7 @@ struct RoomRow: View {
     @State private var renameDraft = ""
     @State private var removalCandidate: RoomMember?
     @State private var showsDeleteConfirmation = false
+    @State private var showsLeaveConfirmation = false
     @State private var inviteCopyFeedback = InviteCopyFeedbackState()
     @State private var inviteCopyTask: Task<Void, Never>?
     @State private var inviteCopyResetTask: Task<Void, Never>?
@@ -145,10 +149,13 @@ struct RoomRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             roomHeader
-            if isExpanded {
-                expandedContent
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+            VStack(alignment: .leading, spacing: 0) {
+                if isExpanded {
+                    expandedContent
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
+            .clipped()
         }
         .padding(.vertical, 4)
         .padding(.horizontal, 8)
@@ -193,6 +200,15 @@ struct RoomRow: View {
         } message: {
             Text("멤버와 모든 메시지가 영구 삭제되며 복구할 수 없습니다.")
         }
+        .alert("‘\(room.name)’ 그룹에서 나갈까요?", isPresented: $showsLeaveConfirmation) {
+            Button("취소", role: .cancel) {}
+            Button("그룹 나가기", role: .destructive, action: onLeave)
+        } message: {
+            Text(RoomLeaveConfirmation.resolve(
+                room: room,
+                currentUserID: currentUserID
+            ).message)
+        }
     }
 
     private var expandedContent: some View {
@@ -217,6 +233,13 @@ struct RoomRow: View {
                     managementButtons
                 }
             }
+            Divider()
+                .padding(.leading, 48)
+            Button("그룹 나가기", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+                showsLeaveConfirmation = true
+            }
+            .disabled(mutationsDisabled)
+            .padding(.leading, 48)
         }
         .padding(.top, 12)
         .padding(.leading, 8)
