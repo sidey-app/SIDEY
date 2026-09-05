@@ -470,7 +470,7 @@ begin
     raise exception using errcode = '42501', message = 'membership_required';
   end if;
   if current_epoch != p_realtime_epoch then
-    raise exception using errcode = '40001', message = 'stale_realtime_epoch';
+    raise exception using errcode = 'PT409', message = 'stale_realtime_epoch';
   end if;
   if not private.is_room_member(p_room_id, p_target_user_id) then
     raise exception using errcode = '42501', message = 'target_membership_required';
