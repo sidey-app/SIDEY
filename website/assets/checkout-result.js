@@ -7,12 +7,18 @@
     character_guinea_pig: "아기 기니피그",
     character_monkey: "아기 원숭이",
     character_chinchilla: "아기 친칠라",
+    bubble_bunny_pink: "핑크 토끼 말풍선",
+    bubble_butter_chick: "버터 병아리 말풍선",
+    bubble_starry_cat: "별밤 고양이 말풍선",
+    throwable_bouncy_heart: "통통 하트",
+    throwable_toy_cannon: "미니 대포",
+    throwable_squeaky_duck: "삑삑 오리",
   };
   const results = {
     success: (name) => ({
       icon: "✦",
       title: `${name} 사용권이 도착했어요.`,
-      message: "PortOne 결제 재조회와 캐릭터 소유권 지급이 끝났습니다. SIDEY 상점에서 보유 상태를 확인해 주세요.",
+      message: "PortOne 결제 재조회와 디지털 꾸미기 사용권 지급이 끝났습니다. SIDEY 상점에서 보유 상태를 확인해 주세요.",
     }),
     canceled: () => ({
       icon: "!", title: "결제를 완료하지 않았어요.",
@@ -33,7 +39,7 @@
   const message = document.querySelector("#result-message");
 
   function render(key, productID) {
-    const name = productNames[productID] || "SIDEY 캐릭터";
+    const name = productNames[productID] || "SIDEY 디지털 꾸미기";
     const result = (results[key] || results.invalid)(name);
     icon.textContent = result.icon;
     title.textContent = result.title;

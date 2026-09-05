@@ -12,14 +12,20 @@ select has_table('public', 'commerce_orders', 'commerce orders exist');
 select has_table('public', 'commerce_entitlements', 'commerce entitlements exist');
 select has_column('public', 'commerce_entitlements', 'grant_kind', 'grant kind records provenance');
 select has_column('public', 'commerce_entitlements', 'grant_reference', 'grant reference records provenance');
-select is((select count(*)::integer from public.commerce_products where active), 4, 'four products are active');
+select is((select count(*)::integer from public.commerce_products where active), 10, 'ten catalog products are active');
 select results_eq(
   $$select product_id, amount_krw from public.commerce_prices where active order by product_id$$,
   $$values
+      ('bubble_bunny_pink'::text, 1900),
+      ('bubble_butter_chick'::text, 1900),
+      ('bubble_starry_cat'::text, 1900),
       ('character_chinchilla'::text, 990),
       ('character_guinea_pig'::text, 990),
       ('character_monkey'::text, 990),
-      ('character_starlight_upalupa'::text, 1900)$$,
+      ('character_starlight_upalupa'::text, 1900),
+      ('throwable_bouncy_heart'::text, 990),
+      ('throwable_squeaky_duck'::text, 990),
+      ('throwable_toy_cannon'::text, 3900)$$,
   'active prices are server-owned'
 );
 select is(
@@ -82,7 +88,10 @@ select is(
   'valid staging checkout token can be prepared'
 );
 select lives_ok(
-  $$select * from public.commerce_record_policy_consent(repeat('a', 64), '2026-09-03-portone-v2')$$,
+  $$select * from public.commerce_record_policy_consent(
+      repeat('a', 64),
+      (select policy_version from private.commerce_runtime_settings)
+    )$$,
   'canonical purchase policy consent is recorded'
 );
 select ok(

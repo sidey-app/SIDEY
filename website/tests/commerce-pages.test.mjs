@@ -155,6 +155,9 @@ test("public policy URLs keep seller scope and PortOne refund terms", async () =
   assert.ok(refund.includes("제공 시작 후 단순 변심 환불 불가"));
   assert.ok(refund.includes("정책 버전 2026-09-04-macos-commerce"));
   assert.ok(migration.includes("policy_version = '2026-09-03-portone-v2'"));
+  const cosmeticsMigration = await read("../supabase/migrations/20260905000000_cosmetics_catalog_and_equipment.sql");
+  assert.ok(cosmeticsMigration.includes("policy_version = '2026-09-05-cosmetics-v1'"));
+  assert.ok(cosmeticsMigration.includes("디지털 꾸미기 사용권 제공이 즉시 시작됩니다"));
   assert.ok(migration.includes("제공 시작 뒤 단순 변심에 따른 청약철회와 환불은 불가합니다"));
   for (const fixedPolicyURL of ["store.html", "terms.html", "privacy.html", "refund.html"]) {
     assert.ok(sitemap.includes(`https://sidey-app.github.io/SIDEY/${fixedPolicyURL}`));
@@ -176,4 +179,34 @@ test("checkout is token-only and completion trusts a server re-query", async () 
   assert.ok(copy.includes("PortOne"));
   assert.ok(copy.includes("결제 상태를 확인"));
   assert.ok(!copy.match(/TossPayments|tosspayments|토스페이먼츠/));
+});
+
+test("checkout supports all cosmetic preview kinds without publishing them in the public store", async () => {
+  const [html, checkout, result, store, terms] = await Promise.all([
+    read("checkout.html"),
+    read("assets/checkout.js"),
+    read("assets/checkout-result.js"),
+    read("store.html"),
+    read("terms.html"),
+  ]);
+  const cosmeticIDs = [
+    "bubble_bunny_pink",
+    "bubble_butter_chick",
+    "bubble_starry_cat",
+    "throwable_bouncy_heart",
+    "throwable_toy_cannon",
+    "throwable_squeaky_duck",
+  ];
+
+  assert.ok(html.includes("디지털 꾸미기 결제"));
+  assert.ok(html.includes("계정에 영구 귀속"));
+  assert.ok(result.includes("디지털 꾸미기 사용권 지급"));
+  assert.ok(html.includes('data-product-kind="character"'));
+  assert.ok(checkout.includes("previewFrame.dataset.productKind"));
+  for (const id of cosmeticIDs) {
+    assert.ok(checkout.includes(id), `checkout preview missing: ${id}`);
+    assert.ok(result.includes(id), `result name missing: ${id}`);
+    assert.ok(!store.includes(id), `unreleased product leaked into public store: ${id}`);
+    assert.ok(!terms.includes(id), `unreleased product leaked into public terms: ${id}`);
+  }
 });

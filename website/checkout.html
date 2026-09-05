@@ -9,7 +9,7 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'none'; script-src 'self' https://cdn.portone.io; style-src 'self'; img-src 'self'; connect-src https://*.supabase.co http://localhost:* http://127.0.0.1:* https://api.portone.io https://*.portone.io; frame-src https://*.portone.io; form-action 'none'; base-uri 'self'"
     >
-    <title>SIDEY 캐릭터 결제</title>
+    <title>SIDEY 디지털 꾸미기 결제</title>
     <meta name="theme-color" content="#f7f7ff">
     <link rel="icon" type="image/png" href="./assets/app-icon.png">
     <link rel="stylesheet" href="./assets/styles.css">
@@ -39,17 +39,17 @@
         <div id="checkout-product" hidden>
           <p class="section-kicker">SIDEY 꾸미기·상점</p>
           <div class="checkout-product-row">
-            <div class="checkout-sprite-frame" aria-hidden="true">
+            <div id="checkout-preview-frame" class="checkout-sprite-frame" data-product-kind="character" aria-hidden="true">
               <img id="checkout-product-image" src="./assets/characters/pixel_starlight_upalupa.png" alt="">
             </div>
             <div>
-              <h1 id="checkout-order-name">SIDEY 캐릭터</h1>
+              <h1 id="checkout-order-name">SIDEY 디지털 꾸미기</h1>
               <p class="checkout-price"><span id="checkout-amount">0</span>원</p>
               <p id="checkout-meta" class="checkout-meta">부가세 포함 · 1회 구매</p>
             </div>
           </div>
           <p class="checkout-note">
-            결제창 결과만으로 캐릭터를 지급하지 않습니다. SIDEY 서버가 PortOne에서 결제 금액과 상태를 다시 확인한 뒤 계정에 귀속합니다.
+            결제창 결과만으로 사용권을 지급하지 않습니다. SIDEY 서버가 PortOne에서 결제 금액과 상태를 다시 확인한 뒤 계정에 영구 귀속합니다.
           </p>
           <p class="checkout-policy">
             <a href="./store.html" target="_blank" rel="noopener">상품 안내</a> ·
