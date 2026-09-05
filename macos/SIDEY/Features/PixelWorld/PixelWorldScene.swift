@@ -71,6 +71,37 @@ enum PixelCharacterPulseStyle {
     static let totalDuration = growDuration + settleDuration
 }
 
+struct PixelWorldRenderingConfiguration: Equatable, Sendable {
+    let pulsePeakScale: CGFloat
+    let fixedTrackFractions: [UUID: CGFloat]
+    let minimumTrackInset: CGFloat
+    let allowsLocalPreviewEvents: Bool
+
+    static let live = Self(
+        pulsePeakScale: PixelCharacterPulseStyle.peakScale,
+        fixedTrackFractions: [:],
+        minimumTrackInset: EdgeTrackGeometry.hotspotPointSize / 2,
+        allowsLocalPreviewEvents: false
+    )
+
+    static func storePreview(fixedTrackFractions: [UUID: CGFloat]) -> Self {
+        Self(
+            pulsePeakScale: 3,
+            fixedTrackFractions: fixedTrackFractions,
+            minimumTrackInset: EdgeTrackGeometry.characterPointSize * 1.5,
+            allowsLocalPreviewEvents: true
+        )
+    }
+}
+
+enum PixelWorldRenderEvent: Equatable {
+    case pulse(UUID)
+    case throwStarted(UUID)
+    case projectileReleased(UUID)
+    case impact(UUID)
+    case hit(UUID)
+}
+
 enum PixelCharacterFacingPolicy {
     static let movementThreshold: CGFloat = 2
 
@@ -129,9 +160,11 @@ private struct ActiveCharacterProjectile {
     let flightDuration: TimeInterval
     let startPoint: CGPoint
     let inwardArcHeight: CGFloat
+    var hasReleased = false
 }
 
 final class PixelWorldScene: SKScene {
+    private let renderingConfiguration: PixelWorldRenderingConfiguration
     private var characterNodes: [UUID: PixelCharacterNode] = [:]
     private var agents: [UUID: PixelMovementAgent] = [:]
     private var members: [UUID: PixelWorldMember] = [:]
@@ -151,8 +184,14 @@ final class PixelWorldScene: SKScene {
     private var lastHotspotFrames: [UUID: CGRect] = [:]
     private var onCurrentUserFrameChanged: ((CGRect?) -> Void)?
     private var onCharacterFramesChanged: (([UUID: CGRect]) -> Void)?
+    private var lastLocalPulseTimes: [UUID: TimeInterval] = [:]
+    private(set) var previewRenderEvents: [PixelWorldRenderEvent] = []
 
-    override init(size: CGSize) {
+    init(
+        size: CGSize,
+        renderingConfiguration: PixelWorldRenderingConfiguration = .live
+    ) {
+        self.renderingConfiguration = renderingConfiguration
         super.init(size: size)
         scaleMode = .resizeFill
         backgroundColor = .clear
@@ -171,11 +210,11 @@ final class PixelWorldScene: SKScene {
         for id in Array(agents.keys) {
             guard var agent = agents[id] else { continue }
             if needsInitialLayout {
-                agent.trackPosition = stableTrackPosition(roomID: currentRoomID, userID: id)
-                agent.target = stableTrackPosition(roomID: currentRoomID, userID: id, salt: 1)
+                agent.trackPosition = initialTrackPosition(roomID: currentRoomID, userID: id)
+                agent.target = initialTarget(roomID: currentRoomID, userID: id)
             } else {
-                agent.trackPosition = geometry.clamped(agent.trackPosition)
-                agent.target = geometry.clamped(agent.target)
+                agent.trackPosition = configuredTrackPosition(agent.trackPosition, userID: id)
+                agent.target = configuredTrackPosition(agent.target, userID: id)
             }
             agents[id] = agent
             characterNodes[id]?.position = geometry.point(for: agent.trackPosition)
@@ -213,6 +252,8 @@ final class PixelWorldScene: SKScene {
             projectiles.forEach { $0.node.removeFromParent() }
             projectiles.removeAll()
             hitUntil.removeAll()
+            lastLocalPulseTimes.removeAll()
+            previewRenderEvents.removeAll()
         }
 
         let requestedByID = Dictionary(uniqueKeysWithValues: requestedMembers.map { ($0.id, $0) })
@@ -239,8 +280,8 @@ final class PixelWorldScene: SKScene {
                 node = PixelCharacterNode(memberID: member.id, characterID: member.characterID)
                 characterNodes[member.id] = node
                 addChild(node)
-                let initial = stableTrackPosition(roomID: roomID, userID: member.id)
-                let target = stableTrackPosition(roomID: roomID, userID: member.id, salt: 1)
+                let initial = initialTrackPosition(roomID: roomID, userID: member.id)
+                let target = initialTarget(roomID: roomID, userID: member.id)
                 agents[member.id] = PixelMovementAgent(
                     id: member.id,
                     trackPosition: initial,
@@ -262,8 +303,8 @@ final class PixelWorldScene: SKScene {
             let geometry = trackGeometry
             for id in Array(agents.keys) {
                 guard var agent = agents[id] else { continue }
-                agent.trackPosition = geometry.clamped(agent.trackPosition)
-                agent.target = geometry.clamped(agent.target)
+                agent.trackPosition = configuredTrackPosition(agent.trackPosition, userID: id)
+                agent.target = configuredTrackPosition(agent.target, userID: id)
                 agents[id] = agent
                 characterNodes[id]?.position = geometry.point(for: agent.trackPosition)
             }
@@ -274,7 +315,8 @@ final class PixelWorldScene: SKScene {
             let key = CharacterPulseKey(roomID: characterPulse.roomID, userID: characterPulse.userID)
             if lastPulseEventIDs[key] != characterPulse.id {
                 lastPulseEventIDs[key] = characterPulse.id
-                node.playPulse()
+                node.playPulse(peakScale: renderingConfiguration.pulsePeakScale)
+                recordPreviewEvent(.pulse(characterPulse.userID))
             }
         }
         if let characterThrow, characterThrow.roomID == roomID {
@@ -288,6 +330,7 @@ final class PixelWorldScene: SKScene {
         lastUpdateTime = currentTime
         hitUntil = hitUntil.filter { $0.value > currentTime }
         let stoppedIDs = PixelMovementPolicy.stoppedMemberIDs(in: members.values)
+            .union(renderingConfiguration.fixedTrackFractions.keys)
             .union(hitUntil.keys)
         let geometry = trackGeometry
         var orderedAgents = agents.values.sorted { $0.id.uuidString < $1.id.uuidString }
@@ -302,6 +345,11 @@ final class PixelWorldScene: SKScene {
 
         for var agent in orderedAgents {
             guard let node = characterNodes[agent.id], let member = members[agent.id] else { continue }
+            if renderingConfiguration.fixedTrackFractions[agent.id] != nil {
+                agent.trackPosition = configuredTrackPosition(agent.trackPosition, userID: agent.id)
+                agent.target = agent.trackPosition
+                agent.velocity = 0
+            }
             if !stoppedIDs.contains(agent.id), abs(agent.trackPosition - agent.target) < 3 {
                 agent.idleRemaining = 0.8 + stableUnit(
                     roomID: currentRoomID,
@@ -408,6 +456,53 @@ final class PixelWorldScene: SKScene {
         characterNodes[memberID]?.hitPlayCount ?? 0
     }
 
+    func renderedPulsePeakScale(for memberID: UUID) -> CGFloat? {
+        characterNodes[memberID]?.lastPulsePeakScale
+    }
+
+    @discardableResult
+    func playLocalPreviewPulse(
+        memberID: UUID,
+        at currentTime: TimeInterval = ProcessInfo.processInfo.systemUptime
+    ) -> Bool {
+        guard renderingConfiguration.allowsLocalPreviewEvents,
+              let node = characterNodes[memberID],
+              currentTime - (lastLocalPulseTimes[memberID] ?? -.infinity) >= 1
+        else { return false }
+        lastLocalPulseTimes[memberID] = currentTime
+        node.playPulse(peakScale: renderingConfiguration.pulsePeakScale)
+        recordPreviewEvent(.pulse(memberID))
+        return true
+    }
+
+    @discardableResult
+    func playLocalPreviewPulse(at point: CGPoint) -> Bool {
+        guard let memberID = characterNodes
+            .sorted(by: { $0.key.uuidString < $1.key.uuidString })
+            .first(where: { _, node in
+                CGRect(
+                    x: node.position.x - EdgeTrackGeometry.hotspotPointSize / 2,
+                    y: node.position.y - EdgeTrackGeometry.hotspotPointSize / 2,
+                    width: EdgeTrackGeometry.hotspotPointSize,
+                    height: EdgeTrackGeometry.hotspotPointSize
+                ).contains(point)
+            })?.key
+        else { return false }
+        return playLocalPreviewPulse(memberID: memberID)
+    }
+
+    func playLocalPreviewThrow(_ event: CharacterThrowEvent) {
+        guard renderingConfiguration.allowsLocalPreviewEvents else { return }
+        beginThrow(event)
+    }
+
+    func cancelLocalPreviewPlayback() {
+        guard renderingConfiguration.allowsLocalPreviewEvents else { return }
+        projectiles.forEach { $0.node.removeFromParent() }
+        projectiles.removeAll()
+        hitUntil.removeAll()
+    }
+
     private var composerAvoidanceRects: [CGRect] {
         PixelWorldAvoidanceLayout.composerRects(
             activityFrame: effectiveActivityFrame,
@@ -425,9 +520,45 @@ final class PixelWorldScene: SKScene {
     }
 
     private func stableTrackPosition(roomID: UUID?, userID: UUID, salt: UInt64 = 0) -> CGFloat {
-        let range = trackGeometry.trackRange
+        let range = roamingTrackRange
         return range.lowerBound + (range.upperBound - range.lowerBound)
             * stableUnit(roomID: roomID, userID: userID, salt: salt)
+    }
+
+    private var roamingTrackRange: ClosedRange<CGFloat> {
+        let length = trackGeometry.tangentLength
+        let inset = min(renderingConfiguration.minimumTrackInset, max(0, length / 2))
+        return inset...max(inset, length - inset)
+    }
+
+    private func initialTrackPosition(roomID: UUID?, userID: UUID) -> CGFloat {
+        if let fraction = renderingConfiguration.fixedTrackFractions[userID] {
+            return trackGeometry.clamped(trackGeometry.tangentLength * min(max(fraction, 0), 1))
+        }
+        return stableTrackPosition(roomID: roomID, userID: userID)
+    }
+
+    private func initialTarget(roomID: UUID?, userID: UUID) -> CGFloat {
+        if renderingConfiguration.fixedTrackFractions[userID] != nil {
+            return initialTrackPosition(roomID: roomID, userID: userID)
+        }
+        return stableTrackPosition(roomID: roomID, userID: userID, salt: 1)
+    }
+
+    private func configuredTrackPosition(_ position: CGFloat, userID: UUID) -> CGFloat {
+        if renderingConfiguration.fixedTrackFractions[userID] != nil {
+            return initialTrackPosition(roomID: currentRoomID, userID: userID)
+        }
+        let range = roamingTrackRange
+        return min(max(position, range.lowerBound), range.upperBound)
+    }
+
+    private func recordPreviewEvent(_ event: PixelWorldRenderEvent) {
+        guard renderingConfiguration.allowsLocalPreviewEvents else { return }
+        previewRenderEvents.append(event)
+        if previewRenderEvents.count > 64 {
+            previewRenderEvents.removeFirst(previewRenderEvents.count - 64)
+        }
     }
 
     private func randomTarget(for userID: UUID, time: TimeInterval) -> CGFloat {
@@ -489,6 +620,7 @@ final class PixelWorldScene: SKScene {
             recentThrowEventIDSet.remove(recentThrowEventIDs.removeFirst())
         }
         characterNodes[event.actorUserID]?.playThrow(sourceCharacterID: event.sourceCharacterID)
+        recordPreviewEvent(.throwStarted(event.actorUserID))
         guard projectiles.count < PixelCharacterThrowStyle.maximumActiveProjectiles,
               let actor = characterNodes[event.actorUserID],
               let target = characterNodes[event.targetUserID]
@@ -524,11 +656,15 @@ final class PixelWorldScene: SKScene {
 
     private func updateProjectiles(currentTime: TimeInterval) {
         var survivors: [ActiveCharacterProjectile] = []
-        for projectile in projectiles {
+        for var projectile in projectiles {
             let elapsed = currentTime - projectile.startedAt
             if elapsed < PixelCharacterThrowStyle.releaseDelay {
                 survivors.append(projectile)
                 continue
+            }
+            if !projectile.hasReleased {
+                projectile.hasReleased = true
+                recordPreviewEvent(.projectileReleased(projectile.event.actorUserID))
             }
             guard let targetNode = characterNodes[projectile.event.targetUserID] else {
                 projectile.node.removeFromParent()
@@ -566,9 +702,11 @@ final class PixelWorldScene: SKScene {
                     sourceCharacterID: projectile.event.sourceCharacterID,
                     throwableID: projectile.event.throwableID
                 )
+                recordPreviewEvent(.impact(projectile.event.targetUserID))
                 if let target = members[projectile.event.targetUserID] {
                     hitUntil[projectile.event.targetUserID] = currentTime + PixelCharacterThrowStyle.hitDuration
                     targetNode.playHit(sourceCharacterID: target.characterID)
+                    recordPreviewEvent(.hit(projectile.event.targetUserID))
                 }
             }
         }
@@ -667,6 +805,7 @@ private final class PixelCharacterNode: SKNode {
     private(set) var pulseSparkleSpawnCount = 0
     private(set) var throwPlayCount = 0
     private(set) var hitPlayCount = 0
+    private(set) var lastPulsePeakScale: CGFloat?
     private var sparkleEffect: PixelSparkleEffect?
 
     var bubbleBody: String? {
@@ -803,12 +942,13 @@ private final class PixelCharacterNode: SKNode {
         updateMotion(member: member, moving: false, velocity: 0, edge: edge)
     }
 
-    func playPulse() {
+    func playPulse(peakScale: CGFloat = PixelCharacterPulseStyle.peakScale) {
         pulsePlayCount += 1
+        lastPulsePeakScale = peakScale
         spritePulseAnchor.removeAction(forKey: Self.pulseAnimationKey)
         spritePulseAnchor.setScale(1)
 
-        let grow = SKAction.scale(to: PixelCharacterPulseStyle.peakScale, duration: PixelCharacterPulseStyle.growDuration)
+        let grow = SKAction.scale(to: peakScale, duration: PixelCharacterPulseStyle.growDuration)
         grow.timingMode = .easeOut
         let settle = SKAction.scale(to: 1, duration: PixelCharacterPulseStyle.settleDuration)
         settle.timingMode = .easeInEaseOut

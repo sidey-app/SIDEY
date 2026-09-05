@@ -137,6 +137,9 @@ struct StoreProductCard: View {
     let productState: CommerceProductState
     let actions: SettingsActions
     var onSelect: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovered = false
+    @FocusState private var isFocused: Bool
 
     init(
         productState: CommerceProductState,
@@ -164,14 +167,22 @@ struct StoreProductCard: View {
             }
             .padding(10)
             .frame(maxWidth: .infinity)
-            .background(Color.primary.opacity(0.035))
+            .background(cardBackground)
             .clipShape(RoundedRectangle(cornerRadius: StoreCardLayout.cornerRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: StoreCardLayout.cornerRadius, style: .continuous)
-                    .stroke(.primary.opacity(0.08), lineWidth: 1)
+                    .stroke(
+                        isHovered || isFocused ? Color.accentColor : Color.primary.opacity(0.08),
+                        lineWidth: isHovered || isFocused ? 1.5 : 1
+                    )
             }
         }
         .buttonStyle(.plain)
+        .focused($isFocused)
+        .offset(y: isHovered ? -2 : 0)
+        .animation(.easeOut(duration: 0.14), value: isHovered)
+        .animation(.easeOut(duration: 0.14), value: isFocused)
+        .onHover { isHovered = $0 }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityHint("상세 보기")
@@ -201,6 +212,16 @@ struct StoreProductCard: View {
 
     private var accessibilityLabel: String {
         "\(productState.product.displayName), \(statusLabel)"
+    }
+
+    private var cardBackground: Color {
+        switch (colorScheme, isHovered) {
+        case (.light, true): Color.black.opacity(0.015)
+        case (.light, false): Color.black.opacity(0.035)
+        case (.dark, true): Color.white.opacity(0.075)
+        case (.dark, false): Color.white.opacity(0.035)
+        @unknown default: Color.primary.opacity(0.035)
+        }
     }
 
     func requestPurchase() {
@@ -247,7 +268,7 @@ private struct StoreProductDetailSheet: View {
     let onClose: () -> Void
 
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 12) {
             HStack {
                 Spacer()
                 Button("닫기", systemImage: "xmark", action: onClose)
@@ -255,8 +276,7 @@ private struct StoreProductDetailSheet: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("상품 상세 닫기")
             }
-            StoreProductPreview(product: productState.product, pointSize: 180)
-                .frame(height: 210)
+            StorePreviewStage(product: productState.product)
             Text(productState.product.displayName).font(.title2.bold())
             Text(productState.product.description)
                 .foregroundStyle(.secondary)
@@ -266,9 +286,9 @@ private struct StoreProductDetailSheet: View {
                 .font(.headline)
             detailAction
         }
-        .padding(28)
-        .frame(width: 440)
-        .frame(minHeight: 480)
+        .padding(24)
+        .frame(width: 600)
+        .frame(minHeight: 580)
     }
 
     @ViewBuilder private var detailAction: some View {
