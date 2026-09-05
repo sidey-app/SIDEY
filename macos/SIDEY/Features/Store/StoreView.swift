@@ -406,8 +406,8 @@ struct StoreProductPreview: View {
     }
 }
 
-private struct StoreBubblePreview: View {
-    let styleID: String
+struct StoreBubblePreview: View {
+    let styleID: String?
 
     private var theme: PixelBubbleTheme { .resolve(styleID) }
 
@@ -432,7 +432,7 @@ private struct StoreBubblePreview: View {
     }
 }
 
-private struct StoreThrowablePreview: View {
+struct StoreThrowablePreview: View {
     let objectID: String
     let pointSize: CGFloat
 

@@ -316,6 +316,104 @@ final class SettingsInteractionTests: XCTestCase {
         XCTAssertEqual(purchaseCalls, 0)
     }
 
+    func testProfileCosmeticTileForwardsOwnedAndDefaultSelections() {
+        var requests: [(CommerceProductKind, String?)] = []
+        let productTile = ProfileCosmeticTile(
+            kind: .bubble,
+            product: .bunnyPinkBubble,
+            selectedCharacterID: PixelCharacterCatalog.pixelHamsterID,
+            isSelected: false,
+            isPending: false,
+            isDisabled: false,
+            onSelect: { requests.append(($0, $1)) }
+        )
+        productTile.requestSelection()
+
+        let defaultTile = ProfileCosmeticTile(
+            kind: .bubble,
+            product: nil,
+            selectedCharacterID: PixelCharacterCatalog.pixelHamsterID,
+            isSelected: false,
+            isPending: false,
+            isDisabled: false,
+            onSelect: { requests.append(($0, $1)) }
+        )
+        defaultTile.requestSelection()
+
+        let blockedTile = ProfileCosmeticTile(
+            kind: .bubble,
+            product: .butterChickBubble,
+            selectedCharacterID: PixelCharacterCatalog.pixelHamsterID,
+            isSelected: false,
+            isPending: false,
+            isDisabled: true,
+            onSelect: { requests.append(($0, $1)) }
+        )
+        blockedTile.requestSelection()
+
+        XCTAssertEqual(requests.count, 2)
+        XCTAssertEqual(requests[0].0, .bubble)
+        XCTAssertEqual(requests[0].1, CommerceProduct.bunnyPinkBubble.catalogItemID)
+        XCTAssertEqual(requests[1].0, .bubble)
+        XCTAssertNil(requests[1].1)
+    }
+
+    func testOwnedProfileCosmeticsRenderAtSupportedSizesAndAppearances() throws {
+        let userID = UUID()
+        let roomID = UUID()
+        let snapshotSentinel = "/private/tmp/sidey-profile-cosmetic-snapshots"
+        let outputDirectory = ProcessInfo.processInfo.environment["SIDEY_PROFILE_SNAPSHOT_DIR"]
+            .map { URL(fileURLWithPath: $0, isDirectory: true) }
+            ?? (FileManager.default.fileExists(atPath: snapshotSentinel)
+                ? URL(fileURLWithPath: snapshotSentinel, isDirectory: true)
+                : nil)
+        if let outputDirectory {
+            try FileManager.default.createDirectory(
+                at: outputDirectory,
+                withIntermediateDirectories: true
+            )
+        }
+        for (sizeName, size) in [
+            ("minimum", CGSize(width: 860, height: 640)),
+            ("default", CGSize(width: 1000, height: 760)),
+        ] {
+            for scheme in [ColorScheme.light, .dark] {
+                for scrollToBottom in [false, true] {
+                    let data = try renderSettings(
+                        size: size,
+                        colorScheme: scheme,
+                        scrollToBottom: scrollToBottom,
+                        storeAvailability: .comingSoon
+                    ) { model in
+                        model.activeSettingsPage = .profile
+                        model.apply(
+                            snapshot: BackendSnapshot(
+                                profile: Profile(
+                                    id: userID,
+                                    nickname: "꾸미기친구",
+                                    characterID: PixelCharacterCatalog.pixelHamsterID,
+                                    equippedBubbleStyleID: CommerceProduct.bunnyPinkBubble.catalogItemID,
+                                    equippedThrowableID: CommerceProduct.toyCannon.catalogItemID
+                                ),
+                                rooms: [Self.room(id: roomID, name: "꾸미기방")],
+                                activeEntitlementKeys: Set(CommerceCatalog.cosmeticProducts.map(\.entitlementKey))
+                            ),
+                            currentUserID: userID
+                        )
+                    }
+                    XCTAssertGreaterThan(data.count, 10_000)
+                    if let outputDirectory {
+                        let mode = scheme == .light ? "light" : "dark"
+                        let placement = scrollToBottom ? "bottom" : "top"
+                        try data.write(to: outputDirectory.appending(
+                            path: "profile-cosmetics-\(sizeName)-\(mode)-\(placement).png"
+                        ))
+                    }
+                }
+            }
+        }
+    }
+
     private func renderSettings(
         size: CGSize,
         colorScheme: ColorScheme,
