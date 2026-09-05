@@ -4,7 +4,7 @@ set local role postgres;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(40);
+select plan(41);
 
 select has_table('public', 'commerce_products', 'commerce products exist');
 select has_table('public', 'commerce_prices', 'commerce prices exist');
@@ -25,7 +25,7 @@ select results_eq(
       ('character_starlight_upalupa'::text, 1900),
       ('throwable_bouncy_heart'::text, 990),
       ('throwable_squeaky_duck'::text, 990),
-      ('throwable_toy_cannon'::text, 3900)$$,
+      ('throwable_toy_cannon'::text, 2900)$$,
   'active prices are server-owned'
 );
 select is(
@@ -33,6 +33,12 @@ select is(
    where product_id = 'character_starlight_upalupa' and not active and amount_krw = 990),
   1,
   'historical 990 KRW starlight price is retained and retired'
+);
+select is(
+  (select count(*)::integer from public.commerce_prices
+   where product_id = 'throwable_toy_cannon' and not active and amount_krw = 3900),
+  1,
+  'historical 3,900 KRW cannon price is retained and retired'
 );
 select is((select sales_enabled from private.commerce_runtime_settings), false, 'migration fails closed');
 select ok((select relrowsecurity from pg_class where oid = 'public.commerce_orders'::regclass), 'orders use RLS');

@@ -206,7 +206,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 | 말풍선 | `bubble_butter_chick` | 버터 병아리 말풍선 | 1,900원 |
 | 말풍선 | `bubble_starry_cat` | 별밤 고양이 말풍선 | 1,900원 |
 | 투척물 | `throwable_bouncy_heart` | 통통 하트 | 990원 |
-| 투척물 | `throwable_toy_cannon` | 미니 대포 | 3,900원 |
+| 투척물 | `throwable_toy_cannon` | 미니 대포 | 2,900원 |
 | 투척물 | `throwable_squeaky_duck` | 삑삑 오리 | 990원 |
 
 말풍선 색 계약은 핑크 토끼 배경 `#F7A9B8`·글자 `#1C1F29`(8.86:1), 버터 병아리 `#FFE38A`·`#1C1F29`(13.00:1), 별밤 고양이 `#403A78`·`#FFF7E8`(9.42:1)이다. 16×16 좌상단 장식을 메시지와 타이핑 말풍선 모두에 표시한다. 장식 중심은 승인 `preview.png`와 같이 본문 좌상단 모서리의 오른쪽 2pt·위쪽 경계에 두어 바깥에 걸치며, 문자열 측정·본문 여백·말풍선 크기에는 포함하지 않는다. 기존 최대 폭·꼬리·두 개 스택·접선 보정·충돌 규칙은 보존한다.
@@ -220,7 +220,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 ### 5.1 데이터 흐름
 
 - Postgres가 메시지 원본이다.
-- 메시지는 생성 후 7일이 지나면 서버의 일일 정리 작업으로 영구 삭제한다.
+- 메시지는 생성 후 3일이 지나면 서버의 일일 정리 작업으로 영구 삭제한다.
 - Presence는 연결·온라인·자리 비움 상태에 사용한다.
 - Broadcast는 SIDEY 입력창의 타이핑, `character_pulse`, `character_throw`처럼 저장하지 않는 이벤트와 서버가 발행하는 DB 변경 식별자에만 사용한다. 클라이언트 직접 발행은 Presence만 허용하며 `character_throw`는 전용 인증 RPC만 사용한다.
 - 각 방은 멤버 변경마다 증가하는 `realtime_epoch`을 가지며 DB·ephemeral private topic을 분리한다. DB event에는 message UUID와 operation만 담고, macOS는 RLS를 거쳐 해당 row를 재조회한 뒤 확정한다.
@@ -229,9 +229,9 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 재구독 중에는 로컬 상태를 재연결로 표시한다. 모든 채널 쌍이 구독된 뒤 현재 Presence를 한 번에 다시 publish하고 방·멤버 snapshot과 최근 메시지를 다시 읽어 단절 중 누락된 가입·메시지를 보정한 후에만 online으로 확정한다.
 - macOS와 Windows는 전체 방 채널 구독 상태인 `transportConnected`, 현재 활성 방 채널 구독 상태인 `activeRoomTransportConnected`, 단절 복구 보정 상태인 `recoveryReconciled`를 별도로 관리한다. 원격 Presence 캐시는 실제 transport 단절에서만 폐기한다. 자기 캐릭터와 던지기 상호작용은 활성 방 transport가 끊긴 동안에만 회색·비활성 상태를 사용하며, 절전 복귀 뒤 해당 transport가 복구되면 다른 방 또는 snapshot·메시지 보정이 진행 중이어도 현재 로컬 Presence와 상호작용을 즉시 되돌린다. 프로필·닉네임·방 이름 `structure_changed`는 연결 상태를 바꾸지 않고 metadata snapshot만 갱신하며, 조회 실패도 transport를 online으로 유지한 채 metadata 작업만 backoff 재시도한다.
 - Windows는 전체 `presence_state`를 받을 때 직전에 알려진 사용자 중 새 전체 상태에 없는 사용자를 오프라인으로 보정한다. 네트워크 단절 중 `leave`를 놓친 뒤 재연결해도 이전 온라인 상태를 남기지 않는다.
-- confirmed message ledger는 `senderID`를 보존하며 방별 최근 50개·7일 범위로 제한한다. pending·failed 전송은 방별 outbox에 분리한다.
+- confirmed message ledger는 `senderID`를 보존하며 방별 최근 50개·3일 범위로 제한한다. pending·failed 전송은 방별 outbox에 분리한다.
 - macOS 최근 기록은 최신순 카드 목록이며 각 카드에 40pt 슬롯 안의 24×24 무배율 픽셀 캐릭터, 닉네임·`나` 표식, 로컬 시각, 본문과 pending·failed 상태를 표시한다. 발신자 UUID가 현재 방 멤버 snapshot에 없으면 햄스터와 `알 수 없는 친구`로 표시한다.
-- 최근 기록의 최초·추가 조회는 RLS가 적용된 `messages`를 `created_at DESC, id DESC`로 51개 읽어 50개를 표시하고, 마지막 표시 row의 원본 `created_at` 문자열과 UUID를 keyset cursor로 사용한다. 하단 도달 시 자동으로 다음 페이지를 가져오며 서버 보관 정책과 같은 최근 7일 cutoff를 모든 조회에 적용한다.
+- 최근 기록의 최초·추가 조회는 RLS가 적용된 `messages`를 `created_at DESC, id DESC`로 51개 읽어 50개를 표시하고, 마지막 표시 row의 원본 `created_at` 문자열과 UUID를 keyset cursor로 사용한다. 하단 도달 시 자동으로 다음 페이지를 가져오며 서버 보관 정책과 같은 최근 3일 cutoff를 모든 조회에 적용한다.
 - Postgres `created_at`은 소수 초 유무와 `Z` 또는 `+00:00` 같은 UTC offset이 있는 ISO-8601을 엄격히 해석한다. 기록 표시는 기존처럼 사용자 로컬 시간을 사용하고, 해석 실패를 현재 시각으로 대체하지 않으며 기술 오류로 노출한다.
 - 클라이언트가 UUID와 원래 `roomID`로 메시지를 낙관적으로 표시하고 동일 UUID의 저장·Realtime 결과와 중복 제거한다.
 - 확정 여부가 애매한 네트워크 실패는 같은 UUID를 RLS로 조회하고 같은 UUID로 한 번 재시도한다. 최종 실패는 원래 방 outbox에만 남기며 다른 방의 draft를 덮지 않는다.
@@ -424,7 +424,7 @@ OverlayRegionPreference(
 
 ## 8. 서버 변경
 
-`20260831030000_expand_room_capacity_and_reduce_message_retention.sql`은 방 정원 12명과 메시지 7일 보관을 적용한다. `20260901000000_security_hardening.sql`은 적용된 migration을 수정하지 않는 forward-only 보정이며 다음 계약을 추가한다.
+`20260831030000_expand_room_capacity_and_reduce_message_retention.sql`은 방 정원 12명과 당시 메시지 7일 보관을 적용했다. `20260901000000_security_hardening.sql`은 적용된 migration을 수정하지 않는 forward-only 보정이며 다음 계약을 추가했다.
 
 - 사용자당 최대 5개 방
 - private invite HMAC 비교, 128-bit 코드와 사용자 단위 직렬 rate limit
@@ -433,7 +433,7 @@ OverlayRegionPreference(
 - 중복 닉네임과 중복 캐릭터 선택 허용
 - 닉네임 2~8자 제한과 기존 9~12자 닉네임의 앞 8자 migration
 - membership 변경 시 증가하는 `realtime_epoch`, 서버 전용 DB event와 RPC 검증 transient event
-- 메시지 UUID 멱등성과 서버 rate limit, 7일 retention의 방별 단일 invalidation event
+- 메시지 UUID 멱등성과 서버 rate limit, 보관 정리 시 방별 단일 invalidation event
 - 7일 초과·프로필 없음·방 없음인 미완성 익명 가입만 삭제
 - `rename_room(uuid,text)`, `remove_room_member(uuid,uuid)`, 방장 전용 `delete_room(uuid) returns void`; 삭제는 기존 FK cascade로 방 멤버십과 메시지를 함께 제거
 
@@ -457,6 +457,8 @@ forward-only `20260904000000_app_store_foundation.sql`은 다음 계약을 추�
 - 유료 계정을 삭제할 수 있도록 order 감사 기록은 사용자 연결을 끊어 보존하고, auth 사용자 삭제 trigger가 모든 방의 소유권 이전·빈 방 삭제와 App Store transaction unbind를 같은 DB 삭제 흐름에서 수행한다.
 
 forward-only `20260905000000_cosmetics_catalog_and_equipment.sql`은 상품을 `character / bubble / throwable`, `catalog_item_id`, `sort_order`의 범용 catalog로 확장하고 말풍선 3종·투척물 3종과 활성 가격을 추가한다. 신규 주문의 정책 버전은 `2026-09-05-cosmetics-v1`이며 기존 주문 고지는 보존하고 `디지털 꾸미기 사용권`으로 일반화한다. `get_store_state()`는 한 번에 전체 catalog·소유·장착 상태를 반환한다. 프로필에는 nullable `equipped_bubble_style_id`와 `equipped_throwable_id`, 메시지에는 발송 당시 nullable `bubble_style_id`를 저장한다. `set_equipped_cosmetic`은 활성 entitlement를 서버에서 검사하며 환불·회수된 장착 상품은 즉시 null로 되돌린다. PortOne 승인 상품은 즉시 자동 장착한다.
+
+forward-only `20260905010000_settings_retention_contract.sql`은 미니 대포의 기존 3,900원 가격 이력을 보존·비활성화하고 2,900원 활성 가격을 추가한다. `set_equipped_cosmetic(text, text default null)`로 기본 꾸미기 복귀의 생략·명시적 null 호출을 함께 지원하고 PostgREST schema cache를 갱신한다. 메시지 보관 함수는 3일 기준으로 교체하며 적용 즉시 기존 3일 초과 메시지를 영구 삭제한다. 변경된 방마다 기존 `messages_pruned` invalidation event 하나만 발행하는 계약은 유지한다.
 
 기존 `send_message(p_id,p_room_id,p_body)`와 `broadcast_character_throw(p_room_id,p_realtime_epoch,p_event_id,p_target_user_id)` 인자는 바꾸지 않는다. `send_message`는 최초 insert에서 서버가 확인한 말풍선 스타일을 snapshot하고 같은 UUID 재시도는 저장된 행을 그대로 반환한다. throw RPC는 기존 인증·membership·epoch·rate limit 검증 뒤 서버가 확인한 장착 투척물만 optional `throwable_id`로 추가한다. 미장착·미소유·알 수 없는 값은 기존 캐릭터 시그니처로 fallback한다. App Store transaction 원장은 `character` 상품만 받는다.
 
@@ -513,7 +515,7 @@ App Store판은 Apple subject와 사용자가 공유한 경우의 relay email, S
 - 이동: 20개 합성 노드가 3,000 tick 동안 1차원 track과 발 기준선을 유지하고 finite 좌표, 입력창·상호 회피, 겹침 시 idle 해제·가속 통과, 실제 메시지 말풍선 스택 합집합의 240pt/s² 분리 가속·72pt/s 상한·8pt 해소·경계 힘 재배분·혼잡 시 안정적인 겹침·일반 목표 복귀
 - 상태: 온라인·자리 비움 doze와 고정 `Zzz`의 부유·alpha 반복·해제 시 action 정리, 오프라인 curled sleep·재연결·타이핑, 내 캐릭터 항상 표시, 오프라인 숨김, 방 전환 UUID diff, 최대 8자 닉네임·반투명 배경과 상태 점 5pt 간격, 발 기준 7배·0.8초 리액션과 이벤트 UUID 중복 제거
 - Realtime: current epoch topic 접근, client DB형 Broadcast 거부, 다른 사용자·방 transient event 거부, bounded stream overflow 재동기화, macOS·Windows OS 경로 단절·복귀 전환 coalescing과 350ms 복구 debounce, Windows 5초 heartbeat·15초 수신 무응답 판정, DB·ephemeral 채널 쌍 판정, stale generation callback 거부, 전체 topology backoff와 snapshot reconciliation, 전체 `presence_state`에서 누락된 기존 사용자의 오프라인 보정, Presence publication 최대 동시 실행 수 1, 활성 방 transport 복구 뒤 다른 방·후속 보정 중 자기 캐릭터의 회색 상태와 던지기 비활성 해제를 검증한다. `character_throw`는 미인증·누락 UUID·stale epoch·송신자/대상 비멤버·자기 자신 대상·10초 20회 초과를 거부하고 payload에 좌표나 클라이언트 지정 source character가 없는지 확인한다. 실서버 2클라이언트에서는 프로필을 즉시·10초·30초 간격으로 연속 변경해 transport 단절 이벤트가 생기지 않는지 확인하고, 별도로 네트워크 unavailable→available 전환·강제 단절·추방 뒤 자동 재구독·메시지·Presence·`character_pulse`·`character_throw` 격리를 확인한다.
-- 메시지: 발신자별 최신 2개, 세 번째 메시지에서 해당 발신자의 가장 오래된 항목만 제거, 전체 발신자 eviction 없음, 12명×2개 유지, UUID별 10초 만료와 실패 제거, 이동 중 말풍선 추적, 방별 outbox 낙관적 성공·실패, 응답 유실 시 동일 UUID 멱등성, 방 A 실패가 방 B draft를 건드리지 않음, confirmed ledger의 방별 50개·7일 cutoff, 최근 기록 0·1·20·50·51·120개 및 동일 timestamp keyset·페이지 중복 제거·실시간/pending/failed 병합·탈퇴 발신자 fallback·방 전환 취소·창 닫기 해제·추가 조회 실패와 재시도, 기록 캐릭터의 accent 10% 배경과 현재 사용자 표식의 accent 글자·12% 배경, 조용히 모드, 미확인 수, 엄격한 서버 시각 해석
+- 메시지: 발신자별 최신 2개, 세 번째 메시지에서 해당 발신자의 가장 오래된 항목만 제거, 전체 발신자 eviction 없음, 12명×2개 유지, UUID별 10초 만료와 실패 제거, 이동 중 말풍선 추적, 방별 outbox 낙관적 성공·실패, 응답 유실 시 동일 UUID 멱등성, 방 A 실패가 방 B draft를 건드리지 않음, confirmed ledger의 방별 50개·3일 cutoff, 최근 기록 0·1·20·50·51·120개 및 동일 timestamp keyset·페이지 중복 제거·실시간/pending/failed 병합·탈퇴 발신자 fallback·방 전환 취소·창 닫기 해제·추가 조회 실패와 재시도, 기록 캐릭터의 accent 10% 배경과 현재 사용자 표식의 accent 글자·12% 배경, 조용히 모드, 미확인 수, 엄격한 서버 시각 해석
 - 말풍선: 1자·200자·3줄 두 개·프리셋 양 끝·4방향에서 6pt 간격의 위쪽 꼬리 없는 이전 본문과 아래쪽 꼬리 있는 최신 본문 누적 frame이 캔버스 안에 유지하고 두 본문 폭의 합집합만 접선 충돌 범위에 포함하며 타이핑 말풍선은 제외
 - 창: 월드 항상 위·나머지 영역 클릭 통과, 내 캐릭터 52×52 hotspot, 기본 OFF에서 화면에 표시되는 친구별 Presence 상태 무관 52×52 상시 hotspot, ON에서 우클릭 전 통과·우클릭 뒤 10초 활성화·재우클릭 갱신·만료, 설정 전환·숨김·방 전환·단절 시 즉시 재구성, composer의 선택 모니터 상단 중앙·노치 아래 10pt 배치와 멀티 데스크탑 현재 Space 이동, 왼쪽 `×`·Esc·외부 클릭 닫기, 단일·더블클릭 회귀와 throw 0.5초 쿨타임, composer 초기 숨김·열기·마지막 전송 뒤 5초 자동 닫힘·타이머 갱신·실패 복구, 기록 일반 창
 - 업데이트: production 채널에 Sparkle `2.9.6` 프레임워크·메뉴 항목·피드 URL·EdDSA 공개키가 번들에 포함되고 signed feed와 압축 해제 전 검증을 강제하며, 업데이트 진행 중에는 수동 확인 메뉴를 비활성화. development 채널은 Sparkle을 시작하지 않고 수동 확인 메뉴도 항상 비활성화
@@ -523,11 +525,11 @@ App Store판은 Apple subject와 사용자가 공유한 경우의 relay email, S
 - 서버 action: 응답을 지연시킨 프로필 저장과 각 그룹 mutation에서 첫 요청 직후 버튼이 비활성화되고 추가 실행이 전달되지 않으며 성공·실패 뒤 다시 활성화되는지 검증한다. 그룹 생성·참여 성공은 제출한 입력을 비우고 실패는 보존하며, 요청 중 바뀐 새 draft는 늦은 성공 응답에도 보존해야 한다.
 - 입력 필드: 200자 끝, 한글 조합, 영문 긴 단어, 단일·ZWJ 가족·피부색 조합·국기 이모지, Shift+Enter 3줄, 중간 커서 이동·전체 선택, undo·redo, 외부 draft와 잘못된 입력 복구에서 마지막 글자와 커서가 보이고 텍스트 손실·IME 중복 확정·가로 스크롤이 없는지 검증한다. macOS 이모지·기호 선택기 중에는 composer가 유지되고 실제 외부 클릭은 250ms 유예 뒤 정상적으로 닫혀야 한다.
 - 상점: 760pt 6열과 좁은 폭 5열·4열, 세 탭, 한 줄 타일 상태, 말풍선 타일의 본문 미표시, development·App Store 상세 sheet의 단일 구매/보유 button, production 상세의 button 없는 준비 중 안내, 콘텐츠 맞춤 높이와 불필요한 상하 빈 공간 부재, 상품별 독립 loading/error, 키보드 탐색·focus·VoiceOver, 860×640·1000×760 라이트·다크 렌더를 검증한다. 상세의 540×280 무대, 48pt 캐릭터·4px 플랫폼, 3배 pulse가 잘리지 않아야 하며 Reduce Motion에서 반복 작업이 없는 정적 첫 장면을 확인한다. 캐릭터 상품의 두 멤버·분리된 시작 위치·계속되는 산책·친구 클릭 시 상품 캐릭터와 시그니처 투척물 ID·throw/projectile/impact/hit 순서·설명 문구를 확인한다. 두 말풍선의 실제 타이핑→본문 순서·1초/2초 timing·스타일·본문 크기를 늘리지 않는 좌상단 모서리 장식, 말풍선 이동과 투척물 캐릭터 고정, 0.35초 첫 투척·정확한 1초 간격·좌우 교대·상품 ID, 일반 투척물과 대포의 순서를 검사한다. 상세 시트를 반복해서 열고 닫은 뒤 반복 작업과 SpriteKit scene이 남거나 메모리가 지속 증가하지 않아야 한다. production은 commerce action 호출 0회, 검정 68%·픽셀 자물쇠를 유지한 카드 선택, 동적 상세 생성·정리와 준비 중 안내를 확인한다. App Store 타깃은 기존 캐릭터 4종 동적 상세와 전체 빌드를 회귀 검증한다.
-- commerce 서버·웹: 기존 캐릭터와 신규 1,900/1,900/1,900/990/3,900/990 가격, 범용 catalog와 전체 `get_store_state`, 미보유 장착 거부·해제·계정 동기화·자동 장착·환불 fallback·RLS를 검증한다. 프로필 장착은 production 구매 잠금과 독립적으로 허용하고 development에서는 구매·장착을 모두 허용하며, 기본값 복귀·상품 교체·종류별 중복 요청 차단·서버 성공 프로필만 반영·실패 시 기존 선택 유지를 검사한다. 메시지 재시도는 최초 `bubble_style_id`를 유지하고 throw RPC는 클라이언트 소유권을 신뢰하지 않은 채 기존 membership·epoch·rate limit을 지켜야 한다. 공개 상점·약관에는 신규 상품을 노출하지 않고 token checkout/result만 상품 종류별 미리보기와 `디지털 꾸미기 사용권` 문구를 사용한다.
+- commerce 서버·웹: 기존 캐릭터와 신규 1,900/1,900/1,900/990/2,900/990 가격, 범용 catalog와 전체 `get_store_state`, 미보유 장착 거부·해제·계정 동기화·자동 장착·환불 fallback·RLS를 검증한다. 프로필 장착은 production 구매 잠금과 독립적으로 허용하고 development에서는 구매·장착을 모두 허용하며, 기본값 복귀·상품 교체·종류별 중복 요청 차단·서버 성공 프로필만 반영·실패 시 기존 선택 유지를 검사한다. 메시지 재시도는 최초 `bubble_style_id`를 유지하고 throw RPC는 클라이언트 소유권을 신뢰하지 않은 채 기존 membership·epoch·rate limit을 지켜야 한다. 공개 상점·약관에는 신규 상품을 노출하지 않고 token checkout/result만 상품 종류별 미리보기와 `디지털 꾸미기 사용권` 문구를 사용한다.
 - 그룹 설정: 0·1·12명 멤버 목록, 기본 접힘·제목 영역 및 오른쪽 단일 화살표 펼침, `그룹 참가` 문구, 생성·참여·전환별 진행 문구와 라이트·다크 대상 카드 강조, A→B→C 연속 선택에서 C만 commit, UUID 기반 방장 왕관과 펼친 목록 아래 방장 전용 이름 변경·삭제 버튼, 이름 변경 저장·취소, 대상 명시 추방 확인, 영구 삭제 2단계 확인, 활성·비활성·마지막 그룹 삭제 fallback, macOS·Windows 초대 코드 복사 성공·실패와 3초 표시·재클릭 갱신·행 제거 취소
 - DMG: 660×420 배경, `SIDEY.app`, `/Applications` 심볼릭 링크, 기존 5종 idle 프레임, `.DS_Store`를 자동 생성·마운트 검증하고 Finder에서 아이콘 위치·안내 문구·nearest-neighbor 픽셀 선명도를 수동 확인
 - Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단
-- 서버: 실제 anon/authenticated role의 RLS, 12번째 성공·13번째 거부와 여섯 번째 방 경합, 병렬 초대 제한, invite hash API 비노출, current epoch topic 권한, client Broadcast INSERT 봉쇄, transient event whitelist·rate, `broadcast_character_throw`의 인증·epoch·양쪽 membership·자기 대상·필수 UUID·20회/10초 제한과 서버 source character, 메시지 멱등성·rate, 7일 retention, 비방장 관리 거부와 cascade를 SQL 테스트한다.
+- 서버: 실제 anon/authenticated role의 RLS, 12번째 성공·13번째 거부와 여섯 번째 방 경합, 병렬 초대 제한, invite hash API 비노출, current epoch topic 권한, client Broadcast INSERT 봉쇄, transient event whitelist·rate, `broadcast_character_throw`의 인증·epoch·양쪽 membership·자기 대상·필수 UUID·20회/10초 제한과 서버 source character, 메시지 멱등성·rate, 3일 retention, 비방장 관리 거부와 cascade를 SQL 테스트한다.
 - 운영 어드민: 모든 `admin_*` 조회·수집 RPC의 anon·authenticated 거부와 service role 허용, 다운로드 baseline·분리 경로·KST 경계·카운터 증가·정체·역행 거부·수집 지연을 SQL 테스트한다. 로컬 API는 환경변수 누락·잘못된 production ref·LAN Host·외부 Origin·잘못된 query와 upstream 응답을 거부해야 하며 lint·typecheck·unit·production build·Secret 번들 scan과 1280×800·1440×900의 두 테마 Playwright 검증을 통과해야 한다.
 - Windows 설치·업데이트: clean install, 기본 `C:\Program Files\SIDEY`와 사용자 선택 설치 위치, 공용 시작 메뉴, 아이콘이 포함된 `Uninstall.exe`, 게시된 런처·호스트 시작 스모크, repair, 실행 중 upgrade 종료, downgrade 차단, 기존 v1.0.5 MSI 전환을 Windows CI·실기에서 확인한다. Windows 설정·`Uninstall.exe`의 일반 제거에서 설정·로그와 자격 증명의 독립적인 기본 미선택 삭제 옵션이 동작하고, 선택한 항목만 현재 사용자의 `%LOCALAPPDATA%\SIDEY` 또는 Credential Manager `SIDEY/` 자격 증명에서 삭제하며 upgrade·repair·MSI 전환에는 실행하지 않는지도 검증한다. `windows-v<version>` manifest의 버전·태그·고정 Setup EXE URL·SHA-256, 시작 확인 시 새 버전 시스템 알림, 현재 버전·마지막 성공 확인 시각 표시와 신뢰된 Release 링크도 검증하며 기존 per-user·Burn 테스트 설치가 있으면 설치 전에 제거하도록 안내한다.
 

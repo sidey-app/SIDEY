@@ -4,7 +4,7 @@ set local role postgres;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(25);
+select plan(31);
 
 select has_column('public', 'commerce_products', 'product_kind', 'catalog has product kind');
 select has_column('public', 'commerce_products', 'catalog_item_id', 'catalog has item ID');
@@ -15,8 +15,14 @@ select has_column('public', 'messages', 'bubble_style_id', 'message snapshots bu
 select is(
   (select amount_krw from public.commerce_prices
    where product_id = 'throwable_toy_cannon' and active),
-  3900,
-  'premium cannon costs 3,900 KRW including VAT'
+  2900,
+  'premium cannon costs 2,900 KRW including VAT'
+);
+select is(
+  (select count(*)::integer from public.commerce_prices
+   where product_id = 'throwable_toy_cannon' and not active and amount_krw = 3900),
+  1,
+  'the original cannon price remains as retired history'
 );
 select ok(
   (select tax_inclusive from public.commerce_prices
@@ -97,10 +103,32 @@ select is(
    where id = '72000000-0000-0000-0000-000000000001'),
   'bubble_bunny_pink', 'retry preserves the first saved bubble snapshot'
 );
-select public.set_equipped_cosmetic('bubble', null);
+select public.set_equipped_cosmetic('throwable', 'throwable_bouncy_heart');
+select lives_ok(
+  $$select public.set_equipped_cosmetic('bubble')$$,
+  'omitting the catalog item returns a bubble to its default'
+);
 select is(
   (select equipped_bubble_style_id from public.profiles where id = auth.uid()),
-  null, 'unequip returns to the default white bubble'
+  null, 'one-argument unequip clears only the requested bubble kind'
+);
+select is(
+  (select equipped_throwable_id from public.profiles where id = auth.uid()),
+  'throwable_bouncy_heart', 'one-argument bubble reset preserves throwable equipment'
+);
+
+select public.set_equipped_cosmetic('bubble', 'bubble_bunny_pink');
+select lives_ok(
+  $$select public.set_equipped_cosmetic('bubble', null)$$,
+  'an explicit null also returns a bubble to its default'
+);
+select is(
+  (select equipped_bubble_style_id from public.profiles where id = auth.uid()),
+  null, 'explicit-null unequip returns to the default white bubble'
+);
+select is(
+  (select equipped_throwable_id from public.profiles where id = auth.uid()),
+  'throwable_bouncy_heart', 'explicit-null bubble reset preserves throwable equipment'
 );
 
 select public.set_equipped_cosmetic('throwable', 'throwable_bouncy_heart');
