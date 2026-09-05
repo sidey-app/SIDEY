@@ -593,6 +593,10 @@ actor SideyBackend {
         )
         desiredTopology.replace(rooms: requestedRooms)
         let desiredRoomIDs = desiredTopology.roomIDs
+        let departedRoomIDs = Set(previousDesiredTopology.roomEpochs.keys).subtracting(desiredRoomIDs)
+        for roomID in departedRoomIDs {
+            try? keychain.delete(account: inviteAccount(roomID: roomID))
+        }
         let resolvedActiveRoomID = activeRoomID.flatMap {
             desiredRoomIDs.contains($0) ? $0 : nil
         }
@@ -1176,17 +1180,17 @@ actor SideyBackend {
         let pathAvailable = networkAvailability.current != .unavailable
         let socketAvailable = connectionTracker.desiredRoomIDs.isEmpty
             || client.realtimeV2.status == .connected
-        let transportConnected = pathAvailable
-            && socketAvailable
-            && realtimeRecoveryTask == nil
-            && rebuildingGeneration == nil
-            && connectionTracker.isConnected
-        let status = BackendConnectionStatus(
-            transportConnected: transportConnected,
+        let status = RealtimeConnectionStatusPolicy.resolve(
+            pathAvailable: pathAvailable,
+            socketAvailable: socketAvailable,
+            recoveryTaskRunning: realtimeRecoveryTask != nil,
+            rebuildingChannels: rebuildingGeneration != nil,
+            allRoomsSubscribed: connectionTracker.isConnected,
             recoveryReconciled: recoveryReconciled,
-            activeRoomTransportConnected: activeRoomID.map {
-                transportConnected && connectionTracker.isSubscribed(roomID: $0)
-            } ?? transportConnected
+            hasActiveRoom: activeRoomID != nil,
+            activeRoomSubscribed: activeRoomID.map {
+                connectionTracker.isSubscribed(roomID: $0)
+            } ?? false
         )
         guard lastEmittedConnectionStatus != status else { return }
         lastEmittedConnectionStatus = status

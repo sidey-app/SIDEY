@@ -3,16 +3,25 @@ import SwiftUI
 struct CharacterSelectionGrid: View {
     let maximumColumns: Int
     let characters: [PixelCharacterDefinition]
-    @Binding var selection: String
+    let confirmedSelection: String
+    let pendingSelection: String?
+    let isDisabled: Bool
+    let onSelect: (String) -> Void
 
     init(
         maximumColumns: Int,
         characters: [PixelCharacterDefinition] = PixelCharacterCatalog.free,
-        selection: Binding<String>
+        confirmedSelection: String,
+        pendingSelection: String? = nil,
+        isDisabled: Bool = false,
+        onSelect: @escaping (String) -> Void
     ) {
         self.maximumColumns = maximumColumns
         self.characters = characters
-        self._selection = selection
+        self.confirmedSelection = confirmedSelection
+        self.pendingSelection = pendingSelection
+        self.isDisabled = isDisabled
+        self.onSelect = onSelect
     }
 
     private var columns: [GridItem] {
@@ -27,8 +36,12 @@ struct CharacterSelectionGrid: View {
             ForEach(characters) { character in
                 CharacterSelectionCard(
                     character: character,
-                    isSelected: PixelCharacterCatalog.canonicalID(for: selection) == character.id,
-                    onSelect: { selection = character.id }
+                    isSelected: PixelCharacterCatalog.canonicalID(for: confirmedSelection) == character.id,
+                    isPending: pendingSelection.map {
+                        PixelCharacterCatalog.canonicalID(for: $0) == character.id
+                    } ?? false,
+                    isDisabled: isDisabled,
+                    onSelect: { onSelect(character.id) }
                 )
             }
         }
@@ -40,6 +53,8 @@ struct CharacterSelectionGrid: View {
 private struct CharacterSelectionCard: View {
     let character: PixelCharacterDefinition
     let isSelected: Bool
+    let isPending: Bool
+    let isDisabled: Bool
     let onSelect: () -> Void
 
     var body: some View {
@@ -70,7 +85,12 @@ private struct CharacterSelectionCard: View {
                     )
             }
             .overlay(alignment: .topTrailing) {
-                if isSelected {
+                if isPending {
+                    ProgressView()
+                        .controlSize(.small)
+                        .padding(8)
+                        .accessibilityHidden(true)
+                } else if isSelected {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 17, weight: .bold))
                         .foregroundStyle(Color(red: 0.45, green: 0.49, blue: 0.85))
@@ -81,7 +101,8 @@ private struct CharacterSelectionCard: View {
             .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
         }
         .buttonStyle(.plain)
+        .disabled(isDisabled)
         .accessibilityLabel(character.displayName)
-        .accessibilityValue(isSelected ? "선택됨" : "선택 안 됨")
+        .accessibilityValue(isPending ? "장착 중" : (isSelected ? "선택됨" : "선택 안 됨"))
     }
 }

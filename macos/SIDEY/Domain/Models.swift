@@ -409,7 +409,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "캐릭터 앞 몸통에 대포가 나타나 심지탄을 쏘고 상대 몸통에서 펑 터져요.",
         kind: .throwable, catalogItemID: "throwable_toy_cannon", characterID: nil,
         entitlementKey: "throwable:throwable_toy_cannon", sortOrder: 220,
-        amountKRW: 3_900, currency: "KRW", taxInclusive: true
+        amountKRW: 2_900, currency: "KRW", taxInclusive: true
     )
 
     static let squeakyDuck = CommerceProduct(
@@ -1153,6 +1153,120 @@ enum RoomManagementPolicy {
     ) -> Bool {
         canManage(room, currentUserID: currentUserID)
             && member.userID != currentUserID
+    }
+}
+
+enum RoomLeaveConfirmation: Equatable, Sendable {
+    case member
+    case ownerWithRemainingMembers
+    case lastOwner
+
+    static func resolve(room: Room, currentUserID: UUID?) -> Self {
+        guard room.ownerID == currentUserID else { return .member }
+        return room.members.contains(where: { $0.userID != currentUserID })
+            ? .ownerWithRemainingMembers
+            : .lastOwner
+    }
+
+    var message: String {
+        switch self {
+        case .member:
+            "그룹과 기존 메시지에 더 이상 접근할 수 없습니다."
+        case .ownerWithRemainingMembers:
+            "가장 먼저 참여한 남은 멤버에게 방장이 이전되며, 그룹과 기존 메시지에 더 이상 접근할 수 없습니다."
+        case .lastOwner:
+            "마지막 멤버이므로 그룹과 모든 메시지가 영구 삭제되며 복구할 수 없습니다."
+        }
+    }
+}
+
+struct SuccessFeedbackState: Equatable, Sendable {
+    static let displayDuration: Duration = .seconds(3)
+
+    private(set) var message: String?
+    private(set) var generation = 0
+
+    @discardableResult
+    mutating func present(_ message: String) -> Int {
+        generation += 1
+        self.message = message
+        return generation
+    }
+
+    mutating func dismiss(generation expectedGeneration: Int? = nil) {
+        guard expectedGeneration == nil || expectedGeneration == generation else { return }
+        generation += 1
+        message = nil
+    }
+}
+
+enum StoreSortOrder: String, CaseIterable, Identifiable, Sendable {
+    case catalog
+    case priceAscending
+    case priceDescending
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .catalog: "기본순"
+        case .priceAscending: "가격 낮은순"
+        case .priceDescending: "가격 높은순"
+        }
+    }
+}
+
+enum StoreProductFilter {
+    static func apply(
+        _ states: [CommerceProductState],
+        kind: CommerceProductKind,
+        sortOrder: StoreSortOrder,
+        hidesOwned: Bool,
+        activeEntitlementKeys: Set<String>
+    ) -> [CommerceProductState] {
+        states
+            .filter { state in
+                guard state.product.kind == kind else { return false }
+                let isOwned = activeEntitlementKeys.contains(state.product.entitlementKey)
+                    || state.isEquipped
+                return !hidesOwned || !isOwned
+            }
+            .sorted { lhs, rhs in
+                let result: ComparisonResult
+                switch sortOrder {
+                case .catalog:
+                    result = compare(lhs.product.sortOrder, rhs.product.sortOrder)
+                case .priceAscending:
+                    result = compare(lhs.product.amountKRW, rhs.product.amountKRW)
+                case .priceDescending:
+                    result = compare(rhs.product.amountKRW, lhs.product.amountKRW)
+                }
+                if result != .orderedSame { return result == .orderedAscending }
+                if lhs.product.sortOrder != rhs.product.sortOrder {
+                    return lhs.product.sortOrder < rhs.product.sortOrder
+                }
+                return lhs.product.id < rhs.product.id
+            }
+    }
+
+    private static func compare(_ lhs: Int, _ rhs: Int) -> ComparisonResult {
+        if lhs < rhs { return .orderedAscending }
+        if lhs > rhs { return .orderedDescending }
+        return .orderedSame
+    }
+}
+
+enum CosmeticEquipmentFeedback {
+    static func successMessage(
+        kind: CommerceProductKind,
+        product: CommerceProduct?
+    ) -> String {
+        if let product { return "\(product.displayName) 장착했습니다." }
+        switch kind {
+        case .bubble: return "기본 말풍선을 장착했습니다."
+        case .throwable: return "캐릭터 기본 투척물을 장착했습니다."
+        case .character: return "기본 캐릭터를 장착했습니다."
+        }
     }
 }
 

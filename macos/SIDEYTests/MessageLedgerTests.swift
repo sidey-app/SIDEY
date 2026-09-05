@@ -46,9 +46,10 @@ final class MessageLedgerTests: XCTestCase {
             createdAt: "2026-08-31T01:02:04.456789+00:00"
         ).domain
         var ledger = MessageLedger()
+        let now = newer.createdAt.addingTimeInterval(60)
 
-        ledger.confirm(newer)
-        ledger.confirm(older)
+        ledger.confirm(newer, now: now)
+        ledger.confirm(older, now: now)
 
         XCTAssertNotEqual(older.createdAt, newer.createdAt)
         XCTAssertEqual(
@@ -56,7 +57,8 @@ final class MessageLedgerTests: XCTestCase {
                 pagedMessages: [],
                 ledger: ledger,
                 outbox: MessageOutbox(),
-                roomID: roomID
+                roomID: roomID,
+                now: now
             ).map(\.body),
             ["최신", "이전"]
         )
@@ -277,16 +279,24 @@ final class MessageLedgerTests: XCTestCase {
         XCTAssertEqual(model.messageOutbox.entries.first?.state, .failed)
     }
 
-    func testConfirmedLedgerAppliesSevenDayCutoffAndFiftyPerRoomLimit() {
+    func testConfirmedLedgerAppliesThreeDayCutoffAndFiftyPerRoomLimit() {
         let roomID = UUID()
+        let boundaryRoomID = UUID()
         let now = Date(timeIntervalSince1970: 1_000_000)
         var ledger = MessageLedger()
         _ = ledger.confirm(ChatMessage(
             id: UUID(),
-            roomID: roomID,
+            roomID: boundaryRoomID,
             senderID: UUID(),
             body: "만료",
             createdAt: now.addingTimeInterval(-MessageLedger.retentionInterval - 1)
+        ), now: now)
+        _ = ledger.confirm(ChatMessage(
+            id: UUID(),
+            roomID: boundaryRoomID,
+            senderID: UUID(),
+            body: "경계",
+            createdAt: now.addingTimeInterval(-MessageLedger.retentionInterval)
         ), now: now)
         for index in 0..<60 {
             _ = ledger.confirm(ChatMessage(
@@ -298,9 +308,10 @@ final class MessageLedgerTests: XCTestCase {
             ), now: now)
         }
 
-        XCTAssertEqual(ledger.entries.count, 50)
+        XCTAssertEqual(ledger.entries.count, 51)
         XCTAssertFalse(ledger.entries.contains(where: { $0.body == "만료" }))
-        XCTAssertEqual(ledger.entries.first?.body, "최근 10")
+        XCTAssertTrue(ledger.entries.contains(where: { $0.body == "경계" }))
+        XCTAssertEqual(ledger.entries.first?.body, "경계")
     }
 
     private static func room(id: UUID, name: String) -> Room {

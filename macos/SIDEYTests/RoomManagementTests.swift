@@ -4,7 +4,7 @@ import XCTest
 final class RoomManagementTests: XCTestCase {
     func testProductLimitsMatchRoomAndMessagePolicies() {
         XCTAssertEqual(ProductLimits.maximumRoomMembers, 12)
-        XCTAssertEqual(ProductLimits.messageRetentionDays, 7)
+        XCTAssertEqual(ProductLimits.messageRetentionDays, 3)
         XCTAssertEqual(
             SideyBackendError.memberLimitReached.localizedDescription,
             "이 그룹은 이미 12명으로 가득 찼습니다."
@@ -57,6 +57,52 @@ final class RoomManagementTests: XCTestCase {
         XCTAssertFalse(RoomManagementPolicy.canRemove(owner, from: room, currentUserID: ownerID))
         XCTAssertTrue(RoomManagementPolicy.canRemove(member, from: room, currentUserID: ownerID))
         XCTAssertFalse(RoomManagementPolicy.canRemove(owner, from: room, currentUserID: memberID))
+    }
+
+    func testLeaveConfirmationExplainsMemberOwnerAndLastOwnerConsequences() {
+        let ownerID = UUID()
+        let memberID = UUID()
+        let owner = RoomMember(
+            userID: ownerID,
+            nickname: "방장",
+            characterID: "pixel_hamster",
+            presence: .online
+        )
+        let member = RoomMember(
+            userID: memberID,
+            nickname: "멤버",
+            characterID: "pixel_cat",
+            presence: .online
+        )
+        let sharedRoom = Room(
+            id: UUID(),
+            name: "함께",
+            ownerID: ownerID,
+            members: [owner, member],
+            inviteCodeHint: "••••-••AA"
+        )
+        let soloRoom = Room(
+            id: UUID(),
+            name: "혼자",
+            ownerID: ownerID,
+            members: [owner],
+            inviteCodeHint: "••••-••BB"
+        )
+
+        XCTAssertEqual(RoomLeaveConfirmation.resolve(
+            room: sharedRoom,
+            currentUserID: memberID
+        ), .member)
+        XCTAssertEqual(RoomLeaveConfirmation.resolve(
+            room: sharedRoom,
+            currentUserID: ownerID
+        ), .ownerWithRemainingMembers)
+        XCTAssertEqual(RoomLeaveConfirmation.resolve(
+            room: soloRoom,
+            currentUserID: ownerID
+        ), .lastOwner)
+        XCTAssertTrue(RoomLeaveConfirmation.ownerWithRemainingMembers.message.contains("방장이 이전"))
+        XCTAssertTrue(RoomLeaveConfirmation.lastOwner.message.contains("영구 삭제"))
     }
 
     func testBackendBusinessErrorsUseUserFacingKoreanMessages() {

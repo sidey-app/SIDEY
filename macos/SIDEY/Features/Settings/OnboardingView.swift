@@ -14,49 +14,62 @@ struct OnboardingView: View {
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 28) {
-                HStack(spacing: 8) {
-                    stepBadge(number: 1, title: "프로필", complete: model.hasProfile)
-                    Image(systemName: "chevron.right").foregroundStyle(.tertiary)
-                    stepBadge(number: 2, title: "그룹", complete: model.preferences.onboardingComplete)
-                }
-
-                VStack(spacing: 8) {
-                    Text(model.hasProfile ? "친구와 연결하기" : "SIDEY에서 쓸 이름 정하기")
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                    Text(model.hasProfile
-                         ? "그룹을 만들거나 받은 초대 코드로 참여하면 픽셀 월드가 나타납니다."
-                         : "나중에 설정에서 언제든 바꿀 수 있습니다.")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                }
-
-                Group {
-                    if model.hasProfile {
-                        groupStep
-                    } else {
-                        profileStep
+            ScrollView {
+                VStack(spacing: 28) {
+                    HStack(spacing: 8) {
+                        stepBadge(number: 1, title: "프로필", complete: model.hasProfile)
+                        Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                        stepBadge(number: 2, title: "그룹", complete: model.preferences.onboardingComplete)
                     }
-                }
-                .padding(26)
-                .frame(width: 620, alignment: .leading)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .glassEffect(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                ConnectionBadge(state: model.connectionState)
-                    .frame(width: 260)
+                    VStack(spacing: 8) {
+                        Text(model.hasProfile ? "친구와 연결하기" : "SIDEY에서 쓸 이름 정하기")
+                            .font(.system(size: 34, weight: .bold, design: .rounded))
+                        Text(model.hasProfile
+                             ? "그룹을 만들거나 받은 초대 코드로 참여하면 픽셀 월드가 나타납니다."
+                             : "나중에 설정에서 언제든 바꿀 수 있습니다.")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Group {
+                        if model.hasProfile {
+                            groupStep
+                        } else {
+                            profileStep
+                        }
+                    }
+                    .padding(26)
+                    .frame(width: 620, alignment: .leading)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .glassEffect(in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                    ConnectionBadge(state: model.connectionState)
+                        .frame(width: 260)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(48)
             }
-            .padding(48)
 
             if let error = model.errorMessage {
                 ErrorBanner(message: error) { model.errorMessage = nil }
                     .padding(20)
                     .frame(maxHeight: .infinity, alignment: .bottom)
             } else if let success = model.successMessage {
-                SuccessBanner(message: success) { model.successMessage = nil }
+                SuccessBanner(message: success) { model.dismissSuccess() }
                     .padding(20)
                     .frame(maxHeight: .infinity, alignment: .bottom)
             }
+        }
+        .task(id: model.successMessageGeneration) {
+            let generation = model.successMessageGeneration
+            guard model.successMessage != nil else { return }
+            do {
+                try await Task.sleep(for: SuccessFeedbackState.displayDuration)
+            } catch {
+                return
+            }
+            model.dismissSuccess(generation: generation)
         }
     }
 
@@ -67,7 +80,8 @@ struct OnboardingView: View {
             CharacterSelectionGrid(
                 maximumColumns: 4,
                 characters: model.selectableCharacters,
-                selection: $model.selectedCharacterID
+                confirmedSelection: model.selectedCharacterID,
+                onSelect: { model.selectedCharacterID = $0 }
             )
             TextField("닉네임 2~8자", text: $model.nickname)
                 .textFieldStyle(.roundedBorder)

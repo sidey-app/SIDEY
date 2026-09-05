@@ -32,6 +32,33 @@ struct BackendConnectionStatus: Equatable, Sendable {
     }
 }
 
+enum RealtimeConnectionStatusPolicy {
+    static func resolve(
+        pathAvailable: Bool,
+        socketAvailable: Bool,
+        recoveryTaskRunning: Bool,
+        rebuildingChannels: Bool,
+        allRoomsSubscribed: Bool,
+        recoveryReconciled: Bool,
+        hasActiveRoom: Bool,
+        activeRoomSubscribed: Bool
+    ) -> BackendConnectionStatus {
+        let aggregateTransportConnected = pathAvailable
+            && socketAvailable
+            && !recoveryTaskRunning
+            && !rebuildingChannels
+            && allRoomsSubscribed
+        let activeTransportConnected = hasActiveRoom
+            ? pathAvailable && socketAvailable && activeRoomSubscribed
+            : aggregateTransportConnected
+        return BackendConnectionStatus(
+            transportConnected: aggregateTransportConnected,
+            recoveryReconciled: recoveryReconciled,
+            activeRoomTransportConnected: activeTransportConnected
+        )
+    }
+}
+
 struct MessageHistoryCursor: Equatable, Sendable {
     let rawCreatedAt: String
     let id: UUID
@@ -598,6 +625,15 @@ struct SetEquippedCosmeticParameters: Encodable, Sendable {
     enum CodingKeys: String, CodingKey {
         case productKind = "p_product_kind"
         case catalogItemID = "p_catalog_item_id"
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(productKind, forKey: .productKind)
+        // PostgREST distinguishes an omitted RPC argument from an explicit
+        // SQL NULL. Always include the key so both client/server versions can
+        // reliably return to the default cosmetic.
+        try container.encode(catalogItemID, forKey: .catalogItemID)
     }
 }
 

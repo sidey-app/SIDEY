@@ -221,6 +221,15 @@ final class WindowPolicyTests: XCTestCase {
                 XCTAssertEqual(actualContentSize, requestedContentSize)
             }
         }
+
+        model.preferences.onboardingComplete = false
+        settings.transitionFromSettingsToOnboarding()
+
+        let onboardingSize = settings.contentSize
+        XCTAssertLessThanOrEqual(onboardingSize.width, SettingsWindowController.onboardingContentSize.width)
+        XCTAssertLessThanOrEqual(onboardingSize.height, SettingsWindowController.onboardingContentSize.height)
+        XCTAssertGreaterThanOrEqual(onboardingSize.width, 860)
+        XCTAssertGreaterThanOrEqual(onboardingSize.height, 640)
     }
 
     func testWindowLevelsClickPolicyAndFixedComposerSize() {
@@ -424,7 +433,7 @@ final class WindowPolicyTests: XCTestCase {
     func testComposerDismissesWhenAppDeactivatesAfterCharacterPaletteGrace() async {
         let model = AppModel(preferences: .defaults)
         var dismissRequests = 0
-        var applicationIsActive = true
+        let applicationActivity = TestApplicationActivityState()
         let scheduler = TestComposerFocusLossScheduler()
         let controller = OverlayInteractionWindowController(
             model: model,
@@ -433,7 +442,7 @@ final class WindowPolicyTests: XCTestCase {
             onTypingChanged: { _ in },
             onCancel: { dismissRequests += 1 },
             focusLossScheduler: scheduler,
-            isApplicationActive: { applicationIsActive }
+            isApplicationActive: { applicationActivity.isActive }
         )
         let otherWindow = NSWindow(
             contentRect: CGRect(x: 0, y: 0, width: 100, height: 100),
@@ -456,7 +465,7 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertEqual(dismissRequests, 0)
         XCTAssertTrue(controller.hasPendingFocusLossDismiss)
 
-        applicationIsActive = false
+        applicationActivity.isActive = false
         NotificationCenter.default.post(
             name: NSApplication.didResignActiveNotification,
             object: NSApplication.shared
@@ -674,6 +683,11 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertEqual(unread.size, CGSize(width: 18, height: 18))
         XCTAssertNotEqual(regular.tiffRepresentation, unread.tiffRepresentation)
     }
+}
+
+@MainActor
+private final class TestApplicationActivityState {
+    var isActive = true
 }
 
 @MainActor

@@ -367,6 +367,161 @@ final class PresenceAndRealtimeTests: XCTestCase {
         XCTAssertTrue(status.activeRoomTransportConnected)
     }
 
+    func testInactiveRoomChannelSwapKeepsActiveRoomTransportConnected() {
+        let status = RealtimeConnectionStatusPolicy.resolve(
+            pathAvailable: true,
+            socketAvailable: true,
+            recoveryTaskRunning: false,
+            rebuildingChannels: true,
+            allRoomsSubscribed: false,
+            recoveryReconciled: false,
+            hasActiveRoom: true,
+            activeRoomSubscribed: true
+        )
+
+        XCTAssertFalse(status.transportConnected)
+        XCTAssertFalse(status.isReady)
+        XCTAssertTrue(status.activeRoomTransportConnected)
+    }
+
+    func testActiveRoomChannelSwapTemporarilyDisconnectsOnlyActiveRoom() {
+        let status = RealtimeConnectionStatusPolicy.resolve(
+            pathAvailable: true,
+            socketAvailable: true,
+            recoveryTaskRunning: false,
+            rebuildingChannels: true,
+            allRoomsSubscribed: false,
+            recoveryReconciled: false,
+            hasActiveRoom: true,
+            activeRoomSubscribed: false
+        )
+
+        XCTAssertFalse(status.activeRoomTransportConnected)
+    }
+
+    func testActiveRoomReconnectDoesNotResetInactiveRoomPresence() {
+        let userID = UUID()
+        let activeRoomID = UUID()
+        let inactiveRoomID = UUID()
+        let inactiveFriendID = UUID()
+        var preferences = AppPreferences.defaults
+        preferences.activeRoomID = activeRoomID
+        let model = AppModel(preferences: preferences)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(id: userID, nickname: "나", characterID: "pixel_hamster"),
+                rooms: [
+                    Room(
+                        id: activeRoomID,
+                        name: "활성",
+                        ownerID: userID,
+                        members: [RoomMember(
+                            userID: userID,
+                            nickname: "나",
+                            characterID: "pixel_hamster",
+                            presence: .online
+                        )],
+                        inviteCodeHint: "AB••••"
+                    ),
+                    Room(
+                        id: inactiveRoomID,
+                        name: "비활성",
+                        ownerID: inactiveFriendID,
+                        members: [RoomMember(
+                            userID: inactiveFriendID,
+                            nickname: "친구",
+                            characterID: "pixel_cat",
+                            presence: .online
+                        )],
+                        inviteCodeHint: "CD••••"
+                    ),
+                ]
+            ),
+            currentUserID: userID
+        )
+
+        model.setActiveRoomRealtimeConnected(false)
+
+        XCTAssertEqual(model.rooms[0].members[0].presence, .reconnecting)
+        XCTAssertEqual(model.rooms[1].members[0].presence, .online)
+    }
+
+    func testProfileDraftSurvivesCharacterResponseAndUnrelatedSnapshot() {
+        let userID = UUID()
+        let model = AppModel(preferences: .defaults)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(id: userID, nickname: "확정닉", characterID: "pixel_hamster"),
+                rooms: []
+            ),
+            currentUserID: userID
+        )
+        model.nickname = "편집중"
+
+        model.apply(profile: Profile(
+            id: userID,
+            nickname: "확정닉",
+            characterID: "pixel_cat"
+        ))
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(id: userID, nickname: "확정닉", characterID: "pixel_cat"),
+                rooms: []
+            ),
+            currentUserID: userID
+        )
+
+        XCTAssertEqual(model.nickname, "편집중")
+        XCTAssertEqual(model.confirmedNickname, "확정닉")
+        XCTAssertEqual(model.selectedCharacterID, "pixel_cat")
+        XCTAssertTrue(model.hasNicknameChanges)
+    }
+
+    func testNicknameDirtyStateUsesNormalizedDraftAndValidation() {
+        let userID = UUID()
+        let model = AppModel(preferences: .defaults)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(id: userID, nickname: "사이디", characterID: "pixel_hamster"),
+                rooms: []
+            ),
+            currentUserID: userID
+        )
+
+        model.nickname = "  사이디  "
+        XCTAssertFalse(model.hasNicknameChanges)
+        XCTAssertTrue(model.nicknameDraftIsValid)
+        model.nickname = "한"
+        XCTAssertTrue(model.hasNicknameChanges)
+        XCTAssertFalse(model.nicknameDraftIsValid)
+    }
+
+    func testCharacterRequestKeepsConfirmedSelectionUntilSuccessAndBlocksDuplicates() {
+        let userID = UUID()
+        let model = AppModel(preferences: .defaults)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(id: userID, nickname: "사이디", characterID: "pixel_hamster"),
+                rooms: []
+            ),
+            currentUserID: userID
+        )
+
+        XCTAssertTrue(model.beginCharacterEquipmentRequest(characterID: "pixel_cat"))
+        XCTAssertEqual(model.selectedCharacterID, "pixel_hamster")
+        XCTAssertEqual(model.pendingCharacterID, "pixel_cat")
+        XCTAssertFalse(model.beginCharacterEquipmentRequest(characterID: "pixel_penguin"))
+
+        model.endCharacterEquipmentRequest()
+        XCTAssertEqual(model.selectedCharacterID, "pixel_hamster")
+        model.apply(profile: Profile(
+            id: userID,
+            nickname: "사이디",
+            characterID: "pixel_cat"
+        ))
+        XCTAssertEqual(model.selectedCharacterID, "pixel_cat")
+    }
+
     func testProfileApplyChangesIdentityWithoutDiscardingFriendPresence() {
         let roomID = UUID()
         let userID = UUID()

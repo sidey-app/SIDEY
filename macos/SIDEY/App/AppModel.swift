@@ -10,7 +10,9 @@ final class AppModel {
     var overlayVisible: Bool { overlayVisibility.isVisible }
     var presence: PresenceState = .online
     var nickname: String
+    private(set) var confirmedNickname: String?
     var selectedCharacterID: String
+    private(set) var pendingCharacterID: String?
     private(set) var equippedBubbleStyleID: String?
     private(set) var equippedThrowableID: String?
     private(set) var activeEntitlementKeys: Set<String> = []
@@ -31,7 +33,9 @@ final class AppModel {
     var hasProfile = false
     var currentUserID: UUID?
     var errorMessage: String?
-    var successMessage: String?
+    private var successFeedback = SuccessFeedbackState()
+    var successMessage: String? { successFeedback.message }
+    var successMessageGeneration: Int { successFeedback.generation }
     var isWorking = false
     var groupOperation: GroupOperation = .idle
     var newRoomName = ""
@@ -49,7 +53,11 @@ final class AppModel {
         self.preferences = preferences
         self.overlayVisibility = OverlayVisibility(isVisible: preferences.overlayVisible)
         self.nickname = preferences.nickname
+        self.confirmedNickname = preferences.onboardingComplete
+            ? ProfileValidator.normalizedNickname(preferences.nickname)
+            : nil
         self.selectedCharacterID = PixelCharacterCatalog.canonicalID(for: preferences.selectedCharacterID)
+        self.pendingCharacterID = nil
         self.equippedBubbleStyleID = nil
         self.equippedThrowableID = nil
         self.launchAtLogin = preferences.launchAtLogin
@@ -99,6 +107,27 @@ final class AppModel {
         isWorking || groupOperation.blocksMutations
     }
 
+    var normalizedNicknameDraft: String {
+        ProfileValidator.normalizedNickname(nickname)
+    }
+
+    var nicknameDraftIsValid: Bool {
+        ProfileValidator.isValidNickname(nickname)
+    }
+
+    var hasNicknameChanges: Bool {
+        guard let confirmedNickname else { return false }
+        return normalizedNicknameDraft != confirmedNickname
+    }
+
+    func presentSuccess(_ message: String) {
+        successFeedback.present(message)
+    }
+
+    func dismissSuccess(generation: Int? = nil) {
+        successFeedback.dismiss(generation: generation)
+    }
+
     func apply(snapshot: BackendSnapshot, currentUserID: UUID?) {
         self.currentUserID = currentUserID
         authenticationRequired = false
@@ -139,13 +168,18 @@ final class AppModel {
         })
         typingMembers = previousTypingMembers.intersection(validKeys)
         if let profile = snapshot.profile {
-            nickname = profile.nickname
+            let shouldAdoptNickname = confirmedNickname.map {
+                normalizedNicknameDraft == $0
+            } ?? true
+            confirmedNickname = ProfileValidator.normalizedNickname(profile.nickname)
+            if shouldAdoptNickname { nickname = profile.nickname }
             preferences.nickname = profile.nickname
             selectedCharacterID = PixelCharacterCatalog.canonicalID(for: profile.characterID)
             preferences.selectedCharacterID = selectedCharacterID
             equippedBubbleStyleID = profile.equippedBubbleStyleID
             equippedThrowableID = profile.equippedThrowableID
         } else {
+            confirmedNickname = nil
             equippedBubbleStyleID = nil
             equippedThrowableID = nil
         }
@@ -158,7 +192,11 @@ final class AppModel {
     func apply(profile: Profile) {
         guard currentUserID == profile.id else { return }
         hasProfile = true
-        nickname = profile.nickname
+        let shouldAdoptNickname = confirmedNickname.map {
+            normalizedNicknameDraft == $0
+        } ?? true
+        confirmedNickname = ProfileValidator.normalizedNickname(profile.nickname)
+        if shouldAdoptNickname { nickname = profile.nickname }
         preferences.nickname = profile.nickname
         selectedCharacterID = PixelCharacterCatalog.canonicalID(for: profile.characterID)
         preferences.selectedCharacterID = selectedCharacterID
@@ -269,6 +307,25 @@ final class AppModel {
 
     func cosmeticEquipmentRequest(for kind: CommerceProductKind) -> CosmeticEquipmentRequest? {
         cosmeticEquipmentRequests[kind]
+    }
+
+    @discardableResult
+    func beginCharacterEquipmentRequest(characterID: String) -> Bool {
+        let canonicalID = PixelCharacterCatalog.canonicalID(for: characterID)
+        guard pendingCharacterID == nil,
+              selectedCharacterID != canonicalID,
+              isCharacterSelectable(canonicalID)
+        else { return false }
+        pendingCharacterID = canonicalID
+        return true
+    }
+
+    func endCharacterEquipmentRequest() {
+        pendingCharacterID = nil
+    }
+
+    var snapshotActiveEntitlements: Set<String> {
+        snapshotActiveEntitlementKeys
     }
 
     func setCommerceWorking(_ isWorking: Bool, productID: String) {
@@ -431,23 +488,25 @@ final class AppModel {
         activeRoomTransportConnected = connected
         // Typing is a transient Broadcast lease. A disconnect can lose the
         // matching typing_stop event, so never carry typing across reconnect.
-        if !connected { typingMembers.removeAll() }
-        for roomIndex in rooms.indices {
-            for memberIndex in rooms[roomIndex].members.indices {
-                let member = rooms[roomIndex].members[memberIndex]
-                let key = MemberPresenceKey(roomID: rooms[roomIndex].id, userID: member.userID)
-                if connected {
-                    rooms[roomIndex].members[memberIndex].presence = typingMembers.contains(key)
-                        ? .typing
-                        : (basePresence[key] ?? .offline)
-                } else if member.presence != .offline {
-                    rooms[roomIndex].members[memberIndex].presence = .reconnecting
-                    if member.userID != currentUserID {
-                        // Presence state is a lease on a specific socket. Never
-                        // resurrect a remote user's old online/away state after
-                        // reconnect; wait for a fresh join/sync instead.
-                        basePresence[key] = .offline
-                    }
+        guard let activeRoomID = activeRoom?.id,
+              let roomIndex = rooms.firstIndex(where: { $0.id == activeRoomID })
+        else { return }
+        if !connected {
+            typingMembers = typingMembers.filter { $0.roomID != activeRoomID }
+        }
+        for memberIndex in rooms[roomIndex].members.indices {
+            let member = rooms[roomIndex].members[memberIndex]
+            let key = MemberPresenceKey(roomID: activeRoomID, userID: member.userID)
+            if connected {
+                rooms[roomIndex].members[memberIndex].presence = typingMembers.contains(key)
+                    ? .typing
+                    : (basePresence[key] ?? .offline)
+            } else if member.presence != .offline {
+                rooms[roomIndex].members[memberIndex].presence = .reconnecting
+                if member.userID != currentUserID {
+                    // Presence state is a lease on this active room's channel.
+                    // Do not invalidate unrelated rooms during a selective swap.
+                    basePresence[key] = .offline
                 }
             }
         }
