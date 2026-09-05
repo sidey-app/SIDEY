@@ -281,6 +281,24 @@ final class StorePreviewTests: XCTestCase {
         )
     }
 
+    func testDetailSheetFitsItsContentWithoutForcedVerticalSpace() {
+        let state = CommerceProductState(
+            product: .bunnyPinkBubble,
+            purchaseState: .available,
+            isWorking: false
+        )
+        let hostingView = NSHostingView(rootView: StoreProductDetailSheet(
+            productState: state,
+            actions: .empty,
+            onClose: {}
+        ))
+        let fittingSize = hostingView.fittingSize
+
+        XCTAssertEqual(fittingSize.width, 600, accuracy: 0.001)
+        XCTAssertGreaterThan(fittingSize.height, StorePreviewStageLayout.size.height)
+        XCTAssertLessThan(fittingSize.height, 500)
+    }
+
     func testStageRendersOneSpriteKitViewForProductsInLightAndDarkModes() throws {
         let snapshotSentinel = "/private/tmp/sidey-store-preview-snapshots"
         let outputDirectory = ProcessInfo.processInfo.environment["SIDEY_STORE_PREVIEW_SNAPSHOT_DIR"]

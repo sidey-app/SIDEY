@@ -262,20 +262,13 @@ private struct StoreLockedProductCard: View {
     }
 }
 
-private struct StoreProductDetailSheet: View {
+struct StoreProductDetailSheet: View {
     let productState: CommerceProductState
     let actions: SettingsActions
     let onClose: () -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Spacer()
-                Button("닫기", systemImage: "xmark", action: onClose)
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("상품 상세 닫기")
-            }
+        VStack(spacing: 10) {
             StorePreviewStage(product: productState.product)
             Text(productState.product.displayName).font(.title2.bold())
             Text(productState.product.description)
@@ -284,9 +277,17 @@ private struct StoreProductDetailSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
             detailAction
         }
-        .padding(24)
+        .padding(.horizontal, 30)
+        .padding(.top, 30)
+        .padding(.bottom, 24)
         .frame(width: 600)
-        .frame(minHeight: 580)
+        .overlay(alignment: .topTrailing) {
+            Button("닫기", systemImage: "xmark", action: onClose)
+                .labelStyle(.iconOnly)
+                .buttonStyle(.plain)
+                .padding(10)
+                .accessibilityLabel("상품 상세 닫기")
+        }
     }
 
     @ViewBuilder private var detailAction: some View {
