@@ -111,7 +111,7 @@
     apiBase = validAPIBase(query.get("api") ?? "");
     window.history.replaceState(null, "", window.location.pathname);
     if (!/^[A-Za-z0-9_-]{43}$/.test(token) || !apiBase) {
-      showError("Sidey-dev에서 새 주문을 만들어 접근해 주세요. 공개 구매 링크는 지원하지 않습니다.");
+      showError("SIDEY 앱에서 새 주문을 만들어 접근해 주세요. 공개 구매 링크는 지원하지 않습니다.");
       return;
     }
 
@@ -133,8 +133,8 @@
     } catch (requestError) {
       console.error(requestError);
       showError(requestError.status === 410
-        ? "주문 링크가 만료되었거나 이미 처리되었습니다. Sidey-dev 상점에서 다시 시도해 주세요."
-        : "서버에서 주문을 확인하지 못했습니다. Sidey-dev 상점에서 다시 시도해 주세요.");
+        ? "주문 링크가 만료되었거나 이미 처리되었습니다. SIDEY 앱 상점에서 다시 시도해 주세요."
+        : "서버에서 주문을 확인하지 못했습니다. SIDEY 앱 상점에서 다시 시도해 주세요.");
     }
   }
 

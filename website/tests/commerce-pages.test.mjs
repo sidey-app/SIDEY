@@ -178,6 +178,7 @@ test("checkout is token-only and completion trusts a server re-query", async () 
   assert.ok(result.includes("/commerce-complete"));
   assert.ok(copy.includes("PortOne"));
   assert.ok(copy.includes("결제 상태를 확인"));
+  assert.ok(!copy.includes("Sidey-dev"));
   assert.ok(!copy.match(/TossPayments|tosspayments|토스페이먼츠/));
 });
 
