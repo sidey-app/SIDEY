@@ -98,6 +98,42 @@ public sealed class MessageLedgerTests
     }
 
     [Fact]
+    public void ConfirmedHistoryUsesThreeDayBoundary()
+    {
+        var roomId = Guid.NewGuid();
+        var senderId = Guid.NewGuid();
+        var now = DateTimeOffset.FromUnixTimeSeconds(1_000_000);
+        var expiredId = Guid.NewGuid();
+        var boundaryId = Guid.NewGuid();
+        var recentId = Guid.NewGuid();
+        var ledger = new MessageLedger();
+
+        ledger.Confirm(new ChatMessage(
+            expiredId,
+            roomId,
+            senderId,
+            "만료",
+            now - MessageLedger.ConfirmedRetention - TimeSpan.FromSeconds(1)), now);
+        ledger.Confirm(new ChatMessage(
+            boundaryId,
+            roomId,
+            senderId,
+            "경계",
+            now - MessageLedger.ConfirmedRetention), now);
+        ledger.Confirm(new ChatMessage(
+            recentId,
+            roomId,
+            senderId,
+            "최근",
+            now - TimeSpan.FromDays(2)), now);
+
+        Assert.Equal(TimeSpan.FromDays(3), MessageLedger.ConfirmedRetention);
+        Assert.DoesNotContain(ledger.Entries, entry => entry.Id == expiredId);
+        Assert.Contains(ledger.Entries, entry => entry.Id == boundaryId);
+        Assert.Contains(ledger.Entries, entry => entry.Id == recentId);
+    }
+
+    [Fact]
     public void ActiveBubblesKeepTwoPerSenderWithoutGlobalEviction()
     {
         var ledger = new ActiveBubbleLedger();
