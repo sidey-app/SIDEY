@@ -677,6 +677,22 @@ struct RealtimeTopology: Equatable, Sendable {
     }
 }
 
+struct RealtimeTopologyUpdatePlan: Equatable, Sendable {
+    let additions: Set<UUID>
+    let removals: Set<UUID>
+
+    static func make(live: RealtimeTopology, requestedRooms: [Room]) -> Self {
+        let desired = RealtimeTopology(rooms: requestedRooms)
+        let additions = Set(desired.roomEpochs.compactMap { roomID, desiredEpoch in
+            live.roomEpochs[roomID] == desiredEpoch ? nil : roomID
+        })
+        let removals = Set(live.roomEpochs.compactMap { roomID, liveEpoch in
+            desired.roomEpochs[roomID] == liveEpoch ? nil : roomID
+        })
+        return Self(additions: additions, removals: removals)
+    }
+}
+
 struct RealtimeDesiredTopology: Equatable, Sendable {
     private(set) var roomEpochs: [UUID: Int] = [:]
 
