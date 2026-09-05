@@ -43,6 +43,9 @@ final class AppCoordinator {
             onRefreshCommerceState: { [weak self] productID in
                 self?.refreshCommerceState(productID: productID)
             },
+            onSetEquippedCosmetic: { [weak self] kind, catalogItemID in
+                self?.setEquippedCosmetic(kind: kind, catalogItemID: catalogItemID)
+            },
             onRestorePurchases: { [weak self] in self?.restoreAppStorePurchases() },
             onSignInWithApple: { [weak self] payload in self?.signInWithApple(payload) },
             onDeleteAccount: { [weak self] payload in self?.deleteAccount(payload) },

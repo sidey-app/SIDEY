@@ -12,6 +12,7 @@ struct SettingsActions {
     var canCheckForUpdates: () -> Bool
     var onPurchase: (String) -> Void
     var onRefreshCommerceState: (String?) -> Void
+    var onSetEquippedCosmetic: (CommerceProductKind, String?) -> Void
     var onRestorePurchases: () -> Void
     var onSignInWithApple: (AppleAuthorizationPayload) -> Void
     var onDeleteAccount: (AppleAuthorizationPayload) -> Void
@@ -36,6 +37,7 @@ struct SettingsActions {
         canCheckForUpdates: { false },
         onPurchase: { _ in },
         onRefreshCommerceState: { _ in },
+        onSetEquippedCosmetic: { _, _ in },
         onRestorePurchases: {},
         onSignInWithApple: { _ in },
         onDeleteAccount: { _ in },

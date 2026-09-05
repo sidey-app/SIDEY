@@ -10,6 +10,10 @@ enum PixelCharacterThrowCatalog {
     static let hitFrames = 4..<8
     static let rotationFrames = 0..<8
     static let impactFrames = 8..<12
+    static let cannonObjectID = "throwable_toy_cannon"
+    static let purchasableObjectIDs: Set<String> = [
+        "throwable_bouncy_heart", cannonObjectID, "throwable_squeaky_duck"
+    ]
 
     static func objectID(for characterID: String) -> String {
         switch PixelCharacterCatalog.canonicalID(for: characterID) {
@@ -19,6 +23,17 @@ enum PixelCharacterThrowCatalog {
         case PixelCharacterCatalog.pixelStarlightUpalupaID: "starlight_orb"
         default: fallbackObjectID
         }
+    }
+
+    static func supports(objectID: String?) -> Bool {
+        guard let objectID else { return false }
+        return purchasableObjectIDs.contains(objectID)
+            || [fallbackObjectID, "mini_paprika", "banana", "dust_bath_pouch", "starlight_orb"]
+                .contains(objectID)
+    }
+
+    static func resolvedObjectID(for characterID: String, equippedObjectID: String?) -> String {
+        supports(objectID: equippedObjectID) ? equippedObjectID! : objectID(for: characterID)
     }
 
     static func actionAssetURL(for characterID: String, bundle: Bundle = .main) -> URL? {
@@ -32,6 +47,12 @@ enum PixelCharacterThrowCatalog {
         bundle.url(forResource: objectID, withExtension: "png", subdirectory: "CharacterThrow/ObjectSheets")
             ?? bundle.url(forResource: objectID, withExtension: "png")
     }
+
+    static func emitterAssetURL(for objectID: String, bundle: Bundle = .main) -> URL? {
+        let resourceName = "\(objectID)_emitter"
+        return bundle.url(forResource: resourceName, withExtension: "png", subdirectory: "CharacterThrow/EmitterSheets")
+            ?? bundle.url(forResource: resourceName, withExtension: "png")
+    }
 }
 
 struct PixelCharacterThrowTextures {
@@ -39,6 +60,10 @@ struct PixelCharacterThrowTextures {
     let hitFrames: [SKTexture]
     let rotationFrames: [SKTexture]
     let impactFrames: [SKTexture]
+    let emitterFrames: [SKTexture]
+    let objectID: String
+
+    var usesCannonEmitter: Bool { objectID == PixelCharacterThrowCatalog.cannonObjectID }
 }
 
 @MainActor
@@ -46,29 +71,47 @@ final class PixelCharacterThrowTextureStore {
     static let shared = PixelCharacterThrowTextureStore()
     private var cache: [String: PixelCharacterThrowTextures] = [:]
 
-    func textures(for sourceCharacterID: String, bundle: Bundle = .main) -> PixelCharacterThrowTextures {
+    func textures(
+        for sourceCharacterID: String,
+        throwableID: String? = nil,
+        bundle: Bundle = .main
+    ) -> PixelCharacterThrowTextures {
         let characterID = PixelCharacterCatalog.canonicalID(for: sourceCharacterID)
-        if let cached = cache[characterID] { return cached }
+        let objectID = PixelCharacterThrowCatalog.resolvedObjectID(
+            for: characterID,
+            equippedObjectID: throwableID
+        )
+        let cacheKey = "\(characterID)|\(objectID)"
+        if let cached = cache[cacheKey] { return cached }
         let actions = frames(
             url: PixelCharacterThrowCatalog.actionAssetURL(for: characterID, bundle: bundle),
             count: PixelCharacterThrowCatalog.actionFrameCount,
             cellSize: CGSize(width: 24, height: 24),
             fallbackColor: .systemOrange
         )
-        let objectID = PixelCharacterThrowCatalog.objectID(for: characterID)
         let objects = frames(
             url: PixelCharacterThrowCatalog.objectAssetURL(for: objectID, bundle: bundle),
             count: PixelCharacterThrowCatalog.objectFrameCount,
             cellSize: CGSize(width: 16, height: 16),
             fallbackColor: .systemTeal
         )
+        let emitters = objectID == PixelCharacterThrowCatalog.cannonObjectID
+            ? frames(
+                url: PixelCharacterThrowCatalog.emitterAssetURL(for: objectID, bundle: bundle),
+                count: 4,
+                cellSize: CGSize(width: 24, height: 24),
+                fallbackColor: .systemGray
+            )
+            : []
         let result = PixelCharacterThrowTextures(
             throwFrames: Array(actions[PixelCharacterThrowCatalog.throwFrames]),
             hitFrames: Array(actions[PixelCharacterThrowCatalog.hitFrames]),
             rotationFrames: Array(objects[PixelCharacterThrowCatalog.rotationFrames]),
-            impactFrames: Array(objects[PixelCharacterThrowCatalog.impactFrames])
+            impactFrames: Array(objects[PixelCharacterThrowCatalog.impactFrames]),
+            emitterFrames: emitters,
+            objectID: objectID
         )
-        cache[characterID] = result
+        cache[cacheKey] = result
         return result
     }
 
@@ -119,6 +162,11 @@ enum PixelCharacterThrowStyle {
     static let hitDuration: TimeInterval = 0.44
     static let impactDuration: TimeInterval = 0.24
     static let impactPointSize: CGFloat = 48
+    static let impactTorsoOffset: CGFloat = 10
+    static let cannonEmitterPointSize: CGFloat = 48
+    static let cannonEmitterZPosition: CGFloat = 10
+    static let cannonEmitterTangentOffset: CGFloat = 6
+    static let cannonEmitterNormalOffset: CGFloat = -1
     static let rotationFrameInterval: TimeInterval = 0.083
     static let maximumActiveProjectiles = 32
 

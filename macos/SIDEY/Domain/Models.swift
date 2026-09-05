@@ -229,17 +229,48 @@ enum CommerceCatalog {
     static let chinchillaProductID = "character_chinchilla"
     static let chinchillaEntitlementKey = "character:pixel_chinchilla"
 
-    /// Product order is a presentation contract. Registering a future product
-    /// here is enough for the existing store grid to render it.
-    static let products: [CommerceProduct] = [
+    static let characterProducts: [CommerceProduct] = [
         .starlightUpalupa,
         .guineaPig,
         .monkey,
         .chinchilla,
     ]
 
+    static let cosmeticProducts: [CommerceProduct] = [
+        .bunnyPinkBubble,
+        .butterChickBubble,
+        .starryCatBubble,
+        .bouncyHeart,
+        .toyCannon,
+        .squeakyDuck,
+    ]
+
+    /// App Store intentionally keeps the existing four character IAPs. The
+    /// direct build receives the broader server catalog.
+    static var products: [CommerceProduct] {
+#if APP_STORE
+        characterProducts
+#else
+        characterProducts + cosmeticProducts
+#endif
+    }
+
     static func product(id: String) -> CommerceProduct? {
         products.first { $0.id == id }
+    }
+}
+
+enum CommerceProductKind: String, Codable, CaseIterable, Sendable {
+    case character
+    case bubble
+    case throwable
+
+    var title: String {
+        switch self {
+        case .character: "캐릭터"
+        case .bubble: "말풍선"
+        case .throwable: "투척물"
+        }
     }
 }
 
@@ -247,11 +278,40 @@ struct CommerceProduct: Equatable, Sendable {
     let id: String
     let displayName: String
     let description: String
-    let characterID: String
+    let kind: CommerceProductKind
+    let catalogItemID: String
+    let characterID: String?
     let entitlementKey: String
+    let sortOrder: Int
     let amountKRW: Int
     let currency: String
     let taxInclusive: Bool
+
+    init(
+        id: String,
+        displayName: String,
+        description: String,
+        kind: CommerceProductKind = .character,
+        catalogItemID: String? = nil,
+        characterID: String?,
+        entitlementKey: String,
+        sortOrder: Int = 0,
+        amountKRW: Int,
+        currency: String,
+        taxInclusive: Bool
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.description = description
+        self.kind = kind
+        self.catalogItemID = catalogItemID ?? characterID ?? id
+        self.characterID = characterID
+        self.entitlementKey = entitlementKey
+        self.sortOrder = sortOrder
+        self.amountKRW = amountKRW
+        self.currency = currency
+        self.taxInclusive = taxInclusive
+    }
 
     static let starlightUpalupa = CommerceProduct(
         id: CommerceCatalog.starlightUpalupaProductID,
@@ -259,6 +319,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: CommerceCatalog.starlightUpalupaDescription,
         characterID: CommerceCatalog.starlightUpalupaCharacterID,
         entitlementKey: CommerceCatalog.starlightUpalupaEntitlementKey,
+        sortOrder: 10,
         amountKRW: 1_900,
         currency: "KRW",
         taxInclusive: true
@@ -270,6 +331,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "낮고 동글동글한 몸에 비대칭 삼색 무늬가 매력인 작은 친구예요.",
         characterID: PixelCharacterCatalog.pixelGuineaPigID,
         entitlementKey: CommerceCatalog.guineaPigEntitlementKey,
+        sortOrder: 20,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -281,6 +343,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "세 갈래 머리털과 시안 목도리로 씩씩하게 산책하는 친구예요.",
         characterID: PixelCharacterCatalog.pixelMonkeyID,
         entitlementKey: CommerceCatalog.monkeyEntitlementKey,
+        sortOrder: 30,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -292,9 +355,58 @@ struct CommerceProduct: Equatable, Sendable {
         description: "크고 둥근 귀와 포근한 회색 털, 파란 목도리를 가진 친구예요.",
         characterID: PixelCharacterCatalog.pixelChinchillaID,
         entitlementKey: CommerceCatalog.chinchillaEntitlementKey,
+        sortOrder: 40,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
+    )
+
+    static let bunnyPinkBubble = CommerceProduct(
+        id: "bubble_bunny_pink", displayName: "핑크 토끼 말풍선",
+        description: "토끼 장식과 또렷한 진한 글자가 있는 분홍 말풍선이에요.",
+        kind: .bubble, catalogItemID: "bubble_bunny_pink", characterID: nil,
+        entitlementKey: "bubble:bubble_bunny_pink", sortOrder: 110,
+        amountKRW: 1_900, currency: "KRW", taxInclusive: true
+    )
+
+    static let butterChickBubble = CommerceProduct(
+        id: "bubble_butter_chick", displayName: "버터 병아리 말풍선",
+        description: "병아리 장식과 또렷한 진한 글자가 있는 버터색 말풍선이에요.",
+        kind: .bubble, catalogItemID: "bubble_butter_chick", characterID: nil,
+        entitlementKey: "bubble:bubble_butter_chick", sortOrder: 120,
+        amountKRW: 1_900, currency: "KRW", taxInclusive: true
+    )
+
+    static let starryCatBubble = CommerceProduct(
+        id: "bubble_starry_cat", displayName: "별밤 고양이 말풍선",
+        description: "별고양이 장식과 밝은 글자가 있는 남보라 말풍선이에요.",
+        kind: .bubble, catalogItemID: "bubble_starry_cat", characterID: nil,
+        entitlementKey: "bubble:bubble_starry_cat", sortOrder: 130,
+        amountKRW: 1_900, currency: "KRW", taxInclusive: true
+    )
+
+    static let bouncyHeart = CommerceProduct(
+        id: "throwable_bouncy_heart", displayName: "통통 하트",
+        description: "통통 튀며 날아가 마음을 전하는 하트예요.",
+        kind: .throwable, catalogItemID: "throwable_bouncy_heart", characterID: nil,
+        entitlementKey: "throwable:throwable_bouncy_heart", sortOrder: 210,
+        amountKRW: 990, currency: "KRW", taxInclusive: true
+    )
+
+    static let toyCannon = CommerceProduct(
+        id: "throwable_toy_cannon", displayName: "미니 대포",
+        description: "캐릭터 앞 몸통에 대포가 나타나 심지탄을 쏘고 상대 몸통에서 펑 터져요.",
+        kind: .throwable, catalogItemID: "throwable_toy_cannon", characterID: nil,
+        entitlementKey: "throwable:throwable_toy_cannon", sortOrder: 220,
+        amountKRW: 3_900, currency: "KRW", taxInclusive: true
+    )
+
+    static let squeakyDuck = CommerceProduct(
+        id: "throwable_squeaky_duck", displayName: "삑삑 오리",
+        description: "노란 오리가 빙글빙글 날아가는 장난스러운 투척물이에요.",
+        kind: .throwable, catalogItemID: "throwable_squeaky_duck", characterID: nil,
+        entitlementKey: "throwable:throwable_squeaky_duck", sortOrder: 230,
+        amountKRW: 990, currency: "KRW", taxInclusive: true
     )
 
     var formattedPrice: String {
@@ -307,17 +419,20 @@ struct CommerceProductState: Equatable, Identifiable, Sendable {
     var purchaseState: CommercePurchaseState
     var isWorking: Bool
     var localizedPrice: String?
+    var isEquipped: Bool
 
     init(
         product: CommerceProduct,
         purchaseState: CommercePurchaseState,
         isWorking: Bool,
-        localizedPrice: String? = nil
+        localizedPrice: String? = nil,
+        isEquipped: Bool = false
     ) {
         self.product = product
         self.purchaseState = purchaseState
         self.isWorking = isWorking
         self.localizedPrice = localizedPrice
+        self.isEquipped = isEquipped
     }
 
     var id: String { product.id }
@@ -351,6 +466,21 @@ struct CommerceState: Equatable, Sendable {
     let googleConnected: Bool
     let entitlementStatus: String?
     let latestOrderStatus: String?
+    let isEquipped: Bool
+
+    init(
+        product: CommerceProduct,
+        googleConnected: Bool,
+        entitlementStatus: String?,
+        latestOrderStatus: String?,
+        isEquipped: Bool = false
+    ) {
+        self.product = product
+        self.googleConnected = googleConnected
+        self.entitlementStatus = entitlementStatus
+        self.latestOrderStatus = latestOrderStatus
+        self.isEquipped = isEquipped
+    }
 
     var purchaseState: CommercePurchaseState {
         if entitlementStatus == "active" { return .owned }
@@ -368,6 +498,22 @@ struct Profile: Codable, Equatable, Sendable {
     let id: UUID
     var nickname: String
     var characterID: String
+    var equippedBubbleStyleID: String?
+    var equippedThrowableID: String?
+
+    init(
+        id: UUID,
+        nickname: String,
+        characterID: String,
+        equippedBubbleStyleID: String? = nil,
+        equippedThrowableID: String? = nil
+    ) {
+        self.id = id
+        self.nickname = nickname
+        self.characterID = characterID
+        self.equippedBubbleStyleID = equippedBubbleStyleID
+        self.equippedThrowableID = equippedThrowableID
+    }
 }
 
 struct Room: Codable, Equatable, Identifiable, Sendable {
@@ -387,6 +533,7 @@ struct RoomMember: Codable, Equatable, Identifiable, Sendable {
     var nickname: String
     var characterID: String
     var presence: PresenceState
+    var equippedBubbleStyleID: String? = nil
 }
 
 struct ChatMessage: Codable, Equatable, Identifiable, Sendable {
@@ -395,6 +542,23 @@ struct ChatMessage: Codable, Equatable, Identifiable, Sendable {
     let senderID: UUID
     let body: String
     let createdAt: Date
+    let bubbleStyleID: String?
+
+    init(
+        id: UUID,
+        roomID: UUID,
+        senderID: UUID,
+        body: String,
+        createdAt: Date,
+        bubbleStyleID: String? = nil
+    ) {
+        self.id = id
+        self.roomID = roomID
+        self.senderID = senderID
+        self.body = body
+        self.createdAt = createdAt
+        self.bubbleStyleID = bubbleStyleID
+    }
 }
 
 enum MessageDeliveryState: Equatable, Sendable {
@@ -410,6 +574,7 @@ struct MessageLedgerEntry: Equatable, Identifiable, Sendable {
     var body: String
     var createdAt: Date
     var state: MessageDeliveryState
+    var bubbleStyleID: String? = nil
 }
 
 struct MessageLedger: Equatable, Sendable {
@@ -424,6 +589,7 @@ struct MessageLedger: Equatable, Sendable {
         if let index = entries.firstIndex(where: { $0.id == message.id }) {
             entries[index].body = message.body
             entries[index].createdAt = message.createdAt
+            entries[index].bubbleStyleID = message.bubbleStyleID
         } else {
             entries.append(MessageLedgerEntry(
                 id: message.id,
@@ -431,7 +597,8 @@ struct MessageLedger: Equatable, Sendable {
                 senderID: message.senderID,
                 body: message.body,
                 createdAt: message.createdAt,
-                state: .confirmed
+                state: .confirmed,
+                bubbleStyleID: message.bubbleStyleID
             ))
         }
         sortAndPrune(now: now)
@@ -557,6 +724,21 @@ struct ActiveBubble: Equatable, Identifiable, Sendable {
     let messageID: UUID
     let body: String
     let expiresAt: Date
+    let bubbleStyleID: String?
+
+    init(
+        senderID: UUID,
+        messageID: UUID,
+        body: String,
+        expiresAt: Date,
+        bubbleStyleID: String? = nil
+    ) {
+        self.senderID = senderID
+        self.messageID = messageID
+        self.body = body
+        self.expiresAt = expiresAt
+        self.bubbleStyleID = bubbleStyleID
+    }
 }
 
 struct ActiveBubbleLedger: Equatable, Sendable {
@@ -569,6 +751,7 @@ struct ActiveBubbleLedger: Equatable, Sendable {
         senderID: UUID,
         messageID: UUID,
         body: String,
+        bubbleStyleID: String? = nil,
         expiresAt: Date = .now.addingTimeInterval(Self.defaultLifetime)
     ) {
         bubbles.removeAll { $0.messageID == messageID }
@@ -576,7 +759,8 @@ struct ActiveBubbleLedger: Equatable, Sendable {
             senderID: senderID,
             messageID: messageID,
             body: body,
-            expiresAt: expiresAt
+            expiresAt: expiresAt,
+            bubbleStyleID: bubbleStyleID
         ))
         bubbles.sort { lhs, rhs in
             lhs.expiresAt == rhs.expiresAt
@@ -614,6 +798,25 @@ struct PixelWorldMember: Equatable, Identifiable, Sendable {
     let presence: PresenceState
     let isTyping: Bool
     let isCurrentUser: Bool
+    let equippedBubbleStyleID: String?
+
+    init(
+        id: UUID,
+        nickname: String,
+        characterID: String,
+        presence: PresenceState,
+        isTyping: Bool,
+        isCurrentUser: Bool,
+        equippedBubbleStyleID: String? = nil
+    ) {
+        self.id = id
+        self.nickname = nickname
+        self.characterID = characterID
+        self.presence = presence
+        self.isTyping = isTyping
+        self.isCurrentUser = isCurrentUser
+        self.equippedBubbleStyleID = equippedBubbleStyleID
+    }
 }
 
 struct RealtimeRoomPlan: Equatable, Sendable {
@@ -793,6 +996,23 @@ struct CharacterThrowEvent: Equatable, Identifiable, Sendable {
     let actorUserID: UUID
     let targetUserID: UUID
     let sourceCharacterID: String
+    let throwableID: String?
+
+    init(
+        id: UUID,
+        roomID: UUID,
+        actorUserID: UUID,
+        targetUserID: UUID,
+        sourceCharacterID: String,
+        throwableID: String? = nil
+    ) {
+        self.id = id
+        self.roomID = roomID
+        self.actorUserID = actorUserID
+        self.targetUserID = targetUserID
+        self.sourceCharacterID = sourceCharacterID
+        self.throwableID = throwableID
+    }
 }
 
 enum CharacterThrowTargetPolicy {

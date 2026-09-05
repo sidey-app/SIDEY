@@ -506,7 +506,8 @@ extension AppCoordinator {
             roomID: room.id,
             actorUserID: actorUserID,
             targetUserID: targetUserID,
-            sourceCharacterID: PixelCharacterCatalog.canonicalID(for: actor.characterID)
+            sourceCharacterID: PixelCharacterCatalog.canonicalID(for: actor.characterID),
+            throwableID: model.equippedThrowableID
         )
         overlayWindows.playCharacterThrow(event)
         guard let backend else { return }
@@ -523,35 +524,78 @@ extension AppCoordinator {
         guard releaseChannel.storeAvailability.allowsCommerceActions,
               let backend
         else { return }
-        let productIDs = productID.map { [$0] } ?? model.commerceProducts.map(\.id)
-
-        for productID in productIDs {
-            guard model.commerceProduct(id: productID) != nil,
-                  commerceProductTasks[productID] == nil
-            else { continue }
-
-            model.setCommerceWorking(true, productID: productID)
-            commerceProductTasks[productID] = Task { [weak self] in
-                guard let self else { return }
-                defer {
-                    model.setCommerceWorking(false, productID: productID)
-                    commerceProductTasks[productID] = nil
+        let requestedIDs = productID.map { [$0] } ?? model.commerceProducts.map(\.id)
+        let productIDs = requestedIDs.filter {
+            model.commerceProduct(id: $0) != nil && commerceProductTasks[$0] == nil
+        }
+        guard !productIDs.isEmpty else { return }
+        productIDs.forEach { model.setCommerceWorking(true, productID: $0) }
+        let task = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                for id in productIDs {
+                    model.setCommerceWorking(false, productID: id)
+                    commerceProductTasks[id] = nil
                 }
-                do {
-                    let state = try await backend.commerceState(productID: productID)
-                    model.apply(commerceState: state)
-                    if releaseChannel.storeAvailability.usesAppStore,
-                       state.entitlementStatus != "active" {
-                        model.setCommercePurchaseState(.available, productID: productID)
+            }
+            do {
+                let states = try await backend.storeState()
+                model.apply(commerceStates: states)
+                if releaseChannel.storeAvailability.usesAppStore {
+                    for state in states where state.entitlementStatus != "active" {
+                        model.setCommercePurchaseState(.available, productID: state.product.id)
                     }
-                } catch is CancellationError {
-                    return
-                } catch {
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                for id in productIDs {
                     model.setCommercePurchaseState(
                         .error("상점 상태를 불러오지 못했습니다."),
-                        productID: productID
+                        productID: id
                     )
                 }
+            }
+        }
+        productIDs.forEach { commerceProductTasks[$0] = task }
+    }
+
+    func setEquippedCosmetic(kind: CommerceProductKind, catalogItemID: String?) {
+        guard releaseChannel.storeAvailability.allowsCommerceActions,
+              !releaseChannel.storeAvailability.usesAppStore,
+              kind != .character,
+              let backend,
+              let product = model.commerceProducts.first(where: {
+                  $0.product.kind == kind
+                      && (catalogItemID == nil ? $0.isEquipped : $0.product.catalogItemID == catalogItemID)
+              }),
+              product.purchaseState == .owned,
+              commerceProductTasks[product.id] == nil
+        else { return }
+
+        model.setCommerceWorking(true, productID: product.id)
+        commerceProductTasks[product.id] = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                model.setCommerceWorking(false, productID: product.id)
+                commerceProductTasks[product.id] = nil
+            }
+            do {
+                let profile = try await backend.setEquippedCosmetic(
+                    kind: kind,
+                    catalogItemID: catalogItemID
+                )
+                model.apply(profile: profile)
+                model.apply(commerceStates: try await backend.storeState())
+                model.successMessage = catalogItemID == nil
+                    ? "\(kind.title) 장착을 해제했습니다."
+                    : "\(product.product.displayName)을 사용합니다."
+                model.errorMessage = nil
+                persistPreferences()
+            } catch is CancellationError {
+                return
+            } catch {
+                model.errorMessage = "장착 상태를 바꾸지 못했습니다: \(error.localizedDescription)"
             }
         }
     }

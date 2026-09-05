@@ -11,15 +11,46 @@ final class CommerceModelTests: XCTestCase {
                 CommerceCatalog.guineaPigProductID,
                 CommerceCatalog.monkeyProductID,
                 CommerceCatalog.chinchillaProductID,
+                "bubble_bunny_pink",
+                "bubble_butter_chick",
+                "bubble_starry_cat",
+                "throwable_bouncy_heart",
+                "throwable_toy_cannon",
+                "throwable_squeaky_duck",
             ]
         )
-        for product in CommerceCatalog.products {
-            XCTAssertEqual(PixelCharacterCatalog.definition(for: product.characterID).id, product.characterID)
+        for product in CommerceCatalog.characterProducts {
+            let characterID = try XCTUnwrap(product.characterID)
+            XCTAssertEqual(PixelCharacterCatalog.definition(for: characterID).id, characterID)
             XCTAssertEqual(
-                PixelCharacterCatalog.definition(for: product.characterID).entitlementKey,
+                PixelCharacterCatalog.definition(for: characterID).entitlementKey,
                 product.entitlementKey
             )
         }
+    }
+
+    func testCosmeticCatalogKeepsApprovedKindsPricesAndOrdering() throws {
+        XCTAssertEqual(CommerceCatalog.cosmeticProducts.map(\.kind), [
+            .bubble, .bubble, .bubble, .throwable, .throwable, .throwable,
+        ])
+        XCTAssertEqual(CommerceCatalog.cosmeticProducts.map(\.catalogItemID), [
+            "bubble_bunny_pink",
+            "bubble_butter_chick",
+            "bubble_starry_cat",
+            "throwable_bouncy_heart",
+            "throwable_toy_cannon",
+            "throwable_squeaky_duck",
+        ])
+        XCTAssertEqual(CommerceProduct.bunnyPinkBubble.amountKRW, 1_900)
+        XCTAssertEqual(CommerceProduct.butterChickBubble.amountKRW, 1_900)
+        XCTAssertEqual(CommerceProduct.starryCatBubble.amountKRW, 1_900)
+        XCTAssertEqual(CommerceProduct.bouncyHeart.amountKRW, 990)
+        XCTAssertEqual(CommerceProduct.toyCannon.amountKRW, 3_900)
+        XCTAssertEqual(CommerceProduct.squeakyDuck.amountKRW, 990)
+        XCTAssertTrue(CommerceCatalog.products.map(\.sortOrder).elementsEqual(
+            CommerceCatalog.products.map(\.sortOrder).sorted()
+        ))
+        XCTAssertTrue(CommerceCatalog.cosmeticProducts.allSatisfy { $0.characterID == nil })
     }
 
     func testReleaseChannelHardCodesStoreAvailabilityAndIsolationIdentifiers() {
@@ -95,6 +126,19 @@ final class CommerceModelTests: XCTestCase {
         XCTAssertEqual(StoreCardLayout.aspectRatio, 1)
         XCTAssertGreaterThan(StoreCardLayout.footerMinimumSpacing, 0)
         XCTAssertNotEqual(StoreReactionPreviewStyle.peakScale, PixelCharacterPulseStyle.peakScale)
+    }
+
+    func testCosmeticGridFitsSixFiveAndFourColumnsAtResponsiveBodyWidths() {
+        func columnCount(_ width: CGFloat) -> Int {
+            Int((width + StoreCardLayout.spacing)
+                / (StoreCardLayout.minimumWidth + StoreCardLayout.spacing))
+        }
+
+        XCTAssertEqual(columnCount(760), 6)
+        XCTAssertEqual(columnCount(620), 5)
+        XCTAssertEqual(columnCount(500), 4)
+        XCTAssertEqual(StoreCardLayout.maximumWidth, 118)
+        XCTAssertEqual(StoreCardLayout.cornerRadius, 18)
     }
 
     func testPurchaseStateRequiresGoogleAndReflectsOwnershipAndRefund() {
@@ -200,6 +244,64 @@ final class CommerceModelTests: XCTestCase {
         XCTAssertEqual(model.selectedCharacterID, PixelCharacterCatalog.pixelHamsterID)
         XCTAssertEqual(model.pixelWorldMembers.first?.characterID, PixelCharacterCatalog.pixelHamsterID)
         XCTAssertEqual(model.selectableCharacters.map(\.id), PixelCharacterCatalog.free.map(\.id))
+    }
+
+    func testRevokedOrServerUnequippedCosmeticsImmediatelyFallBackToDefaults() {
+        let userID = UUID()
+        let model = AppModel(preferences: .defaults)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(
+                    id: userID,
+                    nickname: "꾸미기친구",
+                    characterID: PixelCharacterCatalog.pixelHamsterID,
+                    equippedBubbleStyleID: CommerceProduct.bunnyPinkBubble.catalogItemID,
+                    equippedThrowableID: CommerceProduct.toyCannon.catalogItemID
+                ),
+                rooms: [],
+                activeEntitlementKeys: [
+                    CommerceProduct.bunnyPinkBubble.entitlementKey,
+                    CommerceProduct.toyCannon.entitlementKey,
+                ]
+            ),
+            currentUserID: userID
+        )
+        XCTAssertEqual(model.equippedBubbleStyleID, "bubble_bunny_pink")
+        XCTAssertEqual(model.equippedThrowableID, "throwable_toy_cannon")
+
+        model.apply(commerceState: CommerceState(
+            product: .toyCannon,
+            googleConnected: true,
+            entitlementStatus: "refunded",
+            latestOrderStatus: "refunded",
+            isEquipped: false
+        ))
+        XCTAssertNil(model.equippedThrowableID)
+
+        model.apply(commerceStates: [
+            CommerceState(
+                product: .bunnyPinkBubble,
+                googleConnected: true,
+                entitlementStatus: "active",
+                latestOrderStatus: "approved",
+                isEquipped: false
+            ),
+            CommerceState(
+                product: .butterChickBubble,
+                googleConnected: true,
+                entitlementStatus: nil,
+                latestOrderStatus: nil,
+                isEquipped: false
+            ),
+            CommerceState(
+                product: .starryCatBubble,
+                googleConnected: true,
+                entitlementStatus: nil,
+                latestOrderStatus: nil,
+                isEquipped: false
+            ),
+        ])
+        XCTAssertNil(model.equippedBubbleStyleID)
     }
 
     private static func fixtureProduct(id: String, characterID: String) -> CommerceProduct {

@@ -494,7 +494,16 @@ final class PixelWorldScene: SKScene {
               let target = characterNodes[event.targetUserID]
         else { return }
 
-        let textures = PixelCharacterThrowTextureStore.shared.textures(for: event.sourceCharacterID)
+        let textures = PixelCharacterThrowTextureStore.shared.textures(
+            for: event.sourceCharacterID,
+            throwableID: event.throwableID
+        )
+        if textures.usesCannonEmitter {
+            actor.playCannonEmitter(
+                frames: textures.emitterFrames,
+                facingScale: emitterFacingScale(actor: actor.position, target: target.position)
+            )
+        }
         guard let first = textures.rotationFrames.first else { return }
         let projectileNode = SKSpriteNode(texture: first, size: CGSize(width: 32, height: 32))
         projectileNode.texture?.filteringMode = .nearest
@@ -543,7 +552,8 @@ final class PixelWorldScene: SKScene {
                 y: inverse * inverse * projectile.startPoint.y + 2 * inverse * progress * control.y + progress * progress * end.y
             )
             let textures = PixelCharacterThrowTextureStore.shared.textures(
-                for: projectile.event.sourceCharacterID
+                for: projectile.event.sourceCharacterID,
+                throwableID: projectile.event.throwableID
             ).rotationFrames
             let frame = Int(max(0, elapsed - PixelCharacterThrowStyle.releaseDelay) / PixelCharacterThrowStyle.rotationFrameInterval)
             projectile.node.texture = textures[frame % textures.count]
@@ -551,7 +561,11 @@ final class PixelWorldScene: SKScene {
                 survivors.append(projectile)
             } else {
                 projectile.node.removeFromParent()
-                playImpact(at: end, sourceCharacterID: projectile.event.sourceCharacterID)
+                playImpact(
+                    at: characterTorsoPoint(from: end),
+                    sourceCharacterID: projectile.event.sourceCharacterID,
+                    throwableID: projectile.event.throwableID
+                )
                 if let target = members[projectile.event.targetUserID] {
                     hitUntil[projectile.event.targetUserID] = currentTime + PixelCharacterThrowStyle.hitDuration
                     targetNode.playHit(sourceCharacterID: target.characterID)
@@ -561,8 +575,11 @@ final class PixelWorldScene: SKScene {
         projectiles = survivors
     }
 
-    private func playImpact(at point: CGPoint, sourceCharacterID: String) {
-        let frames = PixelCharacterThrowTextureStore.shared.textures(for: sourceCharacterID).impactFrames
+    private func playImpact(at point: CGPoint, sourceCharacterID: String, throwableID: String?) {
+        let frames = PixelCharacterThrowTextureStore.shared.textures(
+            for: sourceCharacterID,
+            throwableID: throwableID
+        ).impactFrames
         guard let first = frames.first else { return }
         let node = SKSpriteNode(
             texture: first,
@@ -578,6 +595,26 @@ final class PixelWorldScene: SKScene {
             .animate(with: frames, timePerFrame: PixelCharacterThrowStyle.impactDuration / Double(frames.count)),
             .removeFromParent()
         ]))
+    }
+
+    private func characterTorsoPoint(from center: CGPoint) -> CGPoint {
+        let offset = PixelCharacterThrowStyle.impactTorsoOffset
+        return switch edge {
+        case .bottom: CGPoint(x: center.x, y: center.y + offset)
+        case .top: CGPoint(x: center.x, y: center.y - offset)
+        case .left: CGPoint(x: center.x + offset, y: center.y)
+        case .right: CGPoint(x: center.x - offset, y: center.y)
+        }
+    }
+
+    private func emitterFacingScale(actor: CGPoint, target: CGPoint) -> CGFloat {
+        let tangentDelta: CGFloat = switch edge {
+        case .bottom: target.x - actor.x
+        case .top: actor.x - target.x
+        case .left: actor.y - target.y
+        case .right: target.y - actor.y
+        }
+        return tangentDelta < 0 ? -1 : 1
     }
 }
 
@@ -606,6 +643,7 @@ private final class PixelCharacterNode: SKNode {
     private static let animationKey = "pixel-character-motion"
     private static let pulseAnimationKey = "pixel-character-pulse"
     private static let dozeMotionKey = "pixel-character-doze-motion"
+    private static let cannonEmitterKey = "pixel-character-cannon-emitter"
     private let memberID: UUID
     private let presentation = SKNode()
     private let spritePulseAnchor = SKNode()
@@ -617,6 +655,7 @@ private final class PixelCharacterNode: SKNode {
     private let statusDot = SKShapeNode(circleOfRadius: PixelNameplateLayout.statusDotRadius)
     private let dozeEffect = SKNode()
     private let dozeLabel = SKLabelNode(fontNamed: "AppleSDGothicNeo-Bold")
+    private let foregroundEffectLayer = SKNode()
     private var messageBubbleNodes: [UUID: MessageBubbleNode] = [:]
     private var orderedMessageIDs: [UUID] = []
     private var messageBubbles: [ActiveBubble] = []
@@ -678,8 +717,10 @@ private final class PixelCharacterNode: SKNode {
         spritePulseAnchor.addChild(sprite)
         ambientSparkleLayer.zPosition = 8
         pulseSparkleLayer.zPosition = 9
+        foregroundEffectLayer.zPosition = PixelCharacterThrowStyle.cannonEmitterZPosition
         presentation.addChild(ambientSparkleLayer)
         presentation.addChild(pulseSparkleLayer)
+        presentation.addChild(foregroundEffectLayer)
 
         nameplateBackground.fillColor = PixelNameplateLayout.backgroundColor
         nameplateBackground.strokeColor = .clear
@@ -754,6 +795,7 @@ private final class PixelCharacterNode: SKNode {
         updateBubbles(
             bubbles: bubbles,
             isTyping: bubbles.isEmpty && member.isTyping,
+            typingBubbleStyleID: member.equippedBubbleStyleID,
             tangentPosition: tangentPosition,
             tangentLength: tangentLength,
             edge: edge
@@ -788,6 +830,33 @@ private final class PixelCharacterNode: SKNode {
             PixelCharacterThrowTextureStore.shared.textures(for: sourceCharacterID).hitFrames,
             duration: PixelCharacterThrowStyle.hitDuration
         )
+    }
+
+    func playCannonEmitter(frames: [SKTexture], facingScale: CGFloat) {
+        guard let first = frames.first else { return }
+        foregroundEffectLayer.removeAllActions()
+        foregroundEffectLayer.removeAllChildren()
+        let pointSize = PixelCharacterThrowStyle.cannonEmitterPointSize
+        let cannon = SKSpriteNode(texture: first, size: CGSize(width: pointSize, height: pointSize))
+        cannon.texture?.filteringMode = .nearest
+        cannon.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        cannon.position = CGPoint(
+            x: PixelCharacterThrowStyle.cannonEmitterTangentOffset * facingScale,
+            y: PixelCharacterThrowStyle.cannonEmitterNormalOffset
+        )
+        cannon.xScale = facingScale
+        foregroundEffectLayer.addChild(cannon)
+        foregroundEffectLayer.run(.sequence([
+            .wait(forDuration: 0.01),
+            .run {
+                cannon.run(.animate(
+                    with: frames,
+                    timePerFrame: PixelCharacterThrowStyle.throwDuration / Double(frames.count)
+                ))
+            },
+            .wait(forDuration: PixelCharacterThrowStyle.throwDuration),
+            .run { [weak self] in self?.foregroundEffectLayer.removeAllChildren() }
+        ]), withKey: Self.cannonEmitterKey)
     }
 
     private func playActionFrames(_ frames: [SKTexture], duration: TimeInterval) {
@@ -883,6 +952,7 @@ private final class PixelCharacterNode: SKNode {
     private func updateBubbles(
         bubbles: [ActiveBubble],
         isTyping: Bool,
+        typingBubbleStyleID: String?,
         tangentPosition: CGFloat,
         tangentLength: CGFloat,
         edge: OverlayEdge
@@ -906,10 +976,12 @@ private final class PixelCharacterNode: SKNode {
                 tangentLength: tangentLength,
                 edge: edge
             )
-            if let typingBubbleNode {
+            let requestedThemeID = PixelBubbleTheme.resolve(typingBubbleStyleID).id
+            if let typingBubbleNode, typingBubbleNode.theme.id == requestedThemeID {
                 typingBubbleNode.apply(layout: layout)
             } else {
-                let node = TypingIndicatorNode(layout: layout)
+                typingBubbleNode?.removeFromParent()
+                let node = TypingIndicatorNode(layout: layout, bubbleStyleID: typingBubbleStyleID)
                 presentation.addChild(node)
                 typingBubbleNode = node
             }
@@ -948,7 +1020,8 @@ private final class PixelCharacterNode: SKNode {
                 let node = MessageBubbleNode(
                     body: entry.bubble.body,
                     layout: entry.layout,
-                    includesTail: entry.includesTail
+                    includesTail: entry.includesTail,
+                    bubbleStyleID: entry.bubble.bubbleStyleID
                 )
                 presentation.addChild(node)
                 messageBubbleNodes[entry.bubble.messageID] = node
@@ -1128,6 +1201,46 @@ enum PixelBubbleStyle {
     static let borderColor = NSColor(srgbRed: 0.08, green: 0.09, blue: 0.12, alpha: 0.16)
 }
 
+struct PixelBubbleTheme {
+    let id: String?
+    let backgroundColor: NSColor
+    let textColor: NSColor
+    let decorationAssetName: String?
+
+    static func resolve(_ id: String?) -> Self {
+        switch id {
+        case "bubble_bunny_pink":
+            Self(
+                id: id,
+                backgroundColor: NSColor(srgbRed: 0xF7 / 255, green: 0xA9 / 255, blue: 0xB8 / 255, alpha: 0.96),
+                textColor: NSColor(srgbRed: 0x1C / 255, green: 0x1F / 255, blue: 0x29 / 255, alpha: 1),
+                decorationAssetName: id
+            )
+        case "bubble_butter_chick":
+            Self(
+                id: id,
+                backgroundColor: NSColor(srgbRed: 0xFF / 255, green: 0xE3 / 255, blue: 0x8A / 255, alpha: 0.96),
+                textColor: NSColor(srgbRed: 0x1C / 255, green: 0x1F / 255, blue: 0x29 / 255, alpha: 1),
+                decorationAssetName: id
+            )
+        case "bubble_starry_cat":
+            Self(
+                id: id,
+                backgroundColor: NSColor(srgbRed: 0x40 / 255, green: 0x3A / 255, blue: 0x78 / 255, alpha: 0.96),
+                textColor: NSColor(srgbRed: 0xFF / 255, green: 0xF7 / 255, blue: 0xE8 / 255, alpha: 1),
+                decorationAssetName: id
+            )
+        default:
+            Self(
+                id: nil,
+                backgroundColor: PixelBubbleStyle.backgroundColor,
+                textColor: PixelBubbleStyle.textColor,
+                decorationAssetName: nil
+            )
+        }
+    }
+}
+
 class PixelBubbleNode: SKNode {
     let body: String
     let isTyping: Bool
@@ -1135,30 +1248,52 @@ class PixelBubbleNode: SKNode {
     private(set) var bodyFrame: CGRect = .zero
     fileprivate let background = SKShapeNode()
     fileprivate let label = SKLabelNode(fontNamed: "AppleSDGothicNeo-Medium")
+    private let decoration: SKSpriteNode?
+    let theme: PixelBubbleTheme
     private var lastLayout: PixelBubbleLayout?
 
     init(
         body: String,
         isTyping: Bool,
         layout: PixelBubbleLayout,
-        includesTail: Bool = true
+        includesTail: Bool = true,
+        bubbleStyleID: String? = nil
     ) {
         self.body = body
         self.isTyping = isTyping
         self.includesTail = includesTail
+        self.theme = PixelBubbleTheme.resolve(bubbleStyleID)
+        if let assetName = theme.decorationAssetName,
+           let url = Bundle.main.url(
+               forResource: assetName,
+               withExtension: "png",
+               subdirectory: "Bubbles"
+           ),
+           let image = NSImage(contentsOf: url) {
+            let texture = SKTexture(image: image)
+            texture.filteringMode = .nearest
+            self.decoration = SKSpriteNode(texture: texture, size: CGSize(width: 16, height: 16))
+        } else {
+            self.decoration = nil
+        }
         super.init()
         zPosition = 20
-        background.fillColor = PixelBubbleStyle.backgroundColor
+        background.fillColor = theme.backgroundColor
         background.strokeColor = PixelBubbleStyle.borderColor
         background.lineWidth = 1
         addChild(background)
+        if let decoration {
+            decoration.zPosition = 1
+            addChild(decoration)
+        }
 
         label.text = body
         label.fontSize = isTyping ? 16 : 10.5
         // SpriteKit resolves dynamic AppKit colors against the scene's dark
         // appearance, not against this white bubble. Use an explicit ink color
         // so Korean text stays readable in both system appearances.
-        label.fontColor = PixelBubbleStyle.textColor
+        label.fontColor = theme.textColor
+        label.zPosition = 2
         label.numberOfLines = 0
         label.lineBreakMode = .byCharWrapping
         label.verticalAlignmentMode = .center
@@ -1199,12 +1334,19 @@ class PixelBubbleNode: SKNode {
             path.closeSubpath()
         }
         background.path = path
+        decoration?.position = CGPoint(x: rect.minX + 10, y: rect.maxY - 10)
     }
 }
 
 private final class MessageBubbleNode: PixelBubbleNode {
-    init(body: String, layout: PixelBubbleLayout, includesTail: Bool = true) {
-        super.init(body: body, isTyping: false, layout: layout, includesTail: includesTail)
+    init(body: String, layout: PixelBubbleLayout, includesTail: Bool = true, bubbleStyleID: String? = nil) {
+        super.init(
+            body: body,
+            isTyping: false,
+            layout: layout,
+            includesTail: includesTail,
+            bubbleStyleID: bubbleStyleID
+        )
         label.text = body
     }
 
@@ -1217,8 +1359,8 @@ final class TypingIndicatorNode: PixelBubbleNode {
     static let sequenceFrames = [".", "..", "..."]
     static let frameInterval: TimeInterval = 0.35
 
-    init(layout: PixelBubbleLayout) {
-        super.init(body: ".", isTyping: true, layout: layout)
+    init(layout: PixelBubbleLayout, bubbleStyleID: String? = nil) {
+        super.init(body: ".", isTyping: true, layout: layout, bubbleStyleID: bubbleStyleID)
         let sequence = SKAction.sequence([
             .run { [weak self] in self?.label.text = Self.sequenceFrames[0] }, .wait(forDuration: Self.frameInterval),
             .run { [weak self] in self?.label.text = Self.sequenceFrames[1] }, .wait(forDuration: Self.frameInterval),

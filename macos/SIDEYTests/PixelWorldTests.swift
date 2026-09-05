@@ -787,6 +787,58 @@ final class PixelWorldTests: XCTestCase {
         XCTAssertEqual(label.fontColor, PixelBubbleStyle.textColor)
     }
 
+    func testApprovedBubbleThemesApplyIndependentReadableTextColorsToMessagesAndTyping() throws {
+        let cases: [(String, NSColor, NSColor)] = [
+            (
+                "bubble_bunny_pink",
+                NSColor(srgbRed: 0xF7 / 255, green: 0xA9 / 255, blue: 0xB8 / 255, alpha: 0.96),
+                NSColor(srgbRed: 0x1C / 255, green: 0x1F / 255, blue: 0x29 / 255, alpha: 1)
+            ),
+            (
+                "bubble_butter_chick",
+                NSColor(srgbRed: 0xFF / 255, green: 0xE3 / 255, blue: 0x8A / 255, alpha: 0.96),
+                NSColor(srgbRed: 0x1C / 255, green: 0x1F / 255, blue: 0x29 / 255, alpha: 1)
+            ),
+            (
+                "bubble_starry_cat",
+                NSColor(srgbRed: 0x40 / 255, green: 0x3A / 255, blue: 0x78 / 255, alpha: 0.96),
+                NSColor(srgbRed: 0xFF / 255, green: 0xF7 / 255, blue: 0xE8 / 255, alpha: 1)
+            ),
+        ]
+        let layout = PixelBubbleLayout.make(
+            text: "오늘도 같이 있자!",
+            isTyping: false,
+            tangentPosition: 200,
+            tangentLength: 720,
+            edge: .bottom
+        )
+
+        for (styleID, background, text) in cases {
+            let message = PixelBubbleNode(
+                body: "오늘도 같이 있자!",
+                isTyping: false,
+                layout: layout,
+                bubbleStyleID: styleID
+            )
+            let messageLabel = try XCTUnwrap(message.children.compactMap { $0 as? SKLabelNode }.first)
+            XCTAssertEqual(message.theme.id, styleID)
+            XCTAssertEqual(message.theme.backgroundColor, background)
+            XCTAssertEqual(messageLabel.fontColor, text)
+            XCTAssertEqual(message.theme.decorationAssetName, styleID)
+
+            let typing = TypingIndicatorNode(layout: layout, bubbleStyleID: styleID)
+            let typingLabel = try XCTUnwrap(typing.children.compactMap { $0 as? SKLabelNode }.first)
+            XCTAssertEqual(typing.theme.id, styleID)
+            XCTAssertEqual(typingLabel.fontColor, text)
+        }
+
+        XCTAssertNil(PixelBubbleTheme.resolve("future_unknown_style").id)
+        XCTAssertEqual(
+            PixelBubbleTheme.resolve("future_unknown_style").backgroundColor,
+            PixelBubbleStyle.backgroundColor
+        )
+    }
+
     func testTypingDotsMessagePriorityAndTypingReturn() {
         XCTAssertEqual(TypingIndicatorNode.sequenceFrames, [".", "..", "..."])
         XCTAssertEqual(TypingIndicatorNode.frameInterval, 0.35, accuracy: 0.001)
@@ -927,11 +979,29 @@ final class PixelWorldTests: XCTestCase {
         XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_chinchilla"), "dust_bath_pouch")
         XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_starlight_upalupa"), "starlight_orb")
         XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "unknown"), "patch_soft_ball")
+        XCTAssertEqual(
+            PixelCharacterThrowCatalog.resolvedObjectID(
+                for: "pixel_cat",
+                equippedObjectID: "throwable_toy_cannon"
+            ),
+            "throwable_toy_cannon"
+        )
+        XCTAssertEqual(
+            PixelCharacterThrowCatalog.resolvedObjectID(
+                for: "pixel_cat",
+                equippedObjectID: "future_unknown_throwable"
+            ),
+            "patch_soft_ball"
+        )
         XCTAssertEqual(PixelCharacterThrowStyle.arcHeight(for: 10), 24)
         XCTAssertEqual(PixelCharacterThrowStyle.arcHeight(for: 1_000), 96)
         XCTAssertEqual(PixelCharacterThrowStyle.flightDuration(for: 0), 0.35, accuracy: 0.001)
         XCTAssertEqual(PixelCharacterThrowStyle.flightDuration(for: 2_000), 0.95, accuracy: 0.001)
         XCTAssertEqual(PixelCharacterThrowStyle.impactPointSize, 48)
+        XCTAssertEqual(PixelCharacterThrowStyle.impactTorsoOffset, 10)
+        XCTAssertEqual(PixelCharacterThrowStyle.cannonEmitterPointSize, 48)
+        XCTAssertGreaterThan(PixelCharacterThrowStyle.cannonEmitterZPosition, 0)
+        XCTAssertEqual(PixelCharacterThrowStyle.cannonEmitterTangentOffset, 6)
         XCTAssertEqual(PixelCharacterThrowStyle.maximumActiveProjectiles, 32)
     }
 
