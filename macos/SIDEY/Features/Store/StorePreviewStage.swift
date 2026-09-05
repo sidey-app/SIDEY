@@ -26,7 +26,7 @@ struct StorePreviewStage: View {
                 .accessibilityLabel("\(product.displayName) 미리보기")
                 .accessibilityHint(reduceMotion
                                    ? "동작 줄이기가 켜져 정지된 장면을 표시합니다."
-                                   : "캐릭터를 두 번 클릭하면 확대 반응을 볼 수 있습니다.")
+                                   : previewAccessibilityHint)
         }
         .frame(width: StorePreviewStageLayout.size.width, height: StorePreviewStageLayout.size.height)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
@@ -34,6 +34,13 @@ struct StorePreviewStage: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(Color.primary.opacity(0.09), lineWidth: 1)
         }
+    }
+
+    private var previewAccessibilityHint: String {
+        if product.kind == .character {
+            return "친구 캐릭터를 클릭하면 시그니처 투척물을 던지고, 캐릭터를 두 번 클릭하면 확대 반응을 볼 수 있습니다."
+        }
+        return "캐릭터를 두 번 클릭하면 확대 반응을 볼 수 있습니다."
     }
 }
 
@@ -85,6 +92,7 @@ private struct StorePreviewSceneView: NSViewRepresentable {
         let scene = PixelWorldScene(
             size: StorePreviewStageLayout.size,
             renderingConfiguration: .storePreview(
+                initialTrackFractions: scenario.initialTrackFractions,
                 fixedTrackFractions: scenario.fixedTrackFractions
             )
         )
@@ -188,6 +196,7 @@ final class StorePreviewPlaybackCoordinator {
             productID = scenario.productID
             StorePreviewSceneConfiguration.apply(scenario, to: scene)
         }
+        view.characterThrowInteraction = scenario.characterThrowInteraction
         view.isPaused = !isPlaying
         guard isPlaying else {
             cancelSequenceTasks()
@@ -268,6 +277,7 @@ final class StorePreviewPlaybackCoordinator {
         if detachingScene {
             view?.presentScene(nil)
             view?.isPaused = true
+            view?.characterThrowInteraction = nil
             view = nil
             scene = nil
             productID = nil
@@ -298,12 +308,33 @@ final class StorePreviewPlaybackCoordinator {
 }
 
 final class StorePreviewSKView: SKView {
+    var characterThrowInteraction: StorePreviewCharacterThrowInteraction?
+
+    @discardableResult
+    func playCharacterThrow(at scenePoint: CGPoint) -> Bool {
+        guard !isPaused,
+              let scene = scene as? PixelWorldScene,
+              let targetMemberID = scene.memberID(at: scenePoint),
+              let event = characterThrowInteraction?.event(targetMemberID: targetMemberID)
+        else { return false }
+        scene.playLocalPreviewThrow(event)
+        return true
+    }
+
     override func mouseDown(with event: NSEvent) {
-        guard event.clickCount == 2, !isPaused, let scene = scene as? PixelWorldScene else {
+        guard !isPaused, let scene = scene as? PixelWorldScene else {
             super.mouseDown(with: event)
             return
         }
         let viewPoint = convert(event.locationInWindow, from: nil)
-        _ = scene.playLocalPreviewPulse(at: scene.convertPoint(fromView: viewPoint))
+        let scenePoint = scene.convertPoint(fromView: viewPoint)
+        if event.clickCount == 2 {
+            _ = scene.playLocalPreviewPulse(at: scenePoint)
+            return
+        }
+        if event.clickCount == 1, playCharacterThrow(at: scenePoint) {
+            return
+        }
+        super.mouseDown(with: event)
     }
 }

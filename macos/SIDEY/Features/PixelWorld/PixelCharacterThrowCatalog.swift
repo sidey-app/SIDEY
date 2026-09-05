@@ -16,13 +16,46 @@ enum PixelCharacterThrowCatalog {
     ]
 
     static func objectID(for characterID: String) -> String {
+        signature(for: characterID).objectID
+    }
+
+    static func interactionDescription(for characterID: String) -> String {
+        signature(for: characterID).interactionDescription
+    }
+
+    private static func signature(for characterID: String) -> SignatureThrow {
         switch PixelCharacterCatalog.canonicalID(for: characterID) {
-        case PixelCharacterCatalog.pixelGuineaPigID: "mini_paprika"
-        case PixelCharacterCatalog.pixelMonkeyID: "banana"
-        case PixelCharacterCatalog.pixelChinchillaID: "dust_bath_pouch"
-        case PixelCharacterCatalog.pixelStarlightUpalupaID: "starlight_orb"
-        default: fallbackObjectID
+        case PixelCharacterCatalog.pixelGuineaPigID:
+            SignatureThrow(
+                objectID: "mini_paprika",
+                interactionDescription: "친구를 클릭하면 아껴 둔 미니 파프리카를 던져요."
+            )
+        case PixelCharacterCatalog.pixelMonkeyID:
+            SignatureThrow(
+                objectID: "banana",
+                interactionDescription: "친구를 클릭하면 잘 익은 바나나를 던져요."
+            )
+        case PixelCharacterCatalog.pixelChinchillaID:
+            SignatureThrow(
+                objectID: "dust_bath_pouch",
+                interactionDescription: "친구를 클릭하면 보송한 먼지목욕 모래주머니를 던져요."
+            )
+        case PixelCharacterCatalog.pixelStarlightUpalupaID:
+            SignatureThrow(
+                objectID: "starlight_orb",
+                interactionDescription: "친구를 클릭하면 반짝이는 별빛 구슬을 던져요."
+            )
+        default:
+            SignatureThrow(
+                objectID: fallbackObjectID,
+                interactionDescription: "친구를 클릭하면 패치 말랑공을 던져요."
+            )
         }
+    }
+
+    private struct SignatureThrow {
+        let objectID: String
+        let interactionDescription: String
     }
 
     static func supports(objectID: String?) -> Bool {

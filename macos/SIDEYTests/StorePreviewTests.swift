@@ -6,19 +6,54 @@ import XCTest
 
 @MainActor
 final class StorePreviewTests: XCTestCase {
-    func testCharacterScenariosUseTheProductCharacterAndOnlineMoka() {
+    func testCharacterScenariosAddAClickableFriendAndUseTheSignatureThrowable() throws {
         for product in CommerceCatalog.characterProducts {
             let scenario = StorePreviewScenario.make(product: product)
-            XCTAssertEqual(scenario.members.count, 1)
-            XCTAssertEqual(scenario.members[0].id, StorePreviewScenario.mokaID)
-            XCTAssertEqual(scenario.members[0].nickname, "모카")
-            XCTAssertEqual(scenario.members[0].characterID, product.characterID)
-            XCTAssertEqual(scenario.members[0].presence, .online)
-            XCTAssertFalse(scenario.members[0].isCurrentUser)
+            let characterID = try XCTUnwrap(product.characterID)
+            XCTAssertEqual(scenario.members.map(\.nickname), ["모카", "두부"])
+            XCTAssertEqual(scenario.members.map(\.characterID), [characterID, "pixel_cat"])
+            XCTAssertTrue(scenario.members.allSatisfy { $0.presence == .online })
             XCTAssertTrue(scenario.bubbles.isEmpty)
             XCTAssertTrue(scenario.fixedTrackFractions.isEmpty)
+            XCTAssertEqual(scenario.initialTrackFractions[StorePreviewScenario.mokaID], 0.22)
+            XCTAssertEqual(scenario.initialTrackFractions[StorePreviewScenario.dubuID], 0.78)
             XCTAssertNil(scenario.bubbleSequence)
             XCTAssertNil(scenario.throwSequence)
+
+            let interaction = try XCTUnwrap(scenario.characterThrowInteraction)
+            XCTAssertNil(interaction.event(targetMemberID: StorePreviewScenario.mokaID))
+            let event = try XCTUnwrap(
+                interaction.event(targetMemberID: StorePreviewScenario.dubuID)
+            )
+            XCTAssertEqual(event.actorUserID, StorePreviewScenario.mokaID)
+            XCTAssertEqual(event.targetUserID, StorePreviewScenario.dubuID)
+            XCTAssertEqual(event.sourceCharacterID, characterID)
+            XCTAssertEqual(
+                event.throwableID,
+                PixelCharacterThrowCatalog.objectID(for: characterID)
+            )
+
+            let scene = makeScene(for: product)
+            let view = StorePreviewSKView(
+                frame: CGRect(origin: .zero, size: StorePreviewStageLayout.size)
+            )
+            view.presentScene(scene)
+            let coordinator = StorePreviewPlaybackCoordinator()
+            coordinator.configure(
+                view: view,
+                scene: scene,
+                scenario: scenario,
+                isPlaying: true
+            )
+            let targetPosition = try XCTUnwrap(
+                scene.agentStates.first { $0.id == StorePreviewScenario.dubuID }?.trackPosition
+            )
+            XCTAssertTrue(
+                view.playCharacterThrow(at: scene.trackGeometry.point(for: targetPosition))
+            )
+            XCTAssertEqual(scene.renderedThrowCount(for: StorePreviewScenario.mokaID), 1)
+            XCTAssertEqual(scene.activeProjectileCount, 1)
+            coordinator.stop(detachingScene: true)
         }
     }
 
@@ -58,6 +93,7 @@ final class StorePreviewTests: XCTestCase {
             )
             XCTAssertEqual(PixelBubbleTheme.resolve(product.catalogItemID).id, product.catalogItemID)
             XCTAssertNil(scenario.throwSequence)
+            XCTAssertNil(scenario.characterThrowInteraction)
 
             let scene = makeScene(for: product)
             XCTAssertTrue(scene.renderedBubbleIsTyping(for: StorePreviewScenario.mokaID))
@@ -91,6 +127,7 @@ final class StorePreviewTests: XCTestCase {
             XCTAssertEqual(scenario.fixedTrackFractions[StorePreviewScenario.mokaID], 0.22)
             XCTAssertEqual(scenario.fixedTrackFractions[StorePreviewScenario.dubuID], 0.78)
             XCTAssertNil(scenario.bubbleSequence)
+            XCTAssertNil(scenario.characterThrowInteraction)
 
             let sequence = try XCTUnwrap(scenario.throwSequence)
             XCTAssertEqual(sequence.scheduledOffset(for: 0), 0.35, accuracy: 0.001)
@@ -282,21 +319,27 @@ final class StorePreviewTests: XCTestCase {
     }
 
     func testDetailSheetFitsItsContentWithoutForcedVerticalSpace() {
-        let state = CommerceProductState(
-            product: .bunnyPinkBubble,
-            purchaseState: .available,
-            isWorking: false
-        )
-        let hostingView = NSHostingView(rootView: StoreProductDetailSheet(
-            productState: state,
-            actions: .empty,
-            onClose: {}
-        ))
-        let fittingSize = hostingView.fittingSize
+        for product in CommerceCatalog.characterProducts + [.bunnyPinkBubble] {
+            let state = CommerceProductState(
+                product: product,
+                purchaseState: .available,
+                isWorking: false
+            )
+            let hostingView = NSHostingView(rootView: StoreProductDetailSheet(
+                productState: state,
+                actions: .empty,
+                onClose: {}
+            ))
+            let fittingSize = hostingView.fittingSize
 
-        XCTAssertEqual(fittingSize.width, 600, accuracy: 0.001)
-        XCTAssertGreaterThan(fittingSize.height, StorePreviewStageLayout.size.height)
-        XCTAssertLessThan(fittingSize.height, 500)
+            XCTAssertEqual(fittingSize.width, 600, accuracy: 0.001, product.id)
+            XCTAssertGreaterThan(
+                fittingSize.height,
+                StorePreviewStageLayout.size.height,
+                product.id
+            )
+            XCTAssertLessThan(fittingSize.height, 540, product.id)
+        }
     }
 
     func testStageRendersOneSpriteKitViewForProductsInLightAndDarkModes() throws {
@@ -436,6 +479,7 @@ final class StorePreviewTests: XCTestCase {
         let scene = PixelWorldScene(
             size: StorePreviewStageLayout.size,
             renderingConfiguration: .storePreview(
+                initialTrackFractions: scenario.initialTrackFractions,
                 fixedTrackFractions: scenario.fixedTrackFractions
             )
         )

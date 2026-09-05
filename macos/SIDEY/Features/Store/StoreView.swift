@@ -271,7 +271,7 @@ struct StoreProductDetailSheet: View {
         VStack(spacing: 10) {
             StorePreviewStage(product: productState.product)
             Text(productState.product.displayName).font(.title2.bold())
-            Text(productState.product.description)
+            Text(detailDescription)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
@@ -315,6 +315,13 @@ struct StoreProductDetailSheet: View {
         productState.purchaseState == .googleConnectionRequired
             ? "Google 계정 연결"
             : "\(productState.formattedPrice)에 구매"
+    }
+
+    private var detailDescription: String {
+        guard let characterID = productState.product.characterID else {
+            return productState.product.description
+        }
+        return "\(productState.product.description) \(PixelCharacterThrowCatalog.interactionDescription(for: characterID))"
     }
 }
 

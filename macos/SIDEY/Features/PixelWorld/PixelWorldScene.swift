@@ -73,20 +73,26 @@ enum PixelCharacterPulseStyle {
 
 struct PixelWorldRenderingConfiguration: Equatable, Sendable {
     let pulsePeakScale: CGFloat
+    let initialTrackFractions: [UUID: CGFloat]
     let fixedTrackFractions: [UUID: CGFloat]
     let minimumTrackInset: CGFloat
     let allowsLocalPreviewEvents: Bool
 
     static let live = Self(
         pulsePeakScale: PixelCharacterPulseStyle.peakScale,
+        initialTrackFractions: [:],
         fixedTrackFractions: [:],
         minimumTrackInset: EdgeTrackGeometry.hotspotPointSize / 2,
         allowsLocalPreviewEvents: false
     )
 
-    static func storePreview(fixedTrackFractions: [UUID: CGFloat]) -> Self {
+    static func storePreview(
+        initialTrackFractions: [UUID: CGFloat] = [:],
+        fixedTrackFractions: [UUID: CGFloat]
+    ) -> Self {
         Self(
             pulsePeakScale: 3,
+            initialTrackFractions: initialTrackFractions,
             fixedTrackFractions: fixedTrackFractions,
             minimumTrackInset: EdgeTrackGeometry.characterPointSize * 1.5,
             allowsLocalPreviewEvents: true
@@ -422,6 +428,14 @@ final class PixelWorldScene: SKScene {
         characterNodes[memberID]?.bubbleIsTyping ?? false
     }
 
+    func renderedNicknameWorldRotation(for memberID: UUID) -> CGFloat? {
+        characterNodes[memberID]?.nicknameWorldRotation
+    }
+
+    func renderedBubbleTextWorldRotations(for memberID: UUID) -> [CGFloat] {
+        characterNodes[memberID]?.bubbleTextWorldRotations ?? []
+    }
+
     func renderedVisualState(for memberID: UUID) -> PixelCharacterVisualState? {
         characterNodes[memberID]?.visualState
     }
@@ -481,7 +495,12 @@ final class PixelWorldScene: SKScene {
 
     @discardableResult
     func playLocalPreviewPulse(at point: CGPoint) -> Bool {
-        guard let memberID = characterNodes
+        guard let memberID = memberID(at: point) else { return false }
+        return playLocalPreviewPulse(memberID: memberID)
+    }
+
+    func memberID(at point: CGPoint) -> UUID? {
+        characterNodes
             .sorted(by: { $0.key.uuidString < $1.key.uuidString })
             .first(where: { _, node in
                 CGRect(
@@ -491,8 +510,6 @@ final class PixelWorldScene: SKScene {
                     height: EdgeTrackGeometry.hotspotPointSize
                 ).contains(point)
             })?.key
-        else { return false }
-        return playLocalPreviewPulse(memberID: memberID)
     }
 
     func playLocalPreviewThrow(_ event: CharacterThrowEvent) {
@@ -537,6 +554,9 @@ final class PixelWorldScene: SKScene {
 
     private func initialTrackPosition(roomID: UUID?, userID: UUID) -> CGFloat {
         if let fraction = renderingConfiguration.fixedTrackFractions[userID] {
+            return trackGeometry.clamped(trackGeometry.tangentLength * min(max(fraction, 0), 1))
+        }
+        if let fraction = renderingConfiguration.initialTrackFractions[userID] {
             return trackGeometry.clamped(trackGeometry.tangentLength * min(max(fraction, 0), 1))
         }
         return stableTrackPosition(roomID: roomID, userID: userID)
@@ -772,7 +792,7 @@ enum PixelNameplateLayout {
     static func statusDotPosition(nicknameFrame: CGRect) -> CGPoint {
         CGPoint(
             x: nicknameFrame.minX - spacing - statusDotRadius,
-            y: verticalPosition
+            y: nicknameFrame.midY
         )
     }
 
@@ -792,6 +812,7 @@ private final class PixelCharacterNode: SKNode {
     private let sprite = SKSpriteNode()
     private let ambientSparkleLayer = SKNode()
     private let pulseSparkleLayer = SKNode()
+    private let nameplateLayer = SKNode()
     private let nameplateBackground = SKShapeNode()
     private let nickname = SKLabelNode(fontNamed: "AppleSDGothicNeo-SemiBold")
     private let statusDot = SKShapeNode(circleOfRadius: PixelNameplateLayout.statusDotRadius)
@@ -832,6 +853,16 @@ private final class PixelCharacterNode: SKNode {
         orderedMessageIDs.compactMap { messageBubbleNodes[$0]?.bodyFrame }
     }
     var bubbleIsTyping: Bool { typingBubbleNode != nil }
+    var nicknameWorldRotation: CGFloat {
+        presentation.zRotation + nameplateLayer.zRotation
+    }
+    var bubbleTextWorldRotations: [CGFloat] {
+        let messageRotations = orderedMessageIDs.compactMap {
+            messageBubbleNodes[$0]?.textCounterRotation
+        }
+        let typingRotation = typingBubbleNode.map { [$0.textCounterRotation] } ?? []
+        return (messageRotations + typingRotation).map { presentation.zRotation + $0 }
+    }
     var dozeText: String? { dozeLabel.text }
     var hasDozeActions: Bool {
         dozeEffect.action(forKey: Self.dozeMotionKey) != nil
@@ -870,24 +901,26 @@ private final class PixelCharacterNode: SKNode {
         presentation.addChild(ambientSparkleLayer)
         presentation.addChild(pulseSparkleLayer)
         presentation.addChild(foregroundEffectLayer)
+        nameplateLayer.position = CGPoint(x: 0, y: PixelNameplateLayout.verticalPosition)
+        presentation.addChild(nameplateLayer)
 
         nameplateBackground.fillColor = PixelNameplateLayout.backgroundColor
         nameplateBackground.strokeColor = .clear
         nameplateBackground.zPosition = 11
-        presentation.addChild(nameplateBackground)
+        nameplateLayer.addChild(nameplateBackground)
 
         nickname.fontSize = 11
         nickname.fontColor = .white
         nickname.verticalAlignmentMode = .center
         nickname.horizontalAlignmentMode = .center
-        nickname.position = CGPoint(x: 0, y: PixelNameplateLayout.verticalPosition)
+        nickname.position = .zero
         nickname.zPosition = 12
-        presentation.addChild(nickname)
+        nameplateLayer.addChild(nickname)
 
         statusDot.strokeColor = .clear
         statusDot.position = PixelNameplateLayout.statusDotPosition(nicknameFrame: nickname.frame)
         statusDot.zPosition = 12
-        presentation.addChild(statusDot)
+        nameplateLayer.addChild(statusDot)
 
         dozeEffect.position = CGPoint(x: 26, y: 20)
         dozeEffect.zPosition = 14
@@ -930,6 +963,8 @@ private final class PixelCharacterNode: SKNode {
             stopAmbientSparkles()
         }
         presentation.zRotation = edge.presentationRotation
+        nameplateLayer.zRotation = edge.readableContentCounterRotation
+        dozeEffect.zRotation = edge.readableContentCounterRotation
         nickname.text = member.isCurrentUser ? "\(member.nickname) · 나" : member.nickname
         let backgroundFrame = PixelNameplateLayout.backgroundFrame(nicknameFrame: nickname.frame)
         let backgroundPath = CGMutablePath()
@@ -1092,6 +1127,7 @@ private final class PixelCharacterNode: SKNode {
                     ? PixelBubbleStyle.decorationLeadingOverflow
                     : 0
             ))
+            typingBubbleNode.applyReadableContentRotation(for: edge)
             return
         }
 
@@ -1136,9 +1172,11 @@ private final class PixelCharacterNode: SKNode {
             let requestedThemeID = requestedTheme.id
             if let typingBubbleNode, typingBubbleNode.theme.id == requestedThemeID {
                 typingBubbleNode.apply(layout: layout)
+                typingBubbleNode.applyReadableContentRotation(for: edge)
             } else {
                 typingBubbleNode?.removeFromParent()
                 let node = TypingIndicatorNode(layout: layout, bubbleStyleID: typingBubbleStyleID)
+                node.applyReadableContentRotation(for: edge)
                 presentation.addChild(node)
                 typingBubbleNode = node
             }
@@ -1173,6 +1211,7 @@ private final class PixelCharacterNode: SKNode {
         for entry in entries {
             if let node = messageBubbleNodes[entry.bubble.messageID] {
                 node.apply(layout: entry.layout, includesTail: entry.includesTail)
+                node.applyReadableContentRotation(for: edge)
             } else {
                 let node = MessageBubbleNode(
                     body: entry.bubble.body,
@@ -1180,6 +1219,7 @@ private final class PixelCharacterNode: SKNode {
                     includesTail: entry.includesTail,
                     bubbleStyleID: entry.bubble.bubbleStyleID
                 )
+                node.applyReadableContentRotation(for: edge)
                 presentation.addChild(node)
                 messageBubbleNodes[entry.bubble.messageID] = node
             }
@@ -1471,6 +1511,11 @@ class PixelBubbleNode: SKNode {
 
     var hasDecoration: Bool { decoration != nil }
     var decorationFrame: CGRect? { decoration?.frame }
+    var textCounterRotation: CGFloat { label.zRotation }
+
+    func applyReadableContentRotation(for edge: OverlayEdge) {
+        label.zRotation = edge.readableContentCounterRotation
+    }
 
     func apply(layout: PixelBubbleLayout) {
         apply(layout: layout, includesTail: includesTail)

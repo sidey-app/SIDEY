@@ -71,6 +71,12 @@ enum OverlayEdge: String, Codable, CaseIterable, Identifiable, Sendable {
         case .top: .pi
         }
     }
+
+    /// The top-edge world rotates characters by 180 degrees so their feet
+    /// meet the screen edge. Counter-rotate readable UI at its own anchor.
+    var readableContentCounterRotation: CGFloat {
+        self == .top ? -presentationRotation : 0
+    }
 }
 
 enum OverlaySpan: String, Codable, CaseIterable, Identifiable, Sendable {

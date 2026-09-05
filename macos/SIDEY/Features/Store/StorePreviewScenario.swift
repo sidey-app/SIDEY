@@ -7,20 +7,34 @@ struct StorePreviewScenario: Equatable, Sendable {
     let productID: String
     let members: [PixelWorldMember]
     let bubbles: [ActiveBubble]
+    let initialTrackFractions: [UUID: CGFloat]
     let fixedTrackFractions: [UUID: CGFloat]
     let bubbleSequence: StorePreviewBubbleSequence?
     let throwSequence: StorePreviewThrowSequence?
+    let characterThrowInteraction: StorePreviewCharacterThrowInteraction?
 
     static func make(product: CommerceProduct) -> Self {
         switch product.kind {
         case .character:
+            let characterID = product.characterID ?? PixelCharacterCatalog.pixelHamsterID
             return Self(
                 productID: product.id,
-                members: [moka(characterID: product.characterID ?? PixelCharacterCatalog.pixelHamsterID)],
+                members: [
+                    moka(characterID: characterID),
+                    dubu(characterID: "pixel_cat")
+                ],
                 bubbles: [],
+                initialTrackFractions: [mokaID: 0.22, dubuID: 0.78],
                 fixedTrackFractions: [:],
                 bubbleSequence: nil,
-                throwSequence: nil
+                throwSequence: nil,
+                characterThrowInteraction: StorePreviewCharacterThrowInteraction(
+                    roomID: roomID,
+                    actorMemberID: mokaID,
+                    targetMemberID: dubuID,
+                    sourceCharacterID: characterID,
+                    throwableID: PixelCharacterThrowCatalog.objectID(for: characterID)
+                )
             )
         case .bubble:
             let sequence = StorePreviewBubbleSequence(
@@ -35,9 +49,11 @@ struct StorePreviewScenario: Equatable, Sendable {
                     dubu(characterID: "pixel_cat")
                 ],
                 bubbles: [],
+                initialTrackFractions: [mokaID: 0.28, dubuID: 0.72],
                 fixedTrackFractions: [:],
                 bubbleSequence: sequence,
-                throwSequence: nil
+                throwSequence: nil,
+                characterThrowInteraction: nil
             )
         case .throwable:
             let members = [
@@ -48,6 +64,7 @@ struct StorePreviewScenario: Equatable, Sendable {
                 productID: product.id,
                 members: members,
                 bubbles: [],
+                initialTrackFractions: [:],
                 fixedTrackFractions: [mokaID: 0.22, dubuID: 0.78],
                 bubbleSequence: nil,
                 throwSequence: StorePreviewThrowSequence(
@@ -55,7 +72,8 @@ struct StorePreviewScenario: Equatable, Sendable {
                     leftMemberID: mokaID,
                     rightMemberID: dubuID,
                     throwableID: product.catalogItemID
-                )
+                ),
+                characterThrowInteraction: nil
             )
         }
     }
@@ -79,6 +97,26 @@ struct StorePreviewScenario: Equatable, Sendable {
             presence: .online,
             isTyping: false,
             isCurrentUser: false
+        )
+    }
+}
+
+struct StorePreviewCharacterThrowInteraction: Equatable, Sendable {
+    let roomID: UUID
+    let actorMemberID: UUID
+    let targetMemberID: UUID
+    let sourceCharacterID: String
+    let throwableID: String
+
+    func event(targetMemberID: UUID, id: UUID = UUID()) -> CharacterThrowEvent? {
+        guard targetMemberID == self.targetMemberID else { return nil }
+        return CharacterThrowEvent(
+            id: id,
+            roomID: roomID,
+            actorUserID: actorMemberID,
+            targetUserID: targetMemberID,
+            sourceCharacterID: sourceCharacterID,
+            throwableID: throwableID
         )
     }
 }

@@ -980,6 +980,22 @@ final class PixelWorldTests: XCTestCase {
         XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_starlight_upalupa"), "starlight_orb")
         XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "unknown"), "patch_soft_ball")
         XCTAssertEqual(
+            PixelCharacterThrowCatalog.interactionDescription(for: "pixel_guinea_pig"),
+            "친구를 클릭하면 아껴 둔 미니 파프리카를 던져요."
+        )
+        XCTAssertTrue(
+            PixelCharacterThrowCatalog.interactionDescription(for: "pixel_monkey")
+                .contains("바나나")
+        )
+        XCTAssertTrue(
+            PixelCharacterThrowCatalog.interactionDescription(for: "pixel_chinchilla")
+                .contains("먼지목욕 모래주머니")
+        )
+        XCTAssertTrue(
+            PixelCharacterThrowCatalog.interactionDescription(for: "pixel_starlight_upalupa")
+                .contains("별빛 구슬")
+        )
+        XCTAssertEqual(
             PixelCharacterThrowCatalog.resolvedObjectID(
                 for: "pixel_cat",
                 equippedObjectID: "throwable_toy_cannon"
@@ -1003,6 +1019,61 @@ final class PixelWorldTests: XCTestCase {
         XCTAssertGreaterThan(PixelCharacterThrowStyle.cannonEmitterZPosition, 0)
         XCTAssertEqual(PixelCharacterThrowStyle.cannonEmitterTangentOffset, 6)
         XCTAssertEqual(PixelCharacterThrowStyle.maximumActiveProjectiles, 32)
+    }
+
+    func testTopEdgeKeepsNicknameAndBubbleTextUpright() throws {
+        let member = makeMember()
+        let bubble = ActiveBubble(
+            senderID: member.id,
+            messageID: UUID(),
+            body: "똑바로 보여요",
+            expiresAt: .distantFuture
+        )
+        let scene = PixelWorldScene(size: CGSize(width: 720, height: 360))
+
+        for edge in OverlayEdge.allCases {
+            scene.apply(
+                roomID: UUID(),
+                members: [member],
+                bubbles: [bubble],
+                edge: edge,
+                installationSeed: 1
+            )
+            let expectedRotation = edge.presentationRotation + edge.readableContentCounterRotation
+            XCTAssertEqual(
+                try XCTUnwrap(scene.renderedNicknameWorldRotation(for: member.id)),
+                expectedRotation,
+                accuracy: 0.001,
+                "\(edge)"
+            )
+            XCTAssertEqual(
+                try XCTUnwrap(scene.renderedBubbleTextWorldRotations(for: member.id).first),
+                expectedRotation,
+                accuracy: 0.001,
+                "\(edge)"
+            )
+        }
+
+        let typingMember = PixelWorldMember(
+            id: member.id,
+            nickname: member.nickname,
+            characterID: member.characterID,
+            presence: .typing,
+            isTyping: true,
+            isCurrentUser: false
+        )
+        scene.apply(
+            roomID: UUID(),
+            members: [typingMember],
+            bubbles: [],
+            edge: .top,
+            installationSeed: 1
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(scene.renderedBubbleTextWorldRotations(for: member.id).first),
+            0,
+            accuracy: 0.001
+        )
     }
 
     func testCharacterFramesCallbackReportsEveryMemberAs52Points() {
