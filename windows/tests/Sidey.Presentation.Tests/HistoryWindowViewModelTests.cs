@@ -13,7 +13,7 @@ public sealed class HistoryWindowViewModelTests
     {
         Guid roomId = Guid.NewGuid();
         Guid userId = Guid.NewGuid();
-        DateTimeOffset newerTime = DateTimeOffset.UtcNow.AddMinutes(-1);
+        DateTimeOffset newerTime = new(2026, 9, 2, 1, 20, 0, TimeSpan.Zero);
         var room = new Room(
             roomId,
             "테스트",

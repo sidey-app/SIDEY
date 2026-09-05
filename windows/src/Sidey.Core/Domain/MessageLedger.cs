@@ -18,7 +18,7 @@ public sealed record MessageLedgerEntry(
 public sealed class MessageLedger
 {
     public const int MaximumConfirmedPerRoom = 50;
-    public static readonly TimeSpan ConfirmedRetention = TimeSpan.FromDays(3);
+    public static readonly TimeSpan ConfirmedRetention = TimeSpan.FromDays(7);
 
     private readonly List<MessageLedgerEntry> _entries = [];
 
@@ -47,7 +47,7 @@ public sealed class MessageLedger
             MessageDeliveryState.Pending));
     }
 
-    public bool Confirm(ChatMessage message, DateTimeOffset? now = null)
+    public bool Confirm(ChatMessage message)
     {
         var index = _entries.FindIndex(entry => entry.Id == message.Id);
         var wasKnown = index >= 0;
@@ -69,7 +69,7 @@ public sealed class MessageLedger
         }
 
         SortEntries();
-        PruneConfirmed(now);
+        PruneConfirmed();
         return !wasKnown;
     }
 

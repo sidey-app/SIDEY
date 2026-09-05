@@ -97,16 +97,16 @@ test("Windows production release is derived from the central release manifest", 
   assert.equal(manifest.schema, 1);
   assert.equal(manifest.platform, "windows");
   assert.equal(manifest.channel, "production");
-  assert.equal(manifest.version, "1.0.7");
+  assert.equal(manifest.version, "1.0.6");
   for (const page of [korean, english]) {
     assert.ok(page.includes('id="windows-hero-download-action"'));
     assert.ok(page.includes('id="windows-download-action"'));
-    assert.ok(page.includes("v1.0.7"));
+    assert.ok(page.includes("v1.0.6"));
     assert.ok(page.includes("Setup EXE"));
     assert.ok(!page.includes("SmartScreen"));
   }
-  assert.ok(korean.includes("생성 후 3일 동안"));
-  assert.ok(english.includes("three days after creation"));
+  assert.ok(korean.includes("새로운 Setup EXE"));
+  assert.ok(english.includes("a new Setup EXE"));
 });
 
 test("store renders a stable four-product catalog without duplicated footer details", async () => {

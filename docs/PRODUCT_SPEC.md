@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.8
 - 최종 갱신: 2026-09-05
-- 상태: macOS `v1.0.10`(build 21) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.0.7` 정식 출시
+- 상태: macOS `v1.0.10`(build 21) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.0.6` 정식 출시
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
 
@@ -64,7 +64,7 @@
 - 공식 주소는 GitHub 프로젝트 Pages `https://sidey-app.github.io/SIDEY/`다. 루트는 한국어, `/en/`은 영어이며 각 페이지에서 언어를 전환할 수 있다.
 - `website/`의 정적 HTML·CSS·최소 JavaScript만 배포한다. 랜딩과 정책 페이지는 제품 소개와 다운로드·상점 안내를 담당하며 로그인·그룹·메시지 기능을 제공하는 웹 클라이언트가 아니다.
 - macOS 기본 CTA는 `release/macos.json`의 현재 공개 버전에 해당하는 고정 공증 DMG를 직접 가리키고 `brew install --cask sidey-app/tap/sidey`를 함께 제공한다. Pages는 그 버전의 정식 Release에 DMG와 Sparkle ZIP이 모두 있을 때만 사이트를 교체한다.
-- Windows 기본 CTA는 현재 정식 v1.0.7의 고정 Setup EXE를 직접 가리킨다. 저장소의 다운로드 버튼은 Release 검증 전까지 비활성 상태로 두고, Pages Actions가 버전에 맞는 정식 Release의 단일 Windows 설치 자산을 확인한 배포 아티팩트에서만 링크로 활성화한다.
+- Windows 기본 CTA는 현재 정식 v1.0.6의 고정 Setup EXE를 직접 가리킨다. 저장소의 다운로드 버튼은 Release 검증 전까지 비활성 상태로 두고, Pages Actions가 버전에 맞는 정식 Release의 단일 Windows 설치 자산을 확인한 배포 아티팩트에서만 링크로 활성화한다.
 - Windows 업데이트 채널은 macOS Release와 분리된 `windows-v<version>` 태그와 `release/windows.json`을 원본으로 사용한다. Pages Actions가 정식 Release의 단일 Setup EXE를 다시 내려받아 계산한 64자리 SHA-256과 파생 태그·고정 URL을 배포 artifact의 `windows-latest.json`과 호환 경로 `windows/update.json`에 기록한다. 생성된 두 파일은 저장소에서 별도 원본으로 관리하지 않는다. Release가 없거나 draft·pre-release이거나 예상 설치 파일 외 자산이 있으면 기존 Pages를 교체하지 않는다.
 - 첫 화면에서 플랫폼·아키텍처·정식 배포 상태를 밝히고, 개인정보 수집 경계, E2EE 미지원, 보안 화면·DRM·권한 상승 앱·모든 독점 전체화면 위 표시를 보장하지 않는다는 제한을 숨기지 않는다.
 - `/contribute/asset-previewer/`는 랜딩 내비게이션에 넣지 않는 공개 컨트리뷰터 도구다. 공식 햄스터 세트를 기본으로 불러오고 사용자가 넣은 `base.png`·`throw_hit.png`·`sprite.png`의 형식과 동작을 현재 탭에서만 검증한다. 파일은 서버로 보내거나 저장하지 않으며 외부 이미지 URL이나 사용자 JavaScript를 받지 않는다. 녹화는 프리뷰 Canvas의 30 FPS stream만 최대 30초 무음으로 저장하고 카메라·마이크·화면 녹화 권한을 요청하지 않는다.
