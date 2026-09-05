@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.8
 - 최종 갱신: 2026-09-05
-- 상태: macOS `v1.0.9`(build 20) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.0.6` 정식 출시
+- 상태: macOS `v1.0.10`(build 21) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.0.7` 정식 출시
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
 
@@ -64,7 +64,7 @@
 - 공식 주소는 GitHub 프로젝트 Pages `https://sidey-app.github.io/SIDEY/`다. 루트는 한국어, `/en/`은 영어이며 각 페이지에서 언어를 전환할 수 있다.
 - `website/`의 정적 HTML·CSS·최소 JavaScript만 배포한다. 랜딩과 정책 페이지는 제품 소개와 다운로드·상점 안내를 담당하며 로그인·그룹·메시지 기능을 제공하는 웹 클라이언트가 아니다.
 - macOS 기본 CTA는 `release/macos.json`의 현재 공개 버전에 해당하는 고정 공증 DMG를 직접 가리키고 `brew install --cask sidey-app/tap/sidey`를 함께 제공한다. Pages는 그 버전의 정식 Release에 DMG와 Sparkle ZIP이 모두 있을 때만 사이트를 교체한다.
-- Windows 기본 CTA는 현재 정식 v1.0.6의 고정 Setup EXE를 직접 가리킨다. 저장소의 다운로드 버튼은 Release 검증 전까지 비활성 상태로 두고, Pages Actions가 버전에 맞는 정식 Release의 단일 Windows 설치 자산을 확인한 배포 아티팩트에서만 링크로 활성화한다.
+- Windows 기본 CTA는 현재 정식 v1.0.7의 고정 Setup EXE를 직접 가리킨다. 저장소의 다운로드 버튼은 Release 검증 전까지 비활성 상태로 두고, Pages Actions가 버전에 맞는 정식 Release의 단일 Windows 설치 자산을 확인한 배포 아티팩트에서만 링크로 활성화한다.
 - Windows 업데이트 채널은 macOS Release와 분리된 `windows-v<version>` 태그와 `release/windows.json`을 원본으로 사용한다. Pages Actions가 정식 Release의 단일 Setup EXE를 다시 내려받아 계산한 64자리 SHA-256과 파생 태그·고정 URL을 배포 artifact의 `windows-latest.json`과 호환 경로 `windows/update.json`에 기록한다. 생성된 두 파일은 저장소에서 별도 원본으로 관리하지 않는다. Release가 없거나 draft·pre-release이거나 예상 설치 파일 외 자산이 있으면 기존 Pages를 교체하지 않는다.
 - 첫 화면에서 플랫폼·아키텍처·정식 배포 상태를 밝히고, 개인정보 수집 경계, E2EE 미지원, 보안 화면·DRM·권한 상승 앱·모든 독점 전체화면 위 표시를 보장하지 않는다는 제한을 숨기지 않는다.
 - `/contribute/asset-previewer/`는 랜딩 내비게이션에 넣지 않는 공개 컨트리뷰터 도구다. 공식 햄스터 세트를 기본으로 불러오고 사용자가 넣은 `base.png`·`throw_hit.png`·`sprite.png`의 형식과 동작을 현재 탭에서만 검증한다. 파일은 서버로 보내거나 저장하지 않으며 외부 이미지 URL이나 사용자 JavaScript를 받지 않는다. 녹화는 프리뷰 Canvas의 30 FPS stream만 최대 30초 무음으로 저장하고 카메라·마이크·화면 녹화 권한을 요청하지 않는다.
@@ -317,7 +317,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 말풍선·투척물 선택은 캐릭터·닉네임 저장 버튼과 분리된 즉시 적용 action이다. `nil` 선택은 종류별 기본값 복귀, 상품 ID 선택은 해당 상품 장착이며 같은 종류의 요청은 완료 전 중복 실행하지 않는다. 요청한 타일에만 진행 상태를 표시하고, 성공한 서버 프로필 응답만 반영하며 실패 시 기존 선택을 유지하고 오류 배너를 표시한다.
 - profile snapshot의 활성 entitlement만 보유 판정에 사용하며 결제 화면의 상품 상태를 보유 근거로 사용하지 않는다. production direct판은 상점 조회·구매를 계속 막지만 보유 상품 장착 RPC는 허용하고 서버가 소유권을 다시 검증한다. App Store판은 기존 캐릭터 선택만 유지하며 말풍선·투척물 프로필 영역을 만들지 않는다.
 - 설정과 메뉴바의 `꾸미기·상점`은 같은 화면을 열고 상단에 `캐릭터 / 말풍선 / 투척물` 탭을 둔다. 캐릭터 선택 위치와 저장 흐름은 기존 프로필 화면에 유지한다.
-- macOS direct판 상점은 상품 종류 오른쪽의 `정렬 및 필터` 메뉴에서 기본순·가격 낮은순·가격 높은순과 `보유 중 숨기`를 제공한다. 가격 동률은 catalog `sort_order`, 상품 ID 순으로 정렬하고 snapshot 활성 entitlement 또는 현재 장착 상태를 보유로 판단한다. 결과가 없으면 빈 상태를 표시하며 필터 상태는 앱 재실행까지 저장하지 않는다. App Store판과 Windows 상점에는 이 메뉴를 추가하지 않는다.
+- macOS direct판 상점은 상품 종류 오른쪽의 `정렬 및 필터` 메뉴에서 기본순·가격 낮은순·가격 높은순과 `보유 중 숨기기`를 제공한다. 가격 동률은 catalog `sort_order`, 상품 ID 순으로 정렬하고 snapshot 활성 entitlement 또는 현재 장착 상태를 보유로 판단한다. 결과가 없으면 빈 상태를 표시하며 필터 상태는 앱 재실행까지 저장하지 않는다. App Store판과 Windows 상점에는 이 메뉴를 추가하지 않는다.
 - 760pt 본문에서는 약 108~118pt 타일을 10pt 간격·18pt radius의 6열 `LazyVGrid`로 배치하고 좁아지면 5열·4열로 전환한다. 타일에는 큰 이미지, 한 줄 이름, 가격 또는 `보유 중`·`사용 중` 상태만 표시하고 설명과 인라인 구매 버튼은 두지 않는다.
 - 타일을 누르면 큰 미리보기와 구매 button 하나를 제공하는 상세 sheet를 연다. 가격은 구매 button에서 한 번만 표시하고 별도 가격 text를 반복하지 않는다. 보유 상품은 같은 button을 비활성 `보유 중` 상태로 표시한다. 상품별 로딩·오류는 다른 타일의 상태를 막지 않으며 키보드 탐색, 명확한 focus ring, VoiceOver 이름·가격·소유 상태와 action 레이블을 제공한다.
 - `StoreAvailability`는 번들 배포 채널에서 결정한다. production은 `.comingSoon`, development는 `.enabled`이며 런타임 설정이나 원격 응답으로 production 잠금을 풀 수 없다.
@@ -525,7 +525,7 @@ App Store판은 Apple subject와 사용자가 공유한 경우의 relay email, S
 - 업데이트: production 채널에 Sparkle `2.9.6` 프레임워크·메뉴 항목·피드 URL·EdDSA 공개키가 번들에 포함되고 signed feed와 압축 해제 전 검증을 강제하며, 업데이트 진행 중에는 수동 확인 메뉴를 비활성화. development 채널은 Sparkle을 시작하지 않고 수동 확인 메뉴도 항상 비활성화
 - 에셋: manifest에 등록된 모든 캐릭터·말풍선·투척물의 동적 개수, 16×16 말풍선 장식, 128×48 글자 포함 preview, 192×16 일반 투척물 12프레임, 96×24 대포 emitter 4프레임, hard alpha·sRGB·결정적 SHA-256·nearest-neighbor 선명도와 항목별 지원 플랫폼 mirror를 검사한다. 신규 꾸미기에 Windows mirror가 없어야 한다.
 - 던지기 렌더링: 캐릭터 throw/hit과 투척물 sprite 선택 분리, 기본 시그니처 fallback, 신규 일반 투척물, 대포의 전경 몸통 emitter·심지탄·피격자 몸통 폭발, 4개 화면 가장자리, 이동 목표 추적, 다중 피격 재시작, 대상 상태 전환, 방 전환 중 stale 이벤트를 검증한다. 12명이 0.5초마다 던지는 초당 24개 부하에서 활성 투사체 32개 이하, p95 frame time 40ms 이하, 100ms 이상 UI hang과 지속 메모리·handle 증가가 없어야 한다.
-- 설정: schema 7 이하에서 `requiresRightClickToThrow=false` migration과 저장·복원·즉시 ON/OFF 전환, 860×640 최소 크기와 1000×760 안팎 권장 크기의 라이트·다크 렌더, 960 DIP 경계의 210→48 DIP 자동 탐색 전환과 최소 폭 아이콘 레일 유지, 연결 점·문구의 시각적 중앙 정렬과 pane 닫기 시작/열기 완료 경계에서 문구를 숨기고 복원해 전환 중 잘린 문구·중복 점이 없음, 상단바의 뒤로가기·탐색 열기와 방문 이력, native 최소 tracking size에서 반복 resize·깜빡임 없음, 옅은 카드 명도, 240pt 컨트롤 영역과 Picker·버튼·토글 오른쪽 정렬, `동작 정보` 제거, 두 사람 그룹 아이콘, 그룹 현재 사용자 표식의 accent 글자·12% 배경, 활성·비활성 그룹별 나가기 확인과 방장 영향 안내·mutation 중 비활성화, 접힘 콘텐츠만 clipping한 애니메이션, 한글 IME 조합 확정·닉네임 dirty 판정·snapshot 중 draft 보존, 캐릭터 자동 적용의 성공·실패·중복 요청, 성공 배너 3초 종료와 타이머 갱신. direct판 프로필은 활성 entitlement가 있는 말풍선·투척물 종류만 기본값과 보유 상품을 4열로 표시하고 전체 스크롤, 정적 nearest-neighbor 미리보기, 선택·focus·VoiceOver·진행 상태를 제공하며 App Store판에는 이 영역이 없어야 한다.
+- 설정: schema 7 이하에서 `requiresRightClickToThrow=false` migration과 저장·복원·즉시 ON/OFF 전환, 860×640 최소 크기와 1000×760 안팎 권장 크기의 라이트·다크 렌더, 960 DIP 경계의 210→48 DIP 자동 탐색 전환과 최소 폭 아이콘 레일 유지, 연결 점·문구의 시각적 중앙 정렬과 pane 닫기 시작/열기 완료 경계에서 문구를 숨기고 복원해 전환 중 잘린 문구·중복 점이 없음, 상단바의 뒤로가기·탐색 열기와 방문 이력, native 최소 tracking size에서 반복 resize·깜빡임 없음, 옅은 카드 명도, 240pt 컨트롤 영역과 Picker·버튼·토글 오른쪽 정렬, `동작 정보` 제거, 두 사람 그룹 아이콘, 그룹 현재 사용자 표식의 accent 글자·12% 배경, 활성·비활성 그룹별 나가기 확인과 방장 영향 안내·mutation 중 비활성화, 접힘 콘텐츠만 clipping한 애니메이션, 한글 IME 조합 확정·닉네임 dirty 판정·snapshot 중 draft 보존, 캐릭터 자동 적용의 성공·실패·중복 요청, 성공 배너 3초 종료와 타이머 갱신. direct판 프로필은 보유 상품이 없어도 말풍선·투척물 종류별 기본값을 표시하고 활성 entitlement 상품을 4열에 추가하며 전체 스크롤, 정적 nearest-neighbor 미리보기, 선택·focus·VoiceOver·진행 상태를 제공해야 한다. App Store판에는 이 영역이 없어야 한다.
 - 서버 action: 응답을 지연시킨 프로필 저장과 각 그룹 mutation에서 첫 요청 직후 버튼이 비활성화되고 추가 실행이 전달되지 않으며 성공·실패 뒤 다시 활성화되는지 검증한다. 그룹 생성·참여 성공은 제출한 입력을 비우고 실패는 보존하며, 요청 중 바뀐 새 draft는 늦은 성공 응답에도 보존해야 한다.
 - 입력 필드: 200자 끝, 한글 조합, 영문 긴 단어, 단일·ZWJ 가족·피부색 조합·국기 이모지, Shift+Enter 3줄, 중간 커서 이동·전체 선택, undo·redo, 외부 draft와 잘못된 입력 복구에서 마지막 글자와 커서가 보이고 텍스트 손실·IME 중복 확정·가로 스크롤이 없는지 검증한다. macOS 이모지·기호 선택기 중에는 composer가 유지되고 실제 외부 클릭은 250ms 유예 뒤 정상적으로 닫혀야 한다.
 - 상점: 760pt 6열과 좁은 폭 5열·4열, 세 탭, 한 줄 타일 상태, 말풍선 타일의 본문 미표시, development·App Store 상세 sheet의 단일 구매/보유 button, production 상세의 button 없는 준비 중 안내, 콘텐츠 맞춤 높이와 불필요한 상하 빈 공간 부재, 상품별 독립 loading/error, 키보드 탐색·focus·VoiceOver, 860×640·1000×760 라이트·다크 렌더를 검증한다. direct판의 기본순·가격 오름차순·내림차순, 가격 동률 고정 순서, snapshot entitlement와 장착 상품 보유 판정, 보유 숨김과 빈 결과도 검증한다. 상세의 540×280 무대, 48pt 캐릭터·4px 플랫폼, 3배 pulse가 잘리지 않아야 하며 Reduce Motion에서 반복 작업이 없는 정적 첫 장면을 확인한다. 캐릭터 상품의 두 멤버·분리된 시작 위치·계속되는 산책·친구 클릭 시 상품 캐릭터와 시그니처 투척물 ID·throw/projectile/impact/hit 순서·설명 문구를 확인한다. 두 말풍선의 실제 타이핑→본문 순서·1초/2초 timing·스타일·본문 크기를 늘리지 않는 좌상단 모서리 장식, 말풍선 이동과 투척물 캐릭터 고정, 0.35초 첫 투척·정확한 1초 간격·좌우 교대·상품 ID, 일반 투척물과 대포의 순서를 검사한다. 상세 시트를 반복해서 열고 닫은 뒤 반복 작업과 SpriteKit scene이 남거나 메모리가 지속 증가하지 않아야 한다. production은 commerce action 호출 0회, 검정 68%·픽셀 자물쇠를 유지한 카드 선택, 동적 상세 생성·정리와 준비 중 안내를 확인한다. App Store 타깃은 기존 캐릭터 4종 동적 상세와 전체 빌드를 회귀 검증한다.
