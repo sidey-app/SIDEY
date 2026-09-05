@@ -3,6 +3,12 @@ export const SUPPORTED_PRODUCT_IDS = new Set([
   "character_guinea_pig",
   "character_monkey",
   "character_chinchilla",
+  "bubble_bunny_pink",
+  "bubble_butter_chick",
+  "bubble_starry_cat",
+  "throwable_bouncy_heart",
+  "throwable_toy_cannon",
+  "throwable_squeaky_duck",
 ]);
 export const PORTONE_API_BASE = "https://api.portone.io";
 
@@ -30,6 +36,8 @@ export type CommerceOrder = {
   product_id: string;
   display_name: string;
   character_id?: string;
+  product_kind?: "character" | "bubble" | "throwable";
+  catalog_item_id?: string;
   amount_krw: number;
   currency: string;
   customer_name?: string;

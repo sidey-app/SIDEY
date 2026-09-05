@@ -3,16 +3,23 @@
 
   const productionHost = "whtejsviizgejauasqqt.supabase.co";
   const products = {
-    character_starlight_upalupa: { image: "pixel_starlight_upalupa.png" },
-    character_guinea_pig: { image: "pixel_guinea_pig.png" },
-    character_monkey: { image: "pixel_monkey.png" },
-    character_chinchilla: { image: "pixel_chinchilla.png" },
+    character_starlight_upalupa: { image: "./assets/characters/pixel_starlight_upalupa.png", kind: "character" },
+    character_guinea_pig: { image: "./assets/characters/pixel_guinea_pig.png", kind: "character" },
+    character_monkey: { image: "./assets/characters/pixel_monkey.png", kind: "character" },
+    character_chinchilla: { image: "./assets/characters/pixel_chinchilla.png", kind: "character" },
+    bubble_bunny_pink: { image: "./assets/cosmetics/bubble_bunny_pink.png", kind: "bubble" },
+    bubble_butter_chick: { image: "./assets/cosmetics/bubble_butter_chick.png", kind: "bubble" },
+    bubble_starry_cat: { image: "./assets/cosmetics/bubble_starry_cat.png", kind: "bubble" },
+    throwable_bouncy_heart: { image: "./assets/cosmetics/throwable_bouncy_heart.png", kind: "throwable" },
+    throwable_toy_cannon: { image: "./assets/cosmetics/throwable_toy_cannon.png", kind: "effect" },
+    throwable_squeaky_duck: { image: "./assets/cosmetics/throwable_squeaky_duck.png", kind: "throwable" },
   };
   const loading = document.querySelector("#checkout-loading");
   const error = document.querySelector("#checkout-error");
   const errorMessage = document.querySelector("#checkout-error-message");
   const product = document.querySelector("#checkout-product");
   const productImage = document.querySelector("#checkout-product-image");
+  const previewFrame = document.querySelector("#checkout-preview-frame");
   const orderName = document.querySelector("#checkout-order-name");
   const amount = document.querySelector("#checkout-amount");
   const meta = document.querySelector("#checkout-meta");
@@ -104,7 +111,7 @@
     apiBase = validAPIBase(query.get("api") ?? "");
     window.history.replaceState(null, "", window.location.pathname);
     if (!/^[A-Za-z0-9_-]{43}$/.test(token) || !apiBase) {
-      showError("Sidey-dev에서 새 주문을 만들어 접근해 주세요. 공개 구매 링크는 지원하지 않습니다.");
+      showError("SIDEY 앱에서 새 주문을 만들어 접근해 주세요. 공개 구매 링크는 지원하지 않습니다.");
       return;
     }
 
@@ -113,8 +120,10 @@
       if (!validPrepared(prepared)) throw new Error("invalid_checkout_config");
       orderName.textContent = prepared.order_name;
       amount.textContent = new Intl.NumberFormat("ko-KR").format(prepared.amount);
-      productImage.src = `./assets/characters/${products[prepared.product_id].image}`;
+      const preview = products[prepared.product_id];
+      productImage.src = preview.image;
       productImage.alt = prepared.order_name;
+      previewFrame.dataset.productKind = preview.kind;
       policyNotice.textContent = prepared.policy_notice;
       meta.textContent = `부가세 포함 · 1회 구매 · PortOne ${prepared.payment_environment === "test" ? "테스트" : "실결제"}`;
       payButton.textContent = `${amount.textContent}원 동의하고 결제창 열기`;
@@ -124,8 +133,8 @@
     } catch (requestError) {
       console.error(requestError);
       showError(requestError.status === 410
-        ? "주문 링크가 만료되었거나 이미 처리되었습니다. Sidey-dev 상점에서 다시 시도해 주세요."
-        : "서버에서 주문을 확인하지 못했습니다. Sidey-dev 상점에서 다시 시도해 주세요.");
+        ? "주문 링크가 만료되었거나 이미 처리되었습니다. SIDEY 앱 상점에서 다시 시도해 주세요."
+        : "서버에서 주문을 확인하지 못했습니다. SIDEY 앱 상점에서 다시 시도해 주세요.");
     }
   }
 

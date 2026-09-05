@@ -91,7 +91,7 @@ select throws_ok(
       '62000000-0000-0000-0000-000000000004',
       '61000000-0000-0000-0000-000000000002'
     )$$,
-  '40001', 'stale_realtime_epoch', 'stale room epoch is rejected'
+  'PT409', 'stale_realtime_epoch', 'stale room epoch is rejected without a retryable SQLSTATE'
 );
 select throws_ok(
   $$select public.broadcast_character_throw(
