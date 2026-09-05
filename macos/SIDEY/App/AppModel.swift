@@ -11,6 +11,8 @@ final class AppModel {
     var presence: PresenceState = .online
     var nickname: String
     var selectedCharacterID: String
+    private(set) var equippedBubbleStyleID: String?
+    private(set) var equippedThrowableID: String?
     private(set) var activeEntitlementKeys: Set<String> = []
     private(set) var commerceProducts: [CommerceProductState]
     var draft = ""
@@ -46,6 +48,8 @@ final class AppModel {
         self.overlayVisibility = OverlayVisibility(isVisible: preferences.overlayVisible)
         self.nickname = preferences.nickname
         self.selectedCharacterID = PixelCharacterCatalog.canonicalID(for: preferences.selectedCharacterID)
+        self.equippedBubbleStyleID = nil
+        self.equippedThrowableID = nil
         self.launchAtLogin = preferences.launchAtLogin
         self.commerceProducts = commerceProducts.map {
             CommerceProductState(
@@ -136,8 +140,14 @@ final class AppModel {
             preferences.nickname = profile.nickname
             selectedCharacterID = PixelCharacterCatalog.canonicalID(for: profile.characterID)
             preferences.selectedCharacterID = selectedCharacterID
+            equippedBubbleStyleID = profile.equippedBubbleStyleID
+            equippedThrowableID = profile.equippedThrowableID
+        } else {
+            equippedBubbleStyleID = nil
+            equippedThrowableID = nil
         }
         enforceSelectableCurrentCharacter()
+        enforceOwnedCosmetics()
         preferences.activeRoomID = resolvedActiveRoomID(in: rooms)
         preferences.onboardingComplete = snapshot.profile != nil && !rooms.isEmpty
     }
@@ -149,14 +159,18 @@ final class AppModel {
         preferences.nickname = profile.nickname
         selectedCharacterID = PixelCharacterCatalog.canonicalID(for: profile.characterID)
         preferences.selectedCharacterID = selectedCharacterID
+        equippedBubbleStyleID = profile.equippedBubbleStyleID
+        equippedThrowableID = profile.equippedThrowableID
         for roomIndex in rooms.indices {
             guard let memberIndex = rooms[roomIndex].members.firstIndex(where: {
                 $0.userID == profile.id
             }) else { continue }
             rooms[roomIndex].members[memberIndex].nickname = profile.nickname
             rooms[roomIndex].members[memberIndex].characterID = selectedCharacterID
+            rooms[roomIndex].members[memberIndex].equippedBubbleStyleID = equippedBubbleStyleID
         }
         enforceSelectableCurrentCharacter()
+        enforceOwnedCosmetics()
     }
 
     var selectableCharacters: [PixelCharacterDefinition] {
@@ -173,12 +187,43 @@ final class AppModel {
         }) else { return }
         commerceProducts[index].product = commerceState.product
         commerceProducts[index].purchaseState = commerceState.purchaseState
+        commerceProducts[index].isEquipped = commerceState.isEquipped
         if commerceState.entitlementStatus == "active" {
             activeEntitlementKeys.insert(commerceState.product.entitlementKey)
+            if commerceState.isEquipped {
+                switch commerceState.product.kind {
+                case .bubble:
+                    equippedBubbleStyleID = commerceState.product.catalogItemID
+                case .throwable:
+                    equippedThrowableID = commerceState.product.catalogItemID
+                case .character:
+                    break
+                }
+            }
         } else {
             activeEntitlementKeys.remove(commerceState.product.entitlementKey)
             enforceSelectableCurrentCharacter()
+            enforceOwnedCosmetics()
         }
+    }
+
+    func apply(commerceStates: [CommerceState]) {
+        for state in commerceStates { apply(commerceState: state) }
+        if commerceStates.contains(where: { $0.product.kind == .bubble }) {
+            equippedBubbleStyleID = commerceStates.first(where: {
+                $0.product.kind == .bubble
+                    && $0.entitlementStatus == "active"
+                    && $0.isEquipped
+            })?.product.catalogItemID
+        }
+        if commerceStates.contains(where: { $0.product.kind == .throwable }) {
+            equippedThrowableID = commerceStates.first(where: {
+                $0.product.kind == .throwable
+                    && $0.entitlementStatus == "active"
+                    && $0.isEquipped
+            })?.product.catalogItemID
+        }
+        enforceOwnedCosmetics()
     }
 
     func commerceProduct(id: String) -> CommerceProductState? {
@@ -211,6 +256,40 @@ final class AppModel {
                 $0.userID == currentUserID
             }) else { continue }
             rooms[roomIndex].members[memberIndex].characterID = PixelCharacterCatalog.pixelHamsterID
+        }
+    }
+
+    private func enforceOwnedCosmetics() {
+        if let equippedBubbleStyleID,
+           !CommerceCatalog.products.contains(where: {
+               $0.kind == .bubble
+                   && $0.catalogItemID == equippedBubbleStyleID
+                   && activeEntitlementKeys.contains($0.entitlementKey)
+           }) {
+            self.equippedBubbleStyleID = nil
+        }
+        if let equippedThrowableID,
+           !CommerceCatalog.products.contains(where: {
+               $0.kind == .throwable
+                   && $0.catalogItemID == equippedThrowableID
+                   && activeEntitlementKeys.contains($0.entitlementKey)
+           }) {
+            self.equippedThrowableID = nil
+        }
+        guard let currentUserID else { return }
+        for roomIndex in rooms.indices {
+            guard let memberIndex = rooms[roomIndex].members.firstIndex(where: {
+                $0.userID == currentUserID
+            }) else { continue }
+            rooms[roomIndex].members[memberIndex].equippedBubbleStyleID = equippedBubbleStyleID
+        }
+        for index in commerceProducts.indices {
+            let product = commerceProducts[index].product
+            commerceProducts[index].isEquipped = switch product.kind {
+            case .character: product.characterID == selectedCharacterID
+            case .bubble: product.catalogItemID == equippedBubbleStyleID
+            case .throwable: product.catalogItemID == equippedThrowableID
+            }
         }
     }
 
@@ -250,7 +329,8 @@ final class AppModel {
                 characterID: PixelCharacterCatalog.canonicalID(for: member.characterID),
                 presence: baseState,
                 isTyping: isTyping,
-                isCurrentUser: isCurrentUser
+                isCurrentUser: isCurrentUser,
+                equippedBubbleStyleID: member.equippedBubbleStyleID
             )
         }
     }
@@ -346,6 +426,7 @@ final class AppModel {
                 senderID: senderID,
                 messageID: id,
                 body: body,
+                bubbleStyleID: equippedBubbleStyleID,
                 expiresAt: now.addingTimeInterval(ActiveBubbleLedger.defaultLifetime)
             )
         }
@@ -356,11 +437,12 @@ final class AppModel {
         let wasOutgoing = messageOutbox.confirm(id: message.id, roomID: message.roomID)
         let wasNewToLedger = messageLedger.confirm(message)
         let isNew = wasNewToLedger && !wasOutgoing
-        if isNew, revealBubble, message.roomID == activeRoom?.id {
+        if (isNew || wasOutgoing), revealBubble, message.roomID == activeRoom?.id {
             bubbleLedger.show(
                 senderID: message.senderID,
                 messageID: message.id,
                 body: message.body,
+                bubbleStyleID: message.bubbleStyleID,
                 expiresAt: message.createdAt.addingTimeInterval(ActiveBubbleLedger.defaultLifetime)
             )
             bubbleLedger.prune()

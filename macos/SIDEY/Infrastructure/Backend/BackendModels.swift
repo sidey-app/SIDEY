@@ -88,17 +88,23 @@ struct DatabaseProfile: Codable, Sendable {
     let id: UUID
     let nickname: String
     let characterID: String
+    let equippedBubbleStyleID: String?
+    let equippedThrowableID: String?
 
     enum CodingKeys: String, CodingKey {
         case id, nickname
         case characterID = "character_id"
+        case equippedBubbleStyleID = "equipped_bubble_style_id"
+        case equippedThrowableID = "equipped_throwable_id"
     }
 
     var domain: Profile {
         Profile(
             id: id,
             nickname: nickname,
-            characterID: PixelCharacterCatalog.canonicalID(for: characterID)
+            characterID: PixelCharacterCatalog.canonicalID(for: characterID),
+            equippedBubbleStyleID: equippedBubbleStyleID,
+            equippedThrowableID: equippedThrowableID
         )
     }
 }
@@ -163,27 +169,35 @@ struct DatabaseCommerceState: Codable, Sendable {
     let productID: String
     let displayName: String
     let productDescription: String
-    let characterID: String
+    let productKind: CommerceProductKind
+    let catalogItemID: String
+    let characterID: String?
     let entitlementKey: String
+    let sortOrder: Int
     let amountKRW: Int
     let currency: String
     let taxInclusive: Bool
     let googleConnected: Bool
     let entitlementStatus: String?
     let latestOrderStatus: String?
+    let isEquipped: Bool
 
     enum CodingKeys: String, CodingKey {
         case currency
         case productID = "product_id"
         case displayName = "display_name"
         case productDescription = "product_description"
+        case productKind = "product_kind"
+        case catalogItemID = "catalog_item_id"
         case characterID = "character_id"
         case entitlementKey = "entitlement_key"
+        case sortOrder = "sort_order"
         case amountKRW = "amount_krw"
         case taxInclusive = "tax_inclusive"
         case googleConnected = "google_connected"
         case entitlementStatus = "entitlement_status"
         case latestOrderStatus = "latest_order_status"
+        case isEquipped = "is_equipped"
     }
 
     var domain: CommerceState {
@@ -192,22 +206,21 @@ struct DatabaseCommerceState: Codable, Sendable {
                 id: productID,
                 displayName: displayName,
                 description: productDescription,
+                kind: productKind,
+                catalogItemID: catalogItemID,
                 characterID: characterID,
                 entitlementKey: entitlementKey,
+                sortOrder: sortOrder,
                 amountKRW: amountKRW,
                 currency: currency,
                 taxInclusive: taxInclusive
             ),
             googleConnected: googleConnected,
             entitlementStatus: entitlementStatus,
-            latestOrderStatus: latestOrderStatus
+            latestOrderStatus: latestOrderStatus,
+            isEquipped: isEquipped
         )
     }
-}
-
-struct CommerceStateParameters: Encodable, Sendable {
-    let productID: String
-    enum CodingKeys: String, CodingKey { case productID = "p_product_id" }
 }
 
 struct CommerceOrderRequest: Encodable, Sendable {
@@ -231,12 +244,30 @@ struct DatabaseMessage: Codable, Sendable {
     let senderID: UUID
     let body: String
     let createdAt: String
+    let bubbleStyleID: String?
+
+    init(
+        id: UUID,
+        roomID: UUID,
+        senderID: UUID,
+        body: String,
+        createdAt: String,
+        bubbleStyleID: String? = nil
+    ) {
+        self.id = id
+        self.roomID = roomID
+        self.senderID = senderID
+        self.body = body
+        self.createdAt = createdAt
+        self.bubbleStyleID = bubbleStyleID
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, body
         case roomID = "room_id"
         case senderID = "sender_id"
         case createdAt = "created_at"
+        case bubbleStyleID = "bubble_style_id"
     }
 
     var domain: ChatMessage {
@@ -246,7 +277,8 @@ struct DatabaseMessage: Codable, Sendable {
                 roomID: roomID,
                 senderID: senderID,
                 body: body,
-                createdAt: try PostgresTimestampDecoder.decode(createdAt)
+                createdAt: try PostgresTimestampDecoder.decode(createdAt),
+                bubbleStyleID: bubbleStyleID
             )
         }
     }
@@ -503,6 +535,7 @@ struct CharacterThrowPayload: Codable, Sendable {
     let actorUserID: UUID
     let targetUserID: UUID
     let sourceCharacterID: String
+    let throwableID: String?
 
     enum CodingKeys: String, CodingKey {
         case schemaVersion = "schema_version"
@@ -511,6 +544,7 @@ struct CharacterThrowPayload: Codable, Sendable {
         case actorUserID = "actor_user_id"
         case targetUserID = "target_user_id"
         case sourceCharacterID = "source_character_id"
+        case throwableID = "throwable_id"
     }
 }
 
@@ -554,6 +588,16 @@ struct BroadcastCharacterThrowParameters: Encodable, Sendable {
         case realtimeEpoch = "p_realtime_epoch"
         case eventID = "p_event_id"
         case targetUserID = "p_target_user_id"
+    }
+}
+
+struct SetEquippedCosmeticParameters: Encodable, Sendable {
+    let productKind: CommerceProductKind
+    let catalogItemID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case productKind = "p_product_kind"
+        case catalogItemID = "p_catalog_item_id"
     }
 }
 

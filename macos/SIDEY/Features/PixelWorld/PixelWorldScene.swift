@@ -71,6 +71,43 @@ enum PixelCharacterPulseStyle {
     static let totalDuration = growDuration + settleDuration
 }
 
+struct PixelWorldRenderingConfiguration: Equatable, Sendable {
+    let pulsePeakScale: CGFloat
+    let initialTrackFractions: [UUID: CGFloat]
+    let fixedTrackFractions: [UUID: CGFloat]
+    let minimumTrackInset: CGFloat
+    let allowsLocalPreviewEvents: Bool
+
+    static let live = Self(
+        pulsePeakScale: PixelCharacterPulseStyle.peakScale,
+        initialTrackFractions: [:],
+        fixedTrackFractions: [:],
+        minimumTrackInset: EdgeTrackGeometry.hotspotPointSize / 2,
+        allowsLocalPreviewEvents: false
+    )
+
+    static func storePreview(
+        initialTrackFractions: [UUID: CGFloat] = [:],
+        fixedTrackFractions: [UUID: CGFloat]
+    ) -> Self {
+        Self(
+            pulsePeakScale: 3,
+            initialTrackFractions: initialTrackFractions,
+            fixedTrackFractions: fixedTrackFractions,
+            minimumTrackInset: EdgeTrackGeometry.characterPointSize * 1.5,
+            allowsLocalPreviewEvents: true
+        )
+    }
+}
+
+enum PixelWorldRenderEvent: Equatable {
+    case pulse(UUID)
+    case throwStarted(UUID)
+    case projectileReleased(UUID)
+    case impact(UUID)
+    case hit(UUID)
+}
+
 enum PixelCharacterFacingPolicy {
     static let movementThreshold: CGFloat = 2
 
@@ -129,9 +166,11 @@ private struct ActiveCharacterProjectile {
     let flightDuration: TimeInterval
     let startPoint: CGPoint
     let inwardArcHeight: CGFloat
+    var hasReleased = false
 }
 
 final class PixelWorldScene: SKScene {
+    private let renderingConfiguration: PixelWorldRenderingConfiguration
     private var characterNodes: [UUID: PixelCharacterNode] = [:]
     private var agents: [UUID: PixelMovementAgent] = [:]
     private var members: [UUID: PixelWorldMember] = [:]
@@ -151,8 +190,14 @@ final class PixelWorldScene: SKScene {
     private var lastHotspotFrames: [UUID: CGRect] = [:]
     private var onCurrentUserFrameChanged: ((CGRect?) -> Void)?
     private var onCharacterFramesChanged: (([UUID: CGRect]) -> Void)?
+    private var lastLocalPulseTimes: [UUID: TimeInterval] = [:]
+    private(set) var previewRenderEvents: [PixelWorldRenderEvent] = []
 
-    override init(size: CGSize) {
+    init(
+        size: CGSize,
+        renderingConfiguration: PixelWorldRenderingConfiguration = .live
+    ) {
+        self.renderingConfiguration = renderingConfiguration
         super.init(size: size)
         scaleMode = .resizeFill
         backgroundColor = .clear
@@ -171,11 +216,11 @@ final class PixelWorldScene: SKScene {
         for id in Array(agents.keys) {
             guard var agent = agents[id] else { continue }
             if needsInitialLayout {
-                agent.trackPosition = stableTrackPosition(roomID: currentRoomID, userID: id)
-                agent.target = stableTrackPosition(roomID: currentRoomID, userID: id, salt: 1)
+                agent.trackPosition = initialTrackPosition(roomID: currentRoomID, userID: id)
+                agent.target = initialTarget(roomID: currentRoomID, userID: id)
             } else {
-                agent.trackPosition = geometry.clamped(agent.trackPosition)
-                agent.target = geometry.clamped(agent.target)
+                agent.trackPosition = configuredTrackPosition(agent.trackPosition, userID: id)
+                agent.target = configuredTrackPosition(agent.target, userID: id)
             }
             agents[id] = agent
             characterNodes[id]?.position = geometry.point(for: agent.trackPosition)
@@ -213,6 +258,8 @@ final class PixelWorldScene: SKScene {
             projectiles.forEach { $0.node.removeFromParent() }
             projectiles.removeAll()
             hitUntil.removeAll()
+            lastLocalPulseTimes.removeAll()
+            previewRenderEvents.removeAll()
         }
 
         let requestedByID = Dictionary(uniqueKeysWithValues: requestedMembers.map { ($0.id, $0) })
@@ -239,8 +286,8 @@ final class PixelWorldScene: SKScene {
                 node = PixelCharacterNode(memberID: member.id, characterID: member.characterID)
                 characterNodes[member.id] = node
                 addChild(node)
-                let initial = stableTrackPosition(roomID: roomID, userID: member.id)
-                let target = stableTrackPosition(roomID: roomID, userID: member.id, salt: 1)
+                let initial = initialTrackPosition(roomID: roomID, userID: member.id)
+                let target = initialTarget(roomID: roomID, userID: member.id)
                 agents[member.id] = PixelMovementAgent(
                     id: member.id,
                     trackPosition: initial,
@@ -262,8 +309,8 @@ final class PixelWorldScene: SKScene {
             let geometry = trackGeometry
             for id in Array(agents.keys) {
                 guard var agent = agents[id] else { continue }
-                agent.trackPosition = geometry.clamped(agent.trackPosition)
-                agent.target = geometry.clamped(agent.target)
+                agent.trackPosition = configuredTrackPosition(agent.trackPosition, userID: id)
+                agent.target = configuredTrackPosition(agent.target, userID: id)
                 agents[id] = agent
                 characterNodes[id]?.position = geometry.point(for: agent.trackPosition)
             }
@@ -274,7 +321,8 @@ final class PixelWorldScene: SKScene {
             let key = CharacterPulseKey(roomID: characterPulse.roomID, userID: characterPulse.userID)
             if lastPulseEventIDs[key] != characterPulse.id {
                 lastPulseEventIDs[key] = characterPulse.id
-                node.playPulse()
+                node.playPulse(peakScale: renderingConfiguration.pulsePeakScale)
+                recordPreviewEvent(.pulse(characterPulse.userID))
             }
         }
         if let characterThrow, characterThrow.roomID == roomID {
@@ -288,6 +336,7 @@ final class PixelWorldScene: SKScene {
         lastUpdateTime = currentTime
         hitUntil = hitUntil.filter { $0.value > currentTime }
         let stoppedIDs = PixelMovementPolicy.stoppedMemberIDs(in: members.values)
+            .union(renderingConfiguration.fixedTrackFractions.keys)
             .union(hitUntil.keys)
         let geometry = trackGeometry
         var orderedAgents = agents.values.sorted { $0.id.uuidString < $1.id.uuidString }
@@ -302,6 +351,11 @@ final class PixelWorldScene: SKScene {
 
         for var agent in orderedAgents {
             guard let node = characterNodes[agent.id], let member = members[agent.id] else { continue }
+            if renderingConfiguration.fixedTrackFractions[agent.id] != nil {
+                agent.trackPosition = configuredTrackPosition(agent.trackPosition, userID: agent.id)
+                agent.target = agent.trackPosition
+                agent.velocity = 0
+            }
             if !stoppedIDs.contains(agent.id), abs(agent.trackPosition - agent.target) < 3 {
                 agent.idleRemaining = 0.8 + stableUnit(
                     roomID: currentRoomID,
@@ -374,6 +428,14 @@ final class PixelWorldScene: SKScene {
         characterNodes[memberID]?.bubbleIsTyping ?? false
     }
 
+    func renderedNicknameWorldRotation(for memberID: UUID) -> CGFloat? {
+        characterNodes[memberID]?.nicknameWorldRotation
+    }
+
+    func renderedBubbleTextWorldRotations(for memberID: UUID) -> [CGFloat] {
+        characterNodes[memberID]?.bubbleTextWorldRotations ?? []
+    }
+
     func renderedVisualState(for memberID: UUID) -> PixelCharacterVisualState? {
         characterNodes[memberID]?.visualState
     }
@@ -408,6 +470,60 @@ final class PixelWorldScene: SKScene {
         characterNodes[memberID]?.hitPlayCount ?? 0
     }
 
+    func renderedPulsePeakScale(for memberID: UUID) -> CGFloat? {
+        characterNodes[memberID]?.lastPulsePeakScale
+    }
+
+    func renderedBubbleDecorationCount(for memberID: UUID) -> Int {
+        characterNodes[memberID]?.bubbleDecorationCount ?? 0
+    }
+
+    @discardableResult
+    func playLocalPreviewPulse(
+        memberID: UUID,
+        at currentTime: TimeInterval = ProcessInfo.processInfo.systemUptime
+    ) -> Bool {
+        guard renderingConfiguration.allowsLocalPreviewEvents,
+              let node = characterNodes[memberID],
+              currentTime - (lastLocalPulseTimes[memberID] ?? -.infinity) >= 1
+        else { return false }
+        lastLocalPulseTimes[memberID] = currentTime
+        node.playPulse(peakScale: renderingConfiguration.pulsePeakScale)
+        recordPreviewEvent(.pulse(memberID))
+        return true
+    }
+
+    @discardableResult
+    func playLocalPreviewPulse(at point: CGPoint) -> Bool {
+        guard let memberID = memberID(at: point) else { return false }
+        return playLocalPreviewPulse(memberID: memberID)
+    }
+
+    func memberID(at point: CGPoint) -> UUID? {
+        characterNodes
+            .sorted(by: { $0.key.uuidString < $1.key.uuidString })
+            .first(where: { _, node in
+                CGRect(
+                    x: node.position.x - EdgeTrackGeometry.hotspotPointSize / 2,
+                    y: node.position.y - EdgeTrackGeometry.hotspotPointSize / 2,
+                    width: EdgeTrackGeometry.hotspotPointSize,
+                    height: EdgeTrackGeometry.hotspotPointSize
+                ).contains(point)
+            })?.key
+    }
+
+    func playLocalPreviewThrow(_ event: CharacterThrowEvent) {
+        guard renderingConfiguration.allowsLocalPreviewEvents else { return }
+        beginThrow(event)
+    }
+
+    func cancelLocalPreviewPlayback() {
+        guard renderingConfiguration.allowsLocalPreviewEvents else { return }
+        projectiles.forEach { $0.node.removeFromParent() }
+        projectiles.removeAll()
+        hitUntil.removeAll()
+    }
+
     private var composerAvoidanceRects: [CGRect] {
         PixelWorldAvoidanceLayout.composerRects(
             activityFrame: effectiveActivityFrame,
@@ -425,9 +541,48 @@ final class PixelWorldScene: SKScene {
     }
 
     private func stableTrackPosition(roomID: UUID?, userID: UUID, salt: UInt64 = 0) -> CGFloat {
-        let range = trackGeometry.trackRange
+        let range = roamingTrackRange
         return range.lowerBound + (range.upperBound - range.lowerBound)
             * stableUnit(roomID: roomID, userID: userID, salt: salt)
+    }
+
+    private var roamingTrackRange: ClosedRange<CGFloat> {
+        let length = trackGeometry.tangentLength
+        let inset = min(renderingConfiguration.minimumTrackInset, max(0, length / 2))
+        return inset...max(inset, length - inset)
+    }
+
+    private func initialTrackPosition(roomID: UUID?, userID: UUID) -> CGFloat {
+        if let fraction = renderingConfiguration.fixedTrackFractions[userID] {
+            return trackGeometry.clamped(trackGeometry.tangentLength * min(max(fraction, 0), 1))
+        }
+        if let fraction = renderingConfiguration.initialTrackFractions[userID] {
+            return trackGeometry.clamped(trackGeometry.tangentLength * min(max(fraction, 0), 1))
+        }
+        return stableTrackPosition(roomID: roomID, userID: userID)
+    }
+
+    private func initialTarget(roomID: UUID?, userID: UUID) -> CGFloat {
+        if renderingConfiguration.fixedTrackFractions[userID] != nil {
+            return initialTrackPosition(roomID: roomID, userID: userID)
+        }
+        return stableTrackPosition(roomID: roomID, userID: userID, salt: 1)
+    }
+
+    private func configuredTrackPosition(_ position: CGFloat, userID: UUID) -> CGFloat {
+        if renderingConfiguration.fixedTrackFractions[userID] != nil {
+            return initialTrackPosition(roomID: currentRoomID, userID: userID)
+        }
+        let range = roamingTrackRange
+        return min(max(position, range.lowerBound), range.upperBound)
+    }
+
+    private func recordPreviewEvent(_ event: PixelWorldRenderEvent) {
+        guard renderingConfiguration.allowsLocalPreviewEvents else { return }
+        previewRenderEvents.append(event)
+        if previewRenderEvents.count > 64 {
+            previewRenderEvents.removeFirst(previewRenderEvents.count - 64)
+        }
     }
 
     private func randomTarget(for userID: UUID, time: TimeInterval) -> CGFloat {
@@ -489,12 +644,22 @@ final class PixelWorldScene: SKScene {
             recentThrowEventIDSet.remove(recentThrowEventIDs.removeFirst())
         }
         characterNodes[event.actorUserID]?.playThrow(sourceCharacterID: event.sourceCharacterID)
+        recordPreviewEvent(.throwStarted(event.actorUserID))
         guard projectiles.count < PixelCharacterThrowStyle.maximumActiveProjectiles,
               let actor = characterNodes[event.actorUserID],
               let target = characterNodes[event.targetUserID]
         else { return }
 
-        let textures = PixelCharacterThrowTextureStore.shared.textures(for: event.sourceCharacterID)
+        let textures = PixelCharacterThrowTextureStore.shared.textures(
+            for: event.sourceCharacterID,
+            throwableID: event.throwableID
+        )
+        if textures.usesCannonEmitter {
+            actor.playCannonEmitter(
+                frames: textures.emitterFrames,
+                facingScale: emitterFacingScale(actor: actor.position, target: target.position)
+            )
+        }
         guard let first = textures.rotationFrames.first else { return }
         let projectileNode = SKSpriteNode(texture: first, size: CGSize(width: 32, height: 32))
         projectileNode.texture?.filteringMode = .nearest
@@ -515,11 +680,15 @@ final class PixelWorldScene: SKScene {
 
     private func updateProjectiles(currentTime: TimeInterval) {
         var survivors: [ActiveCharacterProjectile] = []
-        for projectile in projectiles {
+        for var projectile in projectiles {
             let elapsed = currentTime - projectile.startedAt
             if elapsed < PixelCharacterThrowStyle.releaseDelay {
                 survivors.append(projectile)
                 continue
+            }
+            if !projectile.hasReleased {
+                projectile.hasReleased = true
+                recordPreviewEvent(.projectileReleased(projectile.event.actorUserID))
             }
             guard let targetNode = characterNodes[projectile.event.targetUserID] else {
                 projectile.node.removeFromParent()
@@ -543,7 +712,8 @@ final class PixelWorldScene: SKScene {
                 y: inverse * inverse * projectile.startPoint.y + 2 * inverse * progress * control.y + progress * progress * end.y
             )
             let textures = PixelCharacterThrowTextureStore.shared.textures(
-                for: projectile.event.sourceCharacterID
+                for: projectile.event.sourceCharacterID,
+                throwableID: projectile.event.throwableID
             ).rotationFrames
             let frame = Int(max(0, elapsed - PixelCharacterThrowStyle.releaseDelay) / PixelCharacterThrowStyle.rotationFrameInterval)
             projectile.node.texture = textures[frame % textures.count]
@@ -551,18 +721,27 @@ final class PixelWorldScene: SKScene {
                 survivors.append(projectile)
             } else {
                 projectile.node.removeFromParent()
-                playImpact(at: end, sourceCharacterID: projectile.event.sourceCharacterID)
+                playImpact(
+                    at: characterTorsoPoint(from: end),
+                    sourceCharacterID: projectile.event.sourceCharacterID,
+                    throwableID: projectile.event.throwableID
+                )
+                recordPreviewEvent(.impact(projectile.event.targetUserID))
                 if let target = members[projectile.event.targetUserID] {
                     hitUntil[projectile.event.targetUserID] = currentTime + PixelCharacterThrowStyle.hitDuration
                     targetNode.playHit(sourceCharacterID: target.characterID)
+                    recordPreviewEvent(.hit(projectile.event.targetUserID))
                 }
             }
         }
         projectiles = survivors
     }
 
-    private func playImpact(at point: CGPoint, sourceCharacterID: String) {
-        let frames = PixelCharacterThrowTextureStore.shared.textures(for: sourceCharacterID).impactFrames
+    private func playImpact(at point: CGPoint, sourceCharacterID: String, throwableID: String?) {
+        let frames = PixelCharacterThrowTextureStore.shared.textures(
+            for: sourceCharacterID,
+            throwableID: throwableID
+        ).impactFrames
         guard let first = frames.first else { return }
         let node = SKSpriteNode(
             texture: first,
@@ -579,6 +758,26 @@ final class PixelWorldScene: SKScene {
             .removeFromParent()
         ]))
     }
+
+    private func characterTorsoPoint(from center: CGPoint) -> CGPoint {
+        let offset = PixelCharacterThrowStyle.impactTorsoOffset
+        return switch edge {
+        case .bottom: CGPoint(x: center.x, y: center.y + offset)
+        case .top: CGPoint(x: center.x, y: center.y - offset)
+        case .left: CGPoint(x: center.x + offset, y: center.y)
+        case .right: CGPoint(x: center.x - offset, y: center.y)
+        }
+    }
+
+    private func emitterFacingScale(actor: CGPoint, target: CGPoint) -> CGFloat {
+        let tangentDelta: CGFloat = switch edge {
+        case .bottom: target.x - actor.x
+        case .top: actor.x - target.x
+        case .left: actor.y - target.y
+        case .right: target.y - actor.y
+        }
+        return tangentDelta < 0 ? -1 : 1
+    }
 }
 
 enum PixelNameplateLayout {
@@ -593,7 +792,7 @@ enum PixelNameplateLayout {
     static func statusDotPosition(nicknameFrame: CGRect) -> CGPoint {
         CGPoint(
             x: nicknameFrame.minX - spacing - statusDotRadius,
-            y: verticalPosition
+            y: nicknameFrame.midY
         )
     }
 
@@ -606,17 +805,20 @@ private final class PixelCharacterNode: SKNode {
     private static let animationKey = "pixel-character-motion"
     private static let pulseAnimationKey = "pixel-character-pulse"
     private static let dozeMotionKey = "pixel-character-doze-motion"
+    private static let cannonEmitterKey = "pixel-character-cannon-emitter"
     private let memberID: UUID
     private let presentation = SKNode()
     private let spritePulseAnchor = SKNode()
     private let sprite = SKSpriteNode()
     private let ambientSparkleLayer = SKNode()
     private let pulseSparkleLayer = SKNode()
+    private let nameplateLayer = SKNode()
     private let nameplateBackground = SKShapeNode()
     private let nickname = SKLabelNode(fontNamed: "AppleSDGothicNeo-SemiBold")
     private let statusDot = SKShapeNode(circleOfRadius: PixelNameplateLayout.statusDotRadius)
     private let dozeEffect = SKNode()
     private let dozeLabel = SKLabelNode(fontNamed: "AppleSDGothicNeo-Bold")
+    private let foregroundEffectLayer = SKNode()
     private var messageBubbleNodes: [UUID: MessageBubbleNode] = [:]
     private var orderedMessageIDs: [UUID] = []
     private var messageBubbles: [ActiveBubble] = []
@@ -628,6 +830,7 @@ private final class PixelCharacterNode: SKNode {
     private(set) var pulseSparkleSpawnCount = 0
     private(set) var throwPlayCount = 0
     private(set) var hitPlayCount = 0
+    private(set) var lastPulsePeakScale: CGFloat?
     private var sparkleEffect: PixelSparkleEffect?
 
     var bubbleBody: String? {
@@ -640,10 +843,26 @@ private final class PixelCharacterNode: SKNode {
     var bubbleTailFlags: [Bool] {
         orderedMessageIDs.compactMap { messageBubbleNodes[$0]?.includesTail }
     }
+    var bubbleDecorationCount: Int {
+        let messageCount = orderedMessageIDs.reduce(into: 0) { count, id in
+            if messageBubbleNodes[id]?.hasDecoration == true { count += 1 }
+        }
+        return messageCount + (typingBubbleNode?.hasDecoration == true ? 1 : 0)
+    }
     var bubbleBodyFrames: [CGRect] {
         orderedMessageIDs.compactMap { messageBubbleNodes[$0]?.bodyFrame }
     }
     var bubbleIsTyping: Bool { typingBubbleNode != nil }
+    var nicknameWorldRotation: CGFloat {
+        presentation.zRotation + nameplateLayer.zRotation
+    }
+    var bubbleTextWorldRotations: [CGFloat] {
+        let messageRotations = orderedMessageIDs.compactMap {
+            messageBubbleNodes[$0]?.textCounterRotation
+        }
+        let typingRotation = typingBubbleNode.map { [$0.textCounterRotation] } ?? []
+        return (messageRotations + typingRotation).map { presentation.zRotation + $0 }
+    }
     var dozeText: String? { dozeLabel.text }
     var hasDozeActions: Bool {
         dozeEffect.action(forKey: Self.dozeMotionKey) != nil
@@ -678,26 +897,30 @@ private final class PixelCharacterNode: SKNode {
         spritePulseAnchor.addChild(sprite)
         ambientSparkleLayer.zPosition = 8
         pulseSparkleLayer.zPosition = 9
+        foregroundEffectLayer.zPosition = PixelCharacterThrowStyle.cannonEmitterZPosition
         presentation.addChild(ambientSparkleLayer)
         presentation.addChild(pulseSparkleLayer)
+        presentation.addChild(foregroundEffectLayer)
+        nameplateLayer.position = CGPoint(x: 0, y: PixelNameplateLayout.verticalPosition)
+        presentation.addChild(nameplateLayer)
 
         nameplateBackground.fillColor = PixelNameplateLayout.backgroundColor
         nameplateBackground.strokeColor = .clear
         nameplateBackground.zPosition = 11
-        presentation.addChild(nameplateBackground)
+        nameplateLayer.addChild(nameplateBackground)
 
         nickname.fontSize = 11
         nickname.fontColor = .white
         nickname.verticalAlignmentMode = .center
         nickname.horizontalAlignmentMode = .center
-        nickname.position = CGPoint(x: 0, y: PixelNameplateLayout.verticalPosition)
+        nickname.position = .zero
         nickname.zPosition = 12
-        presentation.addChild(nickname)
+        nameplateLayer.addChild(nickname)
 
         statusDot.strokeColor = .clear
         statusDot.position = PixelNameplateLayout.statusDotPosition(nicknameFrame: nickname.frame)
         statusDot.zPosition = 12
-        presentation.addChild(statusDot)
+        nameplateLayer.addChild(statusDot)
 
         dozeEffect.position = CGPoint(x: 26, y: 20)
         dozeEffect.zPosition = 14
@@ -740,6 +963,8 @@ private final class PixelCharacterNode: SKNode {
             stopAmbientSparkles()
         }
         presentation.zRotation = edge.presentationRotation
+        nameplateLayer.zRotation = edge.readableContentCounterRotation
+        dozeEffect.zRotation = edge.readableContentCounterRotation
         nickname.text = member.isCurrentUser ? "\(member.nickname) · 나" : member.nickname
         let backgroundFrame = PixelNameplateLayout.backgroundFrame(nicknameFrame: nickname.frame)
         let backgroundPath = CGMutablePath()
@@ -754,6 +979,7 @@ private final class PixelCharacterNode: SKNode {
         updateBubbles(
             bubbles: bubbles,
             isTyping: bubbles.isEmpty && member.isTyping,
+            typingBubbleStyleID: member.equippedBubbleStyleID,
             tangentPosition: tangentPosition,
             tangentLength: tangentLength,
             edge: edge
@@ -761,12 +987,13 @@ private final class PixelCharacterNode: SKNode {
         updateMotion(member: member, moving: false, velocity: 0, edge: edge)
     }
 
-    func playPulse() {
+    func playPulse(peakScale: CGFloat = PixelCharacterPulseStyle.peakScale) {
         pulsePlayCount += 1
+        lastPulsePeakScale = peakScale
         spritePulseAnchor.removeAction(forKey: Self.pulseAnimationKey)
         spritePulseAnchor.setScale(1)
 
-        let grow = SKAction.scale(to: PixelCharacterPulseStyle.peakScale, duration: PixelCharacterPulseStyle.growDuration)
+        let grow = SKAction.scale(to: peakScale, duration: PixelCharacterPulseStyle.growDuration)
         grow.timingMode = .easeOut
         let settle = SKAction.scale(to: 1, duration: PixelCharacterPulseStyle.settleDuration)
         settle.timingMode = .easeInEaseOut
@@ -788,6 +1015,33 @@ private final class PixelCharacterNode: SKNode {
             PixelCharacterThrowTextureStore.shared.textures(for: sourceCharacterID).hitFrames,
             duration: PixelCharacterThrowStyle.hitDuration
         )
+    }
+
+    func playCannonEmitter(frames: [SKTexture], facingScale: CGFloat) {
+        guard let first = frames.first else { return }
+        foregroundEffectLayer.removeAllActions()
+        foregroundEffectLayer.removeAllChildren()
+        let pointSize = PixelCharacterThrowStyle.cannonEmitterPointSize
+        let cannon = SKSpriteNode(texture: first, size: CGSize(width: pointSize, height: pointSize))
+        cannon.texture?.filteringMode = .nearest
+        cannon.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+        cannon.position = CGPoint(
+            x: PixelCharacterThrowStyle.cannonEmitterTangentOffset * facingScale,
+            y: PixelCharacterThrowStyle.cannonEmitterNormalOffset
+        )
+        cannon.xScale = facingScale
+        foregroundEffectLayer.addChild(cannon)
+        foregroundEffectLayer.run(.sequence([
+            .wait(forDuration: 0.01),
+            .run {
+                cannon.run(.animate(
+                    with: frames,
+                    timePerFrame: PixelCharacterThrowStyle.throwDuration / Double(frames.count)
+                ))
+            },
+            .wait(forDuration: PixelCharacterThrowStyle.throwDuration),
+            .run { [weak self] in self?.foregroundEffectLayer.removeAllChildren() }
+        ]), withKey: Self.cannonEmitterKey)
     }
 
     private func playActionFrames(_ frames: [SKTexture], duration: TimeInterval) {
@@ -868,8 +1122,12 @@ private final class PixelCharacterNode: SKNode {
                 isTyping: true,
                 tangentPosition: tangentPosition,
                 tangentLength: tangentLength,
-                edge: edge
+                edge: edge,
+                leadingDecorationOverflow: typingBubbleNode.hasDecoration
+                    ? PixelBubbleStyle.decorationLeadingOverflow
+                    : 0
             ))
+            typingBubbleNode.applyReadableContentRotation(for: edge)
             return
         }
 
@@ -883,6 +1141,7 @@ private final class PixelCharacterNode: SKNode {
     private func updateBubbles(
         bubbles: [ActiveBubble],
         isTyping: Bool,
+        typingBubbleStyleID: String?,
         tangentPosition: CGFloat,
         tangentLength: CGFloat,
         edge: OverlayEdge
@@ -899,17 +1158,25 @@ private final class PixelCharacterNode: SKNode {
                 return
             }
 
+            let requestedTheme = PixelBubbleTheme.resolve(typingBubbleStyleID)
             let layout = PixelBubbleLayout.make(
                 text: ".",
                 isTyping: true,
                 tangentPosition: tangentPosition,
                 tangentLength: tangentLength,
-                edge: edge
+                edge: edge,
+                leadingDecorationOverflow: requestedTheme.decorationAssetName == nil
+                    ? 0
+                    : PixelBubbleStyle.decorationLeadingOverflow
             )
-            if let typingBubbleNode {
+            let requestedThemeID = requestedTheme.id
+            if let typingBubbleNode, typingBubbleNode.theme.id == requestedThemeID {
                 typingBubbleNode.apply(layout: layout)
+                typingBubbleNode.applyReadableContentRotation(for: edge)
             } else {
-                let node = TypingIndicatorNode(layout: layout)
+                typingBubbleNode?.removeFromParent()
+                let node = TypingIndicatorNode(layout: layout, bubbleStyleID: typingBubbleStyleID)
+                node.applyReadableContentRotation(for: edge)
                 presentation.addChild(node)
                 typingBubbleNode = node
             }
@@ -944,12 +1211,15 @@ private final class PixelCharacterNode: SKNode {
         for entry in entries {
             if let node = messageBubbleNodes[entry.bubble.messageID] {
                 node.apply(layout: entry.layout, includesTail: entry.includesTail)
+                node.applyReadableContentRotation(for: edge)
             } else {
                 let node = MessageBubbleNode(
                     body: entry.bubble.body,
                     layout: entry.layout,
-                    includesTail: entry.includesTail
+                    includesTail: entry.includesTail,
+                    bubbleStyleID: entry.bubble.bubbleStyleID
                 )
+                node.applyReadableContentRotation(for: edge)
                 presentation.addChild(node)
                 messageBubbleNodes[entry.bubble.messageID] = node
             }
@@ -1126,6 +1396,49 @@ enum PixelBubbleStyle {
     static let backgroundColor = NSColor(srgbRed: 1, green: 1, blue: 1, alpha: 0.96)
     static let textColor = NSColor(srgbRed: 0.11, green: 0.12, blue: 0.16, alpha: 1)
     static let borderColor = NSColor(srgbRed: 0.08, green: 0.09, blue: 0.12, alpha: 0.16)
+    static let decorationSize: CGFloat = 16
+    static let decorationCornerInset: CGFloat = 2
+    static let decorationLeadingOverflow = decorationSize / 2 - decorationCornerInset
+}
+
+struct PixelBubbleTheme {
+    let id: String?
+    let backgroundColor: NSColor
+    let textColor: NSColor
+    let decorationAssetName: String?
+
+    static func resolve(_ id: String?) -> Self {
+        switch id {
+        case "bubble_bunny_pink":
+            Self(
+                id: id,
+                backgroundColor: NSColor(srgbRed: 0xF7 / 255, green: 0xA9 / 255, blue: 0xB8 / 255, alpha: 0.96),
+                textColor: NSColor(srgbRed: 0x1C / 255, green: 0x1F / 255, blue: 0x29 / 255, alpha: 1),
+                decorationAssetName: id
+            )
+        case "bubble_butter_chick":
+            Self(
+                id: id,
+                backgroundColor: NSColor(srgbRed: 0xFF / 255, green: 0xE3 / 255, blue: 0x8A / 255, alpha: 0.96),
+                textColor: NSColor(srgbRed: 0x1C / 255, green: 0x1F / 255, blue: 0x29 / 255, alpha: 1),
+                decorationAssetName: id
+            )
+        case "bubble_starry_cat":
+            Self(
+                id: id,
+                backgroundColor: NSColor(srgbRed: 0x40 / 255, green: 0x3A / 255, blue: 0x78 / 255, alpha: 0.96),
+                textColor: NSColor(srgbRed: 0xFF / 255, green: 0xF7 / 255, blue: 0xE8 / 255, alpha: 1),
+                decorationAssetName: id
+            )
+        default:
+            Self(
+                id: nil,
+                backgroundColor: PixelBubbleStyle.backgroundColor,
+                textColor: PixelBubbleStyle.textColor,
+                decorationAssetName: nil
+            )
+        }
+    }
 }
 
 class PixelBubbleNode: SKNode {
@@ -1135,30 +1448,55 @@ class PixelBubbleNode: SKNode {
     private(set) var bodyFrame: CGRect = .zero
     fileprivate let background = SKShapeNode()
     fileprivate let label = SKLabelNode(fontNamed: "AppleSDGothicNeo-Medium")
+    private let decoration: SKSpriteNode?
+    let theme: PixelBubbleTheme
     private var lastLayout: PixelBubbleLayout?
 
     init(
         body: String,
         isTyping: Bool,
         layout: PixelBubbleLayout,
-        includesTail: Bool = true
+        includesTail: Bool = true,
+        bubbleStyleID: String? = nil
     ) {
         self.body = body
         self.isTyping = isTyping
         self.includesTail = includesTail
+        self.theme = PixelBubbleTheme.resolve(bubbleStyleID)
+        if let assetName = theme.decorationAssetName,
+           let url = Bundle.main.url(
+               forResource: assetName,
+               withExtension: "png",
+               subdirectory: "Bubbles"
+           ) ?? Bundle.main.url(forResource: assetName, withExtension: "png"),
+           let image = NSImage(contentsOf: url) {
+            let texture = SKTexture(image: image)
+            texture.filteringMode = .nearest
+            self.decoration = SKSpriteNode(
+                texture: texture,
+                size: CGSize(width: PixelBubbleStyle.decorationSize, height: PixelBubbleStyle.decorationSize)
+            )
+        } else {
+            self.decoration = nil
+        }
         super.init()
         zPosition = 20
-        background.fillColor = PixelBubbleStyle.backgroundColor
+        background.fillColor = theme.backgroundColor
         background.strokeColor = PixelBubbleStyle.borderColor
         background.lineWidth = 1
         addChild(background)
+        if let decoration {
+            decoration.zPosition = 1
+            addChild(decoration)
+        }
 
         label.text = body
         label.fontSize = isTyping ? 16 : 10.5
         // SpriteKit resolves dynamic AppKit colors against the scene's dark
         // appearance, not against this white bubble. Use an explicit ink color
         // so Korean text stays readable in both system appearances.
-        label.fontColor = PixelBubbleStyle.textColor
+        label.fontColor = theme.textColor
+        label.zPosition = 2
         label.numberOfLines = 0
         label.lineBreakMode = .byCharWrapping
         label.verticalAlignmentMode = .center
@@ -1169,6 +1507,14 @@ class PixelBubbleNode: SKNode {
 
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    var hasDecoration: Bool { decoration != nil }
+    var decorationFrame: CGRect? { decoration?.frame }
+    var textCounterRotation: CGFloat { label.zRotation }
+
+    func applyReadableContentRotation(for edge: OverlayEdge) {
+        label.zRotation = edge.readableContentCounterRotation
     }
 
     func apply(layout: PixelBubbleLayout) {
@@ -1182,6 +1528,7 @@ class PixelBubbleNode: SKNode {
         bodyFrame = layout.bodyFrame
         position = CGPoint(x: layout.localCenterX, y: layout.bodyFrame.midY)
         label.preferredMaxLayoutWidth = max(8, layout.size.width - 16)
+        label.position.x = 0
         let rect = CGRect(
             x: -layout.size.width / 2,
             y: -layout.size.height / 2,
@@ -1199,12 +1546,22 @@ class PixelBubbleNode: SKNode {
             path.closeSubpath()
         }
         background.path = path
+        decoration?.position = CGPoint(
+            x: rect.minX + PixelBubbleStyle.decorationCornerInset,
+            y: rect.maxY
+        )
     }
 }
 
 private final class MessageBubbleNode: PixelBubbleNode {
-    init(body: String, layout: PixelBubbleLayout, includesTail: Bool = true) {
-        super.init(body: body, isTyping: false, layout: layout, includesTail: includesTail)
+    init(body: String, layout: PixelBubbleLayout, includesTail: Bool = true, bubbleStyleID: String? = nil) {
+        super.init(
+            body: body,
+            isTyping: false,
+            layout: layout,
+            includesTail: includesTail,
+            bubbleStyleID: bubbleStyleID
+        )
         label.text = body
     }
 
@@ -1217,8 +1574,8 @@ final class TypingIndicatorNode: PixelBubbleNode {
     static let sequenceFrames = [".", "..", "..."]
     static let frameInterval: TimeInterval = 0.35
 
-    init(layout: PixelBubbleLayout) {
-        super.init(body: ".", isTyping: true, layout: layout)
+    init(layout: PixelBubbleLayout, bubbleStyleID: String? = nil) {
+        super.init(body: ".", isTyping: true, layout: layout, bubbleStyleID: bubbleStyleID)
         let sequence = SKAction.sequence([
             .run { [weak self] in self?.label.text = Self.sequenceFrames[0] }, .wait(forDuration: Self.frameInterval),
             .run { [weak self] in self?.label.text = Self.sequenceFrames[1] }, .wait(forDuration: Self.frameInterval),

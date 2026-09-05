@@ -14,7 +14,8 @@ struct PixelBubbleLayout: Equatable, Sendable {
         tangentLength: CGFloat,
         edge: OverlayEdge,
         bodyMinY: CGFloat = 52,
-        includesTail: Bool = true
+        includesTail: Bool = true,
+        leadingDecorationOverflow: CGFloat = 0
     ) -> Self {
         let maximumWidth = min(220, max(24, tangentLength - 16))
         let size: CGSize
@@ -28,14 +29,17 @@ struct PixelBubbleLayout: Equatable, Sendable {
         }
 
         let halfWidth = size.width / 2
-        let worldCenter = min(
-            max(tangentPosition, halfWidth + 4),
-            max(halfWidth + 4, tangentLength - halfWidth - 4)
-        )
         let tangentSign: CGFloat = switch edge {
         case .bottom, .right: 1
         case .top, .left: -1
         }
+        let minimumCenter = halfWidth + 4 + (tangentSign > 0 ? leadingDecorationOverflow : 0)
+        let maximumCenter = tangentLength - halfWidth - 4
+            - (tangentSign < 0 ? leadingDecorationOverflow : 0)
+        let worldCenter = min(
+            max(tangentPosition, minimumCenter),
+            max(minimumCenter, maximumCenter)
+        )
         let localCenterX = (worldCenter - tangentPosition) * tangentSign
         let tailTipX = -localCenterX
         let bodyFrame = CGRect(
@@ -99,7 +103,9 @@ enum PixelBubbleStackLayout {
                 tangentLength: tangentLength,
                 edge: edge,
                 bodyMinY: nextBodyMinY,
-                includesTail: isLatest
+                includesTail: isLatest,
+                leadingDecorationOverflow: PixelBubbleTheme.resolve(bubble.bubbleStyleID)
+                    .decorationAssetName == nil ? 0 : PixelBubbleStyle.decorationLeadingOverflow
             )
             reversedEntries.append(PixelBubbleStackEntry(
                 bubble: bubble,

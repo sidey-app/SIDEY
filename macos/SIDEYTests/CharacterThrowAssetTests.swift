@@ -20,7 +20,15 @@ final class CharacterThrowAssetTests: XCTestCase {
         "mini_paprika": "85b8d0525a865e531882a736561e9b7c4fbb6a2c3f80d91b456c4c4a7425724d",
         "banana": "9cfca454ff6305fdd374c08f64c3c21e3af278166ffe15f7f81a183bb214f138",
         "dust_bath_pouch": "b68022f5fe1a1a6a57fe56a01f73bae3d14b27d76f2dcbf10c6686b979634a65",
-        "starlight_orb": "08cf8ec8dc680ae07dcd83de9d56948873445470c6b15b5ad22e770f4277984c"
+        "starlight_orb": "08cf8ec8dc680ae07dcd83de9d56948873445470c6b15b5ad22e770f4277984c",
+        "throwable_bouncy_heart": "8474458c5d810a598c16a7f74bbfecf65300d7fb2c55aaaf0cabfa0399945305",
+        "throwable_toy_cannon": "c42c472f216ec4d291a41562dfaf6a28204625133961a5a225198daf87459bef",
+        "throwable_squeaky_duck": "3b6935398d41b6d1cd5efa922392dbf4864782deb9880c5d0f10885e00906e7a"
+    ]
+    private let bubbleDecorationHashes = [
+        "bubble_bunny_pink": "3013d02224fe98befdc18f065f706c98cc412ab30c77a6a6c83723fc3366d117",
+        "bubble_butter_chick": "4444b4bb579f0eaa322123e927078b3ad837ddba8fc5dea4cab5ab5bf2a39e56",
+        "bubble_starry_cat": "da374fdafad2bfa1f9968ea0e438e1cad1391e72dbf84c2c408174b33ff04515"
     ]
 
     func testApprovedActionSheetsAreBundledAtExactSizeAndHash() throws {
@@ -39,6 +47,28 @@ final class CharacterThrowAssetTests: XCTestCase {
             try assertAsset(
                 url: PixelCharacterThrowCatalog.objectAssetURL(for: id),
                 size: CGSize(width: 192, height: 16),
+                hash: hash,
+                label: id
+            )
+        }
+    }
+
+    func testApprovedCannonEmitterIsBundledSeparatelyFromItsProjectile() throws {
+        try assertAsset(
+            url: PixelCharacterThrowCatalog.emitterAssetURL(for: "throwable_toy_cannon"),
+            size: CGSize(width: 96, height: 24),
+            hash: "7869a47c2f72a17894646e2f63eab1166b42d13f2a72fa83311075b3d809ffbf",
+            label: "throwable_toy_cannon_emitter"
+        )
+    }
+
+    func testApprovedBubbleDecorationsAreBundledAtExactSizeAndHash() throws {
+        for (id, hash) in bubbleDecorationHashes {
+            let url = Bundle.main.url(forResource: id, withExtension: "png", subdirectory: "Bubbles")
+                ?? Bundle.main.url(forResource: id, withExtension: "png")
+            try assertAsset(
+                url: url,
+                size: CGSize(width: 16, height: 16),
                 hash: hash,
                 label: id
             )

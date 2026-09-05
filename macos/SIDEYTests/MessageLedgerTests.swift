@@ -86,6 +86,22 @@ final class MessageLedgerTests: XCTestCase {
         XCTAssertEqual(ledger.entries.first?.state, .confirmed)
     }
 
+    func testConfirmedMessageKeepsServerSnapshotBubbleStyleAcrossDuplicateDelivery() {
+        let message = ChatMessage(
+            id: UUID(),
+            roomID: UUID(),
+            senderID: UUID(),
+            body: "처음 색을 기억해",
+            createdAt: .now,
+            bubbleStyleID: "bubble_bunny_pink"
+        )
+        var ledger = MessageLedger()
+
+        XCTAssertTrue(ledger.confirm(message))
+        XCTAssertFalse(ledger.confirm(message))
+        XCTAssertEqual(ledger.entries.first?.bubbleStyleID, "bubble_bunny_pink")
+    }
+
     @MainActor
     func testHistoryOrdersNewestMessageFirstWithoutLegacyTwentyRowCap() {
         let roomID = UUID()

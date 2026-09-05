@@ -216,7 +216,8 @@ actor SideyBackend {
                     userID: membership.userID,
                     nickname: peer?.nickname ?? "친구",
                     characterID: PixelCharacterCatalog.canonicalID(for: peer?.characterID ?? "pixel_hamster"),
-                    presence: .offline
+                    presence: .offline,
+                    equippedBubbleStyleID: peer?.equippedBubbleStyleID
                 )
             }
             return Room(
@@ -256,21 +257,52 @@ actor SideyBackend {
         }
     }
 
+    func storeState() async throws -> [CommerceState] {
+        let rows: [DatabaseCommerceState] = try await client.rpc(
+            "get_store_state"
+        ).execute().value
+        let states = try rows.compactMap { state -> CommerceState? in
+            guard let registered = CommerceCatalog.product(id: state.productID) else { return nil }
+            guard state.productKind == registered.kind,
+                  state.catalogItemID == registered.catalogItemID,
+                  state.characterID == registered.characterID,
+                  state.entitlementKey == registered.entitlementKey,
+                  state.sortOrder == registered.sortOrder
+            else { throw SideyBackendError.malformedResponse }
+            if let characterID = state.characterID,
+               PixelCharacterCatalog.definition(for: characterID).id != characterID {
+                throw SideyBackendError.malformedResponse
+            }
+            return state.domain
+        }
+        guard states.count == CommerceCatalog.products.count else {
+            throw SideyBackendError.malformedResponse
+        }
+        return states.sorted { $0.product.sortOrder < $1.product.sortOrder }
+    }
+
     func commerceState(
         productID: String = CommerceCatalog.starlightUpalupaProductID
     ) async throws -> CommerceState {
-        let rows: [DatabaseCommerceState] = try await client.rpc(
-            "get_commerce_state",
-            params: CommerceStateParameters(productID: productID)
+        guard let state = try await storeState().first(where: { $0.product.id == productID }) else {
+            throw SideyBackendError.malformedResponse
+        }
+        return state
+    }
+
+    func setEquippedCosmetic(
+        kind: CommerceProductKind,
+        catalogItemID: String?
+    ) async throws -> Profile {
+        guard kind != .character else { throw SideyBackendError.malformedResponse }
+        let value: DatabaseProfile = try await client.rpc(
+            "set_equipped_cosmetic",
+            params: SetEquippedCosmeticParameters(
+                productKind: kind,
+                catalogItemID: catalogItemID
+            )
         ).execute().value
-        guard let state = rows.first,
-              let registeredProduct = CommerceCatalog.product(id: productID),
-              state.productID == productID,
-              state.characterID == registeredProduct.characterID,
-              state.entitlementKey == registeredProduct.entitlementKey,
-              PixelCharacterCatalog.definition(for: state.characterID).id == state.characterID
-        else { throw SideyBackendError.malformedResponse }
-        return state.domain
+        return value.domain
     }
 
 #if !APP_STORE
@@ -1349,7 +1381,10 @@ actor SideyBackend {
             roomID: roomID,
             actorUserID: value.actorUserID,
             targetUserID: value.targetUserID,
-            sourceCharacterID: value.sourceCharacterID
+            sourceCharacterID: value.sourceCharacterID,
+            throwableID: PixelCharacterThrowCatalog.supports(objectID: value.throwableID)
+                ? value.throwableID
+                : nil
         )))
     }
 
