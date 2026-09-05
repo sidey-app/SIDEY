@@ -202,12 +202,12 @@ internal sealed class FakeMainWindowDialogService : IMainWindowDialogService
 
 internal sealed class FakeUpdateService : IUpdateService
 {
-    public string CurrentVersion { get; set; } = "1.0.6";
+    public string CurrentVersion { get; set; } = "1.0.7";
 
     public DateTimeOffset? LastCheckedAt { get; set; }
 
     public Uri CurrentReleaseNotesUri { get; set; } = new(
-        "https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.6");
+        "https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.7");
 
     public AvailableUpdate? AvailableUpdate { get; set; }
 
