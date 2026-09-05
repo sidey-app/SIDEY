@@ -26,8 +26,8 @@ public sealed class WindowsUpdateServiceTests
         const string manifest = """
             {
               "channel": "production",
-              "version": "1.0.8",
-              "tag": "windows-v1.0.8"
+              "version": "1.0.7",
+              "tag": "windows-v1.0.7"
             }
             """;
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -123,8 +123,8 @@ public sealed class WindowsUpdateServiceTests
         const string manifest = """
             {
               "channel": "production",
-              "version": "1.0.7",
-              "tag": "windows-v1.0.7"
+              "version": "1.0.8",
+              "tag": "windows-v1.0.8"
             }
             """;
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
