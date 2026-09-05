@@ -6,7 +6,7 @@ set local role postgres;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(51);
+select plan(55);
 
 insert into auth.users (
   id,
@@ -341,18 +341,69 @@ select is(
 );
 
 insert into public.messages (id, room_id, sender_id, body, created_at)
-values (
-  '10000000-0000-0000-0000-000000000010',
-  (select room_id from test_rooms where label = 'main'),
-  '00000000-0000-0000-0000-000000000002',
-  '오래된 메시지',
-  now() - interval '8 days'
+values
+  (
+    '10000000-0000-0000-0000-000000000010',
+    (select room_id from test_rooms where label = 'main'),
+    '00000000-0000-0000-0000-000000000002',
+    '4일 전 메시지 하나',
+    now() - interval '4 days'
+  ),
+  (
+    '10000000-0000-0000-0000-000000000011',
+    (select room_id from test_rooms where label = 'main'),
+    '00000000-0000-0000-0000-000000000002',
+    '4일 전 메시지 둘',
+    now() - interval '4 days'
+  ),
+  (
+    '10000000-0000-0000-0000-000000000012',
+    (select room_id from test_rooms where label = 'extra-1'),
+    '00000000-0000-0000-0000-000000000001',
+    '다른 방의 4일 전 메시지',
+    now() - interval '4 days'
+  ),
+  (
+    '10000000-0000-0000-0000-000000000013',
+    (select room_id from test_rooms where label = 'main'),
+    '00000000-0000-0000-0000-000000000002',
+    '2일 전 메시지',
+    now() - interval '2 days'
+  );
+select is(private.delete_expired_messages(), 3::bigint, 'retention deletes messages older than 3 days');
+select is(
+  (select count(*)::integer from public.messages
+   where id in (
+     '10000000-0000-0000-0000-000000000010',
+     '10000000-0000-0000-0000-000000000011',
+     '10000000-0000-0000-0000-000000000012'
+   )),
+  0,
+  'retention removes every message beyond the 3-day boundary'
 );
-select is(private.delete_expired_messages(), 1::bigint, 'retention deletes messages older than 7 days');
+select is(
+  (select count(*)::integer from public.messages where id = '10000000-0000-0000-0000-000000000013'),
+  1,
+  'retention preserves a 2-day-old message'
+);
 select is(
   (select count(*)::integer from public.messages where id = '10000000-0000-0000-0000-000000000001'),
   1,
   'retention preserves current messages'
+);
+select is(
+  (select count(*)::integer from realtime.messages
+   where event = 'messages_pruned'
+     and payload ->> 'room_id' = (select room_id::text from test_rooms where label = 'main')),
+  1,
+  'retention emits one invalidation for a changed room even when it deletes multiple messages'
+);
+select is(
+  (select count(*)::integer from realtime.messages
+   where event = 'messages_pruned'
+     and payload ->> 'room_id' = (select room_id::text from test_rooms where label = 'extra-1')),
+  1,
+  'retention emits one invalidation for each other changed room'
 );
 
 select ok(

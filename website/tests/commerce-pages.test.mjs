@@ -69,6 +69,24 @@ test("Korean landing links to the separate store and keeps seller details in the
   }
 });
 
+test("public message-retention copy consistently states three days", async () => {
+  const [korean, english, privacy, terms] = await Promise.all([
+    read("index.html"),
+    read("en/index.html"),
+    read("privacy.html"),
+    read("terms.html"),
+  ]);
+
+  assert.ok(korean.includes("서버에서 3일 후 자동 삭제"));
+  assert.ok(english.includes("deleted from the server after three days"));
+  assert.ok(privacy.includes("최근 대화 제공 및 3일 보관"));
+  assert.ok(privacy.includes("생성 후 3일이 지나면 영구 삭제"));
+  assert.ok(terms.includes("서버에 3일간 보관된 뒤 삭제"));
+  for (const document of [korean, english, privacy, terms]) {
+    assert.ok(!document.match(/7일(?:간| 후| 보관)?|seven days/i));
+  }
+});
+
 test("Windows production release is derived from the central release manifest", async () => {
   const [korean, english, manifest] = await Promise.all([
     read("index.html"),
