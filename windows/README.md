@@ -2,7 +2,7 @@
 
 Windows 11 25H2(build 26200)+ x64용 네이티브 클라이언트입니다. 첫 기능 빌드부터 `pixel_hamster`, `pixel_cat`, `pixel_puppy`, `pixel_rabbit`, `pixel_penguin` 5종을 같은 catalog 기반 renderer로 다룹니다. 햄스터 1종 검증은 별도 제품 구현이 아니라 같은 renderer의 Debug 제한 모드입니다.
 
-현재 Windows 정식 출시 버전은 `v1.0.7`입니다.
+현재 Windows 정식 출시 버전은 `v1.0.6`입니다.
 
 ## 필수 환경
 
@@ -83,13 +83,13 @@ NSIS `3.12`는 게시 트리 전체를 포함하는 머신 단위 Setup EXE를 �
 ```powershell
 dotnet publish ./windows/src/Sidey.App/Sidey.App.csproj `
   -c Release -r win-x64 --self-contained true `
-  -p:PublishSingleFile=false -p:Version=1.0.7 `
+  -p:PublishSingleFile=false -p:Version=1.0.6 `
   -o ./build/windows/publish
 
 pwsh ./scripts/windows/package.ps1 `
   -PublishDir ./build/windows/publish `
   -OutDir ./build/windows/artifacts `
-  -Version 1.0.7
+  -Version 1.0.6
 ```
 
 다음 Windows 릴리스의 CI 아티팩트와 GitHub 정식 Release에는 `SIDEY-Windows-x64-v<version>-Setup.exe` 하나만 게시합니다. MSI, ZIP, MSIX, 자체 서명 인증서, `.sha256` 파일은 포함하지 않습니다. Setup EXE는 관리자 승인 뒤 기본적으로 `C:\Program Files\SIDEY`에 설치하고 공용 시작 메뉴에 앱과 제거 바로가기를 추가합니다. 설치 위치는 신규 설치에서 선택할 수 있고 이후 업데이트와 복구에서 그대로 사용합니다. 앱 목록과 설치된 `Uninstall.exe`에는 SIDEY 아이콘을 사용합니다. 바탕화면 바로가기와 설치 중 로그인 자동 실행은 만들지 않습니다.
@@ -102,8 +102,8 @@ Windows와 macOS는 같은 GitHub 저장소를 사용하지만 릴리스 주기�
 
 ```powershell
 ./scripts/windows/verify-release.ps1 `
-  -Version 1.0.7 `
-  -CandidateSetup ./build/windows/artifacts/SIDEY-Windows-x64-v1.0.7-Setup.exe
+  -Version 1.0.6 `
+  -CandidateSetup ./build/windows/artifacts/SIDEY-Windows-x64-v1.0.6-Setup.exe
 ```
 
 실제 GitHub Release에서 다시 받은 Setup EXE의 hash가 후보와 일치한 뒤에만 웹사이트 Windows 다운로드 버튼과 업데이트 manifest를 새 버전으로 갱신합니다.
@@ -115,7 +115,7 @@ Windows와 macOS는 같은 GitHub 저장소를 사용하지만 릴리스 주기�
 패키징 명령은 Setup EXE의 SHA-256을 CI 로그에 출력합니다. Release에 별도 checksum 파일을 첨부하지 않고, 검증한 값을 두 Windows 업데이트 manifest에 기록합니다.
 
 ```powershell
-Get-FileHash .\SIDEY-Windows-x64-v1.0.7-Setup.exe -Algorithm SHA256
+Get-FileHash .\SIDEY-Windows-x64-v1.0.6-Setup.exe -Algorithm SHA256
 ```
 
 ## 정식 출시 후 지속 검증
