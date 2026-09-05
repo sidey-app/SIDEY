@@ -319,26 +319,74 @@ final class StorePreviewTests: XCTestCase {
     }
 
     func testDetailSheetFitsItsContentWithoutForcedVerticalSpace() {
-        for product in CommerceCatalog.characterProducts + [.bunnyPinkBubble] {
-            let state = CommerceProductState(
-                product: product,
-                purchaseState: .available,
-                isWorking: false
-            )
-            let hostingView = NSHostingView(rootView: StoreProductDetailSheet(
-                productState: state,
-                actions: .empty,
-                onClose: {}
-            ))
-            let fittingSize = hostingView.fittingSize
+        for availability in [StoreAvailability.comingSoon, .direct, .appStore] {
+            for product in CommerceCatalog.characterProducts + [.bunnyPinkBubble] {
+                let state = CommerceProductState(
+                    product: product,
+                    purchaseState: .available,
+                    isWorking: false
+                )
+                let hostingView = NSHostingView(rootView: StoreProductDetailSheet(
+                    productState: state,
+                    actions: .empty,
+                    availability: availability,
+                    onClose: {}
+                ))
+                let fittingSize = hostingView.fittingSize
 
-            XCTAssertEqual(fittingSize.width, 600, accuracy: 0.001, product.id)
-            XCTAssertGreaterThan(
-                fittingSize.height,
-                StorePreviewStageLayout.size.height,
+                XCTAssertEqual(fittingSize.width, 600, accuracy: 0.001, product.id)
+                XCTAssertGreaterThan(
+                    fittingSize.height,
+                    StorePreviewStageLayout.size.height,
+                    product.id
+                )
+                XCTAssertLessThan(fittingSize.height, 540, product.id)
+            }
+        }
+    }
+
+    func testEveryStoreProductPresentationAssetShipsInTheAppBundle() throws {
+        for product in CommerceCatalog.characterProducts {
+            let characterID = try XCTUnwrap(product.characterID)
+            let definition = PixelCharacterCatalog.definition(for: characterID)
+            XCTAssertNotNil(definition.assetURL(), product.id)
+            XCTAssertNotNil(PixelCharacterThrowCatalog.actionAssetURL(for: characterID), product.id)
+            XCTAssertNotNil(
+                PixelCharacterThrowCatalog.objectAssetURL(
+                    for: PixelCharacterThrowCatalog.objectID(for: characterID)
+                ),
                 product.id
             )
-            XCTAssertLessThan(fittingSize.height, 540, product.id)
+        }
+
+        for product in CommerceCatalog.cosmeticProducts {
+            switch product.kind {
+            case .bubble:
+                let resourceName = try XCTUnwrap(
+                    PixelBubbleTheme.resolve(product.catalogItemID).decorationAssetName
+                )
+                XCTAssertNotNil(
+                    Bundle.main.url(
+                        forResource: resourceName,
+                        withExtension: "png",
+                        subdirectory: "Bubbles"
+                    ) ?? Bundle.main.url(forResource: resourceName, withExtension: "png"),
+                    product.id
+                )
+            case .throwable:
+                XCTAssertNotNil(
+                    PixelCharacterThrowCatalog.objectAssetURL(for: product.catalogItemID),
+                    product.id
+                )
+                if product.catalogItemID == PixelCharacterThrowCatalog.cannonObjectID {
+                    XCTAssertNotNil(
+                        PixelCharacterThrowCatalog.emitterAssetURL(for: product.catalogItemID),
+                        product.id
+                    )
+                }
+            case .character:
+                XCTFail("cosmetic catalog must not contain character products")
+            }
         }
     }
 
@@ -424,7 +472,7 @@ final class StorePreviewTests: XCTestCase {
         }
     }
 
-    func testProductionLockedStoreDoesNotCreatePreviewScene() {
+    func testProductionLockedStoreDefersPreviewSceneUntilSelection() {
         var preferences = AppPreferences.defaults
         preferences.onboardingComplete = true
         let model = AppModel(
@@ -441,6 +489,40 @@ final class StorePreviewTests: XCTestCase {
         hostingView.displayIfNeeded()
 
         XCTAssertTrue(descendants(of: SKView.self, in: hostingView).isEmpty)
+    }
+
+    func testProductionDetailCreatesPreviewWithoutCommerceButton() {
+        let state = CommerceProductState(
+            product: .guineaPig,
+            purchaseState: .available,
+            isWorking: false
+        )
+        let productionView = NSHostingView(rootView: StoreProductDetailSheet(
+            productState: state,
+            actions: .empty,
+            availability: .comingSoon,
+            onClose: {}
+        ))
+        productionView.frame = CGRect(
+            origin: .zero,
+            size: CGSize(width: 600, height: productionView.fittingSize.height)
+        )
+        productionView.layoutSubtreeIfNeeded()
+        productionView.displayIfNeeded()
+
+        XCTAssertEqual(descendants(of: SKView.self, in: productionView).count, 1)
+        XCTAssertFalse(StoreProductDetailSheet(
+            productState: state,
+            actions: .empty,
+            availability: .comingSoon,
+            onClose: {}
+        ).displaysCommerceAction)
+        XCTAssertTrue(StoreProductDetailSheet(
+            productState: state,
+            actions: .empty,
+            availability: .direct,
+            onClose: {}
+        ).displaysCommerceAction)
     }
 
     func testRepeatedPreviewTeardownReleasesSceneAndView() {

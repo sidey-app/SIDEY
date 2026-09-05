@@ -57,4 +57,10 @@ enum StoreAvailability: Equatable {
 
     var allowsCommerceActions: Bool { self != .comingSoon }
     var usesAppStore: Bool { self == .appStore }
+
+    var unavailableDetailMessage: String? {
+        self == .comingSoon
+            ? "상점은 준비 중입니다. 빠른 시일 내에 만나요."
+            : nil
+    }
 }

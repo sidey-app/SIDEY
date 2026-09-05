@@ -52,7 +52,9 @@ struct StoreView: View {
                 ForEach(visibleProducts) { state in
                     switch availability {
                     case .comingSoon:
-                        StoreLockedProductCard(productState: state)
+                        StoreLockedProductCard(productState: state) {
+                            selectedProductID = state.id
+                        }
                     case .direct, .appStore:
                         StoreProductCard(productState: state, actions: actions) {
                             selectedProductID = state.id
@@ -76,7 +78,11 @@ struct StoreView: View {
         )) {
             if let selectedProductID,
                let state = model.commerceProduct(id: selectedProductID) {
-                StoreProductDetailSheet(productState: state, actions: actions) {
+                StoreProductDetailSheet(
+                    productState: state,
+                    actions: actions,
+                    availability: availability
+                ) {
                     self.selectedProductID = nil
                 }
             }
@@ -229,43 +235,83 @@ struct StoreProductCard: View {
     }
 }
 
-private struct StoreLockedProductCard: View {
+struct StoreLockedProductCard: View {
     let productState: CommerceProductState
+    var onSelect: () -> Void
+    @FocusState private var isFocused: Bool
+
+    init(
+        productState: CommerceProductState,
+        onSelect: @escaping () -> Void = {}
+    ) {
+        self.productState = productState
+        self.onSelect = onSelect
+    }
 
     var body: some View {
-        VStack(spacing: 8) {
-            StoreProductPreview(product: productState.product, pointSize: 82)
-                .frame(height: StoreCardLayout.previewHeight)
-            Text(productState.product.displayName)
-                .font(.caption.weight(.semibold))
-                .lineLimit(1)
-            Text(productState.formattedPrice).font(.caption2)
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity)
-        .background(Color.primary.opacity(0.035))
-        .overlay {
-            RoundedRectangle(cornerRadius: StoreCardLayout.cornerRadius, style: .continuous)
-                .fill(Color.black.opacity(0.68))
-        }
-        .overlay {
-            VStack(spacing: 7) {
-                Image(systemName: "lock.fill")
-                Text("추후 오픈 예정")
-                    .font(.caption2.weight(.semibold))
+        Button(action: onSelect) {
+            VStack(spacing: 8) {
+                StoreProductPreview(product: productState.product, pointSize: 82)
+                    .frame(height: StoreCardLayout.previewHeight)
+                Text(productState.product.displayName)
+                    .font(.caption.weight(.semibold))
+                    .lineLimit(1)
+                Text(productState.formattedPrice).font(.caption2)
             }
-            .foregroundStyle(.white)
+            .padding(10)
+            .frame(maxWidth: .infinity)
+            .background(Color.primary.opacity(0.035))
+            .overlay {
+                RoundedRectangle(cornerRadius: StoreCardLayout.cornerRadius, style: .continuous)
+                    .fill(Color.black.opacity(0.68))
+            }
+            .overlay {
+                VStack(spacing: 7) {
+                    Image(systemName: "lock.fill")
+                    Text("추후 오픈 예정")
+                        .font(.caption2.weight(.semibold))
+                }
+                .foregroundStyle(.white)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: StoreCardLayout.cornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: StoreCardLayout.cornerRadius, style: .continuous)
+                    .stroke(isFocused ? Color.accentColor : .clear, lineWidth: 1.5)
+            }
         }
-        .clipShape(RoundedRectangle(cornerRadius: StoreCardLayout.cornerRadius, style: .continuous))
+        .buttonStyle(.plain)
+        .focused($isFocused)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(productState.product.displayName), 추후 오픈 예정입니다.")
+        .accessibilityLabel("\(productState.product.displayName), 추후 오픈 예정")
+        .accessibilityHint("상세 미리보기")
+    }
+
+    func requestPreview() {
+        onSelect()
     }
 }
 
 struct StoreProductDetailSheet: View {
     let productState: CommerceProductState
     let actions: SettingsActions
+    let availability: StoreAvailability
     let onClose: () -> Void
+
+    init(
+        productState: CommerceProductState,
+        actions: SettingsActions,
+        availability: StoreAvailability = .direct,
+        onClose: @escaping () -> Void
+    ) {
+        self.productState = productState
+        self.actions = actions
+        self.availability = availability
+        self.onClose = onClose
+    }
+
+    var displaysCommerceAction: Bool {
+        availability.unavailableDetailMessage == nil
+    }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -291,7 +337,14 @@ struct StoreProductDetailSheet: View {
     }
 
     @ViewBuilder private var detailAction: some View {
-        if productState.isWorking {
+        if !displaysCommerceAction,
+           let unavailableMessage = availability.unavailableDetailMessage {
+            Text(unavailableMessage)
+                .font(.callout.weight(.medium))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .accessibilityLabel(unavailableMessage)
+        } else if productState.isWorking {
             Button(action: {}) { ProgressView().controlSize(.small) }
                 .buttonStyle(.borderedProminent)
                 .disabled(true)

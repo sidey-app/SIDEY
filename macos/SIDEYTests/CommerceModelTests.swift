@@ -55,8 +55,14 @@ final class CommerceModelTests: XCTestCase {
 
     func testReleaseChannelHardCodesStoreAvailabilityAndIsolationIdentifiers() {
         XCTAssertFalse(AppReleaseChannel.production.storeAvailability.allowsCommerceActions)
+        XCTAssertEqual(
+            AppReleaseChannel.production.storeAvailability.unavailableDetailMessage,
+            "상점은 준비 중입니다. 빠른 시일 내에 만나요."
+        )
         XCTAssertTrue(AppReleaseChannel.development.storeAvailability.allowsCommerceActions)
+        XCTAssertNil(AppReleaseChannel.development.storeAvailability.unavailableDetailMessage)
         XCTAssertTrue(AppReleaseChannel.appStore.storeAvailability.usesAppStore)
+        XCTAssertNil(AppReleaseChannel.appStore.storeAvailability.unavailableDetailMessage)
         XCTAssertNotEqual(AppReleaseChannel.production.keychainService, AppReleaseChannel.development.keychainService)
         XCTAssertNotEqual(AppReleaseChannel.production.loginItemMode, AppReleaseChannel.development.loginItemMode)
         XCTAssertEqual(AppReleaseChannel.appStore.loginItemMode, .mainApp)
@@ -102,6 +108,18 @@ final class CommerceModelTests: XCTestCase {
         StoreProductCard(productState: state, actions: actions).requestPurchase()
 
         XCTAssertEqual(purchasedProductID, product.id)
+    }
+
+    func testProductionLockedCardStillOpensProductPreview() {
+        let product = Self.fixtureProduct(id: "fixture_locked", characterID: "pixel_rabbit")
+        let state = CommerceProductState(product: product, purchaseState: .available, isWorking: false)
+        var selectedProductID: String?
+
+        StoreLockedProductCard(productState: state) {
+            selectedProductID = state.id
+        }.requestPreview()
+
+        XCTAssertEqual(selectedProductID, product.id)
     }
 
     func testStoreKitLocalizedPriceOverridesDirectPrice() {
