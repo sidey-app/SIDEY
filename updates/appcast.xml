@@ -9,6 +9,39 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <description>Signed macOS updates for SIDEY</description>
         <language>ko</language>
         <item>
+            <title>1.0.9</title>
+            <pubDate>Sat, 05 Sep 2026 20:29:01 +0900</pubDate>
+            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.9</link>
+            <sparkle:version>20</sparkle:version>
+            <sparkle:shortVersionString>1.0.9</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.9
+
+`1.0.9` build `20` · macOS 26+ · Apple Silicon(arm64)
+
+## 변경 사항
+
+- 내 프로필에서 보유한 말풍선과 투척물을 선택할 수 있습니다.
+- 선택한 꾸미기는 프로필 저장 없이 모든 그룹에 바로 적용됩니다.
+- 기본 말풍선과 캐릭터 기본 투척물로 언제든 되돌릴 수 있습니다.
+
+## 설치 및 업데이트
+
+- 신규 설치는 `SIDEY-macOS-arm64-v1.0.9.dmg`를 사용하세요.
+- 기존 사용자는 앱의 `업데이트 확인…` 또는 Homebrew로 업데이트할 수 있습니다.
+- 업데이트해도 SIDEY 계정, 그룹, 닉네임과 로컬 설정은 유지됩니다.
+
+## 현재 제한
+
+- 정식판 상점의 실제 판매는 아직 시작하지 않습니다.
+- 프로필에는 현재 보유한 말풍선과 투척물만 표시됩니다.
+- Windows v1.0.6 배포물과 Windows의 꾸미기 지원 범위는 이번 macOS 릴리스에서 변경되지 않습니다.
+- 보안 화면, DRM 앱, 권한이 더 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
+]]></description>
+            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.9/SIDEY-macOS-arm64-v1.0.9.zip" length="5687131" type="application/octet-stream" sparkle:edSignature="+vLqPUiXk7TWTlAW6apFQcQGUXkcYpzezHn3eYGq8HXZNuewHYlsyNJIIbtdtxaurvZRg7DD4mWFg3IV6C8lCA=="/>
+        </item>
+        <item>
             <title>1.0.8</title>
             <pubDate>Sat, 05 Sep 2026 19:38:59 +0900</pubDate>
             <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.8</link>
@@ -135,42 +168,9 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
 ]]></description>
             <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.5/SIDEY-macOS-arm64-v1.0.5.zip" length="5489752" type="application/octet-stream" sparkle:edSignature="5UnqBMW/KppK1y8B5XQHmRZH7CVIJeOGH7XB1pUyyrGRTtJ284QscODHd2CQluEfxb3WPZvSlQI5+BchgfVWBg=="/>
         </item>
-        <item>
-            <title>1.0.4</title>
-            <pubDate>Wed, 02 Sep 2026 22:22:24 +0900</pubDate>
-            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.4</link>
-            <sparkle:version>15</sparkle:version>
-            <sparkle:shortVersionString>1.0.4</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.4
-
-`1.0.4` build `15` · macOS 26+ · Apple Silicon(arm64)
-
-## 변경 사항
-
-- 프로필의 닉네임이나 캐릭터를 바꾼 뒤 내 상태가 회색으로 남거나 친구 상태가 빨강·초록으로 흔들리던 문제를 수정했습니다.
-- 꾸미기·상점에 별빛 우파루파, 아기 기니피그, 아기 원숭이, 아기 친칠라 카드가 추가되었습니다.
-- 정식판 상점은 출시 전까지 잠겨 있으며 결제를 시작하지 않습니다. 이미 사용권이 있는 캐릭터는 프로필과 월드에서 계속 사용할 수 있습니다.
-- 캐릭터 결제 준비 구조를 PortOne V2로 전환하고 결제 상태를 서버에서 다시 확인하도록 정비했습니다.
-
-## 설치 및 업데이트
-
-- 신규 설치는 `SIDEY-macOS-arm64-v1.0.4.dmg`를 사용하세요.
-- 기존 사용자는 앱의 `업데이트 확인…` 또는 Homebrew로 업데이트할 수 있습니다.
-- 업데이트해도 SIDEY 계정, 그룹, 닉네임과 로컬 설정은 유지됩니다.
-
-## 현재 제한
-
-- 실제 캐릭터 판매는 아직 시작하지 않습니다.
-- Windows v1.0.3 배포물과 Windows의 무료 캐릭터 정책은 이번 macOS 릴리스에서 변경되지 않습니다.
-- 보안 화면, DRM 앱, 권한이 더 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
-]]></description>
-            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.4/SIDEY-macOS-arm64-v1.0.4.zip" length="5429977" type="application/octet-stream" sparkle:edSignature="BkyTEbepLkoj+QTxuPMM0FisqbK9riHX9pAC3Fmaec94YeFt9AIBNvGLHW3uaTZ2T8oZTwoEOy2dtq4GvRgSAw=="/>
-        </item>
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: JP7EM4a2dopnwkLvXwt0lWUOmsrutxGSiDyeFjrDT4QsR5bTkm/puU1X0xmiVkgAmCxQoKEAIRj+azwl4XKcDw==
-length: 10730
+edSignature: YhvA7fbHjLF7w6XxiuGd5sPiOprv40AOZIJtdn2Dx/5yXsYbDjnyA+997hXnzkNNmcgI/B50k/RhKHjUp44kCw==
+length: 10448
 -->
