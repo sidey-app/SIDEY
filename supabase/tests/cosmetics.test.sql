@@ -4,7 +4,7 @@ set local role postgres;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(31);
+select plan(32);
 
 select has_column('public', 'commerce_products', 'product_kind', 'catalog has product kind');
 select has_column('public', 'commerce_products', 'catalog_item_id', 'catalog has item ID');
@@ -53,6 +53,11 @@ select * from public.join_room((select invite_code from cosmetics_room));
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '71000000-0000-0000-0000-000000000001', true);
 select is((select count(*)::integer from public.get_store_state()), 10, 'store state returns the whole catalog');
+select is(
+  (select count(*)::integer from public.get_store_state() where is_equipped is null),
+  0,
+  'store state returns false rather than null for default equipment'
+);
 select throws_ok(
   $$select public.set_equipped_cosmetic('bubble', 'bubble_bunny_pink')$$,
   '42501', 'cosmetic_ownership_required', 'unowned bubble cannot be equipped'
