@@ -26,8 +26,8 @@ public sealed class WindowsUpdateServiceTests
         const string manifest = """
             {
               "channel": "production",
-              "version": "1.0.8",
-              "tag": "windows-v1.0.8"
+              "version": "1.0.7",
+              "tag": "windows-v1.0.7"
             }
             """;
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -143,9 +143,9 @@ public sealed class WindowsUpdateServiceTests
         const string manifest = """
             {
               "channel": "production",
-              "version": "1.0.8",
-              "tag": "windows-v1.0.8",
-              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.8/SIDEY-Windows-x64-v1.0.8.msi",
+              "version": "1.0.7",
+              "tag": "windows-v1.0.7",
+              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.7/SIDEY-Windows-x64-v1.0.7.msi",
               "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             }
             """;
