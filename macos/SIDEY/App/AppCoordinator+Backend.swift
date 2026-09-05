@@ -561,35 +561,41 @@ extension AppCoordinator {
     }
 
     func setEquippedCosmetic(kind: CommerceProductKind, catalogItemID: String?) {
-        guard releaseChannel.storeAvailability.allowsCommerceActions,
+        let product = catalogItemID.flatMap { requestedID in
+            model.ownedProfileCosmeticProducts(for: kind).first {
+                $0.catalogItemID == requestedID
+            }
+        }
+        guard releaseChannel.storeAvailability.allowsCosmeticEquipment,
               !releaseChannel.storeAvailability.usesAppStore,
               kind != .character,
               let backend,
-              let product = model.commerceProducts.first(where: {
-                  $0.product.kind == kind
-                      && (catalogItemID == nil ? $0.isEquipped : $0.product.catalogItemID == catalogItemID)
-              }),
-              product.purchaseState == .owned,
-              commerceProductTasks[product.id] == nil
+              catalogItemID == nil || product != nil,
+              model.equippedCosmeticID(for: kind) != catalogItemID,
+              cosmeticEquipmentTasks[kind] == nil,
+              model.beginCosmeticEquipmentRequest(kind: kind, catalogItemID: catalogItemID)
         else { return }
 
-        model.setCommerceWorking(true, productID: product.id)
-        commerceProductTasks[product.id] = Task { [weak self] in
+        model.errorMessage = nil
+        model.successMessage = nil
+        cosmeticEquipmentTasks[kind] = Task { [weak self] in
             guard let self else { return }
             defer {
-                model.setCommerceWorking(false, productID: product.id)
-                commerceProductTasks[product.id] = nil
+                model.endCosmeticEquipmentRequest(kind: kind)
+                cosmeticEquipmentTasks[kind] = nil
             }
             do {
                 let profile = try await backend.setEquippedCosmetic(
                     kind: kind,
                     catalogItemID: catalogItemID
                 )
+                guard profile.id == model.currentUserID else {
+                    throw SideyBackendError.malformedResponse
+                }
                 model.apply(profile: profile)
-                model.apply(commerceStates: try await backend.storeState())
                 model.successMessage = catalogItemID == nil
-                    ? "\(kind.title) 장착을 해제했습니다."
-                    : "\(product.product.displayName)을 사용합니다."
+                    ? "\(kind.title) 기본값을 사용합니다."
+                    : "\(product?.displayName ?? kind.title)을 사용합니다."
                 model.errorMessage = nil
                 persistPreferences()
             } catch is CancellationError {

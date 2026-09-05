@@ -14,6 +14,8 @@ final class AppModel {
     private(set) var equippedBubbleStyleID: String?
     private(set) var equippedThrowableID: String?
     private(set) var activeEntitlementKeys: Set<String> = []
+    private(set) var snapshotActiveEntitlementKeys: Set<String> = []
+    private(set) var cosmeticEquipmentRequests: [CommerceProductKind: CosmeticEquipmentRequest] = [:]
     private(set) var commerceProducts: [CommerceProductState]
     var draft = ""
     private(set) var messageLedger = MessageLedger()
@@ -101,6 +103,7 @@ final class AppModel {
         self.currentUserID = currentUserID
         authenticationRequired = false
         activeEntitlementKeys = snapshot.activeEntitlementKeys
+        snapshotActiveEntitlementKeys = snapshot.activeEntitlementKeys
         hasProfile = snapshot.profile != nil
         var updatedRooms = snapshot.rooms
         let previousBasePresence = basePresence
@@ -228,6 +231,44 @@ final class AppModel {
 
     func commerceProduct(id: String) -> CommerceProductState? {
         commerceProducts.first { $0.id == id }
+    }
+
+    func ownedProfileCosmeticProducts(for kind: CommerceProductKind) -> [CommerceProduct] {
+        guard kind == .bubble || kind == .throwable else { return [] }
+        return CommerceCatalog.cosmeticProducts
+            .filter {
+                $0.kind == kind && snapshotActiveEntitlementKeys.contains($0.entitlementKey)
+            }
+            .sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    func equippedCosmeticID(for kind: CommerceProductKind) -> String? {
+        switch kind {
+        case .bubble: equippedBubbleStyleID
+        case .throwable: equippedThrowableID
+        case .character: nil
+        }
+    }
+
+    @discardableResult
+    func beginCosmeticEquipmentRequest(
+        kind: CommerceProductKind,
+        catalogItemID: String?
+    ) -> Bool {
+        guard kind != .character, cosmeticEquipmentRequests[kind] == nil else { return false }
+        cosmeticEquipmentRequests[kind] = CosmeticEquipmentRequest(
+            kind: kind,
+            catalogItemID: catalogItemID
+        )
+        return true
+    }
+
+    func endCosmeticEquipmentRequest(kind: CommerceProductKind) {
+        cosmeticEquipmentRequests.removeValue(forKey: kind)
+    }
+
+    func cosmeticEquipmentRequest(for kind: CommerceProductKind) -> CosmeticEquipmentRequest? {
+        cosmeticEquipmentRequests[kind]
     }
 
     func setCommerceWorking(_ isWorking: Bool, productID: String) {

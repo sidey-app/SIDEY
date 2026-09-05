@@ -55,13 +55,16 @@ final class CommerceModelTests: XCTestCase {
 
     func testReleaseChannelHardCodesStoreAvailabilityAndIsolationIdentifiers() {
         XCTAssertFalse(AppReleaseChannel.production.storeAvailability.allowsCommerceActions)
+        XCTAssertTrue(AppReleaseChannel.production.storeAvailability.allowsCosmeticEquipment)
         XCTAssertEqual(
             AppReleaseChannel.production.storeAvailability.unavailableDetailMessage,
             "상점은 준비 중입니다. 빠른 시일 내에 만나요."
         )
         XCTAssertTrue(AppReleaseChannel.development.storeAvailability.allowsCommerceActions)
+        XCTAssertTrue(AppReleaseChannel.development.storeAvailability.allowsCosmeticEquipment)
         XCTAssertNil(AppReleaseChannel.development.storeAvailability.unavailableDetailMessage)
         XCTAssertTrue(AppReleaseChannel.appStore.storeAvailability.usesAppStore)
+        XCTAssertFalse(AppReleaseChannel.appStore.storeAvailability.allowsCosmeticEquipment)
         XCTAssertNil(AppReleaseChannel.appStore.storeAvailability.unavailableDetailMessage)
         XCTAssertNotEqual(AppReleaseChannel.production.keychainService, AppReleaseChannel.development.keychainService)
         XCTAssertNotEqual(AppReleaseChannel.production.loginItemMode, AppReleaseChannel.development.loginItemMode)
@@ -70,6 +73,125 @@ final class CommerceModelTests: XCTestCase {
         XCTAssertNil(AppReleaseChannel.production.preferencesSuiteName)
         XCTAssertEqual(AppReleaseChannel.development.preferencesSuiteName, "app.sidey.desktop.dev")
         XCTAssertEqual(AppReleaseChannel.appStore.preferencesSuiteName, "app.sidey.desktop.appstore")
+    }
+
+    func testProfileCosmeticsUseOnlySnapshotEntitlementsAndKeepCatalogOrder() {
+        let userID = UUID()
+        let model = AppModel(preferences: .defaults)
+
+        model.apply(commerceState: CommerceState(
+            product: .starryCatBubble,
+            googleConnected: true,
+            entitlementStatus: "active",
+            latestOrderStatus: "approved"
+        ))
+        XCTAssertTrue(model.ownedProfileCosmeticProducts(for: .bubble).isEmpty)
+
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(
+                    id: userID,
+                    nickname: "꾸미기친구",
+                    characterID: PixelCharacterCatalog.pixelHamsterID
+                ),
+                rooms: [],
+                activeEntitlementKeys: [
+                    CommerceProduct.butterChickBubble.entitlementKey,
+                    CommerceProduct.bunnyPinkBubble.entitlementKey,
+                    CommerceProduct.squeakyDuck.entitlementKey,
+                ]
+            ),
+            currentUserID: userID
+        )
+
+        XCTAssertEqual(model.ownedProfileCosmeticProducts(for: .bubble).map(\.catalogItemID), [
+            CommerceProduct.bunnyPinkBubble.catalogItemID,
+            CommerceProduct.butterChickBubble.catalogItemID,
+        ])
+        XCTAssertEqual(model.ownedProfileCosmeticProducts(for: .throwable).map(\.catalogItemID), [
+            CommerceProduct.squeakyDuck.catalogItemID,
+        ])
+        XCTAssertTrue(model.ownedProfileCosmeticProducts(for: .character).isEmpty)
+
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(
+                    id: userID,
+                    nickname: "꾸미기친구",
+                    characterID: PixelCharacterCatalog.pixelHamsterID
+                ),
+                rooms: [],
+                activeEntitlementKeys: [CommerceProduct.squeakyDuck.entitlementKey]
+            ),
+            currentUserID: userID
+        )
+        XCTAssertTrue(model.ownedProfileCosmeticProducts(for: .bubble).isEmpty)
+    }
+
+    func testProfileCosmeticVisibilityKeepsAppStoreCharacterOnly() {
+        XCTAssertTrue(ProfileCosmeticEquipmentPolicy.shouldShow(
+            availability: .comingSoon,
+            bubbleCount: 1,
+            throwableCount: 0
+        ))
+        XCTAssertTrue(ProfileCosmeticEquipmentPolicy.shouldShow(
+            availability: .direct,
+            bubbleCount: 0,
+            throwableCount: 1
+        ))
+        XCTAssertFalse(ProfileCosmeticEquipmentPolicy.shouldShow(
+            availability: .appStore,
+            bubbleCount: 3,
+            throwableCount: 3
+        ))
+        XCTAssertFalse(ProfileCosmeticEquipmentPolicy.shouldShow(
+            availability: .comingSoon,
+            bubbleCount: 0,
+            throwableCount: 0
+        ))
+    }
+
+    func testCosmeticEquipmentRequestsBlockOnlyTheSameKindAndDoNotOptimisticallySelect() {
+        let userID = UUID()
+        let model = AppModel(preferences: .defaults)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(
+                    id: userID,
+                    nickname: "꾸미기친구",
+                    characterID: PixelCharacterCatalog.pixelHamsterID,
+                    equippedBubbleStyleID: CommerceProduct.bunnyPinkBubble.catalogItemID
+                ),
+                rooms: [],
+                activeEntitlementKeys: [CommerceProduct.bunnyPinkBubble.entitlementKey]
+            ),
+            currentUserID: userID
+        )
+
+        XCTAssertTrue(model.beginCosmeticEquipmentRequest(kind: .bubble, catalogItemID: nil))
+        XCTAssertFalse(model.beginCosmeticEquipmentRequest(
+            kind: .bubble,
+            catalogItemID: CommerceProduct.bunnyPinkBubble.catalogItemID
+        ))
+        XCTAssertTrue(model.beginCosmeticEquipmentRequest(
+            kind: .throwable,
+            catalogItemID: CommerceProduct.squeakyDuck.catalogItemID
+        ))
+        XCTAssertEqual(model.equippedBubbleStyleID, CommerceProduct.bunnyPinkBubble.catalogItemID)
+        XCTAssertNil(model.equippedThrowableID)
+
+        model.endCosmeticEquipmentRequest(kind: .bubble)
+        model.apply(profile: Profile(
+            id: userID,
+            nickname: "꾸미기친구",
+            characterID: PixelCharacterCatalog.pixelHamsterID,
+            equippedBubbleStyleID: nil
+        ))
+        XCTAssertNil(model.equippedBubbleStyleID)
+
+        model.endCosmeticEquipmentRequest(kind: .throwable)
+        XCTAssertNil(model.cosmeticEquipmentRequest(for: .bubble))
+        XCTAssertNil(model.cosmeticEquipmentRequest(for: .throwable))
     }
 
     func testTwoProductsKeepOrderAndUpdateStateIndependently() throws {

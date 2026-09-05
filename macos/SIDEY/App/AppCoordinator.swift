@@ -88,6 +88,7 @@ final class AppCoordinator {
     var typingTask: Task<Void, Never>?
     var bubbleExpiryTask: Task<Void, Never>?
     var commerceProductTasks: [String: Task<Void, Never>] = [:]
+    var cosmeticEquipmentTasks: [CommerceProductKind: Task<Void, Never>] = [:]
     var commerceAuthTask: Task<Void, Never>?
     var googleConnectionProductID: String?
     private var landingDidComplete = false
@@ -225,6 +226,11 @@ final class AppCoordinator {
         bubbleExpiryTask?.cancel()
         commerceProductTasks.values.forEach { $0.cancel() }
         commerceProductTasks.removeAll()
+        cosmeticEquipmentTasks.values.forEach { $0.cancel() }
+        for kind in cosmeticEquipmentTasks.keys {
+            model.endCosmeticEquipmentRequest(kind: kind)
+        }
+        cosmeticEquipmentTasks.removeAll()
         commerceAuthTask?.cancel()
         appStorePurchaseController.stopObserving()
         roomSwitchPipeline.cancel()

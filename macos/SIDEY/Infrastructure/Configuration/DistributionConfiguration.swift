@@ -56,6 +56,7 @@ enum StoreAvailability: Equatable {
     case appStore
 
     var allowsCommerceActions: Bool { self != .comingSoon }
+    var allowsCosmeticEquipment: Bool { self != .appStore }
     var usesAppStore: Bool { self == .appStore }
 
     var unavailableDetailMessage: String? {

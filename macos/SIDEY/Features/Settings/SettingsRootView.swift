@@ -100,7 +100,11 @@ struct SettingsRootView: View {
                 Group {
                     switch model.activeSettingsPage {
                     case .profile:
-                        ProfileSettingsView(model: model, onSave: actions.onSaveProfile)
+                        ProfileSettingsView(
+                            model: model,
+                            actions: actions,
+                            storeAvailability: storeAvailability
+                        )
                     case .groups:
                         GroupsSettingsView(model: model, actions: actions)
                     case .store:

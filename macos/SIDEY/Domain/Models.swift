@@ -280,6 +280,11 @@ enum CommerceProductKind: String, Codable, CaseIterable, Sendable {
     }
 }
 
+struct CosmeticEquipmentRequest: Equatable, Sendable {
+    let kind: CommerceProductKind
+    let catalogItemID: String?
+}
+
 struct CommerceProduct: Equatable, Sendable {
     let id: String
     let displayName: String
