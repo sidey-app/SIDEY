@@ -457,13 +457,13 @@ public sealed class MainWindowViewModelTests
     public async Task UpdateInformationShowsVersionLastCheckAndOpensReleaseNotes()
     {
         (FakeSideyCoordinator coordinator, _) = CreateRoomState();
-        var updates = new FakeUpdateService { CurrentVersion = "1.0.6" };
+        var updates = new FakeUpdateService { CurrentVersion = "1.0.7" };
         var viewModel = new MainWindowViewModel(
             coordinator,
             new FakeMainWindowDialogService(),
             updates);
 
-        Assert.Equal("v1.0.6", viewModel.CurrentVersionText);
+        Assert.Equal("v1.0.7", viewModel.CurrentVersionText);
         Assert.NotEmpty(viewModel.LastUpdateCheckText);
 
         await viewModel.CheckForUpdatesOnStartupAsync();

@@ -2,6 +2,6 @@
   "schema": 1,
   "platform": "macos",
   "channel": "production",
-  "version": "1.0.9",
-  "build": 20
+  "version": "1.0.10",
+  "build": 21
 }
