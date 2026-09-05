@@ -9,6 +9,48 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <description>Signed macOS updates for SIDEY</description>
         <language>ko</language>
         <item>
+            <title>1.0.10</title>
+            <pubDate>Sun, 06 Sep 2026 00:13:24 +0900</pubDate>
+            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.10</link>
+            <sparkle:version>21</sparkle:version>
+            <sparkle:shortVersionString>1.0.10</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.10
+
+`1.0.10` build `21` · macOS 26+ · Apple Silicon(arm64)
+
+설정 관리와 그룹 나가기, 상점 탐색을 개선하고 최근 메시지 보관 기간을 3일로 변경했습니다.
+
+## 변경 사항
+
+- 캐릭터를 고르면 바로 적용되고, 작성 중인 닉네임은 다른 변경이 와도 유지됩니다.
+- 보유 상품이 없어도 기본 말풍선과 캐릭터 기본 투척물의 장착 상태를 확인할 수 있습니다.
+- 상점에서 기본순·가격순 정렬과 보유 상품 숨기기를 사용할 수 있습니다.
+- 그룹을 직접 나갈 수 있으며 방장 이전이나 마지막 그룹 삭제 영향을 미리 안내합니다.
+- 그룹 멤버가 바뀔 때 필요한 그룹만 다시 연결해 현재 그룹의 연결을 안정적으로 유지합니다.
+- 설정의 완료 안내는 3초 뒤 자동으로 닫히고 오류 안내는 직접 닫을 때까지 유지됩니다.
+
+## 설치 및 업데이트
+
+- 새로 설치할 때는 `SIDEY-macOS-arm64-v1.0.10.dmg`를 사용하세요.
+- 기존 사용자는 앱의 `업데이트 확인` 또는 Homebrew로 업데이트할 수 있습니다.
+- 로그인 상태와 그룹 설정은 업데이트 뒤에도 유지됩니다.
+
+## 메시지 보관 변경
+
+- 최근 메시지와 기록은 생성 후 3일 동안 제공됩니다.
+- 정책 전환 시 이미 3일이 지난 메시지는 영구 삭제되며 복구할 수 없습니다.
+
+## 현재 제한
+
+- 정식판 상점의 실제 판매는 아직 열리지 않았습니다.
+- 이번 macOS 설정·상점 개선은 App Store판과 Windows판에 포함되지 않습니다.
+- 보안 화면, DRM 앱, 권한이 더 높은 앱, 모든 독점 전체화면 게임 위 표시를 보장하지 않습니다.
+]]></description>
+            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.10/SIDEY-macOS-arm64-v1.0.10.zip" length="5732912" type="application/octet-stream" sparkle:edSignature="DqHY8BcWcStF3RztC7c1poFdOSSQAXoqfGXf3dBWksnBfa6xcvq+Fd8cm8p9usK2UqqjCmiFbClQkZMROKNtDQ=="/>
+        </item>
+        <item>
             <title>1.0.9</title>
             <pubDate>Sat, 05 Sep 2026 20:29:01 +0900</pubDate>
             <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.9</link>
@@ -136,41 +178,9 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
 ]]></description>
             <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.6/SIDEY-macOS-arm64-v1.0.6.zip" length="5492005" type="application/octet-stream" sparkle:edSignature="Si8Cl94TW+wyrkW9cdbuCxW4NjNIODs2ZFc+Etit9mh4BhtAIn6ds5KF4SNhzMw/0NsqmchmtgWX/fXDcJPQBQ=="/>
         </item>
-        <item>
-            <title>1.0.5</title>
-            <pubDate>Thu, 03 Sep 2026 16:27:57 +0900</pubDate>
-            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.5</link>
-            <sparkle:version>16</sparkle:version>
-            <sparkle:shortVersionString>1.0.5</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.5
-
-`1.0.5` build `16` · macOS 26+ · Apple Silicon(arm64)
-
-## 변경 사항
-
-- 친구 캐릭터를 클릭해 물체를 던질 수 있습니다. 기본 설정에서는 바로 클릭해 던지고, `우클릭 후 던지기`를 켜면 내 캐릭터를 우클릭한 뒤 10초 동안 여러 번 던질 수 있습니다.
-- 여러 데스크탑을 사용할 때 캐릭터를 클릭해도 메시지 입력창이 나타나지 않던 문제를 수정했습니다.
-- Mac을 덮었다 다시 열거나 절전 모드에서 깨어난 뒤 내 캐릭터만 회색 연결 중 상태로 남던 문제를 수정했습니다.
-
-## 설치 및 업데이트
-
-- 신규 설치는 `SIDEY-macOS-arm64-v1.0.5.dmg`를 사용하세요.
-- 기존 사용자는 앱의 `업데이트 확인…` 또는 Homebrew로 업데이트할 수 있습니다.
-- 업데이트해도 SIDEY 계정, 그룹, 닉네임과 로컬 설정은 유지됩니다.
-
-## 현재 제한
-
-- 정식판 상점의 실제 캐릭터 판매는 아직 시작하지 않습니다.
-- Windows v1.0.3 배포물과 Windows의 무료 캐릭터 정책은 이번 macOS 릴리스에서 변경되지 않습니다.
-- 보안 화면, DRM 앱, 권한이 더 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
-]]></description>
-            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.5/SIDEY-macOS-arm64-v1.0.5.zip" length="5489752" type="application/octet-stream" sparkle:edSignature="5UnqBMW/KppK1y8B5XQHmRZH7CVIJeOGH7XB1pUyyrGRTtJ284QscODHd2CQluEfxb3WPZvSlQI5+BchgfVWBg=="/>
-        </item>
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: YhvA7fbHjLF7w6XxiuGd5sPiOprv40AOZIJtdn2Dx/5yXsYbDjnyA+997hXnzkNNmcgI/B50k/RhKHjUp44kCw==
-length: 10448
+edSignature: cTG7g9/RhlHbDzlKGxkicC+AmQsXUm6nscO2dVwh6c87G6S8F3LT7cuMvEAN/o856aIEW1JRQrjQw0b12ZQGBQ==
+length: 10920
 -->
