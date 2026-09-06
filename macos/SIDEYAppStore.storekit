@@ -1,0 +1,174 @@
+{
+  "identifier" : "A2C5D7E9-1B34-4F68-9A01-2C3D4E5F6071",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "1900",
+      "familyShareable" : false,
+      "internalID" : "01000000-0000-4000-8000-000000000001",
+      "localizations" : [
+        {
+          "description" : "진주빛 몸과 별빛 아가미를 가진 우파루파 캐릭터",
+          "displayName" : "별빛 우파루파",
+          "locale" : "ko_KR"
+        }
+      ],
+      "productID" : "character_starlight_upalupa",
+      "referenceName" : "별빛 우파루파",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "990",
+      "familyShareable" : false,
+      "internalID" : "01000000-0000-4000-8000-000000000002",
+      "localizations" : [
+        {
+          "description" : "비대칭 삼색 무늬의 아기 기니피그 캐릭터",
+          "displayName" : "아기 기니피그",
+          "locale" : "ko_KR"
+        }
+      ],
+      "productID" : "character_guinea_pig",
+      "referenceName" : "아기 기니피그",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "990",
+      "familyShareable" : false,
+      "internalID" : "01000000-0000-4000-8000-000000000003",
+      "localizations" : [
+        {
+          "description" : "시안 목도리를 두른 아기 원숭이 캐릭터",
+          "displayName" : "아기 원숭이",
+          "locale" : "ko_KR"
+        }
+      ],
+      "productID" : "character_monkey",
+      "referenceName" : "아기 원숭이",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "990",
+      "familyShareable" : false,
+      "internalID" : "01000000-0000-4000-8000-000000000004",
+      "localizations" : [
+        {
+          "description" : "파란 목도리를 두른 아기 친칠라 캐릭터",
+          "displayName" : "아기 친칠라",
+          "locale" : "ko_KR"
+        }
+      ],
+      "productID" : "character_chinchilla",
+      "referenceName" : "아기 친칠라",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "1900",
+      "familyShareable" : false,
+      "internalID" : "02000000-0000-4000-8000-000000000001",
+      "localizations" : [
+        {
+          "description" : "토끼 장식이 있는 분홍 말풍선",
+          "displayName" : "핑크 토끼 말풍선",
+          "locale" : "ko_KR"
+        }
+      ],
+      "productID" : "bubble_bunny_pink",
+      "referenceName" : "핑크 토끼 말풍선",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "1900",
+      "familyShareable" : false,
+      "internalID" : "02000000-0000-4000-8000-000000000002",
+      "localizations" : [
+        {
+          "description" : "병아리 장식이 있는 버터색 말풍선",
+          "displayName" : "버터 병아리 말풍선",
+          "locale" : "ko_KR"
+        }
+      ],
+      "productID" : "bubble_butter_chick",
+      "referenceName" : "버터 병아리 말풍선",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "1900",
+      "familyShareable" : false,
+      "internalID" : "02000000-0000-4000-8000-000000000003",
+      "localizations" : [
+        {
+          "description" : "별고양이 장식이 있는 남보라 말풍선",
+          "displayName" : "별밤 고양이 말풍선",
+          "locale" : "ko_KR"
+        }
+      ],
+      "productID" : "bubble_starry_cat",
+      "referenceName" : "별밤 고양이 말풍선",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "990",
+      "familyShareable" : false,
+      "internalID" : "03000000-0000-4000-8000-000000000001",
+      "localizations" : [
+        {
+          "description" : "통통 튀며 날아가는 하트 투척물",
+          "displayName" : "통통 하트",
+          "locale" : "ko_KR"
+        }
+      ],
+      "productID" : "throwable_bouncy_heart",
+      "referenceName" : "통통 하트",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "2900",
+      "familyShareable" : false,
+      "internalID" : "03000000-0000-4000-8000-000000000002",
+      "localizations" : [
+        {
+          "description" : "심지탄을 쏘는 미니 대포 투척물",
+          "displayName" : "미니 대포",
+          "locale" : "ko_KR"
+        }
+      ],
+      "productID" : "throwable_toy_cannon",
+      "referenceName" : "미니 대포",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "990",
+      "familyShareable" : false,
+      "internalID" : "03000000-0000-4000-8000-000000000003",
+      "localizations" : [
+        {
+          "description" : "노란 오리가 빙글빙글 날아가는 투척물",
+          "displayName" : "삑삑 오리",
+          "locale" : "ko_KR"
+        }
+      ],
+      "productID" : "throwable_squeaky_duck",
+      "referenceName" : "삑삑 오리",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_locale" : "ko_KR",
+    "_storefront" : "KOR",
+    "_storeKitErrors" : [
+
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}
