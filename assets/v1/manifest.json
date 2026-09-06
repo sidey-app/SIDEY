@@ -208,7 +208,7 @@
     "character_base_png": [
       "macos/SIDEY/Resources/Characters/{macos_directory}/{id}.png",
       "windows/src/Sidey.Overlay/Assets/Characters/{id}/base.png",
-      "website/assets/characters/{id}.png"
+      "website/public/assets/characters/{id}.png"
     ],
     "character_base_bgra": ["windows/src/Sidey.Overlay/Assets/Characters/{id}/base.bgra"],
     "throw_hit_png": [
@@ -222,12 +222,12 @@
     ],
     "throwable_bgra": ["windows/src/Sidey.Overlay/Assets/Throwables/{id}/sprite.bgra"],
     "bubble_decoration_png": ["macos/SIDEY/Resources/Bubbles/{id}.png"],
-    "bubble_preview_png": ["website/assets/cosmetics/{id}.png"],
-    "throwable_checkout_preview_png": ["website/assets/cosmetics/{id}.png"],
+    "bubble_preview_png": ["website/public/assets/cosmetics/{id}.png"],
+    "throwable_checkout_preview_png": ["website/public/assets/cosmetics/{id}.png"],
     "cannon_emitter_png": ["macos/SIDEY/Resources/CharacterThrow/EmitterSheets/{id}_emitter.png"],
     "previewer_defaults": {
-      "pixel_hamster_throw_hit": "website/assets/previewer/pixel_hamster_throw_hit.png",
-      "patch_soft_ball": "website/assets/previewer/patch_soft_ball.png"
+      "pixel_hamster_throw_hit": "website/public/assets/previewer/pixel_hamster_throw_hit.png",
+      "patch_soft_ball": "website/public/assets/previewer/patch_soft_ball.png"
     }
   }
 }

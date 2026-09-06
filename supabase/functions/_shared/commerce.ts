@@ -93,14 +93,14 @@ function publicFunctionBaseURL(): string {
 }
 
 export function checkoutPageURL(token: string): string {
-  const url = websitePageURL("checkout.html");
+  const url = websitePageURL("checkout/");
   url.searchParams.set("api", publicFunctionBaseURL());
   url.hash = new URLSearchParams({ token }).toString();
   return url.toString();
 }
 
 export function checkoutResultURL(result: string, productID?: string): string {
-  const url = websitePageURL("checkout-result.html");
+  const url = websitePageURL("checkout-result/");
   url.searchParams.set("result", result);
   if (productID && SUPPORTED_PRODUCT_IDS.has(productID)) url.searchParams.set("product", productID);
   return url.toString();

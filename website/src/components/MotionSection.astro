@@ -1,0 +1,45 @@
+---
+import type { Locale } from "../i18n/landing";
+import { getLandingCopy } from "../i18n/landing";
+import PhraseText from "./PhraseText.astro";
+
+interface Props { locale: Locale; }
+const { locale } = Astro.props;
+const copy = getLandingCopy(locale).motion;
+const titleParts = "titleParts" in copy ? copy.titleParts : null;
+const presenceTitleParts = "titleParts" in copy.presence ? copy.presence.titleParts : null;
+const throwTitleParts = "titleParts" in copy.throw ? copy.throw.titleParts : null;
+const pulseTitleParts = "titleParts" in copy.pulse ? copy.pulse.titleParts : null;
+---
+
+<section class="section motion-section" id="features" aria-labelledby="features-title">
+  <div class="section-heading section-heading-split">
+    <h2 id="features-title">{titleParts ? <PhraseText parts={titleParts} /> : copy.title}</h2>
+    <p>{copy.description}</p>
+  </div>
+
+  <div class="motion-showcase" role="group" aria-label={copy.label}>
+    <article class="motion-card motion-card-presence">
+      <header class="motion-card-heading"><span>{copy.presence.eyebrow}</span><h3>{presenceTitleParts ? <PhraseText parts={presenceTitleParts} /> : copy.presence.title}</h3><p>{copy.presence.description}</p></header>
+      <div class="presence-strip">
+        <div class="presence-state"><span>{copy.presence.online}</span><div class="motion-floor"><span class="demo-walk-actor"><span class="character-nameplate"><i class="presence-dot is-online"></i><strong>{copy.names.kong}</strong></span><span class="character character-hamster character-state-walk"></span></span></div></div>
+        <div class="presence-state"><span>{copy.presence.away}</span><div class="motion-floor"><span class="character-nameplate"><i class="presence-dot is-away"></i><strong>{copy.names.bori}</strong></span><span class="sleep-mark">Zzz</span><span class="character character-cat character-state-doze"></span></div></div>
+        <div class="presence-state"><span>{copy.presence.offline}</span><div class="motion-floor"><span class="character-nameplate"><i class="presence-dot is-offline"></i><strong>{copy.names.cloud}</strong></span><span class="character character-chinchilla character-state-offline"></span></div></div>
+      </div>
+    </article>
+
+    <article class="motion-card motion-card-throw">
+      <header class="motion-card-heading"><span>{copy.throw.eyebrow}</span><h3>{throwTitleParts ? <PhraseText parts={throwTitleParts} /> : copy.throw.title}</h3><p>{copy.throw.description}</p></header>
+      <div class="motion-floor throw-floor">
+        <span class="motion-actor throw-source"><span class="character-nameplate"><i class="presence-dot is-online"></i><strong>{copy.throw.source}</strong></span><span class="character character-penguin character-state-throw"></span></span>
+        <span class="motion-actor hit-target"><span class="character-nameplate"><i class="presence-dot is-online"></i><strong>{copy.throw.target}</strong></span><span class="impact-mark" aria-hidden="true"></span><span class="character character-rabbit character-state-hit"></span></span>
+        <span class="state-throwable" aria-hidden="true"></span>
+      </div>
+    </article>
+
+    <article class="motion-card motion-card-pulse">
+      <header class="motion-card-heading"><span>{copy.pulse.eyebrow}</span><h3>{pulseTitleParts ? <PhraseText parts={pulseTitleParts} /> : copy.pulse.title}</h3><p>{copy.pulse.description}</p></header>
+      <div class="motion-floor pulse-floor"><span class="character-nameplate"><i class="presence-dot is-online"></i><strong>{copy.pulse.name}</strong></span><span class="pulse-anchor"><span class="character character-puppy character-state-pulse"></span></span></div>
+    </article>
+  </div>
+</section>

@@ -142,14 +142,13 @@ def validate_macos(allow_pending_appcast: bool = False) -> dict[str, str]:
                 "Sparkle appcast ZIP URL does not match release/macos.json")
     require("sparkle-signatures:" in appcast_text, "Sparkle appcast is not signed")
 
-    expected_dmg_url = (
-        f"https://github.com/sidey-app/SIDEY/releases/download/{tag}/{dmg_name}"
-    )
-    for page in ("website/index.html", "website/en/index.html"):
-        page_text = read(page)
-        require(expected_dmg_url in page_text, f"{page} has the wrong macOS DMG URL")
-        require(f"https://github.com/sidey-app/SIDEY/releases/tag/{tag}" in page_text,
-                f"{page} has the wrong macOS release URL")
+    release_data = read("website/src/data/releases.ts")
+    require("version: macOSRelease.version" in release_data,
+            "website release data must derive the macOS version from release/macos.json")
+    require("SIDEY-macOS-arm64-v${macOSRelease.version}.dmg" in release_data,
+            "website release data has the wrong macOS DMG URL template")
+    require("releases/tag/v${macOSRelease.version}" in release_data,
+            "website release data has the wrong macOS release URL template")
 
     require(f"`{tag}`(build {build})" in read("README.md"),
             "README macOS public version does not match release/macos.json")
@@ -205,9 +204,13 @@ def validate_windows(allow_unreleased_source: bool = False) -> dict[str, str]:
             "DECISIONS Windows public version does not match release/windows.json")
     require(f"Windows 네이티브 `v{version}` 정식 출시" in read("docs/PRODUCT_SPEC.md"),
             "PRODUCT_SPEC Windows public version does not match release/windows.json")
-    for page in ("website/index.html", "website/en/index.html"):
-        require(f"v{version}" in read(page),
-                f"{page} does not mention the current Windows version")
+    release_data = read("website/src/data/releases.ts")
+    require("version: windowsRelease.version" in release_data,
+            "website release data must derive the Windows version from release/windows.json")
+    require("SIDEY-Windows-x64-v${windowsRelease.version}-Setup.exe" in release_data,
+            "website release data has the wrong Windows installer URL template")
+    require("releases/tag/windows-v${windowsRelease.version}" in release_data,
+            "website release data has the wrong Windows release URL template")
 
     return {
         "version": version,

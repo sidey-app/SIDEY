@@ -1,0 +1,25 @@
+---
+interface Props {
+  id: string;
+  value: string;
+  copyLabel: string;
+  copiedAnnouncement: string;
+  failureAnnouncement: string;
+  releasePlatform?: "macos" | "windows";
+}
+
+const { id, value, copyLabel, copiedAnnouncement, failureAnnouncement, releasePlatform } = Astro.props;
+const statusId = `${id}-status`;
+---
+
+<div class="download-checksum">
+  <span>SHA-256</span>
+  <div class="checksum-value">
+    <code id={id} data-release-platform={releasePlatform}>{value}</code>
+    <button class="copy-button" type="button" data-copy-target={id} data-copy-status={statusId} data-copy-state="idle" data-copy-announcement={copiedAnnouncement} data-copy-failure-announcement={failureAnnouncement} aria-label={copyLabel}>
+      <span class="material-symbols-rounded copy-button-icon copy-button-icon-default" aria-hidden="true">content_copy</span>
+      <span class="material-symbols-rounded copy-button-icon copy-button-icon-success" aria-hidden="true">check</span>
+    </button>
+  </div>
+  <span class="visually-hidden" id={statusId} role="status" aria-live="polite"></span>
+</div>

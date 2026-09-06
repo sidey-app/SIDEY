@@ -1,0 +1,62 @@
+@use "settings" as *;
+
+.checkout-body { min-height: 100svh; background: var(--page); }
+.checkout-shell { display: grid; width: min(calc(100% - 2.25rem), 38.75rem); min-height: 100svh; margin: 0 auto; padding: clamp(7rem, 14vh, 8.75rem) 0 3rem; align-content: center; gap: 1.125rem; }
+.checkout-card { min-height: 26.25rem; padding: clamp(1.625rem, 6vw, 3rem); border: .0625rem solid var(--line-strong); border-radius: var(--card-radius); background: var(--surface); box-shadow: 0 .125rem .4375rem rgba(22, 22, 25, .1); }
+
+.checkout-state {
+  display: grid;
+  min-height: 20rem;
+  place-items: center;
+  align-content: center;
+  text-align: center;
+
+  p { max-width: 27.5rem; margin: .375rem 0; color: var(--muted); }
+}
+
+.checkout-state-icon { display: grid; width: 3.75rem; height: 3.75rem; margin-bottom: .75rem; place-items: center; border-radius: .75rem; color: var(--brand-dark); background: var(--brand-soft); font-size: 1.75rem; font-weight: 850; }
+.checkout-state-warning { color: #7e5118; background: #e9e4d9; }
+.checkout-state h1, .checkout-product-row h1 { margin: .5rem 0; font-size: clamp(1.55rem, 5vw, 2.15rem); line-height: 1.2; letter-spacing: -.035em; }
+.checkout-product-row { display: flex; align-items: center; gap: 1.5rem; margin: 1.125rem 0 1.5rem; }
+
+.checkout-sprite-frame {
+  flex: 0 0 auto;
+  width: 7.5rem;
+  height: 7.5rem;
+  overflow: hidden;
+  border: .0625rem solid var(--line);
+  border-radius: .75rem;
+  background: var(--brand-soft);
+
+  img { width: 75rem; max-width: none; height: 7.5rem; @include pixel-art; }
+}
+
+.checkout-price { margin: .5rem 0 0; font-size: 1.75rem; font-weight: 850; }
+.checkout-meta, .checkout-note, .checkout-status { color: var(--muted); }
+.checkout-meta { margin: .125rem 0 0; font-size: .84rem; font-weight: 680; }
+.checkout-note { line-height: 1.7; }
+.checkout-policy { color: var(--brand-dark); font-size: .9rem; font-weight: 720; }
+
+.checkout-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: .625rem;
+  margin-top: 1.125rem;
+  color: var(--muted);
+  font-size: .9rem;
+  line-height: 1.5;
+
+  input { width: 1.125rem; height: 1.125rem; margin: .125rem 0 0; accent-color: var(--brand); }
+}
+
+.checkout-pay {
+  width: 100%;
+  margin-top: 1.5rem;
+  cursor: pointer;
+
+  &:disabled { cursor: wait; }
+}
+
+.checkout-status { min-height: 1.5rem; margin: .75rem 0 0; text-align: center; font-size: .86rem; }
+.checkout-result-card { min-height: 25rem; }
+.checkout-result-link { margin-top: 1.5rem; }

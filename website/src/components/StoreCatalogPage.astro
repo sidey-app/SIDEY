@@ -1,0 +1,104 @@
+---
+import StoreLayout from "../layouts/StoreLayout.astro";
+import PageTabs from "./PageTabs.astro";
+import type { StoreCategory } from "../data/store";
+import { getStoreCategories } from "../data/store";
+import type { Locale } from "../i18n/landing";
+
+interface Props { category: StoreCategory; locale?: Locale; canonicalPath?: string; }
+const { category, locale = "ko", canonicalPath } = Astro.props;
+const content = getStoreCategories(locale)[category];
+const base = import.meta.env.BASE_URL;
+const localePrefix = `${locale}/`;
+const storeBase = `${base}${localePrefix}store/`;
+const chromeByLocale: Record<Locale, {
+  store: string;
+  categories: string;
+  characters: string;
+  throwables: string;
+  bubbles: string;
+  preview: string;
+  previewAction: string;
+  closePreview: string;
+  bubbleMessage: string;
+}> = {
+  en: {
+    store: "SIDEY Store",
+    categories: "Store categories",
+    characters: "Characters",
+    throwables: "Throwables",
+    bubbles: "Bubbles",
+    preview: "Open preview",
+    previewAction: "Preview",
+    closePreview: "Close preview",
+    bubbleMessage: "Want to hang out today?",
+  },
+  ko: {
+    store: "꾸미기·상점",
+    categories: "상점 상품 종류",
+    characters: "캐릭터",
+    throwables: "투척물",
+    bubbles: "말풍선",
+    preview: "미리보기",
+    previewAction: "눌러서 미리보기",
+    closePreview: "미리보기 닫기",
+    bubbleMessage: "오늘도 같이 있자!",
+  },
+  ja: {
+    store: "SIDEY ストア",
+    categories: "ストアカテゴリー",
+    characters: "キャラクター",
+    throwables: "投げアイテム",
+    bubbles: "吹き出し",
+    preview: "プレビューを開く",
+    previewAction: "プレビュー",
+    closePreview: "プレビューを閉じる",
+    bubbleMessage: "今日も一緒にいよう！",
+  },
+};
+const chrome = chromeByLocale[locale];
+const tabs = [
+  { href: `${storeBase}characters/`, label: chrome.characters, active: category === "characters" },
+  { href: `${storeBase}throwables/`, label: chrome.throwables, active: category === "throwables" },
+  { href: `${storeBase}bubbles/`, label: chrome.bubbles, active: category === "bubbles" },
+];
+---
+
+<StoreLayout locale={locale} title={`${content.eyebrow} · ${chrome.store}`} description={content.description} canonicalPath={canonicalPath ?? `${localePrefix}store/${category}/`}>
+  <section class="section store-intro store-catalog-page" aria-labelledby="store-title">
+    <h1 id="store-title">{content.title}</h1>
+    <p class="store-description">{content.description}</p>
+    <PageTabs label={chrome.categories} items={tabs} />
+
+    <div class="store-product-grid">
+      {content.products.map((product) => (
+        <button class="store-product-card" type="button" data-store-preview data-preview-kind={category.slice(0, -1)} data-preview-mode={product.mode} data-preview-src={product.previewAsset || product.asset ? `${base}${product.previewAsset ?? product.asset}` : undefined} data-preview-emitter={product.emitterAsset ? `${base}${product.emitterAsset}` : undefined} data-preview-decoration={product.bubbleTheme && product.asset ? `${base}${product.asset}` : undefined} data-preview-theme={product.bubbleTheme} data-preview-mirrors={product.mirrorsMovement ? "true" : undefined} data-preview-title={product.name} data-preview-description={product.description} data-preview-message={chrome.bubbleMessage} aria-label={`${product.name} ${chrome.preview}`}>
+          <span class={`store-product-media store-product-media-${product.mode}${product.bubbleTheme === "default" ? " is-loaded" : ""}`}>
+            <span class="store-media-skeleton" aria-hidden="true"></span>
+            {product.bubbleTheme ? (
+              <span class="store-bubble-scene" aria-hidden="true">
+                <span class={`store-bubble-wrap store-bubble-wrap-${product.bubbleTheme}`}>
+                  <span class={`store-bubble store-bubble-${product.bubbleTheme}`}>
+                    <span>{chrome.bubbleMessage}</span>
+                  </span>
+                  {product.asset && <img class="store-product-image store-bubble-decoration" src={`${base}${product.asset}`} alt="" loading="lazy" decoding="async">}
+                </span>
+                <span class="store-bubble-actor"><img src={`${base}assets/characters/pixel_hamster.png`} alt="" loading="lazy" decoding="async"></span>
+              </span>
+            ) : (
+              product.asset && <span class="store-product-art"><img class="store-product-image" src={`${base}${product.asset}`} alt="" loading="lazy" decoding="async"></span>
+            )}
+          </span>
+          <span class="store-product-copy"><strong>{product.name}</strong><span>{product.description}</span></span>
+          <span class="store-product-meta"><strong>{product.price}</strong><span>{chrome.previewAction}</span></span>
+        </button>
+      ))}
+    </div>
+  </section>
+
+  <dialog class="store-preview-dialog" id="store-preview-dialog" aria-labelledby="store-preview-title">
+    <button class="store-preview-close" type="button" data-store-preview-close aria-label={chrome.closePreview}><span class="material-symbols-rounded" aria-hidden="true">close</span></button>
+    <div class="store-preview-stage" data-store-preview-stage aria-hidden="true"></div>
+    <div class="store-preview-copy"><h2 id="store-preview-title" data-store-preview-title></h2><p data-store-preview-description></p></div>
+  </dialog>
+</StoreLayout>

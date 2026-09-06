@@ -1,0 +1,7 @@
+---
+import WhatsNewPage from "../../../components/WhatsNewPage.astro";
+import { isLocale } from "../../../i18n/landing";
+
+const locale = isLocale(Astro.currentLocale) ? Astro.currentLocale : "en";
+---
+<WhatsNewPage locale={locale} platform="macos" canonicalPath="en/whats-new/" />

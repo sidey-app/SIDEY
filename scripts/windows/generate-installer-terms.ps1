@@ -1,63 +1,32 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [string]$SourceHtml,
+    [string]$SourceMarkdown,
 
     [Parameter(Mandatory = $true)]
     [string]$OutputPath
 )
 
 $ErrorActionPreference = 'Stop'
-$resolvedSourceHtml = (Resolve-Path -LiteralPath $SourceHtml).Path
+$resolvedSourceMarkdown = (Resolve-Path -LiteralPath $SourceMarkdown).Path
 $resolvedOutputPath = [IO.Path]::GetFullPath($OutputPath)
-$html = Get-Content -LiteralPath $resolvedSourceHtml -Raw -Encoding UTF8
-$mainMatch = [regex]::Match(
-    $html,
-    '<main\b[^>]*\bid=["'']main["''][^>]*>(?<content>.*?)</main>',
-    [Text.RegularExpressions.RegexOptions]::Singleline -bor
-        [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+$markdown = Get-Content -LiteralPath $resolvedSourceMarkdown -Raw -Encoding UTF8
 
-if (-not $mainMatch.Success) {
-    throw "Unable to find the terms document body in $resolvedSourceHtml"
-}
+$markdown = [regex]::Replace(
+    $markdown,
+    '\A---\s*\r?\n.*?\r?\n---\s*\r?\n',
+    '',
+    [Text.RegularExpressions.RegexOptions]::Singleline)
 
-$terms = $mainMatch.Groups['content'].Value
-$sectionCount = [regex]::Matches(
-    $terms,
-    '<section\b',
-    [Text.RegularExpressions.RegexOptions]::IgnoreCase).Count
-if ($sectionCount -ne 10) {
-    throw "Expected 10 terms sections but found $sectionCount in $resolvedSourceHtml"
-}
-
-$terms = [regex]::Replace(
-    $terms,
-    '<br\s*/?>',
-    "`n",
-    [Text.RegularExpressions.RegexOptions]::IgnoreCase)
-$terms = [regex]::Replace(
-    $terms,
-    '</(?:h1|h2|p|dt|dd|header|section|div)\s*>',
-    "`n",
-    [Text.RegularExpressions.RegexOptions]::IgnoreCase)
-$terms = [regex]::Replace($terms, '<[^>]+>', '')
-$terms = [Net.WebUtility]::HtmlDecode($terms)
+$terms = [regex]::Replace($markdown, '\[([^\]]+)\]\(([^)]+)\)', '$1 ($2)')
+$terms = [regex]::Replace($terms, '^#{1,6}\s+', '', [Text.RegularExpressions.RegexOptions]::Multiline)
+$terms = [regex]::Replace($terms, '(?<!\\)[*_]{1,3}', '')
+$terms = [regex]::Replace($terms, '<([^>]+)>', '$1')
 
 $lines = @($terms -split '\r?\n' |
     ForEach-Object { [regex]::Replace($_.Trim(), '\s+', ' ') } |
     Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 $plainText = ($lines -join "`r`n`r`n") + "`r`n"
-
-foreach ($requiredText in @(
-    'SIDEY',
-    '1.',
-    '10.',
-    '388-53-01259',
-    'ryu200112@gmail.com')) {
-    if ($plainText.IndexOf($requiredText, [StringComparison]::Ordinal) -lt 0) {
-        throw "Generated installer terms are missing required text: $requiredText"
-    }
-}
 
 [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($resolvedOutputPath)) | Out-Null
 [IO.File]::WriteAllText(

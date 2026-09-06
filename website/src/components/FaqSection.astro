@@ -1,0 +1,23 @@
+---
+import type { Locale } from "../i18n/landing";
+import { getLandingCopy } from "../i18n/landing";
+
+interface Props { locale: Locale; }
+const { locale } = Astro.props;
+const copy = getLandingCopy(locale).faq;
+---
+
+<section class="section faq-section" id="faq" aria-labelledby="faq-title">
+  <div class="section-heading section-heading-split">
+    <h2 id="faq-title">{copy.title}</h2>
+    <p>{copy.intro}</p>
+  </div>
+  <div class="faq-list">
+    {copy.items.map(([question, answer]) => (
+      <details class="faq-item">
+        <summary><span>{question}</span><span class="material-symbols-rounded" aria-hidden="true">add</span></summary>
+        <div class="faq-answer"><div class="faq-answer-inner"><p>{answer}</p></div></div>
+      </details>
+    ))}
+  </div>
+</section>

@@ -1,0 +1,45 @@
+---
+import overlayPreview from "../../../docs/assets/sidey-overlay-preview.png";
+import type { Locale } from "../i18n/landing";
+import { getLandingCopy } from "../i18n/landing";
+
+interface Props {
+  locale?: Locale;
+}
+
+const { locale = "ko" } = Astro.props;
+const copy = getLandingCopy(locale).showcase;
+---
+
+<section class="section showcase-section" id="features" aria-labelledby="showcase-title">
+  <div class="section-heading section-heading-split showcase-heading">
+    <h2 id="showcase-title">{copy.title}</h2>
+    <p>{copy.introduction}</p>
+  </div>
+
+  <div class="showcase-layout">
+    <ol class="showcase-steps" aria-label={copy.label}>
+      {copy.steps.map(([index, title, description]) => (
+        <li class="showcase-step">
+          <span class="showcase-index" aria-hidden="true">{index}</span>
+          <h3>{title}</h3>
+          <p>{description}</p>
+        </li>
+      ))}
+    </ol>
+
+    <figure class="showcase-visual">
+      <div class="showcase-shot-frame">
+        <img
+          src={overlayPreview.src}
+          alt={copy.alt}
+          width={overlayPreview.width}
+          height={overlayPreview.height}
+          loading="lazy"
+          decoding="async"
+        />
+      </div>
+      <figcaption>{copy.caption}</figcaption>
+    </figure>
+  </div>
+</section>

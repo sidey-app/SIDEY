@@ -208,10 +208,10 @@ if (-not $publishedVersionInfo.FileVersion.StartsWith(
 [IO.Directory]::CreateDirectory($resolvedOutDir) | Out-Null
 $internalDir = Join-Path $resolvedOutDir 'internal/setup-build'
 [IO.Directory]::CreateDirectory($internalDir) | Out-Null
-$termsSource = Join-Path $repositoryRoot 'website/terms.html'
+$termsSource = Join-Path $repositoryRoot 'website/src/pages/ko/terms.md'
 $termsGenerator = Join-Path $repositoryRoot 'scripts/windows/generate-installer-terms.ps1'
 $termsLicenseFile = Join-Path $internalDir 'SideyTerms.txt'
-& $termsGenerator -SourceHtml $termsSource -OutputPath $termsLicenseFile
+& $termsGenerator -SourceMarkdown $termsSource -OutputPath $termsLicenseFile
 if (-not (Test-Path -LiteralPath $termsLicenseFile -PathType Leaf)) {
     throw 'SIDEY installer terms file was not generated.'
 }

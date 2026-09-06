@@ -1,0 +1,8 @@
+---
+import LandingPage from "../../components/LandingPage.astro";
+import { isLocale } from "../../i18n/landing";
+
+const locale = isLocale(Astro.currentLocale) ? Astro.currentLocale : "ja";
+---
+
+<LandingPage locale={locale} />

@@ -1,0 +1,14 @@
+---
+interface Props {
+  parts: readonly string[];
+}
+
+const { parts } = Astro.props;
+---
+
+{parts.map((part, index) => (
+  <>
+    <span class="phrase-unit">{part}</span>
+    {index < parts.length - 1 && <wbr />}
+  </>
+))}

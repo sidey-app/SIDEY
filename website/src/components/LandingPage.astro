@@ -1,0 +1,27 @@
+---
+import LandingLayout from "../layouts/LandingLayout.astro";
+import LandingHero from "./LandingHero.astro";
+import MotionSection from "./MotionSection.astro";
+import AppShowcase from "./AppShowcase.astro";
+import DownloadSection from "./DownloadSection.astro";
+import FaqSection from "./FaqSection.astro";
+import LandingFooter from "./LandingFooter.astro";
+import type { Locale } from "../i18n/landing";
+import { getLandingCopy } from "../i18n/landing";
+
+interface Props { locale: Locale; }
+const { locale } = Astro.props;
+const copy = getLandingCopy(locale);
+---
+
+<LandingLayout locale={locale} {...copy.meta}>
+  <a slot="skip" class="skip-link" href="#main">{copy.skip}</a>
+  <main id="main">
+    <LandingHero locale={locale} />
+    <AppShowcase locale={locale} />
+    <MotionSection locale={locale} />
+    <DownloadSection locale={locale} />
+    <FaqSection locale={locale} />
+  </main>
+  <LandingFooter locale={locale} />
+</LandingLayout>
