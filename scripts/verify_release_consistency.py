@@ -51,10 +51,36 @@ def load_manifest(platform: str) -> dict[str, object]:
     return data
 
 
-def unique_project_value(source: str, setting: str) -> str:
-    values = set(re.findall(rf"\b{re.escape(setting)} = ([^;]+);", source))
-    require(len(values) == 1, f"{setting} must have one value, found {sorted(values)}")
-    return values.pop()
+def project_values_for_bundle_identifier(
+    source: str, bundle_identifier: str, setting: str
+) -> set[str]:
+    values: set[str] = set()
+    matching_configurations = 0
+    for body in re.findall(r"buildSettings = \{(.*?)\n\s*\};", source, re.DOTALL):
+        settings = dict(re.findall(r"\b([A-Z][A-Z0-9_]*) = ([^;]+);", body))
+        configured_bundle = settings.get("PRODUCT_BUNDLE_IDENTIFIER", "").strip('"')
+        if configured_bundle != bundle_identifier:
+            continue
+        matching_configurations += 1
+        if setting in settings:
+            values.add(settings[setting].strip('"'))
+    require(
+        matching_configurations > 0,
+        f"no build configurations found for {bundle_identifier}",
+    )
+    require(
+        len(values) == 1,
+        f"{setting} for {bundle_identifier} must have one value, found {sorted(values)}",
+    )
+    return values
+
+
+def project_value_for_bundle_identifier(
+    source: str, bundle_identifier: str, setting: str
+) -> str:
+    return next(iter(project_values_for_bundle_identifier(
+        source, bundle_identifier, setting
+    )))
 
 
 def validate_macos(allow_pending_appcast: bool = False) -> dict[str, str]:
@@ -67,10 +93,26 @@ def validate_macos(allow_pending_appcast: bool = False) -> dict[str, str]:
     notes = f"docs/releases/{tag}.md"
 
     project = read("macos/SIDEY.xcodeproj/project.pbxproj")
-    require(unique_project_value(project, "MARKETING_VERSION") == version,
+    direct_bundle = "$(SIDEY_APP_BUNDLE_IDENTIFIER)"
+    require(project_value_for_bundle_identifier(
+        project, direct_bundle, "MARKETING_VERSION"
+    ) == version,
             "macOS project version does not match release/macos.json")
-    require(unique_project_value(project, "CURRENT_PROJECT_VERSION") == build,
+    require(project_value_for_bundle_identifier(
+        project, direct_bundle, "CURRENT_PROJECT_VERSION"
+    ) == build,
             "macOS project build does not match release/macos.json")
+    app_store_bundle = "app.sidey.desktop.appstore"
+    app_store_version = project_value_for_bundle_identifier(
+        project, app_store_bundle, "MARKETING_VERSION"
+    )
+    app_store_build = project_value_for_bundle_identifier(
+        project, app_store_bundle, "CURRENT_PROJECT_VERSION"
+    )
+    require(SEMVER.fullmatch(app_store_version) is not None,
+            "Mac App Store target must contain a stable semantic version")
+    require(app_store_build.isdigit() and int(app_store_build) > 0,
+            "Mac App Store target must contain a positive numeric build")
     require((ROOT / notes).is_file(), f"macOS release notes are missing: {notes}")
 
     appcast_path = ROOT / "updates" / "appcast.xml"
@@ -126,7 +168,7 @@ def validate_macos(allow_pending_appcast: bool = False) -> dict[str, str]:
     }
 
 
-def validate_windows() -> dict[str, str]:
+def validate_windows(allow_unreleased_source: bool = False) -> dict[str, str]:
     manifest = load_manifest("windows")
     version = str(manifest["version"])
     tag = f"windows-v{version}"
@@ -138,15 +180,21 @@ def validate_windows() -> dict[str, str]:
 
     project = ET.parse(ROOT / "windows" / "src" / "Sidey.App" / "Sidey.App.csproj")
     values = {element.tag: (element.text or "") for element in project.getroot().iter()}
-    require(values.get("Version") == version,
-            "Windows project version does not match release/windows.json")
-    require(values.get("FileVersion") == f"{version}.0",
-            "Windows file version does not match release/windows.json")
-    require(values.get("AssemblyVersion") == f"{version}.0",
-            "Windows assembly version does not match release/windows.json")
+    source_version = values.get("Version", "")
+    require(SEMVER.fullmatch(source_version) is not None,
+            "Windows project must contain a stable semantic version")
+    if source_version != version:
+        require(allow_unreleased_source,
+                "Windows project version does not match release/windows.json")
+        require(tuple(map(int, source_version.split("."))) > tuple(map(int, version.split("."))),
+                "unreleased Windows source version must be newer than the public release")
+    require(values.get("FileVersion") == f"{source_version}.0",
+            "Windows file version does not match the project version")
+    require(values.get("AssemblyVersion") == f"{source_version}.0",
+            "Windows assembly version does not match the project version")
     update_source = read("windows/src/Sidey.Platform.Windows/WindowsUpdateService.cs")
-    require(f'CurrentVersion = "{version}"' in update_source,
-            "Windows updater version does not match release/windows.json")
+    require(f'CurrentVersion = "{source_version}"' in update_source,
+            "Windows updater version does not match the project version")
     require((ROOT / notes).is_file(), f"Windows release notes are missing: {notes}")
 
     require(installer_name in read("README.md"),
@@ -165,6 +213,7 @@ def validate_windows() -> dict[str, str]:
         "installer_name": installer_name,
         "installer_url": installer_url,
         "release_notes": notes,
+        "source_version": source_version,
     }
 
 
@@ -184,6 +233,11 @@ def main() -> int:
         action="store_true",
         help="allow a signed Sparkle item older than the staged macOS manifest",
     )
+    parser.add_argument(
+        "--allow-unreleased-source",
+        action="store_true",
+        help="allow a Windows source version newer than the current public manifest",
+    )
     args = parser.parse_args()
 
     outputs: dict[str, str] = {}
@@ -191,7 +245,7 @@ def main() -> int:
         if args.platform in ("all", "macos"):
             outputs = validate_macos(args.allow_pending_appcast)
         if args.platform in ("all", "windows"):
-            windows = validate_windows()
+            windows = validate_windows(args.allow_unreleased_source)
             outputs = windows if args.platform == "windows" else outputs
     except (ConsistencyError, ET.ParseError, json.JSONDecodeError) as error:
         print(f"release consistency error: {error}", file=sys.stderr)

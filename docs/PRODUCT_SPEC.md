@@ -1,8 +1,9 @@
 # SIDEY 제품 기획서
 
 - 문서 버전: 0.8
-- 최종 갱신: 2026-09-05
+- 최종 갱신: 2026-09-06
 - 상태: macOS `v1.0.10`(build 21) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.0.6` 정식 출시
+- 비공개 후보 기준: Mac App Store `1.0.10`(build 22), Windows `1.0.7`; 공개 manifest와 다운로드 페이지는 실제 출시 전까지 기존 버전을 유지
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
 
@@ -29,7 +30,7 @@
 - 기존 설치의 인증 세션과 설정을 잃지 않도록 Swift 기반 legacy migration 호환만 유지한다.
 - macOS 설정과 메뉴바에서 유료 캐릭터 4종 상점을 제공하되 production은 출시 예정 잠금으로 배포한다. 격리된 Sidey-dev만 Google identity를 연결한 뒤 PortOne 테스트 결제를 시작한다.
 - direct판 카탈로그에는 승인된 말풍선 3종과 투척물 3종을 추가하되 production의 `.comingSoon`과 서버 `sales_enabled=false`는 유지한다. 결제·지급·자동 장착·해제·환불 회수는 Sidey-dev와 staging에서만 검증한다.
-- direct판 `내 프로필`은 말풍선·투척물 선택 영역을 항상 표시하고, 보유 상품이 없어도 `기본 말풍선`과 `캐릭터 기본 투척물`을 각각 장착 상태로 보여준다. snapshot의 활성 entitlement로 확인한 상품만 종류별로 추가한다. 선택은 프로필 저장과 분리해 즉시 계정 전체 그룹에 적용하며 production의 상점 조회·구매 잠금과 관계없이 서버 장착 RPC를 사용할 수 있다. App Store판에는 이 영역을 표시하지 않는다.
+- direct판과 App Store판의 `내 프로필`은 말풍선·투척물 선택 영역을 항상 표시하고, 보유 상품이 없어도 `기본 말풍선`과 `캐릭터 기본 투척물`을 각각 장착 상태로 보여준다. snapshot의 활성 entitlement로 확인한 상품만 종류별로 추가한다. 선택은 프로필 저장과 분리해 즉시 계정 전체 그룹에 적용하며 direct production의 상점 조회·구매 잠금과 관계없이 서버 장착 RPC를 사용할 수 있다.
 
 #### 2.1.1 Mac App Store 병행 배포 계약
 
@@ -37,8 +38,8 @@
 - Mac App Store판은 별도 bundle ID `app.sidey.desktop.appstore`와 App Sandbox를 사용한다. 핵심 메시징·오버레이·캐릭터 소스는 공유하되 Sparkle, PortOne, Google OAuth와 외부 구매 경로를 링크하거나 노출하지 않는다.
 - App Store판은 네이티브 Sign in with Apple 승인을 첫 실행에 요구하고 이후 Supabase 세션을 전용 Keychain service에서 복구한다. App Store 로그인 상태를 앱 사용자 identity로 자동 간주하지 않는다.
 - direct판 계정과 App Store판 계정은 이전·병합하지 않는다. 그룹을 이어 쓰려면 새 Apple 계정을 기존 방에 초대해야 하며 두 계정은 방 정원에서 별도 멤버다.
-- App Store판의 추가 캐릭터 4종은 StoreKit 2 비소모성 상품이며 서버가 Apple JWS와 App Store Server API 결과를 검증한 뒤에만 entitlement를 지급한다. 한국 가격은 기존 1,900원·990원 가격과 일치하는 App Store 가격 포인트를 우선하고 없으면 바로 위 가격 포인트를 사용하며, 실제 표시는 StoreKit 현지화 가격을 따른다.
-- 신규 말풍선·투척물의 App Store 판매와 Windows 지원은 이번 범위에서 제외한다. App Store 상품 목록은 기존 캐릭터 4종만 유지하고 Windows 파일·mirror·구현은 수정하지 않는다.
+- App Store판은 캐릭터 4종·말풍선 3종·투척물 3종을 StoreKit 2 비소모성 상품으로 제공하며 서버가 Apple JWS와 App Store Server API 결과를 검증한 뒤에만 entitlement를 지급한다. 한국 가격은 기존 catalog 가격과 일치하는 App Store 가격 포인트를 우선하고 없으면 바로 위 가격 포인트를 사용하며, 실제 표시는 StoreKit 현지화 가격을 따른다.
+- App Store에서 신규 말풍선·투척물을 구매하면 서버 승인 뒤 해당 종류에 즉시 장착한다. `Transaction.currentEntitlements`, 시작 재검증과 사용자가 요청한 복원은 소유권만 동기화하고 현재 장착을 덮지 않는다. Windows의 신규 꾸미기 asset·mirror·렌더링·장착·판매는 이번 범위에서 제외한다.
 - App Store판의 업데이트는 App Store가 담당한다. 로그인 시 실행은 sandboxed main app의 `SMAppService.mainApp`을 사용한다.
 
 ### 2.2 Windows 구현 목표
@@ -47,6 +48,9 @@
 - 일반 창은 SIDEY 브랜드의 Windows Fluent UI로 만들고, 투명 월드는 전용 Win32 HWND가 소유한다. `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러가 무료 5종과 다른 사용자가 선택한 유료 4종의 사전 생성 BGRA frame을 표시한다. Windows 프로필 선택은 무료 5종과 현재 계정에 발급된 활성 entitlement 캐릭터를 제공하고 상점은 추가 4종의 구매 없는 미리보기 카드를 제공한다.
 - 햄스터 1종 실기 계측은 같은 5종 렌더러의 입력 snapshot을 제한하는 Debug 전용 내부 모드로 수행한다. 햄스터 전용 제품 구현을 만들거나 이 모드를 Release에 노출하지 않으며, 나머지 4종 구현을 계측 뒤로 미루지 않는다.
 - 최종 목표는 macOS와 서버 계약·제품 행동이 동등한 Windows 판이며, 플랫폼 창·설정 UI는 Windows 관례를 따른다.
+- Windows 1.0.7 개발 빌드는 staging Supabase가 확인된 경우에만 기존 유료 캐릭터 4종의 Google identity 연결과 PortOne test checkout을 활성화한다. production project ref, Release 빌드 또는 명시적 개발 commerce opt-in이 없는 실행에서는 연결·주문 action을 만들지 않는다.
+- Google 연결은 기존 익명 계정의 UUID를 유지하는 identity linking이며 시스템 브라우저, PKCE S256, `sidey-dev://auth/google` callback과 일회성 pending flow를 사용한다. PortOne Store·Channel·API·Webhook secret은 계속 서버에만 둔다.
+- Windows 1.0.7 Release는 `sidey://auth/google` callback 전달 기반과 설치기 등록만 준비하고 상점은 기존 4종의 비활성 `구매 준비 중` 상태를 유지한다. 서버 응답이나 환경변수만으로 판매를 열 수 없고, 향후 새 클라이언트 버전의 명시적 빌드 변경과 서버 판매 활성화를 함께 거쳐야 한다.
 - Godot·WPF·Electron·WebView는 사용하지 않는다.
 
 ### 2.3 명시적 제외
@@ -103,7 +107,7 @@
 - 그룹 선택은 150ms 동안 합쳐 마지막 대상만 남기며 이미 시작한 네트워크 작업은 직렬 실행한다. 최종 대상 Presence와 해당 `roomID`의 최근 메시지 조회가 모두 성공하기 전에는 현재 활성 그룹과 기록을 유지한다. 이전 요청의 성공·실패는 UI에 적용하지 않고, 최종 실패 시 이전 활성 그룹 Presence를 복구하며 복구도 실패한 경우에만 Realtime 연결 오류로 전환한다.
 - 관리 권한은 클라이언트 표시 여부와 별개로 서버 RPC에서 다시 검증한다. 활성 그룹이 추방·삭제로 사라지면 composer·typing·말풍선을 정리하고 가장 오래된 남은 그룹을 활성화한다. 마지막 그룹이 사라지면 오버레이를 숨기고 기존 프로필을 유지한 그룹 참여 화면으로 돌아간다.
 - macOS는 익명 인증과 기존 세션 복구 정책을 유지한다. 복구 실패를 새 익명 계정 생성으로 조용히 덮어쓰지 않는다.
-- Windows는 저장된 Supabase 익명 세션을 먼저 복구하고, 세션이 없는 신규 설치에서만 새 익명 계정을 만든다. access·refresh token과 평문 초대 코드는 Windows Credential Manager에 보관하며 Google OAuth·PKCE·callback은 사용하지 않는다.
+- Windows는 저장된 Supabase 익명 세션을 먼저 복구하고, 세션이 없는 신규 설치에서만 새 익명 계정을 만든다. access·refresh token과 평문 초대 코드는 Windows Credential Manager에 보관한다. 1.0.7 개발 빌드는 staging의 PortOne 테스트 결제를 시작할 때만 PKCE S256과 `sidey-dev://auth/google` callback으로 같은 사용자 UUID에 Google identity를 연결한다. Release는 `sidey://auth/google` callback 기반만 설치하고 연결·구매 UI와 주문 호출을 컴파일 타임으로 잠근다.
 - Windows와 macOS의 서로 다른 사용자 UUID가 같은 방에 참가하는 것을 지원하며, Mac↔Windows 계정 이전은 범위 밖이다.
 - App Store판은 설정의 계정·개인정보 화면에서 Apple 재인증 뒤 계정을 삭제할 수 있다. 삭제는 모든 방의 탈퇴와 방장 이전 또는 빈 방 삭제, 개인 데이터 제거, 결제 원장의 사용자 연결 해제, Supabase Auth 사용자 삭제를 수행한다. Apple credential 철회를 먼저 시도하되 실패가 SIDEY 데이터 삭제를 막지는 않는다.
 - App Store 계정 삭제는 구매 환불이 아니다. 삭제로 연결이 끊긴 유효한 비소모성 transaction은 해당 Apple 구매 계정의 `Transaction.currentEntitlements`에서 다시 확인될 때 새 SIDEY 계정에 복원할 수 있으며, 활성 SIDEY 계정에 묶인 transaction을 다른 계정으로 이동할 수 없다.
@@ -315,16 +319,16 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - macOS 프로필에서 캐릭터 타일은 온보딩 외에는 선택 즉시 `upsert_profile`을 호출한다. 서버 성공 전에는 확정 캐릭터를 유지하면서 요청 타일에 spinner를 표시하고 중복 요청을 막으며, 실패하면 기존 캐릭터를 유지한다. 닉네임은 서버 확정값과 draft를 분리하고 정규화한 draft가 확정값과 다를 때만 `닉네임 변경하기`를 표시한다. 2~8자 규칙을 벗어나면 비활성화하며 캐릭터 응답과 관련 없는 snapshot은 편집 중 draft를 덮지 않는다. 온보딩은 캐릭터와 닉네임을 함께 저장하는 기존 `다음` 흐름을 유지한다.
 - 설정의 모든 성공 배너는 3초 후 자동으로 닫고, 새 성공이 오면 타이머를 다시 시작한다. 오류 배너는 사용자가 닫을 때까지 유지한다. 장착 성공 문구는 기본값과 상품 모두 `장착했습니다.` 완료형으로 표시한다.
 - 말풍선·투척물 선택은 캐릭터·닉네임 저장 버튼과 분리된 즉시 적용 action이다. `nil` 선택은 종류별 기본값 복귀, 상품 ID 선택은 해당 상품 장착이며 같은 종류의 요청은 완료 전 중복 실행하지 않는다. 요청한 타일에만 진행 상태를 표시하고, 성공한 서버 프로필 응답만 반영하며 실패 시 기존 선택을 유지하고 오류 배너를 표시한다.
-- profile snapshot의 활성 entitlement만 보유 판정에 사용하며 결제 화면의 상품 상태를 보유 근거로 사용하지 않는다. production direct판은 상점 조회·구매를 계속 막지만 보유 상품 장착 RPC는 허용하고 서버가 소유권을 다시 검증한다. App Store판은 기존 캐릭터 선택만 유지하며 말풍선·투척물 프로필 영역을 만들지 않는다.
-- 설정과 메뉴바의 `꾸미기·상점`은 같은 화면을 열고 상단에 `캐릭터 / 말풍선 / 투척물` 탭을 둔다. 캐릭터 선택 위치와 저장 흐름은 기존 프로필 화면에 유지한다.
-- macOS direct판 상점은 상품 종류 오른쪽의 `정렬 및 필터` 메뉴에서 기본순·가격 낮은순·가격 높은순과 `보유 중 숨기기`를 제공한다. 가격 동률은 catalog `sort_order`, 상품 ID 순으로 정렬하고 snapshot 활성 entitlement 또는 현재 장착 상태를 보유로 판단한다. 결과가 없으면 빈 상태를 표시하며 필터 상태는 앱 재실행까지 저장하지 않는다. App Store판과 Windows 상점에는 이 메뉴를 추가하지 않는다.
+- profile snapshot의 활성 entitlement만 보유 판정에 사용하며 결제 화면의 상품 상태를 보유 근거로 사용하지 않는다. production direct판은 상점 조회·구매를 계속 막지만 보유 상품 장착 RPC는 허용하고 서버가 소유권을 다시 검증한다. App Store판도 기본값과 활성 entitlement가 있는 말풍선·투척물 프로필 영역을 제공한다.
+- 설정과 메뉴바의 `꾸미기·상점`은 같은 화면을 열고 direct판과 App Store판 상단에 `캐릭터 / 말풍선 / 투척물` 탭을 둔다. 캐릭터 선택 위치와 저장 흐름은 기존 프로필 화면에 유지한다.
+- macOS direct판과 App Store판 상점은 상품 종류 오른쪽의 `정렬 및 필터` 메뉴에서 기본순·가격 낮은순·가격 높은순과 `보유 중 숨기기`를 제공한다. 가격 동률은 catalog `sort_order`, 상품 ID 순으로 정렬하고 snapshot 활성 entitlement 또는 현재 장착 상태를 보유로 판단한다. 결과가 없으면 빈 상태를 표시하며 필터 상태는 앱 재실행까지 저장하지 않는다. Windows 상점에는 이 메뉴를 추가하지 않는다.
 - 760pt 본문에서는 약 108~118pt 타일을 10pt 간격·18pt radius의 6열 `LazyVGrid`로 배치하고 좁아지면 5열·4열로 전환한다. 타일에는 큰 이미지, 한 줄 이름, 가격 또는 `보유 중`·`사용 중` 상태만 표시하고 설명과 인라인 구매 버튼은 두지 않는다.
 - 타일을 누르면 큰 미리보기와 구매 button 하나를 제공하는 상세 sheet를 연다. 가격은 구매 button에서 한 번만 표시하고 별도 가격 text를 반복하지 않는다. 보유 상품은 같은 button을 비활성 `보유 중` 상태로 표시한다. 상품별 로딩·오류는 다른 타일의 상태를 막지 않으며 키보드 탐색, 명확한 focus ring, VoiceOver 이름·가격·소유 상태와 action 레이블을 제공한다.
 - `StoreAvailability`는 번들 배포 채널에서 결정한다. production은 `.comingSoon`, development는 `.enabled`이며 런타임 설정이나 원격 응답으로 production 잠금을 풀 수 없다.
 - production은 각 상품 카드 전체를 `Color.black.opacity(0.68)`로 덮고 흰 픽셀 자물쇠와 `추후 오픈 예정`을 표시하되, 카드 자체는 상세 미리보기를 여는 선택 대상으로 유지한다. VoiceOver에는 상품명·준비 중 상태·상세 미리보기 hint를 제공한다.
 - production 상세는 development와 같은 SpriteKit 미리보기를 만들지만 구매 버튼, 상태 새로고침, Google 연결은 생성하지 않고 하단에 `상점은 준비 중입니다. 빠른 시일 내에 만나요.`만 표시한다. `AppCoordinator.purchase`도 production 채널 요청을 거부하고 운영 서버는 `sales_enabled=false`를 유지한다.
 - development는 오버레이 없이 실제 타일·상세 sheet·전체 catalog 상태 조회·Google 연결·PortOne 테스트 결제·장착을 활성화한다. 상품별 상태와 구매·장착 action은 `AppModel`·`AppCoordinator`·`SideyBackend`가 소유한다.
-- App Store 배포 타깃은 `.appStore` availability를 사용하고 기존 캐릭터 4종만 유지한다. StoreKit에서 받은 상품명·설명·현지화 가격과 구매·pending·복원·보유·오류 상태를 표시하고 신규 말풍선·투척물 또는 외부 결제 안내는 표시하지 않는다. 구매 성공 transaction은 서버 승인 전까지 finish하지 않으며 시작·foreground에서 `currentEntitlements`, 사용자가 누른 복원에서만 `AppStore.sync()`를 사용한다.
+- App Store 배포 타깃은 `.appStore` availability를 사용하고 캐릭터 4종·말풍선 3종·투척물 3종을 유지한다. StoreKit에서 받은 상품명·설명·현지화 가격과 구매·pending·복원·보유·오류 상태를 표시하고 외부 결제 안내는 표시하지 않는다. 구매 성공 transaction은 서버 승인 전까지 finish하지 않으며 시작·foreground에서 `currentEntitlements`, 사용자가 누른 복원에서만 `AppStore.sync()`를 사용한다. 신규 cosmetic 구매 경로만 서버 승인 후 장착 RPC를 호출하며 복원과 자동 재검증은 기존 선택을 유지한다.
 - production·direct development·App Store의 상품 카드를 선택하면 폭 600pt·콘텐츠 맞춤 높이의 상세 시트를 열고 상단에 540×280pt SpriteKit 미리보기 무대를 하나만 배치한다. 강제 최소 높이와 빈 공간용 spacer를 두지 않고 무대·상품명·설명·상세 action 사이에 필요한 간격만 유지한다. 상품 타일 자체는 정적 이미지를 유지한다. 무대 하단에는 라이트·다크 appearance에 대응하는 중립색 4px 픽셀 플랫폼을 24pt 높이로 그리며 신규 PNG를 추가하지 않는다.
 - 미리보기는 실제 `PixelWorldScene`의 24×24 character sheet, walk·idle, message bubble, throw·projectile·impact·hit와 대포 emitter 계약을 재사용한다. 캐릭터는 실제 월드와 같은 48pt, nearest-neighbor, 30 FPS와 22pt/s 이동 상한을 사용한다. Store 전용 시나리오와 재생 상태는 상세 view/coordinator가 소유하고 `AppModel`, Broadcast, RPC, entitlement, 구매 상태에 연결하지 않는다.
 - 캐릭터 상품은 해당 상품 캐릭터 `모카`와 고양이 친구 `두부`를 초록 상태 점과 함께 떨어진 위치에서 시작시켜 걷기와 idle을 반복한다. 무대에서 `두부`를 클릭하면 `모카`가 해당 캐릭터의 시그니처 투척물을 실제 throw·projectile·impact·hit 경로로 던진다. 상세 설명에는 `친구를 클릭하면 …을 던져요` 문장을 추가하고 기니피그는 아껴 둔 미니 파프리카, 원숭이는 잘 익은 바나나, 친칠라는 보송한 먼지목욕 모래주머니, 별빛 우파루파는 반짝이는 별빛 구슬을 명시한다. 말풍선 상품 타일은 테마 배경과 좌상단 캐릭터 장식만 보여주고 본문 text를 표시하지 않는다. 상세 무대에서는 햄스터 `모카`와 고양이 `두부`가 걸으며 `모카 . → .. → ... → 저메추좀 해줘 → 두부 . → .. → ... → 곱도리탕 어때?`를 반복한다. 각 입력 중 상태는 1초, 완성 메시지는 2초 유지하며 해당 테마의 실제 배경·글자·좌상단 캐릭터 장식·꼬리·가장자리 위치 보정을 사용한다. 장식은 좌상단 모서리 바깥에 걸치고 본문 여백이나 말풍선 크기를 늘리지 않는다.
@@ -339,7 +343,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 설정 창은 화면 크기와 DPI에 맞춰 1000×760 DIP 안팎의 권장 크기로 열고 860×640 DIP까지 줄일 수 있다. 창 너비가 960 DIP 미만이 되면 왼쪽 탐색은 210 DIP의 제목·아이콘 보기에서 48 DIP 아이콘 레일로 자동 전환하며, 최소 폭에서도 아이콘 레일을 없애지 않는다. 너비가 다시 확보되면 자동으로 펼치고 전환에는 WinUI `NavigationView`의 표준 애니메이션을 사용한다. WinUI `TitleBar`가 앱 아이콘·이름과 실제 방문 이력 기반 뒤로가기·탐색 열기 버튼을 시스템 caption 버튼 왼쪽에 배치한다. 최소 크기는 리사이즈 뒤 창을 되돌리지 않고 Win32 `WM_GETMINMAXINFO`에서 tracking size로 제한해 경계 드래그가 깜빡이지 않게 한다.
 - 탐색 푸터의 연결 상태는 하나의 레이아웃 자리에서 펼친 카드와 축소 카드를 교체한다. 펼친 카드의 점과 문구는 한 행에서 시각적으로 중앙 정렬하고, 축소를 시작하는 순간 문구를 숨기며 펼침 시작과 함께 짧게 fade-in한다. 축소 카드는 48 DIP 아이콘 레일 중앙에 맞춰 전환 중 두 점·잘린 문구·잘린 카드 배경이 나타나지 않게 한다. 연결 상태는 초록 점과 `연결됨`, 단절 상태는 빨간 점과 `연결 안 됨`으로 표시한다. 최초 연결과 정상 연결 뒤의 재단절 모두 Windows 시스템 알림을 15초 유예하며 그 안에 복구되면 예약을 취소한다. 15초가 지나도 연결되지 않으면 장애당 한 번 알리고, 짧은 연결 반복에 따른 재알림은 15분 동안 억제한다.
 - Windows 최근 기록의 40 DIP 캐릭터 슬롯은 시스템 accent 10% 배경과 12 DIP 모서리를 사용한다. 최근 기록과 그룹 설정의 현재 사용자 `나` 표식은 모두 accent 글자와 accent 12% 배경을 사용하며 라이트·다크 테마에 맞춰 갱신한다.
-- Windows `꾸미기·상점`은 Mica 배경 위에 전체 목록용 외곽 카드를 두지 않고 추가 캐릭터 4종의 독립 Fluent 카드를 2열로 배치한다. 각 카드는 96 DIP 정수 배율 픽셀 미리보기, 이름, 예정 가격, 설명과 비활성 `구매 준비 중` 상태를 보여준다. 구매·결제·소유권 변경 action은 만들지 않으며 프로필 선택 목록은 무료 5종과 서버에서 확인한 현재 계정의 활성 entitlement 캐릭터를 보여준다.
+- Windows `꾸미기·상점`은 Mica 배경 위에 전체 목록용 외곽 카드를 두지 않고 추가 캐릭터 4종의 독립 Fluent 카드를 2열로 배치한다. 각 카드는 96 DIP 정수 배율 픽셀 미리보기, 이름, 예정 가격과 설명을 보여준다. Release는 비활성 `구매 준비 중`만 표시하고 구매·결제·소유권 변경 action을 만들지 않는다. 명시적으로 opt-in한 개발 빌드만 staging의 Google 연결·PortOne test action을 표시한다. 프로필 선택 목록은 무료 5종과 서버에서 확인한 현재 계정의 활성 entitlement 캐릭터를 보여준다.
 - Windows 그룹 설정의 펼친 각 카드에는 `그룹 나가기`를 이름 변경·삭제와 같은 하단 작업 영역에 표시한다. 나가기·이름 변경·삭제·추방은 다른 그룹 mutation 중 함께 비활성화한다.
 - 프로필 저장과 그룹 생성·참여·전환·나가기·이름 변경·삭제·추방·초대 코드 재발급처럼 서버 응답을 기다리는 action은 요청 즉시 해당 버튼을 비활성화하고 성공·실패 완료 뒤 다시 활성화한다. 동일 action의 동시 실행을 금지하며 그룹 mutation은 진행 중 관련 입력과 다른 mutation 버튼도 함께 비활성화한다. Windows의 그룹 이름과 초대 코드 입력은 생성·참여 성공 시 제출했던 값과 현재 draft가 같을 때만 비우고, 실패하거나 요청 중 draft가 바뀌었으면 보존한다.
 - 월드는 WinUI XAML 창에 투명 표현을 위임하지 않고 `WS_POPUP` 기반 전용 Win32 HWND가 소유한다. 무료 5종과 유료 4종은 24px 원본에서 정수 nearest-neighbor로 만든 premultiplied BGRA frame을 같은 `UpdateLayeredWindow` 렌더러로 표시하며 tick마다 bitmap이나 surface를 새로 할당하지 않는다.
@@ -464,7 +468,7 @@ forward-only `20260905000000_cosmetics_catalog_and_equipment.sql`은 상품을 `
 
 forward-only `20260905010000_settings_retention_contract.sql`은 미니 대포의 기존 3,900원 가격 이력을 보존·비활성화하고 2,900원 활성 가격을 추가한다. `set_equipped_cosmetic(text, text default null)`로 기본 꾸미기 복귀의 생략·명시적 null 호출을 함께 지원하고 PostgREST schema cache를 갱신한다. 메시지 보관 함수는 3일 기준으로 교체하며 적용 즉시 기존 3일 초과 메시지를 영구 삭제한다. 변경된 방마다 기존 `messages_pruned` invalidation event 하나만 발행하는 계약은 유지한다.
 
-기존 `send_message(p_id,p_room_id,p_body)`와 `broadcast_character_throw(p_room_id,p_realtime_epoch,p_event_id,p_target_user_id)` 인자는 바꾸지 않는다. `send_message`는 최초 insert에서 서버가 확인한 말풍선 스타일을 snapshot하고 같은 UUID 재시도는 저장된 행을 그대로 반환한다. throw RPC는 기존 인증·membership·epoch·rate limit 검증 뒤 서버가 확인한 장착 투척물만 optional `throwable_id`로 추가한다. 미장착·미소유·알 수 없는 값은 기존 캐릭터 시그니처로 fallback한다. App Store transaction 원장은 `character` 상품만 받는다.
+기존 `send_message(p_id,p_room_id,p_body)`와 `broadcast_character_throw(p_room_id,p_realtime_epoch,p_event_id,p_target_user_id)` 인자는 바꾸지 않는다. `send_message`는 최초 insert에서 서버가 확인한 말풍선 스타일을 snapshot하고 같은 UUID 재시도는 저장된 행을 그대로 반환한다. throw RPC는 기존 인증·membership·epoch·rate limit 검증 뒤 서버가 확인한 장착 투척물만 optional `throwable_id`로 추가한다. 미장착·미소유·알 수 없는 값은 기존 캐릭터 시그니처로 fallback한다. App Store transaction 원장은 verifier가 허용한 `character / bubble / throwable` 10개 상품을 받는다.
 
 `services/app-store-verifier`는 Apple 공식 Node App Store Server Library로 기기 JWS와 Server Notifications V2를 검증하고 App Store Server API에서 transaction을 다시 조회한다. Production과 Sandbox 서비스·키를 분리하며 bundle ID, app Apple ID, product ID, environment와 서명을 모두 확인한다. 계정 삭제 endpoint는 새 Sign in with Apple token의 subject를 현재 Supabase Apple identity와 비교하고 Apple token 철회 뒤 Auth 사용자를 삭제한다.
 
@@ -505,7 +509,7 @@ SIDEY가 사용할 수 있는 전역 활동 신호는 마지막 시스템 입력
 
 E2EE는 현재 설계·구현·검증되지 않았다. 전송 암호화, Postgres, RLS를 근거로 종단간 암호화라고 표현하면 안 된다.
 
-Windows는 Supabase 익명 인증만 사용하며 Google email·provider identity나 OAuth callback을 처리하지 않는다. 로컬 로그에는 access·refresh token, 메시지 본문, 평문 초대 코드, 닉네임·email·UUID 원문, 입력 키·마우스 좌표·화면 및 활성 앱 목록·로컬 파일 내용·Credential Manager 데이터를 남기지 않는다.
+Windows 1.0.7 Release는 Supabase 익명 인증을 기본으로 사용하고 Google 연결·PortOne 구매를 컴파일 타임으로 잠근다. 개발 빌드만 staging에서 기존 익명 계정에 Google provider identity를 연결하며 callback code와 PKCE verifier를 일회성으로 처리한다. 로컬 로그에는 access·refresh token, OAuth code·verifier, 메시지 본문, 평문 초대 코드, 닉네임·email·UUID 원문, 입력 키·마우스 좌표·화면 및 활성 앱 목록·로컬 파일 내용·Credential Manager 데이터를 남기지 않는다.
 
 macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀키, service-role key, 일회용 주문 token, 전체 결제 식별자를 남기지 않는다. 결제 성공 redirect만으로 소유권을 지급하지 않고 PortOne V2 재조회, 결제 당시 정책 동의와 Postgres 기록이 모두 일치해야 한다. 카드 번호·결제 비밀번호는 SIDEY가 수집하지 않는다.
 
@@ -525,10 +529,10 @@ App Store판은 Apple subject와 사용자가 공유한 경우의 relay email, S
 - 업데이트: production 채널에 Sparkle `2.9.6` 프레임워크·메뉴 항목·피드 URL·EdDSA 공개키가 번들에 포함되고 signed feed와 압축 해제 전 검증을 강제하며, 업데이트 진행 중에는 수동 확인 메뉴를 비활성화. development 채널은 Sparkle을 시작하지 않고 수동 확인 메뉴도 항상 비활성화
 - 에셋: manifest에 등록된 모든 캐릭터·말풍선·투척물의 동적 개수, 16×16 말풍선 장식, 128×48 글자 포함 preview, 192×16 일반 투척물 12프레임, 96×24 대포 emitter 4프레임, hard alpha·sRGB·결정적 SHA-256·nearest-neighbor 선명도와 항목별 지원 플랫폼 mirror를 검사한다. 신규 꾸미기에 Windows mirror가 없어야 한다.
 - 던지기 렌더링: 캐릭터 throw/hit과 투척물 sprite 선택 분리, 기본 시그니처 fallback, 신규 일반 투척물, 대포의 전경 몸통 emitter·심지탄·피격자 몸통 폭발, 4개 화면 가장자리, 이동 목표 추적, 다중 피격 재시작, 대상 상태 전환, 방 전환 중 stale 이벤트를 검증한다. 12명이 0.5초마다 던지는 초당 24개 부하에서 활성 투사체 32개 이하, p95 frame time 40ms 이하, 100ms 이상 UI hang과 지속 메모리·handle 증가가 없어야 한다.
-- 설정: schema 7 이하에서 `requiresRightClickToThrow=false` migration과 저장·복원·즉시 ON/OFF 전환, 860×640 최소 크기와 1000×760 안팎 권장 크기의 라이트·다크 렌더, 960 DIP 경계의 210→48 DIP 자동 탐색 전환과 최소 폭 아이콘 레일 유지, 연결 점·문구의 시각적 중앙 정렬과 pane 닫기 시작/열기 완료 경계에서 문구를 숨기고 복원해 전환 중 잘린 문구·중복 점이 없음, 상단바의 뒤로가기·탐색 열기와 방문 이력, native 최소 tracking size에서 반복 resize·깜빡임 없음, 옅은 카드 명도, 240pt 컨트롤 영역과 Picker·버튼·토글 오른쪽 정렬, `동작 정보` 제거, 두 사람 그룹 아이콘, 그룹 현재 사용자 표식의 accent 글자·12% 배경, 활성·비활성 그룹별 나가기 확인과 방장 영향 안내·mutation 중 비활성화, 접힘 콘텐츠만 clipping한 애니메이션, 한글 IME 조합 확정·닉네임 dirty 판정·snapshot 중 draft 보존, 캐릭터 자동 적용의 성공·실패·중복 요청, 성공 배너 3초 종료와 타이머 갱신. direct판 프로필은 보유 상품이 없어도 말풍선·투척물 종류별 기본값을 표시하고 활성 entitlement 상품을 4열에 추가하며 전체 스크롤, 정적 nearest-neighbor 미리보기, 선택·focus·VoiceOver·진행 상태를 제공해야 한다. App Store판에는 이 영역이 없어야 한다.
+- 설정: schema 7 이하에서 `requiresRightClickToThrow=false` migration과 저장·복원·즉시 ON/OFF 전환, 860×640 최소 크기와 1000×760 안팎 권장 크기의 라이트·다크 렌더, 960 DIP 경계의 210→48 DIP 자동 탐색 전환과 최소 폭 아이콘 레일 유지, 연결 점·문구의 시각적 중앙 정렬과 pane 닫기 시작/열기 완료 경계에서 문구를 숨기고 복원해 전환 중 잘린 문구·중복 점이 없음, 상단바의 뒤로가기·탐색 열기와 방문 이력, native 최소 tracking size에서 반복 resize·깜빡임 없음, 옅은 카드 명도, 240pt 컨트롤 영역과 Picker·버튼·토글 오른쪽 정렬, `동작 정보` 제거, 두 사람 그룹 아이콘, 그룹 현재 사용자 표식의 accent 글자·12% 배경, 활성·비활성 그룹별 나가기 확인과 방장 영향 안내·mutation 중 비활성화, 접힘 콘텐츠만 clipping한 애니메이션, 한글 IME 조합 확정·닉네임 dirty 판정·snapshot 중 draft 보존, 캐릭터 자동 적용의 성공·실패·중복 요청, 성공 배너 3초 종료와 타이머 갱신. direct판과 App Store판 프로필은 보유 상품이 없어도 말풍선·투척물 종류별 기본값을 표시하고 활성 entitlement 상품을 4열에 추가하며 전체 스크롤, 정적 nearest-neighbor 미리보기, 선택·focus·VoiceOver·진행 상태를 제공해야 한다.
 - 서버 action: 응답을 지연시킨 프로필 저장과 각 그룹 mutation에서 첫 요청 직후 버튼이 비활성화되고 추가 실행이 전달되지 않으며 성공·실패 뒤 다시 활성화되는지 검증한다. 그룹 생성·참여 성공은 제출한 입력을 비우고 실패는 보존하며, 요청 중 바뀐 새 draft는 늦은 성공 응답에도 보존해야 한다.
 - 입력 필드: 200자 끝, 한글 조합, 영문 긴 단어, 단일·ZWJ 가족·피부색 조합·국기 이모지, Shift+Enter 3줄, 중간 커서 이동·전체 선택, undo·redo, 외부 draft와 잘못된 입력 복구에서 마지막 글자와 커서가 보이고 텍스트 손실·IME 중복 확정·가로 스크롤이 없는지 검증한다. macOS 이모지·기호 선택기 중에는 composer가 유지되고 실제 외부 클릭은 250ms 유예 뒤 정상적으로 닫혀야 한다.
-- 상점: 760pt 6열과 좁은 폭 5열·4열, 세 탭, 한 줄 타일 상태, 말풍선 타일의 본문 미표시, development·App Store 상세 sheet의 단일 구매/보유 button, production 상세의 button 없는 준비 중 안내, 콘텐츠 맞춤 높이와 불필요한 상하 빈 공간 부재, 상품별 독립 loading/error, 키보드 탐색·focus·VoiceOver, 860×640·1000×760 라이트·다크 렌더를 검증한다. direct판의 기본순·가격 오름차순·내림차순, 가격 동률 고정 순서, snapshot entitlement와 장착 상품 보유 판정, 보유 숨김과 빈 결과도 검증한다. 상세의 540×280 무대, 48pt 캐릭터·4px 플랫폼, 3배 pulse가 잘리지 않아야 하며 Reduce Motion에서 반복 작업이 없는 정적 첫 장면을 확인한다. 캐릭터 상품의 두 멤버·분리된 시작 위치·계속되는 산책·친구 클릭 시 상품 캐릭터와 시그니처 투척물 ID·throw/projectile/impact/hit 순서·설명 문구를 확인한다. 두 말풍선의 실제 타이핑→본문 순서·1초/2초 timing·스타일·본문 크기를 늘리지 않는 좌상단 모서리 장식, 말풍선 이동과 투척물 캐릭터 고정, 0.35초 첫 투척·정확한 1초 간격·좌우 교대·상품 ID, 일반 투척물과 대포의 순서를 검사한다. 상세 시트를 반복해서 열고 닫은 뒤 반복 작업과 SpriteKit scene이 남거나 메모리가 지속 증가하지 않아야 한다. production은 commerce action 호출 0회, 검정 68%·픽셀 자물쇠를 유지한 카드 선택, 동적 상세 생성·정리와 준비 중 안내를 확인한다. App Store 타깃은 기존 캐릭터 4종 동적 상세와 전체 빌드를 회귀 검증한다.
+- 상점: 760pt 6열과 좁은 폭 5열·4열, 세 탭, 한 줄 타일 상태, 말풍선 타일의 본문 미표시, development·App Store 상세 sheet의 단일 구매/보유 button, production 상세의 button 없는 준비 중 안내, 콘텐츠 맞춤 높이와 불필요한 상하 빈 공간 부재, 상품별 독립 loading/error, 키보드 탐색·focus·VoiceOver, 860×640·1000×760 라이트·다크 렌더를 검증한다. direct판과 App Store판의 기본순·가격 오름차순·내림차순, 가격 동률 고정 순서, snapshot entitlement와 장착 상품 보유 판정, 보유 숨김과 빈 결과도 검증한다. 상세의 540×280 무대, 48pt 캐릭터·4px 플랫폼, 3배 pulse가 잘리지 않아야 하며 Reduce Motion에서 반복 작업이 없는 정적 첫 장면을 확인한다. 캐릭터 상품의 두 멤버·분리된 시작 위치·계속되는 산책·친구 클릭 시 상품 캐릭터와 시그니처 투척물 ID·throw/projectile/impact/hit 순서·설명 문구를 확인한다. 두 말풍선의 실제 타이핑→본문 순서·1초/2초 timing·스타일·본문 크기를 늘리지 않는 좌상단 모서리 장식, 말풍선 이동과 투척물 캐릭터 고정, 0.35초 첫 투척·정확한 1초 간격·좌우 교대·상품 ID, 일반 투척물과 대포의 순서를 검사한다. 상세 시트를 반복해서 열고 닫은 뒤 반복 작업과 SpriteKit scene이 남거나 메모리가 지속 증가하지 않아야 한다. production은 commerce action 호출 0회, 검정 68%·픽셀 자물쇠를 유지한 카드 선택, 동적 상세 생성·정리와 준비 중 안내를 확인한다. App Store 타깃은 10종 동적 상세·구매·복원과 전체 빌드를 회귀 검증한다.
 - commerce 서버·웹: 기존 캐릭터와 신규 1,900/1,900/1,900/990/2,900/990 가격, 범용 catalog와 전체 `get_store_state`, 미보유 장착 거부·해제·계정 동기화·자동 장착·환불 fallback·RLS를 검증한다. 프로필 장착은 production 구매 잠금과 독립적으로 허용하고 development에서는 구매·장착을 모두 허용하며, 기본값 복귀·상품 교체·종류별 중복 요청 차단·서버 성공 프로필만 반영·실패 시 기존 선택 유지를 검사한다. 메시지 재시도는 최초 `bubble_style_id`를 유지하고 throw RPC는 클라이언트 소유권을 신뢰하지 않은 채 기존 membership·epoch·rate limit을 지켜야 한다. 공개 상점·약관에는 신규 상품을 노출하지 않고 token checkout/result만 상품 종류별 미리보기와 `디지털 꾸미기 사용권` 문구를 사용한다.
 - 그룹 설정: 0·1·12명 멤버 목록, 기본 접힘·제목 영역 및 오른쪽 단일 화살표 펼침, 헤더 밖 clipping과 focus ring 유지, `그룹 참가` 문구, 생성·참여·전환별 진행 문구와 라이트·다크 대상 카드 강조, A→B→C 연속 선택에서 C만 commit, UUID 기반 방장 왕관과 펼친 목록 아래 방장 전용 이름 변경·삭제 버튼, 이름 변경 저장·취소, 대상 명시 추방 확인, 영구 삭제 2단계 확인, 일반 멤버·남은 멤버가 있는 방장·마지막 방장의 나가기 확인, 활성·비활성·마지막 그룹 나가기 및 삭제 fallback, macOS·Windows 초대 코드 복사 성공·실패와 3초 표시·재클릭 갱신·행 제거 취소
 - DMG: 660×420 배경, `SIDEY.app`, `/Applications` 심볼릭 링크, 기존 5종 idle 프레임, `.DS_Store`를 자동 생성·마운트 검증하고 Finder에서 아이콘 위치·안내 문구·nearest-neighbor 픽셀 선명도를 수동 확인

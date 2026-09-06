@@ -1,6 +1,7 @@
 name: Windows CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -36,6 +37,8 @@ jobs:
   validate:
     runs-on: windows-latest
     timeout-minutes: 20
+    outputs:
+      source_version: ${{ steps.source.outputs.version }}
     defaults:
       run:
         shell: pwsh
@@ -45,7 +48,23 @@ jobs:
           persist-credentials: false
 
       - name: Validate Windows release metadata
-        run: python ./scripts/verify_release_consistency.py --platform windows
+        run: >-
+          python ./scripts/verify_release_consistency.py
+          --platform windows
+          --allow-unreleased-source
+
+      - name: Read Windows source version
+        id: source
+        run: |
+          [xml]$project = Get-Content ./windows/src/Sidey.App/Sidey.App.csproj -Raw
+          $properties = $project.Project.PropertyGroup |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_.Version) } |
+            Select-Object -First 1
+          $version = [string]$properties.Version
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw 'Windows source version must contain three numeric parts.'
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Validate central pixel assets and mirrors
         run: python ./scripts/validate_pixel_assets.py
@@ -73,3 +92,63 @@ jobs:
           name: windows-code-coverage
           path: artifacts/coverage/**/coverage.cobertura.xml
           if-no-files-found: error
+
+  package-candidate:
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate
+    runs-on: windows-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install pinned NSIS compiler
+        id: nsis
+        run: |
+          winget install NSIS.NSIS `
+            --exact `
+            --version 3.12 `
+            --silent `
+            --accept-package-agreements `
+            --accept-source-agreements `
+            --disable-interactivity
+          $makensis = Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'
+          if (-not (Test-Path -LiteralPath $makensis -PathType Leaf)) {
+            throw 'NSIS 3.12 makensis.exe was not installed.'
+          }
+          "makensis_path=$makensis" >> $env:GITHUB_OUTPUT
+
+      - name: Build Setup EXE candidate
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet restore windows/SIDEY.Windows.slnx
+          dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            --no-restore `
+            -p:PublishSingleFile=false `
+            --output build/windows/publish
+          ./scripts/windows/smoke-launch.ps1 `
+            -PublishDir ./build/windows/publish
+          ./scripts/windows/package.ps1 `
+            -PublishDir ./build/windows/publish `
+            -OutDir ./build/windows/artifacts `
+            -Version '${{ needs.validate.outputs.source_version }}' `
+            -MakensisPath '${{ steps.nsis.outputs.makensis_path }}'
+
+      - name: Upload private Windows candidate
+        uses: actions/upload-artifact@v5
+        with:
+          name: windows-candidate-${{ needs.validate.outputs.source_version }}
+          path: build/windows/artifacts/SIDEY-Windows-x64-v${{ needs.validate.outputs.source_version }}-Setup.exe
+          if-no-files-found: error
+          retention-days: 7
