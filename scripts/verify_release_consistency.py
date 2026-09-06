@@ -168,7 +168,7 @@ def validate_macos(allow_pending_appcast: bool = False) -> dict[str, str]:
     }
 
 
-def validate_windows() -> dict[str, str]:
+def validate_windows(allow_unreleased_source: bool = False) -> dict[str, str]:
     manifest = load_manifest("windows")
     version = str(manifest["version"])
     tag = f"windows-v{version}"
@@ -180,15 +180,23 @@ def validate_windows() -> dict[str, str]:
 
     project = ET.parse(ROOT / "windows" / "src" / "Sidey.App" / "Sidey.App.csproj")
     values = {element.tag: (element.text or "") for element in project.getroot().iter()}
-    require(values.get("Version") == version,
-            "Windows project version does not match release/windows.json")
-    require(values.get("FileVersion") == f"{version}.0",
-            "Windows file version does not match release/windows.json")
-    require(values.get("AssemblyVersion") == f"{version}.0",
-            "Windows assembly version does not match release/windows.json")
+    source_version = values.get("Version", "")
+    require(SEMVER.fullmatch(source_version) is not None,
+            "Windows project must contain a stable semantic version")
+    if source_version != version:
+        require(allow_unreleased_source,
+                "Windows project version does not match release/windows.json")
+        require(
+            tuple(map(int, source_version.split(".")))
+            > tuple(map(int, version.split("."))),
+                "unreleased Windows source version must be newer than the public release")
+    require(values.get("FileVersion") == f"{source_version}.0",
+            "Windows file version does not match the project version")
+    require(values.get("AssemblyVersion") == f"{source_version}.0",
+            "Windows assembly version does not match the project version")
     update_source = read("windows/src/Sidey.Platform.Windows/WindowsUpdateService.cs")
-    require(f'CurrentVersion = "{version}"' in update_source,
-            "Windows updater version does not match release/windows.json")
+    require(f'CurrentVersion = "{source_version}"' in update_source,
+            "Windows updater version does not match the project version")
     require((ROOT / notes).is_file(), f"Windows release notes are missing: {notes}")
 
     require(installer_name in read("README.md"),
@@ -207,6 +215,7 @@ def validate_windows() -> dict[str, str]:
         "installer_name": installer_name,
         "installer_url": installer_url,
         "release_notes": notes,
+        "source_version": source_version,
     }
 
 
@@ -226,6 +235,11 @@ def main() -> int:
         action="store_true",
         help="allow a signed Sparkle item older than the staged macOS manifest",
     )
+    parser.add_argument(
+        "--allow-unreleased-source",
+        action="store_true",
+        help="allow a Windows source version newer than the current public manifest",
+    )
     args = parser.parse_args()
 
     outputs: dict[str, str] = {}
@@ -233,7 +247,7 @@ def main() -> int:
         if args.platform in ("all", "macos"):
             outputs = validate_macos(args.allow_pending_appcast)
         if args.platform in ("all", "windows"):
-            windows = validate_windows()
+            windows = validate_windows(args.allow_unreleased_source)
             outputs = windows if args.platform == "windows" else outputs
     except (ConsistencyError, ET.ParseError, json.JSONDecodeError) as error:
         print(f"release consistency error: {error}", file=sys.stderr)
