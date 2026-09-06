@@ -344,6 +344,8 @@ def main() -> int:
         "character_base": "top_down",
         "throw_hit": "bottom_up",
         "throwable": "bottom_up",
+        "bubble_decoration": "top_down",
+        "cannon_emitter": "bottom_up",
     }:
         fail("unsupported BGRA mirror row order")
     managed_pngs: set[Path] = set()
@@ -400,14 +402,29 @@ def main() -> int:
                     row_count=16,
                 )
         if "emitter" in entry:
-            emitter_path, _ = validate_sheet(entry["emitter"], (96, 24), 24, 4)
+            emitter_path, emitter_rgba = validate_sheet(entry["emitter"], (96, 24), 24, 4)
             managed_pngs.add(emitter_path)
             validate_declared_png_mirrors(
                 emitter_path, mirrors["cannon_emitter_png"], entry, canonical_only=canonical_only
             )
+            if not canonical_only and "windows" in entry["supported_platforms"]:
+                for pattern in mirrors["cannon_emitter_bgra"]:
+                    validate_bgra_mirror(
+                        emitter_rgba,
+                        mirror_path(pattern, entry),
+                        bottom_up=True,
+                        row_count=24,
+                    )
         if "preview" in entry:
             validate_entry(entry["preview"], (176, 56))
-            managed_pngs.add(ASSET_ROOT / entry["preview"]["path"])
+            preview_path = ASSET_ROOT / entry["preview"]["path"]
+            managed_pngs.add(preview_path)
+            validate_declared_png_mirrors(
+                preview_path,
+                mirrors["cannon_preview_png"],
+                entry,
+                canonical_only=canonical_only,
+            )
 
     for entry in bubbles:
         validate_supported_platforms(entry)
@@ -415,6 +432,7 @@ def main() -> int:
             fail(f"non-canonical bubble decoration path for {entry['id']}")
         if entry["preview"]["path"] != f"bubbles/{entry['id']}/preview.png":
             fail(f"non-canonical bubble preview path for {entry['id']}")
+        _, _, decoration_rgba = parse_rgba_png(ASSET_ROOT / entry["decoration"]["path"])
         validate_entry(entry["decoration"], (16, 16))
         validate_entry(entry["preview"], (128, 48))
         if float(entry["contrast_ratio"]) < 7.0:
@@ -428,6 +446,12 @@ def main() -> int:
             entry,
             canonical_only=canonical_only,
         )
+        if not canonical_only and "windows" in entry["supported_platforms"]:
+            for pattern in mirrors["bubble_decoration_bgra"]:
+                validate_bgra_mirror(
+                    decoration_rgba,
+                    mirror_path(pattern, entry),
+                )
         validate_declared_png_mirrors(
             preview_path,
             mirrors["bubble_preview_png"],
