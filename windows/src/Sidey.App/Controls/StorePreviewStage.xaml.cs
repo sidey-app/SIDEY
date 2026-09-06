@@ -7,6 +7,7 @@ using Sidey.Core.Domain;
 using Sidey.Core.Localization;
 using Sidey.Core.Overlay;
 using Sidey.Platform.Windows;
+using Windows.Foundation;
 using Windows.UI;
 
 namespace Sidey.App.Controls;
@@ -20,11 +21,20 @@ public sealed partial class StorePreviewStage : UserControl
     private const double CharacterTop = PlatformTop - RenderedCharacterSize + RenderedFootBaseline;
     private const double PreviewWallInset = 12;
     private const double WalkFrameSeconds = 0.16;
+    private const double ThrowActionSeconds = 0.4;
+    private const double ThrowReleaseSeconds = 0.2;
+    private const double ThrowFlightSeconds = 0.55;
+    private const double HitActionSeconds = 0.44;
+    private const double ImpactSeconds = 0.24;
+    private const double ThrowCycleSeconds = 1.0;
+    private const double AmbientSparkleCycleSeconds = 1.2;
+    private const double AmbientSparkleDurationSeconds = 1.05;
     private static readonly IReadOnlyList<RectD> NoAvoidanceRects = Array.Empty<RectD>();
     private static readonly IReadOnlySet<Guid> NoStoppedIds = new HashSet<Guid>();
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(1000d / 30d) };
     private readonly Stopwatch _clock = new();
     private readonly Dictionary<string, IReadOnlyList<ImageSource>> _characters = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, IReadOnlyList<ImageSource>> _actions = new(StringComparer.Ordinal);
     private readonly EdgeTrackGeometry _movementGeometry = new(
         new RectD(0, 0, StageWidth, 280),
         OverlayEdge.Bottom,
@@ -32,12 +42,16 @@ public sealed partial class StorePreviewStage : UserControl
     private readonly List<PixelMovementAgent> _movementAgents = [];
     private readonly PixelMovementScratch _movementScratch = new();
     private readonly Random _random = new(0x51DE59);
-    private ImageSource? _projectile;
-    private ImageSource? _emitter;
+    private readonly List<Microsoft.UI.Xaml.Shapes.Polygon> _sparkles = [];
+    private IReadOnlyList<ImageSource> _projectileFrames = Array.Empty<ImageSource>();
+    private IReadOnlyList<ImageSource> _emitterFrames = Array.Empty<ImageSource>();
     private double _manualThrowStarted = -10;
     private double _lastSceneElapsed;
     private bool _resourcesLoaded;
     private bool _loading;
+    private bool _isLoaded;
+    private bool _leftFacingLeft;
+    private bool _rightFacingLeft;
 
     public StorePreviewStage(CommerceProductKind kind, string catalogItemId, string characterId)
     {
@@ -47,6 +61,7 @@ public sealed partial class StorePreviewStage : UserControl
         CharacterId = PixelCharacterCatalog.NormalizeId(characterId);
         _timer.Tick += OnTimerTick;
         BuildPlatform();
+        BuildSparkles();
         BuildMovementAgents();
     }
 
@@ -58,9 +73,13 @@ public sealed partial class StorePreviewStage : UserControl
     {
         _ = sender;
         _ = args;
+        _isLoaded = true;
         await InitializeAsync();
 
-        StartAnimation();
+        if (_isLoaded)
+        {
+            StartAnimation();
+        }
     }
 
     public async Task InitializeAsync()
@@ -116,6 +135,20 @@ public sealed partial class StorePreviewStage : UserControl
                         renderedHeight: 48);
                 }
                 _characters[id] = frames;
+
+                string actionPath = Path.Combine(root, "Characters", id, "throw_hit.png");
+                var actionFrames = new ImageSource[8];
+                for (int frame = 0; frame < actionFrames.Length; frame++)
+                {
+                    actionFrames[frame] = await StorePreviewImageLoader.LoadFrameAsync(
+                        actionPath,
+                        frameWidth: 24,
+                        frameHeight: 24,
+                        frame,
+                        renderedWidth: 48,
+                        renderedHeight: 48);
+                }
+                _actions[id] = actionFrames;
             }
 
             if (ProductKind == CommerceProductKind.Bubble)
@@ -135,24 +168,34 @@ public sealed partial class StorePreviewStage : UserControl
                     ? CatalogItemId
                     : StoreProductArtwork.SignatureObject(CharacterId);
                 string objectPath = Path.Combine(root, "Throwables", objectId, "sprite.png");
-                _projectile = await StorePreviewImageLoader.LoadFrameAsync(
-                    objectPath,
-                    frameWidth: 16,
-                    frameHeight: 16,
-                    frame: 0,
-                    renderedWidth: 32,
-                    renderedHeight: 32);
+                var projectileFrames = new ImageSource[12];
+                for (int frame = 0; frame < projectileFrames.Length; frame++)
+                {
+                    projectileFrames[frame] = await StorePreviewImageLoader.LoadFrameAsync(
+                        objectPath,
+                        frameWidth: 16,
+                        frameHeight: 16,
+                        frame,
+                        renderedWidth: frame < 8 ? 32u : 48u,
+                        renderedHeight: frame < 8 ? 32u : 48u);
+                }
+                _projectileFrames = projectileFrames;
 
                 if (objectId == "throwable_toy_cannon")
                 {
                     string emitterPath = Path.Combine(root, "Throwables", objectId, "emitter.png");
-                    _emitter = await StorePreviewImageLoader.LoadFrameAsync(
-                        emitterPath,
-                        frameWidth: 24,
-                        frameHeight: 24,
-                        frame: 2,
-                        renderedWidth: 48,
-                        renderedHeight: 48);
+                    var emitterFrames = new ImageSource[4];
+                    for (int frame = 0; frame < emitterFrames.Length; frame++)
+                    {
+                        emitterFrames[frame] = await StorePreviewImageLoader.LoadFrameAsync(
+                            emitterPath,
+                            frameWidth: 24,
+                            frameHeight: 24,
+                            frame,
+                            renderedWidth: 48,
+                            renderedHeight: 48);
+                    }
+                    _emitterFrames = emitterFrames;
                 }
             }
 
@@ -200,7 +243,7 @@ public sealed partial class StorePreviewStage : UserControl
             leftX = 92;
             rightX = 400;
             ApplyCharacterFrame(LeftCharacter, LeftCharacterScale, leftId, frame: 0, facingLeft: false);
-            ApplyCharacterFrame(RightCharacter, RightCharacterScale, "pixel_cat", frame: 0, facingLeft: true);
+            ApplyCharacterFrame(RightCharacter, RightCharacterScale, "pixel_cat", frame: 0, facingLeft: false);
         }
         else
         {
@@ -211,26 +254,30 @@ public sealed partial class StorePreviewStage : UserControl
             rightX = rightAgent.TrackPosition - 24;
             int leftFrame = CharacterFrame(elapsed, leftAgent.Velocity);
             int rightFrame = CharacterFrame(elapsed + 0.08, rightAgent.Velocity);
+            UpdateFacing(leftAgent, leftId, ref _leftFacingLeft);
+            UpdateFacing(rightAgent, "pixel_cat", ref _rightFacingLeft);
             ApplyCharacterFrame(
                 LeftCharacter,
                 LeftCharacterScale,
                 leftId,
                 leftFrame,
-                leftAgent.Velocity < -0.1);
+                _leftFacingLeft);
             ApplyCharacterFrame(
                 RightCharacter,
                 RightCharacterScale,
                 "pixel_cat",
                 rightFrame,
-                rightAgent.Velocity < -0.1);
+                _rightFacingLeft);
         }
         PositionCharacters(leftX, rightX);
+        UpdateSparkles(elapsed, leftX, leftId);
 
         if (ProductKind == CommerceProductKind.Bubble)
         {
             UpdateBubble(elapsed, leftX, rightX);
             ProjectileImage.Visibility = Visibility.Collapsed;
             EmitterImage.Visibility = Visibility.Collapsed;
+            ImpactImage.Visibility = Visibility.Collapsed;
             return;
         }
 
@@ -238,8 +285,8 @@ public sealed partial class StorePreviewStage : UserControl
         if (ProductKind == CommerceProductKind.Throwable)
         {
             double sequenceTime = Math.Max(0, elapsed - 0.35);
-            int sequenceIndex = (int)Math.Floor(sequenceTime);
-            UpdateThrow(sequenceTime - sequenceIndex, leftX, rightX, sequenceIndex % 2 == 0);
+            int sequenceIndex = (int)Math.Floor(sequenceTime / ThrowCycleSeconds);
+            UpdateThrow(sequenceTime % ThrowCycleSeconds, leftX, rightX, sequenceIndex % 2 == 0);
         }
         else
         {
@@ -353,6 +400,24 @@ public sealed partial class StorePreviewStage : UserControl
             ? 2 + ((int)(elapsed / WalkFrameSeconds) % 4)
             : (int)(elapsed / 0.6) % 2;
 
+    private static void UpdateFacing(
+        PixelMovementAgent agent,
+        string characterId,
+        ref bool facingLeft)
+    {
+        if (!PixelCharacterCatalog.Get(characterId).MirrorsToMovementDirection)
+        {
+            facingLeft = false;
+            return;
+        }
+
+        double targetDelta = agent.Target - agent.TrackPosition;
+        if (Math.Abs(targetDelta) > 2d)
+        {
+            facingLeft = targetDelta < 0d;
+        }
+    }
+
     private void ApplyCharacterFrame(
         Image image,
         ScaleTransform transform,
@@ -362,7 +427,25 @@ public sealed partial class StorePreviewStage : UserControl
     {
         IReadOnlyList<ImageSource> frames = _characters[characterId];
         image.Source = frames[Math.Clamp(frame, 0, frames.Count - 1)];
-        transform.ScaleX = facingLeft ? -1 : 1;
+        transform.ScaleX = PixelCharacterCatalog.Get(characterId).MirrorsToMovementDirection
+            && facingLeft
+                ? -1
+                : 1;
+    }
+
+    private void ApplyActionFrame(
+        Image image,
+        ScaleTransform transform,
+        string characterId,
+        int frame,
+        bool facingLeft)
+    {
+        IReadOnlyList<ImageSource> frames = _actions[characterId];
+        image.Source = frames[Math.Clamp(frame, 0, frames.Count - 1)];
+        transform.ScaleX = PixelCharacterCatalog.Get(characterId).MirrorsToMovementDirection
+            && facingLeft
+                ? -1
+                : 1;
     }
 
     private void UpdateBubble(double elapsed, double leftX, double rightX)
@@ -405,27 +488,82 @@ public sealed partial class StorePreviewStage : UserControl
         double rightX,
         bool leftToRight)
     {
-        if (local < 0 || local > 1)
+        ImpactImage.Visibility = Visibility.Collapsed;
+        double sequenceEnd = ProductKind == CommerceProductKind.Throwable
+            ? ThrowCycleSeconds
+            : ThrowReleaseSeconds + ThrowFlightSeconds + HitActionSeconds;
+        if (local < 0 || local >= sequenceEnd || _projectileFrames.Count < 12)
         {
             ProjectileImage.Visibility = Visibility.Collapsed;
             EmitterImage.Visibility = Visibility.Collapsed;
             return;
         }
 
-        double progress = Math.Clamp((local - 0.12) / 0.72, 0, 1);
-        double startX = leftToRight ? leftX + 38 : rightX - 22;
-        double endX = leftToRight ? rightX - 10 : leftX + 38;
-        double x = startX + ((endX - startX) * progress);
-        double y = 218 - (Math.Sin(progress * Math.PI) * 72);
-        ProjectileImage.Source = _projectile;
-        ProjectileScale.ScaleX = leftToRight ? 1 : -1;
-        Canvas.SetLeft(ProjectileImage, x);
-        Canvas.SetTop(ProjectileImage, y);
-        ProjectileImage.Visibility = Visibility.Visible;
+        string leftId = ProductKind == CommerceProductKind.Character
+            ? CharacterId
+            : PixelCharacterCatalog.FallbackId;
+        Image actor = leftToRight ? LeftCharacter : RightCharacter;
+        Image target = leftToRight ? RightCharacter : LeftCharacter;
+        ScaleTransform actorTransform = leftToRight ? LeftCharacterScale : RightCharacterScale;
+        ScaleTransform targetTransform = leftToRight ? RightCharacterScale : LeftCharacterScale;
+        string actorId = leftToRight ? leftId : "pixel_cat";
+        string targetId = leftToRight ? "pixel_cat" : leftId;
+        bool actorFacingLeft = leftToRight ? _leftFacingLeft : _rightFacingLeft;
+        bool targetFacingLeft = leftToRight ? _rightFacingLeft : _leftFacingLeft;
 
-        if (_emitter is not null && local < 0.4)
+        if (local < ThrowActionSeconds)
         {
-            EmitterImage.Source = _emitter;
+            int actionFrame = Math.Min(3, (int)(local / (ThrowActionSeconds / 4d)));
+            ApplyActionFrame(actor, actorTransform, actorId, actionFrame, actorFacingLeft);
+        }
+
+        double impactStarted = ThrowReleaseSeconds + ThrowFlightSeconds;
+        if (local >= impactStarted && local < impactStarted + HitActionSeconds)
+        {
+            int hitFrame = 4 + Math.Min(
+                3,
+                (int)((local - impactStarted) / (HitActionSeconds / 4d)));
+            ApplyActionFrame(target, targetTransform, targetId, hitFrame, targetFacingLeft);
+        }
+
+        if (local >= ThrowReleaseSeconds && local < impactStarted)
+        {
+            double progress = (local - ThrowReleaseSeconds) / ThrowFlightSeconds;
+            double startCenterX = leftToRight ? leftX + 24 : rightX + 24;
+            double endCenterX = leftToRight ? rightX + 24 : leftX + 24;
+            double centerX = startCenterX + ((endCenterX - startCenterX) * progress);
+            double centerY = PlatformTop - 10 - (Math.Sin(progress * Math.PI) * 72);
+            int projectileFrame = (int)((local - ThrowReleaseSeconds) / 0.083) % 8;
+            ProjectileImage.Source = _projectileFrames[projectileFrame];
+            ProjectileScale.ScaleX = 1;
+            Canvas.SetLeft(ProjectileImage, centerX - 16);
+            Canvas.SetTop(ProjectileImage, centerY - 16);
+            ProjectileImage.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            ProjectileImage.Visibility = Visibility.Collapsed;
+        }
+
+        if (local >= impactStarted && local < impactStarted + ImpactSeconds)
+        {
+            int impactFrame = 8 + Math.Min(
+                3,
+                (int)((local - impactStarted) / (ImpactSeconds / 4d)));
+            ImpactImage.Source = _projectileFrames[impactFrame];
+            Canvas.SetLeft(ImpactImage, (leftToRight ? rightX : leftX));
+            Canvas.SetTop(ImpactImage, PlatformTop - 34);
+            ImpactImage.Visibility = Visibility.Visible;
+        }
+
+        if (_emitterFrames.Count == 4 && local < ThrowActionSeconds)
+        {
+            int emitterFrame = Math.Min(3, (int)(local / (ThrowActionSeconds / 4d)));
+            EmitterImage.Source = _emitterFrames[emitterFrame];
+            EmitterScale.ScaleX = PixelCharacterCatalog.Get(actorId).MirrorsToMovementDirection
+                && actorFacingLeft
+                    ? -1
+                    : 1;
             Canvas.SetLeft(EmitterImage, leftToRight ? leftX : rightX);
             Canvas.SetTop(EmitterImage, CharacterTop);
             EmitterImage.Visibility = Visibility.Visible;
@@ -479,6 +617,81 @@ public sealed partial class StorePreviewStage : UserControl
         }
     }
 
+    private void BuildSparkles()
+    {
+        Color[] colors =
+        [
+            Color.FromArgb(255, 120, 194, 173),
+            Color.FromArgb(255, 168, 135, 214),
+            Color.FromArgb(255, 245, 186, 56),
+        ];
+        for (int index = 0; index < 6; index++)
+        {
+            double radius = 3 + ((index % 3) * 0.5);
+            var star = new Microsoft.UI.Xaml.Shapes.Polygon
+            {
+                Fill = new SolidColorBrush(colors[index % colors.Length]),
+                Points = new PointCollection
+                {
+                    new Point(radius, 0),
+                    new Point(radius + 1, radius - 1),
+                    new Point(radius * 2, radius),
+                    new Point(radius + 1, radius + 1),
+                    new Point(radius, radius * 2),
+                    new Point(radius - 1, radius + 1),
+                    new Point(0, radius),
+                    new Point(radius - 1, radius - 1),
+                },
+                Opacity = 0,
+            };
+            _sparkles.Add(star);
+            SparkleCanvas.Children.Add(star);
+        }
+    }
+
+    private void UpdateSparkles(double elapsed, double leftX, string leftId)
+    {
+        bool active = PixelCharacterCatalog.Get(leftId).VisualEffect
+            == PixelCharacterVisualEffect.StarlightSparkles;
+        SparkleCanvas.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+        if (!active)
+        {
+            return;
+        }
+
+        double phase = elapsed % AmbientSparkleCycleSeconds;
+        for (int index = 0; index < _sparkles.Count; index++)
+        {
+            double local = phase - (index * 0.045);
+            var star = _sparkles[index];
+            if (local < 0 || local > AmbientSparkleDurationSeconds)
+            {
+                star.Opacity = 0;
+                continue;
+            }
+
+            double progress = local / AmbientSparkleDurationSeconds;
+            double horizontal = -25 + (50 * Unit((index + 1) * 7919));
+            double vertical = 5 + (32 * Unit(((index + 1) * 1543) ^ 0x51A7));
+            double rise = 4 * progress;
+            double radius = 3 + ((index % 3) * 0.5);
+            Canvas.SetLeft(star, leftX + 24 + horizontal - radius);
+            Canvas.SetTop(star, PlatformTop - vertical - rise - radius);
+            star.Opacity = Math.Sin(Math.PI * progress) * 0.96;
+        }
+    }
+
+    private static double Unit(int value)
+    {
+        uint mixed = (uint)value;
+        mixed ^= mixed >> 16;
+        mixed *= 0x7FEB352D;
+        mixed ^= mixed >> 15;
+        mixed *= 0x846CA68B;
+        mixed ^= mixed >> 16;
+        return mixed / (double)uint.MaxValue;
+    }
+
     private void OnTapped(object sender, TappedRoutedEventArgs args)
     {
         _ = sender;
@@ -494,5 +707,6 @@ public sealed partial class StorePreviewStage : UserControl
     {
         _ = sender;
         _ = args;
+        _isLoaded = false;
     }
 }

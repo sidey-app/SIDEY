@@ -27,6 +27,8 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     private bool _allowClose;
     private bool _trayAvailable;
     private bool _navigatingBack;
+    private bool _storePreviewDialogOpen;
+    private bool _hideQueued;
     private string _currentNavigationTag = "profile";
     private readonly Stack<string> _navigationHistory = new();
     private readonly WindowsMinimumSizeController _minimumSizeController;
@@ -119,43 +121,62 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
 
     private async void OnStorePreviewRequested(StoreProductPreviewViewModel product)
     {
-        var content = new StackPanel { Spacing = 12 };
-        var previewStage = new StorePreviewStage(
-            product.Kind,
-            product.CatalogItemId,
-            product.CharacterId);
-        await previewStage.InitializeAsync();
-        content.Children.Add(previewStage);
-        content.Children.Add(new TextBlock
+        if (_storePreviewDialogOpen)
         {
-            Text = product.DisplayName,
-            FontSize = 22,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
-            TextAlignment = TextAlignment.Center,
-            TextWrapping = TextWrapping.Wrap,
-        });
-        content.Children.Add(new TextBlock
+            return;
+        }
+
+        _storePreviewDialogOpen = true;
+        StorePreviewStage? previewStage = null;
+        try
         {
-            Text = product.Description,
-            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources[
-                "TextFillColorSecondaryBrush"],
-            TextAlignment = TextAlignment.Center,
-            TextWrapping = TextWrapping.Wrap,
-        });
-        var dialog = new ContentDialog
+            var content = new StackPanel { Spacing = 12 };
+            previewStage = new StorePreviewStage(
+                product.Kind,
+                product.CatalogItemId,
+                product.CharacterId);
+            await previewStage.InitializeAsync();
+            content.Children.Add(previewStage);
+            content.Children.Add(new TextBlock
+            {
+                Text = product.DisplayName,
+                FontSize = 22,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                TextAlignment = TextAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+            });
+            content.Children.Add(new TextBlock
+            {
+                Text = product.Description,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources[
+                    "TextFillColorSecondaryBrush"],
+                TextAlignment = TextAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+            });
+            var dialog = new ContentDialog
+            {
+                XamlRoot = Content.XamlRoot,
+                Content = content,
+                PrimaryButtonText = product.IsOwned
+                    ? I18n.Get("store.owned")
+                    : I18n.Format("store.purchase", product.FormattedPrice),
+                IsPrimaryButtonEnabled = false,
+                CloseButtonText = I18n.Get("common.close"),
+                DefaultButton = ContentDialogButton.Close,
+            };
+            dialog.Opened += (_, _) => previewStage.StartAnimation();
+            await dialog.ShowAsync();
+        }
+        catch (Exception exception)
         {
-            XamlRoot = Content.XamlRoot,
-            Content = content,
-            PrimaryButtonText = product.IsOwned
-                ? I18n.Get("store.owned")
-                : I18n.Format("store.purchase", product.FormattedPrice),
-            IsPrimaryButtonEnabled = false,
-            CloseButtonText = I18n.Get("common.close"),
-            DefaultButton = ContentDialogButton.Close,
-        };
-        dialog.Opened += (_, _) => previewStage.StartAnimation();
-        await dialog.ShowAsync();
-        previewStage.StopAnimation();
+            StartupDiagnostics.NonFatal("store-preview-dialog", exception);
+            ViewModel.ReportError(exception);
+        }
+        finally
+        {
+            previewStage?.StopAnimation();
+            _storePreviewDialogOpen = false;
+        }
     }
 
     public async Task<string?> PromptForRoomNameAsync(string currentName)
@@ -263,7 +284,20 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
 
         args.Cancel = true;
-        AppWindow.Hide();
+        if (_hideQueued)
+        {
+            return;
+        }
+
+        _hideQueued = true;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _hideQueued = false;
+            if (!_allowClose)
+            {
+                AppWindow.Hide();
+            }
+        });
     }
 
     private void OnNavigationSelectionChanged(

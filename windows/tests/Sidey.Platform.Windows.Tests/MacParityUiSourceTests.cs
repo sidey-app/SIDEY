@@ -381,6 +381,8 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("decoration.png", artworkSource, StringComparison.Ordinal);
         Assert.DoesNotContain("preview.png", artworkSource, StringComparison.Ordinal);
         Assert.Contains("BitmapInterpolationMode.NearestNeighbor", imageLoader, StringComparison.Ordinal);
+        Assert.Contains("ConditionalWeakTable<ImageSource, SoftwareBitmap>", imageLoader, StringComparison.Ordinal);
+        Assert.Contains("BitmapLifetimes.Add(source, bitmap)", imageLoader, StringComparison.Ordinal);
         Assert.Contains("CardBackgroundFillColorDefaultBrush", previewStage, StringComparison.Ordinal);
         Assert.DoesNotContain("Background=\"#12141B\"", previewStage, StringComparison.Ordinal);
         Assert.Contains("Width=\"540\"", previewStage, StringComparison.Ordinal);
@@ -393,9 +395,17 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("WalkFrameSeconds", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("RenderedFootBaseline = 6", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("TurnFromWall", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("UpdateFacing", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"SparkleCanvas\"", previewStage, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ImpactImage\"", previewStage, StringComparison.Ordinal);
+        Assert.Contains("throw_hit.png", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("projectileFrames = new ImageSource[12]", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("StartAnimation", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("StopAnimation", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("_timer.Start()", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("previewStage?.StopAnimation()", mainWindowSource, StringComparison.Ordinal);
+        Assert.Contains("_storePreviewDialogOpen", mainWindowSource, StringComparison.Ordinal);
+        Assert.Contains("_isLoaded", previewStageSource, StringComparison.Ordinal);
         Assert.True(CountOccurrences(xaml, "Glyph=\"&#xE73E;\"") >= 3);
         Assert.Contains("IsActionEnabled = commerceEnabled", productViewModel, StringComparison.Ordinal);
         Assert.Contains("IsPreviewOnlyVisible = !commerceEnabled", productViewModel, StringComparison.Ordinal);

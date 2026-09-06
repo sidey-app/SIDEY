@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using System.Runtime.CompilerServices;
 using Windows.Graphics.Imaging;
 using Windows.Storage;
 using Windows.Storage.Streams;
@@ -8,6 +9,8 @@ namespace Sidey.App.Controls;
 
 internal static class StorePreviewImageLoader
 {
+    private static readonly ConditionalWeakTable<ImageSource, SoftwareBitmap> BitmapLifetimes = new();
+
     public static async Task<ImageSource> LoadFrameAsync(
         string path,
         uint frameWidth,
@@ -37,15 +40,25 @@ internal static class StorePreviewImageLoader
             ScaledHeight = scaledSheetHeight,
             InterpolationMode = BitmapInterpolationMode.NearestNeighbor,
         };
-        using SoftwareBitmap bitmap = await decoder.GetSoftwareBitmapAsync(
-            BitmapPixelFormat.Bgra8,
-            BitmapAlphaMode.Premultiplied,
-            transform,
-            ExifOrientationMode.IgnoreExifOrientation,
-            ColorManagementMode.DoNotColorManage);
-        var source = new SoftwareBitmapSource();
-        await source.SetBitmapAsync(bitmap);
-        return source;
+        SoftwareBitmap? bitmap = null;
+        try
+        {
+            bitmap = await decoder.GetSoftwareBitmapAsync(
+                BitmapPixelFormat.Bgra8,
+                BitmapAlphaMode.Premultiplied,
+                transform,
+                ExifOrientationMode.IgnoreExifOrientation,
+                ColorManagementMode.DoNotColorManage);
+            var source = new SoftwareBitmapSource();
+            await source.SetBitmapAsync(bitmap);
+            BitmapLifetimes.Add(source, bitmap);
+            bitmap = null;
+            return source;
+        }
+        finally
+        {
+            bitmap?.Dispose();
+        }
     }
 
     public static async Task<ImageSource> LoadWholeAsync(

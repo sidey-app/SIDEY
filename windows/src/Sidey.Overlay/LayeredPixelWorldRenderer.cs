@@ -20,7 +20,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private const double ThrowReleaseSeconds = 0.2d;
     private const double HitActionSeconds = 0.44d;
     private const double ImpactSeconds = 0.24d;
-    private const double AmbientSparkleCycleSeconds = 2.25d;
+    private const double AmbientSparkleCycleSeconds = 1.2d;
     private const double AmbientSparkleDurationSeconds = 1.05d;
     private const double SparklePulseDurationSeconds = 0.78d;
     private static readonly IReadOnlyList<RectD> NoAvoidanceRects = Array.Empty<RectD>();
@@ -439,7 +439,12 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 cached.Definition.FootBaselinePixel * _integerScale,
                 cached.OnlineContentBounds,
                 pulseScale);
-            var flipped = ThrowFacingLeft(node) ?? (node.Agent.Velocity < -0.1d);
+            if (cached.Definition.MirrorsToMovementDirection
+                && Math.Abs(node.Agent.Velocity) > 2d)
+            {
+                node.FacingLeft = node.Agent.Velocity < 0d;
+            }
+            var flipped = cached.Definition.MirrorsToMovementDirection && node.FacingLeft;
             Composite(
                 destinationPixels,
                 actionFrame is { } activeAction
@@ -822,23 +827,6 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         return null;
     }
 
-    private bool? ThrowFacingLeft(WorldNode node)
-    {
-        ActiveProjectile? latest = null;
-        foreach (var projectile in _projectiles)
-        {
-            if (projectile.Event.ActorUserId == node.Member.Id && projectile.ImpactStartedAt is null)
-            {
-                latest = projectile;
-            }
-        }
-        if (latest is null || !_nodeById.TryGetValue(latest.Event.TargetUserId, out var target))
-        {
-            return null;
-        }
-        return target.Agent.TrackPosition < node.Agent.TrackPosition;
-    }
-
     private ActiveProjectile? ActiveCannonProjectile(Guid actorUserId)
     {
         for (var index = _projectiles.Count - 1; index >= 0; index--)
@@ -924,11 +912,13 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
             int frame;
             (double X, double Y) point;
+            double renderScale;
             if (projectile.ImpactStartedAt is { } impactStarted)
             {
                 var elapsed = Stopwatch.GetElapsedTime(impactStarted).TotalSeconds;
                 frame = 8 + Math.Min(3, (int)(elapsed / (ImpactSeconds / 4d)));
                 point = end;
+                renderScale = 1.5d;
             }
             else
             {
@@ -942,9 +932,11 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 var control = InwardControlPoint(start, end, arc);
                 point = QuadraticBezier(start, control, end, progress);
                 frame = (int)(Math.Max(0d, elapsed) / 0.083d) % 8;
+                renderScale = 1d;
             }
 
             var size = _throwFrameCache.ObjectPixelSize;
+            int renderedSize = (int)Math.Round(size * renderScale);
             CompositeRectangle(
                 destination,
                 _throwFrameCache.ObjectFrame(
@@ -953,9 +945,9 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                     frame),
                 size,
                 size,
-                (int)Math.Round(point.X - (size / 2d)) - _renderBounds.X,
-                (int)Math.Round(point.Y - (size / 2d)) - _renderBounds.Y,
-                1d,
+                (int)Math.Round(point.X - (renderedSize / 2d)) - _renderBounds.X,
+                (int)Math.Round(point.Y - (renderedSize / 2d)) - _renderBounds.Y,
+                renderScale,
                 1d,
                 desaturate: false);
         }
@@ -1054,6 +1046,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         double? pulseElapsed)
     {
         var center = BodyPoint(node);
+        var ambientOrigin = FootPoint(node.Agent.TrackPosition);
         if (node.Member.Presence is not PresenceState.Offline and not PresenceState.Reconnecting)
         {
             double seedOffset = PositiveUnit(node.Member.Id.GetHashCode()) * 0.4d;
@@ -1066,17 +1059,17 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                     continue;
                 }
 
-                double angle = (Math.PI * 2d * PositiveUnit(
-                    node.Member.Id.GetHashCode() ^ (index * 7919))) - (Math.PI / 2d);
-                double distanceDip = 8d + (29d * PositiveUnit(
+                double horizontalDip = -25d + (50d * PositiveUnit(
+                    node.Member.Id.GetHashCode() ^ (index * 7919)));
+                double verticalDip = 5d + (32d * PositiveUnit(
                     node.Member.Id.GetHashCode() ^ (index * 1543) ^ 0x51A7));
                 double rise = 4d * progress * _dpiScale;
-                double opacity = Math.Sin(Math.PI * progress) * 0.86d;
+                double opacity = Math.Sin(Math.PI * progress) * 0.96d;
                 double radius = (2.6d + (1.4d * PositiveUnit(index * 3571))) * _dpiScale;
                 DrawSparkle(
                     destination,
-                    center.X + (Math.Cos(angle) * distanceDip * _dpiScale),
-                    center.Y + (Math.Sin(angle) * distanceDip * _dpiScale) - rise,
+                    ambientOrigin.X + (horizontalDip * _dpiScale),
+                    ambientOrigin.Y - (verticalDip * _dpiScale) - rise,
                     radius,
                     opacity,
                     SparkleColor(index));
@@ -1592,6 +1585,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     {
         public PixelWorldMember Member { get; set; } = member;
         public PixelMovementAgent Agent { get; } = agent;
+        public bool FacingLeft { get; set; }
     }
 
     private sealed class ActiveProjectile(CharacterThrowEvent @event, long startedAt)

@@ -70,15 +70,21 @@
         </Image>
         <Image x:Name="RightCharacter" Width="48" Height="48" Canvas.Top="214" Stretch="None">
           <Image.RenderTransform>
-            <ScaleTransform x:Name="RightCharacterScale" CenterX="24" CenterY="24" ScaleX="-1" />
+            <ScaleTransform x:Name="RightCharacterScale" CenterX="24" CenterY="24" />
           </Image.RenderTransform>
         </Image>
-        <Image x:Name="EmitterImage" Width="48" Height="48" Canvas.Top="214" Stretch="None" Visibility="Collapsed" />
+        <Canvas x:Name="SparkleCanvas" Width="540" Height="256" IsHitTestVisible="False" />
+        <Image x:Name="EmitterImage" Width="48" Height="48" Canvas.Top="214" Stretch="None" Visibility="Collapsed">
+          <Image.RenderTransform>
+            <ScaleTransform x:Name="EmitterScale" CenterX="24" CenterY="24" />
+          </Image.RenderTransform>
+        </Image>
         <Image x:Name="ProjectileImage" Width="32" Height="32" Stretch="None" Visibility="Collapsed">
           <Image.RenderTransform>
             <ScaleTransform x:Name="ProjectileScale" CenterX="16" CenterY="16" />
           </Image.RenderTransform>
         </Image>
+        <Image x:Name="ImpactImage" Width="48" Height="48" Stretch="None" Visibility="Collapsed" />
       </Canvas>
 
       <ProgressRing x:Name="LoadingRing" Width="32" Height="32" IsActive="True" />

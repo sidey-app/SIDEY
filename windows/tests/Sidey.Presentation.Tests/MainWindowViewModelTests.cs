@@ -248,7 +248,10 @@ public sealed class MainWindowViewModelTests
         Assert.False(viewModel.SaveProfileCommand.CanExecute(null));
 
         completion.SetResult();
-        await Task.Yield();
+        for (int attempt = 0; attempt < 20 && viewModel.IsSavingCharacter; attempt++)
+        {
+            await Task.Yield();
+        }
         Assert.False(viewModel.IsSavingCharacter);
     }
 

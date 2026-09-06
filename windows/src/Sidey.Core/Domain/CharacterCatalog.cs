@@ -19,6 +19,7 @@ public sealed record PixelCharacterDefinition(
     int FootBaselinePixel,
     PixelCharacterFrameContract Frames,
     string? EntitlementKey,
+    bool MirrorsToMovementDirection,
     PixelCharacterVisualEffect VisualEffect,
     IReadOnlyList<string> CompatibleAliases);
 
@@ -70,7 +71,8 @@ public static class PixelCharacterCatalog
             "pixel_guinea_pig",
             Localization.I18n.Get("characters.guineaPig"),
             "1a0bf85dae86f2e6bb460e8b0b852c2bd010d5ff6f7efd1477cbd6986da64f5b",
-            entitlementKey: "character:pixel_guinea_pig"),
+            entitlementKey: "character:pixel_guinea_pig",
+            mirrorsToMovementDirection: true),
         Create(
             "pixel_monkey",
             Localization.I18n.Get("characters.monkey"),
@@ -87,6 +89,7 @@ public static class PixelCharacterCatalog
             Localization.I18n.Get("characters.starlightUpalupa"),
             "d180810a8796280077f3f70f6da681888c583c2f8d74776d0f5d300e943a079a",
             entitlementKey: "character:pixel_starlight_upalupa",
+            mirrorsToMovementDirection: true,
             visualEffect: PixelCharacterVisualEffect.StarlightSparkles),
     ];
 
@@ -170,6 +173,7 @@ public static class PixelCharacterCatalog
         string spriteSheetSha256,
         IReadOnlyList<string>? aliases = null,
         string? entitlementKey = null,
+        bool mirrorsToMovementDirection = false,
         PixelCharacterVisualEffect visualEffect = PixelCharacterVisualEffect.None) => new(
             id,
             displayName,
@@ -183,6 +187,7 @@ public static class PixelCharacterCatalog
             FootBaselinePixel: 3,
             Frames: PixelCharacterFrameContract.Standard,
             EntitlementKey: entitlementKey,
+            MirrorsToMovementDirection: mirrorsToMovementDirection,
             VisualEffect: visualEffect,
             CompatibleAliases: aliases ?? Array.Empty<string>());
 }
