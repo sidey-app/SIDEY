@@ -12,6 +12,7 @@
       <BuildableProductRunnable runnableDebuggingMode="0">
          <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="100000000000000000000049" BuildableName="SIDEYAppStore.app" BlueprintName="SIDEYAppStore" ReferencedContainer="container:SIDEY.xcodeproj"/>
       </BuildableProductRunnable>
+      <StoreKitConfigurationFileReference identifier="../../SIDEYAppStore.storekit"/>
    </LaunchAction>
    <ProfileAction buildConfiguration="Release" shouldUseLaunchSchemeArgsEnv="YES" savedToolIdentifier="" useCustomWorkingDirectory="NO" debugDocumentVersioning="YES">
       <BuildableProductRunnable runnableDebuggingMode="0">

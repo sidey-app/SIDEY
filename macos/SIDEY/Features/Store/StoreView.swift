@@ -44,30 +44,28 @@ struct StoreView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             header
-            if !availability.usesAppStore {
-                HStack(spacing: 12) {
-                    Picker("상품 종류", selection: $selectedKind) {
-                        ForEach(CommerceProductKind.allCases, id: \.self) { kind in
-                            Text(kind.title).tag(kind)
-                        }
+            HStack(spacing: 12) {
+                Picker("상품 종류", selection: $selectedKind) {
+                    ForEach(CommerceProductKind.allCases, id: \.self) { kind in
+                        Text(kind.title).tag(kind)
                     }
-                    .pickerStyle(.segmented)
-                    .accessibilityLabel("상점 상품 종류")
-
-                    Menu {
-                        Picker("정렬", selection: $sortOrder) {
-                            ForEach(StoreSortOrder.allCases) { order in
-                                Text(order.title).tag(order)
-                            }
-                        }
-                        Divider()
-                        Toggle("보유 중 숨기기", isOn: $hidesOwned)
-                    } label: {
-                        Label("정렬 및 필터", systemImage: "line.3.horizontal.decrease.circle")
-                    }
-                    .menuStyle(.button)
-                    .accessibilityLabel("정렬 및 필터")
                 }
+                .pickerStyle(.segmented)
+                .accessibilityLabel("상점 상품 종류")
+
+                Menu {
+                    Picker("정렬", selection: $sortOrder) {
+                        ForEach(StoreSortOrder.allCases) { order in
+                            Text(order.title).tag(order)
+                        }
+                    }
+                    Divider()
+                    Toggle("보유 중 숨기기", isOn: $hidesOwned)
+                } label: {
+                    Label("정렬 및 필터", systemImage: "line.3.horizontal.decrease.circle")
+                }
+                .menuStyle(.button)
+                .accessibilityLabel("정렬 및 필터")
             }
 
             if visibleProducts.isEmpty {

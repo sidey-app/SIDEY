@@ -623,7 +623,6 @@ extension AppCoordinator {
             }
         }
         guard releaseChannel.storeAvailability.allowsCosmeticEquipment,
-              !releaseChannel.storeAvailability.usesAppStore,
               kind != .character,
               let backend,
               catalogItemID == nil || product != nil,
@@ -748,7 +747,27 @@ extension AppCoordinator {
                         let snapshot = try await backend.loadSnapshot()
                         applyBackendSnapshot(snapshot, currentUserID: userID)
                         model.setCommercePurchaseState(.owned, productID: productID)
-                        model.presentSuccess("\(product.displayName) 구매가 완료되었습니다.")
+                        if let equipment = product.automaticEquipmentAfterFreshPurchase {
+                            do {
+                                let profile = try await backend.setEquippedCosmetic(
+                                    kind: equipment.kind,
+                                    catalogItemID: equipment.catalogItemID
+                                )
+                                guard profile.id == userID else {
+                                    throw SideyBackendError.malformedResponse
+                                }
+                                model.apply(profile: profile)
+                                persistPreferences()
+                                model.presentSuccess("\(product.displayName) 구매 및 장착이 완료되었습니다.")
+                            } catch is CancellationError {
+                                return
+                            } catch {
+                                model.presentSuccess("\(product.displayName) 구매가 완료되었습니다.")
+                                model.errorMessage = "구매는 반영됐지만 자동 장착하지 못했습니다: \(error.localizedDescription)"
+                            }
+                        } else {
+                            model.presentSuccess("\(product.displayName) 구매가 완료되었습니다.")
+                        }
                     } else {
                         model.setCommercePurchaseState(.available, productID: productID)
                     }
