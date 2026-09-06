@@ -237,9 +237,10 @@ public sealed class MacParityUiSourceTests
         Assert.DoesNotContain("66f", source, StringComparison.Ordinal);
         Assert.Contains("MaximumVisiblePerSender = 2", ledger, StringComparison.Ordinal);
         Assert.Contains("IReadOnlyDictionary<Guid, PremultipliedVisual> MessageBubbles", source, StringComparison.Ordinal);
-        Assert.Contains("BuildTypingFrame(\".\")", source, StringComparison.Ordinal);
-        Assert.Contains("BuildTypingFrame(\"..\")", source, StringComparison.Ordinal);
-        Assert.Contains("BuildTypingFrame(\"...\")", source, StringComparison.Ordinal);
+        Assert.Contains("BuildTypingFrame(\".\", key.TypingBubbleStyleId)", source, StringComparison.Ordinal);
+        Assert.Contains("BuildTypingFrame(\"..\", key.TypingBubbleStyleId)", source, StringComparison.Ordinal);
+        Assert.Contains("BuildTypingFrame(\"...\", key.TypingBubbleStyleId)", source, StringComparison.Ordinal);
+        Assert.Contains("ResolveTheme(bubble.BubbleStyleId)", source, StringComparison.Ordinal);
         Assert.DoesNotContain("bubble.Body.Length * 8d", renderer, StringComparison.Ordinal);
     }
 
@@ -355,7 +356,7 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("IsPreviewOnlyVisible = !commerceEnabled", productViewModel, StringComparison.Ordinal);
         Assert.Contains("'$(Configuration)' == 'Debug'", buildProperties, StringComparison.Ordinal);
         Assert.Contains("SIDEY_DEVELOPMENT_COMMERCE", buildProperties, StringComparison.Ordinal);
-        Assert.Contains("pixel_starlight_upalupa", viewModel, StringComparison.Ordinal);
+        Assert.Contains("character_starlight_upalupa", viewModel, StringComparison.Ordinal);
         Assert.DoesNotContain("PurchaseCommand", xaml, StringComparison.Ordinal);
     }
 
@@ -507,7 +508,7 @@ public sealed class MacParityUiSourceTests
         Assert.False(File.Exists(RepositoryPath("website", "windows-latest.json")));
         Assert.False(File.Exists(RepositoryPath("website", "windows", "update.json")));
 
-        var publisher = ReadRepositoryFile("scripts", "website", "prepare-windows-release.ps1");
+        var publisher = ReadRepositoryFile("scripts", "website", "prepare-release-metadata.ps1");
         Assert.Contains("windows-latest.json", publisher, StringComparison.Ordinal);
         Assert.Contains("windows/update.json", publisher, StringComparison.Ordinal);
     }
