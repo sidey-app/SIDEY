@@ -105,7 +105,10 @@ public sealed partial class StorePreviewStage : UserControl
 
     private void DrawCharacter(CanvasDrawingSession drawing, string id, double x, double y, double elapsed, bool faceLeft)
     {
-        if (!_characters.TryGetValue(PixelCharacterCatalog.NormalizeId(id), out var sheet)) return;
+        if (!_characters.TryGetValue(PixelCharacterCatalog.NormalizeId(id), out var sheet))
+        {
+            return;
+        }
         PixelCharacterDefinition definition = PixelCharacterCatalog.Get(id);
         int frame = 2 + ((int)(elapsed * 7) % 4);
         var source = new Rect(frame * definition.FrameWidth, 0, definition.FrameWidth, definition.FrameHeight);
@@ -150,7 +153,10 @@ public sealed partial class StorePreviewStage : UserControl
 
     private void DrawThrow(CanvasDrawingSession drawing, double local)
     {
-        if (local < 0 || local > 1.1) return;
+        if (local < 0 || local > 1.1)
+        {
+            return;
+        }
         string objectId = ProductKind == CommerceProductKind.Throwable
             ? CatalogItemId
             : SignatureObject(CharacterId);
@@ -191,7 +197,8 @@ public sealed partial class StorePreviewStage : UserControl
 
     private void OnTapped(object sender, TappedRoutedEventArgs args)
     {
-        _ = sender; _ = args;
+        _ = sender;
+        _ = args;
         if (ProductKind == CommerceProductKind.Character)
         {
             _manualThrowStarted = _clock.Elapsed.TotalSeconds;
@@ -200,10 +207,14 @@ public sealed partial class StorePreviewStage : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs args)
     {
-        _ = sender; _ = args;
+        _ = sender;
+        _ = args;
         _timer.Stop();
         _clock.Stop();
-        foreach (CanvasBitmap bitmap in _characters.Values) bitmap.Dispose();
+        foreach (CanvasBitmap bitmap in _characters.Values)
+        {
+            bitmap.Dispose();
+        }
         _characters.Clear();
         _cosmetic?.Dispose();
         _decoration?.Dispose();

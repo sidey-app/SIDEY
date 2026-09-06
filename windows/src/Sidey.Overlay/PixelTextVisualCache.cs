@@ -218,7 +218,10 @@ internal sealed class PixelTextVisualCache : IDisposable
                 fontSize: BubbleFontSizeDip,
                 horizontalPadding: BubbleHorizontalPaddingDip,
                 verticalPadding: BubbleVerticalPaddingDip,
-                border: theme.Border) with { BubblePalette = theme.Palette };
+                border: theme.Border) with
+            {
+                BubblePalette = theme.Palette,
+            };
             Decorate(visual, bubble.BubbleStyleId);
             messageBubbles.Add(bubble.MessageId, PixelVisualOrientation.Apply(visual, _edge));
         }
@@ -247,7 +250,10 @@ internal sealed class PixelTextVisualCache : IDisposable
             foreground: theme.Foreground,
             cornerRadius: BubbleCornerRadiusDip,
             fontSize: 16f,
-            border: theme.Border) with { BubblePalette = theme.Palette };
+            border: theme.Border) with
+        {
+            BubblePalette = theme.Palette,
+        };
         Decorate(visual, bubbleStyleId);
         return PixelVisualOrientation.Apply(visual, _edge);
     }
@@ -556,11 +562,13 @@ internal sealed class PixelTextVisualCache : IDisposable
         int size = sourceSize * _decorationScale;
         var scaled = new byte[size * size * 4];
         for (int y = 0; y < size; y++)
-        for (int x = 0; x < size; x++)
         {
-            int sourceIndex = (((y / _decorationScale) * sourceSize) + (x / _decorationScale)) * 4;
-            int destinationIndex = ((y * size) + x) * 4;
-            source.AsSpan(sourceIndex, 4).CopyTo(scaled.AsSpan(destinationIndex, 4));
+            for (int x = 0; x < size; x++)
+            {
+                int sourceIndex = (((y / _decorationScale) * sourceSize) + (x / _decorationScale)) * 4;
+                int destinationIndex = ((y * size) + x) * 4;
+                source.AsSpan(sourceIndex, 4).CopyTo(scaled.AsSpan(destinationIndex, 4));
+            }
         }
         Array.Clear(source);
         return new PremultipliedVisual(scaled, size, size);
@@ -574,17 +582,30 @@ internal sealed class PixelTextVisualCache : IDisposable
         }
         int inset = Math.Max(1, (int)Math.Round(2d * _dpi / 96d));
         for (int y = 0; y < decoration.Height && y + inset < target.Height; y++)
-        for (int x = 0; x < decoration.Width && x + inset < target.Width; x++)
         {
-            int source = ((y * decoration.Width) + x) * 4;
-            byte alpha = decoration.Pixels[source + 3];
-            if (alpha == 0) continue;
-            int destination = (((y + inset) * target.Width) + x + inset) * 4;
-            int inverse = 255 - alpha;
-            target.Pixels[destination] = (byte)Math.Min(255, decoration.Pixels[source] + target.Pixels[destination] * inverse / 255);
-            target.Pixels[destination + 1] = (byte)Math.Min(255, decoration.Pixels[source + 1] + target.Pixels[destination + 1] * inverse / 255);
-            target.Pixels[destination + 2] = (byte)Math.Min(255, decoration.Pixels[source + 2] + target.Pixels[destination + 2] * inverse / 255);
-            target.Pixels[destination + 3] = (byte)Math.Min(255, alpha + target.Pixels[destination + 3] * inverse / 255);
+            for (int x = 0; x < decoration.Width && x + inset < target.Width; x++)
+            {
+                int source = ((y * decoration.Width) + x) * 4;
+                byte alpha = decoration.Pixels[source + 3];
+                if (alpha == 0)
+                {
+                    continue;
+                }
+                int destination = (((y + inset) * target.Width) + x + inset) * 4;
+                int inverse = 255 - alpha;
+                target.Pixels[destination] = (byte)Math.Min(
+                    255,
+                    decoration.Pixels[source] + (target.Pixels[destination] * inverse / 255));
+                target.Pixels[destination + 1] = (byte)Math.Min(
+                    255,
+                    decoration.Pixels[source + 1] + (target.Pixels[destination + 1] * inverse / 255));
+                target.Pixels[destination + 2] = (byte)Math.Min(
+                    255,
+                    decoration.Pixels[source + 2] + (target.Pixels[destination + 2] * inverse / 255));
+                target.Pixels[destination + 3] = (byte)Math.Min(
+                    255,
+                    alpha + (target.Pixels[destination + 3] * inverse / 255));
+            }
         }
     }
 

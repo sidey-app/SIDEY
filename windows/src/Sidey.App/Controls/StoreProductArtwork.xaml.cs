@@ -117,7 +117,10 @@ public sealed partial class StoreProductArtwork : UserControl
 
     private void OnDraw(CanvasControl sender, CanvasDrawEventArgs args)
     {
-        if (sender.ActualWidth <= 0 || sender.ActualHeight <= 0) return;
+        if (sender.ActualWidth <= 0 || sender.ActualHeight <= 0)
+        {
+            return;
+        }
         if (_bitmap is null && ProductKind == CommerceProductKind.Bubble)
         {
             args.DrawingSession.FillRoundedRectangle(
@@ -128,7 +131,10 @@ public sealed partial class StoreProductArtwork : UserControl
                 9, 9, Windows.UI.Color.FromArgb(50, 20, 23, 31), 1);
             return;
         }
-        if (_bitmap is null) return;
+        if (_bitmap is null)
+        {
+            return;
+        }
         double maxWidth = ProductKind == CommerceProductKind.Character ? 96 : Math.Min(220, sender.ActualWidth - 16);
         double maxHeight = ProductKind == CommerceProductKind.Character ? 96 : Math.Min(96, sender.ActualHeight - 16);
         double scale = Math.Min(maxWidth / _source.Width, maxHeight / _source.Height);
@@ -144,7 +150,8 @@ public sealed partial class StoreProductArtwork : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs args)
     {
-        _ = sender; _ = args;
+        _ = sender;
+        _ = args;
         Interlocked.Increment(ref _generation);
         _bitmap?.Dispose();
         _bitmap = null;
