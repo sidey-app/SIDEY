@@ -251,15 +251,7 @@ enum CommerceCatalog {
         .squeakyDuck,
     ]
 
-    /// App Store intentionally keeps the existing four character IAPs. The
-    /// direct build receives the broader server catalog.
-    static var products: [CommerceProduct] {
-#if APP_STORE
-        characterProducts
-#else
-        characterProducts + cosmeticProducts
-#endif
-    }
+    static let products: [CommerceProduct] = characterProducts + cosmeticProducts
 
     static func product(id: String) -> CommerceProduct? {
         products.first { $0.id == id }
@@ -422,6 +414,14 @@ struct CommerceProduct: Equatable, Sendable {
 
     var formattedPrice: String {
         amountKRW.formatted(.number.grouping(.automatic)) + "원"
+    }
+
+    /// A newly completed cosmetic purchase should be immediately visible to
+    /// the buyer. Restore and launch reconciliation intentionally never use
+    /// this policy, so they cannot overwrite an existing selection.
+    var automaticEquipmentAfterFreshPurchase: CosmeticEquipmentRequest? {
+        guard kind != .character else { return nil }
+        return CosmeticEquipmentRequest(kind: kind, catalogItemID: catalogItemID)
     }
 }
 

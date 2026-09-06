@@ -4,6 +4,8 @@ set -eu
 SIDEY_REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && /bin/pwd -P)
 SIDEY_APP_STORE_VERIFIER_URL=${SIDEY_APP_STORE_VERIFIER_URL:-}
 SIDEY_DEVELOPMENT_TEAM=${SIDEY_DEVELOPMENT_TEAM:-}
+SIDEY_EXPECTED_MARKETING_VERSION=${SIDEY_EXPECTED_MARKETING_VERSION:-1.0.10}
+SIDEY_EXPECTED_BUILD_VERSION=${SIDEY_EXPECTED_BUILD_VERSION:-22}
 SIDEY_ARCHIVE_PATH=${1:-$SIDEY_REPO_ROOT/build/app-store/SIDEYAppStore.xcarchive}
 SIDEY_DERIVED_DATA=${SIDEY_DERIVED_DATA:-$SIDEY_REPO_ROOT/build/app-store-derived}
 
@@ -66,6 +68,14 @@ if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SIDEY_INFO_PLIS
 fi
 if [ "$(/usr/libexec/PlistBuddy -c 'Print :SIDEYReleaseChannel' "$SIDEY_INFO_PLIST")" != "app-store" ]; then
 	echo "App Store archive must use the app-store release channel" >&2
+	exit 1
+fi
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$SIDEY_INFO_PLIST")" != "$SIDEY_EXPECTED_MARKETING_VERSION" ]; then
+	echo "Unexpected App Store marketing version" >&2
+	exit 1
+fi
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$SIDEY_INFO_PLIST")" != "$SIDEY_EXPECTED_BUILD_VERSION" ]; then
+	echo "Unexpected App Store build version" >&2
 	exit 1
 fi
 if [ "$(/usr/libexec/PlistBuddy -c 'Print :SIDEYAppStoreVerifierURL' "$SIDEY_INFO_PLIST")" != "$SIDEY_APP_STORE_VERIFIER_URL" ]; then

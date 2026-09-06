@@ -64,7 +64,7 @@ final class CommerceModelTests: XCTestCase {
         XCTAssertTrue(AppReleaseChannel.development.storeAvailability.allowsCosmeticEquipment)
         XCTAssertNil(AppReleaseChannel.development.storeAvailability.unavailableDetailMessage)
         XCTAssertTrue(AppReleaseChannel.appStore.storeAvailability.usesAppStore)
-        XCTAssertFalse(AppReleaseChannel.appStore.storeAvailability.allowsCosmeticEquipment)
+        XCTAssertTrue(AppReleaseChannel.appStore.storeAvailability.allowsCosmeticEquipment)
         XCTAssertNil(AppReleaseChannel.appStore.storeAvailability.unavailableDetailMessage)
         XCTAssertNotEqual(AppReleaseChannel.production.keychainService, AppReleaseChannel.development.keychainService)
         XCTAssertNotEqual(AppReleaseChannel.production.loginItemMode, AppReleaseChannel.development.loginItemMode)
@@ -128,16 +128,34 @@ final class CommerceModelTests: XCTestCase {
         XCTAssertTrue(model.ownedProfileCosmeticProducts(for: .bubble).isEmpty)
     }
 
-    func testProfileCosmeticVisibilityAlwaysShowsDefaultsOutsideAppStore() {
+    func testProfileCosmeticVisibilityShowsDefaultsInEveryDistribution() {
         XCTAssertTrue(ProfileCosmeticEquipmentPolicy.shouldShow(
             availability: .comingSoon
         ))
         XCTAssertTrue(ProfileCosmeticEquipmentPolicy.shouldShow(
             availability: .direct
         ))
-        XCTAssertFalse(ProfileCosmeticEquipmentPolicy.shouldShow(
+        XCTAssertTrue(ProfileCosmeticEquipmentPolicy.shouldShow(
             availability: .appStore
         ))
+    }
+
+    func testOnlyFreshCosmeticPurchasesRequestAutomaticEquipment() {
+        XCTAssertNil(CommerceProduct.starlightUpalupa.automaticEquipmentAfterFreshPurchase)
+        XCTAssertEqual(
+            CommerceProduct.bunnyPinkBubble.automaticEquipmentAfterFreshPurchase,
+            CosmeticEquipmentRequest(
+                kind: .bubble,
+                catalogItemID: CommerceProduct.bunnyPinkBubble.catalogItemID
+            )
+        )
+        XCTAssertEqual(
+            CommerceProduct.squeakyDuck.automaticEquipmentAfterFreshPurchase,
+            CosmeticEquipmentRequest(
+                kind: .throwable,
+                catalogItemID: CommerceProduct.squeakyDuck.catalogItemID
+            )
+        )
     }
 
     func testCosmeticEquipmentRPCAlwaysEncodesExplicitNullCatalogKey() throws {
