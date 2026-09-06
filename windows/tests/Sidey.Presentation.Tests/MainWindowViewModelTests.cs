@@ -22,7 +22,7 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
-    public void StorePreviewsTheFourAdditionalCharactersWithoutAddingThemToThePicker()
+    public void StorePreviewsAllTenCosmeticsWithoutAddingPaidCharactersToThePicker()
     {
         (FakeSideyCoordinator coordinator, _) = CreateRoomState();
         var viewModel = new MainWindowViewModel(
@@ -30,14 +30,13 @@ public sealed class MainWindowViewModelTests
             new FakeMainWindowDialogService(),
             new FakeUpdateService());
 
-        Assert.Equal(
-            ["pixel_starlight_upalupa", "pixel_guinea_pig", "pixel_monkey", "pixel_chinchilla"],
-            viewModel.StoreProducts.Select(product => product.CharacterId));
-        Assert.Equal(["1,900원", "990원", "990원", "990원"],
-            viewModel.StoreProducts.Select(product => product.FormattedPrice));
+        Assert.Equal(10, viewModel.StoreProducts.Count);
+        Assert.Equal(4, viewModel.StoreProducts.Count(product => product.Kind == CommerceProductKind.Character));
+        Assert.Equal(3, viewModel.StoreProducts.Count(product => product.Kind == CommerceProductKind.Bubble));
+        Assert.Equal(3, viewModel.StoreProducts.Count(product => product.Kind == CommerceProductKind.Throwable));
         Assert.All(viewModel.StoreProducts, product => Assert.NotEmpty(product.Description));
         Assert.DoesNotContain(
-            viewModel.StoreProducts.Select(product => product.CharacterId),
+            viewModel.StoreProducts.Where(product => product.Kind == CommerceProductKind.Character).Select(product => product.CharacterId),
             characterId => viewModel.CharacterSelections.Any(character => character.Id == characterId));
     }
 

@@ -107,6 +107,10 @@ public interface IBackendGateway
 {
     Task<BackendSnapshot> FetchSnapshotAsync(CancellationToken cancellationToken = default);
     Task<Profile> SaveProfileAsync(string nickname, string characterId, CancellationToken cancellationToken = default);
+    Task<Profile> SetEquippedCosmeticAsync(
+        CommerceProductKind kind,
+        string? catalogItemId,
+        CancellationToken cancellationToken = default);
     Task<CreateRoomResult> CreateRoomAsync(string name, CancellationToken cancellationToken = default);
     Task<Room> JoinRoomAsync(string inviteCode, CancellationToken cancellationToken = default);
     Task LeaveRoomAsync(Guid roomId, CancellationToken cancellationToken = default);

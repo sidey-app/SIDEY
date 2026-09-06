@@ -237,9 +237,10 @@ public sealed class MacParityUiSourceTests
         Assert.DoesNotContain("66f", source, StringComparison.Ordinal);
         Assert.Contains("MaximumVisiblePerSender = 2", ledger, StringComparison.Ordinal);
         Assert.Contains("IReadOnlyDictionary<Guid, PremultipliedVisual> MessageBubbles", source, StringComparison.Ordinal);
-        Assert.Contains("BuildTypingFrame(\".\")", source, StringComparison.Ordinal);
-        Assert.Contains("BuildTypingFrame(\"..\")", source, StringComparison.Ordinal);
-        Assert.Contains("BuildTypingFrame(\"...\")", source, StringComparison.Ordinal);
+        Assert.Contains("BuildTypingFrame(\".\", key.TypingBubbleStyleId)", source, StringComparison.Ordinal);
+        Assert.Contains("BuildTypingFrame(\"..\", key.TypingBubbleStyleId)", source, StringComparison.Ordinal);
+        Assert.Contains("BuildTypingFrame(\"...\", key.TypingBubbleStyleId)", source, StringComparison.Ordinal);
+        Assert.Contains("ResolveTheme(bubble.BubbleStyleId)", source, StringComparison.Ordinal);
         Assert.DoesNotContain("bubble.Body.Length * 8d", renderer, StringComparison.Ordinal);
     }
 
@@ -343,16 +344,19 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("MaximumRowsOrColumns=\"2\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Style=\"{StaticResource SideySettingsCardStyle}\"", xaml, StringComparison.Ordinal);
         Assert.Contains(
-            "<controls:PixelCharacterPreview CharacterId=\"{Binding CharacterId}\"",
+            "<controls:StoreProductArtwork",
             xaml,
             StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding ActionCommand}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding PreviewCommand}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("StorePreviewStage", ReadRepositoryFile(
+            "windows", "src", "Sidey.App", "MainWindow.xaml.cs"), StringComparison.Ordinal);
         Assert.Contains("IsEnabled=\"{Binding IsActionEnabled}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("IsActionEnabled = commerceEnabled", productViewModel, StringComparison.Ordinal);
         Assert.Contains("IsPreviewOnlyVisible = !commerceEnabled", productViewModel, StringComparison.Ordinal);
         Assert.Contains("'$(Configuration)' == 'Debug'", buildProperties, StringComparison.Ordinal);
         Assert.Contains("SIDEY_DEVELOPMENT_COMMERCE", buildProperties, StringComparison.Ordinal);
-        Assert.Contains("pixel_starlight_upalupa", viewModel, StringComparison.Ordinal);
+        Assert.Contains("character_starlight_upalupa", viewModel, StringComparison.Ordinal);
         Assert.DoesNotContain("PurchaseCommand", xaml, StringComparison.Ordinal);
     }
 
@@ -366,7 +370,7 @@ public sealed class MacParityUiSourceTests
         var preview = ReadRepositoryFile(
             "windows", "src", "Sidey.App", "Controls", "PixelCharacterPreview.xaml.cs");
 
-        Assert.Equal(3, CountOccurrences(main, "<controls:PixelCharacterPreview"));
+        Assert.Equal(2, CountOccurrences(main, "<controls:PixelCharacterPreview"));
         Assert.Contains("<controls:PixelCharacterPreview", onboarding, StringComparison.Ordinal);
         Assert.Contains("<controls:PixelCharacterPreview", history, StringComparison.Ordinal);
         Assert.DoesNotContain("CharacterImageConverter", main, StringComparison.Ordinal);
@@ -504,7 +508,7 @@ public sealed class MacParityUiSourceTests
         Assert.False(File.Exists(RepositoryPath("website", "windows-latest.json")));
         Assert.False(File.Exists(RepositoryPath("website", "windows", "update.json")));
 
-        var publisher = ReadRepositoryFile("scripts", "website", "prepare-windows-release.ps1");
+        var publisher = ReadRepositoryFile("scripts", "website", "prepare-release-metadata.ps1");
         Assert.Contains("windows-latest.json", publisher, StringComparison.Ordinal);
         Assert.Contains("windows/update.json", publisher, StringComparison.Ordinal);
     }

@@ -20,9 +20,9 @@
     <AssemblyName>SIDEY.Host</AssemblyName>
     <AssemblyTitle>SIDEY</AssemblyTitle>
     <Product>SIDEY</Product>
-    <Version>1.0.7</Version>
-    <FileVersion>1.0.7.0</FileVersion>
-    <AssemblyVersion>1.0.7.0</AssemblyVersion>
+    <Version>1.0.8</Version>
+    <FileVersion>1.0.8.0</FileVersion>
+    <AssemblyVersion>1.0.8.0</AssemblyVersion>
     <ApplicationIcon>Assets\Icons\SideyAppIcon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
@@ -51,11 +51,16 @@
     <_SideyExternalIconAsset Include="Assets\Icons\*" />
     <_SideyExternalCharacterAsset Include="../Sidey.Overlay/Assets/Characters/**/*" />
     <_SideyExternalThrowableAsset Include="../Sidey.Overlay/Assets/Throwables/**/*" />
+    <_SideyExternalBubbleAsset Include="../Sidey.Overlay/Assets/Bubbles/**/*" />
     <None Include="@(_SideyExternalCharacterAsset)" Link="Assets/Characters/%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
     <None Include="@(_SideyExternalThrowableAsset)" Link="Assets/Throwables/%(RecursiveDir)%(Filename)%(Extension)">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
+    <None Include="@(_SideyExternalBubbleAsset)" Link="Assets/Bubbles/%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
@@ -74,6 +79,13 @@
         DestinationFiles="@(_SideyExternalThrowableAsset->'$(PublishDir)Assets\Throwables\%(RecursiveDir)%(Filename)%(Extension)')"
         SkipUnchangedFiles="true" />
   </Target>
+  <Target Name="CopyExternalBubbleAssetsAfterPublish" AfterTargets="Publish">
+    <MakeDir Directories="@(_SideyExternalBubbleAsset->'$(PublishDir)Assets\Bubbles\%(RecursiveDir)')" />
+    <Copy
+        SourceFiles="@(_SideyExternalBubbleAsset)"
+        DestinationFiles="@(_SideyExternalBubbleAsset->'$(PublishDir)Assets\Bubbles\%(RecursiveDir)%(Filename)%(Extension)')"
+        SkipUnchangedFiles="true" />
+  </Target>
   <Target Name="CopySideyAppIconsAfterPublish" AfterTargets="Publish">
     <MakeDir Directories="$(PublishDir)Assets\Icons" />
     <Copy
@@ -84,7 +96,7 @@
   <Target
       Name="OrganizeStructuredPublish"
       AfterTargets="Publish"
-      DependsOnTargets="CopyExternalCharacterAssetsAfterPublish;CopyExternalThrowableAssetsAfterPublish;CopySideyAppIconsAfterPublish">
+      DependsOnTargets="CopyExternalCharacterAssetsAfterPublish;CopyExternalThrowableAssetsAfterPublish;CopyExternalBubbleAssetsAfterPublish;CopySideyAppIconsAfterPublish">
     <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\..\scripts\windows\organize-publish.ps1&quot; -PublishDir &quot;$(PublishDir).&quot; -LauncherSource &quot;$(MSBuildProjectDirectory)\..\Sidey.Launcher\Program.cs&quot; -UninstallerSource &quot;$(MSBuildProjectDirectory)\..\Sidey.Uninstaller\Program.cs&quot; -Version &quot;$(Version)&quot; -FileVersion &quot;$(FileVersion)&quot;" />
   </Target>
 </Project>

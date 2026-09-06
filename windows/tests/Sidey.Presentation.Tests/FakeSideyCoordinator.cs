@@ -157,6 +157,20 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
         return Task.CompletedTask;
     }
 
+    public CommerceProductKind? LastEquippedCosmeticKind { get; private set; }
+    public string? LastEquippedCosmeticId { get; private set; }
+
+    public Task SetEquippedCosmeticAsync(
+        CommerceProductKind kind,
+        string? catalogItemId,
+        CancellationToken cancellationToken = default)
+    {
+        _ = cancellationToken;
+        LastEquippedCosmeticKind = kind;
+        LastEquippedCosmeticId = catalogItemId;
+        return Task.CompletedTask;
+    }
+
     public Task CompleteGoogleIdentityLinkAsync(
         Uri callbackUri,
         CancellationToken cancellationToken = default) => Task.CompletedTask;

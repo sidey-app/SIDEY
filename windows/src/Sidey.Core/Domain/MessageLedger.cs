@@ -13,7 +13,8 @@ public sealed record MessageLedgerEntry(
     Guid SenderId,
     string Body,
     DateTimeOffset CreatedAt,
-    MessageDeliveryState State);
+    MessageDeliveryState State,
+    string? BubbleStyleId = null);
 
 public sealed class MessageLedger
 {
@@ -31,7 +32,8 @@ public sealed class MessageLedger
         Guid roomId,
         Guid senderId,
         string body,
-        DateTimeOffset? createdAt = null)
+        DateTimeOffset? createdAt = null,
+        string? bubbleStyleId = null)
     {
         if (_entries.Any(entry => entry.Id == id))
         {
@@ -44,7 +46,8 @@ public sealed class MessageLedger
             senderId,
             body,
             createdAt ?? DateTimeOffset.UtcNow,
-            MessageDeliveryState.Pending));
+            MessageDeliveryState.Pending,
+            CosmeticCatalog.NormalizeBubbleStyleId(bubbleStyleId)));
     }
 
     public bool Confirm(ChatMessage message, DateTimeOffset? now = null)
@@ -57,7 +60,8 @@ public sealed class MessageLedger
             message.SenderId,
             message.Body,
             message.CreatedAt,
-            MessageDeliveryState.Confirmed);
+            MessageDeliveryState.Confirmed,
+            CosmeticCatalog.NormalizeBubbleStyleId(message.BubbleStyleId));
 
         if (wasKnown)
         {
@@ -147,14 +151,16 @@ public sealed class ActiveBubbleLedger
         Guid senderId,
         Guid messageId,
         string body,
-        DateTimeOffset? expiresAt = null)
+        DateTimeOffset? expiresAt = null,
+        string? bubbleStyleId = null)
     {
         _bubbles.RemoveAll(bubble => bubble.MessageId == messageId);
         _bubbles.Add(new ActiveBubble(
             senderId,
             messageId,
             body,
-            expiresAt ?? DateTimeOffset.UtcNow.Add(DefaultLifetime)));
+            expiresAt ?? DateTimeOffset.UtcNow.Add(DefaultLifetime),
+            CosmeticCatalog.NormalizeBubbleStyleId(bubbleStyleId)));
         _bubbles.Sort(static (left, right) =>
         {
             var dateComparison = left.ExpiresAt.CompareTo(right.ExpiresAt);

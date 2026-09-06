@@ -114,8 +114,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
     }
 
     public event Action<NoticeMessage>? NoticeRaised;
+    public event Action<StoreProductPreviewViewModel>? StorePreviewRequested;
 
     public ObservableCollection<CharacterSelectionItemViewModel> CharacterSelections { get; } = [];
+
+    public ObservableCollection<CosmeticSelectionItemViewModel> BubbleSelections { get; } = [];
+
+    public ObservableCollection<CosmeticSelectionItemViewModel> ThrowableSelections { get; } = [];
 
     public IReadOnlyList<StoreProductPreviewViewModel> StoreProducts { get; }
 
@@ -128,25 +133,37 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private StoreProductPreviewViewModel CreateStorePreview(CommerceProduct product)
     {
         PixelCharacterDefinition character = PixelCharacterCatalog.Get(product.CharacterId);
-        string descriptionKey = product.CharacterId switch
+        string descriptionKey = product.Id switch
         {
-            "pixel_starlight_upalupa" => "store.starlightUpalupaDescription",
-            "pixel_guinea_pig" => "store.guineaPigDescription",
-            "pixel_monkey" => "store.monkeyDescription",
-            "pixel_chinchilla" => "store.chinchillaDescription",
+            "character_starlight_upalupa" => "store.starlightUpalupaDescription",
+            "character_guinea_pig" => "store.guineaPigDescription",
+            "character_monkey" => "store.monkeyDescription",
+            "character_chinchilla" => "store.chinchillaDescription",
+            "bubble_bunny_pink" => "store.bunnyPinkBubbleDescription",
+            "bubble_butter_chick" => "store.butterChickBubbleDescription",
+            "bubble_starry_cat" => "store.starryCatBubbleDescription",
+            "throwable_bouncy_heart" => "store.bouncyHeartDescription",
+            "throwable_toy_cannon" => "store.toyCannonDescription",
+            "throwable_squeaky_duck" => "store.squeakyDuckDescription",
             _ => throw new InvalidOperationException("Unknown Windows commerce product."),
         };
+        string displayName = product.Kind == CommerceProductKind.Character
+            ? character.DisplayName
+            : I18n.Get($"store.product.{product.Id}");
         return new StoreProductPreviewViewModel(
             product,
-            character.DisplayName,
+            displayName,
             I18n.Get(descriptionKey),
             product.AmountKrw switch
             {
                 1_900 => I18n.Get("store.price1900"),
+                2_900 => I18n.Get("store.price2900"),
                 990 => I18n.Get("store.price990"),
                 _ => throw new InvalidOperationException("Unknown Windows commerce price."),
             },
-            () => ActivateStoreProductAsync(product.Id));
+            () => ActivateStoreProductAsync(product.Id),
+            () => StorePreviewRequested?.Invoke(StoreProducts.FirstOrDefault(candidate =>
+                StringComparer.Ordinal.Equals(candidate.ProductId, product.Id))!));
     }
 
     public void PrepareGroupsForPresentation()
@@ -189,6 +206,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
             _state = state;
             RefreshCharacterSelections(state.ActiveEntitlementKeys);
+            RefreshCosmeticSelections(state);
             RefreshStoreProducts(state);
             if (shouldApplyProfileDraft)
             {
@@ -519,6 +537,53 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 character.DisplayName,
                 character.Id));
         }
+    }
+
+    private void RefreshCosmeticSelections(CoordinatorState state)
+    {
+        RefreshCosmeticSelection(
+            BubbleSelections,
+            CommerceProductKind.Bubble,
+            state.Profile?.EquippedBubbleStyleId,
+            state.ActiveEntitlementKeys);
+        RefreshCosmeticSelection(
+            ThrowableSelections,
+            CommerceProductKind.Throwable,
+            state.Profile?.EquippedThrowableId,
+            state.ActiveEntitlementKeys);
+    }
+
+    private void RefreshCosmeticSelection(
+        ObservableCollection<CosmeticSelectionItemViewModel> destination,
+        CommerceProductKind kind,
+        string? selectedId,
+        IReadOnlySet<string> activeEntitlementKeys)
+    {
+        destination.Clear();
+        destination.Add(new CosmeticSelectionItemViewModel(
+            kind,
+            null,
+            I18n.Get("profile.cosmeticDefault"),
+            selectedId is null,
+            () => SetEquippedCosmeticAsync(kind, null)));
+        foreach (CommerceProduct product in WindowsCommerceCatalog.Products.Where(product =>
+                     product.Kind == kind && activeEntitlementKeys.Contains(product.EntitlementKey)))
+        {
+            string id = product.EffectiveCatalogItemId;
+            destination.Add(new CosmeticSelectionItemViewModel(
+                kind,
+                id,
+                I18n.Get($"store.product.{product.Id}"),
+                StringComparer.Ordinal.Equals(id, selectedId),
+                () => SetEquippedCosmeticAsync(kind, id)));
+        }
+    }
+
+    private async Task SetEquippedCosmeticAsync(CommerceProductKind kind, string? catalogItemId)
+    {
+        await RunCommandAsync(
+            () => _coordinator.SetEquippedCosmeticAsync(kind, catalogItemId),
+            I18n.Get("profile.cosmeticSaved"));
     }
 
     public void RefreshMonitors()
