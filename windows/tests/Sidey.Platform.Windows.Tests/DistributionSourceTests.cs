@@ -15,9 +15,9 @@ public sealed class DistributionSourceTests
         Assert.Equal("true", Value(project, "EnableMsixTooling"));
         Assert.Equal("false", Value(project, "IncludeAllContentForSelfExtract"));
         Assert.Equal("false", Value(project, "PublishTrimmed"));
-        Assert.Equal("1.0.6", Value(project, "Version"));
-        Assert.Equal("1.0.6.0", Value(project, "FileVersion"));
-        Assert.Equal("1.0.6.0", Value(project, "AssemblyVersion"));
+        Assert.Equal("1.0.7", Value(project, "Version"));
+        Assert.Equal("1.0.7.0", Value(project, "FileVersion"));
+        Assert.Equal("1.0.7.0", Value(project, "AssemblyVersion"));
         Assert.Equal("SIDEY.Host", Value(project, "AssemblyName"));
         Assert.Equal("SIDEY", Value(project, "AssemblyTitle"));
         Assert.Equal("SIDEY", Value(project, "Product"));
@@ -106,6 +106,29 @@ public sealed class DistributionSourceTests
         Assert.Contains("LangString MaintenanceTitle ${LANG_KOREAN}", setup, StringComparison.Ordinal);
         Assert.Contains("LangString DeleteLocalData ${LANG_KOREAN}", setup, StringComparison.Ordinal);
         Assert.Contains("LangString DeleteCredentials ${LANG_KOREAN}", setup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InstallerRegistersOnlyTheProductionGoogleCallbackScheme()
+    {
+        string setup = ReadSetupScript();
+
+        Assert.Contains("Software\\Classes\\sidey", setup, StringComparison.Ordinal);
+        Assert.Contains("URL:SIDEY authentication callback", setup, StringComparison.Ordinal);
+        Assert.Contains("$INSTDIR\\SIDEY.exe$", setup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Software\\Classes\\sidey-dev", setup, StringComparison.Ordinal);
+        Assert.Contains("DeleteRegKey HKLM \"${PRODUCT_PROTOCOL_KEY}\"", setup, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DevelopmentCommerceCanOnlyBeCompiledIntoExplicitDebugBuilds()
+    {
+        string props = File.ReadAllText(RepositoryPath("windows", "Directory.Build.props"));
+
+        Assert.Contains("'$(Configuration)' == 'Debug'", props, StringComparison.Ordinal);
+        Assert.Contains("'$(SideyDevelopmentCommerce)' == 'true'", props, StringComparison.Ordinal);
+        Assert.Contains("SIDEY_DEVELOPMENT_COMMERCE", props, StringComparison.Ordinal);
+        Assert.Contains("RejectDevelopmentCommerceOutsideDebug", props, StringComparison.Ordinal);
     }
 
     [Fact]

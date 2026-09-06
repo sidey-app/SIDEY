@@ -156,6 +156,15 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             return;
         }
 
+        bool developmentCommerceEnabled = WindowsCommerceConfiguration.IsEnabled(configuration);
+        SetState(_state with
+        {
+            DevelopmentCommerceEnabled = developmentCommerceEnabled,
+            CommerceProducts = developmentCommerceEnabled
+                ? _state.CommerceProducts
+                : WindowsCommerceCatalog.LockedStates(),
+        });
+
         var auth = new SupabaseAnonymousAuthService(configuration, _credentialStore);
         StartupDiagnostics.Stage("auth-session-read-started");
         var stored = await _credentialStore.ReadAsync(
@@ -183,11 +192,25 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         var activeRoomId = SelectActiveRoom(preferences.ActiveRoomId, snapshot.Rooms);
         _state = _state with { ActiveRoomId = activeRoomId };
         ApplySnapshot(snapshot);
+        string? commerceStateError = null;
+#if SIDEY_DEVELOPMENT_COMMERCE
+        if (developmentCommerceEnabled)
+        {
+            try
+            {
+                await RefreshDevelopmentCommerceStateAsync(cancellationToken);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                commerceStateError = I18n.Get("store.stateUnavailable");
+            }
+        }
+#endif
         _state = _state with
         {
             ActiveRoomId = activeRoomId,
             RealtimeConnection = RealtimeConnectionStatus.Disconnected,
-            ErrorMessage = null,
+            ErrorMessage = commerceStateError,
         };
 
         _roomSwitch = new RoomSwitchPipeline(
@@ -238,6 +261,139 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         });
         await PersistPreferencesAsync(cancellationToken);
         ApplyWorldSnapshot();
+    }
+
+    public async Task ActivateStoreProductAsync(
+        string productId,
+        CancellationToken cancellationToken = default)
+    {
+#if SIDEY_DEVELOPMENT_COMMERCE
+        if (!_state.DevelopmentCommerceEnabled
+            || WindowsCommerceCatalog.Find(productId) is null
+            || _backend is not SupabaseBackendGateway backend
+            || _auth is not SupabaseAnonymousAuthService auth)
+        {
+            throw new InvalidOperationException(I18n.Get("store.unavailable"));
+        }
+        CommerceProductState state = _state.CommerceProducts.Single(product =>
+            StringComparer.Ordinal.Equals(product.Product.Id, productId));
+        if (state.IsWorking || state.PurchaseState == CommercePurchaseState.Owned)
+        {
+            return;
+        }
+
+        if (!state.GoogleConnected)
+        {
+            SetCommerceProductState(state with { IsWorking = true, ErrorMessage = null });
+            try
+            {
+                Uri authorizationUri = await auth.BeginGoogleIdentityLinkAsync(
+                    new Uri("sidey-dev://auth/google"),
+                    cancellationToken);
+                OpenExternalUri(authorizationUri);
+            }
+            catch
+            {
+                SetCommerceProductState(state with
+                {
+                    PurchaseState = CommercePurchaseState.Error,
+                    IsWorking = false,
+                    ErrorMessage = I18n.Get("store.googleConnectionFailed"),
+                });
+                throw;
+            }
+            SetCommerceProductState(state with { IsWorking = false });
+            return;
+        }
+
+        if (state.PurchaseState is not (
+            CommercePurchaseState.Available
+            or CommercePurchaseState.Refunded
+            or CommercePurchaseState.Error))
+        {
+            return;
+        }
+
+        SetCommerceProductState(state with
+        {
+            PurchaseState = CommercePurchaseState.OpeningCheckout,
+            IsWorking = true,
+            ErrorMessage = null,
+        });
+        try
+        {
+            CommerceCheckout checkout = await backend.CreateWindowsCommerceOrderAsync(
+                productId,
+                cancellationToken);
+            OpenExternalUri(checkout.CheckoutUri);
+            SetCommerceProductState(state with
+            {
+                PurchaseState = CommercePurchaseState.Confirming,
+                IsWorking = true,
+            });
+            for (int attempt = 0; attempt < 90; attempt++)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                IReadOnlyList<CommerceProductState> refreshedProducts =
+                    await RefreshDevelopmentCommerceStateAsync(
+                        cancellationToken,
+                        workingProductId: productId);
+                CommerceProductState refreshed = refreshedProducts.Single(product =>
+                    StringComparer.Ordinal.Equals(product.Product.Id, productId));
+                if (refreshed.PurchaseState == CommercePurchaseState.Owned)
+                {
+                    await RefreshSnapshotAsync(cancellationToken);
+                    return;
+                }
+            }
+            throw new TimeoutException(I18n.Get("store.paymentTimedOut"));
+        }
+        catch
+        {
+            CommerceProductState current = _state.CommerceProducts.Single(product =>
+                StringComparer.Ordinal.Equals(product.Product.Id, productId));
+            if (current.PurchaseState != CommercePurchaseState.Owned)
+            {
+                SetCommerceProductState(current with
+                {
+                    PurchaseState = CommercePurchaseState.Error,
+                    IsWorking = false,
+                    ErrorMessage = I18n.Get("store.purchaseFailed"),
+                });
+            }
+            throw;
+        }
+#else
+        _ = productId;
+        _ = cancellationToken;
+        await Task.CompletedTask;
+        throw new InvalidOperationException(I18n.Get("store.unavailable"));
+#endif
+    }
+
+    public async Task CompleteGoogleIdentityLinkAsync(
+        Uri callbackUri,
+        CancellationToken cancellationToken = default)
+    {
+#if SIDEY_DEVELOPMENT_COMMERCE
+        if (!_state.DevelopmentCommerceEnabled
+            || _auth is not SupabaseAnonymousAuthService auth
+            || !WindowsAuthCallback.TryGetCode(
+                callbackUri.AbsoluteUri,
+                WindowsAuthCallback.DevelopmentScheme,
+                out _,
+                out string? code))
+        {
+            throw new InvalidOperationException(I18n.Get("store.unavailable"));
+        }
+        await auth.CompleteGoogleIdentityLinkAsync(code!, cancellationToken);
+        await RefreshDevelopmentCommerceStateAsync(cancellationToken);
+#else
+        _ = callbackUri;
+        _ = cancellationToken;
+        await Task.CompletedTask;
+        throw new InvalidOperationException(I18n.Get("store.unavailable"));
+#endif
     }
 
     public async Task CompleteOnboardingAsync(CancellationToken cancellationToken = default)
@@ -1391,6 +1547,57 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 
     private IBackendGateway RequiredBackend() =>
         _backend ?? throw new InvalidOperationException(I18n.Get("error.serverConnectionNotConfigured"));
+
+#if SIDEY_DEVELOPMENT_COMMERCE
+    private async Task<IReadOnlyList<CommerceProductState>> RefreshDevelopmentCommerceStateAsync(
+        CancellationToken cancellationToken,
+        string? workingProductId = null)
+    {
+        if (!_state.DevelopmentCommerceEnabled
+            || _backend is not SupabaseBackendGateway backend)
+        {
+            return _state.CommerceProducts;
+        }
+        IReadOnlyList<CommerceProductState> products =
+            await backend.GetWindowsCommerceStateAsync(cancellationToken);
+        IReadOnlyList<CommerceProductState> presentedProducts = workingProductId is null
+            ? products
+            : products.Select(product =>
+                StringComparer.Ordinal.Equals(product.Product.Id, workingProductId)
+                    && product.PurchaseState != CommercePurchaseState.Owned
+                    ? product with
+                    {
+                        PurchaseState = CommercePurchaseState.Confirming,
+                        IsWorking = true,
+                    }
+                    : product).ToArray();
+        SetState(_state with { CommerceProducts = presentedProducts, ErrorMessage = null });
+        return products;
+    }
+
+    private void SetCommerceProductState(CommerceProductState productState)
+    {
+        SetState(_state with
+        {
+            CommerceProducts = _state.CommerceProducts.Select(item =>
+                StringComparer.Ordinal.Equals(item.Product.Id, productState.Product.Id)
+                    ? productState
+                    : item).ToArray(),
+        });
+    }
+
+    private static void OpenExternalUri(Uri uri)
+    {
+        using Process? process = Process.Start(new ProcessStartInfo(uri.AbsoluteUri)
+        {
+            UseShellExecute = true,
+        });
+        if (process is null)
+        {
+            throw new InvalidOperationException(I18n.Get("store.browserOpenFailed"));
+        }
+    }
+#endif
 
     private void EnsureMutationsAvailable()
     {

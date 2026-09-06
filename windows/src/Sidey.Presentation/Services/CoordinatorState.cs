@@ -20,6 +20,8 @@ public sealed record CoordinatorState(
     IReadOnlyList<MessageLedgerEntry> Messages,
     AppPreferences Preferences,
     RealtimeConnectionStatus RealtimeConnection,
+    IReadOnlyList<CommerceProductState> CommerceProducts,
+    bool DevelopmentCommerceEnabled,
     GroupOperation GroupOperation,
     Guid? SwitchingRoomId,
     string? ErrorMessage)
@@ -36,6 +38,8 @@ public sealed record CoordinatorState(
         [],
         AppPreferences.Default,
         RealtimeConnectionStatus.Disconnected,
+        WindowsCommerceCatalog.LockedStates(),
+        false,
         GroupOperation.Idle,
         null,
         null);

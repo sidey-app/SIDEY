@@ -9,9 +9,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$UninstallerSource,
 
-    [string]$Version = '1.0.5',
+    [string]$Version = '1.0.7',
 
-    [string]$FileVersion = '1.0.5.0'
+    [string]$FileVersion = '1.0.7.0'
 )
 
 $ErrorActionPreference = 'Stop'

@@ -76,6 +76,73 @@ public sealed record CharacterThrowEvent(
     Guid TargetUserId,
     string SourceCharacterId);
 
+public enum CommercePurchaseState
+{
+    Unavailable,
+    GoogleConnectionRequired,
+    Available,
+    OpeningCheckout,
+    Confirming,
+    Owned,
+    Refunded,
+    Error,
+}
+
+public sealed record CommerceProduct(
+    string Id,
+    string CharacterId,
+    string EntitlementKey,
+    int SortOrder,
+    int AmountKrw);
+
+public sealed record CommerceProductState(
+    CommerceProduct Product,
+    bool GoogleConnected,
+    CommercePurchaseState PurchaseState,
+    bool IsWorking = false,
+    string? ErrorMessage = null);
+
+public static class WindowsCommerceCatalog
+{
+    public static IReadOnlyList<CommerceProduct> Products { get; } =
+    [
+        new(
+            "character_starlight_upalupa",
+            "pixel_starlight_upalupa",
+            "character:pixel_starlight_upalupa",
+            10,
+            1_900),
+        new(
+            "character_guinea_pig",
+            "pixel_guinea_pig",
+            "character:pixel_guinea_pig",
+            20,
+            990),
+        new(
+            "character_monkey",
+            "pixel_monkey",
+            "character:pixel_monkey",
+            30,
+            990),
+        new(
+            "character_chinchilla",
+            "pixel_chinchilla",
+            "character:pixel_chinchilla",
+            40,
+            990),
+    ];
+
+    public static CommerceProduct? Find(string productId) =>
+        Products.FirstOrDefault(product =>
+            StringComparer.Ordinal.Equals(product.Id, productId));
+
+    public static IReadOnlyList<CommerceProductState> LockedStates() =>
+        Products.Select(product => new CommerceProductState(
+            product,
+            GoogleConnected: false,
+            CommercePurchaseState.Unavailable)).ToArray();
+}
+
 public static class CharacterThrowTargetPolicy
 {
     public static bool CanTarget(PixelWorldMember member) => !member.IsCurrentUser;

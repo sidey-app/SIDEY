@@ -91,7 +91,7 @@ public partial class App : Application
         _singleInstance = SingleInstanceGuard.Acquire();
         if (!_singleInstance.IsPrimary)
         {
-            _singleInstance.Signal();
+            _singleInstance.Signal(processArguments);
             StartupDiagnostics.Stage("secondary-instance-request request=activate");
             _singleInstance.Dispose();
             _singleInstance = null;
@@ -163,6 +163,14 @@ public partial class App : Application
         {
             await _coordinator.InitializeAsync();
             StartupDiagnostics.Stage("coordinator-initialized");
+#if SIDEY_DEVELOPMENT_COMMERCE
+            if (_coordinator.State.DevelopmentCommerceEnabled
+                && Environment.ProcessPath is { } executablePath)
+            {
+                WindowsProtocolRegistration.EnsureCurrentUserDevelopmentCallback(executablePath);
+            }
+#endif
+            await TryHandleActivationRequestAsync(processArguments);
         }
         catch (Exception exception)
         {
@@ -477,10 +485,14 @@ public partial class App : Application
         BeginShutdown();
     }
 
-    private void RequestPrimaryActivation()
+    private void RequestPrimaryActivation(string? activationArgument)
     {
-        _dispatcherQueue.TryEnqueue(() =>
+        _dispatcherQueue.TryEnqueue(async () =>
         {
+            if (await TryHandleActivationRequestAsync(activationArgument))
+            {
+                return;
+            }
             if (_onboardingWindow is null
                 && _coordinator is not null
                 && !_coordinator.State.Preferences.OnboardingCompleted)
@@ -492,8 +504,43 @@ public partial class App : Application
             if (_onboardingWindow is not null)
             {
                 _onboardingWindow.ShowAndActivate();
+                return;
             }
+
+            ShowPrimaryWindow();
         });
+    }
+
+    private async Task<bool> TryHandleActivationRequestAsync(string? activationArgument)
+    {
+        if (_coordinator is null)
+        {
+            return false;
+        }
+        string expectedScheme = _coordinator.State.DevelopmentCommerceEnabled
+            ? WindowsAuthCallback.DevelopmentScheme
+            : WindowsAuthCallback.ProductionScheme;
+        if (!WindowsAuthCallback.TryGetCode(
+            activationArgument,
+            expectedScheme,
+            out Uri? callbackUri,
+            out _))
+        {
+            return false;
+        }
+
+        MainWindow mainWindow = EnsureMainWindow();
+        mainWindow.ShowPage("store");
+        try
+        {
+            await _coordinator.CompleteGoogleIdentityLinkAsync(callbackUri!);
+            mainWindow.ViewModel.ReportSuccess(I18n.Get("store.googleConnected"));
+        }
+        catch (Exception exception)
+        {
+            mainWindow.ViewModel.ReportError(exception);
+        }
+        return true;
     }
 
     private void ShowPrimaryWindow()

@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Sidey.Core.Abstractions;
@@ -27,6 +28,9 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
     private readonly HttpClient _httpClient;
     private readonly bool _ownsHttpClient;
     private readonly SemaphoreSlim _gate = new(1, 1);
+#if SIDEY_DEVELOPMENT_COMMERCE
+    private PendingIdentityLink? _pendingIdentityLink;
+#endif
 
     public SupabaseAnonymousAuthService(
         SupabaseRuntimeConfiguration configuration,
@@ -101,6 +105,100 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
             _gate.Release();
         }
     }
+
+#if SIDEY_DEVELOPMENT_COMMERCE
+    public async Task<Uri> BeginGoogleIdentityLinkAsync(
+        Uri redirectUri,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(redirectUri);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            StoredSupabaseSession session =
+                await RestoreStoredSessionWithinGateAsync(cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidOperationException(I18n.Get("auth.sessionMissing"));
+            string verifier = Base64Url(RandomNumberGenerator.GetBytes(64));
+            string challenge = Base64Url(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(verifier)));
+            string query = string.Join('&',
+                "provider=google",
+                $"redirect_to={Uri.EscapeDataString(redirectUri.AbsoluteUri)}",
+                $"code_challenge={Uri.EscapeDataString(challenge)}",
+                "code_challenge_method=s256",
+                "skip_http_redirect=true");
+            using var request = CreateRequest(
+                HttpMethod.Get,
+                $"/auth/v1/user/identities/authorize?{query}",
+                session.AccessToken);
+            using var response = await _httpClient.SendAsync(request, cancellationToken)
+                .ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            IdentityLinkEnvelope envelope =
+                await response.Content.ReadFromJsonAsync<IdentityLinkEnvelope>(
+                    SerializerOptions,
+                    cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidDataException(I18n.Get("auth.emptyResponse"));
+            if (!Uri.TryCreate(envelope.Url, UriKind.Absolute, out Uri? authorizationUri)
+                || authorizationUri.Scheme != Uri.UriSchemeHttps)
+            {
+                throw new InvalidDataException(I18n.Get("auth.emptyResponse"));
+            }
+
+            _pendingIdentityLink = new PendingIdentityLink(
+                session.UserId,
+                verifier,
+                DateTimeOffset.UtcNow.AddMinutes(10));
+            return authorizationUri;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task CompleteGoogleIdentityLinkAsync(
+        string authCode,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(authCode))
+        {
+            throw new ArgumentException("OAuth code is required.", nameof(authCode));
+        }
+
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            PendingIdentityLink pending = _pendingIdentityLink
+                ?? throw new InvalidOperationException(I18n.Get("auth.identityLinkExpired"));
+            _pendingIdentityLink = null;
+            if (pending.ExpiresAt <= DateTimeOffset.UtcNow)
+            {
+                throw new InvalidOperationException(I18n.Get("auth.identityLinkExpired"));
+            }
+
+            StoredSupabaseSession linked = await RequestSessionAsync(
+                HttpMethod.Post,
+                "/auth/v1/token?grant_type=pkce",
+                new { auth_code = authCode, code_verifier = pending.CodeVerifier },
+                cancellationToken).ConfigureAwait(false);
+            if (linked.UserId != pending.UserId)
+            {
+                throw new InvalidOperationException(I18n.Get("auth.identityChanged"));
+            }
+
+            await StoreAsync(linked, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private static string Base64Url(byte[] bytes) => Convert.ToBase64String(bytes)
+        .TrimEnd('=')
+        .Replace('+', '-')
+        .Replace('/', '_');
+#endif
 
     async ValueTask<StoredSupabaseSession?> IAuthSessionAccessor.GetStoredSessionAsync(
         CancellationToken cancellationToken)
@@ -234,4 +332,12 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
         [property: JsonPropertyName("user")] AuthUser? User);
 
     private sealed record AuthUser([property: JsonPropertyName("id")] Guid Id);
+
+#if SIDEY_DEVELOPMENT_COMMERCE
+    private sealed record IdentityLinkEnvelope(string? Url);
+    private sealed record PendingIdentityLink(
+        Guid UserId,
+        string CodeVerifier,
+        DateTimeOffset ExpiresAt);
+#endif
 }

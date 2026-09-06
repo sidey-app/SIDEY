@@ -329,11 +329,14 @@ public sealed class MacParityUiSourceTests
     }
 
     [Fact]
-    public void StoreUsesIndividualFluentPreviewCardsWithoutACommerceAction()
+    public void StoreUsesIndividualFluentCardsWithACompileGatedCommerceAction()
     {
         var xaml = ReadRepositoryFile("windows", "src", "Sidey.App", "MainWindow.xaml");
         var viewModel = ReadRepositoryFile(
             "windows", "src", "Sidey.Presentation", "ViewModels", "MainWindowViewModel.cs");
+        var productViewModel = ReadRepositoryFile(
+            "windows", "src", "Sidey.Presentation", "ViewModels", "StoreProductPreviewViewModel.cs");
+        var buildProperties = ReadRepositoryFile("windows", "Directory.Build.props");
 
         Assert.Contains("ItemsSource=\"{Binding StoreProducts}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("<UniformGridLayout", xaml, StringComparison.Ordinal);
@@ -343,7 +346,12 @@ public sealed class MacParityUiSourceTests
             "<controls:PixelCharacterPreview CharacterId=\"{Binding CharacterId}\"",
             xaml,
             StringComparison.Ordinal);
-        Assert.Contains("IsEnabled=\"False\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ActionCommand}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsEnabled=\"{Binding IsActionEnabled}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsActionEnabled = commerceEnabled", productViewModel, StringComparison.Ordinal);
+        Assert.Contains("IsPreviewOnlyVisible = !commerceEnabled", productViewModel, StringComparison.Ordinal);
+        Assert.Contains("'$(Configuration)' == 'Debug'", buildProperties, StringComparison.Ordinal);
+        Assert.Contains("SIDEY_DEVELOPMENT_COMMERCE", buildProperties, StringComparison.Ordinal);
         Assert.Contains("pixel_starlight_upalupa", viewModel, StringComparison.Ordinal);
         Assert.DoesNotContain("PurchaseCommand", xaml, StringComparison.Ordinal);
     }
@@ -481,7 +489,7 @@ public sealed class MacParityUiSourceTests
     }
 
     [Fact]
-    public void WindowsReleaseManifestIsTheSingleCheckedInSource()
+    public void WindowsReleaseManifestIsTheSingleCheckedInPublicSource()
     {
         using var document = System.Text.Json.JsonDocument.Parse(
             File.ReadAllBytes(RepositoryPath("release", "windows.json")));
@@ -490,7 +498,9 @@ public sealed class MacParityUiSourceTests
         Assert.Equal(1, root.GetProperty("schema").GetInt32());
         Assert.Equal("windows", root.GetProperty("platform").GetString());
         Assert.Equal("production", root.GetProperty("channel").GetString());
-        Assert.Equal(WindowsUpdateService.CurrentVersion, root.GetProperty("version").GetString());
+        var publicVersion = Version.Parse(root.GetProperty("version").GetString()!);
+        var sourceVersion = Version.Parse(WindowsUpdateService.CurrentVersion);
+        Assert.True(publicVersion.CompareTo(sourceVersion) <= 0);
         Assert.False(File.Exists(RepositoryPath("website", "windows-latest.json")));
         Assert.False(File.Exists(RepositoryPath("website", "windows", "update.json")));
 

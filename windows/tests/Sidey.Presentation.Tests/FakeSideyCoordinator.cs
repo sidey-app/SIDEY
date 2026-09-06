@@ -146,6 +146,21 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
         OverlayRegionPreference preference,
         CancellationToken cancellationToken = default) => Task.CompletedTask;
 
+    public int ActivateStoreProductCallCount { get; private set; }
+
+    public Task ActivateStoreProductAsync(
+        string productId,
+        CancellationToken cancellationToken = default)
+    {
+        _ = productId;
+        ActivateStoreProductCallCount++;
+        return Task.CompletedTask;
+    }
+
+    public Task CompleteGoogleIdentityLinkAsync(
+        Uri callbackUri,
+        CancellationToken cancellationToken = default) => Task.CompletedTask;
+
     public IReadOnlyList<MonitorOption> GetMonitors() => Monitors;
 
     public void RequestComposer()
