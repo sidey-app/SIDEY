@@ -67,6 +67,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial bool HidesOwnedStoreProducts { get; set; }
 
     [ObservableProperty]
+    public partial string StoreSearchText { get; set; } = string.Empty;
+
+    [ObservableProperty]
     public partial bool HasVisibleStoreProducts { get; set; }
 
     [ObservableProperty]
@@ -545,6 +548,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
         RefreshVisibleStoreProducts();
     }
 
+    partial void OnStoreSearchTextChanged(string value)
+    {
+        _ = value;
+        RefreshVisibleStoreProducts();
+    }
+
     partial void OnSelectedEdgeIndexChanged(int value) => ApplyRegionPreference();
 
     partial void OnSelectedSpanIndexChanged(int value) => ApplyRegionPreference();
@@ -624,6 +633,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IEnumerable<StoreProductPreviewViewModel> products = StoreProducts
             .Where(product => product.Kind == kind)
             .Where(product => !HidesOwnedStoreProducts || !product.IsOwned);
+        string searchText = StoreSearchText.Trim();
+        if (searchText.Length > 0)
+        {
+            products = products.Where(product =>
+                product.DisplayName.Contains(searchText, StringComparison.CurrentCultureIgnoreCase)
+                || product.Description.Contains(searchText, StringComparison.CurrentCultureIgnoreCase));
+        }
         products = SelectedStoreSortIndex switch
         {
             1 => products.OrderBy(product => product.AmountKrw)

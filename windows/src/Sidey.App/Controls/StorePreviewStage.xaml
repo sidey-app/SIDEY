@@ -66,10 +66,14 @@
               StrokeThickness="1" />
         </Canvas>
 
-        <Image x:Name="LeftCharacter" Width="48" Height="48" Canvas.Top="208" Stretch="None" />
+        <Image x:Name="LeftCharacter" Width="48" Height="48" Canvas.Top="208" Stretch="None">
+          <Image.RenderTransform>
+            <ScaleTransform x:Name="LeftCharacterScale" CenterX="24" CenterY="24" />
+          </Image.RenderTransform>
+        </Image>
         <Image x:Name="RightCharacter" Width="48" Height="48" Canvas.Top="208" Stretch="None">
           <Image.RenderTransform>
-            <ScaleTransform CenterX="24" CenterY="24" ScaleX="-1" />
+            <ScaleTransform x:Name="RightCharacterScale" CenterX="24" CenterY="24" ScaleX="-1" />
           </Image.RenderTransform>
         </Image>
         <Image x:Name="EmitterImage" Width="48" Height="48" Canvas.Top="208" Stretch="None" Visibility="Collapsed" />

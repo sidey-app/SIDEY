@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Sidey.Core.Domain;
 using Sidey.Platform.Windows;
+using Windows.UI;
 
 namespace Sidey.App.Controls;
 
@@ -63,16 +64,33 @@ public sealed partial class StoreProductArtwork : UserControl
     {
         int generation = Interlocked.Increment(ref _generation);
         PreviewImage.Source = null;
-        DefaultBubblePreview.Visibility = Visibility.Collapsed;
+        CannonEmitterImage.Source = null;
+        CannonballImage.Source = null;
+        CannonPreview.Visibility = Visibility.Collapsed;
+        BubbleDecoration.Source = null;
+        BubblePreview.Visibility = Visibility.Collapsed;
         try
         {
-            ImageSource? source = await LoadPreviewAsync();
+            (ImageSource? primary, ImageSource? secondary) = await LoadPreviewAsync();
             if (generation != Volatile.Read(ref _generation) || !IsLoaded)
             {
                 return;
             }
 
-            PreviewImage.Source = source;
+            if (ProductKind == CommerceProductKind.Bubble)
+            {
+                ConfigureBubblePreview(primary);
+            }
+            else if (IsCannon())
+            {
+                CannonEmitterImage.Source = primary;
+                CannonballImage.Source = secondary;
+                CannonPreview.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                PreviewImage.Source = primary;
+            }
         }
         catch
         {
@@ -83,7 +101,7 @@ public sealed partial class StoreProductArtwork : UserControl
         }
     }
 
-    private async Task<ImageSource?> LoadPreviewAsync()
+    private async Task<(ImageSource? Primary, ImageSource? Secondary)> LoadPreviewAsync()
     {
         string root = Path.Combine(SideyDeploymentPaths.DeploymentRoot(), "Assets");
         if (ProductKind == CommerceProductKind.Character)
@@ -92,47 +110,87 @@ public sealed partial class StoreProductArtwork : UserControl
             string path = Path.Combine(
                 root,
                 definition.SpriteSheetResource.Replace('/', Path.DirectorySeparatorChar));
-            return await StorePreviewImageLoader.LoadFrameAsync(
+            return (await StorePreviewImageLoader.LoadFrameAsync(
                 path,
                 checked((uint)definition.FrameWidth),
                 checked((uint)definition.FrameHeight),
                 frame: 0,
                 renderedWidth: 72,
-                renderedHeight: 72);
+                renderedHeight: 72), null);
         }
 
         if (ProductKind == CommerceProductKind.Bubble)
         {
             if (string.IsNullOrEmpty(CatalogItemId))
             {
-                DefaultBubblePreview.Visibility = Visibility.Visible;
-                return null;
+                return (null, null);
             }
 
-            return await StorePreviewImageLoader.LoadWholeAsync(
-                Path.Combine(root, "Bubbles", CatalogItemId, "preview.png"),
-                sourceWidth: 128,
-                sourceHeight: 48);
+            return (await StorePreviewImageLoader.LoadFrameAsync(
+                Path.Combine(root, "Bubbles", CatalogItemId, "decoration.png"),
+                frameWidth: 16,
+                frameHeight: 16,
+                frame: 0,
+                renderedWidth: 16,
+                renderedHeight: 16), null);
         }
 
         string throwableId = string.IsNullOrEmpty(CatalogItemId)
             ? SignatureObject(CharacterId)
             : CatalogItemId;
-        if (throwableId == "throwable_toy_cannon")
+        if (IsCannon())
         {
-            return await StorePreviewImageLoader.LoadWholeAsync(
-                Path.Combine(root, "Throwables", throwableId, "preview.png"),
-                sourceWidth: 176,
-                sourceHeight: 56);
+            ImageSource emitter = await StorePreviewImageLoader.LoadFrameAsync(
+                Path.Combine(root, "Throwables", throwableId, "emitter.png"),
+                frameWidth: 24,
+                frameHeight: 24,
+                frame: 2,
+                renderedWidth: 48,
+                renderedHeight: 48);
+            ImageSource cannonball = await StorePreviewImageLoader.LoadFrameAsync(
+                Path.Combine(root, "Throwables", throwableId, "sprite.png"),
+                frameWidth: 16,
+                frameHeight: 16,
+                frame: 1,
+                renderedWidth: 24,
+                renderedHeight: 24);
+            return (emitter, cannonball);
         }
 
-        return await StorePreviewImageLoader.LoadFrameAsync(
+        return (await StorePreviewImageLoader.LoadFrameAsync(
             Path.Combine(root, "Throwables", throwableId, "sprite.png"),
             frameWidth: 16,
             frameHeight: 16,
             frame: 0,
             renderedWidth: 48,
-            renderedHeight: 48);
+            renderedHeight: 48), null);
+    }
+
+    private bool IsCannon() =>
+        ProductKind == CommerceProductKind.Throwable
+        && StringComparer.Ordinal.Equals(CatalogItemId, "throwable_toy_cannon");
+
+    private void ConfigureBubblePreview(ImageSource? decoration)
+    {
+        (Color background, Color foreground) = CatalogItemId switch
+        {
+            "bubble_bunny_pink" =>
+                (Color.FromArgb(255, 0xF7, 0xA9, 0xB8), Color.FromArgb(255, 0x1C, 0x1F, 0x29)),
+            "bubble_butter_chick" =>
+                (Color.FromArgb(255, 0xFF, 0xE3, 0x8A), Color.FromArgb(255, 0x1C, 0x1F, 0x29)),
+            "bubble_starry_cat" =>
+                (Color.FromArgb(255, 0x40, 0x3A, 0x78), Color.FromArgb(255, 0xFF, 0xF7, 0xE8)),
+            _ =>
+                (Color.FromArgb(242, 0xFF, 0xFF, 0xFF), Color.FromArgb(255, 0x1C, 0x1F, 0x29)),
+        };
+        BubblePreview.Background = new SolidColorBrush(background);
+        BubblePreview.BorderBrush = new SolidColorBrush(Color.FromArgb(
+            0x55,
+            foreground.R,
+            foreground.G,
+            foreground.B));
+        BubbleDecoration.Source = decoration;
+        BubblePreview.Visibility = Visibility.Visible;
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs args)
@@ -141,6 +199,9 @@ public sealed partial class StoreProductArtwork : UserControl
         _ = args;
         Interlocked.Increment(ref _generation);
         PreviewImage.Source = null;
+        CannonEmitterImage.Source = null;
+        CannonballImage.Source = null;
+        BubbleDecoration.Source = null;
     }
 
     internal static string SignatureObject(string characterId) => characterId switch

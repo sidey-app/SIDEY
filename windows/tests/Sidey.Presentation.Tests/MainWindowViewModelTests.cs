@@ -303,6 +303,17 @@ public sealed class MainWindowViewModelTests
         Assert.DoesNotContain(
             viewModel.VisibleStoreProducts,
             product => product.ProductId == "throwable_bouncy_heart");
+
+        viewModel.StoreSearchText = "오리";
+        Assert.Collection(
+            viewModel.VisibleStoreProducts,
+            product => Assert.Equal("throwable_squeaky_duck", product.ProductId));
+
+        viewModel.SelectedStoreKindIndex = (int)CommerceProductKind.Character;
+        viewModel.StoreSearchText = "진주빛";
+        Assert.Collection(
+            viewModel.VisibleStoreProducts,
+            product => Assert.Equal("character_starlight_upalupa", product.ProductId));
     }
 
     [Fact]

@@ -146,6 +146,10 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         {
             XamlRoot = Content.XamlRoot,
             Content = content,
+            PrimaryButtonText = product.IsOwned
+                ? I18n.Get("store.owned")
+                : I18n.Format("store.purchase", product.FormattedPrice),
+            IsPrimaryButtonEnabled = false,
             CloseButtonText = I18n.Get("common.close"),
             DefaultButton = ContentDialogButton.Close,
         };

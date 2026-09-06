@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Sidey.Core.Domain;
 using Sidey.Core.Localization;
+using Sidey.Core.Overlay;
 using Sidey.Platform.Windows;
 using Windows.UI;
 
@@ -14,12 +15,22 @@ public sealed partial class StorePreviewStage : UserControl
 {
     private const double StageWidth = 540;
     private const double CharacterTop = 208;
+    private const double WalkFrameSeconds = 0.16;
+    private static readonly IReadOnlyList<RectD> NoAvoidanceRects = Array.Empty<RectD>();
+    private static readonly IReadOnlySet<Guid> NoStoppedIds = new HashSet<Guid>();
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(1000d / 30d) };
     private readonly Stopwatch _clock = new();
-    private readonly Dictionary<string, ImageSource> _characters = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, IReadOnlyList<ImageSource>> _characters = new(StringComparer.Ordinal);
+    private readonly EdgeTrackGeometry _movementGeometry = new(
+        new RectD(0, 0, StageWidth, 280),
+        OverlayEdge.Bottom);
+    private readonly List<PixelMovementAgent> _movementAgents = [];
+    private readonly PixelMovementScratch _movementScratch = new();
+    private readonly Random _random = new(0x51DE59);
     private ImageSource? _projectile;
     private ImageSource? _emitter;
     private double _manualThrowStarted = -10;
+    private double _lastSceneElapsed;
     private bool _resourcesLoaded;
     private bool _loading;
 
@@ -31,6 +42,7 @@ public sealed partial class StorePreviewStage : UserControl
         CharacterId = PixelCharacterCatalog.NormalizeId(characterId);
         _timer.Tick += OnTimerTick;
         BuildPlatform();
+        BuildMovementAgents();
     }
 
     public CommerceProductKind ProductKind { get; }
@@ -87,13 +99,18 @@ public sealed partial class StorePreviewStage : UserControl
                 string path = Path.Combine(
                     root,
                     definition.SpriteSheetResource.Replace('/', Path.DirectorySeparatorChar));
-                _characters[id] = await StorePreviewImageLoader.LoadFrameAsync(
-                    path,
-                    checked((uint)definition.FrameWidth),
-                    checked((uint)definition.FrameHeight),
-                    frame: 0,
-                    renderedWidth: 48,
-                    renderedHeight: 48);
+                var frames = new ImageSource[6];
+                for (int frame = 0; frame < frames.Length; frame++)
+                {
+                    frames[frame] = await StorePreviewImageLoader.LoadFrameAsync(
+                        path,
+                        checked((uint)definition.FrameWidth),
+                        checked((uint)definition.FrameHeight),
+                        frame,
+                        renderedWidth: 48,
+                        renderedHeight: 48);
+                }
+                _characters[id] = frames;
             }
 
             if (ProductKind == CommerceProductKind.Bubble)
@@ -171,14 +188,37 @@ public sealed partial class StorePreviewStage : UserControl
         string leftId = ProductKind == CommerceProductKind.Character
             ? CharacterId
             : PixelCharacterCatalog.FallbackId;
-        LeftCharacter.Source = _characters[leftId];
-        RightCharacter.Source = _characters["pixel_cat"];
-
-        double drift = ProductKind == CommerceProductKind.Character
-            ? Math.Sin(elapsed * 0.9) * 30
-            : 0;
-        double leftX = (ProductKind == CommerceProductKind.Bubble ? 118 : 92) + drift;
-        double rightX = (ProductKind == CommerceProductKind.Bubble ? 374 : 400) - drift;
+        double leftX;
+        double rightX;
+        if (ProductKind == CommerceProductKind.Throwable)
+        {
+            leftX = 92;
+            rightX = 400;
+            ApplyCharacterFrame(LeftCharacter, LeftCharacterScale, leftId, frame: 0, facingLeft: false);
+            ApplyCharacterFrame(RightCharacter, RightCharacterScale, "pixel_cat", frame: 0, facingLeft: true);
+        }
+        else
+        {
+            AdvanceMovement(elapsed);
+            PixelMovementAgent leftAgent = _movementAgents[0];
+            PixelMovementAgent rightAgent = _movementAgents[1];
+            leftX = leftAgent.TrackPosition - 24;
+            rightX = rightAgent.TrackPosition - 24;
+            int leftFrame = CharacterFrame(elapsed, leftAgent.Velocity);
+            int rightFrame = CharacterFrame(elapsed + 0.08, rightAgent.Velocity);
+            ApplyCharacterFrame(
+                LeftCharacter,
+                LeftCharacterScale,
+                leftId,
+                leftFrame,
+                leftAgent.Velocity < -0.1);
+            ApplyCharacterFrame(
+                RightCharacter,
+                RightCharacterScale,
+                "pixel_cat",
+                rightFrame,
+                rightAgent.Velocity < -0.1);
+        }
         PositionCharacters(leftX, rightX);
 
         if (ProductKind == CommerceProductKind.Bubble)
@@ -212,6 +252,67 @@ public sealed partial class StorePreviewStage : UserControl
         Canvas.SetLeft(RightNameplate, rightX - 10);
     }
 
+    private void BuildMovementAgents()
+    {
+        double lower = _movementGeometry.TrackLowerBound;
+        double length = _movementGeometry.TrackUpperBound - lower;
+        double leftFraction = ProductKind == CommerceProductKind.Bubble ? 0.28 : 0.22;
+        double rightFraction = ProductKind == CommerceProductKind.Bubble ? 0.72 : 0.78;
+        _movementAgents.Add(new PixelMovementAgent(
+            new Guid("D5F0D9BB-FBDA-4B10-AEF9-A7E2A4CFBD25"),
+            lower + (length * leftFraction),
+            _movementGeometry.TrackUpperBound));
+        _movementAgents.Add(new PixelMovementAgent(
+            new Guid("26E5237A-69A1-4EA7-868E-822C831069B6"),
+            lower + (length * rightFraction),
+            _movementGeometry.TrackLowerBound));
+    }
+
+    private void AdvanceMovement(double elapsed)
+    {
+        double deltaTime = _lastSceneElapsed <= 0
+            ? 1d / 30d
+            : Math.Clamp(elapsed - _lastSceneElapsed, 0, 0.1);
+        _lastSceneElapsed = elapsed;
+
+        foreach (PixelMovementAgent agent in _movementAgents)
+        {
+            if (Math.Abs(agent.Target - agent.TrackPosition) > 2)
+            {
+                continue;
+            }
+
+            double length = _movementGeometry.TrackUpperBound - _movementGeometry.TrackLowerBound;
+            agent.Target = _movementGeometry.TrackLowerBound + (_random.NextDouble() * length);
+            agent.IdleRemaining = 0.6 + (_random.NextDouble() * 1.4);
+        }
+
+        PixelMovementSimulation.Step(
+            _movementAgents,
+            deltaTime,
+            _movementGeometry,
+            NoAvoidanceRects,
+            NoStoppedIds,
+            _movementScratch);
+    }
+
+    private static int CharacterFrame(double elapsed, double velocity) =>
+        Math.Abs(velocity) > 2
+            ? 2 + ((int)(elapsed / WalkFrameSeconds) % 4)
+            : (int)(elapsed / 0.6) % 2;
+
+    private void ApplyCharacterFrame(
+        Image image,
+        ScaleTransform transform,
+        string characterId,
+        int frame,
+        bool facingLeft)
+    {
+        IReadOnlyList<ImageSource> frames = _characters[characterId];
+        image.Source = frames[Math.Clamp(frame, 0, frames.Count - 1)];
+        transform.ScaleX = facingLeft ? -1 : 1;
+    }
+
     private void UpdateBubble(double elapsed, double leftX, double rightX)
     {
         double phase = elapsed % 6;
@@ -220,7 +321,7 @@ public sealed partial class StorePreviewStage : UserControl
         bool typing = local < 1;
         BubbleText.Text = typing
             ? new string('.', 1 + ((int)(local * 3) % 3))
-            : fromLeft ? "오늘도 같이 있자!" : "곰도리탕 어때?";
+            : fromLeft ? "저메추좀 해줘" : "곱도리탕 어때?";
         double bubbleWidth = typing ? 54 : 142;
         BubblePreview.Width = bubbleWidth;
         BubbleBody.Width = bubbleWidth;

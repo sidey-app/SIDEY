@@ -480,29 +480,39 @@
                 <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="{i18n:I18n Key=store.title}" />
                 <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=store.description}" />
               </StackPanel>
-              <Grid ColumnSpacing="12">
+              <Grid ColumnSpacing="12" RowSpacing="10">
                 <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="Auto" />
-                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="300" />
+                  <ColumnDefinition Width="180" />
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <StackPanel Spacing="5">
+                <StackPanel Grid.ColumnSpan="3" Spacing="5">
                   <TextBlock FontWeight="SemiBold" Text="{i18n:I18n Key=store.productKind}" />
-                  <ComboBox MinWidth="180" SelectedIndex="{Binding SelectedStoreKindIndex, Mode=TwoWay}">
-                    <ComboBoxItem Content="{i18n:I18n Key=store.kindCharacter}" />
-                    <ComboBoxItem Content="{i18n:I18n Key=store.kindBubble}" />
-                    <ComboBoxItem Content="{i18n:I18n Key=store.kindThrowable}" />
-                  </ComboBox>
+                  <TabView
+                      Height="42"
+                      IsAddTabButtonVisible="False"
+                      SelectedIndex="{Binding SelectedStoreKindIndex, Mode=TwoWay}"
+                      TabWidthMode="SizeToContent">
+                    <TabViewItem Header="{i18n:I18n Key=store.kindCharacter}" IsClosable="False" />
+                    <TabViewItem Header="{i18n:I18n Key=store.kindBubble}" IsClosable="False" />
+                    <TabViewItem Header="{i18n:I18n Key=store.kindThrowable}" IsClosable="False" />
+                  </TabView>
                 </StackPanel>
-                <StackPanel Grid.Column="1" Spacing="5">
+                <TextBox
+                    Grid.Row="1"
+                    Header="{i18n:I18n Key=store.search}"
+                    PlaceholderText="{i18n:I18n Key=store.searchPlaceholder}"
+                    Text="{Binding StoreSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="5">
                   <TextBlock FontWeight="SemiBold" Text="{i18n:I18n Key=store.sort}" />
-                  <ComboBox MinWidth="180" SelectedIndex="{Binding SelectedStoreSortIndex, Mode=TwoWay}">
+                  <ComboBox SelectedIndex="{Binding SelectedStoreSortIndex, Mode=TwoWay}">
                     <ComboBoxItem Content="{i18n:I18n Key=store.sortCatalog}" />
                     <ComboBoxItem Content="{i18n:I18n Key=store.sortPriceAscending}" />
                     <ComboBoxItem Content="{i18n:I18n Key=store.sortPriceDescending}" />
                   </ComboBox>
                 </StackPanel>
                 <CheckBox
+                    Grid.Row="1"
                     Grid.Column="2"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Bottom"
@@ -526,21 +536,24 @@
                   <UniformGridLayout
                       ItemsJustification="Start"
                       ItemsStretch="Fill"
-                      MaximumRowsOrColumns="2"
-                      MinColumnSpacing="18"
-                      MinItemHeight="372"
-                      MinItemWidth="300"
-                      MinRowSpacing="18"
+                      MaximumRowsOrColumns="5"
+                      MinColumnSpacing="12"
+                      MinItemHeight="204"
+                      MinItemWidth="150"
+                      MinRowSpacing="12"
                       Orientation="Horizontal" />
                 </ItemsRepeater.Layout>
                 <ItemsRepeater.ItemTemplate>
                   <DataTemplate>
-                    <Border MinHeight="372" Style="{StaticResource SideySettingsCardStyle}">
-                      <Grid RowSpacing="14">
+                    <Border
+                        MinHeight="204"
+                        Padding="10"
+                        CornerRadius="12"
+                        Style="{StaticResource SideySettingsCardStyle}">
+                      <Grid RowSpacing="8">
                         <Grid.RowDefinitions>
-                          <RowDefinition Height="156" />
+                          <RowDefinition Height="116" />
                           <RowDefinition Height="Auto" />
-                          <RowDefinition Height="*" />
                           <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <Border Background="{ThemeResource SideyAccentBackground10Brush}" CornerRadius="12">
@@ -552,61 +565,45 @@
                                 ProductKind="{Binding Kind}"
                                 CatalogItemId="{Binding CatalogItemId}"
                                 CharacterId="{Binding CharacterId}" />
-                            <Button
-                                Margin="10"
-                                Padding="0"
-                                HorizontalAlignment="Stretch"
-                                VerticalAlignment="Stretch"
-                                Background="Transparent"
-                                BorderThickness="0"
-                                Command="{Binding PreviewCommand}"
-                                ToolTipService.ToolTip="{i18n:I18n Key=store.openPreview}" />
                             <Border
-                                Margin="12"
-                                Padding="9,5"
+                                Margin="7"
+                                Padding="7,4"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Top"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                 CornerRadius="12"
                                 Visibility="{Binding IsPreviewOnlyVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                               <StackPanel Orientation="Horizontal" Spacing="6">
-                                <FontIcon FontSize="12" Glyph="&#xE72E;" />
-                                <TextBlock FontSize="12" FontWeight="SemiBold" Text="{i18n:I18n Key=store.previewOnly}" />
+                                <FontIcon FontSize="11" Glyph="&#xE72E;" />
                               </StackPanel>
                             </Border>
                           </Grid>
                         </Border>
-                        <Grid Grid.Row="1" ColumnSpacing="12">
-                          <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                          </Grid.ColumnDefinitions>
-                          <TextBlock FontSize="20" FontWeight="SemiBold" Text="{Binding DisplayName}" TextWrapping="Wrap" />
-                          <TextBlock
-                              Grid.Column="1"
-                              VerticalAlignment="Center"
-                              Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                              FontWeight="SemiBold"
-                              Text="{Binding FormattedPrice}" />
-                        </Grid>
+                        <TextBlock
+                            Grid.Row="1"
+                            HorizontalAlignment="Center"
+                            FontSize="14"
+                            FontWeight="SemiBold"
+                            MaxLines="2"
+                            Text="{Binding DisplayName}"
+                            TextAlignment="Center"
+                            TextWrapping="Wrap" />
                         <TextBlock
                             Grid.Row="2"
+                            HorizontalAlignment="Center"
                             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                            Text="{Binding Description}"
-                            TextWrapping="Wrap" />
-                        <StackPanel Grid.Row="3" Spacing="8">
-                          <Button
-                              HorizontalAlignment="Stretch"
-                              Command="{Binding PreviewCommand}"
-                              Content="{i18n:I18n Key=store.openPreview}" />
-                          <Button
-                              HorizontalAlignment="Stretch"
-                              Command="{Binding ActionCommand}"
-                              Content="{Binding ActionText}"
-                              IsEnabled="{Binding IsActionEnabled}"
-                              Style="{StaticResource AccentButtonStyle}"
-                              Visibility="{Binding IsPreviewOnlyVisible, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
-                        </StackPanel>
+                            FontSize="12"
+                            Text="{Binding FormattedPrice}" />
+                        <Button
+                            Grid.RowSpan="3"
+                            Padding="0"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Stretch"
+                            AutomationProperties.Name="{Binding DisplayName}"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Command="{Binding PreviewCommand}"
+                            ToolTipService.ToolTip="{i18n:I18n Key=store.openPreview}" />
                       </Grid>
                     </Border>
                   </DataTemplate>
