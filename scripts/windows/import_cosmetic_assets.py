@@ -13,12 +13,19 @@ sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
 from validate_pixel_assets import parse_rgba_png, rgba_to_bgra  # noqa: E402
 
 
-def mirror(source: Path, destination: Path, *, bgra: bool) -> None:
+def mirror(source: Path, destination: Path, *, bgra: bool, bottom_up: bool = False) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source, destination / source.name)
     if bgra:
-        _, _, rgba = parse_rgba_png(source)
-        (destination / f"{source.stem}.bgra").write_bytes(rgba_to_bgra(rgba))
+        width, height, rgba = parse_rgba_png(source)
+        converted = rgba_to_bgra(rgba)
+        if bottom_up:
+            row_bytes = width * 4
+            converted = b"".join(
+                converted[offset : offset + row_bytes]
+                for offset in range((height - 1) * row_bytes, -1, -row_bytes)
+            )
+        (destination / f"{source.stem}.bgra").write_bytes(converted)
 
 
 def main() -> None:
@@ -36,13 +43,13 @@ def main() -> None:
     ):
         source = canonical / "throwables" / throwable_id
         destination = windows / "Throwables" / throwable_id
-        mirror(source / "sprite.png", destination, bgra=True)
+        mirror(source / "sprite.png", destination, bgra=True, bottom_up=True)
         preview = source / "preview.png"
         if preview.is_file():
             mirror(preview, destination, bgra=False)
         emitter = source / "emitter.png"
         if emitter.is_file():
-            mirror(emitter, destination, bgra=True)
+            mirror(emitter, destination, bgra=True, bottom_up=True)
 
 
 if __name__ == "__main__":

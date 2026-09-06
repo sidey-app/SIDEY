@@ -29,6 +29,15 @@ public sealed class CharacterThrowAssetTests
             ["Throwables/throwable_squeaky_duck/sprite"] = "3b6935398d41b6d1cd5efa922392dbf4864782deb9880c5d0f10885e00906e7a",
         };
 
+    private static readonly IReadOnlyDictionary<string, string> CosmeticBgraHashes =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Throwables/throwable_bouncy_heart/sprite"] = "d1b5cd206fcdcccc91370dcb018375ca6e414d2893eee2f166bfdda055b7ca1c",
+            ["Throwables/throwable_toy_cannon/sprite"] = "f685f7eaf078c1f800bbcd76525e717c7ebb72ae93f8c031fa2d4250b84969d4",
+            ["Throwables/throwable_toy_cannon/emitter"] = "a7801effb2e7117ca7f2fc386c1f1e9bfddcf8aa70df3328312f573a84d890da",
+            ["Throwables/throwable_squeaky_duck/sprite"] = "2456adbd1f17ea4b831b4d58bb510c3a9a663a7aa2a36c030f286ab4e9ee31f9",
+        };
+
     [Fact]
     public void ApprovedPngsAndPreconvertedBgraSheetsMatchTheContract()
     {
@@ -42,6 +51,11 @@ public sealed class CharacterThrowAssetTests
             Assert.Equal(192, width);
             Assert.Equal(pair.Key.StartsWith("Characters/", StringComparison.Ordinal) ? 24 : 16, height);
             Assert.Equal(width * height * 4, File.ReadAllBytes(AssetPath(pair.Key + ".bgra")).Length);
+        }
+        foreach (var pair in CosmeticBgraHashes)
+        {
+            byte[] bgra = File.ReadAllBytes(AssetPath(pair.Key + ".bgra"));
+            Assert.Equal(pair.Value, Convert.ToHexStringLower(SHA256.HashData(bgra)));
         }
     }
 

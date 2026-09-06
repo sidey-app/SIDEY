@@ -67,10 +67,10 @@ internal sealed class CharacterThrowFrameCache : IDisposable
             ["Throwables/banana/sprite"] = "f42c588b897b5e33b3ca5f676dab15ce9e3aa3be02aad424c6b9ade8d01c372f",
             ["Throwables/dust_bath_pouch/sprite"] = "4d32c76073a8397379c33a42d9ee8e7656f6bf936af343a7d88e6c1d711d2205",
             ["Throwables/starlight_orb/sprite"] = "1719218f94d0686294b56fd836a74700e03312815043e050f0f0dbf4a90ba8ec",
-            ["Throwables/throwable_bouncy_heart/sprite"] = "6f92cc6161183de41dc27401fdfc900c3fc1c59170e689fe8067a46a553d1972",
-            ["Throwables/throwable_toy_cannon/sprite"] = "740120135578a488888a93a4eb0755267754d06793a4d09ba3af812dad758646",
-            ["Throwables/throwable_toy_cannon/emitter"] = "8a809a8729acfc321b3029f20617148a4ebc319a64d1a5f61b062241d0b5e973",
-            ["Throwables/throwable_squeaky_duck/sprite"] = "5879d82e8a822350a254ea55bcc86c983273b415fc59c49f4f61281c6ab9b4d7",
+            ["Throwables/throwable_bouncy_heart/sprite"] = "d1b5cd206fcdcccc91370dcb018375ca6e414d2893eee2f166bfdda055b7ca1c",
+            ["Throwables/throwable_toy_cannon/sprite"] = "f685f7eaf078c1f800bbcd76525e717c7ebb72ae93f8c031fa2d4250b84969d4",
+            ["Throwables/throwable_toy_cannon/emitter"] = "a7801effb2e7117ca7f2fc386c1f1e9bfddcf8aa70df3328312f573a84d890da",
+            ["Throwables/throwable_squeaky_duck/sprite"] = "2456adbd1f17ea4b831b4d58bb510c3a9a663a7aa2a36c030f286ab4e9ee31f9",
         };
 
     private readonly Dictionary<string, byte[][]> _actions = new(StringComparer.Ordinal);
