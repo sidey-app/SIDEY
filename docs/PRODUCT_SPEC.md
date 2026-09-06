@@ -39,13 +39,13 @@
 - App Store판은 네이티브 Sign in with Apple 승인을 첫 실행에 요구하고 이후 Supabase 세션을 전용 Keychain service에서 복구한다. App Store 로그인 상태를 앱 사용자 identity로 자동 간주하지 않는다.
 - direct판 계정과 App Store판 계정은 이전·병합하지 않는다. 그룹을 이어 쓰려면 새 Apple 계정을 기존 방에 초대해야 하며 두 계정은 방 정원에서 별도 멤버다.
 - App Store판은 캐릭터 4종·말풍선 3종·투척물 3종을 StoreKit 2 비소모성 상품으로 제공하며 서버가 Apple JWS와 App Store Server API 결과를 검증한 뒤에만 entitlement를 지급한다. 한국 가격은 기존 catalog 가격과 일치하는 App Store 가격 포인트를 우선하고 없으면 바로 위 가격 포인트를 사용하며, 실제 표시는 StoreKit 현지화 가격을 따른다.
-- App Store에서 신규 말풍선·투척물을 구매하면 서버 승인 뒤 해당 종류에 즉시 장착한다. `Transaction.currentEntitlements`, 시작 재검증과 사용자가 요청한 복원은 소유권만 동기화하고 현재 장착을 덮지 않는다. Windows의 신규 꾸미기 asset·mirror·렌더링·장착·판매는 이번 범위에서 제외한다.
+- App Store에서 신규 말풍선·투척물을 구매하면 서버 승인 뒤 해당 종류에 즉시 장착한다. `Transaction.currentEntitlements`, 시작 재검증과 사용자가 요청한 복원은 소유권만 동기화하고 현재 장착을 덮지 않는다. Windows는 같은 신규 꾸미기를 렌더링·미리보기·보유 장착하지만 구매는 지원하지 않는다.
 - App Store판의 업데이트는 App Store가 담당한다. 로그인 시 실행은 sandboxed main app의 `SMAppService.mainApp`을 사용한다.
 
 ### 2.2 Windows 구현 목표
 
 - Windows 11 25H2(build 26200) 이상 x64 네이티브 클라이언트를 C#/.NET 10 LTS·WinUI 3·Win32로 구현한다.
-- 일반 창은 SIDEY 브랜드의 Windows Fluent UI로 만들고, 투명 월드는 전용 Win32 HWND가 소유한다. `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러가 무료 5종과 다른 사용자가 선택한 유료 4종의 사전 생성 BGRA frame을 표시한다. Windows 프로필 선택은 무료 5종과 현재 계정에 발급된 활성 entitlement 캐릭터를 제공하고 상점은 추가 4종의 구매 없는 미리보기 카드를 제공한다.
+- 일반 창은 SIDEY 브랜드의 Windows Fluent UI로 만들고, 투명 월드는 전용 Win32 HWND가 소유한다. `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러가 무료 5종과 다른 사용자가 선택한 유료 4종의 사전 생성 BGRA frame을 표시한다. Windows 프로필은 무료 5종·활성 entitlement 캐릭터와 기본값·보유 말풍선·보유 투척물의 장착을 제공한다. 상점은 캐릭터 4종·말풍선 3종·투척물 3종의 구매 없는 상세 미리보기 무대를 제공한다.
 - 햄스터 1종 실기 계측은 같은 5종 렌더러의 입력 snapshot을 제한하는 Debug 전용 내부 모드로 수행한다. 햄스터 전용 제품 구현을 만들거나 이 모드를 Release에 노출하지 않으며, 나머지 4종 구현을 계측 뒤로 미루지 않는다.
 - 최종 목표는 macOS와 서버 계약·제품 행동이 동등한 Windows 판이며, 플랫폼 창·설정 UI는 Windows 관례를 따른다.
 - Windows 1.0.7 개발 빌드는 staging Supabase가 확인된 경우에만 기존 유료 캐릭터 4종의 Google identity 연결과 PortOne test checkout을 활성화한다. production project ref, Release 빌드 또는 명시적 개발 commerce opt-in이 없는 실행에서는 연결·주문 action을 만들지 않는다.
@@ -198,7 +198,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 애니메이션: idle 2프레임, walk 4프레임, doze 2프레임, offline curled sleep 2프레임
 - 실시간 그림자와 3D 런타임 없음
 
-승인 원본은 최상위 `assets/v1`에 둔다. schema v2 `manifest.json`이 캐릭터 `base.png`·`throw_hit.png`, 말풍선 `decoration.png`·`preview.png`, 투척물 `sprite.png`, 대포 `emitter.png`·`preview.png`, 캐릭터→시그니처 투척물 매핑, fallback과 SHA-256을 단일 관리한다. 각 항목이 `supported_platforms`를 선언한다. macOS·Windows·checkout의 배포용 mirror는 선언된 플랫폼에만 만들고, Windows mirror와 설치본은 캐릭터 시트를 `Assets/Characters/<character_id>/`, 공유 투척물을 `Assets/Throwables/<throwable_id>/`에 둔다. 신규 꾸미기의 Windows mirror는 만들지 않는다. 작업 중 concept·candidate·nearest-neighbor 확대 review 이미지와 일회성 importer는 승인 원본에 포함하지 않는다.
+승인 원본은 최상위 `assets/v1`에 둔다. schema v2 `manifest.json`이 캐릭터 `base.png`·`throw_hit.png`, 말풍선 `decoration.png`·`preview.png`, 투척물 `sprite.png`, 대포 `emitter.png`·`preview.png`, 캐릭터→시그니처 투척물 매핑, fallback과 SHA-256을 단일 관리한다. 각 항목이 `supported_platforms`를 선언한다. macOS·Windows·checkout의 배포용 mirror는 선언된 플랫폼에만 만들고, Windows mirror와 설치본은 캐릭터 시트를 `Assets/Characters/<character_id>/`, 투척물을 `Assets/Throwables/<throwable_id>/`, 말풍선 장식·미리보기를 `Assets/Bubbles/<bubble_id>/`에 둔다. 작업 중 concept·candidate·nearest-neighbor 확대 review 이미지와 일회성 importer는 승인 원본에 포함하지 않는다.
 
 `manifest.json`의 `licensing`에 등록된 유료 캐릭터·말풍선·투척물 및 그 macOS·checkout mirror에는 `SIDEY Paid Asset License 1.0`을 적용한다. 파일은 공개 저장소에서 열람할 수 있지만 오픈소스 에셋은 아니며, 공식 SIDEY의 계정·entitlement 규칙에 따른 표시와 SIDEY 개발·검토 목적의 로컬 확인만 허용한다. 다른 앱·게임·웹사이트·상품에서 복제·추출·수정·재배포·판매할 수 없다. 유료 에셋 기여는 PR 제출만으로 판매나 수익 배분이 확정되지 않으며, 판매·정산·환불·배포 권한을 정한 별도 서면 계약 뒤에만 병합한다.
 
@@ -346,7 +346,9 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 - 설정 창은 화면 크기와 DPI에 맞춰 1000×760 DIP 안팎의 권장 크기로 열고 860×640 DIP까지 줄일 수 있다. 창 너비가 960 DIP 미만이 되면 왼쪽 탐색은 210 DIP의 제목·아이콘 보기에서 48 DIP 아이콘 레일로 자동 전환하며, 최소 폭에서도 아이콘 레일을 없애지 않는다. 너비가 다시 확보되면 자동으로 펼치고 전환에는 WinUI `NavigationView`의 표준 애니메이션을 사용한다. WinUI `TitleBar`가 앱 아이콘·이름과 실제 방문 이력 기반 뒤로가기·탐색 열기 버튼을 시스템 caption 버튼 왼쪽에 배치한다. 최소 크기는 리사이즈 뒤 창을 되돌리지 않고 Win32 `WM_GETMINMAXINFO`에서 tracking size로 제한해 경계 드래그가 깜빡이지 않게 한다.
 - 탐색 푸터의 연결 상태는 하나의 레이아웃 자리에서 펼친 카드와 축소 카드를 교체한다. 펼친 카드의 점과 문구는 한 행에서 시각적으로 중앙 정렬하고, 축소를 시작하는 순간 문구를 숨기며 펼침 시작과 함께 짧게 fade-in한다. 축소 카드는 48 DIP 아이콘 레일 중앙에 맞춰 전환 중 두 점·잘린 문구·잘린 카드 배경이 나타나지 않게 한다. 연결 상태는 초록 점과 `연결됨`, 단절 상태는 빨간 점과 `연결 안 됨`으로 표시한다. 최초 연결과 정상 연결 뒤의 재단절 모두 Windows 시스템 알림을 15초 유예하며 그 안에 복구되면 예약을 취소한다. 15초가 지나도 연결되지 않으면 장애당 한 번 알리고, 짧은 연결 반복에 따른 재알림은 15분 동안 억제한다.
 - Windows 최근 기록의 40 DIP 캐릭터 슬롯은 시스템 accent 10% 배경과 12 DIP 모서리를 사용한다. 최근 기록과 그룹 설정의 현재 사용자 `나` 표식은 모두 accent 글자와 accent 12% 배경을 사용하며 라이트·다크 테마에 맞춰 갱신한다.
-- Windows `꾸미기·상점`은 Mica 배경 위에 전체 목록용 외곽 카드를 두지 않고 추가 캐릭터 4종의 독립 Fluent 카드를 2열로 배치한다. 각 카드는 96 DIP 정수 배율 픽셀 미리보기, 이름, 예정 가격과 설명을 보여준다. Release는 비활성 `구매 준비 중`만 표시하고 구매·결제·소유권 변경 action을 만들지 않는다. 명시적으로 opt-in한 개발 빌드만 staging의 Google 연결·PortOne test action을 표시한다. 프로필 선택 목록은 무료 5종과 서버에서 확인한 현재 계정의 활성 entitlement 캐릭터를 보여준다.
+- Windows `내 프로필`은 캐릭터 아래에 말풍선·투척물 선택 영역을 항상 표시한다. 각 영역은 `기본 말풍선` 또는 `캐릭터 기본 투척물`을 먼저 보여주고 snapshot의 활성 entitlement가 있는 상품만 추가한다. 선택은 닉네임·캐릭터 저장과 분리된 즉시 적용 action이며 서버 성공 응답만 반영하고 같은 종류의 중복 요청을 막는다.
+- Windows `꾸미기·상점`은 `캐릭터 / 말풍선 / 투척물` 종류별로 캐릭터 4종·말풍선 3종·투척물 3종을 표시한다. 모든 카드는 선택 가능한 상세 미리보기 대상으로 유지하고 Release는 `구매 준비 중` 안내만 표시하며 구매·결제·소유권 변경 action을 만들지 않는다. 명시적으로 opt-in한 개발 빌드의 기존 staging 캐릭터 결제 범위는 별도 계약을 유지한다.
+- Windows 상세 미리보기는 실제 `UpdateLayeredWindow`용 asset cache와 30 FPS 합성 규칙을 재사용한 두 캐릭터 무대다. 캐릭터 상품은 걷기와 친구 클릭 시 시그니처 투척을, 말풍선 상품은 타이핑 점과 두 본문 순환을, 투척물 상품은 0.35초 뒤 시작하는 1초 간격 좌우 교대 투척을 보여준다. 미니 대포는 전경 emitter·심지탄·몸통 폭발을 사용한다. 상세를 닫으면 timer·frame cache 참조를 해제하고 모션 감소 설정에서는 정적 첫 장면만 표시한다.
 - Windows 그룹 설정의 펼친 각 카드에는 `그룹 나가기`를 이름 변경·삭제와 같은 하단 작업 영역에 표시한다. 나가기·이름 변경·삭제·추방은 다른 그룹 mutation 중 함께 비활성화한다.
 - 프로필 저장과 그룹 생성·참여·전환·나가기·이름 변경·삭제·추방·초대 코드 재발급처럼 서버 응답을 기다리는 action은 요청 즉시 해당 버튼을 비활성화하고 성공·실패 완료 뒤 다시 활성화한다. 동일 action의 동시 실행을 금지하며 그룹 mutation은 진행 중 관련 입력과 다른 mutation 버튼도 함께 비활성화한다. Windows의 그룹 이름과 초대 코드 입력은 생성·참여 성공 시 제출했던 값과 현재 draft가 같을 때만 비우고, 실패하거나 요청 중 draft가 바뀌었으면 보존한다.
 - 월드는 WinUI XAML 창에 투명 표현을 위임하지 않고 `WS_POPUP` 기반 전용 Win32 HWND가 소유한다. 무료 5종과 유료 4종은 24px 원본에서 정수 nearest-neighbor로 만든 premultiplied BGRA frame을 같은 `UpdateLayeredWindow` 렌더러로 표시하며 tick마다 bitmap이나 surface를 새로 할당하지 않는다.
@@ -530,7 +532,7 @@ App Store판은 Apple subject와 사용자가 공유한 경우의 relay email, S
 - 말풍선: 1자·200자·3줄 두 개·프리셋 양 끝·4방향에서 6pt 간격의 위쪽 꼬리 없는 이전 본문과 아래쪽 꼬리 있는 최신 본문 누적 frame이 캔버스 안에 유지하고 두 본문 폭의 합집합만 접선 충돌 범위에 포함하며 타이핑 말풍선은 제외
 - 창: 월드 항상 위·나머지 영역 클릭 통과, 내 캐릭터 52×52 hotspot, 기본 OFF에서 화면에 표시되는 친구별 Presence 상태 무관 52×52 상시 hotspot, ON에서 우클릭 전 통과·우클릭 뒤 10초 활성화·재우클릭 갱신·만료, 설정 전환·숨김·방 전환·단절 시 즉시 재구성, composer의 선택 모니터 상단 중앙·노치 아래 10pt 배치와 멀티 데스크탑 현재 Space 이동, 왼쪽 `×`·Esc·외부 클릭 닫기, 단일·더블클릭 회귀와 throw 0.5초 쿨타임, composer 초기 숨김·열기·마지막 전송 뒤 5초 자동 닫힘·타이머 갱신·실패 복구, 기록 일반 창
 - 업데이트: production 채널에 Sparkle `2.9.6` 프레임워크·메뉴 항목·피드 URL·EdDSA 공개키가 번들에 포함되고 signed feed와 압축 해제 전 검증을 강제하며, 업데이트 진행 중에는 수동 확인 메뉴를 비활성화. development 채널은 Sparkle을 시작하지 않고 수동 확인 메뉴도 항상 비활성화
-- 에셋: manifest에 등록된 모든 캐릭터·말풍선·투척물의 동적 개수, 16×16 말풍선 장식, 128×48 글자 포함 preview, 192×16 일반 투척물 12프레임, 96×24 대포 emitter 4프레임, hard alpha·sRGB·결정적 SHA-256·nearest-neighbor 선명도와 항목별 지원 플랫폼 mirror를 검사한다. 신규 꾸미기에 Windows mirror가 없어야 한다.
+- 에셋: manifest에 등록된 모든 캐릭터·말풍선·투척물의 동적 개수, 16×16 말풍선 장식, 128×48 글자 포함 preview, 192×16 일반 투척물 12프레임, 96×24 대포 emitter 4프레임, hard alpha·sRGB·결정적 SHA-256·nearest-neighbor 선명도와 항목별 지원 플랫폼 mirror를 검사한다. 신규 꾸미기의 Windows mirror와 설치 출력 포함도 검사한다.
 - 던지기 렌더링: 캐릭터 throw/hit과 투척물 sprite 선택 분리, 기본 시그니처 fallback, 신규 일반 투척물, 대포의 전경 몸통 emitter·심지탄·피격자 몸통 폭발, 4개 화면 가장자리, 이동 목표 추적, 다중 피격 재시작, 대상 상태 전환, 방 전환 중 stale 이벤트를 검증한다. 12명이 0.5초마다 던지는 초당 24개 부하에서 활성 투사체 32개 이하, p95 frame time 40ms 이하, 100ms 이상 UI hang과 지속 메모리·handle 증가가 없어야 한다.
 - 설정: schema 7 이하에서 `requiresRightClickToThrow=false` migration과 저장·복원·즉시 ON/OFF 전환, 860×640 최소 크기와 1000×760 안팎 권장 크기의 라이트·다크 렌더, 960 DIP 경계의 210→48 DIP 자동 탐색 전환과 최소 폭 아이콘 레일 유지, 연결 점·문구의 시각적 중앙 정렬과 pane 닫기 시작/열기 완료 경계에서 문구를 숨기고 복원해 전환 중 잘린 문구·중복 점이 없음, 상단바의 뒤로가기·탐색 열기와 방문 이력, native 최소 tracking size에서 반복 resize·깜빡임 없음, 옅은 카드 명도, 240pt 컨트롤 영역과 Picker·버튼·토글 오른쪽 정렬, `동작 정보` 제거, 두 사람 그룹 아이콘, 그룹 현재 사용자 표식의 accent 글자·12% 배경, 활성·비활성 그룹별 나가기 확인과 방장 영향 안내·mutation 중 비활성화, 접힘 콘텐츠만 clipping한 애니메이션, 한글 IME 조합 확정·닉네임 dirty 판정·snapshot 중 draft 보존, 캐릭터 자동 적용의 성공·실패·중복 요청, 성공 배너 3초 종료와 타이머 갱신. direct판과 App Store판 프로필은 보유 상품이 없어도 말풍선·투척물 종류별 기본값을 표시하고 활성 entitlement 상품을 4열에 추가하며 전체 스크롤, 정적 nearest-neighbor 미리보기, 선택·focus·VoiceOver·진행 상태를 제공해야 한다.
 - 서버 action: 응답을 지연시킨 프로필 저장과 각 그룹 mutation에서 첫 요청 직후 버튼이 비활성화되고 추가 실행이 전달되지 않으며 성공·실패 뒤 다시 활성화되는지 검증한다. 그룹 생성·참여 성공은 제출한 입력을 비우고 실패는 보존하며, 요청 중 바뀐 새 draft는 늦은 성공 응답에도 보존해야 한다.
@@ -559,11 +561,12 @@ App Store판은 Apple subject와 사용자가 공유한 경우의 relay email, S
 
 ### 10.3 Windows 지속 검증 기준
 
-1. 무료 5종과 원격 유료 4종을 `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러로 제공하고 asset·frame·발 기준선·방향·fallback 계약, 별빛 우파루파의 catalog 기반 sparkle 효과를 자동 검증한다. 선택 목록은 무료 5종과 서버가 반환한 현재 계정의 활성 entitlement 캐릭터를 보여주고 상점에서는 추가 4종을 구매 action 없이 미리 본다. 성공한 snapshot에서 현재 캐릭터 entitlement가 회수되면 로컬 프로필·방 표시·캐시가 햄스터로 fallback해야 한다.
-2. 같은 렌더러를 햄스터 1종으로 제한하는 Debug 내부 모드에서 투명·최상위·외부 앱 클릭 통과·52×52 hotspot·composer 포커스·100/125/150/200% DPI를 Windows 11 25H2 x64 실기에서 통과한다. 이 모드는 Release에 노출하지 않는다.
-3. 연결형 검증에서 익명 세션 복구·생성, 프로필, 방, 메시지, Presence, typing lease, `character_pulse`, `character_throw`를 staging의 기존 macOS 클라이언트와 양방향 확인한다.
-4. 최종 12명 월드를 2시간, 20노드 합성 부하를 30분 실행해 p95 frame time 40ms 이하, 100ms 이상 UI-thread hang 없음, warm-up 후 working set 20MB 초과 증가 없음, GDI/USER handle·COM surface 지속 증가 없음을 확인한다.
-5. 보조 모니터의 mixed-DPI와 연결 해제를 실기에서 계속 회귀 검증하고 합성 모니터 geometry 테스트도 유지한다.
+1. 무료 5종과 원격 유료 4종, 말풍선 3종과 투척물 3종을 하나의 `UpdateLayeredWindow` 렌더링 경로로 제공하고 asset·frame·발 기준선·방향·fallback 계약, 별빛 우파루파의 catalog 기반 sparkle 효과를 자동 검증한다. 선택 목록은 무료 5종·활성 entitlement 캐릭터와 기본값·보유 말풍선·보유 투척물을 보여준다. 성공한 snapshot에서 장착 상품 entitlement가 회수되면 캐릭터는 햄스터, 말풍선·투척물은 종류별 기본값으로 fallback해야 한다.
+2. 상점의 캐릭터 4종·말풍선 3종·투척물 3종 카드는 모두 상세 무대를 열고 실제 걷기·타이핑·본문·시그니처 투척·일반 투척·대포 전용 연출을 재생한다. Release는 구매 action을 만들지 않으며 상세를 반복해서 열고 닫은 뒤 timer·surface·frame cache 참조가 남지 않아야 한다.
+3. 같은 렌더러를 햄스터 1종으로 제한하는 Debug 내부 모드에서 투명·최상위·외부 앱 클릭 통과·52×52 hotspot·composer 포커스·100/125/150/200% DPI를 Windows 11 25H2 x64 실기에서 통과한다. 이 모드는 Release에 노출하지 않는다.
+4. 연결형 검증에서 익명 세션 복구·생성, 프로필 장착, 방, 메시지 말풍선 스타일, Presence, typing lease, `character_pulse`, 장착 투척물의 `character_throw`를 staging의 기존 macOS 클라이언트와 양방향 확인한다.
+5. 최종 12명 월드를 2시간, 20노드 합성 부하를 30분 실행해 p95 frame time 40ms 이하, 100ms 이상 UI-thread hang 없음, warm-up 후 working set 20MB 초과 증가 없음, GDI/USER handle·COM surface 지속 증가 없음을 확인한다.
+6. 보조 모니터의 mixed-DPI와 연결 해제를 실기에서 계속 회귀 검증하고 합성 모니터 geometry 테스트도 유지한다.
 
 ### 10.4 macOS 배포 절차
 
