@@ -26,6 +26,7 @@ Unicode true
 !define PRODUCT_PUBLISHER "SIDEY"
 !define PRODUCT_REGISTRY_KEY "Software\SIDEY\Installer"
 !define PRODUCT_UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\SIDEY"
+!define PRODUCT_PROTOCOL_KEY "Software\Classes\sidey"
 !define LEGACY_MSI_UPGRADE_CODE "{E744D02B-C3CF-41CE-A4C9-9BA1EB10C6B9}"
 
 !include "MUI2.nsh"
@@ -307,6 +308,11 @@ Section "SIDEY" MainSection
   CreateShortcut "$SMPROGRAMS\SIDEY\SIDEY.lnk" "$INSTDIR\SIDEY.exe" "" "$INSTDIR\Assets\Icons\SideyAppIcon.ico"
   CreateShortcut "$SMPROGRAMS\SIDEY\Uninstall SIDEY.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Assets\Icons\SideyAppIcon.ico"
 
+  WriteRegStr HKLM "${PRODUCT_PROTOCOL_KEY}" "" "URL:SIDEY authentication callback"
+  WriteRegStr HKLM "${PRODUCT_PROTOCOL_KEY}" "URL Protocol" ""
+  WriteRegStr HKLM "${PRODUCT_PROTOCOL_KEY}\DefaultIcon" "" "$INSTDIR\Assets\Icons\SideyAppIcon.ico"
+  WriteRegStr HKLM "${PRODUCT_PROTOCOL_KEY}\shell\open\command" "" '$"$INSTDIR\SIDEY.exe$" $"%1$"'
+
   WriteRegStr HKLM "${PRODUCT_REGISTRY_KEY}" "InstalledVersion" "${APP_VERSION}"
   WriteRegStr HKLM "${PRODUCT_REGISTRY_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKLM "${PRODUCT_UNINSTALL_KEY}" "DisplayName" "SIDEY"
@@ -383,5 +389,6 @@ Section "Uninstall"
   RMDir "$INSTDIR\Runtime"
   RMDir "$INSTDIR"
   DeleteRegKey HKLM "${PRODUCT_UNINSTALL_KEY}"
+  DeleteRegKey HKLM "${PRODUCT_PROTOCOL_KEY}"
   DeleteRegKey HKLM "${PRODUCT_REGISTRY_KEY}"
 SectionEnd

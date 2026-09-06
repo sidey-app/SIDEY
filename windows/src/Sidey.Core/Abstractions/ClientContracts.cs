@@ -67,6 +67,8 @@ public sealed record MessageHistoryPage(
     IReadOnlyList<ChatMessage> Messages,
     MessageHistoryCursor? NextCursor);
 
+public sealed record CommerceCheckout(Guid OrderId, Uri CheckoutUri);
+
 public sealed record RealtimeConnectionStatus(
     bool TransportConnected,
     bool ActiveRoomTransportConnected,

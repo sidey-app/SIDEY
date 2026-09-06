@@ -77,6 +77,14 @@ public interface IMainWindowCoordinator : IOnboardingCoordinator
         OverlayRegionPreference preference,
         CancellationToken cancellationToken = default);
 
+    Task ActivateStoreProductAsync(
+        string productId,
+        CancellationToken cancellationToken = default);
+
+    Task CompleteGoogleIdentityLinkAsync(
+        Uri callbackUri,
+        CancellationToken cancellationToken = default);
+
     IReadOnlyList<MonitorOption> GetMonitors();
 
     void RequestComposer();

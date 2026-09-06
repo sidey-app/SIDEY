@@ -6,5 +6,11 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+    <SideyDevelopmentCommerce Condition="'$(SideyDevelopmentCommerce)' == ''">false</SideyDevelopmentCommerce>
+    <DefineConstants Condition="'$(Configuration)' == 'Debug' and '$(SideyDevelopmentCommerce)' == 'true'">$(DefineConstants);SIDEY_DEVELOPMENT_COMMERCE</DefineConstants>
   </PropertyGroup>
+  <Target Name="RejectDevelopmentCommerceOutsideDebug" BeforeTargets="BeforeBuild"
+          Condition="'$(SideyDevelopmentCommerce)' == 'true' and '$(Configuration)' != 'Debug'">
+    <Error Text="SideyDevelopmentCommerce can only be compiled in Debug builds." />
+  </Target>
 </Project>

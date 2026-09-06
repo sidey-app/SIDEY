@@ -42,6 +42,81 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void PublicBuildKeepsAllStoreActionsLocked()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        Assert.All(viewModel.StoreProducts, product =>
+        {
+            Assert.True(product.IsPreviewOnlyVisible);
+            Assert.False(product.IsActionEnabled);
+            Assert.Equal("구매 준비 중", product.ActionText);
+        });
+    }
+
+    [Fact]
+    public async Task DevelopmentStoreStartsGoogleLinkingBeforePurchase()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        coordinator.State = state with
+        {
+            DevelopmentCommerceEnabled = true,
+            CommerceProducts = WindowsCommerceCatalog.Products.Select(product =>
+                new CommerceProductState(
+                    product,
+                    GoogleConnected: false,
+                    CommercePurchaseState.GoogleConnectionRequired)).ToArray(),
+        };
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+        NoticeMessage? notice = null;
+        viewModel.NoticeRaised += value => notice = value;
+        StoreProductPreviewViewModel product = viewModel.StoreProducts[0];
+
+        await product.ActionCommand.ExecuteAsync(null);
+
+        Assert.False(product.IsPreviewOnlyVisible);
+        Assert.True(product.IsActionEnabled);
+        Assert.Equal("Google 계정 연결", product.ActionText);
+        Assert.Equal(1, coordinator.ActivateStoreProductCallCount);
+        Assert.NotNull(notice);
+        Assert.Equal(NoticeKind.Success, notice.Kind);
+        Assert.Contains("Google", notice.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OwnedDevelopmentProductCannotBePurchasedAgain()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        CommerceProduct ownedProduct = WindowsCommerceCatalog.Products[0];
+        coordinator.State = state with
+        {
+            DevelopmentCommerceEnabled = true,
+            CommerceProducts = WindowsCommerceCatalog.Products.Select(product =>
+                new CommerceProductState(
+                    product,
+                    GoogleConnected: true,
+                    product == ownedProduct
+                        ? CommercePurchaseState.Owned
+                        : CommercePurchaseState.Available)).ToArray(),
+        };
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        StoreProductPreviewViewModel product = viewModel.StoreProducts[0];
+        Assert.False(product.IsActionEnabled);
+        Assert.Equal("보유 중", product.ActionText);
+    }
+
+    [Fact]
     public void IssuedCharactersAppearInTheProfilePickerAndTrackSelection()
     {
         (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();

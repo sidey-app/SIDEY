@@ -104,25 +104,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _updates = updates ?? throw new ArgumentNullException(nameof(updates));
-        StoreProducts =
-        [
-            CreateStorePreview(
-                "pixel_starlight_upalupa",
-                "store.starlightUpalupaDescription",
-                "store.price1900"),
-            CreateStorePreview(
-                "pixel_guinea_pig",
-                "store.guineaPigDescription",
-                "store.price990"),
-            CreateStorePreview(
-                "pixel_monkey",
-                "store.monkeyDescription",
-                "store.price990"),
-            CreateStorePreview(
-                "pixel_chinchilla",
-                "store.chinchillaDescription",
-                "store.price990"),
-        ];
+        StoreProducts = WindowsCommerceCatalog.Products
+            .Select(CreateStorePreview)
+            .ToArray();
         RefreshMonitors();
         ApplyState(coordinator.State);
         UpdateCharacterSelectionState();
@@ -141,17 +125,28 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public bool IsValidationMode => _coordinator.IsValidationMode;
 
-    private static StoreProductPreviewViewModel CreateStorePreview(
-        string characterId,
-        string descriptionKey,
-        string priceKey)
+    private StoreProductPreviewViewModel CreateStorePreview(CommerceProduct product)
     {
-        PixelCharacterDefinition character = PixelCharacterCatalog.Get(characterId);
+        PixelCharacterDefinition character = PixelCharacterCatalog.Get(product.CharacterId);
+        string descriptionKey = product.CharacterId switch
+        {
+            "pixel_starlight_upalupa" => "store.starlightUpalupaDescription",
+            "pixel_guinea_pig" => "store.guineaPigDescription",
+            "pixel_monkey" => "store.monkeyDescription",
+            "pixel_chinchilla" => "store.chinchillaDescription",
+            _ => throw new InvalidOperationException("Unknown Windows commerce product."),
+        };
         return new StoreProductPreviewViewModel(
-            character.Id,
+            product,
             character.DisplayName,
             I18n.Get(descriptionKey),
-            I18n.Get(priceKey));
+            product.AmountKrw switch
+            {
+                1_900 => I18n.Get("store.price1900"),
+                990 => I18n.Get("store.price990"),
+                _ => throw new InvalidOperationException("Unknown Windows commerce price."),
+            },
+            () => ActivateStoreProductAsync(product.Id));
     }
 
     public void PrepareGroupsForPresentation()
@@ -194,6 +189,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
             _state = state;
             RefreshCharacterSelections(state.ActiveEntitlementKeys);
+            RefreshStoreProducts(state);
             if (shouldApplyProfileDraft)
             {
                 Nickname = syncedNickname;
@@ -239,6 +235,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public void ReportError(Exception exception) =>
         RaiseNotice(exception.Message, NoticeKind.Error);
+
+    public void ReportSuccess(string message) => RaiseNotice(message, NoticeKind.Success);
 
     public void RefreshDiagnostics() => RefreshValidationMetrics();
 
@@ -467,6 +465,33 @@ public sealed partial class MainWindowViewModel : ObservableObject
     partial void OnSelectedMonitorIdentifierChanged(string? value) => ApplyRegionPreference();
 
     private bool CanCheckForUpdates() => !IsCheckingForUpdates;
+
+    private async Task ActivateStoreProductAsync(string productId)
+    {
+        CommerceProductState? state = _coordinator.State.CommerceProducts.FirstOrDefault(product =>
+            StringComparer.Ordinal.Equals(product.Product.Id, productId));
+        string successMessage = state?.GoogleConnected == true
+            ? I18n.Get("store.purchaseCompleted")
+            : I18n.Get("store.googleConnectionOpened");
+        await RunCommandAsync(
+            () => _coordinator.ActivateStoreProductAsync(productId),
+            successMessage);
+    }
+
+    private void RefreshStoreProducts(CoordinatorState state)
+    {
+        Dictionary<string, CommerceProductState> states = state.CommerceProducts
+            .ToDictionary(item => item.Product.Id, StringComparer.Ordinal);
+        foreach (StoreProductPreviewViewModel product in StoreProducts)
+        {
+            CommerceProductState productState = states.GetValueOrDefault(product.ProductId)
+                ?? new CommerceProductState(
+                    WindowsCommerceCatalog.Find(product.ProductId)!,
+                    GoogleConnected: false,
+                    CommercePurchaseState.Unavailable);
+            product.Apply(productState, state.DevelopmentCommerceEnabled);
+        }
+    }
 
     private void UpdateCharacterSelectionState()
     {

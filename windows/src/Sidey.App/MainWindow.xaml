@@ -407,7 +407,8 @@
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Top"
                                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
-                                CornerRadius="12">
+                                CornerRadius="12"
+                                Visibility="{Binding IsPreviewOnlyVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                               <StackPanel Orientation="Horizontal" Spacing="6">
                                 <FontIcon FontSize="12" Glyph="&#xE72E;" />
                                 <TextBlock FontSize="12" FontWeight="SemiBold" Text="{i18n:I18n Key=store.previewOnly}" />
@@ -439,8 +440,9 @@
                         <Button
                             Grid.Row="3"
                             HorizontalAlignment="Stretch"
-                            Content="{i18n:I18n Key=store.comingSoon}"
-                            IsEnabled="False" />
+                            Command="{Binding ActionCommand}"
+                            Content="{Binding ActionText}"
+                            IsEnabled="{Binding IsActionEnabled}" />
                       </Grid>
                     </Border>
                   </DataTemplate>
