@@ -266,6 +266,9 @@ public sealed class DistributionSourceTests
         string package = File.ReadAllText(RepositoryPath(
             "scripts", "windows", "package.ps1"));
 
+        Assert.Contains("$throwableDirectory.Name -eq 'throwable_toy_cannon'", package, StringComparison.Ordinal);
+        Assert.Contains("@('emitter.bgra', 'emitter.png', 'preview.png')", package, StringComparison.Ordinal);
+        Assert.Contains("Compare-Object $expectedFileNames $fileNames", package, StringComparison.Ordinal);
         Assert.Contains("SIDEY-Windows-x64-v${Version}-Setup.exe", package, StringComparison.Ordinal);
         Assert.Contains("NSIS 3.12", package, StringComparison.Ordinal);
         Assert.Contains("makensis.exe", package, StringComparison.Ordinal);
