@@ -481,6 +481,10 @@
                 <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=store.description}" />
               </StackPanel>
               <Grid ColumnSpacing="12" RowSpacing="10">
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto" />
+                  <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="300" />
                   <ColumnDefinition Width="180" />
