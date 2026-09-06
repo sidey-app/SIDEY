@@ -339,7 +339,10 @@ public sealed class MacParityUiSourceTests
             "windows", "src", "Sidey.Presentation", "ViewModels", "StoreProductPreviewViewModel.cs");
         var buildProperties = ReadRepositoryFile("windows", "Directory.Build.props");
 
-        Assert.Contains("ItemsSource=\"{Binding StoreProducts}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding VisibleStoreProducts}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("SelectedStoreKindIndex", xaml, StringComparison.Ordinal);
+        Assert.Contains("SelectedStoreSortIndex", xaml, StringComparison.Ordinal);
+        Assert.Contains("HidesOwnedStoreProducts", xaml, StringComparison.Ordinal);
         Assert.Contains("<UniformGridLayout", xaml, StringComparison.Ordinal);
         Assert.Contains("MaximumRowsOrColumns=\"2\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Style=\"{StaticResource SideySettingsCardStyle}\"", xaml, StringComparison.Ordinal);
@@ -351,6 +354,14 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("Command=\"{Binding PreviewCommand}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("StorePreviewStage", ReadRepositoryFile(
             "windows", "src", "Sidey.App", "MainWindow.xaml.cs"), StringComparison.Ordinal);
+        string artwork = ReadRepositoryFile(
+            "windows", "src", "Sidey.App", "Controls", "StoreProductArtwork.xaml");
+        string previewStage = ReadRepositoryFile(
+            "windows", "src", "Sidey.App", "Controls", "StorePreviewStage.xaml");
+        Assert.Contains("Loaded=\"OnLoaded\"", artwork, StringComparison.Ordinal);
+        Assert.Contains("ClearColor=\"Transparent\"", artwork, StringComparison.Ordinal);
+        Assert.Contains("CardBackgroundFillColorDefaultBrush", previewStage, StringComparison.Ordinal);
+        Assert.DoesNotContain("Background=\"#12141B\"", previewStage, StringComparison.Ordinal);
         Assert.Contains("IsEnabled=\"{Binding IsActionEnabled}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("IsActionEnabled = commerceEnabled", productViewModel, StringComparison.Ordinal);
         Assert.Contains("IsPreviewOnlyVisible = !commerceEnabled", productViewModel, StringComparison.Ordinal);
@@ -398,6 +409,7 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("CreateRoomActionText", xaml, StringComparison.Ordinal);
         Assert.Contains("JoinRoomActionText", xaml, StringComparison.Ordinal);
         Assert.Contains("AreOwnerActionsEnabled", xaml, StringComparison.Ordinal);
+        Assert.Contains("Margin=\"0,0,0,16\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding LeaveCommand}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ConfirmRoomLeaveAsync(room.Name, isOwner)", viewModel, StringComparison.Ordinal);
         Assert.Contains("GroupOperation.Mutating", coordinator, StringComparison.Ordinal);

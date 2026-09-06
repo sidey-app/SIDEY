@@ -4,11 +4,16 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml"
     Tapped="OnTapped">
-  <Border Background="#12141B" CornerRadius="14" BorderBrush="#33FFFFFF" BorderThickness="1">
+  <Border
+      Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+      CornerRadius="14"
+      BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+      BorderThickness="1">
     <canvas:CanvasControl
         x:Name="StageCanvas"
         Width="540"
         Height="280"
+        ClearColor="Transparent"
         CreateResources="OnCreateResources"
         Draw="OnDraw"
         Unloaded="OnUnloaded" />

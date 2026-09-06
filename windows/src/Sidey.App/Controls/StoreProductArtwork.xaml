@@ -5,8 +5,10 @@
     xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml">
   <canvas:CanvasControl
       x:Name="ArtworkCanvas"
+      ClearColor="Transparent"
       CreateResources="OnCreateResources"
       Draw="OnDraw"
       IsHitTestVisible="False"
+      Loaded="OnLoaded"
       Unloaded="OnUnloaded" />
 </UserControl>

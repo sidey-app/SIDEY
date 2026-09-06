@@ -19,10 +19,12 @@ public sealed partial class StorePreviewStage : UserControl
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(1000d / 30d) };
     private readonly Stopwatch _clock = new();
     private readonly Dictionary<string, CanvasBitmap> _characters = new(StringComparer.Ordinal);
+    private readonly Color _foregroundColor;
     private CanvasBitmap? _cosmetic;
     private CanvasBitmap? _decoration;
     private CanvasBitmap? _emitter;
     private double _manualThrowStarted = -10;
+    private bool _loadFailed;
 
     public StorePreviewStage(CommerceProductKind kind, string catalogItemId, string characterId)
     {
@@ -30,8 +32,10 @@ public sealed partial class StorePreviewStage : UserControl
         ProductKind = kind;
         CatalogItemId = catalogItemId;
         CharacterId = characterId;
+        var uiSettings = new UISettings();
+        _foregroundColor = uiSettings.GetColorValue(UIColorType.Foreground);
         _timer.Tick += (_, _) => StageCanvas.Invalidate();
-        if (new UISettings().AnimationsEnabled)
+        if (uiSettings.AnimationsEnabled)
         {
             _clock.Start();
             _timer.Start();
@@ -45,36 +49,64 @@ public sealed partial class StorePreviewStage : UserControl
     private async void OnCreateResources(CanvasControl sender, CanvasCreateResourcesEventArgs args)
     {
         _ = args;
-        string root = Path.Combine(SideyDeploymentPaths.DeploymentRoot(), "Assets");
-        foreach (string id in new[] { "pixel_hamster", "pixel_cat", CharacterId }.Distinct(StringComparer.Ordinal))
+        try
         {
-            PixelCharacterDefinition definition = PixelCharacterCatalog.Get(id);
-            string path = Path.Combine(root, definition.SpriteSheetResource.Replace('/', Path.DirectorySeparatorChar));
-            _characters[id] = await CanvasBitmap.LoadAsync(sender, path);
-        }
-        if (ProductKind == CommerceProductKind.Bubble)
-        {
-            _decoration = await CanvasBitmap.LoadAsync(sender,
-                Path.Combine(root, "Bubbles", CatalogItemId, "decoration.png"));
-        }
-        else
-        {
-            string objectId = ProductKind == CommerceProductKind.Throwable
-                ? CatalogItemId
-                : SignatureObject(CharacterId);
-            _cosmetic = await CanvasBitmap.LoadAsync(sender,
-                Path.Combine(root, "Throwables", objectId, "sprite.png"));
-            if (objectId == "throwable_toy_cannon")
+            string root = Path.Combine(SideyDeploymentPaths.DeploymentRoot(), "Assets");
+            foreach (string id in new[] { "pixel_hamster", "pixel_cat", CharacterId }
+                         .Distinct(StringComparer.Ordinal))
             {
-                _emitter = await CanvasBitmap.LoadAsync(sender,
-                    Path.Combine(root, "Throwables", objectId, "emitter.png"));
+                PixelCharacterDefinition definition = PixelCharacterCatalog.Get(id);
+                string path = Path.Combine(
+                    root,
+                    definition.SpriteSheetResource.Replace('/', Path.DirectorySeparatorChar));
+                _characters[id] = await CanvasBitmap.LoadAsync(sender, path);
             }
+            if (ProductKind == CommerceProductKind.Bubble)
+            {
+                _decoration = await CanvasBitmap.LoadAsync(sender,
+                    Path.Combine(root, "Bubbles", CatalogItemId, "decoration.png"));
+            }
+            else
+            {
+                string objectId = ProductKind == CommerceProductKind.Throwable
+                    ? CatalogItemId
+                    : SignatureObject(CharacterId);
+                _cosmetic = await CanvasBitmap.LoadAsync(sender,
+                    Path.Combine(root, "Throwables", objectId, "sprite.png"));
+                if (objectId == "throwable_toy_cannon")
+                {
+                    _emitter = await CanvasBitmap.LoadAsync(sender,
+                        Path.Combine(root, "Throwables", objectId, "emitter.png"));
+                }
+            }
+            _loadFailed = false;
         }
+        catch (Exception)
+        {
+            _loadFailed = true;
+        }
+        sender.Invalidate();
     }
 
     private void OnDraw(CanvasControl sender, CanvasDrawEventArgs args)
     {
         var drawing = args.DrawingSession;
+        if (_loadFailed)
+        {
+            using var format = new CanvasTextFormat
+            {
+                FontFamily = "Segoe UI",
+                FontSize = 14,
+                HorizontalAlignment = CanvasHorizontalAlignment.Center,
+                VerticalAlignment = CanvasVerticalAlignment.Center,
+            };
+            drawing.DrawText(
+                Sidey.Core.Localization.I18n.Get("store.previewUnavailable"),
+                new Rect(20, 20, 500, 240),
+                _foregroundColor,
+                format);
+            return;
+        }
         double elapsed = _clock.IsRunning ? _clock.Elapsed.TotalSeconds : 0;
         DrawFloor(drawing);
         string leftId = ProductKind == CommerceProductKind.Character ? CharacterId : "pixel_hamster";
@@ -94,14 +126,17 @@ public sealed partial class StorePreviewStage : UserControl
         }
     }
 
-    private static void DrawFloor(CanvasDrawingSession drawing)
+    private void DrawFloor(CanvasDrawingSession drawing)
     {
-        drawing.DrawLine(28, 238, 512, 238, Color.FromArgb(90, 255, 255, 255), 1);
+        drawing.DrawLine(28, 238, 512, 238, WithAlpha(_foregroundColor, 70), 1);
         for (int x = 36; x < 510; x += 24)
         {
-            drawing.FillRectangle(x, 242, 12, 2, Color.FromArgb(45, 255, 255, 255));
+            drawing.FillRectangle(x, 242, 12, 2, WithAlpha(_foregroundColor, 35));
         }
     }
+
+    private static Color WithAlpha(Color color, byte alpha) =>
+        Color.FromArgb(alpha, color.R, color.G, color.B);
 
     private void DrawCharacter(CanvasDrawingSession drawing, string id, double x, double y, double elapsed, bool faceLeft)
     {

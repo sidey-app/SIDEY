@@ -122,7 +122,16 @@
                       <TextBlock FontWeight="SemiBold" Text="{i18n:I18n Key=profile.nickname}" />
                       <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=profile.nicknameDescription}" TextWrapping="Wrap" />
                     </StackPanel>
-                    <TextBox Grid.Column="1" MaxLength="8" PlaceholderText="{i18n:I18n Key=onboarding.nicknamePlaceholder}" Text="{Binding Nickname, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Spacing="8">
+                      <TextBox MaxLength="8" PlaceholderText="{i18n:I18n Key=onboarding.nicknamePlaceholder}" Text="{Binding Nickname, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                      <Button
+                          Command="{Binding SaveProfileCommand}"
+                          Content="{i18n:I18n Key=profile.changeNickname}"
+                          HorizontalAlignment="Right"
+                          Style="{StaticResource AccentButtonStyle}"
+                          ToolTipService.ToolTip="{i18n:I18n Key=profile.changeNicknameTooltip}"
+                          Visibility="{Binding HasNicknameChanges, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                    </StackPanel>
                   </Grid>
                   <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
                   <StackPanel Spacing="4">
@@ -131,6 +140,7 @@
                   </StackPanel>
                   <GridView
                       x:Name="CharacterSelector"
+                      IsEnabled="{Binding IsSavingCharacter, Converter={StaticResource InverseBooleanConverter}}"
                       Loaded="OnCharacterSelectorLoaded"
                       ItemsSource="{Binding CharacterSelections}"
                       SelectedValuePath="Id"
@@ -197,17 +207,25 @@
                   </StackPanel>
                   <ItemsRepeater ItemsSource="{Binding BubbleSelections}">
                     <ItemsRepeater.Layout>
-                      <UniformGridLayout MinItemWidth="150" MinItemHeight="104" MinColumnSpacing="8" MinRowSpacing="8" />
+                      <UniformGridLayout
+                          ItemsJustification="Start"
+                          ItemsStretch="Fill"
+                          MaximumRowsOrColumns="4"
+                          MinItemWidth="150"
+                          MinItemHeight="116"
+                          MinColumnSpacing="10"
+                          MinRowSpacing="10"
+                          Orientation="Horizontal" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                       <DataTemplate>
-                        <Button Padding="6" HorizontalContentAlignment="Stretch" Command="{Binding SelectCommand}">
-                          <Grid MinHeight="90">
-                            <StackPanel Spacing="5">
-                              <controls:StoreProductArtwork Height="56" ProductKind="{Binding Kind}" CatalogItemId="{Binding CatalogItemId}" />
-                              <TextBlock HorizontalAlignment="Center" Text="{Binding DisplayName}" TextWrapping="Wrap" />
+                        <Button MinWidth="150" Padding="9" HorizontalContentAlignment="Stretch" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}">
+                          <Grid MinHeight="98">
+                            <StackPanel Spacing="7">
+                              <controls:StoreProductArtwork Height="58" ProductKind="{Binding Kind}" CatalogItemId="{Binding CatalogItemId}" CharacterId="{Binding CharacterId}" />
+                              <TextBlock MinHeight="30" HorizontalAlignment="Center" FontWeight="SemiBold" Text="{Binding DisplayName}" TextAlignment="Center" TextWrapping="Wrap" />
                             </StackPanel>
-                            <Border BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="2" CornerRadius="6" IsHitTestVisible="False" Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <Border BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="3" CornerRadius="8" IsHitTestVisible="False" Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                           </Grid>
                         </Button>
                       </DataTemplate>
@@ -220,24 +238,31 @@
                   </StackPanel>
                   <ItemsRepeater ItemsSource="{Binding ThrowableSelections}">
                     <ItemsRepeater.Layout>
-                      <UniformGridLayout MinItemWidth="150" MinItemHeight="104" MinColumnSpacing="8" MinRowSpacing="8" />
+                      <UniformGridLayout
+                          ItemsJustification="Start"
+                          ItemsStretch="Fill"
+                          MaximumRowsOrColumns="4"
+                          MinItemWidth="150"
+                          MinItemHeight="116"
+                          MinColumnSpacing="10"
+                          MinRowSpacing="10"
+                          Orientation="Horizontal" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                       <DataTemplate>
-                        <Button Padding="6" HorizontalContentAlignment="Stretch" Command="{Binding SelectCommand}">
-                          <Grid MinHeight="90">
-                            <StackPanel Spacing="5">
-                              <controls:StoreProductArtwork Height="56" ProductKind="{Binding Kind}" CatalogItemId="{Binding CatalogItemId}" />
-                              <TextBlock HorizontalAlignment="Center" Text="{Binding DisplayName}" TextWrapping="Wrap" />
+                        <Button MinWidth="150" Padding="9" HorizontalContentAlignment="Stretch" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}">
+                          <Grid MinHeight="98">
+                            <StackPanel Spacing="7">
+                              <controls:StoreProductArtwork Height="58" ProductKind="{Binding Kind}" CatalogItemId="{Binding CatalogItemId}" CharacterId="{Binding CharacterId}" />
+                              <TextBlock MinHeight="30" HorizontalAlignment="Center" FontWeight="SemiBold" Text="{Binding DisplayName}" TextAlignment="Center" TextWrapping="Wrap" />
                             </StackPanel>
-                            <Border BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="2" CornerRadius="6" IsHitTestVisible="False" Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <Border BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="3" CornerRadius="8" IsHitTestVisible="False" Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                           </Grid>
                         </Button>
                       </DataTemplate>
                     </ItemsRepeater.ItemTemplate>
                   </ItemsRepeater>
                   <TextBlock Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="{i18n:I18n Key=profile.duplicateNotice}" />
-                  <Button Command="{Binding SaveProfileCommand}" Content="{i18n:I18n Key=profile.save}" HorizontalAlignment="Right" IsEnabled="{Binding IsSavingProfile, Converter={StaticResource InverseBooleanConverter}}" Style="{StaticResource AccentButtonStyle}" ToolTipService.ToolTip="{i18n:I18n Key=profile.saveTooltip}" />
                 </StackPanel>
               </Border>
             </StackPanel>
@@ -266,7 +291,7 @@
                     </ListView.ItemContainerTransitions>
                     <ListView.ItemTemplate>
                       <DataTemplate>
-                        <StackPanel Padding="4" Spacing="12">
+                        <StackPanel Margin="0,0,0,16" Padding="4" Spacing="12">
                           <StackPanel.Transitions>
                             <TransitionCollection>
                               <EntranceThemeTransition FromVerticalOffset="10" IsStaggeringEnabled="False" />
@@ -423,7 +448,48 @@
                 <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="{i18n:I18n Key=store.title}" />
                 <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=store.description}" />
               </StackPanel>
-              <ItemsRepeater ItemsSource="{Binding StoreProducts}">
+              <Grid ColumnSpacing="12">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Spacing="5">
+                  <TextBlock FontWeight="SemiBold" Text="{i18n:I18n Key=store.productKind}" />
+                  <ComboBox MinWidth="180" SelectedIndex="{Binding SelectedStoreKindIndex, Mode=TwoWay}">
+                    <ComboBoxItem Content="{i18n:I18n Key=store.kindCharacter}" />
+                    <ComboBoxItem Content="{i18n:I18n Key=store.kindBubble}" />
+                    <ComboBoxItem Content="{i18n:I18n Key=store.kindThrowable}" />
+                  </ComboBox>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="5">
+                  <TextBlock FontWeight="SemiBold" Text="{i18n:I18n Key=store.sort}" />
+                  <ComboBox MinWidth="180" SelectedIndex="{Binding SelectedStoreSortIndex, Mode=TwoWay}">
+                    <ComboBoxItem Content="{i18n:I18n Key=store.sortCatalog}" />
+                    <ComboBoxItem Content="{i18n:I18n Key=store.sortPriceAscending}" />
+                    <ComboBoxItem Content="{i18n:I18n Key=store.sortPriceDescending}" />
+                  </ComboBox>
+                </StackPanel>
+                <CheckBox
+                    Grid.Column="2"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom"
+                    Content="{i18n:I18n Key=store.hideOwned}"
+                    IsChecked="{Binding HidesOwnedStoreProducts, Mode=TwoWay}" />
+              </Grid>
+              <StackPanel
+                  MinHeight="220"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  Spacing="8"
+                  Visibility="{Binding HasVisibleStoreProducts, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                <FontIcon HorizontalAlignment="Center" FontSize="28" Glyph="&#xE735;" />
+                <TextBlock HorizontalAlignment="Center" Style="{ThemeResource SubtitleTextBlockStyle}" Text="{i18n:I18n Key=store.emptyTitle}" />
+                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=store.emptyDescription}" TextAlignment="Center" TextWrapping="Wrap" />
+              </StackPanel>
+              <ItemsRepeater
+                  ItemsSource="{Binding VisibleStoreProducts}"
+                  Visibility="{Binding HasVisibleStoreProducts, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <ItemsRepeater.Layout>
                   <UniformGridLayout
                       ItemsJustification="Start"

@@ -60,6 +60,13 @@ public sealed partial class StoreProductArtwork : UserControl
 
     private async void BeginReload() => await LoadAsync(ArtworkCanvas);
 
+    private void OnLoaded(object sender, RoutedEventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        BeginReload();
+    }
+
     private async Task LoadAsync(CanvasControl canvas)
     {
         int generation = Interlocked.Increment(ref _generation);
@@ -86,7 +93,9 @@ public sealed partial class StoreProductArtwork : UserControl
         }
         else
         {
-            string throwableId = string.IsNullOrEmpty(CatalogItemId) ? "patch_soft_ball" : CatalogItemId;
+            string throwableId = string.IsNullOrEmpty(CatalogItemId)
+                ? SignatureObject(CharacterId)
+                : CatalogItemId;
             string preview = Path.Combine(root, "Throwables", throwableId, "preview.png");
             path = File.Exists(preview)
                 ? preview
@@ -156,4 +165,13 @@ public sealed partial class StoreProductArtwork : UserControl
         _bitmap?.Dispose();
         _bitmap = null;
     }
+
+    private static string SignatureObject(string characterId) => characterId switch
+    {
+        "pixel_guinea_pig" => "mini_paprika",
+        "pixel_monkey" => "banana",
+        "pixel_chinchilla" => "dust_bath_pouch",
+        "pixel_starlight_upalupa" => "starlight_orb",
+        _ => "patch_soft_ball",
+    };
 }
