@@ -1,0 +1,7 @@
+interface:
+  display_name: "SIDEY Versioning"
+  short_description: "Classify and verify SIDEY release versions"
+  default_prompt: "Use $sidey-versioning to determine and verify the next SIDEY version from the actual changes."
+
+policy:
+  allow_implicit_invocation: true
