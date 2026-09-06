@@ -410,14 +410,14 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         ExpandedConnectionStatus.Opacity = 1;
     }
 
-    private void OnCharacterSelectorLoaded(object sender, RoutedEventArgs args)
+    private void OnProfileSelectorLoaded(object sender, RoutedEventArgs args)
     {
         _ = sender;
         _ = args;
         UpdateCharacterSelectorColumns();
     }
 
-    private void OnCharacterSelectorSizeChanged(object sender, SizeChangedEventArgs args)
+    private void OnProfileSelectorSizeChanged(object sender, SizeChangedEventArgs args)
     {
         _ = sender;
         _ = args;
@@ -426,13 +426,22 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
 
     private void UpdateCharacterSelectorColumns()
     {
-        if (CharacterSelector.ItemsPanelRoot is not ItemsWrapGrid panel
-            || CharacterSelector.ActualWidth <= 0)
+        if (CharacterSelector.ActualWidth <= 0)
         {
             return;
         }
 
-        panel.ItemWidth = Math.Max(96, Math.Floor((CharacterSelector.ActualWidth - 24d) / 5d));
+        double itemWidth = Math.Max(96, Math.Floor((CharacterSelector.ActualWidth - 24d) / 5d));
+        foreach (GridView selector in new[] { CharacterSelector, BubbleSelector, ThrowableSelector })
+        {
+            if (selector.ItemsPanelRoot is not ItemsWrapGrid panel)
+            {
+                continue;
+            }
+
+            panel.ItemWidth = itemWidth;
+            panel.ItemHeight = 116;
+        }
     }
 
     private void OnNoticeRaised(NoticeMessage notice)

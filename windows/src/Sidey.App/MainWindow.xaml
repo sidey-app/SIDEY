@@ -141,12 +141,12 @@
                   <GridView
                       x:Name="CharacterSelector"
                       IsEnabled="{Binding IsSavingCharacter, Converter={StaticResource InverseBooleanConverter}}"
-                      Loaded="OnCharacterSelectorLoaded"
+                      Loaded="OnProfileSelectorLoaded"
                       ItemsSource="{Binding CharacterSelections}"
                       SelectedValuePath="Id"
                       SelectedValue="{Binding SelectedCharacterId, Mode=TwoWay}"
                       SelectionMode="Single"
-                      SizeChanged="OnCharacterSelectorSizeChanged">
+                      SizeChanged="OnProfileSelectorSizeChanged">
                     <GridView.Resources>
                       <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />
                       <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="Transparent" />
@@ -167,7 +167,7 @@
                     </GridView.ItemContainerStyle>
                     <GridView.ItemTemplate>
                       <DataTemplate>
-                        <Grid MinHeight="96">
+                        <Grid Height="116">
                           <StackPanel Padding="8" Spacing="7">
                             <Border Width="48" Height="48" HorizontalAlignment="Center">
                               <controls:PixelCharacterPreview CharacterId="{Binding CharacterId}" />
@@ -205,21 +205,31 @@
                     <TextBlock FontWeight="SemiBold" Text="{i18n:I18n Key=profile.bubble}" />
                     <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=profile.bubbleDescription}" TextWrapping="Wrap" />
                   </StackPanel>
-                  <ItemsRepeater ItemsSource="{Binding BubbleSelections}">
-                    <ItemsRepeater.Layout>
-                      <UniformGridLayout
-                          ItemsJustification="Start"
-                          ItemsStretch="Fill"
-                          MaximumRowsOrColumns="5"
-                          MinItemWidth="150"
-                          MinItemHeight="116"
-                          MinColumnSpacing="10"
-                          MinRowSpacing="10"
-                          Orientation="Horizontal" />
-                    </ItemsRepeater.Layout>
-                    <ItemsRepeater.ItemTemplate>
+                  <GridView
+                      x:Name="BubbleSelector"
+                      ItemsSource="{Binding BubbleSelections}"
+                      Loaded="OnProfileSelectorLoaded"
+                      SelectionMode="None"
+                      SizeChanged="OnProfileSelectorSizeChanged">
+                    <GridView.Resources>
+                      <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />
+                      <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="Transparent" />
+                    </GridView.Resources>
+                    <GridView.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <ItemsWrapGrid MaximumRowsOrColumns="5" Orientation="Horizontal" />
+                      </ItemsPanelTemplate>
+                    </GridView.ItemsPanel>
+                    <GridView.ItemContainerStyle>
+                      <Style TargetType="GridViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Margin" Value="0" />
+                        <Setter Property="Padding" Value="0" />
+                      </Style>
+                    </GridView.ItemContainerStyle>
+                    <GridView.ItemTemplate>
                       <DataTemplate>
-                        <Button MinWidth="150" Padding="9" HorizontalContentAlignment="Stretch" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}">
+                        <Button Height="116" Padding="9" HorizontalContentAlignment="Stretch" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}">
                           <Grid MinHeight="98">
                             <StackPanel Spacing="7">
                               <controls:StoreProductArtwork Height="58" ProductKind="{Binding Kind}" CatalogItemId="{Binding CatalogItemId}" CharacterId="{Binding CharacterId}" />
@@ -245,28 +255,38 @@
                           </Grid>
                         </Button>
                       </DataTemplate>
-                    </ItemsRepeater.ItemTemplate>
-                  </ItemsRepeater>
+                    </GridView.ItemTemplate>
+                  </GridView>
                   <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
                   <StackPanel Spacing="4">
                     <TextBlock FontWeight="SemiBold" Text="{i18n:I18n Key=profile.throwable}" />
                     <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=profile.throwableDescription}" TextWrapping="Wrap" />
                   </StackPanel>
-                  <ItemsRepeater ItemsSource="{Binding ThrowableSelections}">
-                    <ItemsRepeater.Layout>
-                      <UniformGridLayout
-                          ItemsJustification="Start"
-                          ItemsStretch="Fill"
-                          MaximumRowsOrColumns="5"
-                          MinItemWidth="150"
-                          MinItemHeight="116"
-                          MinColumnSpacing="10"
-                          MinRowSpacing="10"
-                          Orientation="Horizontal" />
-                    </ItemsRepeater.Layout>
-                    <ItemsRepeater.ItemTemplate>
+                  <GridView
+                      x:Name="ThrowableSelector"
+                      ItemsSource="{Binding ThrowableSelections}"
+                      Loaded="OnProfileSelectorLoaded"
+                      SelectionMode="None"
+                      SizeChanged="OnProfileSelectorSizeChanged">
+                    <GridView.Resources>
+                      <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />
+                      <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="Transparent" />
+                    </GridView.Resources>
+                    <GridView.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <ItemsWrapGrid MaximumRowsOrColumns="5" Orientation="Horizontal" />
+                      </ItemsPanelTemplate>
+                    </GridView.ItemsPanel>
+                    <GridView.ItemContainerStyle>
+                      <Style TargetType="GridViewItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="Margin" Value="0" />
+                        <Setter Property="Padding" Value="0" />
+                      </Style>
+                    </GridView.ItemContainerStyle>
+                    <GridView.ItemTemplate>
                       <DataTemplate>
-                        <Button MinWidth="150" Padding="9" HorizontalContentAlignment="Stretch" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}">
+                        <Button Height="116" Padding="9" HorizontalContentAlignment="Stretch" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}">
                           <Grid MinHeight="98">
                             <StackPanel Spacing="7">
                               <controls:StoreProductArtwork Height="58" ProductKind="{Binding Kind}" CatalogItemId="{Binding CatalogItemId}" CharacterId="{Binding CharacterId}" />
@@ -292,8 +312,8 @@
                           </Grid>
                         </Button>
                       </DataTemplate>
-                    </ItemsRepeater.ItemTemplate>
-                  </ItemsRepeater>
+                    </GridView.ItemTemplate>
+                  </GridView>
                   <TextBlock Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="{i18n:I18n Key=profile.duplicateNotice}" />
                 </StackPanel>
               </Border>

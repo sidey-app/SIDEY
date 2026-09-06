@@ -439,10 +439,11 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 cached.Definition.FootBaselinePixel * _integerScale,
                 cached.OnlineContentBounds,
                 pulseScale);
-            if (cached.Definition.MirrorsToMovementDirection
+            if (actionFrame is null
+                && cached.Definition.MirrorsToMovementDirection
                 && Math.Abs(node.Agent.Velocity) > 2d)
             {
-                node.FacingLeft = node.Agent.Velocity < 0d;
+                node.FacingLeft = ShouldMirrorForVelocity(node.Agent.Velocity);
             }
             var flipped = cached.Definition.MirrorsToMovementDirection && node.FacingLeft;
             Composite(
@@ -464,7 +465,9 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                         / (ThrowActionSeconds / CharacterThrowFrameCache.EmitterFrameCount)));
                 Composite(
                     destinationPixels,
-                    _throwFrameCache.CannonEmitterFrame(emitterFrame, flipped),
+                    _throwFrameCache.CannonEmitterFrame(
+                        emitterFrame,
+                        ShouldMirrorEmitter(cannon)),
                     cached.PixelSize,
                     baseDestination.X - _renderBounds.X,
                     baseDestination.Y - _renderBounds.Y,
@@ -879,9 +882,9 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             }
             if (projectile.Start is null)
             {
-                projectile.Start = BodyPoint(actor);
+                projectile.Start = FootPoint(actor.Agent.TrackPosition);
             }
-            var endpoint = BodyPoint(target);
+            var endpoint = FootPoint(target.Agent.TrackPosition);
             projectile.End = endpoint;
             var start = projectile.Start.Value;
             var distancePixels = Math.Sqrt(
@@ -917,7 +920,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             {
                 var elapsed = Stopwatch.GetElapsedTime(impactStarted).TotalSeconds;
                 frame = 8 + Math.Min(3, (int)(elapsed / (ImpactSeconds / 4d)));
-                point = end;
+                point = ImpactPoint(end);
                 renderScale = 1.5d;
             }
             else
@@ -1494,6 +1497,44 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             OverlayEdge.Right => (
                 nameplatePosition.X - normalDistance - body.Width - body.X,
                 worldVisualTangentStart),
+            _ => throw new ArgumentOutOfRangeException(),
+        };
+    }
+
+    private (double X, double Y) ImpactPoint((double X, double Y) foot)
+    {
+        double inward = 10d * _dpiScale;
+        return _edge switch
+        {
+            OverlayEdge.Bottom => (foot.X, foot.Y - inward),
+            OverlayEdge.Top => (foot.X, foot.Y + inward),
+            OverlayEdge.Left => (foot.X + inward, foot.Y),
+            OverlayEdge.Right => (foot.X - inward, foot.Y),
+            _ => throw new ArgumentOutOfRangeException(),
+        };
+    }
+
+    private bool ShouldMirrorForVelocity(double velocity) => _edge switch
+    {
+        OverlayEdge.Bottom or OverlayEdge.Right => velocity < 0d,
+        OverlayEdge.Top or OverlayEdge.Left => velocity > 0d,
+        _ => throw new ArgumentOutOfRangeException(),
+    };
+
+    private bool ShouldMirrorEmitter(ActiveProjectile projectile)
+    {
+        if (!_nodeById.TryGetValue(projectile.Event.ActorUserId, out var actor)
+            || !_nodeById.TryGetValue(projectile.Event.TargetUserId, out var target))
+        {
+            return false;
+        }
+
+        double actorPosition = actor.Agent.TrackPosition;
+        double targetPosition = target.Agent.TrackPosition;
+        return _edge switch
+        {
+            OverlayEdge.Bottom or OverlayEdge.Right => targetPosition < actorPosition,
+            OverlayEdge.Top or OverlayEdge.Left => targetPosition > actorPosition,
             _ => throw new ArgumentOutOfRangeException(),
         };
     }

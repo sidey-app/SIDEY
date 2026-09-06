@@ -254,8 +254,19 @@ public sealed partial class StorePreviewStage : UserControl
             rightX = rightAgent.TrackPosition - 24;
             int leftFrame = CharacterFrame(elapsed, leftAgent.Velocity);
             int rightFrame = CharacterFrame(elapsed + 0.08, rightAgent.Velocity);
-            UpdateFacing(leftAgent, leftId, ref _leftFacingLeft);
-            UpdateFacing(rightAgent, "pixel_cat", ref _rightFacingLeft);
+            double manualThrowElapsed = elapsed - _manualThrowStarted;
+            bool leftActionActive = manualThrowElapsed is >= 0 and < ThrowActionSeconds;
+            double impactStarted = ThrowReleaseSeconds + ThrowFlightSeconds;
+            bool rightActionActive = manualThrowElapsed >= impactStarted
+                && manualThrowElapsed < impactStarted + HitActionSeconds;
+            if (!leftActionActive)
+            {
+                UpdateFacing(leftAgent, leftId, ref _leftFacingLeft);
+            }
+            if (!rightActionActive)
+            {
+                UpdateFacing(rightAgent, "pixel_cat", ref _rightFacingLeft);
+            }
             ApplyCharacterFrame(
                 LeftCharacter,
                 LeftCharacterScale,
@@ -560,10 +571,7 @@ public sealed partial class StorePreviewStage : UserControl
         {
             int emitterFrame = Math.Min(3, (int)(local / (ThrowActionSeconds / 4d)));
             EmitterImage.Source = _emitterFrames[emitterFrame];
-            EmitterScale.ScaleX = PixelCharacterCatalog.Get(actorId).MirrorsToMovementDirection
-                && actorFacingLeft
-                    ? -1
-                    : 1;
+            EmitterScale.ScaleX = leftToRight ? 1 : -1;
             Canvas.SetLeft(EmitterImage, leftToRight ? leftX : rightX);
             Canvas.SetTop(EmitterImage, CharacterTop);
             EmitterImage.Visibility = Visibility.Visible;

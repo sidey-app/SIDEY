@@ -57,7 +57,23 @@ public sealed partial class StoreProductArtwork : UserControl
     {
         _ = sender;
         _ = args;
+        SizeChanged += OnArtworkSizeChanged;
+        UpdateBubblePreviewSize();
         BeginReload();
+    }
+
+    private void OnArtworkSizeChanged(object sender, SizeChangedEventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        UpdateBubblePreviewSize();
+    }
+
+    private void UpdateBubblePreviewSize()
+    {
+        double pointSize = ActualHeight > 64 ? 82 : 56;
+        BubblePreview.Width = pointSize;
+        BubblePreview.Height = Math.Round(pointSize * 0.44);
     }
 
     private async void BeginReload()
@@ -197,6 +213,7 @@ public sealed partial class StoreProductArtwork : UserControl
     {
         _ = sender;
         _ = args;
+        SizeChanged -= OnArtworkSizeChanged;
         Interlocked.Increment(ref _generation);
         PreviewImage.Source = null;
         CannonEmitterImage.Source = null;

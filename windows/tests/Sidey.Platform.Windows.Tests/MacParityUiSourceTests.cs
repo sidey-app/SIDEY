@@ -165,6 +165,21 @@ public sealed class MacParityUiSourceTests
     }
 
     [Fact]
+    public void ThrowActionsKeepFacingAndImpactAtTheMacTorsoPosition()
+    {
+        var renderer = ReadRepositoryFile(
+            "windows", "src", "Sidey.Overlay", "LayeredPixelWorldRenderer.cs");
+
+        Assert.Contains("if (actionFrame is null", renderer, StringComparison.Ordinal);
+        Assert.Contains("ShouldMirrorForVelocity(node.Agent.Velocity)", renderer, StringComparison.Ordinal);
+        Assert.Contains("ShouldMirrorEmitter(cannon)", renderer, StringComparison.Ordinal);
+        Assert.Contains("projectile.Start = FootPoint(actor.Agent.TrackPosition)", renderer, StringComparison.Ordinal);
+        Assert.Contains("var endpoint = FootPoint(target.Agent.TrackPosition)", renderer, StringComparison.Ordinal);
+        Assert.Contains("point = ImpactPoint(end)", renderer, StringComparison.Ordinal);
+        Assert.Contains("double inward = 10d * _dpiScale", renderer, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DevelopmentUpdaterWatchesAtTheStructuredDeploymentRoot()
     {
         var source = ReadRepositoryFile("windows", "src", "Sidey.App", "DevelopmentUpdateService.cs");
@@ -324,6 +339,10 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("MaximumRowsOrColumns=\"5\"", xaml, StringComparison.Ordinal);
         Assert.Contains("ListViewItemBackgroundSelectedPointerOver", xaml, StringComparison.Ordinal);
         Assert.Contains("(CharacterSelector.ActualWidth - 24d) / 5d", source, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"BubbleSelector\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ThrowableSelector\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("new[] { CharacterSelector, BubbleSelector, ThrowableSelector }", source, StringComparison.Ordinal);
+        Assert.Contains("panel.ItemHeight = 116", source, StringComparison.Ordinal);
         Assert.Contains("ItemsControl ItemsSource=\"{Binding Members}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Content=\"{i18n:I18n Key=groups.rename}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding RemoveCommand}\"", xaml, StringComparison.Ordinal);
@@ -380,6 +399,8 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("CannonEmitterImage", artwork, StringComparison.Ordinal);
         Assert.Contains("decoration.png", artworkSource, StringComparison.Ordinal);
         Assert.DoesNotContain("preview.png", artworkSource, StringComparison.Ordinal);
+        Assert.Contains("double pointSize = ActualHeight > 64 ? 82 : 56", artworkSource, StringComparison.Ordinal);
+        Assert.Contains("Height=\"28\"", artwork, StringComparison.Ordinal);
         Assert.Contains("BitmapInterpolationMode.NearestNeighbor", imageLoader, StringComparison.Ordinal);
         Assert.Contains("ConditionalWeakTable<ImageSource, SoftwareBitmap>", imageLoader, StringComparison.Ordinal);
         Assert.Contains("BitmapLifetimes.Add(source, bitmap)", imageLoader, StringComparison.Ordinal);
@@ -398,6 +419,7 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("UpdateFacing", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"SparkleCanvas\"", previewStage, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ImpactImage\"", previewStage, StringComparison.Ordinal);
+        Assert.Contains("EmitterScale.ScaleX = leftToRight ? 1 : -1", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("throw_hit.png", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("projectileFrames = new ImageSource[12]", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("StartAnimation", previewStageSource, StringComparison.Ordinal);
