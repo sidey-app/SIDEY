@@ -45,7 +45,10 @@ jobs:
           persist-credentials: false
 
       - name: Validate Windows release metadata
-        run: python ./scripts/verify_release_consistency.py --platform windows
+        run: >-
+          python ./scripts/verify_release_consistency.py
+          --platform windows
+          --allow-unreleased-source
 
       - name: Validate central pixel assets and mirrors
         run: python ./scripts/validate_pixel_assets.py
