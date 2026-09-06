@@ -188,13 +188,16 @@ html:lang(ja) .store-bubble {
 }
 
 .store-preview-dialog {
+  --store-dialog-border: rgba(255, 255, 255, .8);
+  --store-dialog-surface: rgba(249, 249, 252, .9);
+  --store-dialog-shadow: 0 2rem 5.625rem rgba(24, 23, 44, .28);
   width: min(calc(100% - 1.75rem), 37.5rem);
   padding: 1.875rem;
-  border: .0625rem solid rgba(255, 255, 255, .8);
+  border: .0625rem solid var(--store-dialog-border);
   border-radius: var(--card-radius);
   color: var(--ink);
-  background: rgba(249, 249, 252, .9);
-  box-shadow: 0 2rem 5.625rem rgba(24, 23, 44, .28);
+  background: var(--store-dialog-surface);
+  box-shadow: var(--store-dialog-shadow);
   @include glass(1.5rem, 140%);
 
   &[open] { animation: store-dialog-in 220ms cubic-bezier(.2, .8, .2, 1) both; }
