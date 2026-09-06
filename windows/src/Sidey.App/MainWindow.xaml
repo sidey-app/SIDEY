@@ -210,7 +210,7 @@
                       <UniformGridLayout
                           ItemsJustification="Start"
                           ItemsStretch="Fill"
-                          MaximumRowsOrColumns="4"
+                          MaximumRowsOrColumns="5"
                           MinItemWidth="150"
                           MinItemHeight="116"
                           MinColumnSpacing="10"
@@ -257,7 +257,7 @@
                       <UniformGridLayout
                           ItemsJustification="Start"
                           ItemsStretch="Fill"
-                          MaximumRowsOrColumns="4"
+                          MaximumRowsOrColumns="5"
                           MinItemWidth="150"
                           MinItemHeight="116"
                           MinColumnSpacing="10"

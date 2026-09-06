@@ -347,6 +347,7 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("<TabView", xaml, StringComparison.Ordinal);
         Assert.Contains("<UniformGridLayout", xaml, StringComparison.Ordinal);
         Assert.Contains("MaximumRowsOrColumns=\"5\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("MaximumRowsOrColumns=\"4\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Style=\"{StaticResource SideySettingsCardStyle}\"", xaml, StringComparison.Ordinal);
         Assert.Contains(
             "<controls:StoreProductArtwork",
