@@ -51,10 +51,36 @@ def load_manifest(platform: str) -> dict[str, object]:
     return data
 
 
-def unique_project_value(source: str, setting: str) -> str:
-    values = set(re.findall(rf"\b{re.escape(setting)} = ([^;]+);", source))
-    require(len(values) == 1, f"{setting} must have one value, found {sorted(values)}")
-    return values.pop()
+def project_values_for_bundle_identifier(
+    source: str, bundle_identifier: str, setting: str
+) -> set[str]:
+    values: set[str] = set()
+    matching_configurations = 0
+    for body in re.findall(r"buildSettings = \{(.*?)\n\s*\};", source, re.DOTALL):
+        settings = dict(re.findall(r"\b([A-Z][A-Z0-9_]*) = ([^;]+);", body))
+        configured_bundle = settings.get("PRODUCT_BUNDLE_IDENTIFIER", "").strip('"')
+        if configured_bundle != bundle_identifier:
+            continue
+        matching_configurations += 1
+        if setting in settings:
+            values.add(settings[setting].strip('"'))
+    require(
+        matching_configurations > 0,
+        f"no build configurations found for {bundle_identifier}",
+    )
+    require(
+        len(values) == 1,
+        f"{setting} for {bundle_identifier} must have one value, found {sorted(values)}",
+    )
+    return values
+
+
+def project_value_for_bundle_identifier(
+    source: str, bundle_identifier: str, setting: str
+) -> str:
+    return next(iter(project_values_for_bundle_identifier(
+        source, bundle_identifier, setting
+    )))
 
 
 def validate_macos(allow_pending_appcast: bool = False) -> dict[str, str]:
@@ -67,10 +93,26 @@ def validate_macos(allow_pending_appcast: bool = False) -> dict[str, str]:
     notes = f"docs/releases/{tag}.md"
 
     project = read("macos/SIDEY.xcodeproj/project.pbxproj")
-    require(unique_project_value(project, "MARKETING_VERSION") == version,
+    direct_bundle = "$(SIDEY_APP_BUNDLE_IDENTIFIER)"
+    require(project_value_for_bundle_identifier(
+        project, direct_bundle, "MARKETING_VERSION"
+    ) == version,
             "macOS project version does not match release/macos.json")
-    require(unique_project_value(project, "CURRENT_PROJECT_VERSION") == build,
+    require(project_value_for_bundle_identifier(
+        project, direct_bundle, "CURRENT_PROJECT_VERSION"
+    ) == build,
             "macOS project build does not match release/macos.json")
+    app_store_bundle = "app.sidey.desktop.appstore"
+    app_store_version = project_value_for_bundle_identifier(
+        project, app_store_bundle, "MARKETING_VERSION"
+    )
+    app_store_build = project_value_for_bundle_identifier(
+        project, app_store_bundle, "CURRENT_PROJECT_VERSION"
+    )
+    require(SEMVER.fullmatch(app_store_version) is not None,
+            "Mac App Store target must contain a stable semantic version")
+    require(app_store_build.isdigit() and int(app_store_build) > 0,
+            "Mac App Store target must contain a positive numeric build")
     require((ROOT / notes).is_file(), f"macOS release notes are missing: {notes}")
 
     appcast_path = ROOT / "updates" / "appcast.xml"

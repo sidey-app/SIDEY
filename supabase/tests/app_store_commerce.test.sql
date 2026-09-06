@@ -4,7 +4,7 @@ set local role postgres;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(24);
+select plan(32);
 
 select has_table('private', 'commerce_grants', 'commerce grant ledger exists');
 select has_table('private', 'app_store_transactions', 'App Store transactions exist');
@@ -65,6 +65,70 @@ select is(
    where source_reference = 'transaction:900000000000001'),
   'app_store',
   'App Store provenance stays private'
+);
+select results_eq(
+  $$select entitlement_key, entitlement_status, binding_state
+    from public.admin_apply_app_store_transaction(
+      '61000000-0000-0000-0000-000000000002', '900000000000010',
+      '900000000000010', 'bubble_starry_cat',
+      '61000000-0000-0000-0000-000000000002', 'Sandbox', 'active',
+      now() - interval '1 minute', null, now(), repeat('1', 64)
+    )$$,
+  $$values ('bubble:bubble_starry_cat'::text, 'active'::text, 'bound'::text)$$,
+  'verified App Store bubble transaction grants the mapped entitlement'
+);
+select is(
+  (select status from public.commerce_entitlements
+   where user_id = '61000000-0000-0000-0000-000000000002'
+     and entitlement_key = 'bubble:bubble_starry_cat'),
+  'active',
+  'App Store bubble grant updates the public projection'
+);
+select results_eq(
+  $$select entitlement_key, entitlement_status, binding_state
+    from public.admin_apply_app_store_transaction(
+      '61000000-0000-0000-0000-000000000002', '900000000000011',
+      '900000000000011', 'throwable_toy_cannon',
+      '61000000-0000-0000-0000-000000000002', 'Sandbox', 'active',
+      now() - interval '1 minute', null, now(), repeat('2', 64)
+    )$$,
+  $$values ('throwable:throwable_toy_cannon'::text, 'active'::text, 'bound'::text)$$,
+  'verified App Store throwable transaction grants the mapped entitlement'
+);
+select is(
+  (select status from public.commerce_entitlements
+   where user_id = '61000000-0000-0000-0000-000000000002'
+     and entitlement_key = 'throwable:throwable_toy_cannon'),
+  'active',
+  'App Store throwable grant updates the public projection'
+);
+select is(
+  (select equipped_bubble_style_id from public.profiles
+   where id = '61000000-0000-0000-0000-000000000002'),
+  null,
+  'server reconciliation does not auto-equip restored App Store bubbles'
+);
+select is(
+  (select equipped_throwable_id from public.profiles
+   where id = '61000000-0000-0000-0000-000000000002'),
+  null,
+  'server reconciliation does not auto-equip restored App Store throwables'
+);
+select lives_ok(
+  $$select * from public.admin_apply_app_store_transaction(
+      '61000000-0000-0000-0000-000000000002', '900000000000010',
+      '900000000000010', 'bubble_starry_cat',
+      '61000000-0000-0000-0000-000000000002', 'Sandbox', 'refunded',
+      now() - interval '1 minute', now(), now() + interval '2 seconds', repeat('3', 64)
+    )$$,
+  'an App Store bubble refund is accepted'
+);
+select is(
+  (select status from public.commerce_entitlements
+   where user_id = '61000000-0000-0000-0000-000000000002'
+     and entitlement_key = 'bubble:bubble_starry_cat'),
+  'refunded',
+  'refunding the only App Store bubble grant revokes ownership'
 );
 select throws_ok(
   $$select * from public.admin_apply_app_store_transaction(
