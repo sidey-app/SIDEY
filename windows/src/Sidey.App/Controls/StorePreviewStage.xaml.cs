@@ -46,9 +46,13 @@ public sealed partial class StorePreviewStage : UserControl
     public string CatalogItemId { get; }
     public string CharacterId { get; }
 
-    private async void OnCreateResources(CanvasControl sender, CanvasCreateResourcesEventArgs args)
+    private void OnCreateResources(CanvasControl sender, CanvasCreateResourcesEventArgs args)
     {
-        _ = args;
+        args.TrackAsyncAction(LoadResourcesAsync(sender).AsAsyncAction());
+    }
+
+    private async Task LoadResourcesAsync(CanvasControl sender)
+    {
         try
         {
             string root = Path.Combine(SideyDeploymentPaths.DeploymentRoot(), "Assets");

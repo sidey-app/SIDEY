@@ -356,12 +356,20 @@ public sealed class MacParityUiSourceTests
             "windows", "src", "Sidey.App", "MainWindow.xaml.cs"), StringComparison.Ordinal);
         string artwork = ReadRepositoryFile(
             "windows", "src", "Sidey.App", "Controls", "StoreProductArtwork.xaml");
+        string artworkSource = ReadRepositoryFile(
+            "windows", "src", "Sidey.App", "Controls", "StoreProductArtwork.xaml.cs");
         string previewStage = ReadRepositoryFile(
             "windows", "src", "Sidey.App", "Controls", "StorePreviewStage.xaml");
+        string previewStageSource = ReadRepositoryFile(
+            "windows", "src", "Sidey.App", "Controls", "StorePreviewStage.xaml.cs");
         Assert.Contains("Loaded=\"OnLoaded\"", artwork, StringComparison.Ordinal);
         Assert.Contains("ClearColor=\"Transparent\"", artwork, StringComparison.Ordinal);
+        Assert.Contains("<local:PixelCharacterPreview", artwork, StringComparison.Ordinal);
+        Assert.Contains("TrackAsyncAction", artworkSource, StringComparison.Ordinal);
         Assert.Contains("CardBackgroundFillColorDefaultBrush", previewStage, StringComparison.Ordinal);
         Assert.DoesNotContain("Background=\"#12141B\"", previewStage, StringComparison.Ordinal);
+        Assert.Contains("TrackAsyncAction", previewStageSource, StringComparison.Ordinal);
+        Assert.True(CountOccurrences(xaml, "Glyph=\"&#xE73E;\"") >= 3);
         Assert.Contains("IsEnabled=\"{Binding IsActionEnabled}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("IsActionEnabled = commerceEnabled", productViewModel, StringComparison.Ordinal);
         Assert.Contains("IsPreviewOnlyVisible = !commerceEnabled", productViewModel, StringComparison.Ordinal);

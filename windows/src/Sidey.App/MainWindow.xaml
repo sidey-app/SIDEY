@@ -226,6 +226,22 @@
                               <TextBlock MinHeight="30" HorizontalAlignment="Center" FontWeight="SemiBold" Text="{Binding DisplayName}" TextAlignment="Center" TextWrapping="Wrap" />
                             </StackPanel>
                             <Border BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="3" CornerRadius="8" IsHitTestVisible="False" Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <Border
+                                Width="22"
+                                Height="22"
+                                Margin="6"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                CornerRadius="11"
+                                IsHitTestVisible="False"
+                                Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                              <FontIcon
+                                  FontFamily="Segoe Fluent Icons"
+                                  FontSize="11"
+                                  Foreground="White"
+                                  Glyph="&#xE73E;" />
+                            </Border>
                           </Grid>
                         </Button>
                       </DataTemplate>
@@ -257,6 +273,22 @@
                               <TextBlock MinHeight="30" HorizontalAlignment="Center" FontWeight="SemiBold" Text="{Binding DisplayName}" TextAlignment="Center" TextWrapping="Wrap" />
                             </StackPanel>
                             <Border BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="3" CornerRadius="8" IsHitTestVisible="False" Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <Border
+                                Width="22"
+                                Height="22"
+                                Margin="6"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Top"
+                                Background="{ThemeResource AccentFillColorDefaultBrush}"
+                                CornerRadius="11"
+                                IsHitTestVisible="False"
+                                Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
+                              <FontIcon
+                                  FontFamily="Segoe Fluent Icons"
+                                  FontSize="11"
+                                  Foreground="White"
+                                  Glyph="&#xE73E;" />
+                            </Border>
                           </Grid>
                         </Button>
                       </DataTemplate>

@@ -25,7 +25,11 @@ public sealed partial class StoreProductArtwork : UserControl
     private Rect _source;
     private int _generation;
 
-    public StoreProductArtwork() => InitializeComponent();
+    public StoreProductArtwork()
+    {
+        InitializeComponent();
+        UpdateVisualMode();
+    }
 
     public CommerceProductKind ProductKind
     {
@@ -46,16 +50,30 @@ public sealed partial class StoreProductArtwork : UserControl
     private static void OnProductChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
     {
         _ = args;
-        if (((StoreProductArtwork)sender).IsLoaded)
+        var artwork = (StoreProductArtwork)sender;
+        artwork.UpdateVisualMode();
+        if (artwork.IsLoaded && artwork.ProductKind != CommerceProductKind.Character)
         {
-            ((StoreProductArtwork)sender).BeginReload();
+            artwork.BeginReload();
         }
     }
 
-    private async void OnCreateResources(CanvasControl sender, CanvasCreateResourcesEventArgs args)
+    private void UpdateVisualMode()
     {
-        _ = args;
-        await LoadAsync(sender);
+        if (CharacterPreview is null || ArtworkCanvas is null)
+        {
+            return;
+        }
+
+        bool isCharacter = ProductKind == CommerceProductKind.Character;
+        CharacterPreview.CharacterId = CharacterId;
+        CharacterPreview.Visibility = isCharacter ? Visibility.Visible : Visibility.Collapsed;
+        ArtworkCanvas.Visibility = isCharacter ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void OnCreateResources(CanvasControl sender, CanvasCreateResourcesEventArgs args)
+    {
+        args.TrackAsyncAction(LoadAsync(sender).AsAsyncAction());
     }
 
     private async void BeginReload() => await LoadAsync(ArtworkCanvas);
@@ -64,7 +82,11 @@ public sealed partial class StoreProductArtwork : UserControl
     {
         _ = sender;
         _ = args;
-        BeginReload();
+        UpdateVisualMode();
+        if (ProductKind != CommerceProductKind.Character)
+        {
+            BeginReload();
+        }
     }
 
     private async Task LoadAsync(CanvasControl canvas)
@@ -107,7 +129,7 @@ public sealed partial class StoreProductArtwork : UserControl
         try
         {
             loaded = await CanvasBitmap.LoadAsync(canvas, path);
-            if (generation != Volatile.Read(ref _generation) || !IsLoaded)
+            if (generation != Volatile.Read(ref _generation))
             {
                 loaded.Dispose();
                 return;
