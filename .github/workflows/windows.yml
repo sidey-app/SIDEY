@@ -110,6 +110,24 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Restore development-commerce candidate
+        run: dotnet restore windows/SIDEY.Windows.slnx
+
+      - name: Build development-commerce candidate
+        run: >-
+          dotnet build windows/SIDEY.Windows.slnx
+          --configuration Debug
+          --no-restore
+          -p:SideyDevelopmentCommerce=true
+
+      - name: Test development-commerce candidate
+        run: >-
+          dotnet test windows/SIDEY.Windows.slnx
+          --configuration Debug
+          --no-restore
+          --no-build
+          -p:SideyDevelopmentCommerce=true
+
       - name: Install pinned NSIS compiler
         id: nsis
         run: |
@@ -129,13 +147,13 @@ jobs:
       - name: Build Setup EXE candidate
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          dotnet restore windows/SIDEY.Windows.slnx
           dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
-            --configuration Release `
+            --configuration Debug `
             --runtime win-x64 `
             --self-contained true `
             --no-restore `
             -p:PublishSingleFile=false `
+            -p:SideyDevelopmentCommerce=true `
             --output build/windows/publish
           ./scripts/windows/smoke-launch.ps1 `
             -PublishDir ./build/windows/publish
