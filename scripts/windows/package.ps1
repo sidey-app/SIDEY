@@ -185,8 +185,13 @@ foreach ($throwableDirectory in @(Get-ChildItem -LiteralPath $throwableAssetRoot
     $fileNames = @(Get-ChildItem -LiteralPath $throwableDirectory.FullName -File |
         Select-Object -ExpandProperty Name |
         Sort-Object)
-    if (@(Compare-Object @('sprite.bgra', 'sprite.png') $fileNames).Count -gt 0) {
-        throw "투척물 외부 에셋에는 sprite PNG·BGRA 세트만 둘 수 있음: $($throwableDirectory.FullName)"
+    $expectedFileNames = @('sprite.bgra', 'sprite.png')
+    if ($throwableDirectory.Name -eq 'throwable_toy_cannon') {
+        $expectedFileNames += @('emitter.bgra', 'emitter.png', 'preview.png')
+    }
+    $expectedFileNames = @($expectedFileNames | Sort-Object)
+    if (@(Compare-Object $expectedFileNames $fileNames).Count -gt 0) {
+        throw "투척물 외부 에셋 구성이 허용 목록과 다름: $($throwableDirectory.FullName)"
     }
 }
 
