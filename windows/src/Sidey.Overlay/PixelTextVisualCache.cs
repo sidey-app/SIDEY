@@ -20,11 +20,18 @@ internal readonly record struct BubblePalette(
     byte BorderBlue,
     byte BorderAlpha);
 
+internal readonly record struct PixelVisualBodyBounds(
+    int X,
+    int Y,
+    int Width,
+    int Height);
+
 internal sealed record PremultipliedVisual(
     byte[] Pixels,
     int Width,
     int Height,
-    BubblePalette? BubblePalette = null);
+    BubblePalette? BubblePalette = null,
+    PixelVisualBodyBounds? BubbleBodyBounds = null);
 
 internal sealed record PixelMemberVisuals(
     PremultipliedVisual Nameplate,
@@ -84,7 +91,11 @@ internal sealed class PixelTextVisualCache : IDisposable
             bubbleMaximumWidthDip,
             24f,
             BubbleMaximumWidthDip);
-        _decorationScale = PixelScalePolicy.IntegerScale(dpi);
+        // Bubble decorations are authored at their 16-DIP presentation size.
+        // Character sprites intentionally use a separate 2x logical scale.
+        _decorationScale = Math.Max(
+            1,
+            (int)Math.Round(dpi / 96d, MidpointRounding.AwayFromZero));
         if (bubbleAssetRoot is not null)
         {
             foreach (string id in CosmeticCatalog.BubbleStyleIds)
@@ -222,7 +233,7 @@ internal sealed class PixelTextVisualCache : IDisposable
             {
                 BubblePalette = theme.Palette,
             };
-            Decorate(visual, bubble.BubbleStyleId);
+            visual = Decorate(visual, bubble.BubbleStyleId);
             messageBubbles.Add(bubble.MessageId, PixelVisualOrientation.Apply(visual, _edge));
         }
         IReadOnlyList<PremultipliedVisual> typingFrames = key.IsTyping
@@ -254,7 +265,7 @@ internal sealed class PixelTextVisualCache : IDisposable
         {
             BubblePalette = theme.Palette,
         };
-        Decorate(visual, bubbleStyleId);
+        visual = Decorate(visual, bubbleStyleId);
         return PixelVisualOrientation.Apply(visual, _edge);
     }
 
@@ -574,16 +585,31 @@ internal sealed class PixelTextVisualCache : IDisposable
         return new PremultipliedVisual(scaled, size, size);
     }
 
-    private void Decorate(PremultipliedVisual target, string? id)
+    private PremultipliedVisual Decorate(PremultipliedVisual body, string? id)
     {
         if (id is null || !_decorations.TryGetValue(id, out var decoration))
         {
-            return;
+            return body;
         }
+
         int inset = Math.Max(1, (int)Math.Round(2d * _dpi / 96d));
-        for (int y = 0; y < decoration.Height && y + inset < target.Height; y++)
+        int leadingOverflow = Math.Max(0, (decoration.Width / 2) - inset);
+        int topOverflow = decoration.Height / 2;
+        int width = checked(body.Width + leadingOverflow);
+        int height = checked(body.Height + topOverflow);
+        var pixels = new byte[checked(width * height * 4)];
+        for (int y = 0; y < body.Height; y++)
         {
-            for (int x = 0; x < decoration.Width && x + inset < target.Width; x++)
+            int source = y * body.Width * 4;
+            int destination = (((y + topOverflow) * width) + leadingOverflow) * 4;
+            body.Pixels.AsSpan(source, body.Width * 4).CopyTo(pixels.AsSpan(destination));
+        }
+
+        int decorationX = leadingOverflow + inset - (decoration.Width / 2);
+        int decorationY = topOverflow - (decoration.Height / 2);
+        for (int y = 0; y < decoration.Height && y + decorationY < height; y++)
+        {
+            for (int x = 0; x < decoration.Width && x + decorationX < width; x++)
             {
                 int source = ((y * decoration.Width) + x) * 4;
                 byte alpha = decoration.Pixels[source + 3];
@@ -591,22 +617,34 @@ internal sealed class PixelTextVisualCache : IDisposable
                 {
                     continue;
                 }
-                int destination = (((y + inset) * target.Width) + x + inset) * 4;
+                int destination = (((y + decorationY) * width) + x + decorationX) * 4;
                 int inverse = 255 - alpha;
-                target.Pixels[destination] = (byte)Math.Min(
+                pixels[destination] = (byte)Math.Min(
                     255,
-                    decoration.Pixels[source] + (target.Pixels[destination] * inverse / 255));
-                target.Pixels[destination + 1] = (byte)Math.Min(
+                    decoration.Pixels[source] + (pixels[destination] * inverse / 255));
+                pixels[destination + 1] = (byte)Math.Min(
                     255,
-                    decoration.Pixels[source + 1] + (target.Pixels[destination + 1] * inverse / 255));
-                target.Pixels[destination + 2] = (byte)Math.Min(
+                    decoration.Pixels[source + 1] + (pixels[destination + 1] * inverse / 255));
+                pixels[destination + 2] = (byte)Math.Min(
                     255,
-                    decoration.Pixels[source + 2] + (target.Pixels[destination + 2] * inverse / 255));
-                target.Pixels[destination + 3] = (byte)Math.Min(
+                    decoration.Pixels[source + 2] + (pixels[destination + 2] * inverse / 255));
+                pixels[destination + 3] = (byte)Math.Min(
                     255,
-                    alpha + (target.Pixels[destination + 3] * inverse / 255));
+                    alpha + (pixels[destination + 3] * inverse / 255));
             }
         }
+
+        Array.Clear(body.Pixels);
+        return new PremultipliedVisual(
+            pixels,
+            width,
+            height,
+            body.BubblePalette,
+            new PixelVisualBodyBounds(
+                leadingOverflow,
+                topOverflow,
+                body.Width,
+                body.Height));
     }
 
     private readonly record struct BubbleTheme(

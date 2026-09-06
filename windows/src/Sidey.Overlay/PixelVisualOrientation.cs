@@ -30,7 +30,42 @@ internal static class PixelVisualOrientation
         }
 
         Array.Clear(source.Pixels);
-        return new PremultipliedVisual(pixels, width, height, source.BubblePalette);
+        return new PremultipliedVisual(
+            pixels,
+            width,
+            height,
+            source.BubblePalette,
+            RotateBodyBounds(source, edge));
+    }
+
+    private static PixelVisualBodyBounds? RotateBodyBounds(
+        PremultipliedVisual source,
+        OverlayEdge edge)
+    {
+        if (source.BubbleBodyBounds is not { } body)
+        {
+            return null;
+        }
+
+        return edge switch
+        {
+            OverlayEdge.Top => new PixelVisualBodyBounds(
+                source.Width - body.X - body.Width,
+                source.Height - body.Y - body.Height,
+                body.Width,
+                body.Height),
+            OverlayEdge.Left => new PixelVisualBodyBounds(
+                source.Height - body.Y - body.Height,
+                body.X,
+                body.Height,
+                body.Width),
+            OverlayEdge.Right => new PixelVisualBodyBounds(
+                body.Y,
+                source.Width - body.X - body.Width,
+                body.Height,
+                body.Width),
+            _ => throw new ArgumentOutOfRangeException(nameof(edge)),
+        };
     }
 
     private static (int X, int Y) SourceCoordinate(

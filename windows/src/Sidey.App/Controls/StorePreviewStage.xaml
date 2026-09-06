@@ -41,14 +41,6 @@
               BorderThickness="1"
               CornerRadius="10">
             <Grid>
-              <Image
-                  x:Name="BubbleDecoration"
-                  Width="16"
-                  Height="16"
-                  Margin="5"
-                  HorizontalAlignment="Left"
-                  VerticalAlignment="Top"
-                  Stretch="None" />
               <TextBlock
                   x:Name="BubbleText"
                   Margin="10,0"
@@ -58,6 +50,11 @@
                   TextAlignment="Center" />
             </Grid>
           </Border>
+          <Image
+              x:Name="BubbleDecoration"
+              Width="16"
+              Height="16"
+              Stretch="None" />
           <Polygon
               x:Name="BubbleTail"
               Canvas.Top="41"
@@ -66,17 +63,17 @@
               StrokeThickness="1" />
         </Canvas>
 
-        <Image x:Name="LeftCharacter" Width="48" Height="48" Canvas.Top="208" Stretch="None">
+        <Image x:Name="LeftCharacter" Width="48" Height="48" Canvas.Top="214" Stretch="None">
           <Image.RenderTransform>
             <ScaleTransform x:Name="LeftCharacterScale" CenterX="24" CenterY="24" />
           </Image.RenderTransform>
         </Image>
-        <Image x:Name="RightCharacter" Width="48" Height="48" Canvas.Top="208" Stretch="None">
+        <Image x:Name="RightCharacter" Width="48" Height="48" Canvas.Top="214" Stretch="None">
           <Image.RenderTransform>
             <ScaleTransform x:Name="RightCharacterScale" CenterX="24" CenterY="24" ScaleX="-1" />
           </Image.RenderTransform>
         </Image>
-        <Image x:Name="EmitterImage" Width="48" Height="48" Canvas.Top="208" Stretch="None" Visibility="Collapsed" />
+        <Image x:Name="EmitterImage" Width="48" Height="48" Canvas.Top="214" Stretch="None" Visibility="Collapsed" />
         <Image x:Name="ProjectileImage" Width="32" Height="32" Stretch="None" Visibility="Collapsed">
           <Image.RenderTransform>
             <ScaleTransform x:Name="ProjectileScale" CenterX="16" CenterY="16" />

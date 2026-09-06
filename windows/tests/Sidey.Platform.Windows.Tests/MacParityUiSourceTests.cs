@@ -241,6 +241,9 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("BuildTypingFrame(\"..\", key.TypingBubbleStyleId)", source, StringComparison.Ordinal);
         Assert.Contains("BuildTypingFrame(\"...\", key.TypingBubbleStyleId)", source, StringComparison.Ordinal);
         Assert.Contains("ResolveTheme(bubble.BubbleStyleId)", source, StringComparison.Ordinal);
+        Assert.Contains("dpi / 96d", source, StringComparison.Ordinal);
+        Assert.Contains("PixelVisualBodyBounds", source, StringComparison.Ordinal);
+        Assert.Contains("leadingOverflow", source, StringComparison.Ordinal);
         Assert.DoesNotContain("bubble.Body.Length * 8d", renderer, StringComparison.Ordinal);
     }
 
@@ -388,6 +391,8 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("UpdateThrow", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("PixelMovementSimulation.Step", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("WalkFrameSeconds", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("RenderedFootBaseline = 6", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("TurnFromWall", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("StartAnimation", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("StopAnimation", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("_timer.Start()", previewStageSource, StringComparison.Ordinal);

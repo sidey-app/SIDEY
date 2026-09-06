@@ -67,6 +67,30 @@ public sealed class OverlayBehaviorPolicyTests
         Assert.Equal(expectedBlueValues, BlueValues(oriented));
     }
 
+    [Theory]
+    [InlineData(OverlayEdge.Top, 2, 1, 6, 4)]
+    [InlineData(OverlayEdge.Left, 1, 2, 4, 6)]
+    [InlineData(OverlayEdge.Right, 3, 2, 4, 6)]
+    public void RotatedBubbleKeepsTrackOfItsBodyBounds(
+        OverlayEdge edge,
+        int expectedX,
+        int expectedY,
+        int expectedWidth,
+        int expectedHeight)
+    {
+        var source = new PremultipliedVisual(
+            new byte[10 * 8 * 4],
+            10,
+            8,
+            BubbleBodyBounds: new PixelVisualBodyBounds(2, 3, 6, 4));
+
+        var oriented = PixelVisualOrientation.Apply(source, edge);
+
+        Assert.Equal(
+            new PixelVisualBodyBounds(expectedX, expectedY, expectedWidth, expectedHeight),
+            oriented.BubbleBodyBounds);
+    }
+
     private static CharacterPulseEvent Pulse() => new(
         Guid.NewGuid(),
         Guid.NewGuid(),

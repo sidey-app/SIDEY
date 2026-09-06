@@ -14,7 +14,11 @@ namespace Sidey.App.Controls;
 public sealed partial class StorePreviewStage : UserControl
 {
     private const double StageWidth = 540;
-    private const double CharacterTop = 208;
+    private const double PlatformTop = 256;
+    private const double RenderedCharacterSize = 48;
+    private const double RenderedFootBaseline = 6;
+    private const double CharacterTop = PlatformTop - RenderedCharacterSize + RenderedFootBaseline;
+    private const double PreviewWallInset = 12;
     private const double WalkFrameSeconds = 0.16;
     private static readonly IReadOnlyList<RectD> NoAvoidanceRects = Array.Empty<RectD>();
     private static readonly IReadOnlySet<Guid> NoStoppedIds = new HashSet<Guid>();
@@ -23,7 +27,8 @@ public sealed partial class StorePreviewStage : UserControl
     private readonly Dictionary<string, IReadOnlyList<ImageSource>> _characters = new(StringComparer.Ordinal);
     private readonly EdgeTrackGeometry _movementGeometry = new(
         new RectD(0, 0, StageWidth, 280),
-        OverlayEdge.Bottom);
+        OverlayEdge.Bottom,
+        tangentExtent: RenderedCharacterSize + (PreviewWallInset * 2));
     private readonly List<PixelMovementAgent> _movementAgents = [];
     private readonly PixelMovementScratch _movementScratch = new();
     private readonly Random _random = new(0x51DE59);
@@ -248,8 +253,12 @@ public sealed partial class StorePreviewStage : UserControl
         Canvas.SetTop(LeftCharacter, CharacterTop);
         Canvas.SetLeft(RightCharacter, rightX);
         Canvas.SetTop(RightCharacter, CharacterTop);
-        Canvas.SetLeft(LeftNameplate, leftX - 10);
-        Canvas.SetLeft(RightNameplate, rightX - 10);
+        Canvas.SetLeft(
+            LeftNameplate,
+            Math.Clamp(leftX - 10, 4, StageWidth - LeftNameplate.Width - 4));
+        Canvas.SetLeft(
+            RightNameplate,
+            Math.Clamp(rightX - 10, 4, StageWidth - RightNameplate.Width - 4));
     }
 
     private void BuildMovementAgents()
@@ -275,6 +284,8 @@ public sealed partial class StorePreviewStage : UserControl
             : Math.Clamp(elapsed - _lastSceneElapsed, 0, 0.1);
         _lastSceneElapsed = elapsed;
 
+        double lower = _movementGeometry.TrackLowerBound;
+        double upper = _movementGeometry.TrackUpperBound;
         foreach (PixelMovementAgent agent in _movementAgents)
         {
             if (Math.Abs(agent.Target - agent.TrackPosition) > 2)
@@ -282,9 +293,19 @@ public sealed partial class StorePreviewStage : UserControl
                 continue;
             }
 
-            double length = _movementGeometry.TrackUpperBound - _movementGeometry.TrackLowerBound;
-            agent.Target = _movementGeometry.TrackLowerBound + (_random.NextDouble() * length);
-            agent.IdleRemaining = 0.6 + (_random.NextDouble() * 1.4);
+            if (agent.TrackPosition <= lower + 2)
+            {
+                TurnFromWall(agent, towardUpper: true, lower, upper);
+            }
+            else if (agent.TrackPosition >= upper - 2)
+            {
+                TurnFromWall(agent, towardUpper: false, lower, upper);
+            }
+            else
+            {
+                agent.Target = RandomTarget(lower, upper);
+                agent.IdleRemaining = 0.6 + (_random.NextDouble() * 1.4);
+            }
         }
 
         PixelMovementSimulation.Step(
@@ -294,6 +315,37 @@ public sealed partial class StorePreviewStage : UserControl
             NoAvoidanceRects,
             NoStoppedIds,
             _movementScratch);
+
+        foreach (PixelMovementAgent agent in _movementAgents)
+        {
+            if (agent.TrackPosition <= lower + 0.01 && agent.Velocity < 0)
+            {
+                TurnFromWall(agent, towardUpper: true, lower, upper);
+            }
+            else if (agent.TrackPosition >= upper - 0.01 && agent.Velocity > 0)
+            {
+                TurnFromWall(agent, towardUpper: false, lower, upper);
+            }
+        }
+    }
+
+    private double RandomTarget(double lower, double upper) =>
+        lower + (_random.NextDouble() * (upper - lower));
+
+    private void TurnFromWall(
+        PixelMovementAgent agent,
+        bool towardUpper,
+        double lower,
+        double upper)
+    {
+        double midpoint = lower + ((upper - lower) / 2d);
+        agent.Target = towardUpper
+            ? midpoint + (_random.NextDouble() * (upper - midpoint))
+            : lower + (_random.NextDouble() * (midpoint - lower));
+        agent.Velocity = towardUpper
+            ? Math.Max(6, Math.Abs(agent.Velocity))
+            : -Math.Max(6, Math.Abs(agent.Velocity));
+        agent.IdleRemaining = 0;
     }
 
     private static int CharacterFrame(double elapsed, double velocity) =>
@@ -323,13 +375,27 @@ public sealed partial class StorePreviewStage : UserControl
             ? new string('.', 1 + ((int)(local * 3) % 3))
             : fromLeft ? "저메추좀 해줘" : "곱도리탕 어때?";
         double bubbleWidth = typing ? 54 : 142;
-        BubblePreview.Width = bubbleWidth;
+        double decorationLeadingOverflow = typing ? 0 : 6;
+        double decorationTopOverflow = typing ? 0 : 8;
+        BubblePreview.Width = bubbleWidth + decorationLeadingOverflow;
+        BubblePreview.Height = 50 + decorationTopOverflow;
         BubbleBody.Width = bubbleWidth;
+        Canvas.SetLeft(BubbleBody, decorationLeadingOverflow);
+        Canvas.SetTop(BubbleBody, decorationTopOverflow);
         BubbleDecoration.Visibility = typing ? Visibility.Collapsed : Visibility.Visible;
-        Canvas.SetLeft(BubbleTail, fromLeft ? 18 : bubbleWidth - 32);
+        Canvas.SetLeft(BubbleDecoration, 0);
+        Canvas.SetTop(BubbleDecoration, 0);
+        Canvas.SetTop(BubbleTail, 41 + decorationTopOverflow);
+        Canvas.SetLeft(
+            BubbleTail,
+            decorationLeadingOverflow + (fromLeft ? 18 : bubbleWidth - 32));
+        double bodyLeft = fromLeft
+            ? leftX - 4
+            : rightX + 48 - bubbleWidth + 4;
         Canvas.SetLeft(
             BubblePreview,
-            fromLeft ? leftX - 4 : rightX + 48 - BubblePreview.Width + 4);
+            bodyLeft - decorationLeadingOverflow);
+        Canvas.SetTop(BubblePreview, 132 - decorationTopOverflow);
         BubblePreview.Visibility = Visibility.Visible;
     }
 

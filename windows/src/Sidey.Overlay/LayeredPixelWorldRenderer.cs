@@ -608,12 +608,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 continue;
             }
 
+            var start = ClampedBubbleVisualTangentStart(senderTangent, bubble);
             var extent = BubbleTangentExtent(bubble);
-            var start = MessageBubbleLayoutPolicy.ClampedTangentStart(
-                senderTangent,
-                _geometry.TangentLength,
-                extent,
-                _bubbleTangentMarginPixels);
             lower = Math.Min(lower, start);
             upper = Math.Max(upper, start + extent);
         }
@@ -1335,11 +1331,16 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private void CompositeBubbleTail(
         Span<byte> destination,
-        (int X, int Y) bodyPosition,
-        PremultipliedVisual body,
+        (int X, int Y) visualPosition,
+        PremultipliedVisual visual,
         double senderTangent)
     {
-        var bodyBounds = new RectD(bodyPosition.X, bodyPosition.Y, body.Width, body.Height);
+        var localBody = BubbleBodyBounds(visual);
+        var bodyBounds = new RectD(
+            visualPosition.X + localBody.X,
+            visualPosition.Y + localBody.Y,
+            localBody.Width,
+            localBody.Height);
         var tail = MessageBubbleLayoutPolicy.Tail(
             _edge,
             bodyBounds,
@@ -1354,7 +1355,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             tail,
             bodyBounds,
             _dpiScale,
-            body.BubblePalette);
+            visual.BubblePalette);
     }
 
     private void CompositeVisual(
@@ -1483,28 +1484,48 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         PremultipliedVisual nameplate,
         (int X, int Y) nameplatePosition)
     {
-        var tangentStart = MessageBubbleLayoutPolicy.ClampedTangentStart(
-            senderTangent,
-            _geometry.TangentLength,
-            BubbleTangentExtent(visual),
-            _bubbleTangentMarginPixels);
-        var worldTangentStart = (int)Math.Round(tangentStart) + TangentWorldOrigin();
+        var body = BubbleBodyBounds(visual);
+        var visualTangentStart = ClampedBubbleVisualTangentStart(senderTangent, visual);
+        var worldVisualTangentStart = (int)Math.Round(visualTangentStart) + TangentWorldOrigin();
         return _edge switch
         {
             OverlayEdge.Bottom => (
-                worldTangentStart,
-                nameplatePosition.Y - normalDistance - visual.Height),
+                worldVisualTangentStart,
+                nameplatePosition.Y - normalDistance - body.Height - body.Y),
             OverlayEdge.Top => (
-                worldTangentStart,
-                nameplatePosition.Y + nameplate.Height + normalDistance),
+                worldVisualTangentStart,
+                nameplatePosition.Y + nameplate.Height + normalDistance - body.Y),
             OverlayEdge.Left => (
-                nameplatePosition.X + nameplate.Width + normalDistance,
-                worldTangentStart),
+                nameplatePosition.X + nameplate.Width + normalDistance - body.X,
+                worldVisualTangentStart),
             OverlayEdge.Right => (
-                nameplatePosition.X - normalDistance - visual.Width,
-                worldTangentStart),
+                nameplatePosition.X - normalDistance - body.Width - body.X,
+                worldVisualTangentStart),
             _ => throw new ArgumentOutOfRangeException(),
         };
+    }
+
+    private double ClampedBubbleVisualTangentStart(
+        double senderTangent,
+        PremultipliedVisual visual)
+    {
+        var body = BubbleBodyBounds(visual);
+        int bodyExtent = _edge is OverlayEdge.Bottom or OverlayEdge.Top
+            ? body.Width
+            : body.Height;
+        int bodyStart = _edge is OverlayEdge.Bottom or OverlayEdge.Top
+            ? body.X
+            : body.Y;
+        int visualExtent = BubbleTangentExtent(visual);
+        int trailingOverflow = visualExtent - bodyStart - bodyExtent;
+        double clampedBodyStart = MessageBubbleLayoutPolicy.ClampedBodyTangentStart(
+            senderTangent,
+            _geometry.TangentLength,
+            bodyExtent,
+            bodyStart,
+            trailingOverflow,
+            _bubbleTangentMarginPixels);
+        return clampedBodyStart - bodyStart;
     }
 
     private int TangentWorldOrigin() => _edge is OverlayEdge.Bottom or OverlayEdge.Top
@@ -1515,7 +1536,12 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         _edge is OverlayEdge.Bottom or OverlayEdge.Top ? visual.Width : visual.Height;
 
     private int BubbleNormalExtent(PremultipliedVisual visual) =>
-        _edge is OverlayEdge.Bottom or OverlayEdge.Top ? visual.Height : visual.Width;
+        _edge is OverlayEdge.Bottom or OverlayEdge.Top
+            ? BubbleBodyBounds(visual).Height
+            : BubbleBodyBounds(visual).Width;
+
+    private static PixelVisualBodyBounds BubbleBodyBounds(PremultipliedVisual visual) =>
+        visual.BubbleBodyBounds ?? new PixelVisualBodyBounds(0, 0, visual.Width, visual.Height);
 
     private (int X, int Y) PlaceDoze(
         (int X, int Y) sprite,
