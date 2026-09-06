@@ -343,10 +343,13 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("MaximumRowsOrColumns=\"2\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Style=\"{StaticResource SideySettingsCardStyle}\"", xaml, StringComparison.Ordinal);
         Assert.Contains(
-            "<controls:PixelCharacterPreview CharacterId=\"{Binding CharacterId}\"",
+            "<controls:StoreProductArtwork",
             xaml,
             StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding ActionCommand}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding PreviewCommand}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("StorePreviewStage", ReadRepositoryFile(
+            "windows", "src", "Sidey.App", "MainWindow.xaml.cs"), StringComparison.Ordinal);
         Assert.Contains("IsEnabled=\"{Binding IsActionEnabled}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("IsActionEnabled = commerceEnabled", productViewModel, StringComparison.Ordinal);
         Assert.Contains("IsPreviewOnlyVisible = !commerceEnabled", productViewModel, StringComparison.Ordinal);
@@ -366,7 +369,7 @@ public sealed class MacParityUiSourceTests
         var preview = ReadRepositoryFile(
             "windows", "src", "Sidey.App", "Controls", "PixelCharacterPreview.xaml.cs");
 
-        Assert.Equal(3, CountOccurrences(main, "<controls:PixelCharacterPreview"));
+        Assert.Equal(2, CountOccurrences(main, "<controls:PixelCharacterPreview"));
         Assert.Contains("<controls:PixelCharacterPreview", onboarding, StringComparison.Ordinal);
         Assert.Contains("<controls:PixelCharacterPreview", history, StringComparison.Ordinal);
         Assert.DoesNotContain("CharacterImageConverter", main, StringComparison.Ordinal);

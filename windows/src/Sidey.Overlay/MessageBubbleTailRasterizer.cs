@@ -16,8 +16,12 @@ internal static class MessageBubbleTailRasterizer
         NativePixelRect renderBounds,
         MessageBubbleTail tail,
         RectD bodyBounds,
-        double borderWidth)
+        double borderWidth,
+        BubblePalette? requestedPalette = null)
     {
+        BubblePalette palette = requestedPalette ?? new BubblePalette(
+            255, 255, 255, FillAlpha,
+            BorderRed, BorderGreen, BorderBlue, BorderAlpha);
         int requiredLength = checked(renderBounds.Width * renderBounds.Height * 4);
         if (destination.Length < requiredLength)
         {
@@ -30,9 +34,10 @@ internal static class MessageBubbleTailRasterizer
             tail.BaseStart,
             tail.Tip,
             tail.BaseEnd,
-            bodyBounds);
-        RasterizeLine(destination, renderBounds, tail.BaseStart, tail.Tip, borderWidth, bodyBounds);
-        RasterizeLine(destination, renderBounds, tail.Tip, tail.BaseEnd, borderWidth, bodyBounds);
+            bodyBounds,
+            palette);
+        RasterizeLine(destination, renderBounds, tail.BaseStart, tail.Tip, borderWidth, bodyBounds, palette);
+        RasterizeLine(destination, renderBounds, tail.Tip, tail.BaseEnd, borderWidth, bodyBounds, palette);
     }
 
     private static void RasterizeTriangle(
@@ -41,7 +46,8 @@ internal static class MessageBubbleTailRasterizer
         PointD first,
         PointD second,
         PointD third,
-        RectD bodyBounds)
+        RectD bodyBounds,
+        BubblePalette palette)
     {
         int minimumX = (int)Math.Floor(Math.Min(first.X, Math.Min(second.X, third.X)));
         int maximumX = (int)Math.Ceiling(Math.Max(first.X, Math.Max(second.X, third.X)));
@@ -60,7 +66,7 @@ internal static class MessageBubbleTailRasterizer
                 double coverage = coveredSamples / 4d;
                 if (ContainsPixelCenter(bodyBounds, x, y))
                 {
-                    ReplaceWithFill(destination, renderBounds, x, y, coverage);
+                    ReplaceWithFill(destination, renderBounds, x, y, coverage, palette);
                 }
                 else
                 {
@@ -69,10 +75,10 @@ internal static class MessageBubbleTailRasterizer
                         renderBounds,
                         x,
                         y,
-                        255,
-                        255,
-                        255,
-                        FillAlpha,
+                        palette.FillRed,
+                        palette.FillGreen,
+                        palette.FillBlue,
+                        palette.FillAlpha,
                         coverage);
                 }
             }
@@ -110,7 +116,8 @@ internal static class MessageBubbleTailRasterizer
         PointD start,
         PointD end,
         double width,
-        RectD bodyBounds)
+        RectD bodyBounds,
+        BubblePalette palette)
     {
         double radius = Math.Max(0.5d, width / 2d);
         int minimumX = (int)Math.Floor(Math.Min(start.X, end.X) - radius);
@@ -136,10 +143,10 @@ internal static class MessageBubbleTailRasterizer
                         renderBounds,
                         x,
                         y,
-                        BorderRed,
-                        BorderGreen,
-                        BorderBlue,
-                        BorderAlpha,
+                        palette.BorderRed,
+                        palette.BorderGreen,
+                        palette.BorderBlue,
+                        palette.BorderAlpha,
                         coveredSamples / 4d);
                 }
             }
@@ -178,7 +185,8 @@ internal static class MessageBubbleTailRasterizer
         NativePixelRect renderBounds,
         int worldX,
         int worldY,
-        double coverage)
+        double coverage,
+        BubblePalette palette)
     {
         if (!TryPixelIndex(renderBounds, worldX, worldY, out int index))
         {
@@ -186,10 +194,10 @@ internal static class MessageBubbleTailRasterizer
         }
 
         double amount = Math.Clamp(coverage, 0d, 1d);
-        destination[index] = Lerp(destination[index], FillAlpha, amount);
-        destination[index + 1] = Lerp(destination[index + 1], FillAlpha, amount);
-        destination[index + 2] = Lerp(destination[index + 2], FillAlpha, amount);
-        destination[index + 3] = Lerp(destination[index + 3], FillAlpha, amount);
+        destination[index] = Lerp(destination[index], (byte)(palette.FillBlue * palette.FillAlpha / 255), amount);
+        destination[index + 1] = Lerp(destination[index + 1], (byte)(palette.FillGreen * palette.FillAlpha / 255), amount);
+        destination[index + 2] = Lerp(destination[index + 2], (byte)(palette.FillRed * palette.FillAlpha / 255), amount);
+        destination[index + 3] = Lerp(destination[index + 3], palette.FillAlpha, amount);
     }
 
     private static void BlendPixel(

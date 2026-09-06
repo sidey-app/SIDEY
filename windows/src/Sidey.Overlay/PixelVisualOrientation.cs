@@ -30,7 +30,7 @@ internal static class PixelVisualOrientation
         }
 
         Array.Clear(source.Pixels);
-        return new PremultipliedVisual(pixels, width, height);
+        return new PremultipliedVisual(pixels, width, height, source.BubblePalette);
     }
 
     private static (int X, int Y) SourceCoordinate(

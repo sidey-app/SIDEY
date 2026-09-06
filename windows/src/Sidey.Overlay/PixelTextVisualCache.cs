@@ -2,6 +2,7 @@ using Microsoft.Graphics.Canvas;
 using Microsoft.Graphics.Canvas.Text;
 using Sidey.Core.Domain;
 using Sidey.Core.Localization;
+using Sidey.Core.Overlay;
 using Windows.Foundation;
 using Windows.Graphics.DirectX;
 using Windows.UI;
@@ -9,7 +10,21 @@ using Windows.UI.Text;
 
 namespace Sidey.Overlay;
 
-internal sealed record PremultipliedVisual(byte[] Pixels, int Width, int Height);
+internal readonly record struct BubblePalette(
+    byte FillRed,
+    byte FillGreen,
+    byte FillBlue,
+    byte FillAlpha,
+    byte BorderRed,
+    byte BorderGreen,
+    byte BorderBlue,
+    byte BorderAlpha);
+
+internal sealed record PremultipliedVisual(
+    byte[] Pixels,
+    int Width,
+    int Height,
+    BubblePalette? BubblePalette = null);
 
 internal sealed record PixelMemberVisuals(
     PremultipliedVisual Nameplate,
@@ -49,6 +64,8 @@ internal sealed class PixelTextVisualCache : IDisposable
     private readonly float _dpi;
     private readonly OverlayEdge _edge;
     private readonly float _bubbleMaximumWidthDip;
+    private readonly int _decorationScale;
+    private readonly Dictionary<string, PremultipliedVisual> _decorations = new(StringComparer.Ordinal);
     private readonly Dictionary<Guid, CacheEntry> _entries = [];
     private readonly Dictionary<Guid, List<ActiveBubble>> _bubblesBySender = [];
     private readonly HashSet<Guid> _currentMemberIds = [];
@@ -58,7 +75,8 @@ internal sealed class PixelTextVisualCache : IDisposable
     public PixelTextVisualCache(
         uint dpi,
         OverlayEdge edge,
-        float bubbleMaximumWidthDip = BubbleMaximumWidthDip)
+        float bubbleMaximumWidthDip = BubbleMaximumWidthDip,
+        string? bubbleAssetRoot = null)
     {
         _dpi = dpi;
         _edge = edge;
@@ -66,6 +84,14 @@ internal sealed class PixelTextVisualCache : IDisposable
             bubbleMaximumWidthDip,
             24f,
             BubbleMaximumWidthDip);
+        _decorationScale = PixelScalePolicy.IntegerScale(dpi);
+        if (bubbleAssetRoot is not null)
+        {
+            foreach (string id in CosmeticCatalog.BubbleStyleIds)
+            {
+                _decorations[id] = LoadDecoration(bubbleAssetRoot, id);
+            }
+        }
     }
 
     public void Update(WorldSnapshot snapshot)
@@ -115,10 +141,10 @@ internal sealed class PixelTextVisualCache : IDisposable
         {
             _bubblesBySender.TryGetValue(member.Id, out var bubbles);
             BubbleVisualKey? olderBubble = bubbles is { Count: 2 }
-                ? new BubbleVisualKey(bubbles[0].MessageId, bubbles[0].Body)
+                ? new BubbleVisualKey(bubbles[0].MessageId, bubbles[0].Body, bubbles[0].BubbleStyleId)
                 : null;
             BubbleVisualKey? latestBubble = bubbles is { Count: > 0 }
-                ? new BubbleVisualKey(bubbles[^1].MessageId, bubbles[^1].Body)
+                ? new BubbleVisualKey(bubbles[^1].MessageId, bubbles[^1].Body, bubbles[^1].BubbleStyleId)
                 : null;
             var key = new VisualKey(
                 member.IsCurrentUser
@@ -127,7 +153,8 @@ internal sealed class PixelTextVisualCache : IDisposable
                 member.Presence,
                 olderBubble,
                 latestBubble,
-                member.IsTyping);
+                member.IsTyping,
+                member.EquippedBubbleStyleId);
             if (_entries.TryGetValue(member.Id, out var existing) && existing.Key == key)
             {
                 continue;
@@ -162,6 +189,11 @@ internal sealed class PixelTextVisualCache : IDisposable
             Clear(entry.Visuals);
         }
         _entries.Clear();
+        foreach (var decoration in _decorations.Values)
+        {
+            Array.Clear(decoration.Pixels);
+        }
+        _decorations.Clear();
     }
 
     private PixelMemberVisuals Build(VisualKey key)
@@ -174,24 +206,27 @@ internal sealed class PixelTextVisualCache : IDisposable
             ActiveBubbleLedger.MaximumVisiblePerSender);
         foreach (var bubble in BubbleKeys(key))
         {
+            var theme = ResolveTheme(bubble.BubbleStyleId);
             var (width, height) = MeasureBubble(bubble.Body);
-            messageBubbles.Add(bubble.MessageId, PixelVisualOrientation.Apply(Rasterize(
+            var visual = Rasterize(
                 bubble.Body,
                 width,
                 height,
-                background: Color.FromArgb(242, 255, 255, 255),
-                foreground: Color.FromArgb(255, 27, 31, 40),
+                background: theme.Background,
+                foreground: theme.Foreground,
                 cornerRadius: BubbleCornerRadiusDip,
                 fontSize: BubbleFontSizeDip,
                 horizontalPadding: BubbleHorizontalPaddingDip,
                 verticalPadding: BubbleVerticalPaddingDip,
-                border: Color.FromArgb(41, 20, 23, 31)), _edge));
+                border: theme.Border) with { BubblePalette = theme.Palette };
+            Decorate(visual, bubble.BubbleStyleId);
+            messageBubbles.Add(bubble.MessageId, PixelVisualOrientation.Apply(visual, _edge));
         }
         IReadOnlyList<PremultipliedVisual> typingFrames = key.IsTyping
             ? [
-                BuildTypingFrame("."),
-                BuildTypingFrame(".."),
-                BuildTypingFrame("..."),
+                BuildTypingFrame(".", key.TypingBubbleStyleId),
+                BuildTypingFrame("..", key.TypingBubbleStyleId),
+                BuildTypingFrame("...", key.TypingBubbleStyleId),
             ]
             : [];
 
@@ -201,16 +236,21 @@ internal sealed class PixelTextVisualCache : IDisposable
         return new PixelMemberVisuals(nameplate, messageBubbles, typingFrames, doze);
     }
 
-    private PremultipliedVisual BuildTypingFrame(string body) =>
-        PixelVisualOrientation.Apply(Rasterize(
+    private PremultipliedVisual BuildTypingFrame(string body, string? bubbleStyleId)
+    {
+        var theme = ResolveTheme(bubbleStyleId);
+        var visual = Rasterize(
             body,
             Math.Min(TypingBubbleWidthDip, _bubbleMaximumWidthDip),
             TypingBubbleHeightDip,
-            background: Color.FromArgb(242, 255, 255, 255),
-            foreground: Color.FromArgb(255, 84, 88, 100),
+            background: theme.Background,
+            foreground: theme.Foreground,
             cornerRadius: BubbleCornerRadiusDip,
             fontSize: 16f,
-            border: Color.FromArgb(41, 20, 23, 31)), _edge);
+            border: theme.Border) with { BubblePalette = theme.Palette };
+        Decorate(visual, bubbleStyleId);
+        return PixelVisualOrientation.Apply(visual, _edge);
+    }
 
     private static IEnumerable<BubbleVisualKey> BubbleKeys(VisualKey key)
     {
@@ -492,9 +532,90 @@ internal sealed class PixelTextVisualCache : IDisposable
         PresenceState Presence,
         BubbleVisualKey? OlderBubble,
         BubbleVisualKey? LatestBubble,
-        bool IsTyping);
+        bool IsTyping,
+        string? TypingBubbleStyleId);
 
-    private readonly record struct BubbleVisualKey(Guid MessageId, string Body);
+    private readonly record struct BubbleVisualKey(Guid MessageId, string Body, string? BubbleStyleId);
+
+    private static BubbleTheme ResolveTheme(string? id) => id switch
+    {
+        "bubble_bunny_pink" => BubbleTheme.Create(0xF7, 0xA9, 0xB8, 0x1C, 0x1F, 0x29),
+        "bubble_butter_chick" => BubbleTheme.Create(0xFF, 0xE3, 0x8A, 0x1C, 0x1F, 0x29),
+        "bubble_starry_cat" => BubbleTheme.Create(0x40, 0x3A, 0x78, 0xFF, 0xF7, 0xE8),
+        _ => BubbleTheme.Create(0xFF, 0xFF, 0xFF, 0x1B, 0x1F, 0x28),
+    };
+
+    private PremultipliedVisual LoadDecoration(string root, string id)
+    {
+        byte[] source = File.ReadAllBytes(Path.Combine(root, id, "decoration.bgra"));
+        const int sourceSize = 16;
+        if (source.Length != sourceSize * sourceSize * 4)
+        {
+            throw new InvalidDataException($"{id} decoration has an invalid BGRA byte length.");
+        }
+        int size = sourceSize * _decorationScale;
+        var scaled = new byte[size * size * 4];
+        for (int y = 0; y < size; y++)
+        for (int x = 0; x < size; x++)
+        {
+            int sourceIndex = (((y / _decorationScale) * sourceSize) + (x / _decorationScale)) * 4;
+            int destinationIndex = ((y * size) + x) * 4;
+            source.AsSpan(sourceIndex, 4).CopyTo(scaled.AsSpan(destinationIndex, 4));
+        }
+        Array.Clear(source);
+        return new PremultipliedVisual(scaled, size, size);
+    }
+
+    private void Decorate(PremultipliedVisual target, string? id)
+    {
+        if (id is null || !_decorations.TryGetValue(id, out var decoration))
+        {
+            return;
+        }
+        int inset = Math.Max(1, (int)Math.Round(2d * _dpi / 96d));
+        for (int y = 0; y < decoration.Height && y + inset < target.Height; y++)
+        for (int x = 0; x < decoration.Width && x + inset < target.Width; x++)
+        {
+            int source = ((y * decoration.Width) + x) * 4;
+            byte alpha = decoration.Pixels[source + 3];
+            if (alpha == 0) continue;
+            int destination = (((y + inset) * target.Width) + x + inset) * 4;
+            int inverse = 255 - alpha;
+            target.Pixels[destination] = (byte)Math.Min(255, decoration.Pixels[source] + target.Pixels[destination] * inverse / 255);
+            target.Pixels[destination + 1] = (byte)Math.Min(255, decoration.Pixels[source + 1] + target.Pixels[destination + 1] * inverse / 255);
+            target.Pixels[destination + 2] = (byte)Math.Min(255, decoration.Pixels[source + 2] + target.Pixels[destination + 2] * inverse / 255);
+            target.Pixels[destination + 3] = (byte)Math.Min(255, alpha + target.Pixels[destination + 3] * inverse / 255);
+        }
+    }
+
+    private readonly record struct BubbleTheme(
+        Color Background,
+        Color Foreground,
+        Color Border,
+        BubblePalette Palette)
+    {
+        public static BubbleTheme Create(
+            byte backgroundRed,
+            byte backgroundGreen,
+            byte backgroundBlue,
+            byte foregroundRed,
+            byte foregroundGreen,
+            byte foregroundBlue)
+        {
+            const byte fillAlpha = 245;
+            const byte borderAlpha = 41;
+            const byte borderRed = 20;
+            const byte borderGreen = 23;
+            const byte borderBlue = 31;
+            return new BubbleTheme(
+                Color.FromArgb(fillAlpha, backgroundRed, backgroundGreen, backgroundBlue),
+                Color.FromArgb(255, foregroundRed, foregroundGreen, foregroundBlue),
+                Color.FromArgb(borderAlpha, borderRed, borderGreen, borderBlue),
+                new BubblePalette(
+                    backgroundRed, backgroundGreen, backgroundBlue, fillAlpha,
+                    borderRed, borderGreen, borderBlue, borderAlpha));
+        }
+    }
 
     private static int CompareBubbles(ActiveBubble left, ActiveBubble right)
     {

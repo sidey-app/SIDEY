@@ -81,6 +81,11 @@ public interface IMainWindowCoordinator : IOnboardingCoordinator
         string productId,
         CancellationToken cancellationToken = default);
 
+    Task SetEquippedCosmeticAsync(
+        CommerceProductKind kind,
+        string? catalogItemId,
+        CancellationToken cancellationToken = default);
+
     Task CompleteGoogleIdentityLinkAsync(
         Uri callbackUri,
         CancellationToken cancellationToken = default);

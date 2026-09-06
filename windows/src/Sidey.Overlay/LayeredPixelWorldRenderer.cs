@@ -155,6 +155,9 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             var throwableAssetRoot = Path.Combine(
                 Directory.GetParent(assetRoot)?.FullName ?? assetRoot,
                 "Throwables");
+            var bubbleAssetRoot = Path.Combine(
+                Directory.GetParent(assetRoot)?.FullName ?? assetRoot,
+                "Bubbles");
             throwFrameCache = new CharacterThrowFrameCache(
                 assetRoot,
                 throwableAssetRoot,
@@ -166,7 +169,11 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             var bubbleMaximumWidthDip = (float)Math.Min(
                 220d,
                 Math.Max(24d, tangentLengthDip - 16d));
-            textVisuals = new PixelTextVisualCache(dpi, edge, bubbleMaximumWidthDip);
+            textVisuals = new PixelTextVisualCache(
+                dpi,
+                edge,
+                bubbleMaximumWidthDip,
+                bubbleAssetRoot);
             surface = new NativeLayeredBitmap(
                 windowHandle,
                 renderBounds.Width,
@@ -444,6 +451,21 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 pulseScale,
                 node.Member.Presence == PresenceState.Offline ? 0.75d : 1d,
                 desaturate: node.Member.Presence == PresenceState.Offline);
+            if (ActiveCannonProjectile(node.Member.Id) is { } cannon)
+            {
+                var emitterFrame = Math.Min(
+                    CharacterThrowFrameCache.EmitterFrameCount - 1,
+                    (int)(Stopwatch.GetElapsedTime(cannon.StartedAt).TotalSeconds
+                        / (ThrowActionSeconds / CharacterThrowFrameCache.EmitterFrameCount)));
+                Composite(
+                    destinationPixels,
+                    _throwFrameCache.CannonEmitterFrame(emitterFrame, flipped),
+                    cached.PixelSize,
+                    baseDestination.X - _renderBounds.X,
+                    baseDestination.Y - _renderBounds.Y,
+                    1d,
+                    1d);
+            }
             if (cached.Definition.VisualEffect == PixelCharacterVisualEffect.StarlightSparkles)
             {
                 DrawStarlightSparkles(destinationPixels, node, pulseElapsed);
@@ -821,6 +843,23 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         return target.Agent.TrackPosition < node.Agent.TrackPosition;
     }
 
+    private ActiveProjectile? ActiveCannonProjectile(Guid actorUserId)
+    {
+        for (var index = _projectiles.Count - 1; index >= 0; index--)
+        {
+            ActiveProjectile projectile = _projectiles[index];
+            if (projectile.Event.ActorUserId == actorUserId
+                && StringComparer.Ordinal.Equals(
+                    CosmeticCatalog.NormalizeThrowableId(projectile.Event.ThrowableId),
+                    "throwable_toy_cannon")
+                && Stopwatch.GetElapsedTime(projectile.StartedAt).TotalSeconds < ThrowActionSeconds)
+            {
+                return projectile;
+            }
+        }
+        return null;
+    }
+
     private void UpdateProjectiles()
     {
         for (var index = _projectiles.Count - 1; index >= 0; index--)
@@ -912,7 +951,10 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             var size = _throwFrameCache.ObjectPixelSize;
             CompositeRectangle(
                 destination,
-                _throwFrameCache.ObjectFrame(projectile.Event.SourceCharacterId, frame),
+                _throwFrameCache.ObjectFrame(
+                    projectile.Event.SourceCharacterId,
+                    projectile.Event.ThrowableId,
+                    frame),
                 size,
                 size,
                 (int)Math.Round(point.X - (size / 2d)) - _renderBounds.X,
@@ -1311,7 +1353,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             _renderBounds,
             tail,
             bodyBounds,
-            _dpiScale);
+            _dpiScale,
+            body.BubblePalette);
     }
 
     private void CompositeVisual(

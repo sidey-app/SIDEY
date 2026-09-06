@@ -831,7 +831,8 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                         descriptor.RoomId,
                         actorUserId,
                         targetUserId,
-                        sourceCharacterId)));
+                        sourceCharacterId,
+                        TryOptionalCatalogId(inner, "throwable_id", "throwable_"))));
                 }
                 break;
         }
@@ -849,6 +850,25 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             }
         }
         return true;
+    }
+
+    private static string? TryOptionalCatalogId(JsonElement element, string propertyName, string prefix)
+    {
+        if (!element.TryGetProperty(propertyName, out var value)
+            || value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+        {
+            return null;
+        }
+        string? id = value.ValueKind == JsonValueKind.String ? value.GetString() : null;
+        if (id is null || id.Length > 72 || !id.StartsWith(prefix, StringComparison.Ordinal))
+        {
+            return null;
+        }
+        return id.All(character => character == '_'
+            || (character >= 'a' && character <= 'z')
+            || (character >= '0' && character <= '9'))
+            ? id
+            : null;
     }
 
     private void HandleDatabaseBroadcast(

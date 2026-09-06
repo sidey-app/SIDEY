@@ -1,0 +1,16 @@
+<UserControl
+    x:Class="Sidey.App.Controls.StorePreviewStage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml"
+    Tapped="OnTapped">
+  <Border Background="#12141B" CornerRadius="14" BorderBrush="#33FFFFFF" BorderThickness="1">
+    <canvas:CanvasControl
+        x:Name="StageCanvas"
+        Width="540"
+        Height="280"
+        CreateResources="OnCreateResources"
+        Draw="OnDraw"
+        Unloaded="OnUnloaded" />
+  </Border>
+</UserControl>

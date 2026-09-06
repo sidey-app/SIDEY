@@ -35,13 +35,19 @@ public static class OverlaySpanExtensions
     };
 }
 
-public sealed record Profile(Guid Id, string Nickname, string CharacterId);
+public sealed record Profile(
+    Guid Id,
+    string Nickname,
+    string CharacterId,
+    string? EquippedBubbleStyleId = null,
+    string? EquippedThrowableId = null);
 
 public sealed record RoomMember(
     Guid UserId,
     string Nickname,
     string CharacterId,
-    PresenceState Presence);
+    PresenceState Presence,
+    string? EquippedBubbleStyleId = null);
 
 public sealed record Room(
     Guid Id,
@@ -57,7 +63,8 @@ public sealed record ChatMessage(
     Guid RoomId,
     Guid SenderId,
     string Body,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string? BubbleStyleId = null);
 
 public sealed record PixelWorldMember(
     Guid Id,
@@ -65,7 +72,8 @@ public sealed record PixelWorldMember(
     string CharacterId,
     PresenceState Presence,
     bool IsTyping,
-    bool IsCurrentUser);
+    bool IsCurrentUser,
+    string? EquippedBubbleStyleId = null);
 
 public sealed record CharacterPulseEvent(Guid Id, Guid RoomId, Guid UserId);
 
@@ -74,7 +82,15 @@ public sealed record CharacterThrowEvent(
     Guid RoomId,
     Guid ActorUserId,
     Guid TargetUserId,
-    string SourceCharacterId);
+    string SourceCharacterId,
+    string? ThrowableId = null);
+
+public enum CommerceProductKind
+{
+    Character,
+    Bubble,
+    Throwable,
+}
 
 public enum CommercePurchaseState
 {
@@ -93,7 +109,12 @@ public sealed record CommerceProduct(
     string CharacterId,
     string EntitlementKey,
     int SortOrder,
-    int AmountKrw);
+    int AmountKrw,
+    CommerceProductKind Kind = CommerceProductKind.Character,
+    string? CatalogItemId = null)
+{
+    public string EffectiveCatalogItemId => CatalogItemId ?? CharacterId;
+}
 
 public sealed record CommerceProductState(
     CommerceProduct Product,
@@ -130,6 +151,54 @@ public static class WindowsCommerceCatalog
             "character:pixel_chinchilla",
             40,
             990),
+        new(
+            "bubble_bunny_pink",
+            "pixel_hamster",
+            "bubble:bubble_bunny_pink",
+            110,
+            1_900,
+            CommerceProductKind.Bubble,
+            "bubble_bunny_pink"),
+        new(
+            "bubble_butter_chick",
+            "pixel_hamster",
+            "bubble:bubble_butter_chick",
+            120,
+            1_900,
+            CommerceProductKind.Bubble,
+            "bubble_butter_chick"),
+        new(
+            "bubble_starry_cat",
+            "pixel_hamster",
+            "bubble:bubble_starry_cat",
+            130,
+            1_900,
+            CommerceProductKind.Bubble,
+            "bubble_starry_cat"),
+        new(
+            "throwable_bouncy_heart",
+            "pixel_hamster",
+            "throwable:throwable_bouncy_heart",
+            210,
+            990,
+            CommerceProductKind.Throwable,
+            "throwable_bouncy_heart"),
+        new(
+            "throwable_toy_cannon",
+            "pixel_hamster",
+            "throwable:throwable_toy_cannon",
+            220,
+            2_900,
+            CommerceProductKind.Throwable,
+            "throwable_toy_cannon"),
+        new(
+            "throwable_squeaky_duck",
+            "pixel_hamster",
+            "throwable:throwable_squeaky_duck",
+            230,
+            990,
+            CommerceProductKind.Throwable,
+            "throwable_squeaky_duck"),
     ];
 
     public static CommerceProduct? Find(string productId) =>
@@ -152,7 +221,29 @@ public sealed record ActiveBubble(
     Guid SenderId,
     Guid MessageId,
     string Body,
-    DateTimeOffset ExpiresAt);
+    DateTimeOffset ExpiresAt,
+    string? BubbleStyleId = null);
+
+public static class CosmeticCatalog
+{
+    public static IReadOnlySet<string> BubbleStyleIds { get; } = new HashSet<string>(
+        WindowsCommerceCatalog.Products
+            .Where(product => product.Kind == CommerceProductKind.Bubble)
+            .Select(product => product.EffectiveCatalogItemId),
+        StringComparer.Ordinal);
+
+    public static IReadOnlySet<string> ThrowableIds { get; } = new HashSet<string>(
+        WindowsCommerceCatalog.Products
+            .Where(product => product.Kind == CommerceProductKind.Throwable)
+            .Select(product => product.EffectiveCatalogItemId),
+        StringComparer.Ordinal);
+
+    public static string? NormalizeBubbleStyleId(string? id) =>
+        id is not null && BubbleStyleIds.Contains(id) ? id : null;
+
+    public static string? NormalizeThrowableId(string? id) =>
+        id is not null && ThrowableIds.Contains(id) ? id : null;
+}
 
 public sealed record OverlayRegionPreference(
     OverlayEdge Edge,

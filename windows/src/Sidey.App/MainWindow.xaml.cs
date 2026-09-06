@@ -6,6 +6,7 @@ using Sidey.Core.Localization;
 using Sidey.Platform.Windows;
 using Sidey.Presentation.Services;
 using Sidey.Presentation.ViewModels;
+using Sidey.App.Controls;
 
 namespace Sidey.App;
 
@@ -51,6 +52,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         AppWindow.Closing += OnAppWindowClosing;
         Closed += OnWindowClosed;
         ViewModel.NoticeRaised += OnNoticeRaised;
+        ViewModel.StorePreviewRequested += OnStorePreviewRequested;
         _statusDismissTimer.Tick += OnStatusDismissTimerTick;
 #if DEBUG
         _validationMetricsTimer.Tick += OnValidationMetricsTimerTick;
@@ -113,6 +115,29 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
             DefaultButton = ContentDialogButton.Close,
         };
         return await dialog.ShowAsync() == ContentDialogResult.Primary;
+    }
+
+    private async void OnStorePreviewRequested(StoreProductPreviewViewModel product)
+    {
+        var content = new StackPanel { Spacing = 12 };
+        content.Children.Add(new StorePreviewStage(
+            product.Kind,
+            product.CatalogItemId,
+            product.CharacterId));
+        content.Children.Add(new TextBlock
+        {
+            Text = product.Description,
+            TextWrapping = TextWrapping.Wrap,
+        });
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Content.XamlRoot,
+            Title = product.DisplayName,
+            Content = content,
+            CloseButtonText = I18n.Get("common.close"),
+            DefaultButton = ContentDialogButton.Close,
+        };
+        await dialog.ShowAsync();
     }
 
     public async Task<string?> PromptForRoomNameAsync(string currentName)
@@ -416,6 +441,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         AppWindow.Closing -= OnAppWindowClosing;
         Closed -= OnWindowClosed;
         ViewModel.NoticeRaised -= OnNoticeRaised;
+        ViewModel.StorePreviewRequested -= OnStorePreviewRequested;
         _minimumSizeController.Dispose();
         _statusDismissTimer.Stop();
         _statusDismissTimer.Tick -= OnStatusDismissTimerTick;

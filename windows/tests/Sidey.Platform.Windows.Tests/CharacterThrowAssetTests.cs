@@ -24,6 +24,9 @@ public sealed class CharacterThrowAssetTests
             ["Throwables/banana/sprite"] = "9cfca454ff6305fdd374c08f64c3c21e3af278166ffe15f7f81a183bb214f138",
             ["Throwables/dust_bath_pouch/sprite"] = "b68022f5fe1a1a6a57fe56a01f73bae3d14b27d76f2dcbf10c6686b979634a65",
             ["Throwables/starlight_orb/sprite"] = "08cf8ec8dc680ae07dcd83de9d56948873445470c6b15b5ad22e770f4277984c",
+            ["Throwables/throwable_bouncy_heart/sprite"] = "8474458c5d810a598c16a7f74bbfecf65300d7fb2c55aaaf0cabfa0399945305",
+            ["Throwables/throwable_toy_cannon/sprite"] = "c42c472f216ec4d291a41562dfaf6a28204625133961a5a225198daf87459bef",
+            ["Throwables/throwable_squeaky_duck/sprite"] = "3b6935398d41b6d1cd5efa922392dbf4864782deb9880c5d0f10885e00906e7a",
         };
 
     [Fact]
@@ -64,6 +67,13 @@ public sealed class CharacterThrowAssetTests
         Assert.False(patchBall.SequenceEqual(cache.ObjectFrame("pixel_chinchilla", frame: 0).ToArray()));
         Assert.False(patchBall.SequenceEqual(cache.ObjectFrame("pixel_starlight_upalupa", frame: 0).ToArray()));
         Assert.Equal(patchBall, cache.ObjectFrame("unknown_character", frame: 0).ToArray());
+        Assert.False(patchBall.SequenceEqual(cache.ObjectFrame(
+            "pixel_hamster", "throwable_bouncy_heart", frame: 0).ToArray()));
+        Assert.False(patchBall.SequenceEqual(cache.ObjectFrame(
+            "pixel_hamster", "throwable_toy_cannon", frame: 0).ToArray()));
+        Assert.False(patchBall.SequenceEqual(cache.ObjectFrame(
+            "pixel_hamster", "throwable_squeaky_duck", frame: 0).ToArray()));
+        Assert.NotEmpty(cache.CannonEmitterFrame(frame: 0, flipped: false).ToArray());
     }
 
     private static string AssetPath(string relative) => Path.Combine(

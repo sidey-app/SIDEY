@@ -76,7 +76,8 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                         membership.UserId,
                         peer?.Nickname ?? I18n.Get("common.friend"),
                         PixelCharacterCatalog.NormalizeId(peer?.CharacterId),
-                        PresenceState.Offline);
+                        PresenceState.Offline,
+                        CosmeticCatalog.NormalizeBubbleStyleId(peer?.EquippedBubbleStyleId));
                 })
                 .ToArray(),
             room.InviteCodeHint,
@@ -96,7 +97,15 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                 : new Profile(
                     profile.Id,
                     profile.Nickname,
-                    PixelCharacterCatalog.NormalizeId(profile.CharacterId)),
+                    PixelCharacterCatalog.NormalizeId(profile.CharacterId),
+                    OwnedCosmeticOrNull(
+                        profile.EquippedBubbleStyleId,
+                        CommerceProductKind.Bubble,
+                        activeEntitlementKeys),
+                    OwnedCosmeticOrNull(
+                        profile.EquippedThrowableId,
+                        CommerceProductKind.Throwable,
+                        activeEntitlementKeys)),
             rooms,
             session.UserId,
             activeEntitlementKeys);
@@ -147,9 +156,13 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             DatabaseCommerceState row = rows.SingleOrDefault(candidate =>
                     StringComparer.Ordinal.Equals(candidate.ProductId, product.Id))
                 ?? throw new InvalidDataException("Windows commerce product is missing.");
-            if (!StringComparer.Ordinal.Equals(row.ProductKind, "character")
-                || !StringComparer.Ordinal.Equals(row.CatalogItemId, product.CharacterId)
-                || !StringComparer.Ordinal.Equals(row.CharacterId, product.CharacterId)
+            string expectedKind = product.Kind.ToString().ToLowerInvariant();
+            string? expectedCharacterId = product.Kind == CommerceProductKind.Character
+                ? product.CharacterId
+                : null;
+            if (!StringComparer.Ordinal.Equals(row.ProductKind, expectedKind)
+                || !StringComparer.Ordinal.Equals(row.CatalogItemId, product.EffectiveCatalogItemId)
+                || !StringComparer.Ordinal.Equals(row.CharacterId, expectedCharacterId)
                 || !StringComparer.Ordinal.Equals(row.EntitlementKey, product.EntitlementKey)
                 || row.SortOrder != product.SortOrder
                 || row.AmountKrw != product.AmountKrw
@@ -217,7 +230,38 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                 p_character_id = PixelCharacterCatalog.NormalizeId(characterId),
             },
             cancellationToken).ConfigureAwait(false);
-        return new Profile(row.Id, row.Nickname, PixelCharacterCatalog.NormalizeId(row.CharacterId));
+        return MapProfile(row);
+    }
+
+    public async Task<Profile> SetEquippedCosmeticAsync(
+        CommerceProductKind kind,
+        string? catalogItemId,
+        CancellationToken cancellationToken = default)
+    {
+        if (kind == CommerceProductKind.Character)
+        {
+            throw new ArgumentOutOfRangeException(nameof(kind));
+        }
+        string? normalized = kind switch
+        {
+            CommerceProductKind.Bubble => CosmeticCatalog.NormalizeBubbleStyleId(catalogItemId),
+            CommerceProductKind.Throwable => CosmeticCatalog.NormalizeThrowableId(catalogItemId),
+            _ => null,
+        };
+        if (catalogItemId is not null && normalized is null)
+        {
+            throw new ArgumentOutOfRangeException(nameof(catalogItemId));
+        }
+
+        var row = await RpcSingleAsync<DatabaseProfile>(
+            "set_equipped_cosmetic",
+            new
+            {
+                p_product_kind = kind.ToString().ToLowerInvariant(),
+                p_catalog_item_id = normalized,
+            },
+            cancellationToken).ConfigureAwait(false);
+        return MapProfile(row);
     }
 
     public async Task<CreateRoomResult> CreateRoomAsync(
@@ -909,7 +953,35 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         row.RoomId,
         row.SenderId,
         row.Body,
-        PostgresTimestampParser.Parse(row.CreatedAt));
+        PostgresTimestampParser.Parse(row.CreatedAt),
+        CosmeticCatalog.NormalizeBubbleStyleId(row.BubbleStyleId));
+
+    private static Profile MapProfile(DatabaseProfile row) => new(
+        row.Id,
+        row.Nickname,
+        PixelCharacterCatalog.NormalizeId(row.CharacterId),
+        CosmeticCatalog.NormalizeBubbleStyleId(row.EquippedBubbleStyleId),
+        CosmeticCatalog.NormalizeThrowableId(row.EquippedThrowableId));
+
+    private static string? OwnedCosmeticOrNull(
+        string? catalogItemId,
+        CommerceProductKind kind,
+        IReadOnlySet<string> activeEntitlementKeys)
+    {
+        string? normalized = kind == CommerceProductKind.Bubble
+            ? CosmeticCatalog.NormalizeBubbleStyleId(catalogItemId)
+            : CosmeticCatalog.NormalizeThrowableId(catalogItemId);
+        if (normalized is null)
+        {
+            return null;
+        }
+        CommerceProduct? product = WindowsCommerceCatalog.Products.FirstOrDefault(candidate =>
+            candidate.Kind == kind
+            && StringComparer.Ordinal.Equals(candidate.EffectiveCatalogItemId, normalized));
+        return product is not null && activeEntitlementKeys.Contains(product.EntitlementKey)
+            ? normalized
+            : null;
+    }
 
     private static void ValidateRoomName(string name)
     {
@@ -922,7 +994,9 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
     private sealed record DatabaseProfile(
         Guid Id,
         string Nickname,
-        [property: JsonPropertyName("character_id")] string CharacterId);
+        [property: JsonPropertyName("character_id")] string CharacterId,
+        [property: JsonPropertyName("equipped_bubble_style_id")] string? EquippedBubbleStyleId,
+        [property: JsonPropertyName("equipped_throwable_id")] string? EquippedThrowableId);
 
     private sealed record DatabaseCommerceEntitlement(
         [property: JsonPropertyName("entitlement_key")] string EntitlementKey,
@@ -964,7 +1038,8 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         [property: JsonPropertyName("room_id")] Guid RoomId,
         [property: JsonPropertyName("sender_id")] Guid SenderId,
         string Body,
-        [property: JsonPropertyName("created_at")] string CreatedAt);
+        [property: JsonPropertyName("created_at")] string CreatedAt,
+        [property: JsonPropertyName("bubble_style_id")] string? BubbleStyleId);
 
     private sealed record CreateRoomRow(
         [property: JsonPropertyName("room_id")] Guid RoomId,

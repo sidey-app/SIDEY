@@ -371,6 +371,41 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 #endif
     }
 
+    public async Task SetEquippedCosmeticAsync(
+        CommerceProductKind kind,
+        string? catalogItemId,
+        CancellationToken cancellationToken = default)
+    {
+        if (kind == CommerceProductKind.Character)
+        {
+            throw new ArgumentOutOfRangeException(nameof(kind));
+        }
+        if (catalogItemId is not null)
+        {
+            CommerceProduct product = WindowsCommerceCatalog.Products.SingleOrDefault(candidate =>
+                candidate.Kind == kind
+                && StringComparer.Ordinal.Equals(candidate.EffectiveCatalogItemId, catalogItemId))
+                ?? throw new ArgumentOutOfRangeException(nameof(catalogItemId));
+            if (!_state.ActiveEntitlementKeys.Contains(product.EntitlementKey))
+            {
+                throw new InvalidOperationException(I18n.Get("store.unavailable"));
+            }
+        }
+
+        Profile profile = await RequiredBackend().SetEquippedCosmeticAsync(
+            kind,
+            catalogItemId,
+            cancellationToken);
+        IReadOnlyList<Room> rooms = _state.Rooms.Select(room => room with
+        {
+            Members = room.Members.Select(member => member.UserId == profile.Id
+                ? member with { EquippedBubbleStyleId = profile.EquippedBubbleStyleId }
+                : member).ToArray(),
+        }).ToArray();
+        SetState(_state with { Profile = profile, Rooms = rooms, ErrorMessage = null });
+        ApplyWorldSnapshot();
+    }
+
     public async Task CompleteGoogleIdentityLinkAsync(
         Uri callbackUri,
         CancellationToken cancellationToken = default)
@@ -628,8 +663,8 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         }
 
         var id = Guid.NewGuid();
-        _messages.Stage(id, roomId, profile.Id, normalized);
-        _bubbles.Show(profile.Id, id, normalized);
+        _messages.Stage(id, roomId, profile.Id, normalized, bubbleStyleId: profile.EquippedBubbleStyleId);
+        _bubbles.Show(profile.Id, id, normalized, bubbleStyleId: profile.EquippedBubbleStyleId);
         PublishState();
         ApplyWorldSnapshot();
         try
@@ -900,7 +935,8 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             roomId.Value,
             actorUserId.Value,
             targetUserId,
-            sourceCharacterId);
+            sourceCharacterId,
+            actor?.EquippedThrowableId);
         QueueThrowForWorld(characterThrow);
         if (_backend is not null)
         {
@@ -1030,7 +1066,8 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                         _bubbles.Show(
                             message.Message.SenderId,
                             message.Message.Id,
-                            message.Message.Body);
+                            message.Message.Body,
+                            bubbleStyleId: message.Message.BubbleStyleId);
                         StartupDiagnostics.Stage(
                             $"message-bubble-enqueued active={isActiveRoom.ToString().ToLowerInvariant()} quiet={_state.Preferences.QuietMode.ToString().ToLowerInvariant()}");
                         if (message.Message.SenderId != _state.Profile?.Id
@@ -1271,6 +1308,14 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                 CharacterId = PixelCharacterCatalog.SelectableId(
                     snapshot.Profile.CharacterId,
                     snapshot.ActiveEntitlementKeys),
+                EquippedBubbleStyleId = OwnedCosmeticOrNull(
+                    snapshot.Profile.EquippedBubbleStyleId,
+                    CommerceProductKind.Bubble,
+                    snapshot.ActiveEntitlementKeys),
+                EquippedThrowableId = OwnedCosmeticOrNull(
+                    snapshot.Profile.EquippedThrowableId,
+                    CommerceProductKind.Throwable,
+                    snapshot.ActiveEntitlementKeys),
             };
         PresenceState? KnownPresence(Guid roomId, Guid userId) =>
             _basePresence.TryGetValue((roomId, userId), out var presence)
@@ -1283,6 +1328,9 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                 CharacterId = member.UserId == snapshot.CurrentUserId && profile is not null
                     ? profile.CharacterId
                     : member.CharacterId,
+                EquippedBubbleStyleId = member.UserId == snapshot.CurrentUserId && profile is not null
+                    ? profile.EquippedBubbleStyleId
+                    : CosmeticCatalog.NormalizeBubbleStyleId(member.EquippedBubbleStyleId),
                 Presence = LocalPresenceProjection.ForSnapshotMember(
                     member.UserId,
                     snapshot.CurrentUserId,
@@ -1530,7 +1578,8 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                 PixelCharacterCatalog.NormalizeId(member.CharacterId),
                 member.Presence,
                 IsTyping: room is not null && _typing.Contains((room.Id, member.UserId)),
-                IsCurrentUser: member.UserId == _state.Profile?.Id))
+                IsCurrentUser: member.UserId == _state.Profile?.Id,
+                EquippedBubbleStyleId: member.EquippedBubbleStyleId))
             .ToArray() ?? [];
         return new WorldSnapshot(
             room?.Id,
@@ -1540,6 +1589,24 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             _pendingThrows.ToArray(),
             _state.Preferences.OverlayRegion.Edge,
             _state.Preferences.InstallationSeed);
+    }
+
+    private static string? OwnedCosmeticOrNull(
+        string? catalogItemId,
+        CommerceProductKind kind,
+        IReadOnlySet<string> activeEntitlementKeys)
+    {
+        string? normalized = kind == CommerceProductKind.Bubble
+            ? CosmeticCatalog.NormalizeBubbleStyleId(catalogItemId)
+            : CosmeticCatalog.NormalizeThrowableId(catalogItemId);
+        CommerceProduct? product = normalized is null
+            ? null
+            : WindowsCommerceCatalog.Products.FirstOrDefault(candidate =>
+                candidate.Kind == kind
+                && StringComparer.Ordinal.Equals(candidate.EffectiveCatalogItemId, normalized));
+        return product is not null && activeEntitlementKeys.Contains(product.EntitlementKey)
+            ? normalized
+            : null;
     }
 
     private async Task PersistPreferencesAsync(CancellationToken cancellationToken) =>

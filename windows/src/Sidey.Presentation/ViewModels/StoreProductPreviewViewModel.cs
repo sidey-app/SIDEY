@@ -14,23 +14,30 @@ public sealed partial class StoreProductPreviewViewModel : ObservableObject
         string displayName,
         string description,
         string formattedPrice,
-        Func<Task> action)
+        Func<Task> action,
+        Action preview)
     {
         ProductId = product.Id;
         CharacterId = product.CharacterId;
+        Kind = product.Kind;
+        CatalogItemId = product.EffectiveCatalogItemId;
         DisplayName = displayName;
         Description = description;
         FormattedPrice = formattedPrice;
         _actionCommand = new AsyncRelayCommand(action, () => IsActionEnabled);
         ActionCommand = _actionCommand;
+        PreviewCommand = new RelayCommand(preview);
     }
 
     public string ProductId { get; }
     public string CharacterId { get; }
+    public CommerceProductKind Kind { get; }
+    public string CatalogItemId { get; }
     public string DisplayName { get; }
     public string Description { get; }
     public string FormattedPrice { get; }
     public IAsyncRelayCommand ActionCommand { get; }
+    public IRelayCommand PreviewCommand { get; }
 
     [ObservableProperty]
     public partial string ActionText { get; set; } = string.Empty;

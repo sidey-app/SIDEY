@@ -7,6 +7,7 @@ internal sealed class CharacterThrowFrameCache : IDisposable
 {
     internal const int ActionFrameCount = 8;
     internal const int ObjectFrameCount = 12;
+    internal const int EmitterFrameCount = 4;
 
     private static readonly IReadOnlyDictionary<string, string> ActionHashes =
         new Dictionary<string, string>(StringComparer.Ordinal)
@@ -30,6 +31,9 @@ internal sealed class CharacterThrowFrameCache : IDisposable
             ["banana"] = "9cfca454ff6305fdd374c08f64c3c21e3af278166ffe15f7f81a183bb214f138",
             ["dust_bath_pouch"] = "b68022f5fe1a1a6a57fe56a01f73bae3d14b27d76f2dcbf10c6686b979634a65",
             ["starlight_orb"] = "08cf8ec8dc680ae07dcd83de9d56948873445470c6b15b5ad22e770f4277984c",
+            ["throwable_bouncy_heart"] = "8474458c5d810a598c16a7f74bbfecf65300d7fb2c55aaaf0cabfa0399945305",
+            ["throwable_toy_cannon"] = "c42c472f216ec4d291a41562dfaf6a28204625133961a5a225198daf87459bef",
+            ["throwable_squeaky_duck"] = "3b6935398d41b6d1cd5efa922392dbf4864782deb9880c5d0f10885e00906e7a",
         };
 
     private static readonly IReadOnlyDictionary<string, string> CharacterObjects =
@@ -63,11 +67,17 @@ internal sealed class CharacterThrowFrameCache : IDisposable
             ["Throwables/banana/sprite"] = "f42c588b897b5e33b3ca5f676dab15ce9e3aa3be02aad424c6b9ade8d01c372f",
             ["Throwables/dust_bath_pouch/sprite"] = "4d32c76073a8397379c33a42d9ee8e7656f6bf936af343a7d88e6c1d711d2205",
             ["Throwables/starlight_orb/sprite"] = "1719218f94d0686294b56fd836a74700e03312815043e050f0f0dbf4a90ba8ec",
+            ["Throwables/throwable_bouncy_heart/sprite"] = "6f92cc6161183de41dc27401fdfc900c3fc1c59170e689fe8067a46a553d1972",
+            ["Throwables/throwable_toy_cannon/sprite"] = "740120135578a488888a93a4eb0755267754d06793a4d09ba3af812dad758646",
+            ["Throwables/throwable_toy_cannon/emitter"] = "8a809a8729acfc321b3029f20617148a4ebc319a64d1a5f61b062241d0b5e973",
+            ["Throwables/throwable_squeaky_duck/sprite"] = "5879d82e8a822350a254ea55bcc86c983273b415fc59c49f4f61281c6ab9b4d7",
         };
 
     private readonly Dictionary<string, byte[][]> _actions = new(StringComparer.Ordinal);
     private readonly Dictionary<string, byte[][]> _flippedActions = new(StringComparer.Ordinal);
     private readonly Dictionary<string, byte[][]> _objects = new(StringComparer.Ordinal);
+    private readonly byte[][] _cannonEmitters;
+    private readonly byte[][] _flippedCannonEmitters;
     private bool _disposed;
 
     internal CharacterThrowFrameCache(
@@ -100,6 +110,26 @@ internal sealed class CharacterThrowFrameCache : IDisposable
                 flip: false,
                 edge));
         }
+        _cannonEmitters = LoadSheet(
+            Path.Combine(throwableRoot, "throwable_toy_cannon"),
+            "emitter",
+            "Throwables/throwable_toy_cannon/emitter",
+            "7869a47c2f72a17894646e2f63eab1166b42d13f2a72fa83311075b3d809ffbf",
+            cellSize: 24,
+            frameCount: EmitterFrameCount,
+            scale: scale,
+            flip: false,
+            edge);
+        _flippedCannonEmitters = LoadSheet(
+            Path.Combine(throwableRoot, "throwable_toy_cannon"),
+            "emitter",
+            "Throwables/throwable_toy_cannon/emitter",
+            "7869a47c2f72a17894646e2f63eab1166b42d13f2a72fa83311075b3d809ffbf",
+            cellSize: 24,
+            frameCount: EmitterFrameCount,
+            scale: scale,
+            flip: true,
+            edge);
     }
 
     internal int ObjectPixelSize { get; private set; }
@@ -112,14 +142,25 @@ internal sealed class CharacterThrowFrameCache : IDisposable
         return frames[Math.Clamp(frame, 0, ActionFrameCount - 1)];
     }
 
-    internal ReadOnlySpan<byte> ObjectFrame(string? sourceCharacterId, int frame)
+    internal ReadOnlySpan<byte> ObjectFrame(string? sourceCharacterId, string? throwableId, int frame)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var objectId = sourceCharacterId is not null
-            && CharacterObjects.TryGetValue(sourceCharacterId, out var mapped)
-                ? mapped
-                : "patch_soft_ball";
+        var objectId = CosmeticCatalog.NormalizeThrowableId(throwableId)
+            ?? (sourceCharacterId is not null
+                && CharacterObjects.TryGetValue(sourceCharacterId, out var mapped)
+                    ? mapped
+                    : "patch_soft_ball");
         return _objects[objectId][Math.Clamp(frame, 0, ObjectFrameCount - 1)];
+    }
+
+    internal ReadOnlySpan<byte> ObjectFrame(string? sourceCharacterId, int frame) =>
+        ObjectFrame(sourceCharacterId, throwableId: null, frame);
+
+    internal ReadOnlySpan<byte> CannonEmitterFrame(int frame, bool flipped)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        var frames = flipped ? _flippedCannonEmitters : _cannonEmitters;
+        return frames[Math.Clamp(frame, 0, EmitterFrameCount - 1)];
     }
 
     public void Dispose()
@@ -131,7 +172,9 @@ internal sealed class CharacterThrowFrameCache : IDisposable
         _disposed = true;
         foreach (var frame in _actions.Values.SelectMany(value => value)
                      .Concat(_flippedActions.Values.SelectMany(value => value))
-                     .Concat(_objects.Values.SelectMany(value => value)))
+                     .Concat(_objects.Values.SelectMany(value => value))
+                     .Concat(_cannonEmitters)
+                     .Concat(_flippedCannonEmitters))
         {
             Array.Clear(frame);
         }
