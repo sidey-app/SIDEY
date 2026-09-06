@@ -1,11 +1,8 @@
-using Microsoft.Graphics.Canvas;
-using Microsoft.Graphics.Canvas.UI;
-using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Sidey.Core.Domain;
 using Sidey.Platform.Windows;
-using Windows.Foundation;
 
 namespace Sidey.App.Controls;
 
@@ -21,162 +18,121 @@ public sealed partial class StoreProductArtwork : UserControl
         nameof(CharacterId), typeof(string), typeof(StoreProductArtwork),
         new PropertyMetadata(PixelCharacterCatalog.FallbackId, OnProductChanged));
 
-    private CanvasBitmap? _bitmap;
-    private Rect _source;
     private int _generation;
 
-    public StoreProductArtwork()
-    {
-        InitializeComponent();
-        UpdateVisualMode();
-    }
+    public StoreProductArtwork() => InitializeComponent();
 
     public CommerceProductKind ProductKind
     {
         get => (CommerceProductKind)GetValue(ProductKindProperty);
         set => SetValue(ProductKindProperty, value);
     }
+
     public string CatalogItemId
     {
         get => (string)GetValue(CatalogItemIdProperty);
         set => SetValue(CatalogItemIdProperty, value);
     }
+
     public string CharacterId
     {
         get => (string)GetValue(CharacterIdProperty);
         set => SetValue(CharacterIdProperty, value);
     }
 
-    private static void OnProductChanged(DependencyObject sender, DependencyPropertyChangedEventArgs args)
+    private static void OnProductChanged(
+        DependencyObject sender,
+        DependencyPropertyChangedEventArgs args)
     {
         _ = args;
         var artwork = (StoreProductArtwork)sender;
-        artwork.UpdateVisualMode();
-        if (artwork.IsLoaded && artwork.ProductKind != CommerceProductKind.Character)
+        if (artwork.IsLoaded)
         {
             artwork.BeginReload();
         }
     }
 
-    private void UpdateVisualMode()
-    {
-        if (CharacterPreview is null || ArtworkCanvas is null)
-        {
-            return;
-        }
-
-        bool isCharacter = ProductKind == CommerceProductKind.Character;
-        CharacterPreview.CharacterId = CharacterId;
-        CharacterPreview.Visibility = isCharacter ? Visibility.Visible : Visibility.Collapsed;
-        ArtworkCanvas.Visibility = isCharacter ? Visibility.Collapsed : Visibility.Visible;
-    }
-
-    private void OnCreateResources(CanvasControl sender, CanvasCreateResourcesEventArgs args)
-    {
-        args.TrackAsyncAction(LoadAsync(sender).AsAsyncAction());
-    }
-
-    private async void BeginReload() => await LoadAsync(ArtworkCanvas);
-
     private void OnLoaded(object sender, RoutedEventArgs args)
     {
         _ = sender;
         _ = args;
-        UpdateVisualMode();
-        if (ProductKind != CommerceProductKind.Character)
-        {
-            BeginReload();
-        }
+        BeginReload();
     }
 
-    private async Task LoadAsync(CanvasControl canvas)
+    private async void BeginReload()
     {
         int generation = Interlocked.Increment(ref _generation);
-        string root = Path.Combine(SideyDeploymentPaths.DeploymentRoot(), "Assets");
-        string path;
-        Rect source;
-        if (ProductKind == CommerceProductKind.Character)
-        {
-            PixelCharacterDefinition definition = PixelCharacterCatalog.Get(CharacterId);
-            path = Path.Combine(root, definition.SpriteSheetResource.Replace('/', Path.DirectorySeparatorChar));
-            source = new Rect(0, 0, definition.FrameWidth, definition.FrameHeight);
-        }
-        else if (ProductKind == CommerceProductKind.Bubble)
-        {
-            if (string.IsNullOrEmpty(CatalogItemId))
-            {
-                _bitmap?.Dispose();
-                _bitmap = null;
-                canvas.Invalidate();
-                return;
-            }
-            path = Path.Combine(root, "Bubbles", CatalogItemId, "preview.png");
-            source = new Rect(0, 0, 128, 48);
-        }
-        else
-        {
-            string throwableId = string.IsNullOrEmpty(CatalogItemId)
-                ? SignatureObject(CharacterId)
-                : CatalogItemId;
-            string preview = Path.Combine(root, "Throwables", throwableId, "preview.png");
-            path = File.Exists(preview)
-                ? preview
-                : Path.Combine(root, "Throwables", throwableId, "sprite.png");
-            source = File.Exists(preview) ? new Rect(0, 0, 176, 56) : new Rect(0, 0, 16, 16);
-        }
-
-        CanvasBitmap? loaded = null;
+        PreviewImage.Source = null;
+        DefaultBubblePreview.Visibility = Visibility.Collapsed;
         try
         {
-            loaded = await CanvasBitmap.LoadAsync(canvas, path);
-            if (generation != Volatile.Read(ref _generation))
+            ImageSource? source = await LoadPreviewAsync();
+            if (generation != Volatile.Read(ref _generation) || !IsLoaded)
             {
-                loaded.Dispose();
                 return;
             }
-            _bitmap?.Dispose();
-            _bitmap = loaded;
-            _source = source;
-            loaded = null;
-            canvas.Invalidate();
+
+            PreviewImage.Source = source;
         }
         catch
         {
-            loaded?.Dispose();
+            if (generation == Volatile.Read(ref _generation))
+            {
+                PreviewImage.Source = null;
+            }
         }
     }
 
-    private void OnDraw(CanvasControl sender, CanvasDrawEventArgs args)
+    private async Task<ImageSource?> LoadPreviewAsync()
     {
-        if (sender.ActualWidth <= 0 || sender.ActualHeight <= 0)
+        string root = Path.Combine(SideyDeploymentPaths.DeploymentRoot(), "Assets");
+        if (ProductKind == CommerceProductKind.Character)
         {
-            return;
+            PixelCharacterDefinition definition = PixelCharacterCatalog.Get(CharacterId);
+            string path = Path.Combine(
+                root,
+                definition.SpriteSheetResource.Replace('/', Path.DirectorySeparatorChar));
+            return await StorePreviewImageLoader.LoadFrameAsync(
+                path,
+                checked((uint)definition.FrameWidth),
+                checked((uint)definition.FrameHeight),
+                frame: 0,
+                renderedWidth: 72,
+                renderedHeight: 72);
         }
-        if (_bitmap is null && ProductKind == CommerceProductKind.Bubble)
+
+        if (ProductKind == CommerceProductKind.Bubble)
         {
-            args.DrawingSession.FillRoundedRectangle(
-                8, (float)(sender.ActualHeight / 2 - 18), (float)Math.Max(20, sender.ActualWidth - 16), 36,
-                9, 9, Windows.UI.Color.FromArgb(245, 255, 255, 255));
-            args.DrawingSession.DrawRoundedRectangle(
-                8.5f, (float)(sender.ActualHeight / 2 - 17.5), (float)Math.Max(19, sender.ActualWidth - 17), 35,
-                9, 9, Windows.UI.Color.FromArgb(50, 20, 23, 31), 1);
-            return;
+            if (string.IsNullOrEmpty(CatalogItemId))
+            {
+                DefaultBubblePreview.Visibility = Visibility.Visible;
+                return null;
+            }
+
+            return await StorePreviewImageLoader.LoadWholeAsync(
+                Path.Combine(root, "Bubbles", CatalogItemId, "preview.png"),
+                sourceWidth: 128,
+                sourceHeight: 48);
         }
-        if (_bitmap is null)
+
+        string throwableId = string.IsNullOrEmpty(CatalogItemId)
+            ? SignatureObject(CharacterId)
+            : CatalogItemId;
+        if (throwableId == "throwable_toy_cannon")
         {
-            return;
+            return await StorePreviewImageLoader.LoadWholeAsync(
+                Path.Combine(root, "Throwables", throwableId, "preview.png"),
+                sourceWidth: 176,
+                sourceHeight: 56);
         }
-        double maxWidth = ProductKind == CommerceProductKind.Character ? 96 : Math.Min(220, sender.ActualWidth - 16);
-        double maxHeight = ProductKind == CommerceProductKind.Character ? 96 : Math.Min(96, sender.ActualHeight - 16);
-        double scale = Math.Min(maxWidth / _source.Width, maxHeight / _source.Height);
-        double width = _source.Width * scale;
-        double height = _source.Height * scale;
-        args.DrawingSession.DrawImage(
-            _bitmap,
-            new Rect((sender.ActualWidth - width) / 2, (sender.ActualHeight - height) / 2, width, height),
-            _source,
-            1f,
-            CanvasImageInterpolation.NearestNeighbor);
+
+        return await StorePreviewImageLoader.LoadFrameAsync(
+            Path.Combine(root, "Throwables", throwableId, "sprite.png"),
+            frameWidth: 16,
+            frameHeight: 16,
+            frame: 0,
+            renderedWidth: 48,
+            renderedHeight: 48);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs args)
@@ -184,11 +140,10 @@ public sealed partial class StoreProductArtwork : UserControl
         _ = sender;
         _ = args;
         Interlocked.Increment(ref _generation);
-        _bitmap?.Dispose();
-        _bitmap = null;
+        PreviewImage.Source = null;
     }
 
-    private static string SignatureObject(string characterId) => characterId switch
+    internal static string SignatureObject(string characterId) => characterId switch
     {
         "pixel_guinea_pig" => "mini_paprika",
         "pixel_monkey" => "banana",

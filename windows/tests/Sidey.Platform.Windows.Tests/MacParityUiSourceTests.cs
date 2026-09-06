@@ -358,17 +358,28 @@ public sealed class MacParityUiSourceTests
             "windows", "src", "Sidey.App", "Controls", "StoreProductArtwork.xaml");
         string artworkSource = ReadRepositoryFile(
             "windows", "src", "Sidey.App", "Controls", "StoreProductArtwork.xaml.cs");
+        string imageLoader = ReadRepositoryFile(
+            "windows", "src", "Sidey.App", "Controls", "StorePreviewImageLoader.cs");
         string previewStage = ReadRepositoryFile(
             "windows", "src", "Sidey.App", "Controls", "StorePreviewStage.xaml");
         string previewStageSource = ReadRepositoryFile(
             "windows", "src", "Sidey.App", "Controls", "StorePreviewStage.xaml.cs");
         Assert.Contains("Loaded=\"OnLoaded\"", artwork, StringComparison.Ordinal);
-        Assert.Contains("ClearColor=\"Transparent\"", artwork, StringComparison.Ordinal);
-        Assert.Contains("<local:PixelCharacterPreview", artwork, StringComparison.Ordinal);
-        Assert.Contains("TrackAsyncAction", artworkSource, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PreviewImage\"", artwork, StringComparison.Ordinal);
+        Assert.DoesNotContain("CanvasControl", artwork, StringComparison.Ordinal);
+        Assert.Contains("LoadFrameAsync", artworkSource, StringComparison.Ordinal);
+        Assert.Contains("BitmapInterpolationMode.NearestNeighbor", imageLoader, StringComparison.Ordinal);
         Assert.Contains("CardBackgroundFillColorDefaultBrush", previewStage, StringComparison.Ordinal);
         Assert.DoesNotContain("Background=\"#12141B\"", previewStage, StringComparison.Ordinal);
-        Assert.Contains("TrackAsyncAction", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("Width=\"540\"", previewStage, StringComparison.Ordinal);
+        Assert.Contains("Height=\"280\"", previewStage, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"PlatformCanvas\"", previewStage, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"BubbleTail\"", previewStage, StringComparison.Ordinal);
+        Assert.Contains("UpdateBubble", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("UpdateThrow", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("StartAnimation", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("StopAnimation", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("_timer.Start()", previewStageSource, StringComparison.Ordinal);
         Assert.True(CountOccurrences(xaml, "Glyph=\"&#xE73E;\"") >= 3);
         Assert.Contains("IsEnabled=\"{Binding IsActionEnabled}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("IsActionEnabled = commerceEnabled", productViewModel, StringComparison.Ordinal);

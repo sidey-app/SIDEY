@@ -120,24 +120,38 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     private async void OnStorePreviewRequested(StoreProductPreviewViewModel product)
     {
         var content = new StackPanel { Spacing = 12 };
-        content.Children.Add(new StorePreviewStage(
+        var previewStage = new StorePreviewStage(
             product.Kind,
             product.CatalogItemId,
-            product.CharacterId));
+            product.CharacterId);
+        await previewStage.InitializeAsync();
+        content.Children.Add(previewStage);
+        content.Children.Add(new TextBlock
+        {
+            Text = product.DisplayName,
+            FontSize = 22,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+        });
         content.Children.Add(new TextBlock
         {
             Text = product.Description,
+            Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources[
+                "TextFillColorSecondaryBrush"],
+            TextAlignment = TextAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
         });
         var dialog = new ContentDialog
         {
             XamlRoot = Content.XamlRoot,
-            Title = product.DisplayName,
             Content = content,
             CloseButtonText = I18n.Get("common.close"),
             DefaultButton = ContentDialogButton.Close,
         };
+        dialog.Opened += (_, _) => previewStage.StartAnimation();
         await dialog.ShowAsync();
+        previewStage.StopAnimation();
     }
 
     public async Task<string?> PromptForRoomNameAsync(string currentName)
