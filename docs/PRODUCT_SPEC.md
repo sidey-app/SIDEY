@@ -1,8 +1,8 @@
 # SIDEY 제품 기획서
 
 - 문서 버전: 0.8
-- 최종 갱신: 2026-09-06
-- 상태: macOS `v1.0.10`(build 21) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.0.8` 정식 출시
+- 최종 갱신: 2026-09-07
+- 상태: macOS `v1.0.10`(build 21) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.0.10` 정식 출시
 - 비공개 후보 기준: Mac App Store `1.0.10`(build 22); 공개 manifest와 다운로드 페이지는 실제 출시 전까지 기존 버전을 유지
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
@@ -48,9 +48,9 @@
 - 일반 창은 SIDEY 브랜드의 Windows Fluent UI로 만들고, 투명 월드는 전용 Win32 HWND가 소유한다. `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러가 무료 5종과 다른 사용자가 선택한 유료 4종의 사전 생성 BGRA frame을 표시한다. Windows 프로필은 무료 5종·활성 entitlement 캐릭터와 기본값·보유 말풍선·보유 투척물의 장착을 제공한다. 상점은 캐릭터 4종·말풍선 3종·투척물 3종의 구매 없는 상세 미리보기 무대를 제공한다.
 - 햄스터 1종 실기 계측은 같은 5종 렌더러의 입력 snapshot을 제한하는 Debug 전용 내부 모드로 수행한다. 햄스터 전용 제품 구현을 만들거나 이 모드를 Release에 노출하지 않으며, 나머지 4종 구현을 계측 뒤로 미루지 않는다.
 - 최종 목표는 macOS와 서버 계약·제품 행동이 동등한 Windows 판이며, 플랫폼 창·설정 UI는 Windows 관례를 따른다.
-- Windows 1.0.8 개발 빌드는 staging Supabase가 확인된 경우에만 기존 유료 캐릭터 4종의 Google identity 연결과 PortOne test checkout을 활성화한다. production project ref, Release 빌드 또는 명시적 개발 commerce opt-in이 없는 실행에서는 연결·주문 action을 만들지 않는다.
+- Windows 1.0.10 개발 빌드는 staging Supabase가 확인된 경우에만 기존 유료 캐릭터 4종의 Google identity 연결과 PortOne test checkout을 활성화한다. production project ref, Release 빌드 또는 명시적 개발 commerce opt-in이 없는 실행에서는 연결·주문 action을 만들지 않는다.
 - Google 연결은 기존 익명 계정의 UUID를 유지하는 identity linking이며 시스템 브라우저, PKCE S256, `sidey-dev://auth/google` callback과 일회성 pending flow를 사용한다. PortOne Store·Channel·API·Webhook secret은 계속 서버에만 둔다.
-- Windows 1.0.8 Release는 `sidey://auth/google` callback 전달 기반과 설치기 등록만 준비하고 상점은 10개 상품의 비활성 `구매 준비 중` 상태를 유지한다. 서버 응답이나 환경변수만으로 판매를 열 수 없고, 향후 새 클라이언트 버전의 명시적 빌드 변경과 서버 판매 활성화를 함께 거쳐야 한다.
+- Windows 1.0.10 Release는 `sidey://auth/google` callback 전달 기반과 설치기 등록만 준비하고 상점은 10개 상품의 비활성 `구매 준비 중` 상태를 유지한다. 서버 응답이나 환경변수만으로 판매를 열 수 없고, 향후 새 클라이언트 버전의 명시적 빌드 변경과 서버 판매 활성화를 함께 거쳐야 한다.
 - Godot·WPF·Electron·WebView는 사용하지 않는다.
 
 ### 2.3 명시적 제외
@@ -68,7 +68,7 @@
 - 공식 주소는 GitHub 프로젝트 Pages `https://sidey-app.github.io/SIDEY/`다. 한국어·영어·일본어 공개 페이지는 각각 `/ko/`, `/en/`, `/ja/` 아래에 둔다. 언어 선택 드롭다운은 두지 않으며, 로케일 접두사가 없는 경로에서는 브라우저의 첫 번째 선호 언어가 한국어이면 `/ko/`, 일본어이면 `/ja/`, 그 외에는 `/en/`의 같은 하위 경로로 이동한다. 사용자가 로케일 경로를 직접 연 경우에는 해당 주소를 유지한다.
 - `website/`는 pnpm `11.24.0`과 `pnpm-lock.yaml`을 사용하는 Astro 정적 사이트다. 페이지 소스는 `src/pages`, 공통 스타일 진입점은 `src/styles/styles.scss`, 컴포넌트별 Sass partial은 `src/styles/_*.scss`, 그대로 배포할 JavaScript·이미지는 `public`에 두고 `pnpm run build`가 Sass와 Astro로 만든 `dist`만 배포한다. 공개 로케일 페이지는 `/ko/`, `/en/`, `/ja/` 아래에 대칭으로 배치한다. `/`와 상점·새로운 기능·정책의 로케일 중립 경로는 브라우저의 첫 번째 선호 언어에 맞는 로케일 페이지로 query와 hash를 보존해 이동하는 언어 관문으로 사용한다. `/checkout/`, `/checkout-result/`, `/contribute/asset-previewer/`처럼 대응하는 언어별 페이지가 없는 도구 경로는 로케일 접두사 없이 유지한다. 이전 `.html` URL은 유지하지 않는다. 랜딩과 정책 페이지는 제품 소개와 다운로드·상점 안내를 담당하며 로그인·그룹·메시지 기능을 제공하는 웹 클라이언트가 아니다.
 - macOS 기본 CTA는 `release/macos.json`의 현재 공개 버전에 해당하는 고정 공증 DMG를 직접 가리키고 `brew install --cask sidey-app/tap/sidey`를 함께 제공한다. Pages는 그 버전의 정식 Release에 DMG·DMG SHA-256·Sparkle ZIP·ZIP SHA-256이 모두 있을 때만 사이트를 교체하며, 내려받은 DMG의 실제 SHA-256을 한국어·영어·일본어 다운로드 화면에 반영한다.
-- Windows 기본 CTA는 현재 정식 v1.0.8의 고정 Setup EXE를 직접 가리키며 저장소에서부터 활성 링크로 제공한다. Pages Actions는 버전에 맞는 정식 Release의 단일 Windows 설치 자산과 고정 URL을 확인한 경우에만 배포를 계속한다.
+- Windows 기본 CTA는 현재 정식 v1.0.10의 고정 Setup EXE를 직접 가리키며 저장소에서부터 활성 링크로 제공한다. Pages Actions는 버전에 맞는 정식 Release의 단일 Windows 설치 자산과 고정 URL을 확인한 경우에만 배포를 계속한다.
 - Windows 업데이트 채널은 macOS Release와 분리된 `windows-v<version>` 태그와 `release/windows.json`을 원본으로 사용한다. Pages Actions가 정식 Release의 단일 Setup EXE를 다시 내려받아 계산한 64자리 SHA-256과 파생 태그·고정 URL을 배포 artifact의 `windows-latest.json`과 호환 경로 `windows/update.json`에 기록한다. 생성된 두 파일은 저장소에서 별도 원본으로 관리하지 않는다. Release가 없거나 draft·pre-release이거나 예상 설치 파일 외 자산이 있으면 기존 Pages를 교체하지 않는다.
 - 첫 화면에서 플랫폼·아키텍처·정식 배포 상태를 밝히고, 개인정보 수집 경계, E2EE 미지원, 보안 화면·DRM·권한 상승 앱·모든 독점 전체화면 위 표시를 보장하지 않는다는 제한을 숨기지 않는다.
 - 랜딩은 보라·분홍 방사형 그라데이션과 잔잔한 점 패턴의 기존 밝은 배경을 사용한다. 랜딩·상점·정책·결제·컨트리뷰터 도구는 공통 Astro 상단 바를 사용한다. 상단 바는 화면 위 16px에 고정한 내용 맞춤 폭·높이 64px의 중앙 캡슐형이며, 내용 둘레에 여백을 두고 반투명 흰색 배경과 7px 배경 블러를 적용한다. `SIDEY` 브랜드 자간은 좁게 두고 메뉴 글자는 본문보다 또렷하게 보이도록 키우며, 메뉴를 `기능·다운로드·자주 묻는 질문`, 세로 구분선, `새로운 기능·상점·GitHub↗` 순서로 통일한다. 상점은 드롭다운 없이 `/store/`로 연결하고 영어 화면에서도 한국어 상점으로 연결한다. 첫 화면 문구는 `화면에 친구가 총총.`으로 시작하며, 플랫폼별 버전 보조 문구는 첫 화면과 하단 브랜드에서 반복하지 않고 다운로드 섹션에만 둔다. 첫 화면 CTA는 사용자 운영체제를 감지하는 하나의 분할형 다운로드 버튼으로 표시하고 옆 메뉴에서 macOS·Windows를 직접 선택할 수 있게 한다. 제공받은 플랫폼 로고를 쓰되 Windows 표식은 Apple 표식과 시각적 크기가 같도록 작게 보정하고 별도의 다운로드 동작 아이콘은 두지 않는다. 모든 다운로드 버튼을 가리키면 설치로 라이선스 계약에 동의한다는 문구를 보여 준다. 다운로드 섹션의 CTA는 `macOS 다운로드`와 `Windows 다운로드`로 표기한다. 플랫폼 표기는 `macOS`와 `Windows`의 고유 대소문자를 유지하고 SHA-256은 각 지원 환경 문구 바로 아래에 작은 보조 정보로 표시한다. 첫 장면은 얇은 베젤과 같은 짙은 회색을 쓰는 폭이 좁은 직사각형 모니터 목·가로 받침, `오늘 할 일 | 메모` 브라우저를 사용하고 캐릭터·이름표·말풍선은 64px 캐릭터 비율에 맞춰 줄이며 보이는 발끝을 브라우저 하단선에 맞춘다. 콩이는 보리 바로 왼쪽의 15% 지점에서 오른쪽으로, 토리는 오른쪽 벽에서 왼쪽으로 출발한다. 토리의 입력 중 말풍선은 콩이의 말풍선 표면·꼬리·글자 크기를 공유하는 42×30 영역에서 0.35초 간격으로 `.`, `..`, `...`을 가운데 정렬해 반복한다. 두 캐릭터는 앱의 기본 가속 32pt/s²·감쇠 0.82·최대 22pt/s를 따르고, 캐릭터와 겹치면 추가 전진 가속 64pt/s²·감쇠 0.92·최대 30pt/s의 슬라이딩으로 통과한 뒤 기본 이동으로 복귀하며 좌우 벽에서 방향을 반전한다. 첫 장면 다음에는 검증된 실제 macOS 작업 화면과 세 단계 설명을 한 화면에서 함께 읽는 컴팩트한 2열 사용 장면을 먼저 보여 주며, 좁은 화면에서는 이미지와 설명을 한 열로 배치한다. 그 다음 기능 섹션은 표 대신 평소 상태, 말랑공 상호작용, 크게 인사의 세 카드로 구성하고 서로 다른 제목 높이와 관계없이 세 장면의 바닥선을 카드 하단에 맞춘다. 말랑공은 0.2초 뒤 빙수에게서 출발해 거리 기반 높이의 이차 베지어 포물선으로 토리에게 닿고, 도착 순간 토리의 4프레임 hit과 말랑공의 4프레임 impact를 0.44초·0.24초 동안 각각 재생한다. 크게 인사는 24px 원본 아래쪽에서 3px 위인 발 기준점을 0.2초 확대·0.6초 복귀 동안 고정하고 캐릭터만 7배로 확대한다. 다운로드 다음에는 앱·지원 환경·비공개 그룹·개인정보·메시지 보관·오버레이 제한을 설명하는 접이식 자주 묻는 질문을 둔다. 추가 프로그램 캡처가 생기기 전에는 가짜 UI 화면을 만들지 않는다. 캐릭터·동작·투척물은 GitHub Pages의 `/SIDEY/assets/` 경로에서 불러온다.
@@ -110,7 +110,7 @@
 - 그룹 선택은 150ms 동안 합쳐 마지막 대상만 남기며 이미 시작한 네트워크 작업은 직렬 실행한다. 최종 대상 Presence와 해당 `roomID`의 최근 메시지 조회가 모두 성공하기 전에는 현재 활성 그룹과 기록을 유지한다. 이전 요청의 성공·실패는 UI에 적용하지 않고, 최종 실패 시 이전 활성 그룹 Presence를 복구하며 복구도 실패한 경우에만 Realtime 연결 오류로 전환한다.
 - 관리 권한은 클라이언트 표시 여부와 별개로 서버 RPC에서 다시 검증한다. 활성 그룹이 추방·삭제로 사라지면 composer·typing·말풍선을 정리하고 가장 오래된 남은 그룹을 활성화한다. 마지막 그룹이 사라지면 오버레이를 숨기고 기존 프로필을 유지한 그룹 참여 화면으로 돌아간다.
 - macOS는 익명 인증과 기존 세션 복구 정책을 유지한다. 복구 실패를 새 익명 계정 생성으로 조용히 덮어쓰지 않는다.
-- Windows는 저장된 Supabase 익명 세션을 먼저 복구하고, 세션이 없는 신규 설치에서만 새 익명 계정을 만든다. access·refresh token과 평문 초대 코드는 Windows Credential Manager에 보관한다. 1.0.8 개발 빌드는 staging의 PortOne 테스트 결제를 시작할 때만 PKCE S256과 `sidey-dev://auth/google` callback으로 같은 사용자 UUID에 Google identity를 연결한다. Release는 `sidey://auth/google` callback 기반만 설치하고 연결·구매 UI와 주문 호출을 컴파일 타임으로 잠근다.
+- Windows는 저장된 Supabase 익명 세션을 먼저 복구하고, 세션이 없는 신규 설치에서만 새 익명 계정을 만든다. access·refresh token과 평문 초대 코드는 Windows Credential Manager에 보관한다. 1.0.10 개발 빌드는 staging의 PortOne 테스트 결제를 시작할 때만 PKCE S256과 `sidey-dev://auth/google` callback으로 같은 사용자 UUID에 Google identity를 연결한다. Release는 `sidey://auth/google` callback 기반만 설치하고 연결·구매 UI와 주문 호출을 컴파일 타임으로 잠근다.
 - Windows와 macOS의 서로 다른 사용자 UUID가 같은 방에 참가하는 것을 지원하며, Mac↔Windows 계정 이전은 범위 밖이다.
 - App Store판은 설정의 계정·개인정보 화면에서 Apple 재인증 뒤 계정을 삭제할 수 있다. 삭제는 모든 방의 탈퇴와 방장 이전 또는 빈 방 삭제, 개인 데이터 제거, 결제 원장의 사용자 연결 해제, Supabase Auth 사용자 삭제를 수행한다. Apple credential 철회를 먼저 시도하되 실패가 SIDEY 데이터 삭제를 막지는 않는다.
 - App Store 계정 삭제는 구매 환불이 아니다. 삭제로 연결이 끊긴 유효한 비소모성 transaction은 해당 Apple 구매 계정의 `Transaction.currentEntitlements`에서 다시 확인될 때 새 SIDEY 계정에 복원할 수 있으며, 활성 SIDEY 계정에 묶인 transaction을 다른 계정으로 이동할 수 없다.
@@ -514,7 +514,7 @@ SIDEY가 사용할 수 있는 전역 활동 신호는 마지막 시스템 입력
 
 E2EE는 현재 설계·구현·검증되지 않았다. 전송 암호화, Postgres, RLS를 근거로 종단간 암호화라고 표현하면 안 된다.
 
-Windows 1.0.8 Release는 Supabase 익명 인증을 기본으로 사용하고 Google 연결·PortOne 구매를 컴파일 타임으로 잠근다. 개발 빌드만 staging에서 기존 익명 계정에 Google provider identity를 연결하며 callback code와 PKCE verifier를 일회성으로 처리한다. 로컬 로그에는 access·refresh token, OAuth code·verifier, 메시지 본문, 평문 초대 코드, 닉네임·email·UUID 원문, 입력 키·마우스 좌표·화면 및 활성 앱 목록·로컬 파일 내용·Credential Manager 데이터를 남기지 않는다.
+Windows 1.0.10 Release는 Supabase 익명 인증을 기본으로 사용하고 Google 연결·PortOne 구매를 컴파일 타임으로 잠근다. 개발 빌드만 staging에서 기존 익명 계정에 Google provider identity를 연결하며 callback code와 PKCE verifier를 일회성으로 처리한다. 로컬 로그에는 access·refresh token, OAuth code·verifier, 메시지 본문, 평문 초대 코드, 닉네임·email·UUID 원문, 입력 키·마우스 좌표·화면 및 활성 앱 목록·로컬 파일 내용·Credential Manager 데이터를 남기지 않는다.
 
 macOS commerce 로그와 공개 URL에는 Google OAuth token, 결제사 비밀키, service-role key, 일회용 주문 token, 전체 결제 식별자를 남기지 않는다. 결제 성공 redirect만으로 소유권을 지급하지 않고 PortOne V2 재조회, 결제 당시 정책 동의와 Postgres 기록이 모두 일치해야 한다. 카드 번호·결제 비밀번호는 SIDEY가 수집하지 않는다.
 
