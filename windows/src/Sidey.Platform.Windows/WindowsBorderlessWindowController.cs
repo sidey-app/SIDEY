@@ -33,6 +33,11 @@ public sealed class WindowsBorderlessWindowController : IDisposable
             Dispose();
             throw new Win32Exception(error);
         }
+
+        // A fully client-drawn window no longer qualifies for automatic rounding.
+        // Opt into DWM's smooth outer corners without changing the presenter.
+        int cornerPreference = 2; // DWMWCP_ROUND
+        _ = DwmSetWindowAttribute(windowHandle, 33, ref cornerPreference, sizeof(int));
     }
 
     public void Dispose()
@@ -89,4 +94,8 @@ public sealed class WindowsBorderlessWindowController : IDisposable
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowPos(
         nint window, nint insertAfter, int x, int y, int width, int height, uint flags);
+
+    [DllImport("dwmapi.dll", ExactSpelling = true)]
+    private static extern int DwmSetWindowAttribute(
+        nint window, uint attribute, ref int value, int valueSize);
 }
