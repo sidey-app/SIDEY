@@ -27,8 +27,10 @@ public sealed partial class CosmeticSelectionItemViewModel : ObservableObject
     public CommerceProductKind Kind { get; }
     public string? CatalogItemId { get; }
     public string DisplayName { get; }
-    public string CharacterId { get; }
     public IAsyncRelayCommand SelectCommand { get; }
+
+    [ObservableProperty]
+    public partial string CharacterId { get; set; }
 
     [ObservableProperty]
     public partial bool IsSelected { get; set; }

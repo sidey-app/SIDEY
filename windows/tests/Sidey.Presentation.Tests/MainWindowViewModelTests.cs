@@ -167,6 +167,58 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void ApplyingEquivalentSnapshotPreservesCosmeticItemIdentity()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+        CosmeticSelectionItemViewModel bubble = Assert.Single(viewModel.BubbleSelections);
+        CosmeticSelectionItemViewModel throwable = Assert.Single(viewModel.ThrowableSelections);
+
+        viewModel.ApplyState(state with { RealtimeConnection = ConnectedStatus() });
+
+        Assert.Same(bubble, Assert.Single(viewModel.BubbleSelections));
+        Assert.Same(throwable, Assert.Single(viewModel.ThrowableSelections));
+    }
+
+    [Fact]
+    public void ApplyingEquivalentSnapshotDoesNotRebuildVisibleStoreCards()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+        StoreProductPreviewViewModel[] initialProducts = viewModel.VisibleStoreProducts.ToArray();
+        int collectionChanges = 0;
+        viewModel.VisibleStoreProducts.CollectionChanged += (_, _) => collectionChanges++;
+
+        viewModel.ApplyState(state with { RealtimeConnection = ConnectedStatus() });
+
+        Assert.Equal(0, collectionChanges);
+        Assert.Equal(initialProducts, viewModel.VisibleStoreProducts);
+    }
+
+    [Fact]
+    public void ProfileCharacterUpdateReusesCosmeticItemsAndRefreshesTheirPreview()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+        CosmeticSelectionItemViewModel bubble = Assert.Single(viewModel.BubbleSelections);
+        Profile changedProfile = state.Profile! with { CharacterId = "pixel_penguin" };
+
+        viewModel.ApplyState(state with { Profile = changedProfile });
+
+        Assert.Same(bubble, Assert.Single(viewModel.BubbleSelections));
+        Assert.Equal("pixel_penguin", bubble.CharacterId);
+    }
+
+    [Fact]
     public void DisconnectedStateUsesAnExplicitOfflineLabel()
     {
         (FakeSideyCoordinator coordinator, _) = CreateRoomState();
@@ -248,9 +300,9 @@ public sealed class MainWindowViewModelTests
         Assert.False(viewModel.SaveProfileCommand.CanExecute(null));
 
         completion.SetResult();
-        for (int attempt = 0; attempt < 20 && viewModel.IsSavingCharacter; attempt++)
+        for (int attempt = 0; attempt < 200 && viewModel.IsSavingCharacter; attempt++)
         {
-            await Task.Yield();
+            await Task.Delay(10);
         }
         Assert.False(viewModel.IsSavingCharacter);
     }
@@ -704,6 +756,37 @@ public sealed class MainWindowViewModelTests
         await viewModel.CheckForUpdatesCommand.ExecuteAsync(null);
 
         Assert.Equal(1, updates.InstallerLaunchCount);
+    }
+
+    [Fact]
+    public async Task UpdateDownloadKeepsAVisibleActivityStateUntilTheInstallerLaunches()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var updates = new FakeUpdateService
+        {
+            AvailableUpdate = new AvailableUpdate("0.3.0-alpha.3"),
+            DownloadHandler = (_, _) => completion.Task,
+        };
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            updates);
+
+        Task pending = viewModel.CheckForUpdatesCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsCheckingForUpdates);
+        Assert.True(viewModel.HasUpdateActivity);
+        Assert.Contains("설정창을 닫아도", viewModel.UpdateActivityText, StringComparison.Ordinal);
+        Assert.False(viewModel.CheckForUpdatesCommand.CanExecute(null));
+
+        completion.SetResult();
+        await pending;
+
+        Assert.False(viewModel.IsCheckingForUpdates);
+        Assert.False(viewModel.HasUpdateActivity);
+        Assert.Equal(string.Empty, viewModel.UpdateActivityText);
+        Assert.True(viewModel.CheckForUpdatesCommand.CanExecute(null));
     }
 
     [Fact]

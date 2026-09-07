@@ -167,7 +167,8 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
     public string? LastEquippedCosmeticId { get; private set; }
     public int SetEquippedCosmeticCallCount { get; private set; }
     public Func<CommerceProductKind, string?, CancellationToken, Task>?
-        SetEquippedCosmeticHandler { get; set; }
+        SetEquippedCosmeticHandler
+    { get; set; }
 
     public Task SetEquippedCosmeticAsync(
         CommerceProductKind kind,
@@ -254,6 +255,8 @@ internal sealed class FakeUpdateService : IUpdateService
 
     public int ReleaseNotesLaunchCount { get; private set; }
 
+    public Func<AvailableUpdate, CancellationToken, Task>? DownloadHandler { get; set; }
+
     public Task<AvailableUpdate?> CheckAsync(CancellationToken cancellationToken = default)
     {
         LastCheckedAt = DateTimeOffset.UtcNow;
@@ -265,9 +268,8 @@ internal sealed class FakeUpdateService : IUpdateService
         CancellationToken cancellationToken = default)
     {
         _ = update;
-        _ = cancellationToken;
         InstallerLaunchCount++;
-        return Task.CompletedTask;
+        return DownloadHandler?.Invoke(update, cancellationToken) ?? Task.CompletedTask;
     }
 
     public Task OpenReleaseNotesAsync(Uri releaseNotesUri)

@@ -43,6 +43,7 @@ public sealed class TrayIconService : IDisposable
     private const uint NotifyIconTip = 0x4;
     private const uint NotifyIconInfo = 0x10;
     private const uint NotifyIconShowTip = 0x80;
+    private const uint NotifyInfoInfo = 0x1;
     private const uint NotifyInfoWarning = 0x2;
     private static readonly object RegistrationGate = new();
     private static readonly ConcurrentDictionary<nint, TrayIconService> Instances = new();
@@ -573,7 +574,7 @@ public sealed class TrayIconService : IDisposable
                     data.Info = I18n.Format(
                         "update.available",
                         service._availableUpdateVersion);
-                    data.InfoFlags = 0;
+                    data.InfoFlags = NotifyInfoInfo;
                 }
                 else
                 {
