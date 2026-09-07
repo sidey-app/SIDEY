@@ -5,7 +5,7 @@ SIDEY_REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && /bin/pwd -P)
 SIDEY_APP_STORE_VERIFIER_URL=${SIDEY_APP_STORE_VERIFIER_URL:-}
 SIDEY_DEVELOPMENT_TEAM=${SIDEY_DEVELOPMENT_TEAM:-}
 SIDEY_EXPECTED_MARKETING_VERSION=${SIDEY_EXPECTED_MARKETING_VERSION:-1.0.10}
-SIDEY_EXPECTED_BUILD_VERSION=${SIDEY_EXPECTED_BUILD_VERSION:-22}
+SIDEY_EXPECTED_BUILD_VERSION=${SIDEY_EXPECTED_BUILD_VERSION:-23}
 SIDEY_ARCHIVE_PATH=${1:-$SIDEY_REPO_ROOT/build/app-store/SIDEYAppStore.xcarchive}
 SIDEY_DERIVED_DATA=${SIDEY_DERIVED_DATA:-$SIDEY_REPO_ROOT/build/app-store-derived}
 
@@ -31,7 +31,9 @@ if [ -z "$SIDEY_DEVELOPMENT_TEAM" ]; then
 	exit 64
 fi
 
-python3 "$SIDEY_REPO_ROOT/scripts/validate_pixel_assets.py"
+# Platform mirrors are covered by the macOS asset tests. Keep this archive
+# preflight on canonical sources so it never validates Windows implementation.
+python3 "$SIDEY_REPO_ROOT/scripts/validate_pixel_assets.py" --canonical-only
 mkdir -p "$(dirname -- "$SIDEY_ARCHIVE_PATH")" "$SIDEY_DERIVED_DATA"
 
 xcodebuild \
@@ -51,16 +53,25 @@ SIDEY_APP="$SIDEY_ARCHIVE_PATH/Products/Applications/SIDEYAppStore.app"
 SIDEY_EXECUTABLE="$SIDEY_APP/Contents/MacOS/SIDEYAppStore"
 SIDEY_INFO_PLIST="$SIDEY_APP/Contents/Info.plist"
 SIDEY_PRIVACY_MANIFEST="$SIDEY_APP/Contents/Resources/PrivacyInfo.xcprivacy"
+SIDEY_DSYM_DWARF="$SIDEY_ARCHIVE_PATH/dSYMs/SIDEYAppStore.app.dSYM/Contents/Resources/DWARF/SIDEYAppStore"
 
 for SIDEY_REQUIRED_PATH in \
 	"$SIDEY_EXECUTABLE" \
 	"$SIDEY_INFO_PLIST" \
-	"$SIDEY_PRIVACY_MANIFEST"; do
+	"$SIDEY_PRIVACY_MANIFEST" \
+	"$SIDEY_DSYM_DWARF"; do
 	if [ ! -e "$SIDEY_REQUIRED_PATH" ]; then
 		echo "Required App Store archive file missing: $SIDEY_REQUIRED_PATH" >&2
 		exit 1
 	fi
 done
+
+SIDEY_EXECUTABLE_UUIDS=$(xcrun dwarfdump --uuid "$SIDEY_EXECUTABLE" | awk '{print $2}' | sort)
+SIDEY_DSYM_UUIDS=$(xcrun dwarfdump --uuid "$SIDEY_DSYM_DWARF" | awk '{print $2}' | sort)
+if [ -z "$SIDEY_EXECUTABLE_UUIDS" ] || [ "$SIDEY_EXECUTABLE_UUIDS" != "$SIDEY_DSYM_UUIDS" ]; then
+	echo "App Store dSYM UUIDs do not match the executable" >&2
+	exit 1
+fi
 
 if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SIDEY_INFO_PLIST")" != "app.sidey.desktop.appstore" ]; then
 	echo "Unexpected App Store bundle identifier" >&2
