@@ -9,6 +9,30 @@ namespace Sidey.Presentation.Tests;
 [Collection("Language refresh")]
 public sealed class MainWindowViewModelTests
 {
+    [Theory]
+    [InlineData("en-US")]
+    [InlineData("ja-JP")]
+    public void DisplayFormattingUsesSelectedLanguageWithoutChangingWindowsCulture(string language)
+    {
+        string previousLanguage = Sidey.Core.Localization.I18n.Language;
+        var previousCulture = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo("fr-FR");
+            Sidey.Core.Localization.I18n.SetLanguage(language);
+            Assert.Equal(language, Sidey.Core.Localization.I18n.Culture.Name);
+            string text = Sidey.Core.Localization.I18n.Format("metrics.summary", 1, 2, 3.5, 4.5, 5.5, 6, 7);
+            Assert.Contains("3.50", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("3,50", text, StringComparison.Ordinal);
+            Assert.Equal("fr-FR", System.Globalization.CultureInfo.CurrentCulture.Name);
+        }
+        finally
+        {
+            Sidey.Core.Localization.I18n.SetLanguage(previousLanguage);
+            System.Globalization.CultureInfo.CurrentCulture = previousCulture;
+        }
+    }
+
     [Fact]
     public void LanguageRefreshUpdatesExistingItemsAndPreservesDraftsAndFilters()
     {

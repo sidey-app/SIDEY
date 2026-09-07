@@ -429,28 +429,40 @@ public partial class App : Application
         var window = new Window { Title = "SIDEY Store Preview Smoke" };
         try
         {
+            var host = new Microsoft.UI.Xaml.Controls.Grid();
+            window.Content = host;
+            window.Activate();
+            await Task.Delay(80);
+            async Task VerifyDialogAsync(Controls.StorePreviewStage stage)
+            {
+                var content = new Microsoft.UI.Xaml.Controls.StackPanel { Spacing = 12 };
+                content.Children.Add(stage);
+                content.Children.Add(new Microsoft.UI.Xaml.Controls.TextBlock { Text = "SIDEY preview" });
+                var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog
+                {
+                    XamlRoot = host.XamlRoot,
+                    Content = content,
+                    CloseButtonText = I18n.Get("common.close"),
+                };
+                stage.BeginPresentation();
+                var showing = dialog.ShowAsync();
+                try { await stage.VerifyInteractionSmokeAsync(); }
+                finally
+                {
+                    stage.EndPresentation();
+                    dialog.Hide();
+                    await showing;
+                    dialog.Content = null;
+                }
+            }
             foreach (var character in new[] { "pixel_guinea_pig", "pixel_monkey", "pixel_chinchilla", "pixel_starlight_upalupa" })
             {
                 var stage = new Controls.StorePreviewStage(Sidey.Core.Domain.CommerceProductKind.Character, character, character);
-                try
-                {
-                    window.Content = stage;
-                    window.Activate();
-                    stage.BeginPresentation();
-                    await stage.VerifyInteractionSmokeAsync();
-                }
-                finally { stage.EndPresentation(); }
+                await VerifyDialogAsync(stage);
             }
             var cannonStage = new Controls.StorePreviewStage(
                 Sidey.Core.Domain.CommerceProductKind.Throwable, "throwable_toy_cannon", "pixel_hamster");
-            try
-            {
-                window.Content = cannonStage;
-                window.Activate();
-                cannonStage.BeginPresentation();
-                await cannonStage.VerifyInteractionSmokeAsync();
-            }
-            finally { cannonStage.EndPresentation(); }
+            await VerifyDialogAsync(cannonStage);
         }
         finally { window.Close(); }
     }

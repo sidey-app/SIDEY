@@ -19,17 +19,21 @@ public sealed class MacParityUiSourceTests
     }
 
     [Fact]
-    public void PreviewProjectilesKeepAnArrangedCompositionHostBetweenFrames()
+    public void PreviewProjectilesUseResidentNativeImagesAndVerifyRenderedPixels()
     {
         var stage = ReadRepositoryFile("windows", "src", "Sidey.App", "Controls", "StorePreviewStage.xaml.cs");
-        var image = ReadRepositoryFile("windows", "src", "Sidey.App", "Controls", "NearestPixelImage.cs");
+        var image = ReadRepositoryFile("windows", "src", "Sidey.App", "Controls", "PreloadedPixelAnimation.cs");
         foreach (string name in new[] { "ProjectileImage", "ImpactImage", "EmitterImage" })
         {
             Assert.DoesNotContain(name + ".Visibility =", stage, StringComparison.Ordinal);
             Assert.Contains(name + ".Opacity = 1", stage, StringComparison.Ordinal);
         }
-        Assert.Contains("_visual.RelativeSizeAdjustment = Vector2.One", image, StringComparison.Ordinal);
-        Assert.Contains("ActualWidth > 0 && ActualHeight > 0", image, StringComparison.Ordinal);
+        Assert.Contains("new Image { Source = source", image, StringComparison.Ordinal);
+        Assert.DoesNotContain("CompositionSurfaceBrush", image, StringComparison.Ordinal);
+        Assert.Contains("_frames[frame].Opacity = 1", image, StringComparison.Ordinal);
+        Assert.Contains("rendered.GetPixelsAsync()", image, StringComparison.Ordinal);
+        Assert.Contains("withEffect.RenderAsync(SceneCanvas)", stage, StringComparison.Ordinal);
+        Assert.Contains("ProjectileImage.ShowFrame(projectileFrame)", stage, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -585,7 +589,7 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("x:Name=\"ImpactImage\"", previewStage, StringComparison.Ordinal);
         Assert.Contains("EmitterScale.ScaleX = leftToRight ? 1 : -1", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("throw_hit.png", previewStageSource, StringComparison.Ordinal);
-        Assert.Contains("projectileFrames = new PixelFrameSurface[12]", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("projectileFrames = new ImageSource[12]", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("StartAnimation", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("StopAnimation", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("_timer.Start()", previewStageSource, StringComparison.Ordinal);

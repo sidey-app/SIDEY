@@ -16,6 +16,7 @@ public static class I18n
     private static string? catalogRootOverride;
 
     public static string Language => ResolveLanguage();
+    public static CultureInfo Culture => CultureInfo.GetCultureInfo(Language);
 
     public static string Get(string key)
     {
@@ -27,7 +28,7 @@ public static class I18n
 
     public static string Format(string key, params object?[] args)
     {
-        return string.Format(CultureInfo.CurrentCulture, Get(key), args);
+        return string.Format(Culture, Get(key), args);
     }
 
     public static void SetLanguage(string? language)

@@ -73,17 +73,17 @@
         <Canvas x:Name="SparkleCanvas" Width="540" Height="256" IsHitTestVisible="False">
           <Canvas.Clip><RectangleGeometry Rect="0,0,540,256" /></Canvas.Clip>
         </Canvas>
-        <controls:NearestPixelImage x:Name="EmitterImage" Width="72" Height="72" Canvas.Top="193" Opacity="0" Canvas.ZIndex="21">
-          <controls:NearestPixelImage.RenderTransform>
+        <controls:PreloadedPixelAnimation x:Name="EmitterImage" Width="72" Height="72" Canvas.Top="193" Opacity="0" Canvas.ZIndex="21">
+          <controls:PreloadedPixelAnimation.RenderTransform>
             <ScaleTransform x:Name="EmitterScale" CenterX="36" CenterY="36" />
-          </controls:NearestPixelImage.RenderTransform>
-        </controls:NearestPixelImage>
-        <controls:NearestPixelImage x:Name="ProjectileImage" Width="48" Height="48" Opacity="0" Canvas.ZIndex="22">
-          <controls:NearestPixelImage.RenderTransform>
+          </controls:PreloadedPixelAnimation.RenderTransform>
+        </controls:PreloadedPixelAnimation>
+        <controls:PreloadedPixelAnimation x:Name="ProjectileImage" Width="48" Height="48" Opacity="0" Canvas.ZIndex="22">
+          <controls:PreloadedPixelAnimation.RenderTransform>
             <ScaleTransform x:Name="ProjectileScale" CenterX="24" CenterY="24" />
-          </controls:NearestPixelImage.RenderTransform>
-        </controls:NearestPixelImage>
-        <controls:NearestPixelImage x:Name="ImpactImage" Width="72" Height="72" Opacity="0" Canvas.ZIndex="22" />
+          </controls:PreloadedPixelAnimation.RenderTransform>
+        </controls:PreloadedPixelAnimation>
+        <controls:PreloadedPixelAnimation x:Name="ImpactImage" Width="72" Height="72" Opacity="0" Canvas.ZIndex="22" />
       </Canvas>
 
       <ProgressRing x:Name="LoadingRing" Width="32" Height="32" IsActive="True" />

@@ -11,6 +11,16 @@ internal static class StorePreviewImageLoader
 {
     private static readonly ConditionalWeakTable<ImageSource, SoftwareBitmap> BitmapLifetimes = new();
 
+    internal static void ReleaseFrame(ImageSource source)
+    {
+        if (BitmapLifetimes.TryGetValue(source, out var bitmap))
+        {
+            BitmapLifetimes.Remove(source);
+            bitmap.Dispose();
+        }
+        if (source is IDisposable disposable) disposable.Dispose();
+    }
+
     internal static async Task<PixelFrameSurface> LoadPixelFrameAsync(
         string path, uint frameWidth, uint frameHeight, int frame,
         uint renderedWidth, uint renderedHeight, CancellationToken cancellationToken)

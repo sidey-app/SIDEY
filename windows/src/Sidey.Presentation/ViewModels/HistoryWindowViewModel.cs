@@ -94,6 +94,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject, IDisposab
         Title = ActiveRoom() is { } room
             ? I18n.Format("history.roomTitle", room.Name)
             : I18n.Get("history.recentTitle");
+        RebuildEntries();
         UpdateEmptyState();
     }
 
@@ -372,7 +373,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject, IDisposab
             entry.Id,
             member?.Nickname ?? I18n.Get("history.unknownUser"),
             entry.Body,
-            entry.CreatedAt.ToLocalTime().ToString("g", CultureInfo.CurrentCulture),
+            entry.CreatedAt.ToLocalTime().ToString("g", I18n.Culture),
             PixelCharacterCatalog.NormalizeId(member?.CharacterId),
             entry.SenderId == _state.Profile?.Id,
             entry.State == MessageDeliveryState.Pending,

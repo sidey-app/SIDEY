@@ -512,12 +512,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
         string display = local.Date == today
             ? I18n.Format(
                 "settings.updateCheckedToday",
-                local.ToString("t", CultureInfo.CurrentCulture))
+                local.ToString("t", I18n.Culture))
             : local.Date == today.AddDays(-1)
                 ? I18n.Format(
                     "settings.updateCheckedYesterday",
-                    local.ToString("t", CultureInfo.CurrentCulture))
-                : local.ToString("g", CultureInfo.CurrentCulture);
+                    local.ToString("t", I18n.Culture))
+                : local.ToString("g", I18n.Culture);
         LastUpdateCheckText = I18n.Format("settings.updateLastChecked", display);
     }
 
