@@ -5,6 +5,8 @@ namespace Sidey.Presentation.Services;
 internal sealed class DelayedAction
 {
     private readonly CancellationTokenSource _cancellation = new();
+    private readonly object _lifetimeGate = new();
+    private bool _disposed;
 
     private DelayedAction(TimeSpan delay, Action action)
     {
@@ -20,13 +22,25 @@ internal sealed class DelayedAction
         return new DelayedAction(delay, action);
     }
 
-    internal void Cancel() => _cancellation.Cancel();
+    internal void Cancel()
+    {
+        lock (_lifetimeGate)
+        {
+            // A dispatcher callback can cancel this action after its delay has finished.
+            if (!_disposed)
+            {
+                _cancellation.Cancel();
+            }
+        }
+    }
 
     private async Task RunAsync(TimeSpan delay, Action action)
     {
         try
         {
-            await Task.Delay(delay, _cancellation.Token);
+            CancellationToken token = _cancellation.Token;
+            await Task.Delay(delay, token);
+            token.ThrowIfCancellationRequested();
             action();
         }
         catch (OperationCanceledException) when (_cancellation.IsCancellationRequested)
@@ -38,7 +52,11 @@ internal sealed class DelayedAction
         }
         finally
         {
-            _cancellation.Dispose();
+            lock (_lifetimeGate)
+            {
+                _disposed = true;
+                _cancellation.Dispose();
+            }
         }
     }
 }

@@ -520,6 +520,30 @@ public partial class App : Application
                 }
             }
 
+            if (windowIndex == 0)
+            {
+                composer.ShowAndFocus(monitorIdentifier: null);
+                await Task.Delay(150);
+                viewModel.Draft = "자동 닫기 테스트";
+                // No SendRequested subscriber: exercise the real five-second UI path offline.
+                viewModel.SendCommand.Execute(null);
+                await Task.Delay(TimeSpan.FromSeconds(5.5));
+                if (composer.AppWindow.IsVisible)
+                {
+                    throw new InvalidOperationException("The composer did not auto-hide after sending.");
+                }
+
+                composer.ShowAndFocus(monitorIdentifier: null);
+                viewModel.Draft = "다음 메시지";
+                await Task.Delay(150);
+                if (input.Text != viewModel.Draft || input.FocusState == FocusState.Unfocused)
+                {
+                    throw new InvalidOperationException("The composer could not be reused after auto-hiding.");
+                }
+                composer.HideComposer();
+                StartupDiagnostics.Stage("composer-auto-close-smoke-complete");
+            }
+
             composer.CloseForExit();
             await Task.Delay(70);
         }
