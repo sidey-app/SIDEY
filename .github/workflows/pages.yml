@@ -7,7 +7,6 @@ on:
     paths:
       - 'assets/**'
       - 'release/macos.json'
-      - 'release/windows.json'
       - 'website/**'
       - 'scripts/website/**'
       - 'scripts/validate_pixel_assets.py'
