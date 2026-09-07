@@ -448,6 +448,11 @@ public sealed partial class StorePreviewStage : UserControl
     {
         _ = sender;
         _ = args;
+        // A tick already queued on the dispatcher can arrive after StopAnimation.
+        if (!_isPresented || !_timer.IsEnabled)
+        {
+            return;
+        }
         UpdateScene();
     }
 
@@ -1255,6 +1260,8 @@ public sealed partial class StorePreviewStage : UserControl
         foreach (bool leftToRight in new[] { true, false })
         {
             UpdateThrow(0.1, left, right, leftToRight, flight);
+            // Simulate a dispatcher tick that was queued before the smoke paused playback.
+            OnTimerTick(null, EventArgs.Empty);
             await Task.Delay(30);
             double actorX = (leftToRight ? left : right) + (RenderedCharacterSize / 2d);
             double emitterX = Canvas.GetLeft(EmitterImage) + (EmitterSize / 2d);

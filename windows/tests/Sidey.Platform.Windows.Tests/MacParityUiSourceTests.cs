@@ -32,6 +32,8 @@ public sealed class MacParityUiSourceTests
         }
         Assert.Contains("new Image { Source = source", image, StringComparison.Ordinal);
         Assert.DoesNotContain("CompositionSurfaceBrush", image, StringComparison.Ordinal);
+        Assert.Contains("if (!_isPresented || !_timer.IsEnabled)", stage, StringComparison.Ordinal);
+        Assert.Contains("OnTimerTick(null, EventArgs.Empty)", stage, StringComparison.Ordinal);
         Assert.Contains("_frames[frame].Opacity = 1", image, StringComparison.Ordinal);
         Assert.Contains("rendered.GetPixelsAsync()", image, StringComparison.Ordinal);
         Assert.Contains("withEffect.RenderAsync(SceneCanvas)", stage, StringComparison.Ordinal);
