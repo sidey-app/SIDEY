@@ -17,16 +17,14 @@ public sealed partial class StorePreviewStage : UserControl
     private const double StageWidth = 540;
     private const double PlatformTop = 256;
     private const double RenderedCharacterSize = 72;
+    private const double PreviewScale = RenderedCharacterSize / 48d;
     private const double RenderedFootBaseline = 9;
     private const double ProjectileSize = 48;
     private const double ImpactSize = 64;
     private const double EmitterSize = 72;
-    private const double ProjectilePathY = PlatformTop
-        - (ProjectileSize / 2d)
-        + RenderedFootBaseline;
+    private const double ProjectilePathY = CharacterTop + (RenderedCharacterSize / 2d);
     private const double EmitterTop = PlatformTop - EmitterSize + RenderedFootBaseline;
     private const double CharacterTop = PlatformTop - RenderedCharacterSize + RenderedFootBaseline;
-    private const double PreviewWallInset = 12;
     private const double WalkFrameSeconds = 0.16;
     private const double IdleFrameSeconds = 0.55;
     private const double TypingFrameSeconds = 0.35;
@@ -54,7 +52,7 @@ public sealed partial class StorePreviewStage : UserControl
     private const double AmbientSparkleCycleSeconds = 1.2;
     private const double AmbientSparkleDurationSeconds = 1.05;
     private static readonly IReadOnlyList<RectD> NoAvoidanceRects = Array.Empty<RectD>();
-    private static readonly IReadOnlySet<Guid> NoStoppedIds = new HashSet<Guid>();
+    private readonly HashSet<Guid> _stoppedIds = [];
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(1000d / 30d) };
     private readonly Stopwatch _clock = new();
     private readonly Dictionary<string, IReadOnlyList<ImageSource>> _characters = new(StringComparer.Ordinal);
@@ -64,11 +62,15 @@ public sealed partial class StorePreviewStage : UserControl
     private readonly EdgeTrackGeometry _movementGeometry = new(
         new RectD(0, 0, StageWidth, 280),
         OverlayEdge.Bottom,
-        tangentExtent: RenderedCharacterSize + (PreviewWallInset * 2));
+        tangentExtent: RenderedCharacterSize * 3);
     private readonly List<PixelMovementAgent> _movementAgents = [];
     private readonly PixelMovementScratch _movementScratch = new();
     private readonly Random _random = new(0x51DE59);
     private readonly List<Microsoft.UI.Xaml.Shapes.Polygon> _sparkles = [];
+    private readonly List<Microsoft.UI.Xaml.Shapes.Polygon> _pulseSparkles = [];
+    private double _pulseStarted = double.NegativeInfinity;
+    private double _manualThrowStartX;
+    private double _manualThrowArcHeight;
     private readonly CancellationToken _lifetimeToken;
     private IReadOnlyList<ImageSource> _projectileFrames = Array.Empty<ImageSource>();
     private IReadOnlyList<ImageSource> _emitterFrames = Array.Empty<ImageSource>();
@@ -417,10 +419,16 @@ public sealed partial class StorePreviewStage : UserControl
             PixelMovementAgent rightAgent = _movementAgents[1];
             leftX = leftAgent.TrackPosition - (RenderedCharacterSize / 2d);
             rightX = rightAgent.TrackPosition - (RenderedCharacterSize / 2d);
-            leftFrame = CharacterFrame(elapsed, leftAgent.Velocity);
-            rightFrame = CharacterFrame(elapsed + 0.08, rightAgent.Velocity);
-            UpdateFacing(leftAgent, leftId, ref _leftFacingLeft);
-            UpdateFacing(rightAgent, "pixel_cat", ref _rightFacingLeft);
+            leftFrame = CharacterFrame(elapsed, PixelRoamingPolicy.IsWalking(leftAgent, false, PreviewScale) ? leftAgent.Velocity : 0);
+            rightFrame = CharacterFrame(elapsed + 0.08, PixelRoamingPolicy.IsWalking(rightAgent, _stoppedIds.Contains(rightAgent.Id), PreviewScale) ? rightAgent.Velocity : 0);
+            if (elapsed - _manualThrowStarted >= ThrowActionSeconds)
+            {
+                UpdateFacing(leftAgent, leftId, ref _leftFacingLeft);
+            }
+            if (!_stoppedIds.Contains(rightAgent.Id))
+            {
+                UpdateFacing(rightAgent, "pixel_cat", ref _rightFacingLeft);
+            }
         }
 
         double throwLocal = -1;
@@ -467,6 +475,9 @@ public sealed partial class StorePreviewStage : UserControl
             ref _rightVisibleCharacterLayer);
 
         PositionCharacters(leftX, rightX);
+        double pulseScale = PreviewPulseScale(elapsed - _pulseStarted);
+        LeftCharacterScale.ScaleX *= pulseScale;
+        LeftCharacterScale.ScaleY = pulseScale;
         UpdateSparkles(elapsed, leftX, leftId);
 
         if (ProductKind == CommerceProductKind.Bubble)
@@ -508,17 +519,18 @@ public sealed partial class StorePreviewStage : UserControl
     private void BuildMovementAgents()
     {
         double lower = _movementGeometry.TrackLowerBound;
-        double length = _movementGeometry.TrackUpperBound - lower;
         double leftFraction = ProductKind == CommerceProductKind.Bubble ? 0.28 : 0.22;
         double rightFraction = ProductKind == CommerceProductKind.Bubble ? 0.72 : 0.78;
         _movementAgents.Add(new PixelMovementAgent(
             new Guid("D5F0D9BB-FBDA-4B10-AEF9-A7E2A4CFBD25"),
-            lower + (length * leftFraction),
-            _movementGeometry.TrackUpperBound));
+            _movementGeometry.Clamp(StageWidth * leftFraction),
+            RandomTarget(lower, _movementGeometry.TrackUpperBound),
+            idleRemaining: _random.NextDouble() * 1.5d));
         _movementAgents.Add(new PixelMovementAgent(
             new Guid("26E5237A-69A1-4EA7-868E-822C831069B6"),
-            lower + (length * rightFraction),
-            _movementGeometry.TrackLowerBound));
+            _movementGeometry.Clamp(StageWidth * rightFraction),
+            RandomTarget(lower, _movementGeometry.TrackUpperBound),
+            idleRemaining: _random.NextDouble() * 1.5d));
     }
 
     private void AdvanceMovement(double elapsed)
@@ -528,28 +540,12 @@ public sealed partial class StorePreviewStage : UserControl
             : Math.Clamp(elapsed - _lastSceneElapsed, 0, 0.1);
         _lastSceneElapsed = elapsed;
 
-        double lower = _movementGeometry.TrackLowerBound;
-        double upper = _movementGeometry.TrackUpperBound;
-        foreach (PixelMovementAgent agent in _movementAgents)
+        _stoppedIds.Clear();
+        double hitStarted = _manualThrowStarted + ThrowReleaseSeconds + _manualThrowFlightDuration;
+        if (ProductKind == CommerceProductKind.Character
+            && elapsed >= hitStarted && elapsed < hitStarted + HitActionSeconds)
         {
-            if (Math.Abs(agent.Target - agent.TrackPosition) > 2)
-            {
-                continue;
-            }
-
-            if (agent.TrackPosition <= lower + 2)
-            {
-                TurnFromWall(agent, towardUpper: true, lower, upper);
-            }
-            else if (agent.TrackPosition >= upper - 2)
-            {
-                TurnFromWall(agent, towardUpper: false, lower, upper);
-            }
-            else
-            {
-                agent.Target = RandomTarget(lower, upper);
-                agent.IdleRemaining = 0.8 + (_random.NextDouble() * 2.2);
-            }
+            _stoppedIds.Add(_movementAgents[1].Id);
         }
 
         PixelMovementSimulation.Step(
@@ -557,40 +553,15 @@ public sealed partial class StorePreviewStage : UserControl
             deltaTime,
             _movementGeometry,
             NoAvoidanceRects,
-            NoStoppedIds,
-            _movementScratch);
-
-        foreach (PixelMovementAgent agent in _movementAgents)
-        {
-            if (agent.TrackPosition <= lower + 0.01 && agent.Velocity < 0)
-            {
-                TurnFromWall(agent, towardUpper: true, lower, upper);
-            }
-            else if (agent.TrackPosition >= upper - 0.01 && agent.Velocity > 0)
-            {
-                TurnFromWall(agent, towardUpper: false, lower, upper);
-            }
-        }
+            _stoppedIds,
+            _movementScratch,
+            PreviewScale);
+        PixelRoamingPolicy.UpdateAfterMovement(
+            _movementAgents, _stoppedIds, _movementGeometry, _random, PreviewScale);
     }
 
     private double RandomTarget(double lower, double upper) =>
         lower + (_random.NextDouble() * (upper - lower));
-
-    private void TurnFromWall(
-        PixelMovementAgent agent,
-        bool towardUpper,
-        double lower,
-        double upper)
-    {
-        double midpoint = lower + ((upper - lower) / 2d);
-        agent.Target = towardUpper
-            ? midpoint + (_random.NextDouble() * (upper - midpoint))
-            : lower + (_random.NextDouble() * (midpoint - lower));
-        agent.Velocity = towardUpper
-            ? Math.Max(6, Math.Abs(agent.Velocity))
-            : -Math.Max(6, Math.Abs(agent.Velocity));
-        agent.IdleRemaining = 0;
-    }
 
     private static int CharacterFrame(double elapsed, double velocity) =>
         Math.Abs(velocity) > 2
@@ -608,10 +579,9 @@ public sealed partial class StorePreviewStage : UserControl
             return;
         }
 
-        double targetDelta = agent.Target - agent.TrackPosition;
-        if (Math.Abs(targetDelta) > 2d)
+        if (Math.Abs(agent.Velocity) > 2d * PreviewScale)
         {
-            facingLeft = targetDelta < 0d;
+            facingLeft = agent.Velocity < 0d;
         }
     }
 
@@ -844,19 +814,22 @@ public sealed partial class StorePreviewStage : UserControl
             double startCenterX = leftToRight
                 ? leftX + (RenderedCharacterSize / 2d)
                 : rightX + (RenderedCharacterSize / 2d);
+            if (ProductKind == CommerceProductKind.Character)
+            {
+                startCenterX = _manualThrowStartX;
+            }
             double endCenterX = leftToRight
                 ? rightX + (RenderedCharacterSize / 2d)
                 : leftX + (RenderedCharacterSize / 2d);
             double inverse = 1 - progress;
             double distance = Math.Abs(endCenterX - startCenterX);
-            double arcHeight = Math.Clamp(distance * 0.18, 24, 96);
+            double arcHeight = ProductKind == CommerceProductKind.Character
+                ? _manualThrowArcHeight
+                : Math.Clamp(distance / PreviewScale * 0.18, 24, 96) * PreviewScale;
             double centerX = (inverse * inverse * startCenterX)
                 + (2 * inverse * progress * ((startCenterX + endCenterX) / 2d))
                 + (progress * progress * endCenterX);
-            // A quadratic Bezier reaches only half of its control-point offset
-            // at the midpoint. Double the control offset so arcHeight is the
-            // visible peak height, and keep the enlarged sprite above the floor.
-            double controlY = ProjectilePathY - (arcHeight * 2d);
+            double controlY = ProjectilePathY - arcHeight;
             double centerY = (inverse * inverse * ProjectilePathY)
                 + (2 * inverse * progress * controlY)
                 + (progress * progress * ProjectilePathY);
@@ -881,7 +854,7 @@ public sealed partial class StorePreviewStage : UserControl
             double targetCenterX = (leftToRight ? rightX : leftX)
                 + (RenderedCharacterSize / 2d);
             Canvas.SetLeft(ImpactImage, targetCenterX - (ImpactSize / 2d));
-            Canvas.SetTop(ImpactImage, PlatformTop - 10 - (ImpactSize / 2d));
+            Canvas.SetTop(ImpactImage, ProjectilePathY - (10 * PreviewScale) - (ImpactSize / 2d));
             ImpactImage.Visibility = Visibility.Visible;
         }
 
@@ -904,7 +877,7 @@ public sealed partial class StorePreviewStage : UserControl
 
     private static double ThrowFlightDuration(double leftX, double rightX)
     {
-        double distance = Math.Abs(rightX - leftX);
+        double distance = Math.Abs(rightX - leftX) / PreviewScale;
         return Math.Clamp(0.35 + (distance / 1600d), 0.35, 0.95);
     }
 
@@ -960,7 +933,9 @@ public sealed partial class StorePreviewStage : UserControl
             Color.FromArgb(255, 168, 135, 214),
             Color.FromArgb(255, 245, 186, 56),
         ];
-        for (int index = 0; index < 6; index++)
+        bool hasPulseEffect = ProductKind == CommerceProductKind.Character
+            && PixelCharacterCatalog.Get(CharacterId).VisualEffect == PixelCharacterVisualEffect.StarlightSparkles;
+        for (int index = 0; index < (hasPulseEffect ? 49 : 6); index++)
         {
             double radius = 3 + ((index % 3) * 0.5);
             var star = new Microsoft.UI.Xaml.Shapes.Polygon
@@ -978,8 +953,10 @@ public sealed partial class StorePreviewStage : UserControl
                     new Point(radius - 1, radius - 1),
                 },
                 Opacity = 0,
+                RenderTransform = new ScaleTransform { CenterX = radius, CenterY = radius },
             };
-            _sparkles.Add(star);
+            if (index < 6) _sparkles.Add(star);
+            else _pulseSparkles.Add(star);
             SparkleCanvas.Children.Add(star);
         }
     }
@@ -1016,6 +993,49 @@ public sealed partial class StorePreviewStage : UserControl
             Canvas.SetTop(star, PlatformTop - vertical - rise - radius);
             star.Opacity = Math.Sin(Math.PI * progress) * 0.96;
         }
+        UpdatePulseSparkles(elapsed - _pulseStarted, leftX);
+    }
+
+    private void UpdatePulseSparkles(double elapsed, double leftX)
+    {
+        for (int index = 0; index < _pulseSparkles.Count; index++)
+        {
+            var star = _pulseSparkles[index];
+            if (elapsed < 0 || elapsed >= 0.78)
+            {
+                star.Opacity = 0;
+                continue;
+            }
+            double progress = elapsed / 0.78;
+            double centerX = leftX + (RenderedCharacterSize / 2d);
+            double centerY = ProjectilePathY;
+            double radius;
+            if (index == 0)
+            {
+                double flash = Math.Clamp(elapsed / 0.32, 0, 1);
+                radius = 34 * (0.25 + (0.75 * flash));
+                star.Opacity = Math.Sin(Math.PI * flash) * 0.75;
+            }
+            else
+            {
+                bool outer = index <= 18;
+                int waveIndex = outer ? index - 1 : index - 19;
+                int count = outer ? 18 : 24;
+                double waveProgress = outer ? progress : Math.Clamp((elapsed - 0.06) / 0.72, 0, 1);
+                double angle = (waveIndex * Math.PI * 2 / count) + (outer ? 0 : Math.PI / count);
+                double distance = (outer ? 126 + (42 * Unit(index * 3253)) : 82 + (50 * Unit(index * 3253)))
+                    * Math.Sin(waveProgress * Math.PI / 2);
+                centerX += Math.Cos(angle) * distance;
+                centerY += Math.Sin(angle) * distance;
+                radius = (outer ? 8 : 4.5) * (1 - (waveProgress * 0.7));
+                star.Opacity = Math.Min(1, waveProgress / 0.12) * (1 - (waveProgress * waveProgress));
+            }
+            double originalRadius = 3 + (((index + 6) % 3) * 0.5);
+            var scale = (ScaleTransform)star.RenderTransform;
+            scale.ScaleX = scale.ScaleY = radius / originalRadius;
+            Canvas.SetLeft(star, centerX - originalRadius);
+            Canvas.SetTop(star, centerY - originalRadius);
+        }
     }
 
     private static double Unit(int value)
@@ -1029,18 +1049,98 @@ public sealed partial class StorePreviewStage : UserControl
         return mixed / (double)uint.MaxValue;
     }
 
-    private void OnTapped(object sender, TappedRoutedEventArgs args)
+    private void OnFriendTapped(object sender, TappedRoutedEventArgs args)
     {
-        _ = sender;
-        _ = args;
-        if (ProductKind == CommerceProductKind.Character && _resourcesLoaded)
+        args.Handled = TriggerPreviewThrow();
+    }
+
+    private bool TriggerPreviewThrow()
+    {
+        if (ProductKind == CommerceProductKind.Character && _resourcesLoaded && _isPresented)
         {
+            _manualThrowStartX = _movementAgents[0].TrackPosition;
+            _manualThrowArcHeight = Math.Clamp(
+                Math.Abs(_movementAgents[1].TrackPosition - _manualThrowStartX) / PreviewScale * 0.18,
+                24, 96) * PreviewScale;
             _manualThrowFlightDuration = ThrowFlightDuration(
                 _movementAgents[0].TrackPosition - (RenderedCharacterSize / 2d),
                 _movementAgents[1].TrackPosition - (RenderedCharacterSize / 2d));
             _manualThrowStarted = _clock.Elapsed.TotalSeconds;
             UpdateScene();
+            return true;
         }
+        return false;
+    }
+
+    private void OnCharacterDoubleTapped(object sender, DoubleTappedRoutedEventArgs args)
+    {
+        args.Handled = TriggerPreviewPulse();
+    }
+
+    private bool TriggerPreviewPulse()
+    {
+        if (ProductKind != CommerceProductKind.Character || !_resourcesLoaded || !_isPresented)
+        {
+            return false;
+        }
+        _pulseStarted = _clock.Elapsed.TotalSeconds;
+        UpdateScene();
+        return true;
+    }
+
+    private static double PreviewPulseScale(double elapsed)
+    {
+        if (elapsed < 0 || elapsed >= 0.8) return 1;
+        if (elapsed <= 0.2)
+        {
+            double progress = elapsed / 0.2;
+            return 1 + (2 * Math.Sin(progress * Math.PI / 2));
+        }
+        double settle = (elapsed - 0.2) / 0.6;
+        return 2 + Math.Cos(settle * Math.PI);
+    }
+
+    internal async Task VerifyInteractionSmokeAsync()
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(20);
+        while (!_resourcesLoaded && !_loadFailed && DateTimeOffset.UtcNow < deadline)
+            await Task.Delay(50);
+        if (!_resourcesLoaded) throw new InvalidOperationException("Store preview smoke: resources unavailable.");
+        _timer.Stop();
+        if (!TriggerPreviewPulse()) throw new InvalidOperationException("Store preview smoke: pulse rejected.");
+        _pulseStarted = _clock.Elapsed.TotalSeconds - 0.2;
+        UpdateScene();
+        if (Math.Abs(LeftCharacterScale.ScaleX) < 2.99 || LeftCharacterScale.ScaleY < 2.99
+            || LeftCharacterScale.CenterY != RenderedCharacterSize - RenderedFootBaseline)
+            throw new InvalidOperationException("Store preview smoke: pulse scale or foot anchor mismatch.");
+        if (PixelCharacterCatalog.Get(CharacterId).VisualEffect == PixelCharacterVisualEffect.StarlightSparkles)
+        {
+            UpdateSparkles(0.3, Canvas.GetLeft(LeftCharacterHost), CharacterId);
+            UpdatePulseSparkles(0.2, Canvas.GetLeft(LeftCharacterHost));
+            if (!_sparkles.Any(star => star.Opacity > 0) || _pulseSparkles.Count != 43
+                || !_pulseSparkles.Any(star => star.Opacity > 0))
+                throw new InvalidOperationException("Store preview smoke: ambient or pulse effect missing.");
+        }
+        if (!TriggerPreviewThrow()) throw new InvalidOperationException("Store preview smoke: throw rejected.");
+        _manualThrowStarted = _clock.Elapsed.TotalSeconds - ThrowReleaseSeconds - 0.05;
+        UpdateScene();
+        if (ProjectileImage.Visibility != Visibility.Visible)
+            throw new InvalidOperationException("Store preview smoke: projectile missing.");
+        var target = _movementAgents[1];
+        double destination = target.Target;
+        _manualThrowStarted = _clock.Elapsed.TotalSeconds - ThrowReleaseSeconds - _manualThrowFlightDuration - 0.05;
+        UpdateScene();
+        if (!_stoppedIds.Contains(target.Id) || target.Velocity != 0 || target.Target != destination
+            || ImpactImage.Visibility != Visibility.Visible)
+            throw new InvalidOperationException("Store preview smoke: hit stop or impact missing.");
+        _pulseStarted = _clock.Elapsed.TotalSeconds - 1;
+        UpdateScene();
+        if (LeftCharacterScale.ScaleY != 1 || _pulseSparkles.Any(star => star.Opacity > 0))
+            throw new InvalidOperationException("Store preview smoke: pulse did not settle.");
+        EndPresentation();
+        if (_timer.IsEnabled || TriggerPreviewPulse() || TriggerPreviewThrow())
+            throw new InvalidOperationException("Store preview smoke: closed preview still active.");
+        StartupDiagnostics.Stage($"store-preview-interaction-smoke-complete character={CharacterId}");
     }
 
 }

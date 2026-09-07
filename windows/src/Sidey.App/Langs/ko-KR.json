@@ -1,4 +1,7 @@
 {
+  "storePreview": {
+    "characterHint": "미리보기 캐릭터를 두 번 누르면 커지고, 친구 캐릭터를 누르면 투척물을 던져요."
+  },
   "window": {
     "settingsTitle": "SIDEY 설정",
     "composerTitle": "SIDEY 메시지 입력",

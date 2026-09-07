@@ -3,8 +3,7 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Width="540"
-    Height="280"
-    Tapped="OnTapped">
+    Height="280">
   <Border
       Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
       BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -59,17 +58,19 @@
               Points="0,0 12,0 6,8" />
         </Canvas>
 
-        <Grid x:Name="LeftCharacterHost" Width="72" Height="72" Canvas.Top="193">
+        <Grid x:Name="LeftCharacterHost" Width="72" Height="72" Canvas.Top="193" Background="Transparent" DoubleTapped="OnCharacterDoubleTapped">
           <Grid.RenderTransform>
-            <ScaleTransform x:Name="LeftCharacterScale" CenterX="36" CenterY="36" />
+            <ScaleTransform x:Name="LeftCharacterScale" CenterX="36" CenterY="63" />
           </Grid.RenderTransform>
         </Grid>
-        <Grid x:Name="RightCharacterHost" Width="72" Height="72" Canvas.Top="193">
+        <Grid x:Name="RightCharacterHost" Width="72" Height="72" Canvas.Top="193" Background="Transparent" Tapped="OnFriendTapped">
           <Grid.RenderTransform>
             <ScaleTransform x:Name="RightCharacterScale" CenterX="36" CenterY="36" />
           </Grid.RenderTransform>
         </Grid>
-        <Canvas x:Name="SparkleCanvas" Width="540" Height="256" IsHitTestVisible="False" />
+        <Canvas x:Name="SparkleCanvas" Width="540" Height="256" IsHitTestVisible="False">
+          <Canvas.Clip><RectangleGeometry Rect="0,0,540,256" /></Canvas.Clip>
+        </Canvas>
         <Image x:Name="EmitterImage" Width="72" Height="72" Canvas.Top="193" Stretch="None" Visibility="Collapsed">
           <Image.RenderTransform>
             <ScaleTransform x:Name="EmitterScale" CenterX="36" CenterY="36" />

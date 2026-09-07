@@ -339,23 +339,6 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             ExpireHitAnimations();
             RefreshStoppedIds();
 
-            foreach (var node in _nodes)
-            {
-                if (Math.Abs(node.Agent.Target - node.Agent.TrackPosition) <= 2d)
-                {
-                    var length = Math.Max(0d, _geometry.TrackUpperBound - _geometry.TrackLowerBound);
-                    node.Agent.Target = _geometry.TrackLowerBound + (_random.NextDouble() * length);
-                    node.Agent.IdleRemaining = 0.6d + (_random.NextDouble() * 1.4d);
-                }
-            }
-
-            PixelMovementSimulation.Step(
-                _agents,
-                FixedDeltaTime,
-                _geometry,
-                NoAvoidanceRects,
-                _stoppedIds,
-                _movementScratch);
             _expiredBubbleSenders.Clear();
             var now = DateTimeOffset.UtcNow;
             foreach (var senderBubbles in _bubblesBySender)
@@ -398,12 +381,16 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                     lower,
                     upper));
             }
-            MessageBubbleCollisionResolver.Apply(
+            var separatedIds = MessageBubbleCollisionResolver.Apply(
                 _agents,
                 _bubbleTrackBounds,
                 FixedDeltaTime,
                 _geometry,
-                _bubbleCollisionScratch);
+                _bubbleCollisionScratch, _stoppedIds, _dpiScale);
+            PixelMovementSimulation.Step(
+                _agents, FixedDeltaTime, _geometry, NoAvoidanceRects,
+                _stoppedIds, _movementScratch, _dpiScale, separatedIds);
+            PixelRoamingPolicy.UpdateAfterMovement(_agents, _stoppedIds, _geometry, _random, _dpiScale);
             _tick++;
             _hotspotTrackingElapsed = Math.Min(1d, _hotspotTrackingElapsed + FixedDeltaTime);
             RenderFrame();
@@ -421,7 +408,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         foreach (var node in _nodes)
         {
             var cached = _frameCache.Get(node.Member.CharacterId);
-            var moving = Math.Abs(node.Agent.Velocity) >= 0.5d;
+            var moving = PixelRoamingPolicy.IsWalking(node.Agent, _stoppedIds.Contains(node.Member.Id), _dpiScale);
             var actionFrame = ActionFrame(node.Member.Id);
             var frame = FrameIndex(node.Member.Presence, moving, cached.Definition.Frames);
             var pulseElapsed = PulseElapsed(node.Member.Id);
@@ -443,7 +430,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 _edge);
             if (actionFrame is null
                 && cached.Definition.MirrorsToMovementDirection
-                && Math.Abs(node.Agent.Velocity) > 2d)
+                && Math.Abs(node.Agent.Velocity) > 2d * _dpiScale)
             {
                 node.FacingLeft = ShouldMirrorForVelocity(node.Agent.Velocity);
             }
@@ -708,7 +695,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 var target = _geometry.Clamp(
                     _geometry.TrackLowerBound
                     + (targetFraction * (_geometry.TrackUpperBound - _geometry.TrackLowerBound)));
-                var agent = new PixelMovementAgent(member.Id, position, target);
+                var agent = new PixelMovementAgent(member.Id, position, target,
+                    idleRemaining: _random.NextDouble() * 1.5d);
                 var node = new WorldNode(
                     member with { CharacterId = PixelCharacterCatalog.NormalizeId(member.CharacterId) },
                     agent);

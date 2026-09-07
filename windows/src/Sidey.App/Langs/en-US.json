@@ -1,4 +1,7 @@
 {
+  "storePreview": {
+    "characterHint": "Double-click the featured character to make it grow. Click the friend to throw an item."
+  },
   "window": {
     "settingsTitle": "SIDEY Settings",
     "composerTitle": "SIDEY Message",

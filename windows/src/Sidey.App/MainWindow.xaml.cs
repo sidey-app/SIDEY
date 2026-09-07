@@ -192,6 +192,15 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
             }
 
             content.Children.Add(previewStage);
+            if (product.Kind == Sidey.Core.Domain.CommerceProductKind.Character)
+            {
+                content.Children.Add(new TextBlock
+                {
+                    Text = I18n.Get("storePreview.characterHint"),
+                    TextAlignment = TextAlignment.Center,
+                    TextWrapping = TextWrapping.Wrap,
+                });
+            }
             content.Children.Add(new TextBlock
             {
                 Text = product.DisplayName,

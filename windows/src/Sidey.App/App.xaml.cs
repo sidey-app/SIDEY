@@ -144,6 +144,7 @@ public partial class App : Application
             _window = _mainWindow;
             StartupDiagnostics.Stage("completed-launch-window-hidden");
         }
+        await RunStorePreviewStartupSmokeIfRequestedAsync();
         await RunComposerStartupSmokeIfRequestedAsync();
         _singleInstance!.StartListening(RequestPrimaryActivation);
         try
@@ -410,6 +411,29 @@ public partial class App : Application
 
         _composer.ShowAndFocus(
             _coordinator.State.Preferences.OverlayRegion.MonitorIdentifier);
+    }
+
+    private static async Task RunStorePreviewStartupSmokeIfRequestedAsync()
+    {
+        if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) != "1"
+            || Environment.GetEnvironmentVariable("SIDEY_STORE_PREVIEW_SMOKE") != "1") return;
+        var window = new Window { Title = "SIDEY Store Preview Smoke" };
+        try
+        {
+            foreach (var character in new[] { "pixel_guinea_pig", "pixel_monkey", "pixel_chinchilla", "pixel_starlight_upalupa" })
+            {
+                var stage = new Controls.StorePreviewStage(Sidey.Core.Domain.CommerceProductKind.Character, character, character);
+                try
+                {
+                    window.Content = stage;
+                    window.Activate();
+                    stage.BeginPresentation();
+                    await stage.VerifyInteractionSmokeAsync();
+                }
+                finally { stage.EndPresentation(); }
+            }
+        }
+        finally { window.Close(); }
     }
 
     private static async Task RunComposerStartupSmokeIfRequestedAsync()
