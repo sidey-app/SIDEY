@@ -5,7 +5,7 @@ SIDEY_REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && /bin/pwd -P)
 SIDEY_APP_STORE_VERIFIER_URL=${SIDEY_APP_STORE_VERIFIER_URL:-}
 SIDEY_DEVELOPMENT_TEAM=${SIDEY_DEVELOPMENT_TEAM:-}
 SIDEY_EXPECTED_MARKETING_VERSION=${SIDEY_EXPECTED_MARKETING_VERSION:-1.0.10}
-SIDEY_EXPECTED_BUILD_VERSION=${SIDEY_EXPECTED_BUILD_VERSION:-22}
+SIDEY_EXPECTED_BUILD_VERSION=${SIDEY_EXPECTED_BUILD_VERSION:-23}
 SIDEY_ARCHIVE_PATH=${1:-$SIDEY_REPO_ROOT/build/app-store/SIDEYAppStore.xcarchive}
 SIDEY_DERIVED_DATA=${SIDEY_DERIVED_DATA:-$SIDEY_REPO_ROOT/build/app-store-derived}
 
@@ -31,7 +31,9 @@ if [ -z "$SIDEY_DEVELOPMENT_TEAM" ]; then
 	exit 64
 fi
 
-python3 "$SIDEY_REPO_ROOT/scripts/validate_pixel_assets.py"
+# Platform mirrors are covered by the macOS asset tests. Keep this archive
+# preflight on canonical sources so it never validates Windows implementation.
+python3 "$SIDEY_REPO_ROOT/scripts/validate_pixel_assets.py" --canonical-only
 mkdir -p "$(dirname -- "$SIDEY_ARCHIVE_PATH")" "$SIDEY_DERIVED_DATA"
 
 xcodebuild \
