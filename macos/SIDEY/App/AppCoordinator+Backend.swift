@@ -25,13 +25,7 @@ extension AppCoordinator {
         backendConnectionStatus = nil
         model.setActiveRoomRealtimeConnected(false)
         model.connectionState = .connecting
-        backendEventTask?.cancel()
-        backendEventTask = Task { [weak self] in
-            for await event in backend.events {
-                guard !Task.isCancelled else { return }
-                self?.handleBackendEvent(event)
-            }
-        }
+        startBackendEventHandling(backend.events)
         backendTask?.cancel()
         backendTask = Task { [weak self] in
             guard let self else { return }
@@ -81,6 +75,19 @@ extension AppCoordinator {
                 refreshStatusItem()
                 if launchReason == .loginItem { showSettings() }
                 advanceFirstRunTransition()
+            }
+        }
+    }
+
+    func startBackendEventHandling(_ events: AsyncStream<BackendEvent>) {
+        // Cancelling an AsyncStream consumer terminates the shared stream. Keep
+        // this task alive across authentication/bootstrap retries until shutdown.
+        guard backendEventTask == nil else { return }
+        backendEventTask = Task { [weak self] in
+            defer { self?.backendEventTask = nil }
+            for await event in events {
+                guard !Task.isCancelled, let self else { return }
+                self.handleBackendEvent(event)
             }
         }
     }
@@ -356,14 +363,31 @@ extension AppCoordinator {
                 serverMutationCommitted = true
                 let postCommitWarning = model.errorMessage
                 let snapshot = try await backend.loadSnapshot()
-                let reconciliation = try await backend.syncRealtime(
-                    rooms: snapshot.rooms,
-                    activeRoomID: model.resolvedActiveRoomID(in: snapshot.rooms)
-                )
-                applyBackendReconciliation(reconciliation)
-                model.connectionState = .online
-                model.errorMessage = postCommitWarning
-                if let successMessage { model.presentSuccess(successMessage) }
+                // The database mutation is durable once the snapshot loads. Apply it before
+                // Realtime work so a transient channel rebuild cannot leave successful room
+                // changes looking like failures or invite users to repeat the mutation.
+                applyBackendSnapshot(snapshot, currentUserID: model.currentUserID)
+
+                var realtimeWarning: String?
+                do {
+                    let reconciliation = try await backend.syncRealtime(
+                        rooms: snapshot.rooms,
+                        activeRoomID: model.resolvedActiveRoomID(in: snapshot.rooms)
+                    )
+                    applyBackendReconciliation(reconciliation)
+                    model.connectionState = .online
+                } catch is CancellationError where Task.isCancelled {
+                    throw CancellationError()
+                } catch {
+                    model.connectionState = .connecting
+                    model.setActiveRoomRealtimeConnected(false)
+                    realtimeWarning = "변경사항은 서버에 저장됐습니다. 실시간 연결을 복구 중입니다."
+                }
+                let warnings = [postCommitWarning, realtimeWarning].compactMap { $0 }
+                model.errorMessage = warnings.isEmpty ? nil : warnings.joined(separator: " ")
+                if realtimeWarning == nil, let successMessage {
+                    model.presentSuccess(successMessage)
+                }
                 if !wasOnboardingComplete && model.preferences.onboardingComplete {
                     model.activeSettingsPage = .groups
                     settingsWindow.transitionFromOnboardingToSettings()

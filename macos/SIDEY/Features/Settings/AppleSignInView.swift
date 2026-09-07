@@ -4,7 +4,6 @@ import SwiftUI
 struct AppleSignInView: View {
     @Bindable var model: AppModel
     let onSignIn: (AppleAuthorizationPayload) -> Void
-    @State private var nonce = AppleAuthorization.makeNonce()
 
     var body: some View {
         VStack(spacing: 24) {
@@ -19,11 +18,11 @@ struct AppleSignInView: View {
                     .multilineTextAlignment(.center)
             }
             SignInWithAppleButton(.continue) { request in
-                nonce = AppleAuthorization.makeNonce()
+                let nonce = AppleAuthorization.makeNonce()
                 AppleAuthorization.prepare(request, nonce: nonce)
             } onCompletion: { result in
                 do {
-                    onSignIn(try AppleAuthorization.payload(from: result, nonce: nonce))
+                    onSignIn(try AppleAuthorization.payload(from: result))
                 } catch {
                     model.errorMessage = error.localizedDescription
                 }

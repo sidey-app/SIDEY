@@ -12,20 +12,23 @@ struct AppleAuthorizationPayload: Sendable {
 enum AppleAuthorization {
     static func prepare(_ request: ASAuthorizationAppleIDRequest, nonce: String) {
         request.requestedScopes = [.fullName, .email]
+        request.state = nonce
         request.nonce = SHA256.hash(data: Data(nonce.utf8))
             .map { String(format: "%02x", $0) }
             .joined()
     }
 
     static func payload(
-        from result: Result<ASAuthorization, any Error>,
-        nonce: String
+        from result: Result<ASAuthorization, any Error>
     ) throws -> AppleAuthorizationPayload {
         let authorization = try result.get()
         guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
               let tokenData = credential.identityToken,
               let identityToken = String(data: tokenData, encoding: .utf8)
         else { throw AppleAuthorizationError.missingIdentityToken }
+        guard let nonce = credential.state, !nonce.isEmpty else {
+            throw AppleAuthorizationError.missingRequestNonce
+        }
         let authorizationCode = credential.authorizationCode
             .flatMap { String(data: $0, encoding: .utf8) }
         return AppleAuthorizationPayload(
@@ -53,11 +56,13 @@ enum AppleAuthorization {
 
 enum AppleAuthorizationError: LocalizedError {
     case missingIdentityToken
+    case missingRequestNonce
     case missingAuthorizationCode
 
     var errorDescription: String? {
         switch self {
         case .missingIdentityToken: "Apple 로그인 응답에 identity token이 없습니다."
+        case .missingRequestNonce: "Apple 로그인 응답에 요청 nonce가 없습니다."
         case .missingAuthorizationCode: "계정 탈퇴에는 새로운 Apple 인증 코드가 필요합니다."
         }
     }

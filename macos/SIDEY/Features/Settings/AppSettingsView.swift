@@ -7,7 +7,6 @@ struct AppSettingsView: View {
     let storeAvailability: StoreAvailability
     @State private var showsDeletionControls = false
     @State private var deletionPhrase = ""
-    @State private var deletionNonce = AppleAuthorization.makeNonce()
 
     init(
         model: AppModel,
@@ -179,14 +178,11 @@ struct AppSettingsView: View {
                         .textFieldStyle(.roundedBorder)
                         .frame(maxWidth: 280)
                     SignInWithAppleButton(.continue) { request in
-                        deletionNonce = AppleAuthorization.makeNonce()
-                        AppleAuthorization.prepare(request, nonce: deletionNonce)
+                        let nonce = AppleAuthorization.makeNonce()
+                        AppleAuthorization.prepare(request, nonce: nonce)
                     } onCompletion: { result in
                         do {
-                            let payload = try AppleAuthorization.payload(
-                                from: result,
-                                nonce: deletionNonce
-                            )
+                            let payload = try AppleAuthorization.payload(from: result)
                             actions.onDeleteAccount(payload)
                         } catch {
                             model.errorMessage = error.localizedDescription
