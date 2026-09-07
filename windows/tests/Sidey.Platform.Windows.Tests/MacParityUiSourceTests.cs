@@ -231,7 +231,7 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("WindowActivationState.Deactivated", source, StringComparison.Ordinal);
         Assert.Contains("HideComposer();", source, StringComparison.Ordinal);
         Assert.Contains("ViewModel.OnHidden();", source, StringComparison.Ordinal);
-        Assert.Contains("AppWindow.ResizeClient", source, StringComparison.Ordinal);
+        Assert.Contains("AppWindow.Resize(new Windows.Graphics.SizeInt32(width, height))", source, StringComparison.Ordinal);
         Assert.Contains("AppWindow.Closing += OnAppWindowClosing", source, StringComparison.Ordinal);
         Assert.Contains("args.Cancel = true", source, StringComparison.Ordinal);
         Assert.Contains("CloseForExit()", source, StringComparison.Ordinal);
@@ -247,6 +247,8 @@ public sealed class MacParityUiSourceTests
         Assert.DoesNotContain("SetBorderAndTitleBar", source, StringComparison.Ordinal);
         Assert.DoesNotContain("AppWindow.SetPresenter", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ExtendsContentIntoTitleBar", source, StringComparison.Ordinal);
+        Assert.Contains("new WindowsBorderlessWindowController", source, StringComparison.Ordinal);
+        Assert.Contains("_borderlessWindow.Dispose();", source, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -17,6 +17,7 @@ public sealed partial class ComposerWindow : Window
     private const int FocusAttemptCount = 3;
 
     private readonly Microsoft.UI.Dispatching.DispatcherQueue _uiDispatcherQueue;
+    private readonly WindowsBorderlessWindowController _borderlessWindow;
     private bool _focusRequested;
     private bool _isHiding;
     private bool _isVisible;
@@ -41,7 +42,11 @@ public sealed partial class ComposerWindow : Window
             presenter.IsResizable = false;
         }
 
+        _borderlessWindow = new WindowsBorderlessWindowController(
+            WinRT.Interop.WindowNative.GetWindowHandle(this));
+
         ViewModel.CloseRequested += OnCloseRequested;
+        MessageInput.Loaded += OnMessageInputLoaded;
         Activated += OnWindowActivated;
         AppWindow.Closing += OnAppWindowClosing;
         Closed += OnWindowClosed;
@@ -169,6 +174,14 @@ public sealed partial class ComposerWindow : Window
         }
     }
 
+    private void OnMessageInputLoaded(object sender, RoutedEventArgs args)
+    {
+        if (!_isClosed && _isVisible)
+        {
+            RequestMessageInputFocus();
+        }
+    }
+
     private void OnCloseRequested()
     {
         if (_isClosed)
@@ -207,10 +220,12 @@ public sealed partial class ComposerWindow : Window
         _ = sender;
         _ = args;
         _isClosed = true;
+        _borderlessWindow.Dispose();
         _focusRequestId++;
         _focusRequested = false;
         _isVisible = false;
         AppWindow.Closing -= OnAppWindowClosing;
+        MessageInput.Loaded -= OnMessageInputLoaded;
         ViewModel.CloseRequested -= OnCloseRequested;
         ViewModel.Dispose();
     }
@@ -255,7 +270,7 @@ public sealed partial class ComposerWindow : Window
         double scale = monitor.Dpi / 96d;
         int width = (int)Math.Round(ComposerWidth * scale, MidpointRounding.AwayFromZero);
         int height = (int)Math.Round(ComposerHeight * scale, MidpointRounding.AwayFromZero);
-        AppWindow.ResizeClient(new Windows.Graphics.SizeInt32(width, height));
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(width, height));
 
         NativePixelRect workArea = monitor.WorkAreaPixels;
         Windows.Graphics.SizeInt32 windowSize = AppWindow.Size;

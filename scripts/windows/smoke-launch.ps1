@@ -78,6 +78,9 @@ try {
                 Get-Content -LiteralPath $_.FullName -Raw
             }) -join [Environment]::NewLine
             $pidPattern = [regex]::Escape("pid=$($process.Id)")
+            if ($log -match "$pidPattern fatal ") {
+                throw "SIDEY startup composer probe failed.`n$log"
+            }
             if ($log -match "$pidPattern .*stage=composer-smoke-complete") {
                 $ready = $true
                 break

@@ -144,7 +144,7 @@ public partial class App : Application
             _window = _mainWindow;
             StartupDiagnostics.Stage("completed-launch-window-hidden");
         }
-        RunComposerStartupSmokeIfRequested();
+        await RunComposerStartupSmokeIfRequestedAsync();
         _singleInstance!.StartListening(RequestPrimaryActivation);
         try
         {
@@ -412,7 +412,7 @@ public partial class App : Application
             _coordinator.State.Preferences.OverlayRegion.MonitorIdentifier);
     }
 
-    private static void RunComposerStartupSmokeIfRequested()
+    private static async Task RunComposerStartupSmokeIfRequestedAsync()
     {
         if (!string.Equals(
                 Environment.GetEnvironmentVariable(
@@ -423,19 +423,50 @@ public partial class App : Application
             return;
         }
 
-        var viewModel = new ComposerViewModel();
-        var composer = new ComposerWindow(viewModel);
-        composer.ShowAndFocus(monitorIdentifier: null);
-        if (composer.AppWindow.Presenter is not Microsoft.UI.Windowing.OverlappedPresenter presenter
-            || !presenter.HasBorder
-            || !presenter.HasTitleBar)
+        for (var windowIndex = 0; windowIndex < 5; windowIndex++)
         {
-            throw new InvalidOperationException(
-                "The startup composer probe did not retain its stable system chrome.");
+            var viewModel = new ComposerViewModel();
+            var composer = new ComposerWindow(viewModel);
+            var input = (Microsoft.UI.Xaml.Controls.TextBox)
+                ((FrameworkElement)composer.Content).FindName("MessageInput");
+            viewModel.Draft = "한글 입력 테스트 ABC";
+            for (var cycle = 0; cycle < 10; cycle++)
+            {
+                composer.ShowAndFocus(monitorIdentifier: null);
+                await Task.Delay(150);
+                if (composer.AppWindow.ClientSize.Width != composer.AppWindow.Size.Width
+                    || composer.AppWindow.ClientSize.Height != composer.AppWindow.Size.Height
+                    || input.FocusState == FocusState.Unfocused
+                    || input.Text != viewModel.Draft)
+                {
+                    StartupDiagnostics.Stage(
+                        $"composer-smoke-check window={composer.AppWindow.Size.Width}x{composer.AppWindow.Size.Height} " +
+                        $"client={composer.AppWindow.ClientSize.Width}x{composer.AppWindow.ClientSize.Height} " +
+                        $"focus={input.FocusState} draft-match={input.Text == viewModel.Draft}");
+                    throw new InvalidOperationException(
+                        "The startup composer probe lost its borderless layout, focus, or draft.");
+                }
+
+                // Exercise explicit hiding and the same command used by X/Escape.
+                if (cycle % 2 == 0)
+                {
+                    composer.HideComposer();
+                }
+                else
+                {
+                    viewModel.CloseCommand.Execute(null);
+                }
+                await Task.Delay(70);
+                if (composer.AppWindow.IsVisible)
+                {
+                    throw new InvalidOperationException("The startup composer probe did not hide.");
+                }
+            }
+
+            composer.CloseForExit();
+            await Task.Delay(70);
         }
 
-        composer.HideComposer();
-        composer.CloseForExit();
         StartupDiagnostics.Stage("composer-smoke-complete");
     }
 
