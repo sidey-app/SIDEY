@@ -8,5 +8,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Sidey.Core/Sidey.Core.csproj" />
+    <InternalsVisibleTo Include="Sidey.Presentation.Tests" />
   </ItemGroup>
 </Project>

@@ -5,6 +5,25 @@ namespace Sidey.Presentation.Tests;
 public sealed class ComposerViewModelTests
 {
     [Fact]
+    public async Task AutoDismissalCanHideAndReuseComposerAfterTimerCompletes()
+    {
+        using var viewModel = new ComposerViewModel();
+        var closeRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        viewModel.CloseRequested += () => closeRequested.TrySetResult();
+        viewModel.Draft = "자동 닫기 테스트";
+        viewModel.SendCommand.Execute(null);
+
+        await closeRequested.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        // The window queues hiding on the dispatcher after the timer callback returns.
+        await Task.Delay(100);
+        viewModel.OnHidden();
+        viewModel.OnShown();
+        viewModel.Draft = "다음 메시지";
+
+        Assert.True(viewModel.SendCommand.CanExecute(null));
+    }
+
+    [Fact]
     public void DraftNotifiesTypingAndControlsSendAvailability()
     {
         using var viewModel = new ComposerViewModel();
