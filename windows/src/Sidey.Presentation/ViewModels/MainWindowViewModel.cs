@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -389,9 +390,17 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 I18n.Get("update.installerLaunched"),
                 NoticeKind.Success);
         }
-        catch (Exception exception)
+        catch (Win32Exception exception) when (exception.NativeErrorCode == 1223)
         {
-            RaiseNotice(I18n.Format("update.failed", exception.Message), NoticeKind.Error);
+            RaiseNotice(I18n.Get("update.installCancelled"), NoticeKind.Informational);
+        }
+        catch (Win32Exception)
+        {
+            RaiseNotice(I18n.Get("update.installerLaunchFailed"), NoticeKind.Error);
+        }
+        catch (Exception)
+        {
+            RaiseNotice(I18n.Get("update.failed"), NoticeKind.Error);
         }
         finally
         {

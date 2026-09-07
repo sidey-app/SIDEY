@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using Sidey.Core.Localization;
@@ -84,11 +85,24 @@ internal sealed class WindowsUpdateServiceAdapter : IUpdateService
             $"windows-v{update.Version}",
             update.InstallerUri,
             update.Sha256);
-        string installerPath = await _service.DownloadInstallerAsync(
-            manifest,
-            cancellationToken,
-            progress);
-        WindowsUpdateService.LaunchInstaller(installerPath);
+        try
+        {
+            string installerPath = await _service.DownloadInstallerAsync(
+                manifest,
+                cancellationToken,
+                progress);
+            WindowsUpdateService.LaunchInstaller(installerPath);
+        }
+        catch (Win32Exception exception) when (exception.NativeErrorCode == 1223)
+        {
+            StartupDiagnostics.Stage("update-install-cancelled");
+            throw;
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal("update-download-install", exception);
+            throw;
+        }
     }
 
     public Task OpenReleaseNotesAsync(Uri releaseNotesUri)

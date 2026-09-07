@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Sidey.Core.Abstractions;
 using Sidey.Core.Domain;
 using Sidey.Presentation.Services;
@@ -808,6 +809,38 @@ public sealed class MainWindowViewModelTests
         await viewModel.CheckForUpdatesCommand.ExecuteAsync(null);
 
         Assert.Equal(0, updates.InstallerLaunchCount);
+    }
+
+    [Theory]
+    [InlineData(1223, "업데이트 설치를 취소했습니다.", NoticeKind.Informational)]
+    [InlineData(5, "설치 프로그램을 열지 못했습니다. 업데이트 확인을 눌러 다시 시도해 주세요.", NoticeKind.Error)]
+    [InlineData(0, "업데이트를 진행하지 못했습니다. 잠시 후 다시 시도해 주세요.", NoticeKind.Error)]
+    public async Task UpdateFailuresShowFriendlyNoticesAndAllowRetry(
+        int nativeErrorCode,
+        string expectedMessage,
+        NoticeKind expectedKind)
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        const string internalDetails = @"An error occurred trying to start process C:\Users\private\Temp\Setup.exe";
+        Exception failure = nativeErrorCode == 0
+            ? new IOException(internalDetails)
+            : new Win32Exception(nativeErrorCode, internalDetails);
+        var updates = new FakeUpdateService
+        {
+            AvailableUpdate = new AvailableUpdate("1.0.10"),
+            DownloadHandler = (_, _, _) => Task.FromException(failure),
+        };
+        var viewModel = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), updates);
+        NoticeMessage? notice = null;
+        viewModel.NoticeRaised += value => notice = value;
+
+        await viewModel.CheckForUpdatesCommand.ExecuteAsync(null);
+
+        Assert.Equal(expectedMessage, notice?.Message);
+        Assert.Equal(expectedKind, notice?.Kind);
+        Assert.False(viewModel.HasUpdateActivity);
+        Assert.False(viewModel.IsCheckingForUpdates);
+        Assert.True(viewModel.CheckForUpdatesCommand.CanExecute(null));
     }
 
     [Fact]
