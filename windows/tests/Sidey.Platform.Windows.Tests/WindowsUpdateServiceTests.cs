@@ -12,7 +12,7 @@ public sealed class WindowsUpdateServiceTests
     {
         using var client = new HttpClient(new StubHandler(
             new HttpResponseMessage(HttpStatusCode.NotFound)));
-        var service = new WindowsUpdateService(client);
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.CheckAsync());
@@ -35,7 +35,7 @@ public sealed class WindowsUpdateServiceTests
             Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
         };
         using var client = new HttpClient(new StubHandler(response));
-        var service = new WindowsUpdateService(client);
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
 
         WindowsUpdateManifest? update = await service.CheckAsync();
 
@@ -60,7 +60,7 @@ public sealed class WindowsUpdateServiceTests
             Content = new ByteArrayContent(installerBytes),
         };
         using var client = new HttpClient(new StubHandler(response));
-        var service = new WindowsUpdateService(client);
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
         var manifest = new WindowsUpdateManifest(
             "production",
             version,
@@ -107,7 +107,7 @@ public sealed class WindowsUpdateServiceTests
             Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
         };
         using var client = new HttpClient(new StubHandler(response));
-        var service = new WindowsUpdateService(client);
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
 
         WindowsUpdateManifest? update = await service.CheckAsync();
 
@@ -163,7 +163,7 @@ public sealed class WindowsUpdateServiceTests
             Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
         };
         using var client = new HttpClient(new StubHandler(response));
-        var service = new WindowsUpdateService(client);
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
 
         await Assert.ThrowsAsync<InvalidDataException>(() => service.CheckAsync());
     }
@@ -185,7 +185,7 @@ public sealed class WindowsUpdateServiceTests
             Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
         };
         using var client = new HttpClient(new StubHandler(response));
-        var service = new WindowsUpdateService(client);
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
 
         await Assert.ThrowsAsync<InvalidDataException>(() => service.CheckAsync());
     }
