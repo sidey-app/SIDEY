@@ -103,8 +103,19 @@ actor SideyBackend {
     func syncRealtime(rooms: [Room], activeRoomID: UUID?) async throws -> BackendReconciliation {
         guard !isShuttingDown else { throw CancellationError() }
         startNetworkPathMonitoringIfNeeded()
-        try await configureChannels(rooms: rooms, activeRoomID: activeRoomID)
-        return try await reconcileCurrentState(emitEvents: false)
+        do {
+            try await configureChannels(rooms: rooms, activeRoomID: activeRoomID)
+            return try await reconcileCurrentState(emitEvents: false)
+        } catch {
+            // Channel setup can succeed while the follow-up snapshot or message
+            // reconciliation fails. In that state the transport watchdog sees
+            // healthy subscriptions and will not start recovery on its own, so
+            // recoveryReconciled would otherwise remain false indefinitely.
+            if !Task.isCancelled {
+                scheduleRealtimeRecovery(trigger: .reconciliation, immediate: false)
+            }
+            throw error
+        }
     }
 
     func setActiveRoom(_ roomID: UUID?) async throws {
@@ -630,7 +641,9 @@ actor SideyBackend {
                     generation: generation
                 )
             } catch {
-                scheduleRealtimeRecovery(trigger: .channel, immediate: false)
+                if !Task.isCancelled {
+                    scheduleRealtimeRecovery(trigger: .channel, immediate: false)
+                }
                 throw error
             }
         }
