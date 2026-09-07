@@ -4,9 +4,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Width="540"
     Height="280"
-    Loaded="OnLoaded"
-    Tapped="OnTapped"
-    Unloaded="OnUnloaded">
+    Tapped="OnTapped">
   <Border
       Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
       BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
@@ -16,75 +14,73 @@
       <Canvas x:Name="SceneCanvas" Width="540" Height="280" Visibility="Collapsed">
         <Canvas x:Name="PlatformCanvas" Width="540" Height="24" Canvas.Top="256" IsHitTestVisible="False" />
 
-        <StackPanel x:Name="LeftNameplate" Width="70" Canvas.Top="181" Orientation="Horizontal" Spacing="4">
-          <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="#00C853" />
-          <Border Padding="6,2" Background="#A43C3C3C" CornerRadius="7">
-            <TextBlock Foreground="White" FontSize="12" FontWeight="SemiBold" Text="모카" />
+        <StackPanel x:Name="LeftNameplate" Canvas.Top="181" Orientation="Horizontal" Spacing="5">
+          <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="#00C853" />
+          <Border Height="20" Padding="4,0" Background="#9E050609" CornerRadius="6">
+            <TextBlock Foreground="White" FontSize="11" Text="모카" />
           </Border>
         </StackPanel>
-        <StackPanel x:Name="RightNameplate" Width="70" Canvas.Top="181" Orientation="Horizontal" Spacing="4">
-          <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="#00C853" />
-          <Border Padding="6,2" Background="#A43C3C3C" CornerRadius="7">
-            <TextBlock Foreground="White" FontSize="12" FontWeight="SemiBold" Text="두부" />
+        <StackPanel x:Name="RightNameplate" Canvas.Top="181" Orientation="Horizontal" Spacing="5">
+          <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="#00C853" />
+          <Border Height="20" Padding="4,0" Background="#9E050609" CornerRadius="6">
+            <TextBlock Foreground="White" FontSize="11" Text="두부" />
           </Border>
         </StackPanel>
 
         <Canvas
             x:Name="BubblePreview"
-            Height="50"
+            Height="46"
             Canvas.Top="132"
             Visibility="Collapsed">
           <Border
               x:Name="BubbleBody"
-              Height="42"
-              BorderBrush="#3314171F"
+              Height="28"
+              BorderBrush="#2914171F"
               BorderThickness="1"
-              CornerRadius="10">
+              CornerRadius="9">
             <Grid>
               <TextBlock
                   x:Name="BubbleText"
-                  Margin="10,0"
+                  Margin="8,7"
                   HorizontalAlignment="Center"
                   VerticalAlignment="Center"
-                  FontSize="13"
-                  TextAlignment="Center" />
+                  FontSize="11"
+                  TextAlignment="Center"
+                  TextWrapping="NoWrap" />
             </Grid>
           </Border>
           <Image
               x:Name="BubbleDecoration"
-              Width="16"
-              Height="16"
+              Width="32"
+              Height="32"
               Stretch="None" />
           <Polygon
               x:Name="BubbleTail"
-              Canvas.Top="41"
-              Points="0,0 14,0 7,8"
-              Stroke="#3314171F"
-              StrokeThickness="1" />
+              Points="0,0 12,0 6,8" />
         </Canvas>
 
-        <Image x:Name="LeftCharacter" Width="48" Height="48" Canvas.Top="214" Stretch="None">
-          <Image.RenderTransform>
-            <ScaleTransform x:Name="LeftCharacterScale" CenterX="24" CenterY="24" />
-          </Image.RenderTransform>
-        </Image>
-        <Image x:Name="RightCharacter" Width="48" Height="48" Canvas.Top="214" Stretch="None">
-          <Image.RenderTransform>
-            <ScaleTransform x:Name="RightCharacterScale" CenterX="24" CenterY="24" />
-          </Image.RenderTransform>
-        </Image>
+        <Grid x:Name="LeftCharacterHost" Width="72" Height="72" Canvas.Top="193">
+          <Grid.RenderTransform>
+            <ScaleTransform x:Name="LeftCharacterScale" CenterX="36" CenterY="36" />
+          </Grid.RenderTransform>
+        </Grid>
+        <Grid x:Name="RightCharacterHost" Width="72" Height="72" Canvas.Top="193">
+          <Grid.RenderTransform>
+            <ScaleTransform x:Name="RightCharacterScale" CenterX="36" CenterY="36" />
+          </Grid.RenderTransform>
+        </Grid>
         <Canvas x:Name="SparkleCanvas" Width="540" Height="256" IsHitTestVisible="False" />
-        <Image x:Name="EmitterImage" Width="48" Height="48" Canvas.Top="214" Stretch="None" Visibility="Collapsed">
+        <Image x:Name="EmitterImage" Width="72" Height="72" Canvas.Top="193" Stretch="None" Visibility="Collapsed">
           <Image.RenderTransform>
-            <ScaleTransform x:Name="EmitterScale" CenterX="24" CenterY="24" />
+            <ScaleTransform x:Name="EmitterScale" CenterX="36" CenterY="36" />
           </Image.RenderTransform>
         </Image>
-        <Image x:Name="ProjectileImage" Width="32" Height="32" Stretch="None" Visibility="Collapsed">
+        <Image x:Name="ProjectileImage" Width="48" Height="48" Stretch="None" Visibility="Collapsed">
           <Image.RenderTransform>
-            <ScaleTransform x:Name="ProjectileScale" CenterX="16" CenterY="16" />
+            <ScaleTransform x:Name="ProjectileScale" CenterX="24" CenterY="24" />
           </Image.RenderTransform>
         </Image>
-        <Image x:Name="ImpactImage" Width="48" Height="48" Stretch="None" Visibility="Collapsed" />
+        <Image x:Name="ImpactImage" Width="64" Height="64" Stretch="None" Visibility="Collapsed" />
       </Canvas>
 
       <ProgressRing x:Name="LoadingRing" Width="32" Height="32" IsActive="True" />

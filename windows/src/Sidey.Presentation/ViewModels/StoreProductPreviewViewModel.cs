@@ -63,13 +63,15 @@ public sealed partial class StoreProductPreviewViewModel : ObservableObject
         IsPreviewOnlyVisible = !commerceEnabled;
         IsOwned = isOwned;
         IsWorking = state.IsWorking;
-        IsActionEnabled = commerceEnabled
+        bool isActionEnabled = commerceEnabled
             && !state.IsWorking
             && state.PurchaseState is (
                 CommercePurchaseState.GoogleConnectionRequired
                 or CommercePurchaseState.Available
                 or CommercePurchaseState.Refunded
                 or CommercePurchaseState.Error);
+        bool actionAvailabilityChanged = IsActionEnabled != isActionEnabled;
+        IsActionEnabled = isActionEnabled;
         ActionText = state.PurchaseState switch
         {
             CommercePurchaseState.GoogleConnectionRequired => I18n.Get("store.connectGoogle"),
@@ -81,6 +83,9 @@ public sealed partial class StoreProductPreviewViewModel : ObservableObject
             CommercePurchaseState.Error => I18n.Get("store.retry"),
             _ => I18n.Get("store.comingSoon"),
         };
-        _actionCommand.NotifyCanExecuteChanged();
+        if (actionAvailabilityChanged)
+        {
+            _actionCommand.NotifyCanExecuteChanged();
+        }
     }
 }

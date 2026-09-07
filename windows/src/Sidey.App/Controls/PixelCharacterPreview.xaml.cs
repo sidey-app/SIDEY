@@ -1,11 +1,8 @@
-using Microsoft.Graphics.Canvas;
-using Microsoft.Graphics.Canvas.UI;
-using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Sidey.Core.Domain;
 using Sidey.Platform.Windows;
-using Windows.Foundation;
 
 namespace Sidey.App.Controls;
 
@@ -17,9 +14,11 @@ public sealed partial class PixelCharacterPreview : UserControl
         typeof(PixelCharacterPreview),
         new PropertyMetadata(PixelCharacterCatalog.FallbackId, OnCharacterIdChanged));
 
-    private CanvasBitmap? _spriteSheet;
     private string? _loadedCharacterId;
+    private uint _loadedWidth;
+    private uint _loadedHeight;
     private int _loadGeneration;
+    private CancellationTokenSource? _loadCancellation;
 
     public PixelCharacterPreview()
     {
@@ -40,92 +39,127 @@ public sealed partial class PixelCharacterPreview : UserControl
         var preview = (PixelCharacterPreview)dependencyObject;
         if (preview.IsLoaded)
         {
-            preview.BeginReload();
+            preview.BeginReloadIfNeeded();
         }
-    }
-
-    private async void OnCreateResources(
-        CanvasControl sender,
-        CanvasCreateResourcesEventArgs args)
-    {
-        _ = args;
-        await LoadSpriteSheetAsync(sender);
     }
 
     private void OnLoaded(object sender, RoutedEventArgs args)
     {
         _ = sender;
         _ = args;
-        if (_loadedCharacterId != PixelCharacterCatalog.NormalizeId(CharacterId))
-        {
-            BeginReload();
-        }
+        BeginReloadIfNeeded();
+    }
+
+    private void OnSizeChanged(object sender, SizeChangedEventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        BeginReloadIfNeeded();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs args)
     {
         _ = sender;
         _ = args;
+        CancelPendingLoad();
         Interlocked.Increment(ref _loadGeneration);
-        _spriteSheet?.Dispose();
-        _spriteSheet = null;
+        PreviewImage.Source = null;
         _loadedCharacterId = null;
+        _loadedWidth = 0;
+        _loadedHeight = 0;
     }
 
-    private void OnDraw(CanvasControl sender, CanvasDrawEventArgs args)
+    private void BeginReloadIfNeeded()
     {
-        if (_spriteSheet is null
-            || _loadedCharacterId != PixelCharacterCatalog.NormalizeId(CharacterId)
-            || sender.ActualWidth <= 0
-            || sender.ActualHeight <= 0)
+        if (!IsLoaded || ActualWidth <= 0 || ActualHeight <= 0)
         {
             return;
         }
 
-        PixelCharacterDefinition definition = PixelCharacterCatalog.Get(_loadedCharacterId);
-        args.DrawingSession.DrawImage(
-            _spriteSheet,
-            new Rect(0, 0, sender.ActualWidth, sender.ActualHeight),
-            new Rect(0, 0, definition.FrameWidth, definition.FrameHeight),
-            1f,
-            CanvasImageInterpolation.NearestNeighbor);
+        string characterId = PixelCharacterCatalog.NormalizeId(CharacterId);
+        uint width = checked((uint)Math.Max(1, Math.Round(ActualWidth)));
+        uint height = checked((uint)Math.Max(1, Math.Round(ActualHeight)));
+        if (_loadedCharacterId == characterId && _loadedWidth == width && _loadedHeight == height)
+        {
+            return;
+        }
+
+        CancelPendingLoad();
+        var cancellation = new CancellationTokenSource();
+        _loadCancellation = cancellation;
+        _ = LoadSpriteFrameAsync(characterId, width, height, cancellation);
     }
 
-    private async void BeginReload()
-    {
-        await LoadSpriteSheetAsync(PreviewCanvas);
-    }
-
-    private async Task LoadSpriteSheetAsync(CanvasControl resourceCreator)
+    private async Task LoadSpriteFrameAsync(
+        string characterId,
+        uint width,
+        uint height,
+        CancellationTokenSource cancellation)
     {
         int generation = Interlocked.Increment(ref _loadGeneration);
-        string characterId = PixelCharacterCatalog.NormalizeId(CharacterId);
         PixelCharacterDefinition definition = PixelCharacterCatalog.Get(characterId);
         string path = Path.Combine(
             SideyDeploymentPaths.DeploymentRoot(),
             "Assets",
             definition.SpriteSheetResource.Replace('/', Path.DirectorySeparatorChar));
 
-        CanvasBitmap? loaded = null;
         try
         {
-            loaded = await CanvasBitmap.LoadAsync(resourceCreator, path);
-            if (generation != Volatile.Read(ref _loadGeneration) || !IsLoaded)
+            ImageSource source = await StorePreviewImageLoader.LoadFrameAsync(
+                path,
+                checked((uint)definition.FrameWidth),
+                checked((uint)definition.FrameHeight),
+                frame: 0,
+                renderedWidth: width,
+                renderedHeight: height,
+                cancellation.Token);
+            if (generation != Volatile.Read(ref _loadGeneration)
+                || !IsLoaded
+                || !StringComparer.Ordinal.Equals(
+                    characterId,
+                    PixelCharacterCatalog.NormalizeId(CharacterId)))
             {
-                loaded.Dispose();
                 return;
             }
 
-            CanvasBitmap? previous = _spriteSheet;
-            _spriteSheet = loaded;
+            PreviewImage.Source = source;
             _loadedCharacterId = characterId;
-            loaded = null;
-            previous?.Dispose();
-            resourceCreator.Invalidate();
+            _loadedWidth = width;
+            _loadedHeight = height;
         }
-        catch (Exception)
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
-            loaded?.Dispose();
         }
+        catch
+        {
+            if (generation == Volatile.Read(ref _loadGeneration) && IsLoaded)
+            {
+                PreviewImage.Source = null;
+                _loadedCharacterId = null;
+                _loadedWidth = 0;
+                _loadedHeight = 0;
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(_loadCancellation, cancellation))
+            {
+                _loadCancellation = null;
+                cancellation.Dispose();
+            }
+        }
+    }
+
+    private void CancelPendingLoad()
+    {
+        CancellationTokenSource? cancellation = _loadCancellation;
+        _loadCancellation = null;
+        if (cancellation is null)
+        {
+            return;
+        }
+
+        cancellation.Cancel();
+        cancellation.Dispose();
     }
 }

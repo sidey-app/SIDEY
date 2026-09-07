@@ -90,6 +90,27 @@ public sealed class CharacterThrowAssetTests
         Assert.NotEmpty(cache.CannonEmitterFrame(frame: 0, flipped: false).ToArray());
     }
 
+    [Fact]
+    public void BottomEdgeActionFramesConvertTheBottomUpBgraMirrorToTopDownPixels()
+    {
+        using var cache = new CharacterThrowFrameCache(
+            Path.Combine(AppContext.BaseDirectory, "Assets", "Characters"),
+            Path.Combine(AppContext.BaseDirectory, "Assets", "Throwables"),
+            scale: 1,
+            edge: OverlayEdge.Bottom);
+        byte[] sheet = File.ReadAllBytes(AssetPath("Characters/pixel_hamster/throw_hit.bgra"));
+        var expected = new byte[24 * 24 * 4];
+        const int sheetRowBytes = 192 * 4;
+        const int frameRowBytes = 24 * 4;
+        for (int y = 0; y < 24; y++)
+        {
+            sheet.AsSpan((23 - y) * sheetRowBytes, frameRowBytes)
+                .CopyTo(expected.AsSpan(y * frameRowBytes, frameRowBytes));
+        }
+
+        Assert.Equal(expected, cache.ActionFrame("pixel_hamster", frame: 0, flipped: false).ToArray());
+    }
+
     private static string AssetPath(string relative) => Path.Combine(
         AppContext.BaseDirectory,
         "Assets",

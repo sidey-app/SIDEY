@@ -20,6 +20,7 @@ public sealed partial class StoreProductArtwork : UserControl
         new PropertyMetadata(PixelCharacterCatalog.FallbackId, OnProductChanged));
 
     private int _generation;
+    private CancellationTokenSource? _loadCancellation;
 
     public StoreProductArtwork() => InitializeComponent();
 
@@ -78,6 +79,9 @@ public sealed partial class StoreProductArtwork : UserControl
 
     private async void BeginReload()
     {
+        CancelPendingLoad();
+        var cancellation = new CancellationTokenSource();
+        _loadCancellation = cancellation;
         int generation = Interlocked.Increment(ref _generation);
         PreviewImage.Source = null;
         CannonEmitterImage.Source = null;
@@ -87,7 +91,8 @@ public sealed partial class StoreProductArtwork : UserControl
         BubblePreview.Visibility = Visibility.Collapsed;
         try
         {
-            (ImageSource? primary, ImageSource? secondary) = await LoadPreviewAsync();
+            (ImageSource? primary, ImageSource? secondary) = await LoadPreviewAsync(
+                cancellation.Token);
             if (generation != Volatile.Read(ref _generation) || !IsLoaded)
             {
                 return;
@@ -108,16 +113,28 @@ public sealed partial class StoreProductArtwork : UserControl
                 PreviewImage.Source = primary;
             }
         }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+        }
         catch
         {
-            if (generation == Volatile.Read(ref _generation))
+            if (generation == Volatile.Read(ref _generation) && IsLoaded)
             {
                 PreviewImage.Source = null;
             }
         }
+        finally
+        {
+            if (ReferenceEquals(_loadCancellation, cancellation))
+            {
+                _loadCancellation = null;
+                cancellation.Dispose();
+            }
+        }
     }
 
-    private async Task<(ImageSource? Primary, ImageSource? Secondary)> LoadPreviewAsync()
+    private async Task<(ImageSource? Primary, ImageSource? Secondary)> LoadPreviewAsync(
+        CancellationToken cancellationToken)
     {
         string root = Path.Combine(SideyDeploymentPaths.DeploymentRoot(), "Assets");
         if (ProductKind == CommerceProductKind.Character)
@@ -132,7 +149,8 @@ public sealed partial class StoreProductArtwork : UserControl
                 checked((uint)definition.FrameHeight),
                 frame: 0,
                 renderedWidth: 72,
-                renderedHeight: 72), null);
+                renderedHeight: 72,
+                cancellationToken), null);
         }
 
         if (ProductKind == CommerceProductKind.Bubble)
@@ -148,7 +166,8 @@ public sealed partial class StoreProductArtwork : UserControl
                 frameHeight: 16,
                 frame: 0,
                 renderedWidth: 16,
-                renderedHeight: 16), null);
+                renderedHeight: 16,
+                cancellationToken), null);
         }
 
         string throwableId = string.IsNullOrEmpty(CatalogItemId)
@@ -162,14 +181,16 @@ public sealed partial class StoreProductArtwork : UserControl
                 frameHeight: 24,
                 frame: 2,
                 renderedWidth: 48,
-                renderedHeight: 48);
+                renderedHeight: 48,
+                cancellationToken);
             ImageSource cannonball = await StorePreviewImageLoader.LoadFrameAsync(
                 Path.Combine(root, "Throwables", throwableId, "sprite.png"),
                 frameWidth: 16,
                 frameHeight: 16,
                 frame: 1,
                 renderedWidth: 24,
-                renderedHeight: 24);
+                renderedHeight: 24,
+                cancellationToken);
             return (emitter, cannonball);
         }
 
@@ -179,7 +200,8 @@ public sealed partial class StoreProductArtwork : UserControl
             frameHeight: 16,
             frame: 0,
             renderedWidth: 48,
-            renderedHeight: 48), null);
+            renderedHeight: 48,
+            cancellationToken), null);
     }
 
     private bool IsCannon() =>
@@ -214,11 +236,25 @@ public sealed partial class StoreProductArtwork : UserControl
         _ = sender;
         _ = args;
         SizeChanged -= OnArtworkSizeChanged;
+        CancelPendingLoad();
         Interlocked.Increment(ref _generation);
         PreviewImage.Source = null;
         CannonEmitterImage.Source = null;
         CannonballImage.Source = null;
         BubbleDecoration.Source = null;
+    }
+
+    private void CancelPendingLoad()
+    {
+        CancellationTokenSource? cancellation = _loadCancellation;
+        _loadCancellation = null;
+        if (cancellation is null)
+        {
+            return;
+        }
+
+        cancellation.Cancel();
+        cancellation.Dispose();
     }
 
     internal static string SignatureObject(string characterId) => characterId switch
