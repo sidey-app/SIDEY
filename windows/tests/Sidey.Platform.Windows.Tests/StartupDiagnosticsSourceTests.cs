@@ -101,6 +101,7 @@ public sealed class StartupDiagnosticsSourceTests
         string tray = ReadRepositoryFile(
             "windows", "src", "Sidey.Platform.Windows", "TrayIconService.cs");
         string xaml = ReadRepositoryFile("windows", "src", "Sidey.App", "MainWindow.xaml");
+        string normalizedXaml = xaml.ReplaceLineEndings("\n");
 
         Assert.Contains("CheckForUpdatesOnStartupAsync", app, StringComparison.Ordinal);
         Assert.Contains("_tray.NotifyUpdateAvailable(version)", app, StringComparison.Ordinal);
@@ -110,6 +111,15 @@ public sealed class StartupDiagnosticsSourceTests
         Assert.Contains("LastUpdateCheckText", xaml, StringComparison.Ordinal);
         Assert.Contains("UpdateActivityText", xaml, StringComparison.Ordinal);
         Assert.Contains("HasUpdateActivity", xaml, StringComparison.Ordinal);
+        Assert.Contains(
+            "Text=\"{Binding LastUpdateCheckText}\"\n" +
+            "                          Visibility=\"{Binding HasUpdateActivity, Converter={StaticResource InverseBooleanToVisibilityConverter}}\"",
+            normalizedXaml,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "Visibility=\"{Binding HasUpdateActivity, Converter={StaticResource BooleanToVisibilityConverter}}\"",
+            xaml,
+            StringComparison.Ordinal);
         Assert.Contains("OpenReleaseNotesCommand", xaml, StringComparison.Ordinal);
     }
 

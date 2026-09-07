@@ -749,19 +749,23 @@
                   <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                   <StackPanel Spacing="3">
                     <TextBlock FontWeight="SemiBold" Text="{Binding CurrentVersionText}" />
-                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding LastUpdateCheckText}" />
-                    <StackPanel
-                        Margin="0,5,0,0"
-                        Orientation="Horizontal"
-                        Spacing="8"
-                        Visibility="{Binding HasUpdateActivity, Converter={StaticResource BooleanToVisibilityConverter}}">
-                      <ProgressRing Width="18" Height="18" IsActive="{Binding HasUpdateActivity}" />
+                    <Grid>
                       <TextBlock
-                          VerticalAlignment="Center"
                           Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                          Text="{Binding UpdateActivityText}"
-                          TextWrapping="Wrap" />
-                    </StackPanel>
+                          Text="{Binding LastUpdateCheckText}"
+                          Visibility="{Binding HasUpdateActivity, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                      <StackPanel
+                          Orientation="Horizontal"
+                          Spacing="8"
+                          Visibility="{Binding HasUpdateActivity, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <ProgressRing Width="16" Height="16" IsActive="{Binding HasUpdateActivity}" />
+                        <TextBlock
+                            VerticalAlignment="Center"
+                            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                            Text="{Binding UpdateActivityText}"
+                            TextWrapping="Wrap" />
+                      </StackPanel>
+                    </Grid>
                     <HyperlinkButton HorizontalAlignment="Left" Padding="0" Command="{Binding OpenReleaseNotesCommand}" Content="{i18n:I18n Key=settings.releaseNotes}" />
                   </StackPanel>
                   <Button Grid.Column="1" Command="{Binding CheckForUpdatesCommand}" Content="{i18n:I18n Key=settings.checkUpdate}" VerticalAlignment="Center" ToolTipService.ToolTip="{i18n:I18n Key=settings.checkNowTooltip}" />
