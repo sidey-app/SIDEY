@@ -17,10 +17,12 @@ public sealed partial class ComposerWindow : Window
     private const int FocusAttemptCount = 3;
 
     private readonly Microsoft.UI.Dispatching.DispatcherQueue _uiDispatcherQueue;
+    private readonly WindowsBorderlessWindowController _borderlessWindow;
     private bool _focusRequested;
     private bool _isHiding;
     private bool _isVisible;
     private bool _isClosed;
+    private bool _allowClose;
     private int _focusRequestId;
 
     public ComposerWindow(ComposerViewModel viewModel)
@@ -31,7 +33,6 @@ public sealed partial class ComposerWindow : Window
         ComposerRoot.DataContext = ViewModel;
         Title = I18n.Get("window.composerTitle");
         SideyWindowIcon.Apply(AppWindow);
-        ExtendsContentIntoTitleBar = true;
         AppWindow.IsShownInSwitchers = false;
         if (AppWindow.Presenter is OverlappedPresenter presenter)
         {
@@ -39,11 +40,15 @@ public sealed partial class ComposerWindow : Window
             presenter.IsMaximizable = false;
             presenter.IsMinimizable = false;
             presenter.IsResizable = false;
-            presenter.SetBorderAndTitleBar(false, false);
         }
 
+        _borderlessWindow = new WindowsBorderlessWindowController(
+            WinRT.Interop.WindowNative.GetWindowHandle(this));
+
         ViewModel.CloseRequested += OnCloseRequested;
+        MessageInput.Loaded += OnMessageInputLoaded;
         Activated += OnWindowActivated;
+        AppWindow.Closing += OnAppWindowClosing;
         Closed += OnWindowClosed;
     }
 
@@ -104,6 +109,17 @@ public sealed partial class ComposerWindow : Window
         RequestMessageInputFocus();
     }
 
+    public void CloseForExit()
+    {
+        if (_isClosed)
+        {
+            return;
+        }
+
+        _allowClose = true;
+        Close();
+    }
+
     private void OnMessageInputPreviewKeyDown(object sender, KeyRoutedEventArgs args)
     {
         _ = sender;
@@ -158,6 +174,14 @@ public sealed partial class ComposerWindow : Window
         }
     }
 
+    private void OnMessageInputLoaded(object sender, RoutedEventArgs args)
+    {
+        if (!_isClosed && _isVisible)
+        {
+            RequestMessageInputFocus();
+        }
+    }
+
     private void OnCloseRequested()
     {
         if (_isClosed)
@@ -177,14 +201,31 @@ public sealed partial class ComposerWindow : Window
         }
     }
 
+    private void OnAppWindowClosing(
+        AppWindow sender,
+        AppWindowClosingEventArgs args)
+    {
+        _ = sender;
+        if (_allowClose)
+        {
+            return;
+        }
+
+        args.Cancel = true;
+        OnCloseRequested();
+    }
+
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
         _ = sender;
         _ = args;
         _isClosed = true;
+        _borderlessWindow.Dispose();
         _focusRequestId++;
         _focusRequested = false;
         _isVisible = false;
+        AppWindow.Closing -= OnAppWindowClosing;
+        MessageInput.Loaded -= OnMessageInputLoaded;
         ViewModel.CloseRequested -= OnCloseRequested;
         ViewModel.Dispose();
     }
@@ -232,8 +273,9 @@ public sealed partial class ComposerWindow : Window
         AppWindow.Resize(new Windows.Graphics.SizeInt32(width, height));
 
         NativePixelRect workArea = monitor.WorkAreaPixels;
+        Windows.Graphics.SizeInt32 windowSize = AppWindow.Size;
         AppWindow.Move(new Windows.Graphics.PointInt32(
-            workArea.X + ((workArea.Width - width) / 2),
+            workArea.X + ((workArea.Width - windowSize.Width) / 2),
             workArea.Y + (int)Math.Round(10 * scale)));
     }
 }

@@ -29,7 +29,8 @@ public interface IUpdateService
 
     Task DownloadAndLaunchInstallerAsync(
         AvailableUpdate update,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        IProgress<int>? progress = null);
 
     Task OpenReleaseNotesAsync(Uri releaseNotesUri);
 }

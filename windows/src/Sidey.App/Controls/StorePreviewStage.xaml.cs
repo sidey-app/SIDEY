@@ -1,8 +1,10 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices.WindowsRuntime;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Sidey.Core.Domain;
 using Sidey.Core.Localization;
 using Sidey.Core.Overlay;
@@ -17,16 +19,13 @@ public sealed partial class StorePreviewStage : UserControl
     private const double StageWidth = 540;
     private const double PlatformTop = 256;
     private const double RenderedCharacterSize = 72;
+    private const double PreviewScale = RenderedCharacterSize / 48d;
     private const double RenderedFootBaseline = 9;
     private const double ProjectileSize = 48;
-    private const double ImpactSize = 64;
+    private const double ImpactSize = 72;
     private const double EmitterSize = 72;
-    private const double ProjectilePathY = PlatformTop
-        - (ProjectileSize / 2d)
-        + RenderedFootBaseline;
-    private const double EmitterTop = PlatformTop - EmitterSize + RenderedFootBaseline;
+    private const double ProjectilePathY = CharacterTop + (RenderedCharacterSize / 2d);
     private const double CharacterTop = PlatformTop - RenderedCharacterSize + RenderedFootBaseline;
-    private const double PreviewWallInset = 12;
     private const double WalkFrameSeconds = 0.16;
     private const double IdleFrameSeconds = 0.55;
     private const double TypingFrameSeconds = 0.35;
@@ -54,24 +53,30 @@ public sealed partial class StorePreviewStage : UserControl
     private const double AmbientSparkleCycleSeconds = 1.2;
     private const double AmbientSparkleDurationSeconds = 1.05;
     private static readonly IReadOnlyList<RectD> NoAvoidanceRects = Array.Empty<RectD>();
-    private static readonly IReadOnlySet<Guid> NoStoppedIds = new HashSet<Guid>();
+    private readonly HashSet<Guid> _stoppedIds = [];
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(1000d / 30d) };
     private readonly Stopwatch _clock = new();
-    private readonly Dictionary<string, IReadOnlyList<ImageSource>> _characters = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, IReadOnlyList<ImageSource>> _actions = new(StringComparer.Ordinal);
-    private readonly List<Image> _leftCharacterLayers = [];
-    private readonly List<Image> _rightCharacterLayers = [];
+    private readonly Dictionary<string, IReadOnlyList<PixelFrameSurface>> _characters = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, IReadOnlyList<PixelFrameSurface>> _actions = new(StringComparer.Ordinal);
+    private readonly List<NearestPixelImage> _leftCharacterLayers = [];
+    private readonly List<NearestPixelImage> _rightCharacterLayers = [];
+    private readonly List<PixelFrameSurface> _ownedFrames = [];
+    private readonly List<ImageSource> _ownedImageFrames = [];
     private readonly EdgeTrackGeometry _movementGeometry = new(
         new RectD(0, 0, StageWidth, 280),
         OverlayEdge.Bottom,
-        tangentExtent: RenderedCharacterSize + (PreviewWallInset * 2));
+        tangentExtent: RenderedCharacterSize * 3);
     private readonly List<PixelMovementAgent> _movementAgents = [];
     private readonly PixelMovementScratch _movementScratch = new();
     private readonly Random _random = new(0x51DE59);
     private readonly List<Microsoft.UI.Xaml.Shapes.Polygon> _sparkles = [];
+    private readonly List<Microsoft.UI.Xaml.Shapes.Polygon> _pulseSparkles = [];
+    private double _pulseStarted = double.NegativeInfinity;
+    private double _manualThrowStartX;
+    private double _manualThrowArcHeight;
     private readonly CancellationToken _lifetimeToken;
-    private IReadOnlyList<ImageSource> _projectileFrames = Array.Empty<ImageSource>();
-    private IReadOnlyList<ImageSource> _emitterFrames = Array.Empty<ImageSource>();
+    private IReadOnlyList<ImageSource> _projectileFrames = [];
+    private IReadOnlyList<ImageSource> _emitterFrames = [];
     private double _manualThrowStarted = -10;
     private double _manualThrowFlightDuration = 0.55;
     private double _lastSceneElapsed;
@@ -133,6 +138,7 @@ public sealed partial class StorePreviewStage : UserControl
         StopAnimation();
         CancelPendingLoad();
         Interlocked.Increment(ref _loadGeneration);
+        ReleasePixelFrames();
         StartupDiagnostics.Stage("store-preview-presentation-ended");
     }
 
@@ -221,10 +227,10 @@ public sealed partial class StorePreviewStage : UserControl
                 string path = Path.Combine(
                     root,
                     definition.SpriteSheetResource.Replace('/', Path.DirectorySeparatorChar));
-                var frames = new ImageSource[6];
+                var frames = new PixelFrameSurface[6];
                 for (int frame = 0; frame < frames.Length; frame++)
                 {
-                    frames[frame] = await StorePreviewImageLoader.LoadFrameAsync(
+                    frames[frame] = await LoadPixelFrameAsync(
                         path,
                         checked((uint)definition.FrameWidth),
                         checked((uint)definition.FrameHeight),
@@ -236,10 +242,10 @@ public sealed partial class StorePreviewStage : UserControl
                 _characters[id] = frames;
 
                 string actionPath = Path.Combine(root, "Characters", id, "throw_hit.png");
-                var actionFrames = new ImageSource[8];
+                var actionFrames = new PixelFrameSurface[8];
                 for (int frame = 0; frame < actionFrames.Length; frame++)
                 {
-                    actionFrames[frame] = await StorePreviewImageLoader.LoadFrameAsync(
+                    actionFrames[frame] = await LoadPixelFrameAsync(
                         actionPath,
                         frameWidth: 24,
                         frameHeight: 24,
@@ -274,7 +280,7 @@ public sealed partial class StorePreviewStage : UserControl
                 var projectileFrames = new ImageSource[12];
                 for (int frame = 0; frame < projectileFrames.Length; frame++)
                 {
-                    projectileFrames[frame] = await StorePreviewImageLoader.LoadFrameAsync(
+                    projectileFrames[frame] = await LoadImageFrameAsync(
                         objectPath,
                         frameWidth: 16,
                         frameHeight: 16,
@@ -288,6 +294,8 @@ public sealed partial class StorePreviewStage : UserControl
                         cancellationToken);
                 }
                 _projectileFrames = projectileFrames;
+                ProjectileImage.SetFrames(projectileFrames.Take(8));
+                ImpactImage.SetFrames(projectileFrames.Skip(8));
 
                 if (objectId == "throwable_toy_cannon")
                 {
@@ -295,7 +303,7 @@ public sealed partial class StorePreviewStage : UserControl
                     var emitterFrames = new ImageSource[4];
                     for (int frame = 0; frame < emitterFrames.Length; frame++)
                     {
-                        emitterFrames[frame] = await StorePreviewImageLoader.LoadFrameAsync(
+                        emitterFrames[frame] = await LoadImageFrameAsync(
                             emitterPath,
                             frameWidth: 24,
                             frameHeight: 24,
@@ -305,6 +313,7 @@ public sealed partial class StorePreviewStage : UserControl
                             cancellationToken);
                     }
                     _emitterFrames = emitterFrames;
+                    EmitterImage.SetFrames(emitterFrames);
                 }
             }
 
@@ -358,6 +367,60 @@ public sealed partial class StorePreviewStage : UserControl
 
     private bool IsCurrentPresentation(int generation) =>
         _isPresented && generation == Volatile.Read(ref _presentationGeneration);
+
+    private async Task<PixelFrameSurface> LoadPixelFrameAsync(
+        string path, uint frameWidth, uint frameHeight, int frame,
+        uint renderedWidth, uint renderedHeight, CancellationToken cancellationToken)
+    {
+        var source = await StorePreviewImageLoader.LoadPixelFrameAsync(
+            path, frameWidth, frameHeight, frame, renderedWidth, renderedHeight, cancellationToken);
+        if (cancellationToken.IsCancellationRequested || !_isPresented)
+        {
+            source.Dispose();
+            throw new OperationCanceledException(cancellationToken);
+        }
+        _ownedFrames.Add(source);
+        return source;
+    }
+
+    private async Task<ImageSource> LoadImageFrameAsync(
+        string path, uint frameWidth, uint frameHeight, int frame,
+        uint renderedWidth, uint renderedHeight, CancellationToken cancellationToken)
+    {
+        var source = await StorePreviewImageLoader.LoadFrameAsync(
+            path, frameWidth, frameHeight, frame, renderedWidth, renderedHeight, cancellationToken);
+        if (cancellationToken.IsCancellationRequested || !_isPresented)
+        {
+            StorePreviewImageLoader.ReleaseFrame(source);
+            throw new OperationCanceledException(cancellationToken);
+        }
+        _ownedImageFrames.Add(source);
+        return source;
+    }
+
+    private void ReleasePixelFrames()
+    {
+        foreach (var layer in _leftCharacterLayers.Concat(_rightCharacterLayers))
+            layer.Source = null;
+        ProjectileImage.ClearFrames();
+        ImpactImage.ClearFrames();
+        EmitterImage.ClearFrames();
+        foreach (var source in _ownedImageFrames)
+            StorePreviewImageLoader.ReleaseFrame(source);
+        _ownedImageFrames.Clear();
+        LeftCharacterHost.Children.Clear();
+        RightCharacterHost.Children.Clear();
+        _leftCharacterLayers.Clear();
+        _rightCharacterLayers.Clear();
+        foreach (var source in _ownedFrames)
+            source.Dispose();
+        _ownedFrames.Clear();
+        _characters.Clear();
+        _actions.Clear();
+        _projectileFrames = [];
+        _emitterFrames = [];
+        _resourcesLoaded = false;
+    }
 
     private void ThrowIfLoadExpired(int generation, CancellationToken cancellationToken)
     {
@@ -417,10 +480,16 @@ public sealed partial class StorePreviewStage : UserControl
             PixelMovementAgent rightAgent = _movementAgents[1];
             leftX = leftAgent.TrackPosition - (RenderedCharacterSize / 2d);
             rightX = rightAgent.TrackPosition - (RenderedCharacterSize / 2d);
-            leftFrame = CharacterFrame(elapsed, leftAgent.Velocity);
-            rightFrame = CharacterFrame(elapsed + 0.08, rightAgent.Velocity);
-            UpdateFacing(leftAgent, leftId, ref _leftFacingLeft);
-            UpdateFacing(rightAgent, "pixel_cat", ref _rightFacingLeft);
+            leftFrame = CharacterFrame(elapsed, PixelRoamingPolicy.IsWalking(leftAgent, false, PreviewScale) ? leftAgent.Velocity : 0);
+            rightFrame = CharacterFrame(elapsed + 0.08, PixelRoamingPolicy.IsWalking(rightAgent, _stoppedIds.Contains(rightAgent.Id), PreviewScale) ? rightAgent.Velocity : 0);
+            if (elapsed - _manualThrowStarted >= ThrowActionSeconds)
+            {
+                UpdateFacing(leftAgent, leftId, ref _leftFacingLeft);
+            }
+            if (!_stoppedIds.Contains(rightAgent.Id))
+            {
+                UpdateFacing(rightAgent, "pixel_cat", ref _rightFacingLeft);
+            }
         }
 
         double throwLocal = -1;
@@ -467,14 +536,17 @@ public sealed partial class StorePreviewStage : UserControl
             ref _rightVisibleCharacterLayer);
 
         PositionCharacters(leftX, rightX);
+        double pulseScale = PreviewPulseScale(elapsed - _pulseStarted);
+        LeftCharacterScale.ScaleX *= pulseScale;
+        LeftCharacterScale.ScaleY = pulseScale;
         UpdateSparkles(elapsed, leftX, leftId);
 
         if (ProductKind == CommerceProductKind.Bubble)
         {
             UpdateBubble(elapsed, leftX, rightX);
-            ProjectileImage.Visibility = Visibility.Collapsed;
-            EmitterImage.Visibility = Visibility.Collapsed;
-            ImpactImage.Visibility = Visibility.Collapsed;
+            ProjectileImage.Opacity = 0;
+            EmitterImage.Opacity = 0;
+            ImpactImage.Opacity = 0;
             return;
         }
 
@@ -508,17 +580,18 @@ public sealed partial class StorePreviewStage : UserControl
     private void BuildMovementAgents()
     {
         double lower = _movementGeometry.TrackLowerBound;
-        double length = _movementGeometry.TrackUpperBound - lower;
         double leftFraction = ProductKind == CommerceProductKind.Bubble ? 0.28 : 0.22;
         double rightFraction = ProductKind == CommerceProductKind.Bubble ? 0.72 : 0.78;
         _movementAgents.Add(new PixelMovementAgent(
             new Guid("D5F0D9BB-FBDA-4B10-AEF9-A7E2A4CFBD25"),
-            lower + (length * leftFraction),
-            _movementGeometry.TrackUpperBound));
+            _movementGeometry.Clamp(StageWidth * leftFraction),
+            RandomTarget(lower, _movementGeometry.TrackUpperBound),
+            idleRemaining: _random.NextDouble() * 1.5d));
         _movementAgents.Add(new PixelMovementAgent(
             new Guid("26E5237A-69A1-4EA7-868E-822C831069B6"),
-            lower + (length * rightFraction),
-            _movementGeometry.TrackLowerBound));
+            _movementGeometry.Clamp(StageWidth * rightFraction),
+            RandomTarget(lower, _movementGeometry.TrackUpperBound),
+            idleRemaining: _random.NextDouble() * 1.5d));
     }
 
     private void AdvanceMovement(double elapsed)
@@ -528,28 +601,12 @@ public sealed partial class StorePreviewStage : UserControl
             : Math.Clamp(elapsed - _lastSceneElapsed, 0, 0.1);
         _lastSceneElapsed = elapsed;
 
-        double lower = _movementGeometry.TrackLowerBound;
-        double upper = _movementGeometry.TrackUpperBound;
-        foreach (PixelMovementAgent agent in _movementAgents)
+        _stoppedIds.Clear();
+        double hitStarted = _manualThrowStarted + ThrowReleaseSeconds + _manualThrowFlightDuration;
+        if (ProductKind == CommerceProductKind.Character
+            && elapsed >= hitStarted && elapsed < hitStarted + HitActionSeconds)
         {
-            if (Math.Abs(agent.Target - agent.TrackPosition) > 2)
-            {
-                continue;
-            }
-
-            if (agent.TrackPosition <= lower + 2)
-            {
-                TurnFromWall(agent, towardUpper: true, lower, upper);
-            }
-            else if (agent.TrackPosition >= upper - 2)
-            {
-                TurnFromWall(agent, towardUpper: false, lower, upper);
-            }
-            else
-            {
-                agent.Target = RandomTarget(lower, upper);
-                agent.IdleRemaining = 0.8 + (_random.NextDouble() * 2.2);
-            }
+            _stoppedIds.Add(_movementAgents[1].Id);
         }
 
         PixelMovementSimulation.Step(
@@ -557,40 +614,15 @@ public sealed partial class StorePreviewStage : UserControl
             deltaTime,
             _movementGeometry,
             NoAvoidanceRects,
-            NoStoppedIds,
-            _movementScratch);
-
-        foreach (PixelMovementAgent agent in _movementAgents)
-        {
-            if (agent.TrackPosition <= lower + 0.01 && agent.Velocity < 0)
-            {
-                TurnFromWall(agent, towardUpper: true, lower, upper);
-            }
-            else if (agent.TrackPosition >= upper - 0.01 && agent.Velocity > 0)
-            {
-                TurnFromWall(agent, towardUpper: false, lower, upper);
-            }
-        }
+            _stoppedIds,
+            _movementScratch,
+            PreviewScale);
+        PixelRoamingPolicy.UpdateAfterMovement(
+            _movementAgents, _stoppedIds, _movementGeometry, _random, PreviewScale);
     }
 
     private double RandomTarget(double lower, double upper) =>
         lower + (_random.NextDouble() * (upper - lower));
-
-    private void TurnFromWall(
-        PixelMovementAgent agent,
-        bool towardUpper,
-        double lower,
-        double upper)
-    {
-        double midpoint = lower + ((upper - lower) / 2d);
-        agent.Target = towardUpper
-            ? midpoint + (_random.NextDouble() * (upper - midpoint))
-            : lower + (_random.NextDouble() * (midpoint - lower));
-        agent.Velocity = towardUpper
-            ? Math.Max(6, Math.Abs(agent.Velocity))
-            : -Math.Max(6, Math.Abs(agent.Velocity));
-        agent.IdleRemaining = 0;
-    }
 
     private static int CharacterFrame(double elapsed, double velocity) =>
         Math.Abs(velocity) > 2
@@ -608,15 +640,14 @@ public sealed partial class StorePreviewStage : UserControl
             return;
         }
 
-        double targetDelta = agent.Target - agent.TrackPosition;
-        if (Math.Abs(targetDelta) > 2d)
+        if (Math.Abs(agent.Velocity) > 2d * PreviewScale)
         {
-            facingLeft = targetDelta < 0d;
+            facingLeft = agent.Velocity < 0d;
         }
     }
 
     private static void ApplyCharacterFrame(
-        IReadOnlyList<Image> layers,
+        IReadOnlyList<NearestPixelImage> layers,
         ScaleTransform transform,
         string characterId,
         int frame,
@@ -631,7 +662,7 @@ public sealed partial class StorePreviewStage : UserControl
     }
 
     private static void ApplyActionFrame(
-        IReadOnlyList<Image> layers,
+        IReadOnlyList<NearestPixelImage> layers,
         ScaleTransform transform,
         string characterId,
         int frame,
@@ -646,7 +677,7 @@ public sealed partial class StorePreviewStage : UserControl
     }
 
     private void ApplyCharacterPose(
-        IReadOnlyList<Image> layers,
+        IReadOnlyList<NearestPixelImage> layers,
         ScaleTransform transform,
         string characterId,
         int baseFrame,
@@ -702,19 +733,18 @@ public sealed partial class StorePreviewStage : UserControl
 
     private static void BuildCharacterLayers(
         Grid host,
-        List<Image> layers,
-        IReadOnlyList<ImageSource> movementFrames,
-        IReadOnlyList<ImageSource> actionFrames)
+        List<NearestPixelImage> layers,
+        IReadOnlyList<PixelFrameSurface> movementFrames,
+        IReadOnlyList<PixelFrameSurface> actionFrames)
     {
         host.Children.Clear();
         layers.Clear();
-        foreach (ImageSource source in movementFrames.Concat(actionFrames))
+        foreach (PixelFrameSurface source in movementFrames.Concat(actionFrames))
         {
-            var layer = new Image
+            var layer = new NearestPixelImage
             {
                 Width = RenderedCharacterSize,
                 Height = RenderedCharacterSize,
-                Stretch = Stretch.None,
                 Source = source,
                 Opacity = 0,
                 IsHitTestVisible = false,
@@ -725,7 +755,7 @@ public sealed partial class StorePreviewStage : UserControl
     }
 
     private static void ShowCharacterLayer(
-        IReadOnlyList<Image> layers,
+        IReadOnlyList<NearestPixelImage> layers,
         int requestedLayer,
         ref int visibleLayer)
     {
@@ -743,7 +773,7 @@ public sealed partial class StorePreviewStage : UserControl
         visibleLayer = nextLayer;
     }
 
-    private static void SetImageSource(Image image, ImageSource source)
+    private static void SetImageSource(NearestPixelImage image, PixelFrameSurface source)
     {
         if (!ReferenceEquals(image.Source, source))
         {
@@ -759,7 +789,7 @@ public sealed partial class StorePreviewStage : UserControl
         bool typing = local < 1;
         BubbleText.Text = typing
             ? new string('.', 1 + ((int)(local / TypingFrameSeconds) % 3))
-            : fromLeft ? "저메추좀 해줘" : "곱도리탕 어때?";
+            : I18n.Get(fromLeft ? "preview.leftMessage" : "preview.rightMessage");
         BubbleText.FontSize = typing ? BubbleTypingFontSize : BubbleMessageFontSize;
         BubbleText.Margin = typing
             ? new Thickness(6, 1.5, 6, 1.5)
@@ -825,14 +855,14 @@ public sealed partial class StorePreviewStage : UserControl
         bool leftToRight,
         double flightDuration)
     {
-        ImpactImage.Visibility = Visibility.Collapsed;
+        ImpactImage.Opacity = 0;
         double sequenceEnd = ProductKind == CommerceProductKind.Throwable
             ? ThrowCycleSeconds
             : ThrowReleaseSeconds + flightDuration + HitActionSeconds;
         if (local < 0 || local >= sequenceEnd || _projectileFrames.Count < 12)
         {
-            ProjectileImage.Visibility = Visibility.Collapsed;
-            EmitterImage.Visibility = Visibility.Collapsed;
+            ProjectileImage.Opacity = 0;
+            EmitterImage.Opacity = 0;
             return;
         }
 
@@ -844,32 +874,35 @@ public sealed partial class StorePreviewStage : UserControl
             double startCenterX = leftToRight
                 ? leftX + (RenderedCharacterSize / 2d)
                 : rightX + (RenderedCharacterSize / 2d);
+            if (ProductKind == CommerceProductKind.Character)
+            {
+                startCenterX = _manualThrowStartX;
+            }
             double endCenterX = leftToRight
                 ? rightX + (RenderedCharacterSize / 2d)
                 : leftX + (RenderedCharacterSize / 2d);
             double inverse = 1 - progress;
             double distance = Math.Abs(endCenterX - startCenterX);
-            double arcHeight = Math.Clamp(distance * 0.18, 24, 96);
+            double arcHeight = ProductKind == CommerceProductKind.Character
+                ? _manualThrowArcHeight
+                : Math.Clamp(distance / PreviewScale * 0.18, 24, 96) * PreviewScale;
             double centerX = (inverse * inverse * startCenterX)
                 + (2 * inverse * progress * ((startCenterX + endCenterX) / 2d))
                 + (progress * progress * endCenterX);
-            // A quadratic Bezier reaches only half of its control-point offset
-            // at the midpoint. Double the control offset so arcHeight is the
-            // visible peak height, and keep the enlarged sprite above the floor.
-            double controlY = ProjectilePathY - (arcHeight * 2d);
+            double controlY = ProjectilePathY - arcHeight;
             double centerY = (inverse * inverse * ProjectilePathY)
                 + (2 * inverse * progress * controlY)
                 + (progress * progress * ProjectilePathY);
             int projectileFrame = (int)((local - ThrowReleaseSeconds) / ProjectileRotationFrameSeconds) % 8;
-            SetImageSource(ProjectileImage, _projectileFrames[projectileFrame]);
+            ProjectileImage.ShowFrame(projectileFrame);
             ProjectileScale.ScaleX = 1;
             Canvas.SetLeft(ProjectileImage, centerX - (ProjectileSize / 2d));
             Canvas.SetTop(ProjectileImage, centerY - (ProjectileSize / 2d));
-            ProjectileImage.Visibility = Visibility.Visible;
+            ProjectileImage.Opacity = 1;
         }
         else
         {
-            ProjectileImage.Visibility = Visibility.Collapsed;
+            ProjectileImage.Opacity = 0;
         }
 
         if (local >= impactStarted && local < impactStarted + ImpactSeconds)
@@ -877,34 +910,36 @@ public sealed partial class StorePreviewStage : UserControl
             int impactFrame = 8 + Math.Min(
                 3,
                 (int)((local - impactStarted) / (ImpactSeconds / 4d)));
-            SetImageSource(ImpactImage, _projectileFrames[impactFrame]);
+            ImpactImage.ShowFrame(impactFrame - 8);
             double targetCenterX = (leftToRight ? rightX : leftX)
                 + (RenderedCharacterSize / 2d);
             Canvas.SetLeft(ImpactImage, targetCenterX - (ImpactSize / 2d));
-            Canvas.SetTop(ImpactImage, PlatformTop - 10 - (ImpactSize / 2d));
-            ImpactImage.Visibility = Visibility.Visible;
+            Canvas.SetTop(ImpactImage, ProjectilePathY - (10 * PreviewScale) - (ImpactSize / 2d));
+            ImpactImage.Opacity = 1;
         }
 
         if (_emitterFrames.Count == 4 && local < ThrowActionSeconds)
         {
             int emitterFrame = Math.Min(3, (int)(local / (ThrowActionSeconds / 4d)));
-            SetImageSource(EmitterImage, _emitterFrames[emitterFrame]);
+            EmitterImage.ShowFrame(emitterFrame);
             EmitterScale.ScaleX = leftToRight ? 1 : -1;
             double actorCenterX = (leftToRight ? leftX : rightX)
                 + (RenderedCharacterSize / 2d);
-            Canvas.SetLeft(EmitterImage, actorCenterX - (EmitterSize / 2d));
-            Canvas.SetTop(EmitterImage, EmitterTop);
-            EmitterImage.Visibility = Visibility.Visible;
+            var emitterCenter = CannonEmitterLayout.Center(
+                (actorCenterX, ProjectilePathY), !leftToRight, OverlayEdge.Bottom, PreviewScale);
+            Canvas.SetLeft(EmitterImage, emitterCenter.X - (EmitterSize / 2d));
+            Canvas.SetTop(EmitterImage, emitterCenter.Y - (EmitterSize / 2d));
+            EmitterImage.Opacity = 1;
         }
         else
         {
-            EmitterImage.Visibility = Visibility.Collapsed;
+            EmitterImage.Opacity = 0;
         }
     }
 
     private static double ThrowFlightDuration(double leftX, double rightX)
     {
-        double distance = Math.Abs(rightX - leftX);
+        double distance = Math.Abs(rightX - leftX) / PreviewScale;
         return Math.Clamp(0.35 + (distance / 1600d), 0.35, 0.95);
     }
 
@@ -960,7 +995,9 @@ public sealed partial class StorePreviewStage : UserControl
             Color.FromArgb(255, 168, 135, 214),
             Color.FromArgb(255, 245, 186, 56),
         ];
-        for (int index = 0; index < 6; index++)
+        bool hasPulseEffect = ProductKind == CommerceProductKind.Character
+            && PixelCharacterCatalog.Get(CharacterId).VisualEffect == PixelCharacterVisualEffect.StarlightSparkles;
+        for (int index = 0; index < (hasPulseEffect ? 49 : 6); index++)
         {
             double radius = 3 + ((index % 3) * 0.5);
             var star = new Microsoft.UI.Xaml.Shapes.Polygon
@@ -978,8 +1015,12 @@ public sealed partial class StorePreviewStage : UserControl
                     new Point(radius - 1, radius - 1),
                 },
                 Opacity = 0,
+                RenderTransform = new ScaleTransform { CenterX = radius, CenterY = radius },
             };
-            _sparkles.Add(star);
+            if (index < 6)
+                _sparkles.Add(star);
+            else
+                _pulseSparkles.Add(star);
             SparkleCanvas.Children.Add(star);
         }
     }
@@ -994,27 +1035,62 @@ public sealed partial class StorePreviewStage : UserControl
             return;
         }
 
-        double phase = elapsed % AmbientSparkleCycleSeconds;
         for (int index = 0; index < _sparkles.Count; index++)
         {
-            double local = phase - (index * 0.045);
             var star = _sparkles[index];
-            if (local < 0 || local > AmbientSparkleDurationSeconds)
+            var particle = StarlightSparkleLayout.Ambient(elapsed, index, 0x51DE59);
+            double radius = 3 + ((index % 3) * 0.5);
+            var point = StarlightSparkleLayout.Point(
+                (leftX + (RenderedCharacterSize / 2d), ProjectilePathY),
+                particle.Tangent * PreviewScale, particle.Normal * PreviewScale, OverlayEdge.Bottom);
+            Canvas.SetLeft(star, point.X - radius);
+            Canvas.SetTop(star, point.Y - radius);
+            var scale = (ScaleTransform)star.RenderTransform;
+            scale.ScaleX = scale.ScaleY = particle.Radius * PreviewScale / radius;
+            star.Opacity = particle.Opacity;
+        }
+        UpdatePulseSparkles(elapsed - _pulseStarted, leftX);
+    }
+
+    private void UpdatePulseSparkles(double elapsed, double leftX)
+    {
+        for (int index = 0; index < _pulseSparkles.Count; index++)
+        {
+            var star = _pulseSparkles[index];
+            if (elapsed < 0 || elapsed >= 0.78)
             {
                 star.Opacity = 0;
                 continue;
             }
-
-            double progress = local / AmbientSparkleDurationSeconds;
-            double horizontal = -25 + (50 * Unit((index + 1) * 7919));
-            double vertical = 5 + (32 * Unit(((index + 1) * 1543) ^ 0x51A7));
-            double rise = 4 * progress;
-            double radius = 3 + ((index % 3) * 0.5);
-            Canvas.SetLeft(
-                star,
-                leftX + (RenderedCharacterSize / 2d) + horizontal - radius);
-            Canvas.SetTop(star, PlatformTop - vertical - rise - radius);
-            star.Opacity = Math.Sin(Math.PI * progress) * 0.96;
+            double progress = elapsed / 0.78;
+            double centerX = leftX + (RenderedCharacterSize / 2d);
+            double centerY = ProjectilePathY;
+            double radius;
+            if (index == 0)
+            {
+                double flash = Math.Clamp(elapsed / 0.32, 0, 1);
+                radius = 34 * (0.25 + (0.75 * flash));
+                star.Opacity = Math.Sin(Math.PI * flash) * 0.75;
+            }
+            else
+            {
+                bool outer = index <= 18;
+                int waveIndex = outer ? index - 1 : index - 19;
+                int count = outer ? 18 : 24;
+                double waveProgress = outer ? progress : Math.Clamp((elapsed - 0.06) / 0.72, 0, 1);
+                double angle = (waveIndex * Math.PI * 2 / count) + (outer ? 0 : Math.PI / count);
+                double distance = (outer ? 126 + (42 * Unit(index * 3253)) : 82 + (50 * Unit(index * 3253)))
+                    * Math.Sin(waveProgress * Math.PI / 2);
+                centerX += Math.Cos(angle) * distance;
+                centerY += Math.Sin(angle) * distance;
+                radius = (outer ? 8 : 4.5) * (1 - (waveProgress * 0.7));
+                star.Opacity = Math.Min(1, waveProgress / 0.12) * (1 - (waveProgress * waveProgress));
+            }
+            double originalRadius = 3 + (((index + 6) % 3) * 0.5);
+            var scale = (ScaleTransform)star.RenderTransform;
+            scale.ScaleX = scale.ScaleY = radius / originalRadius;
+            Canvas.SetLeft(star, centerX - originalRadius);
+            Canvas.SetTop(star, centerY - originalRadius);
         }
     }
 
@@ -1029,17 +1105,195 @@ public sealed partial class StorePreviewStage : UserControl
         return mixed / (double)uint.MaxValue;
     }
 
-    private void OnTapped(object sender, TappedRoutedEventArgs args)
+    private void OnFriendTapped(object sender, TappedRoutedEventArgs args)
     {
-        _ = sender;
-        _ = args;
-        if (ProductKind == CommerceProductKind.Character && _resourcesLoaded)
+        args.Handled = TriggerPreviewThrow();
+    }
+
+    private bool TriggerPreviewThrow()
+    {
+        if (ProductKind == CommerceProductKind.Character && _resourcesLoaded && _isPresented)
         {
+            _manualThrowStartX = _movementAgents[0].TrackPosition;
+            _manualThrowArcHeight = Math.Clamp(
+                Math.Abs(_movementAgents[1].TrackPosition - _manualThrowStartX) / PreviewScale * 0.18,
+                24, 96) * PreviewScale;
             _manualThrowFlightDuration = ThrowFlightDuration(
                 _movementAgents[0].TrackPosition - (RenderedCharacterSize / 2d),
                 _movementAgents[1].TrackPosition - (RenderedCharacterSize / 2d));
             _manualThrowStarted = _clock.Elapsed.TotalSeconds;
             UpdateScene();
+            return true;
+        }
+        return false;
+    }
+
+    private void OnCharacterDoubleTapped(object sender, DoubleTappedRoutedEventArgs args)
+    {
+        args.Handled = TriggerPreviewPulse();
+    }
+
+    private bool TriggerPreviewPulse()
+    {
+        if (ProductKind != CommerceProductKind.Character || !_resourcesLoaded || !_isPresented)
+        {
+            return false;
+        }
+        _pulseStarted = _clock.Elapsed.TotalSeconds;
+        UpdateScene();
+        return true;
+    }
+
+    private static double PreviewPulseScale(double elapsed)
+    {
+        if (elapsed < 0 || elapsed >= 0.8)
+            return 1;
+        if (elapsed <= 0.2)
+        {
+            double progress = elapsed / 0.2;
+            return 1 + (2 * Math.Sin(progress * Math.PI / 2));
+        }
+        double settle = (elapsed - 0.2) / 0.6;
+        return 2 + Math.Cos(settle * Math.PI);
+    }
+
+    internal async Task VerifyInteractionSmokeAsync()
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(20);
+        while (!_resourcesLoaded && !_loadFailed && DateTimeOffset.UtcNow < deadline)
+            await Task.Delay(50);
+        if (!_resourcesLoaded)
+            throw new InvalidOperationException("Store preview smoke: resources unavailable.");
+        await Task.Delay(80);
+        _timer.Stop();
+        if (ProductKind == CommerceProductKind.Throwable)
+        {
+            await VerifyCannonFramesSmokeAsync();
+            EndPresentation();
+            if ((_ownedFrames.Count != 0 || _ownedImageFrames.Count != 0) || _timer.IsEnabled)
+                throw new InvalidOperationException("Store preview smoke: cannon resources still active.");
+            StartupDiagnostics.Stage("store-preview-cannon-smoke-complete");
+            return;
+        }
+        if (!TriggerPreviewPulse())
+            throw new InvalidOperationException("Store preview smoke: pulse rejected.");
+        _pulseStarted = _clock.Elapsed.TotalSeconds - 0.2;
+        UpdateScene();
+        if (Math.Abs(LeftCharacterScale.ScaleX) < 2.99 || LeftCharacterScale.ScaleY < 2.99
+            || LeftCharacterScale.CenterY != RenderedCharacterSize - RenderedFootBaseline)
+            throw new InvalidOperationException("Store preview smoke: pulse scale or foot anchor mismatch.");
+        if (!_leftCharacterLayers[_leftVisibleCharacterLayer].IsNearestReady
+            || Canvas.GetZIndex(LeftNameplate) <= Canvas.GetZIndex(LeftCharacterHost))
+            throw new InvalidOperationException("Store preview smoke: nearest filtering or nameplate layering missing.");
+        if (PixelCharacterCatalog.Get(CharacterId).VisualEffect == PixelCharacterVisualEffect.StarlightSparkles)
+        {
+            UpdateSparkles(0.3, Canvas.GetLeft(LeftCharacterHost), CharacterId);
+            UpdatePulseSparkles(0.2, Canvas.GetLeft(LeftCharacterHost));
+            if (!_sparkles.Any(star => star.Opacity > 0) || _pulseSparkles.Count != 43
+                || !_pulseSparkles.Any(star => star.Opacity > 0))
+                throw new InvalidOperationException("Store preview smoke: ambient or pulse effect missing.");
+        }
+        if (!TriggerPreviewThrow())
+            throw new InvalidOperationException("Store preview smoke: throw rejected.");
+        _manualThrowStarted = _clock.Elapsed.TotalSeconds - ThrowReleaseSeconds - 0.05;
+        UpdateScene();
+        if (ProjectileImage.Opacity != 1)
+            throw new InvalidOperationException("Store preview smoke: projectile missing.");
+        await Task.Delay(50);
+        if (!ProjectileImage.IsFrameReady)
+            throw new InvalidOperationException("Store preview smoke: projectile image not ready.");
+        await VerifyRenderedEffectAsync(ProjectileImage);
+        var target = _movementAgents[1];
+        double destination = target.Target;
+        _manualThrowStarted = _clock.Elapsed.TotalSeconds - ThrowReleaseSeconds - _manualThrowFlightDuration - 0.05;
+        UpdateScene();
+        if (!_stoppedIds.Contains(target.Id) || target.Velocity != 0 || target.Target != destination
+            || ImpactImage.Opacity != 1)
+            throw new InvalidOperationException("Store preview smoke: hit stop or impact missing.");
+        await Task.Delay(20);
+        await VerifyRenderedEffectAsync(ImpactImage);
+        _pulseStarted = _clock.Elapsed.TotalSeconds - 1;
+        UpdateScene();
+        if (LeftCharacterScale.ScaleY != 1 || _pulseSparkles.Any(star => star.Opacity > 0))
+            throw new InvalidOperationException("Store preview smoke: pulse did not settle.");
+        EndPresentation();
+        if (_timer.IsEnabled || (_ownedFrames.Count != 0 || _ownedImageFrames.Count != 0) || TriggerPreviewPulse() || TriggerPreviewThrow())
+            throw new InvalidOperationException("Store preview smoke: closed preview still active.");
+        StartupDiagnostics.Stage($"store-preview-interaction-smoke-complete character={CharacterId}");
+    }
+
+    private async Task VerifyRenderedEffectAsync(PreloadedPixelAnimation effect)
+    {
+        await effect.VerifyRenderedFrameAsync();
+        // Compare only our own preview canvas, not the desktop or other windows.
+        // This also detects an image that has pixels but is covered in the scene.
+        var withEffect = new RenderTargetBitmap();
+        await withEffect.RenderAsync(SceneCanvas);
+        byte[] before = (await withEffect.GetPixelsAsync()).ToArray();
+        effect.Opacity = 0;
+        byte[] after;
+        try
+        {
+            var withoutEffect = new RenderTargetBitmap();
+            await withoutEffect.RenderAsync(SceneCanvas);
+            after = (await withoutEffect.GetPixelsAsync()).ToArray();
+        }
+        finally { effect.Opacity = 1; }
+        int changed = 0;
+        for (int index = 0; index < Math.Min(before.Length, after.Length); index++)
+            if (before[index] != after[index])
+                changed++;
+        if (changed < 8)
+            throw new InvalidOperationException("Preview effect is not visible in the composed scene.");
+        StartupDiagnostics.Stage($"preview-rendered-effect-verified changed-bytes={changed}");
+    }
+
+    private async Task VerifyCannonFramesSmokeAsync()
+    {
+        const double left = 80, right = 360;
+        double flight = ThrowFlightDuration(left, right);
+        foreach (bool leftToRight in new[] { true, false })
+        {
+            UpdateThrow(0.1, left, right, leftToRight, flight);
+            await Task.Delay(30);
+            double actorX = (leftToRight ? left : right) + (RenderedCharacterSize / 2d);
+            double emitterX = Canvas.GetLeft(EmitterImage) + (EmitterSize / 2d);
+            if (EmitterImage.Opacity != 1 || !EmitterImage.IsFrameReady
+                || Math.Sign(emitterX - actorX) != (leftToRight ? 1 : -1))
+            {
+                StartupDiagnostics.Stage($"cannon-smoke-emitter-failed forward={leftToRight} opacity={EmitterImage.Opacity} ready={EmitterImage.IsFrameReady} delta={emitterX - actorX}");
+                throw new InvalidOperationException("Store preview smoke: cannon emitter missing or behind actor.");
+            }
+            await VerifyRenderedEffectAsync(EmitterImage);
+            for (int frame = 0; (frame + 0.5) * ProjectileRotationFrameSeconds < flight; frame++)
+            {
+                UpdateThrow(ThrowReleaseSeconds + (frame + 0.5) * ProjectileRotationFrameSeconds,
+                    left, right, leftToRight, flight);
+                await Task.Delay(20);
+                if (ProjectileImage.Opacity != 1 || !ProjectileImage.IsFrameReady
+                    || !ReferenceEquals(ProjectileImage.Source, _projectileFrames[frame]))
+                {
+                    StartupDiagnostics.Stage($"cannon-smoke-projectile-failed frame={frame} opacity={ProjectileImage.Opacity} ready={ProjectileImage.IsFrameReady} source={ReferenceEquals(ProjectileImage.Source, _projectileFrames[frame])}");
+                    throw new InvalidOperationException("Store preview smoke: projectile frame missing.");
+                }
+                await VerifyRenderedEffectAsync(ProjectileImage);
+            }
+            for (int frame = 0; frame < 4; frame++)
+            {
+                UpdateThrow(ThrowReleaseSeconds + flight + (frame + 0.5) * ImpactSeconds / 4,
+                    left, right, leftToRight, flight);
+                await Task.Delay(20);
+                if (ImpactImage.Opacity != 1 || !ImpactImage.IsFrameReady
+                    || !ReferenceEquals(ImpactImage.Source, _projectileFrames[8 + frame]))
+                {
+                    StartupDiagnostics.Stage($"cannon-smoke-impact-failed frame={frame} opacity={ImpactImage.Opacity} ready={ImpactImage.IsFrameReady} source={ReferenceEquals(ImpactImage.Source, _projectileFrames[8 + frame])}");
+                    throw new InvalidOperationException("Store preview smoke: impact frame missing.");
+                }
+                await VerifyRenderedEffectAsync(ImpactImage);
+            }
+            UpdateThrow(-1, left, right, leftToRight, flight);
+            if (ProjectileImage.Opacity != 0 || ImpactImage.Opacity != 0 || EmitterImage.Opacity != 0)
+                throw new InvalidOperationException("Store preview smoke: stale throw effect.");
         }
     }
 

@@ -89,6 +89,15 @@ public sealed partial class HistoryWindowViewModel : ObservableObject, IDisposab
         }
     }
 
+    public void RefreshLocalizedText()
+    {
+        Title = ActiveRoom() is { } room
+            ? I18n.Format("history.roomTitle", room.Name)
+            : I18n.Get("history.recentTitle");
+        RebuildEntries();
+        UpdateEmptyState();
+    }
+
     public async Task ActivateAsync()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

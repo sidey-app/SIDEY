@@ -14,6 +14,7 @@ public sealed class PixelMovementAgent(
     public double Velocity { get; set; } = velocity;
     public double Target { get; set; } = target;
     public double IdleRemaining { get; set; } = idleRemaining;
+    public double? MessageBubbleSeparationOrder { get; set; }
 }
 
 public static class PixelMovementPolicy
@@ -52,9 +53,13 @@ public static class PixelMovementSimulation
         EdgeTrackGeometry geometry,
         IReadOnlyList<RectD> avoidanceRects,
         IReadOnlySet<Guid> stoppedIds,
-        PixelMovementScratch scratch)
+        PixelMovementScratch scratch,
+        double coordinateScale = 1d,
+        IReadOnlySet<Guid>? alreadyMovedIds = null)
     {
         ArgumentNullException.ThrowIfNull(scratch);
+        if (!double.IsFinite(coordinateScale) || coordinateScale <= 0d)
+            throw new ArgumentOutOfRangeException(nameof(coordinateScale));
         if (agents.Count == 0 || !double.IsFinite(geometry.TangentLength))
         {
             return;
@@ -78,7 +83,7 @@ public static class PixelMovementSimulation
                 var right = agents[rightIndex];
                 var delta = left.TrackPosition - right.TrackPosition;
                 var distance = Math.Abs(delta);
-                var desiredDistance = CharacterRadius * 2d;
+                var desiredDistance = CharacterRadius * 2d * coordinateScale;
                 if (distance >= desiredDistance)
                 {
                     continue;
@@ -87,7 +92,7 @@ public static class PixelMovementSimulation
                 var direction = distance > 0.001d
                     ? delta < 0d ? -1d : 1d
                     : left.Id.CompareTo(right.Id) < 0 ? -1d : 1d;
-                var strength = Math.Max(0d, 1d - (distance / desiredDistance)) * 30d;
+                var strength = Math.Max(0d, 1d - (distance / desiredDistance)) * 30d * coordinateScale;
                 separation[left.Id] = separation.GetValueOrDefault(left.Id) + (direction * strength);
                 separation[right.Id] = separation.GetValueOrDefault(right.Id) - (direction * strength);
                 overlappingIds.Add(left.Id);
@@ -98,6 +103,8 @@ public static class PixelMovementSimulation
         for (var agentIndex = 0; agentIndex < agents.Count; agentIndex++)
         {
             var agent = agents[agentIndex];
+            if (alreadyMovedIds?.Contains(agent.Id) == true)
+                continue;
             if (stoppedIds.Contains(agent.Id))
             {
                 agent.Velocity = 0d;
@@ -117,18 +124,18 @@ public static class PixelMovementSimulation
                 agent.IdleRemaining = 0d;
             }
 
-            var delta = agent.Target - agent.TrackPosition;
+            var delta = (agent.Target - agent.TrackPosition) / coordinateScale;
             var separationForce = separation.GetValueOrDefault(agent.Id);
             var targetDirection = Math.Abs(delta) > 2d
                 ? delta < 0d ? -1d : 1d
-                : Math.Abs(agent.Velocity) > 0.1d
+                : Math.Abs(agent.Velocity) > 0.1d * coordinateScale
                     ? agent.Velocity < 0d ? -1d : 1d
                     : separationForce < 0d ? -1d : 1d;
-            var acceleration = Math.Abs(delta) > 2d ? targetDirection * 32d : 0d;
+            var acceleration = Math.Abs(delta) > 2d ? targetDirection * 32d * coordinateScale : 0d;
 
             if (isOverlapping)
             {
-                acceleration += targetDirection * OverlapForwardAcceleration;
+                acceleration += targetDirection * OverlapForwardAcceleration * coordinateScale;
                 if (separationForce * targetDirection > 0d)
                 {
                     acceleration += separationForce;
@@ -144,14 +151,14 @@ public static class PixelMovementSimulation
                 acceleration += AvoidanceForce(
                     agent.TrackPosition,
                     geometry,
-                    avoidanceRects[rectIndex]);
+                    avoidanceRects[rectIndex], coordinateScale);
             }
 
             agent.Velocity += acceleration * deltaTime;
             var damping = isOverlapping ? 0.92d : 0.82d;
             agent.Velocity *= Math.Pow(damping, deltaTime * 30d);
             var speedLimit = isOverlapping ? OverlapMaximumSpeed : MaximumSpeed;
-            agent.Velocity = Math.Clamp(agent.Velocity, -speedLimit, speedLimit);
+            agent.Velocity = Math.Clamp(agent.Velocity, -speedLimit * coordinateScale, speedLimit * coordinateScale);
             agent.TrackPosition = geometry.Clamp(agent.TrackPosition + (agent.Velocity * deltaTime));
 
             if (!double.IsFinite(agent.TrackPosition) || !double.IsFinite(agent.Velocity))
@@ -165,9 +172,9 @@ public static class PixelMovementSimulation
     private static double AvoidanceForce(
         double trackPosition,
         EdgeTrackGeometry geometry,
-        RectD rect)
+        RectD rect, double coordinateScale)
     {
-        var expanded = rect.Inset(-CharacterRadius, -CharacterRadius);
+        var expanded = rect.Inset(-CharacterRadius * coordinateScale, -CharacterRadius * coordinateScale);
         var point = geometry.PointFor(trackPosition);
         if (!expanded.Contains(point))
         {
@@ -180,7 +187,7 @@ public static class PixelMovementSimulation
         var upper = geometry.Edge is OverlayEdge.Bottom or OverlayEdge.Top
             ? expanded.MaxX - geometry.Bounds.MinX
             : expanded.MaxY - geometry.Bounds.MinY;
-        return trackPosition - lower < upper - trackPosition ? -90d : 90d;
+        return (trackPosition - lower < upper - trackPosition ? -90d : 90d) * coordinateScale;
     }
 }
 

@@ -11,6 +11,54 @@ internal static class StorePreviewImageLoader
 {
     private static readonly ConditionalWeakTable<ImageSource, SoftwareBitmap> BitmapLifetimes = new();
 
+    internal static void ReleaseFrame(ImageSource source)
+    {
+        if (BitmapLifetimes.TryGetValue(source, out var bitmap))
+        {
+            BitmapLifetimes.Remove(source);
+            bitmap.Dispose();
+        }
+        if (source is IDisposable disposable)
+            disposable.Dispose();
+    }
+
+    internal static async Task<PixelFrameSurface> LoadPixelFrameAsync(
+        string path, uint frameWidth, uint frameHeight, int frame,
+        uint renderedWidth, uint renderedHeight, CancellationToken cancellationToken)
+    {
+        var image = await LoadFrameAsync(path, frameWidth, frameHeight, frame,
+            renderedWidth, renderedHeight, cancellationToken);
+        var bitmap = BitmapLifetimes.GetValue(image, _ => throw new InvalidOperationException("Missing decoded frame."));
+        using var stream = new InMemoryRandomAccessStream();
+        var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);
+        encoder.SetSoftwareBitmap(bitmap);
+        await encoder.FlushAsync();
+        cancellationToken.ThrowIfCancellationRequested();
+        stream.Seek(0);
+        var surface = LoadedImageSurface.StartLoadFromStream(stream);
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnCompleted(LoadedImageSurface sender, LoadedImageSourceLoadCompletedEventArgs args)
+        {
+            if (args.Status == LoadedImageSourceLoadStatus.Success)
+                completion.TrySetResult(true);
+            else
+                completion.TrySetException(new InvalidOperationException($"Pixel surface load failed: {args.Status}"));
+        }
+        surface.LoadCompleted += OnCompleted;
+        try
+        {
+            await completion.Task.WaitAsync(TimeSpan.FromSeconds(15), cancellationToken);
+            surface.LoadCompleted -= OnCompleted;
+            return new PixelFrameSurface(surface);
+        }
+        catch
+        {
+            surface.LoadCompleted -= OnCompleted;
+            surface.Dispose();
+            throw;
+        }
+    }
+
     public static async Task<ImageSource> LoadFrameAsync(
         string path,
         uint frameWidth,

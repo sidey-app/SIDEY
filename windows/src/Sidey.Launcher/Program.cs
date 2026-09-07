@@ -51,9 +51,11 @@ public static class Program
     {
         try
         {
-            string language = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "en"
+            string requested = Environment.GetEnvironmentVariable("SIDEY_LANGUAGE")
+                ?? CultureInfo.CurrentUICulture.Name;
+            string language = requested.StartsWith("en", StringComparison.OrdinalIgnoreCase)
                 ? "en-US"
-                : "ko-KR";
+                : requested.StartsWith("ja", StringComparison.OrdinalIgnoreCase) ? "ja-JP" : "ko-KR";
             string path = Path.Combine(deploymentRoot, "Langs", language + ".json");
             string json = File.ReadAllText(path, Encoding.UTF8);
             Match match = Regex.Match(

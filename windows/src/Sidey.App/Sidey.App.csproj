@@ -16,13 +16,13 @@
     <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
     <PublishSingleFile>false</PublishSingleFile>
     <PublishTrimmed>false</PublishTrimmed>
-    <SatelliteResourceLanguages>en-US;ko-KR</SatelliteResourceLanguages>
+    <SatelliteResourceLanguages>en-US;ko-KR;ja-JP</SatelliteResourceLanguages>
     <AssemblyName>SIDEY.Host</AssemblyName>
     <AssemblyTitle>SIDEY</AssemblyTitle>
     <Product>SIDEY</Product>
-    <Version>1.0.10</Version>
-    <FileVersion>1.0.10.0</FileVersion>
-    <AssemblyVersion>1.0.10.0</AssemblyVersion>
+    <Version>1.1.0</Version>
+    <FileVersion>1.1.0.0</FileVersion>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
     <ApplicationIcon>Assets\Icons\SideyAppIcon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>

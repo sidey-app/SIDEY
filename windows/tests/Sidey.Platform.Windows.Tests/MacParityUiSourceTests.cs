@@ -3,6 +3,42 @@ namespace Sidey.Platform.Windows.Tests;
 public sealed class MacParityUiSourceTests
 {
     [Fact]
+    public void SettingsEndsWithPersistedLanguageSelectorAndGroupsSharePeopleIconWithStateColors()
+    {
+        var xaml = ReadRepositoryFile("windows", "src", "Sidey.App", "MainWindow.xaml");
+        Assert.True(xaml.IndexOf("Key=settings.language}", StringComparison.Ordinal)
+            > xaml.IndexOf("Key=settings.exportMetrics}", StringComparison.Ordinal));
+        Assert.Contains("SelectedLanguageIndex, Mode=TwoWay", xaml, StringComparison.Ordinal);
+        Assert.Contains("Key=settings.languageDescription", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"LanguageComboBox\" Grid.Column=\"1\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("languageRestart", xaml, StringComparison.Ordinal);
+        Assert.Contains("<SymbolIcon Symbol=\"People\" Foreground=\"#00C7BE\" Visibility=\"{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("<SymbolIcon Symbol=\"People\" Foreground=\"{ThemeResource TextFillColorSecondaryBrush}\" Visibility=\"{Binding IsActive, Converter={StaticResource InverseBooleanToVisibilityConverter}}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<Path Fill=\"#00C7BE\" Visibility=\"{Binding IsActive", xaml, StringComparison.Ordinal);
+        var app = ReadRepositoryFile("windows", "src", "Sidey.App", "App.xaml.cs");
+        Assert.True(app.IndexOf("I18n.SetLanguage(coordinator.State.Preferences.Language)", StringComparison.Ordinal)
+            < app.IndexOf("CreateOnboardingWindow(coordinator)", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void PreviewProjectilesUseResidentNativeImagesAndVerifyRenderedPixels()
+    {
+        var stage = ReadRepositoryFile("windows", "src", "Sidey.App", "Controls", "StorePreviewStage.xaml.cs");
+        var image = ReadRepositoryFile("windows", "src", "Sidey.App", "Controls", "PreloadedPixelAnimation.cs");
+        foreach (string name in new[] { "ProjectileImage", "ImpactImage", "EmitterImage" })
+        {
+            Assert.DoesNotContain(name + ".Visibility =", stage, StringComparison.Ordinal);
+            Assert.Contains(name + ".Opacity = 1", stage, StringComparison.Ordinal);
+        }
+        Assert.Contains("new Image { Source = source", image, StringComparison.Ordinal);
+        Assert.DoesNotContain("CompositionSurfaceBrush", image, StringComparison.Ordinal);
+        Assert.Contains("_frames[frame].Opacity = 1", image, StringComparison.Ordinal);
+        Assert.Contains("rendered.GetPixelsAsync()", image, StringComparison.Ordinal);
+        Assert.Contains("withEffect.RenderAsync(SceneCanvas)", stage, StringComparison.Ordinal);
+        Assert.Contains("ProjectileImage.ShowFrame(projectileFrame)", stage, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void FirstRunUsesAWinUiLandingAndStepByStepOnboardingWindow()
     {
         var app = ReadRepositoryFile("windows", "src", "Sidey.App", "App.xaml.cs");
@@ -178,10 +214,36 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("if (actionFrame is null", renderer, StringComparison.Ordinal);
         Assert.Contains("ShouldMirrorForVelocity(node.Agent.Velocity)", renderer, StringComparison.Ordinal);
         Assert.Contains("ShouldMirrorEmitter(cannon)", renderer, StringComparison.Ordinal);
-        Assert.Contains("projectile.Start = FootPoint(actor.Agent.TrackPosition)", renderer, StringComparison.Ordinal);
-        Assert.Contains("var endpoint = FootPoint(target.Agent.TrackPosition)", renderer, StringComparison.Ordinal);
+        Assert.Contains("CharacterCenterPoint(_nodeById[characterThrow.ActorUserId])", renderer, StringComparison.Ordinal);
+        Assert.Contains("CharacterCenterPoint(_nodeById[characterThrow.TargetUserId])", renderer, StringComparison.Ordinal);
+        Assert.Contains("projectile.Start = projectile.Trajectory.Start", renderer, StringComparison.Ordinal);
+        Assert.Contains("projectile.End = CharacterCenterPoint(target)", renderer, StringComparison.Ordinal);
+        Assert.Contains("projectile.Trajectory.PointAt(end, elapsed, _edge)", renderer, StringComparison.Ordinal);
+        Assert.DoesNotContain("projectile.Start = FootPoint", renderer, StringComparison.Ordinal);
+        Assert.DoesNotContain("_integerScale * 48d", renderer, StringComparison.Ordinal);
         Assert.Contains("point = ImpactPoint(end)", renderer, StringComparison.Ordinal);
         Assert.Contains("double inward = 10d * _dpiScale", renderer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProfileCosmeticButtonsUseTheNativeSubtleHoverStyle()
+    {
+        var document = System.Xml.Linq.XDocument.Parse(
+            ReadRepositoryFile("windows", "src", "Sidey.App", "MainWindow.xaml"));
+        System.Xml.Linq.XNamespace ui = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        System.Xml.Linq.XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        foreach (var selectorName in new[] { "BubbleSelector", "ThrowableSelector" })
+        {
+            var selector = Assert.Single(document.Descendants(ui + "GridView"),
+                element => (string?)element.Attribute(xaml + "Name") == selectorName);
+            var button = Assert.Single(selector.Descendants(ui + "Button"));
+            // This native style shares SubtleFillColorSecondaryBrush with GridViewItem
+            // and retains pressed, disabled and keyboard-focus states without handlers.
+            Assert.Equal("{StaticResource SubtleButtonStyle}", (string?)button.Attribute("Style"));
+            Assert.Equal("8", (string?)button.Attribute("CornerRadius"));
+            Assert.Equal("{Binding SelectCommand}", (string?)button.Attribute("Command"));
+            Assert.Equal("{Binding IsEnabled}", (string?)button.Attribute("IsEnabled"));
+        }
     }
 
     [Fact]
@@ -205,7 +267,7 @@ public sealed class MacParityUiSourceTests
         var viewModel = ReadRepositoryFile(
             "windows", "src", "Sidey.Presentation", "ViewModels", "ComposerViewModel.cs");
 
-        Assert.Contains("PlaceholderText=\"{i18n:I18n Key=composer.placeholder}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("PlaceholderText=\"{Binding Value, Source={i18n:I18n Key=composer.placeholder}, Mode=OneWay}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Padding=\"10,6,10,0\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Width=\"400\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Height=\"56\"", xaml, StringComparison.Ordinal);
@@ -231,8 +293,24 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("WindowActivationState.Deactivated", source, StringComparison.Ordinal);
         Assert.Contains("HideComposer();", source, StringComparison.Ordinal);
         Assert.Contains("ViewModel.OnHidden();", source, StringComparison.Ordinal);
+        Assert.Contains("AppWindow.Resize(new Windows.Graphics.SizeInt32(width, height))", source, StringComparison.Ordinal);
+        Assert.Contains("AppWindow.Closing += OnAppWindowClosing", source, StringComparison.Ordinal);
+        Assert.Contains("args.Cancel = true", source, StringComparison.Ordinal);
+        Assert.Contains("CloseForExit()", source, StringComparison.Ordinal);
         Assert.Contains("CancelAutoClose();", viewModel, StringComparison.Ordinal);
         Assert.Contains("TimeSpan.FromSeconds(5)", viewModel, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ComposerDoesNotMutateBorderOrTitleBarAtRuntime()
+    {
+        var source = ReadRepositoryFile("windows", "src", "Sidey.App", "ComposerWindow.xaml.cs");
+
+        Assert.DoesNotContain("SetBorderAndTitleBar", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("AppWindow.SetPresenter", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExtendsContentIntoTitleBar", source, StringComparison.Ordinal);
+        Assert.Contains("new WindowsBorderlessWindowController", source, StringComparison.Ordinal);
+        Assert.Contains("_borderlessWindow.Dispose();", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -394,7 +472,7 @@ public sealed class MacParityUiSourceTests
             2,
             xaml.Split("MinHeight=\"30\" HorizontalAlignment=\"Center\" Text=\"{Binding DisplayName}\"", StringSplitOptions.None).Length - 1);
         Assert.Contains("ItemsControl ItemsSource=\"{Binding Members}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Content=\"{i18n:I18n Key=groups.rename}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Content=\"{Binding Value, Source={i18n:I18n Key=groups.rename}, Mode=OneWay}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding RemoveCommand}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Visibility=\"{Binding CanRemove, Converter={StaticResource BooleanToVisibilityConverter}}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("SelectedIndex=\"{Binding SelectedEdgeIndex, Mode=TwoWay}\"", xaml, StringComparison.Ordinal);
@@ -482,13 +560,20 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("RenderedCharacterSize = 72", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("RenderedFootBaseline = 9", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("ProjectileSize = 48", previewStageSource, StringComparison.Ordinal);
-        Assert.Contains("ProjectilePathY = PlatformTop", previewStageSource, StringComparison.Ordinal);
-        Assert.Contains("controlY = ProjectilePathY - (arcHeight * 2d)", previewStageSource, StringComparison.Ordinal);
-        Assert.Contains("ImpactSize = 64", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("ProjectilePathY = CharacterTop", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("controlY = ProjectilePathY - arcHeight", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("ImpactSize = 72", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("EmitterSize = 72", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("BubbleTypingWidth = 63", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("BubbleMessageFontSize = 16.5", previewStageSource, StringComparison.Ordinal);
-        Assert.Contains("TurnFromWall", previewStageSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("TurnFromWall", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("PixelRoamingPolicy.UpdateAfterMovement", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("DoubleTapped=\"OnCharacterDoubleTapped\"", previewStage, StringComparison.Ordinal);
+        Assert.Contains("Tapped=\"OnFriendTapped\"", previewStage, StringComparison.Ordinal);
+        Assert.DoesNotContain("Tapped=\"OnTapped\"", previewStage, StringComparison.Ordinal);
+        Assert.Contains("CenterY=\"63\"", previewStage, StringComparison.Ordinal);
+        Assert.Contains("UpdatePulseSparkles(elapsed - _pulseStarted, leftX)", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("_stoppedIds.Add(_movementAgents[1].Id)", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("UpdateFacing", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("ApplyCharacterPose", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("SetImageSource", previewStageSource, StringComparison.Ordinal);
@@ -728,6 +813,24 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("winget install NSIS.NSIS", workflow, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("--version 3.12", workflow, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("SelfSigned", workflow, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void UpdateDesignTestUsesTheArtifactVersionWithoutLoweringReleaseSources()
+    {
+        var adapter = ReadRepositoryFile(
+            "windows", "src", "Sidey.App", "WindowsUpdateServiceAdapter.cs");
+        var script = ReadRepositoryFile(
+            "scripts", "windows", "start-update-design-test.ps1");
+
+        Assert.Contains(
+            "typeof(App).Assembly.GetName().Version?.ToString(3)",
+            adapter,
+            StringComparison.Ordinal);
+        Assert.Contains("-p:Version=$TestVersion", script, StringComparison.Ordinal);
+        Assert.Contains("-p:FileVersion=$TestVersion.0", script, StringComparison.Ordinal);
+        Assert.Contains("-p:AssemblyVersion=$TestVersion.0", script, StringComparison.Ordinal);
+        Assert.Contains("[Version]$TestVersion -ge $publicVersion", script, StringComparison.Ordinal);
     }
 
     [Fact]

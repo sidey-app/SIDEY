@@ -15,7 +15,7 @@ public partial class App : Application
     private static readonly TimeSpan DisplayTopologyRefreshDelay = TimeSpan.FromMilliseconds(500);
 
     private readonly DispatcherQueue _dispatcherQueue;
-    private readonly IUpdateService _updateService;
+    private readonly WindowsUpdateServiceAdapter _updateService;
     private Window? _window;
     private MainWindow? _mainWindow;
     private OnboardingWindow? _onboardingWindow;
@@ -124,6 +124,7 @@ public partial class App : Application
         }
 
         StartupDiagnostics.Stage("cached-settings-loaded");
+        I18n.SetLanguage(coordinator.State.Preferences.Language);
         coordinator.ComposerRequested += RequestComposer;
         coordinator.PulseRequested += RequestPulse;
         coordinator.CharacterThrowRequested += RequestCharacterThrow;
@@ -131,6 +132,7 @@ public partial class App : Application
         coordinator.RenderingFailed += OnRenderingFailed;
         coordinator.GroupSetupRequested += OnGroupSetupRequested;
         coordinator.StateChanged += OnCoordinatorStateChanged;
+        coordinator.LanguageChanged += OnLanguageChanged;
         if (!coordinator.State.Preferences.OnboardingCompleted)
         {
             CreateOnboardingWindow(coordinator);
@@ -144,6 +146,15 @@ public partial class App : Application
             _window = _mainWindow;
             StartupDiagnostics.Stage("completed-launch-window-hidden");
         }
+        await RunStorePreviewStartupSmokeIfRequestedAsync();
+        if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1"
+            && Environment.GetEnvironmentVariable("SIDEY_LANGUAGE_SMOKE") == "1")
+        {
+            // Exercise local settings and bindings without starting an update request.
+            _startupUpdateCheckStarted = true;
+            await EnsureMainWindow().VerifyLiveLanguageSmokeAsync();
+        }
+        await RunComposerStartupSmokeIfRequestedAsync();
         _singleInstance!.StartListening(RequestPrimaryActivation);
         try
         {
@@ -208,6 +219,7 @@ public partial class App : Application
 
         StartupDiagnostics.MarkRunning();
         StartUiResponsivenessMonitor();
+        _ = _updateService.CleanupInstalledUpdatesAsync();
     }
 
     private void StartUiResponsivenessMonitor()
@@ -390,11 +402,129 @@ public partial class App : Application
             var viewModel = new ComposerViewModel();
             viewModel.SendRequested += OnSendRequested;
             viewModel.TypingChanged += OnTypingChanged;
-            _composer = new ComposerWindow(viewModel);
+            try
+            {
+                StartupDiagnostics.Stage("composer-window-create-started");
+                _composer = new ComposerWindow(viewModel);
+                StartupDiagnostics.Stage("composer-window-created");
+            }
+            catch (Exception exception)
+            {
+                viewModel.SendRequested -= OnSendRequested;
+                viewModel.TypingChanged -= OnTypingChanged;
+                viewModel.Dispose();
+                StartupDiagnostics.NonFatal("composer-window-create", exception);
+                return;
+            }
         }
 
         _composer.ShowAndFocus(
             _coordinator.State.Preferences.OverlayRegion.MonitorIdentifier);
+    }
+
+    private static async Task RunStorePreviewStartupSmokeIfRequestedAsync()
+    {
+        if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) != "1"
+            || Environment.GetEnvironmentVariable("SIDEY_STORE_PREVIEW_SMOKE") != "1")
+            return;
+        var window = new Window { Title = "SIDEY Store Preview Smoke" };
+        try
+        {
+            var host = new Microsoft.UI.Xaml.Controls.Grid();
+            window.Content = host;
+            window.Activate();
+            await Task.Delay(80);
+            async Task VerifyDialogAsync(Controls.StorePreviewStage stage)
+            {
+                var content = new Microsoft.UI.Xaml.Controls.StackPanel { Spacing = 12 };
+                content.Children.Add(stage);
+                content.Children.Add(new Microsoft.UI.Xaml.Controls.TextBlock { Text = "SIDEY preview" });
+                var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog
+                {
+                    XamlRoot = host.XamlRoot,
+                    Content = content,
+                    CloseButtonText = I18n.Get("common.close"),
+                };
+                stage.BeginPresentation();
+                var showing = dialog.ShowAsync();
+                try
+                { await stage.VerifyInteractionSmokeAsync(); }
+                finally
+                {
+                    stage.EndPresentation();
+                    dialog.Hide();
+                    await showing;
+                    dialog.Content = null;
+                }
+            }
+            foreach (var character in new[] { "pixel_guinea_pig", "pixel_monkey", "pixel_chinchilla", "pixel_starlight_upalupa" })
+            {
+                var stage = new Controls.StorePreviewStage(Sidey.Core.Domain.CommerceProductKind.Character, character, character);
+                await VerifyDialogAsync(stage);
+            }
+            var cannonStage = new Controls.StorePreviewStage(
+                Sidey.Core.Domain.CommerceProductKind.Throwable, "throwable_toy_cannon", "pixel_hamster");
+            await VerifyDialogAsync(cannonStage);
+        }
+        finally { window.Close(); }
+    }
+
+    private static async Task RunComposerStartupSmokeIfRequestedAsync()
+    {
+        if (!string.Equals(
+                Environment.GetEnvironmentVariable(
+                    WindowsVersionGuard.StartupSmokeEnvironmentVariable),
+                "1",
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        for (var windowIndex = 0; windowIndex < 5; windowIndex++)
+        {
+            var viewModel = new ComposerViewModel();
+            var composer = new ComposerWindow(viewModel);
+            var input = (Microsoft.UI.Xaml.Controls.TextBox)
+                ((FrameworkElement)composer.Content).FindName("MessageInput");
+            viewModel.Draft = "한글 입력 테스트 ABC";
+            for (var cycle = 0; cycle < 10; cycle++)
+            {
+                composer.ShowAndFocus(monitorIdentifier: null);
+                await Task.Delay(150);
+                if (composer.AppWindow.ClientSize.Width != composer.AppWindow.Size.Width
+                    || composer.AppWindow.ClientSize.Height != composer.AppWindow.Size.Height
+                    || input.FocusState == FocusState.Unfocused
+                    || input.Text != viewModel.Draft)
+                {
+                    StartupDiagnostics.Stage(
+                        $"composer-smoke-check window={composer.AppWindow.Size.Width}x{composer.AppWindow.Size.Height} " +
+                        $"client={composer.AppWindow.ClientSize.Width}x{composer.AppWindow.ClientSize.Height} " +
+                        $"focus={input.FocusState} draft-match={input.Text == viewModel.Draft}");
+                    throw new InvalidOperationException(
+                        "The startup composer probe lost its borderless layout, focus, or draft.");
+                }
+
+                // Exercise explicit hiding and the same command used by X/Escape.
+                if (cycle % 2 == 0)
+                {
+                    composer.HideComposer();
+                }
+                else
+                {
+                    viewModel.CloseCommand.Execute(null);
+                }
+                await Task.Delay(70);
+                if (composer.AppWindow.IsVisible)
+                {
+                    throw new InvalidOperationException("The startup composer probe did not hide.");
+                }
+            }
+
+            composer.CloseForExit();
+            await Task.Delay(70);
+        }
+
+        StartupDiagnostics.Stage("composer-smoke-complete");
     }
 
     private void OnSendRequested(string body) => _ = SendAsync(body);
@@ -692,6 +822,26 @@ public partial class App : Application
                     room.Name,
                     coordinator?.UnreadCount(room.Id) ?? 0)).ToArray(),
                 state.ActiveRoomId));
+        });
+    }
+
+    private void OnLanguageChanged(string language)
+    {
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            if (_shuttingDown || language == I18n.Language)
+                return;
+            I18n.SetLanguage(language);
+            Localization.LocalizedText.RefreshAll();
+            _mainWindow?.ViewModel.RefreshLocalizedText();
+            if (_composer is not null)
+                _composer.Title = I18n.Get("window.composerTitle");
+            if (_historyWindow is not null)
+            {
+                _historyWindow.Title = I18n.Get("window.historyTitle");
+                _historyWindow.ViewModel.RefreshLocalizedText();
+            }
+            StartupDiagnostics.Stage($"language-applied language={language}");
         });
     }
 
@@ -1068,7 +1218,7 @@ public partial class App : Application
         {
             _composer.ViewModel.SendRequested -= OnSendRequested;
             _composer.ViewModel.TypingChanged -= OnTypingChanged;
-            _composer.Close();
+            _composer.CloseForExit();
             _composer = null;
         }
         if (_historyWindow is not null)

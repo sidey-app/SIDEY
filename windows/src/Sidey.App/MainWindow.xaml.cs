@@ -70,6 +70,55 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
 
     public bool ShouldExitOnClose => _allowClose || !_trayAvailable;
 
+    internal async Task VerifyLiveLanguageSmokeAsync()
+    {
+        ShowPage("settings");
+        ViewModel.Nickname = "draft";
+        ViewModel.InviteCode = "ABCDEF";
+        ViewModel.CreateRoomName = "room draft";
+        var characterItem = ViewModel.CharacterSelections[0];
+        var bubbleItem = ViewModel.BubbleSelections[0];
+        var productItem = ViewModel.StoreProducts[0];
+        nint handle = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        var composer = new ComposerWindow(new ComposerViewModel());
+        try
+        {
+            composer.Activate();
+            composer.ViewModel.Draft = "language draft";
+            var input = (TextBox)((FrameworkElement)composer.Content).FindName("MessageInput");
+            await Task.Delay(100);
+            for (int repeat = 0; repeat < 2; repeat++)
+            {
+                foreach (var (language, index) in new[] { ("en-US", 1), ("ja-JP", 2), ("ko-KR", 0) })
+                {
+                    LanguageComboBox.SelectedIndex = index;
+                    var deadline = DateTimeOffset.UtcNow.AddSeconds(4);
+                    while ((I18n.Language != language || !ViewModel.IsLanguageSelectionEnabled)
+                           && DateTimeOffset.UtcNow < deadline)
+                        await Task.Delay(25);
+                    await Task.Delay(40);
+                    if (I18n.Language != language
+                        || LanguageDescriptionText.Text != I18n.Get("settings.languageDescription")
+                        || ((NavigationViewItem)RootNavigation.MenuItems[0]).Content as string != I18n.Get("navigation.profile")
+                        || characterItem.DisplayName != Sidey.Core.Domain.PixelCharacterCatalog.Get(characterItem.Id).DisplayName
+                        || bubbleItem.DisplayName != I18n.Get("profile.defaultBubble")
+                        || !ReferenceEquals(productItem, ViewModel.StoreProducts[0]))
+                    {
+                        StartupDiagnostics.Stage($"live-language-smoke-failed expected={language} actual={I18n.Language} selected={LanguageComboBox.SelectedIndex} model={ViewModel.SelectedLanguageIndex} enabled={ViewModel.IsLanguageSelectionEnabled} text={LanguageDescriptionText.Text == I18n.Get("settings.languageDescription")}");
+                        throw new InvalidOperationException("Live language smoke: text or selection did not update in place.");
+                    }
+                    if (handle != WinRT.Interop.WindowNative.GetWindowHandle(this)
+                        || ViewModel.Nickname != "draft" || ViewModel.InviteCode != "ABCDEF"
+                        || ViewModel.CreateRoomName != "room draft" || composer.ViewModel.Draft != "language draft"
+                        || input.PlaceholderText != I18n.Get("composer.placeholder"))
+                        throw new InvalidOperationException("Live language smoke: window or draft was replaced.");
+                }
+            }
+        }
+        finally { composer.Close(); }
+        StartupDiagnostics.Stage("live-language-smoke-complete changes=6 drafts-preserved=true");
+    }
+
     public void ApplyState(CoordinatorState state)
     {
         if (!_isClosed)

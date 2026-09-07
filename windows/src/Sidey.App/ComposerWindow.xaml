@@ -30,7 +30,7 @@
             BorderThickness="0"
             Command="{Binding CloseCommand}"
             IsTabStop="False"
-            ToolTipService.ToolTip="{i18n:I18n Key=composer.closeTooltip}">
+            ToolTipService.ToolTip="{Binding Value, Source={i18n:I18n Key=composer.closeTooltip}, Mode=OneWay}">
           <FontIcon FontSize="13" Glyph="&#xE711;" />
         </Button>
 
@@ -42,7 +42,7 @@
             AcceptsReturn="True"
             Background="Transparent"
             BorderThickness="0"
-            PlaceholderText="{i18n:I18n Key=composer.placeholder}"
+            PlaceholderText="{Binding Value, Source={i18n:I18n Key=composer.placeholder}, Mode=OneWay}"
             PreviewKeyDown="OnMessageInputPreviewKeyDown"
             Text="{Binding Draft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
             TextWrapping="Wrap"
@@ -60,7 +60,7 @@
             BorderThickness="0"
             Command="{Binding SendCommand}"
             IsTabStop="False"
-            ToolTipService.ToolTip="{i18n:I18n Key=composer.sendTooltip}">
+            ToolTipService.ToolTip="{Binding Value, Source={i18n:I18n Key=composer.sendTooltip}, Mode=OneWay}">
           <SymbolIcon Symbol="Send" />
         </Button>
       </Grid>

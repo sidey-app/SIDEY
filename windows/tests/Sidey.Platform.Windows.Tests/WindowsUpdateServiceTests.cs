@@ -12,7 +12,7 @@ public sealed class WindowsUpdateServiceTests
     {
         using var client = new HttpClient(new StubHandler(
             new HttpResponseMessage(HttpStatusCode.NotFound)));
-        var service = new WindowsUpdateService(client);
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.CheckAsync());
@@ -35,7 +35,7 @@ public sealed class WindowsUpdateServiceTests
             Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
         };
         using var client = new HttpClient(new StubHandler(response));
-        var service = new WindowsUpdateService(client);
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
 
         WindowsUpdateManifest? update = await service.CheckAsync();
 
@@ -60,21 +60,26 @@ public sealed class WindowsUpdateServiceTests
             Content = new ByteArrayContent(installerBytes),
         };
         using var client = new HttpClient(new StubHandler(response));
-        var service = new WindowsUpdateService(client);
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
         var manifest = new WindowsUpdateManifest(
             "production",
             version,
             $"windows-v{version}",
             new Uri($"https://example.invalid/{installerName}"),
             sha256);
+        var reportedPercentages = new List<int>();
 
         try
         {
-            string actualPath = await service.DownloadInstallerAsync(manifest);
+            string actualPath = await service.DownloadInstallerAsync(
+                manifest,
+                progress: new InlineProgress<int>(reportedPercentages.Add));
 
             Assert.Equal(expectedPath, actualPath);
             Assert.Equal(installerBytes, await File.ReadAllBytesAsync(actualPath));
             Assert.False(File.Exists($"{expectedPath}.download"));
+            Assert.Equal(0, reportedPercentages.First());
+            Assert.Equal(100, reportedPercentages.Last());
         }
         finally
         {
@@ -102,7 +107,7 @@ public sealed class WindowsUpdateServiceTests
             Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
         };
         using var client = new HttpClient(new StubHandler(response));
-        var service = new WindowsUpdateService(client);
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
 
         WindowsUpdateManifest? update = await service.CheckAsync();
 
@@ -115,6 +120,32 @@ public sealed class WindowsUpdateServiceTests
         Assert.Equal(
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
             update.Sha256);
+    }
+
+    [Fact]
+    public async Task InjectedArtifactVersionCanExerciseAnAlreadyPublishedUpdate()
+    {
+        const string manifest = """
+            {
+              "channel": "production",
+              "version": "1.0.10",
+              "tag": "windows-v1.0.10",
+              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.10/SIDEY-Windows-x64-v1.0.10-Setup.exe",
+              "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+            }
+            """;
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
+        };
+        using var client = new HttpClient(new StubHandler(response));
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.9");
+
+        WindowsUpdateManifest? update = await service.CheckAsync();
+
+        Assert.Equal("1.0.9", service.EffectiveCurrentVersion);
+        Assert.NotNull(update);
+        Assert.Equal("1.0.10", update.Version);
     }
 
     [Fact]
@@ -132,7 +163,7 @@ public sealed class WindowsUpdateServiceTests
             Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
         };
         using var client = new HttpClient(new StubHandler(response));
-        var service = new WindowsUpdateService(client);
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
 
         await Assert.ThrowsAsync<InvalidDataException>(() => service.CheckAsync());
     }
@@ -154,7 +185,7 @@ public sealed class WindowsUpdateServiceTests
             Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
         };
         using var client = new HttpClient(new StubHandler(response));
-        var service = new WindowsUpdateService(client);
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
 
         await Assert.ThrowsAsync<InvalidDataException>(() => service.CheckAsync());
     }
@@ -169,5 +200,10 @@ public sealed class WindowsUpdateServiceTests
             _ = cancellationToken;
             return Task.FromResult(response);
         }
+    }
+
+    private sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 }

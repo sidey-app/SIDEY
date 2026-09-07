@@ -73,6 +73,8 @@ public interface IMainWindowCoordinator : IOnboardingCoordinator
 
     Task SetStartAtLoginAsync(bool enabled, CancellationToken cancellationToken = default);
 
+    Task SetLanguageAsync(string language, CancellationToken cancellationToken = default);
+
     Task SetRegionAsync(
         OverlayRegionPreference preference,
         CancellationToken cancellationToken = default);

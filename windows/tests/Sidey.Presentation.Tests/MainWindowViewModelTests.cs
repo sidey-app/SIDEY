@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using System.Globalization;
 using Sidey.Core.Abstractions;
 using Sidey.Core.Domain;
 using Sidey.Presentation.Services;
@@ -5,8 +7,140 @@ using Sidey.Presentation.ViewModels;
 
 namespace Sidey.Presentation.Tests;
 
+[Collection("Language refresh")]
 public sealed class MainWindowViewModelTests
 {
+    [Theory]
+    [InlineData("en-US")]
+    [InlineData("ja-JP")]
+    public void NumericFormattingUsesSelectedLanguageWithoutChangingWindowsCulture(string language)
+    {
+        string previousLanguage = Sidey.Core.Localization.I18n.Language;
+        var previousCulture = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo("fr-FR");
+            Sidey.Core.Localization.I18n.SetLanguage(language);
+            Assert.Equal(language, Sidey.Core.Localization.I18n.Culture.Name);
+            string text = Sidey.Core.Localization.I18n.Format("metrics.summary", 1, 2, 3.5, 4.5, 5.5, 6, 7);
+            Assert.Contains("3.50", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("3,50", text, StringComparison.Ordinal);
+            Assert.Equal("fr-FR", System.Globalization.CultureInfo.CurrentCulture.Name);
+        }
+        finally
+        {
+            Sidey.Core.Localization.I18n.SetLanguage(previousLanguage);
+            System.Globalization.CultureInfo.CurrentCulture = previousCulture;
+        }
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task LanguageChangesPreserveSystemDateTimeFormats(int daysAgo)
+    {
+        string previousLanguage = Sidey.Core.Localization.I18n.Language;
+        CultureInfo previousCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            // Include custom Windows regional formats, not just a locale's defaults.
+            var systemCulture = (CultureInfo)CultureInfo.GetCultureInfo("fr-FR").Clone();
+            systemCulture.DateTimeFormat.ShortDatePattern = "yyyy/MM/dd";
+            systemCulture.DateTimeFormat.ShortTimePattern = "HH.mm";
+            CultureInfo.CurrentCulture = systemCulture;
+            DateTimeOffset timestamp = new(DateTime.Today.AddDays(-daysAgo).AddHours(13).AddMinutes(24));
+            DateTimeOffset messageTimestamp = DateTimeOffset.Now.AddMinutes(-1);
+            (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+            coordinator.MessagePage =
+            [
+                new ChatMessage(Guid.NewGuid(), state.Rooms[0].Id, state.Profile!.Id, "test", messageTimestamp.ToUniversalTime()),
+            ];
+            var updates = new FakeUpdateService { LastCheckedAt = timestamp.ToUniversalTime() };
+            var main = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), updates);
+            var history = new HistoryWindowViewModel(coordinator);
+            await history.ActivateAsync();
+
+            foreach (string language in new[] { "ko-KR", "en-US", "ja-JP", "ko-KR" })
+            {
+                Sidey.Core.Localization.I18n.SetLanguage(language);
+                main.RefreshLocalizedText();
+                history.RefreshLocalizedText();
+                string display = daysAgo switch
+                {
+                    0 => Sidey.Core.Localization.I18n.Format("settings.updateCheckedToday", timestamp.ToString("t", systemCulture)),
+                    1 => Sidey.Core.Localization.I18n.Format("settings.updateCheckedYesterday", timestamp.ToString("t", systemCulture)),
+                    _ => timestamp.ToString("g", systemCulture),
+                };
+                Assert.Equal(Sidey.Core.Localization.I18n.Format("settings.updateLastChecked", display), main.LastUpdateCheckText);
+                Assert.Equal(messageTimestamp.ToString("g", systemCulture), Assert.Single(history.Items).LocalTimeText);
+                Assert.Same(systemCulture, CultureInfo.CurrentCulture);
+            }
+        }
+        finally
+        {
+            Sidey.Core.Localization.I18n.SetLanguage(previousLanguage);
+            CultureInfo.CurrentCulture = previousCulture;
+        }
+    }
+
+    [Fact]
+    public void LanguageRefreshUpdatesExistingItemsAndPreservesDraftsAndFilters()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        coordinator.State = state;
+        var viewModel = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        var character = viewModel.CharacterSelections[0];
+        var bubble = viewModel.BubbleSelections[0];
+        var product = viewModel.StoreProducts[0];
+        viewModel.Nickname = "draft";
+        viewModel.InviteCode = "ABCDEF";
+        viewModel.CreateRoomName = "room draft";
+        viewModel.SelectedStoreKindIndex = 1;
+        viewModel.SelectedStoreSortIndex = 2;
+        string previous = Sidey.Core.Localization.I18n.Language;
+        try
+        {
+            foreach (string language in new[] { "en-US", "ja-JP", "ko-KR" })
+            {
+                Sidey.Core.Localization.I18n.SetLanguage(language);
+                viewModel.RefreshLocalizedText();
+                Assert.Same(character, viewModel.CharacterSelections[0]);
+                Assert.Same(bubble, viewModel.BubbleSelections[0]);
+                Assert.Same(product, viewModel.StoreProducts[0]);
+                Assert.Equal(PixelCharacterCatalog.Get(character.Id).DisplayName, character.DisplayName);
+                Assert.Equal(Sidey.Core.Localization.I18n.Get("profile.defaultBubble"), bubble.DisplayName);
+                Assert.Equal("draft", viewModel.Nickname);
+                Assert.Equal("ABCDEF", viewModel.InviteCode);
+                Assert.Equal("room draft", viewModel.CreateRoomName);
+                Assert.Equal(1, viewModel.SelectedStoreKindIndex);
+                Assert.Equal(2, viewModel.SelectedStoreSortIndex);
+            }
+        }
+        finally { Sidey.Core.Localization.I18n.SetLanguage(previous); }
+    }
+
+    [Theory]
+    [InlineData(0, "ko-KR")]
+    [InlineData(1, "en-US")]
+    [InlineData(2, "ja-JP")]
+    public void LanguageSelectionIsRestoredWithoutSavingAndPersistsUserChoice(int index, string language)
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        coordinator.State = state with { Preferences = state.Preferences with { Language = language } };
+        var viewModel = new MainWindowViewModel(
+            coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        Assert.Equal(index, viewModel.SelectedLanguageIndex);
+        Assert.Equal(0, coordinator.SetLanguageCallCount);
+
+        int next = (index + 1) % 3;
+        viewModel.SelectedLanguageIndex = next;
+        Assert.Equal(1, coordinator.SetLanguageCallCount);
+        Assert.Equal(next switch { 1 => "en-US", 2 => "ja-JP", _ => "ko-KR" }, coordinator.State.Preferences.Language);
+        Assert.True(viewModel.IsLanguageSelectionEnabled);
+        Assert.Equal(next, viewModel.SelectedLanguageIndex);
+    }
+
     [Fact]
     public void CharacterPickerKeepsTheFiveFreeWindowsSelections()
     {
@@ -766,7 +900,11 @@ public sealed class MainWindowViewModelTests
         var updates = new FakeUpdateService
         {
             AvailableUpdate = new AvailableUpdate("0.3.0-alpha.3"),
-            DownloadHandler = (_, _) => completion.Task,
+            DownloadHandler = (_, progress, _) =>
+            {
+                progress?.Report(42);
+                return completion.Task;
+            },
         };
         var viewModel = new MainWindowViewModel(
             coordinator,
@@ -774,10 +912,11 @@ public sealed class MainWindowViewModelTests
             updates);
 
         Task pending = viewModel.CheckForUpdatesCommand.ExecuteAsync(null);
+        await Task.Yield();
 
         Assert.True(viewModel.IsCheckingForUpdates);
         Assert.True(viewModel.HasUpdateActivity);
-        Assert.Contains("설정창을 닫아도", viewModel.UpdateActivityText, StringComparison.Ordinal);
+        Assert.Equal("업데이트를 다운로드하는 중입니다. (42%)", viewModel.UpdateActivityText);
         Assert.False(viewModel.CheckForUpdatesCommand.CanExecute(null));
 
         completion.SetResult();
@@ -803,6 +942,38 @@ public sealed class MainWindowViewModelTests
         await viewModel.CheckForUpdatesCommand.ExecuteAsync(null);
 
         Assert.Equal(0, updates.InstallerLaunchCount);
+    }
+
+    [Theory]
+    [InlineData(1223, "업데이트 설치를 취소했습니다.", NoticeKind.Informational)]
+    [InlineData(5, "설치 프로그램을 열지 못했습니다. 업데이트 확인을 눌러 다시 시도해 주세요.", NoticeKind.Error)]
+    [InlineData(0, "업데이트를 진행하지 못했습니다. 잠시 후 다시 시도해 주세요.", NoticeKind.Error)]
+    public async Task UpdateFailuresShowFriendlyNoticesAndAllowRetry(
+        int nativeErrorCode,
+        string expectedMessage,
+        NoticeKind expectedKind)
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        const string internalDetails = @"An error occurred trying to start process C:\Users\private\Temp\Setup.exe";
+        Exception failure = nativeErrorCode == 0
+            ? new IOException(internalDetails)
+            : new Win32Exception(nativeErrorCode, internalDetails);
+        var updates = new FakeUpdateService
+        {
+            AvailableUpdate = new AvailableUpdate("1.0.10"),
+            DownloadHandler = (_, _, _) => Task.FromException(failure),
+        };
+        var viewModel = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), updates);
+        NoticeMessage? notice = null;
+        viewModel.NoticeRaised += value => notice = value;
+
+        await viewModel.CheckForUpdatesCommand.ExecuteAsync(null);
+
+        Assert.Equal(expectedMessage, notice?.Message);
+        Assert.Equal(expectedKind, notice?.Kind);
+        Assert.False(viewModel.HasUpdateActivity);
+        Assert.False(viewModel.IsCheckingForUpdates);
+        Assert.True(viewModel.CheckForUpdatesCommand.CanExecute(null));
     }
 
     [Fact]

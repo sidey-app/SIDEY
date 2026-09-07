@@ -15,7 +15,7 @@
           Margin="20,0,0,0"
           VerticalAlignment="Center"
           FontWeight="SemiBold"
-          Text="{i18n:I18n Key=window.settingsTitle}" />
+          Text="{Binding Value, Source={i18n:I18n Key=window.settingsTitle}, Mode=OneWay}" />
     </Grid>
 
     <Grid
@@ -72,18 +72,18 @@
             FontSize="22"
             FontWeight="SemiBold"
             Foreground="#A6202024"
-            Text="{i18n:I18n Key=onboarding.tagline}" />
+            Text="{Binding Value, Source={i18n:I18n Key=onboarding.tagline}, Mode=OneWay}" />
         <TextBlock
             Margin="0,0,0,16"
             HorizontalAlignment="Center"
             Foreground="#8A202024"
-            Text="{i18n:I18n Key=onboarding.landingDescription}" />
+            Text="{Binding Value, Source={i18n:I18n Key=onboarding.landingDescription}, Mode=OneWay}" />
         <Button
             MinWidth="150"
             HorizontalAlignment="Center"
-            AutomationProperties.Name="{i18n:I18n Key=onboarding.getStarted}"
+            AutomationProperties.Name="{Binding Value, Source={i18n:I18n Key=onboarding.getStarted}, Mode=OneWay}"
             Command="{Binding BeginCommand}"
-            Content="{i18n:I18n Key=onboarding.getStarted}"
+            Content="{Binding Value, Source={i18n:I18n Key=onboarding.getStarted}, Mode=OneWay}"
             Style="{StaticResource AccentButtonStyle}" />
       </StackPanel>
     </Grid>
@@ -109,21 +109,21 @@
           <Border Width="28" Height="28" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="14">
             <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontWeight="SemiBold" Text="1" />
           </Border>
-          <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="{i18n:I18n Key=onboarding.stepProfile}" />
+          <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=onboarding.stepProfile}, Mode=OneWay}" />
         </StackPanel>
         <Rectangle Grid.Column="1" Width="70" Height="1" Margin="14,0" VerticalAlignment="Center" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
         <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
           <Border Width="28" Height="28" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="14">
             <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontWeight="SemiBold" Text="2" />
           </Border>
-          <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="{i18n:I18n Key=onboarding.stepGroup}" />
+          <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=onboarding.stepGroup}, Mode=OneWay}" />
         </StackPanel>
         <Rectangle Grid.Column="3" Width="70" Height="1" Margin="14,0" VerticalAlignment="Center" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
         <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Left" Spacing="8">
           <Border Width="28" Height="28" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="14">
             <FontIcon HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12" Foreground="White" Glyph="&#xE73E;" />
           </Border>
-          <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="{i18n:I18n Key=onboarding.stepComplete}" />
+          <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=onboarding.stepComplete}, Mode=OneWay}" />
         </StackPanel>
       </Grid>
 
@@ -136,12 +136,12 @@
                   FontFamily="Segoe UI Variable Display"
                   FontSize="32"
                   FontWeight="SemiBold"
-                  Text="{i18n:I18n Key=onboarding.profileTitle}" />
-              <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=onboarding.profileDescription}" />
+                  Text="{Binding Value, Source={i18n:I18n Key=onboarding.profileTitle}, Mode=OneWay}" />
+              <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=onboarding.profileDescription}, Mode=OneWay}" />
             </StackPanel>
             <Border Style="{StaticResource SideySettingsCardStyle}">
               <StackPanel Spacing="16">
-                <TextBlock FontSize="18" FontWeight="SemiBold" Text="{i18n:I18n Key=onboarding.character}" />
+                <TextBlock FontSize="18" FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=onboarding.character}, Mode=OneWay}" />
                 <GridView
                     x:Name="OnboardingCharacterSelector"
                     ItemsSource="{Binding CharacterSelections}"
@@ -174,14 +174,14 @@
                   </GridView.ItemTemplate>
                 </GridView>
                 <TextBox
-                    Header="{i18n:I18n Key=onboarding.nickname}"
+                    Header="{Binding Value, Source={i18n:I18n Key=onboarding.nickname}, Mode=OneWay}"
                     MaxLength="8"
-                    PlaceholderText="{i18n:I18n Key=onboarding.nicknamePlaceholder}"
+                    PlaceholderText="{Binding Value, Source={i18n:I18n Key=onboarding.nicknamePlaceholder}, Mode=OneWay}"
                     Text="{Binding Nickname, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                 <Button
                     HorizontalAlignment="Right"
                     Command="{Binding SaveProfileCommand}"
-                    Content="{i18n:I18n Key=common.next}"
+                    Content="{Binding Value, Source={i18n:I18n Key=common.next}, Mode=OneWay}"
                     IsEnabled="{Binding CanSaveProfile}"
                     Style="{StaticResource AccentButtonStyle}" />
               </StackPanel>
@@ -197,24 +197,24 @@
                   FontFamily="Segoe UI Variable Display"
                   FontSize="32"
                   FontWeight="SemiBold"
-                  Text="{i18n:I18n Key=onboarding.groupTitle}" />
-              <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=onboarding.groupDescription}" />
+                  Text="{Binding Value, Source={i18n:I18n Key=onboarding.groupTitle}, Mode=OneWay}" />
+              <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=onboarding.groupDescription}, Mode=OneWay}" />
             </StackPanel>
             <Border Style="{StaticResource SideySettingsCardStyle}">
               <StackPanel Spacing="20">
-                <RadioButtons Header="{i18n:I18n Key=onboarding.groupPath}" MaxColumns="2" SelectedIndex="{Binding GroupPathIndex, Mode=TwoWay}">
-                  <RadioButton Content="{i18n:I18n Key=onboarding.createPath}" />
-                  <RadioButton Content="{i18n:I18n Key=onboarding.joinPath}" />
+                <RadioButtons Header="{Binding Value, Source={i18n:I18n Key=onboarding.groupPath}, Mode=OneWay}" MaxColumns="2" SelectedIndex="{Binding GroupPathIndex, Mode=TwoWay}">
+                  <RadioButton Content="{Binding Value, Source={i18n:I18n Key=onboarding.createPath}, Mode=OneWay}" />
+                  <RadioButton Content="{Binding Value, Source={i18n:I18n Key=onboarding.joinPath}, Mode=OneWay}" />
                 </RadioButtons>
                 <StackPanel Spacing="12" Visibility="{Binding GroupPathIndex, Converter={StaticResource ZeroToVisibilityConverter}}">
-                  <TextBox Header="{i18n:I18n Key=onboarding.roomName}" MaxLength="20" PlaceholderText="{i18n:I18n Key=onboarding.roomNamePlaceholder}" Text="{Binding RoomName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                  <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=onboarding.createDescription}" TextWrapping="Wrap" />
-                  <Button HorizontalAlignment="Right" Command="{Binding CreateRoomCommand}" Content="{i18n:I18n Key=onboarding.create}" IsEnabled="{Binding CanCreateRoom}" Style="{StaticResource AccentButtonStyle}" />
+                  <TextBox Header="{Binding Value, Source={i18n:I18n Key=onboarding.roomName}, Mode=OneWay}" MaxLength="20" PlaceholderText="{Binding Value, Source={i18n:I18n Key=onboarding.roomNamePlaceholder}, Mode=OneWay}" Text="{Binding RoomName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                  <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=onboarding.createDescription}, Mode=OneWay}" TextWrapping="Wrap" />
+                  <Button HorizontalAlignment="Right" Command="{Binding CreateRoomCommand}" Content="{Binding Value, Source={i18n:I18n Key=onboarding.create}, Mode=OneWay}" IsEnabled="{Binding CanCreateRoom}" Style="{StaticResource AccentButtonStyle}" />
                 </StackPanel>
                 <StackPanel Spacing="12" Visibility="{Binding GroupPathIndex, Converter={StaticResource OneToVisibilityConverter}}">
-                  <TextBox Header="{i18n:I18n Key=onboarding.inviteCode}" PlaceholderText="{i18n:I18n Key=onboarding.inviteCodePlaceholder}" Text="{Binding InviteCode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                  <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=onboarding.inviteCaseNotice}" />
-                  <Button HorizontalAlignment="Right" Command="{Binding JoinRoomCommand}" Content="{i18n:I18n Key=onboarding.join}" IsEnabled="{Binding CanJoinRoom}" Style="{StaticResource AccentButtonStyle}" />
+                  <TextBox Header="{Binding Value, Source={i18n:I18n Key=onboarding.inviteCode}, Mode=OneWay}" PlaceholderText="{Binding Value, Source={i18n:I18n Key=onboarding.inviteCodePlaceholder}, Mode=OneWay}" Text="{Binding InviteCode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                  <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=onboarding.inviteCaseNotice}, Mode=OneWay}" />
+                  <Button HorizontalAlignment="Right" Command="{Binding JoinRoomCommand}" Content="{Binding Value, Source={i18n:I18n Key=onboarding.join}, Mode=OneWay}" IsEnabled="{Binding CanJoinRoom}" Style="{StaticResource AccentButtonStyle}" />
                 </StackPanel>
               </StackPanel>
             </Border>
@@ -236,14 +236,14 @@
               FontFamily="Segoe UI Variable Display"
               FontSize="34"
               FontWeight="SemiBold"
-              Text="{i18n:I18n Key=onboarding.completeTitle}" />
-          <TextBlock HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=onboarding.completeDescription}" />
+              Text="{Binding Value, Source={i18n:I18n Key=onboarding.completeTitle}, Mode=OneWay}" />
+          <TextBlock HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=onboarding.completeDescription}, Mode=OneWay}" />
           <Button
               MinWidth="170"
               Margin="0,8,0,0"
               HorizontalAlignment="Center"
               Command="{Binding FinishCommand}"
-              Content="{i18n:I18n Key=onboarding.launch}"
+              Content="{Binding Value, Source={i18n:I18n Key=onboarding.launch}, Mode=OneWay}"
               Style="{StaticResource AccentButtonStyle}" />
         </StackPanel>
       </Grid>
@@ -252,7 +252,7 @@
         <Button
             HorizontalAlignment="Left"
             Command="{Binding BackCommand}"
-            Content="{i18n:I18n Key=common.back}"
+            Content="{Binding Value, Source={i18n:I18n Key=common.back}, Mode=OneWay}"
             Visibility="{Binding CanGoBack, Converter={StaticResource BooleanToVisibilityConverter}}" />
         <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="8">
           <ProgressRing Width="16" Height="16" IsActive="True" Visibility="{Binding IsConnected, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
@@ -261,9 +261,9 @@
         </StackPanel>
         <Button
             HorizontalAlignment="Right"
-            AutomationProperties.Name="{i18n:I18n Key=common.skip}"
+            AutomationProperties.Name="{Binding Value, Source={i18n:I18n Key=common.skip}, Mode=OneWay}"
             Command="{Binding SkipGroupCommand}"
-            Content="{i18n:I18n Key=common.skip}"
+            Content="{Binding Value, Source={i18n:I18n Key=common.skip}, Mode=OneWay}"
             Visibility="{Binding IsGroupStep, Converter={StaticResource BooleanToVisibilityConverter}}" />
       </Grid>
     </Grid>

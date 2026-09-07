@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -23,6 +24,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private string _syncedProfileNickname = string.Empty;
     private string _syncedProfileCharacterId = PixelCharacterCatalog.FallbackId;
     private AvailableUpdate? _lastAvailableUpdate;
+    private string? _updateActivityKey;
+    private object?[] _updateActivityArguments = [];
 
     [ObservableProperty]
     public partial string Nickname { get; set; } = string.Empty;
@@ -95,6 +98,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     [ObservableProperty]
     public partial bool StartAtLogin { get; set; }
+
+    [ObservableProperty]
+    public partial int SelectedLanguageIndex { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsLanguageSelectionEnabled { get; set; } = true;
 
     [ObservableProperty]
     public partial int SelectedEdgeIndex { get; set; }
@@ -272,6 +281,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
             ShowOfflineMembers = state.Preferences.ShowOfflineMembers;
             RequiresRightClickToThrow = state.Preferences.RequiresRightClickToThrow;
             StartAtLogin = state.Preferences.StartAtLogin;
+            SelectedLanguageIndex = (state.Preferences.Language ?? I18n.Language) switch
+            {
+                "en-US" => 1,
+                "ja-JP" => 2,
+                _ => 0,
+            };
             SelectedEdgeIndex = (int)state.Preferences.OverlayRegion.Edge;
             SelectedSpanIndex = (int)state.Preferences.OverlayRegion.Span;
             string? preferredMonitor = state.Preferences.OverlayRegion.MonitorIdentifier;
@@ -289,6 +304,34 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             _isApplyingState = false;
         }
+    }
+
+    public void RefreshLocalizedText()
+    {
+        // Keep the existing items, selection, drafts and in-flight commands alive.
+        foreach (var character in CharacterSelections)
+            character.DisplayName = PixelCharacterCatalog.Get(character.Id).DisplayName;
+        foreach (var cosmetic in BubbleSelections.Concat(ThrowableSelections))
+            cosmetic.DisplayName = I18n.Get(cosmetic.CatalogItemId is { } id
+                ? $"store.product.{id}"
+                : cosmetic.Kind == CommerceProductKind.Bubble ? "profile.defaultBubble" : "profile.defaultThrowable");
+        foreach (var product in StoreProducts)
+        {
+            var localized = CreateStorePreview(WindowsCommerceCatalog.Products.First(item => item.Id == product.ProductId));
+            product.DisplayName = localized.DisplayName;
+            product.Description = localized.Description;
+            product.FormattedPrice = localized.FormattedPrice;
+        }
+        ApplyState(_coordinator.State);
+        RefreshUpdateInformation();
+        SetUpdateActivity(_updateActivityKey, _updateActivityArguments);
+    }
+
+    private void SetUpdateActivity(string? key, params object?[] arguments)
+    {
+        _updateActivityKey = key;
+        _updateActivityArguments = arguments;
+        UpdateActivityText = key is null ? string.Empty : I18n.Format(key, arguments);
     }
 
     public void ReportError(Exception exception) =>
@@ -358,7 +401,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private async Task CheckForUpdatesAsync()
     {
         IsCheckingForUpdates = true;
-        UpdateActivityText = I18n.Get("update.checking");
+        SetUpdateActivity("update.checking");
         try
         {
             AvailableUpdate? update = await _updates.CheckAsync();
@@ -369,26 +412,42 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 return;
             }
 
-            UpdateActivityText = string.Empty;
+            SetUpdateActivity(null);
             if (!await _dialogs.ConfirmUpdateDownloadAsync(update.Version))
             {
                 return;
             }
 
-            UpdateActivityText = I18n.Get("update.downloading");
-            await _updates.DownloadAndLaunchInstallerAsync(update);
+            SetUpdateActivity("update.downloading");
+            var downloadProgress = new Progress<int>(percentage =>
+            {
+                SetUpdateActivity(
+                    "update.downloadingProgress",
+                    percentage);
+            });
+            await _updates.DownloadAndLaunchInstallerAsync(
+                update,
+                progress: downloadProgress);
             RaiseNotice(
                 I18n.Get("update.installerLaunched"),
                 NoticeKind.Success);
         }
-        catch (Exception exception)
+        catch (Win32Exception exception) when (exception.NativeErrorCode == 1223)
         {
-            RaiseNotice(I18n.Format("update.failed", exception.Message), NoticeKind.Error);
+            RaiseNotice(I18n.Get("update.installCancelled"), NoticeKind.Informational);
+        }
+        catch (Win32Exception)
+        {
+            RaiseNotice(I18n.Get("update.installerLaunchFailed"), NoticeKind.Error);
+        }
+        catch (Exception)
+        {
+            RaiseNotice(I18n.Get("update.failed"), NoticeKind.Error);
         }
         finally
         {
             RefreshUpdateInformation();
-            UpdateActivityText = string.Empty;
+            SetUpdateActivity(null);
             IsCheckingForUpdates = false;
         }
     }
@@ -401,7 +460,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
 
         IsCheckingForUpdates = true;
-        UpdateActivityText = I18n.Get("update.checking");
+        SetUpdateActivity("update.checking");
         try
         {
             AvailableUpdate? update = await _updates.CheckAsync();
@@ -417,7 +476,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         finally
         {
             RefreshUpdateInformation();
-            UpdateActivityText = string.Empty;
+            SetUpdateActivity(null);
             IsCheckingForUpdates = false;
         }
     }
@@ -523,6 +582,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             _ = RunCommandAsync(() => _coordinator.SetStartAtLoginAsync(value), null);
         }
+    }
+
+    partial void OnSelectedLanguageIndexChanged(int value)
+    {
+        if (!_isApplyingState && IsLanguageSelectionEnabled && value is >= 0 and <= 2)
+            _ = SaveLanguageAsync(value);
+    }
+
+    private async Task SaveLanguageAsync(int index)
+    {
+        IsLanguageSelectionEnabled = false;
+        string language = index switch { 1 => "en-US", 2 => "ja-JP", _ => "ko-KR" };
+        await RunCommandAsync(() => _coordinator.SetLanguageAsync(language), null);
+        ApplyState(_coordinator.State);
+        IsLanguageSelectionEnabled = true;
     }
 
     partial void OnNicknameChanged(string value)

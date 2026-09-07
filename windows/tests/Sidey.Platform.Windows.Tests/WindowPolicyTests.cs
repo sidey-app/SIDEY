@@ -59,9 +59,9 @@ public sealed class WindowPolicyTests
     }
 
     [Fact]
-    public void CurrentWindowsSourceVersionIsOneZeroTenCandidate()
+    public void CurrentWindowsSourceVersionIsOneOneZero()
     {
-        Assert.Equal("1.0.10", WindowsUpdateService.CurrentVersion);
+        Assert.Equal("1.1.0", WindowsUpdateService.CurrentVersion);
     }
 
     [Theory]

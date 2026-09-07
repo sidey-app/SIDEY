@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
 using Sidey.Core.Localization;
@@ -13,18 +14,34 @@ internal sealed class WindowsUpdateServiceAdapter : IUpdateService
         SideyStoragePaths.LocalApplicationDataRoot(),
         "SIDEY",
         "update-last-checked.txt");
-    private readonly WindowsUpdateService _service = new();
+    private readonly WindowsUpdateService _service;
 
     public WindowsUpdateServiceAdapter()
     {
+        string artifactVersion = typeof(App).Assembly.GetName().Version?.ToString(3)
+            ?? WindowsUpdateService.CurrentVersion;
+        _service = new WindowsUpdateService(currentVersion: artifactVersion);
         LastCheckedAt = ReadLastCheckedAt();
     }
 
-    public string CurrentVersion => WindowsUpdateService.CurrentVersion;
+    public string CurrentVersion => _service.EffectiveCurrentVersion;
 
     public DateTimeOffset? LastCheckedAt { get; private set; }
 
     public Uri CurrentReleaseNotesUri => ReleaseNotesUri(CurrentVersion);
+
+    public async Task CleanupInstalledUpdatesAsync()
+    {
+        try
+        {
+            int deletedFiles = await Task.Run(_service.CleanupInstalledUpdates);
+            StartupDiagnostics.Stage($"update-cache-cleanup deleted-files={deletedFiles}");
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal("update-cache-cleanup", exception);
+        }
+    }
 
     public async Task<AvailableUpdate?> CheckAsync(CancellationToken cancellationToken = default)
     {
@@ -53,7 +70,8 @@ internal sealed class WindowsUpdateServiceAdapter : IUpdateService
 
     public async Task DownloadAndLaunchInstallerAsync(
         AvailableUpdate update,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<int>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(update);
         if (update.InstallerUri is null || string.IsNullOrWhiteSpace(update.Sha256))
@@ -67,10 +85,24 @@ internal sealed class WindowsUpdateServiceAdapter : IUpdateService
             $"windows-v{update.Version}",
             update.InstallerUri,
             update.Sha256);
-        string installerPath = await _service.DownloadInstallerAsync(
-            manifest,
-            cancellationToken);
-        WindowsUpdateService.LaunchInstaller(installerPath);
+        try
+        {
+            string installerPath = await _service.DownloadInstallerAsync(
+                manifest,
+                cancellationToken,
+                progress);
+            WindowsUpdateService.LaunchInstaller(installerPath);
+        }
+        catch (Win32Exception exception) when (exception.NativeErrorCode == 1223)
+        {
+            StartupDiagnostics.Stage("update-install-cancelled");
+            throw;
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal("update-download-install", exception);
+            throw;
+        }
     }
 
     public Task OpenReleaseNotesAsync(Uri releaseNotesUri)

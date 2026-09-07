@@ -14,6 +14,8 @@ public sealed record AppPreferences(
     Guid? ActiveRoomId,
     OverlayRegionPreference OverlayRegion)
 {
+    public string? Language { get; init; }
+
     public const int CurrentSchemaVersion = 3;
 
     public static AppPreferences CreateDefault(long? installationSeed = null) => new(
@@ -35,6 +37,7 @@ public sealed record AppPreferences(
     public AppPreferences Normalize() => this with
     {
         SchemaVersion = CurrentSchemaVersion,
+        Language = Language is "ko-KR" or "en-US" or "ja-JP" ? Language : null,
         InstallationSeed = InstallationSeed == 0 ? Random.Shared.NextInt64() : InstallationSeed,
         CachedNickname = CachedNickname is not null && ProfileValidator.IsValidNickname(CachedNickname)
             ? ProfileValidator.NormalizeNickname(CachedNickname)

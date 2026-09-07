@@ -15,12 +15,104 @@ public sealed record WindowsUpdateManifest(
     Uri InstallerUri,
     string Sha256);
 
-public sealed partial class WindowsUpdateService(HttpClient? httpClient = null)
+public sealed partial class WindowsUpdateService
 {
-    public const string CurrentVersion = "1.0.10";
+    public const string CurrentVersion = "1.1.0";
     public static readonly Uri ManifestUri = new(
         "https://sidey-app.github.io/SIDEY/windows-latest.json");
-    private readonly HttpClient _httpClient = httpClient ?? new HttpClient();
+    private readonly HttpClient _httpClient;
+    private readonly string _updateCacheDirectory;
+
+    public WindowsUpdateService(
+        HttpClient? httpClient = null,
+        string? currentVersion = null,
+        string? updateCacheDirectory = null)
+    {
+        _httpClient = httpClient ?? new HttpClient();
+        _updateCacheDirectory = Path.GetFullPath(updateCacheDirectory
+            ?? Path.Combine(Path.GetTempPath(), "SIDEY", "Updates"));
+        EffectiveCurrentVersion = string.IsNullOrWhiteSpace(currentVersion)
+            ? CurrentVersion
+            : currentVersion;
+        _ = ParsedVersion.Parse(EffectiveCurrentVersion);
+    }
+
+    public string EffectiveCurrentVersion { get; }
+
+    // Only remove updater-owned files after the app has started successfully.
+    // Locked installers are left for the next startup; never traverse links or
+    // recursively remove a directory that might contain unrelated files.
+    public int CleanupInstalledUpdates()
+    {
+        var deletedFiles = 0;
+        try
+        {
+            if (!Directory.Exists(_updateCacheDirectory)
+                || HasReparsePointAncestor(new DirectoryInfo(_updateCacheDirectory)))
+            {
+                return 0;
+            }
+
+            foreach (string directory in Directory.GetDirectories(_updateCacheDirectory))
+            {
+                try
+                {
+                    if ((File.GetAttributes(directory) & FileAttributes.ReparsePoint) != 0)
+                    {
+                        continue;
+                    }
+
+                    string version = Path.GetFileName(directory);
+                    if (IsNewerVersion(version, EffectiveCurrentVersion))
+                    {
+                        continue;
+                    }
+
+                    string installerName = $"SIDEY-Windows-x64-v{version}";
+                    foreach (string suffix in new[] { "-Setup.exe", "-Setup.exe.download", ".msi", ".msi.download" })
+                    {
+                        string file = Path.Combine(directory, installerName + suffix);
+                        try
+                        {
+                            if (File.Exists(file)
+                                && (File.GetAttributes(file) & FileAttributes.ReparsePoint) == 0)
+                            {
+                                File.Delete(file);
+                                deletedFiles++;
+                            }
+                        }
+                        catch (IOException) { }
+                        catch (UnauthorizedAccessException) { }
+                    }
+
+                    // Non-recursive deletion succeeds only when the folder is empty.
+                    Directory.Delete(directory, recursive: false);
+                }
+                catch (InvalidDataException) { }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+                catch (FormatException) { }
+                catch (OverflowException) { }
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+
+        return deletedFiles;
+    }
+
+    private static bool HasReparsePointAncestor(DirectoryInfo directory)
+    {
+        for (DirectoryInfo? current = directory; current is not null; current = current.Parent)
+        {
+            if ((current.Attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     public async Task<WindowsUpdateManifest?> CheckAsync(
         CancellationToken cancellationToken = default)
@@ -46,7 +138,7 @@ public sealed partial class WindowsUpdateService(HttpClient? httpClient = null)
             throw new InvalidDataException(I18n.Get("update.invalidManifest"));
         }
 
-        if (!IsNewerVersion(manifest.Version, CurrentVersion))
+        if (!IsNewerVersion(manifest.Version, EffectiveCurrentVersion))
         {
             return null;
         }
@@ -73,13 +165,12 @@ public sealed partial class WindowsUpdateService(HttpClient? httpClient = null)
 
     public async Task<string> DownloadInstallerAsync(
         WindowsUpdateManifest manifest,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<int>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         string updateDirectory = Path.Combine(
-            Path.GetTempPath(),
-            "SIDEY",
-            "Updates",
+            _updateCacheDirectory,
             manifest.Version);
         Directory.CreateDirectory(updateDirectory);
         string installerPath = Path.Combine(
@@ -104,7 +195,40 @@ public sealed partial class WindowsUpdateService(HttpClient? httpClient = null)
                 bufferSize: 81920,
                 useAsync: true))
             {
-                await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
+                long? totalBytes = response.Content.Headers.ContentLength;
+                long downloadedBytes = 0;
+                var lastReportedPercentage = -1;
+                byte[] buffer = new byte[81920];
+
+                if (totalBytes is > 0)
+                {
+                    progress?.Report(0);
+                    lastReportedPercentage = 0;
+                }
+
+                int bytesRead;
+                while ((bytesRead = await source.ReadAsync(
+                    buffer,
+                    cancellationToken).ConfigureAwait(false)) > 0)
+                {
+                    await destination.WriteAsync(
+                        buffer.AsMemory(0, bytesRead),
+                        cancellationToken).ConfigureAwait(false);
+                    downloadedBytes += bytesRead;
+
+                    if (totalBytes is > 0)
+                    {
+                        int percentage = (int)Math.Clamp(
+                            downloadedBytes * 100d / totalBytes.Value,
+                            0d,
+                            100d);
+                        if (percentage != lastReportedPercentage)
+                        {
+                            progress?.Report(percentage);
+                            lastReportedPercentage = percentage;
+                        }
+                    }
+                }
             }
 
             string actualHash;
