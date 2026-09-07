@@ -706,6 +706,7 @@ main { overflow: hidden; }
   .page-tabs a:hover { background: rgba(255, 255, 255, .05); }
   .store-product-media { background: linear-gradient(145deg, rgba(48, 47, 71, .95), rgba(55, 42, 53, .88)); }
   .store-loading-skeleton { background: linear-gradient(100deg, rgba(45, 44, 58, .95), rgba(63, 62, 77, .98)); }
+  .store-preview-dialog { --store-dialog-border: rgba(255, 255, 255, .12); --store-dialog-surface: rgba(28, 28, 39, .94); --store-dialog-shadow: 0 2rem 5.625rem rgba(0, 0, 0, .48); }
   .store-preview-close { border-color: rgba(255, 255, 255, .12); background: rgba(255, 255, 255, .08); }
   .store-preview-stage { background: linear-gradient(#171a2d 0 72%, #35374a 72% 74%, #202129 74%); }
   .store-preview-stage::after { background: rgba(210, 210, 232, .16); }
