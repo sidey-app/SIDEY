@@ -388,8 +388,7 @@
                                 </Grid.ColumnDefinitions>
                                 <Grid Width="24" Height="24" HorizontalAlignment="Center">
                                   <SymbolIcon Symbol="People" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Visibility="{Binding IsActive, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
-                                  <Path Fill="#00C7BE" Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                        Data="M 9,3 A 4,4 0 1 1 9,11 A 4,4 0 1 1 9,3 Z M 2,19 C 2,14 4,12 9,12 C 14,12 16,14 16,19 L 16,21 L 2,21 Z M 18,4 A 3,3 0 1 1 18,10 A 3,3 0 1 1 18,4 Z M 17,12 C 21,12 23,14 23,18 L 23,20 L 18,20 L 18,19 C 18,16 17,14 16,12 Z" />
+                                  <SymbolIcon Symbol="People" Foreground="#00C7BE" Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                 </Grid>
                                 <StackPanel Grid.Column="1" HorizontalAlignment="Stretch" Spacing="3">
                                   <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />

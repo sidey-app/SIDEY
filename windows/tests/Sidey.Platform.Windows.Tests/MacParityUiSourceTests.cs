@@ -3,7 +3,7 @@ namespace Sidey.Platform.Windows.Tests;
 public sealed class MacParityUiSourceTests
 {
     [Fact]
-    public void SettingsEndsWithPersistedLanguageSelectorAndActiveGroupsHaveFilledMintIcons()
+    public void SettingsEndsWithPersistedLanguageSelectorAndGroupsSharePeopleIconWithStateColors()
     {
         var xaml = ReadRepositoryFile("windows", "src", "Sidey.App", "MainWindow.xaml");
         Assert.True(xaml.IndexOf("Key=settings.language}", StringComparison.Ordinal)
@@ -12,7 +12,9 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("Key=settings.languageDescription", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"LanguageComboBox\" Grid.Column=\"1\"", xaml, StringComparison.Ordinal);
         Assert.DoesNotContain("languageRestart", xaml, StringComparison.Ordinal);
-        Assert.Contains("<Path Fill=\"#00C7BE\" Visibility=\"{Binding IsActive", xaml, StringComparison.Ordinal);
+        Assert.Contains("<SymbolIcon Symbol=\"People\" Foreground=\"#00C7BE\" Visibility=\"{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("<SymbolIcon Symbol=\"People\" Foreground=\"{ThemeResource TextFillColorSecondaryBrush}\" Visibility=\"{Binding IsActive, Converter={StaticResource InverseBooleanToVisibilityConverter}}\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<Path Fill=\"#00C7BE\" Visibility=\"{Binding IsActive", xaml, StringComparison.Ordinal);
         var app = ReadRepositoryFile("windows", "src", "Sidey.App", "App.xaml.cs");
         Assert.True(app.IndexOf("I18n.SetLanguage(coordinator.State.Preferences.Language)", StringComparison.Ordinal)
             < app.IndexOf("CreateOnboardingWindow(coordinator)", StringComparison.Ordinal));
