@@ -38,8 +38,10 @@ public sealed class LanguageCatalogParityTests
         foreach (var property in element.EnumerateObject())
         {
             string key = string.IsNullOrEmpty(prefix) ? property.Name : prefix + "." + property.Name;
-            if (property.Value.ValueKind == JsonValueKind.Object) Flatten(property.Value, key, result);
-            else result.Add(key, property.Value.GetString()!);
+            if (property.Value.ValueKind == JsonValueKind.Object)
+                Flatten(property.Value, key, result);
+            else
+                result.Add(key, property.Value.GetString()!);
         }
     }
 }

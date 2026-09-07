@@ -94,7 +94,8 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
                     LanguageComboBox.SelectedIndex = index;
                     var deadline = DateTimeOffset.UtcNow.AddSeconds(4);
                     while ((I18n.Language != language || !ViewModel.IsLanguageSelectionEnabled)
-                           && DateTimeOffset.UtcNow < deadline) await Task.Delay(25);
+                           && DateTimeOffset.UtcNow < deadline)
+                        await Task.Delay(25);
                     await Task.Delay(40);
                     if (I18n.Language != language
                         || LanguageDescriptionText.Text != I18n.Get("settings.languageDescription")

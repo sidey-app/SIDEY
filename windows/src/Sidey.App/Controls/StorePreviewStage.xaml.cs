@@ -1,16 +1,16 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices.WindowsRuntime;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Sidey.Core.Domain;
 using Sidey.Core.Localization;
 using Sidey.Core.Overlay;
 using Sidey.Platform.Windows;
 using Windows.Foundation;
 using Windows.UI;
-using Microsoft.UI.Xaml.Media.Imaging;
-using System.Runtime.InteropServices.WindowsRuntime;
 
 namespace Sidey.App.Controls;
 
@@ -400,17 +400,20 @@ public sealed partial class StorePreviewStage : UserControl
 
     private void ReleasePixelFrames()
     {
-        foreach (var layer in _leftCharacterLayers.Concat(_rightCharacterLayers)) layer.Source = null;
+        foreach (var layer in _leftCharacterLayers.Concat(_rightCharacterLayers))
+            layer.Source = null;
         ProjectileImage.ClearFrames();
         ImpactImage.ClearFrames();
         EmitterImage.ClearFrames();
-        foreach (var source in _ownedImageFrames) StorePreviewImageLoader.ReleaseFrame(source);
+        foreach (var source in _ownedImageFrames)
+            StorePreviewImageLoader.ReleaseFrame(source);
         _ownedImageFrames.Clear();
         LeftCharacterHost.Children.Clear();
         RightCharacterHost.Children.Clear();
         _leftCharacterLayers.Clear();
         _rightCharacterLayers.Clear();
-        foreach (var source in _ownedFrames) source.Dispose();
+        foreach (var source in _ownedFrames)
+            source.Dispose();
         _ownedFrames.Clear();
         _characters.Clear();
         _actions.Clear();
@@ -1014,8 +1017,10 @@ public sealed partial class StorePreviewStage : UserControl
                 Opacity = 0,
                 RenderTransform = new ScaleTransform { CenterX = radius, CenterY = radius },
             };
-            if (index < 6) _sparkles.Add(star);
-            else _pulseSparkles.Add(star);
+            if (index < 6)
+                _sparkles.Add(star);
+            else
+                _pulseSparkles.Add(star);
             SparkleCanvas.Children.Add(star);
         }
     }
@@ -1141,7 +1146,8 @@ public sealed partial class StorePreviewStage : UserControl
 
     private static double PreviewPulseScale(double elapsed)
     {
-        if (elapsed < 0 || elapsed >= 0.8) return 1;
+        if (elapsed < 0 || elapsed >= 0.8)
+            return 1;
         if (elapsed <= 0.2)
         {
             double progress = elapsed / 0.2;
@@ -1156,7 +1162,8 @@ public sealed partial class StorePreviewStage : UserControl
         var deadline = DateTimeOffset.UtcNow.AddSeconds(20);
         while (!_resourcesLoaded && !_loadFailed && DateTimeOffset.UtcNow < deadline)
             await Task.Delay(50);
-        if (!_resourcesLoaded) throw new InvalidOperationException("Store preview smoke: resources unavailable.");
+        if (!_resourcesLoaded)
+            throw new InvalidOperationException("Store preview smoke: resources unavailable.");
         await Task.Delay(80);
         _timer.Stop();
         if (ProductKind == CommerceProductKind.Throwable)
@@ -1168,7 +1175,8 @@ public sealed partial class StorePreviewStage : UserControl
             StartupDiagnostics.Stage("store-preview-cannon-smoke-complete");
             return;
         }
-        if (!TriggerPreviewPulse()) throw new InvalidOperationException("Store preview smoke: pulse rejected.");
+        if (!TriggerPreviewPulse())
+            throw new InvalidOperationException("Store preview smoke: pulse rejected.");
         _pulseStarted = _clock.Elapsed.TotalSeconds - 0.2;
         UpdateScene();
         if (Math.Abs(LeftCharacterScale.ScaleX) < 2.99 || LeftCharacterScale.ScaleY < 2.99
@@ -1185,7 +1193,8 @@ public sealed partial class StorePreviewStage : UserControl
                 || !_pulseSparkles.Any(star => star.Opacity > 0))
                 throw new InvalidOperationException("Store preview smoke: ambient or pulse effect missing.");
         }
-        if (!TriggerPreviewThrow()) throw new InvalidOperationException("Store preview smoke: throw rejected.");
+        if (!TriggerPreviewThrow())
+            throw new InvalidOperationException("Store preview smoke: throw rejected.");
         _manualThrowStarted = _clock.Elapsed.TotalSeconds - ThrowReleaseSeconds - 0.05;
         UpdateScene();
         if (ProjectileImage.Opacity != 1)
@@ -1232,8 +1241,10 @@ public sealed partial class StorePreviewStage : UserControl
         finally { effect.Opacity = 1; }
         int changed = 0;
         for (int index = 0; index < Math.Min(before.Length, after.Length); index++)
-            if (before[index] != after[index]) changed++;
-        if (changed < 8) throw new InvalidOperationException("Preview effect is not visible in the composed scene.");
+            if (before[index] != after[index])
+                changed++;
+        if (changed < 8)
+            throw new InvalidOperationException("Preview effect is not visible in the composed scene.");
         StartupDiagnostics.Stage($"preview-rendered-effect-verified changed-bytes={changed}");
     }
 

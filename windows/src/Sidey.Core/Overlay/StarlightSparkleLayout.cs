@@ -21,7 +21,8 @@ public static class StarlightSparkleLayout
     {
         int cycle = (int)Math.Floor(elapsed / 1.2d);
         double progress = (elapsed % 1.2d) / 1.05d;
-        if (progress < 0 || progress > 1) return (0, 0, 0, 0);
+        if (progress < 0 || progress > 1)
+            return (0, 0, 0, 0);
         int burstSeed = seed ^ (cycle * 7919) ^ ((index + 1) * 1543);
         double envelope = 1 - Math.Abs((2 * progress) - 1);
         return (

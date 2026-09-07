@@ -18,7 +18,8 @@ internal static class StorePreviewImageLoader
             BitmapLifetimes.Remove(source);
             bitmap.Dispose();
         }
-        if (source is IDisposable disposable) disposable.Dispose();
+        if (source is IDisposable disposable)
+            disposable.Dispose();
     }
 
     internal static async Task<PixelFrameSurface> LoadPixelFrameAsync(
@@ -38,8 +39,10 @@ internal static class StorePreviewImageLoader
         var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         void OnCompleted(LoadedImageSurface sender, LoadedImageSourceLoadCompletedEventArgs args)
         {
-            if (args.Status == LoadedImageSourceLoadStatus.Success) completion.TrySetResult(true);
-            else completion.TrySetException(new InvalidOperationException($"Pixel surface load failed: {args.Status}"));
+            if (args.Status == LoadedImageSourceLoadStatus.Success)
+                completion.TrySetResult(true);
+            else
+                completion.TrySetException(new InvalidOperationException($"Pixel surface load failed: {args.Status}"));
         }
         surface.LoadCompleted += OnCompleted;
         try

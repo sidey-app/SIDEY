@@ -1,6 +1,6 @@
-using Microsoft.UI.Xaml.Markup;
-using Microsoft.UI.Xaml.Data;
 using System.ComponentModel;
+using Microsoft.UI.Xaml.Data;
+using Microsoft.UI.Xaml.Markup;
 using Sidey.Core.Localization;
 
 namespace Sidey.App.Localization;
@@ -35,7 +35,8 @@ public sealed class LocalizedText : INotifyPropertyChanged
     public LocalizedText(string key)
     {
         _key = key;
-        if (Sources.Count % 64 == 0) Sources.RemoveAll(source => !source.TryGetTarget(out _));
+        if (Sources.Count % 64 == 0)
+            Sources.RemoveAll(source => !source.TryGetTarget(out _));
         Sources.Add(new WeakReference<LocalizedText>(this));
     }
 

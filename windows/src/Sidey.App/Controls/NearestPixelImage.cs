@@ -34,7 +34,8 @@ public sealed class NearestPixelImage : Grid
         set
         {
             _source = value;
-            if (_brush is not null) _brush.Surface = value?.Surface;
+            if (_brush is not null)
+                _brush.Surface = value?.Surface;
         }
     }
 
@@ -45,7 +46,8 @@ public sealed class NearestPixelImage : Grid
 
     private void Attach()
     {
-        if (_visual is not null) return;
+        if (_visual is not null)
+            return;
         var compositor = ElementCompositionPreview.GetElementVisual(this).Compositor;
         _brush = compositor.CreateSurfaceBrush(_source?.Surface);
         _brush.BitmapInterpolationMode = CompositionBitmapInterpolationMode.NearestNeighbor;

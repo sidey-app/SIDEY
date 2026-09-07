@@ -49,7 +49,8 @@ public static class MessageBubbleCollisionResolver
         var deltaTime = Math.Clamp(rawDeltaTime, 0d, 0.1d);
         if (deltaTime <= 0d || messageBubbles.Count < 2)
         {
-            for (int index = 0; index < agents.Count; index++) agents[index].MessageBubbleSeparationOrder = null;
+            for (int index = 0; index < agents.Count; index++)
+                agents[index].MessageBubbleSeparationOrder = null;
             return separated;
         }
 
@@ -86,8 +87,10 @@ public static class MessageBubbleCollisionResolver
                 Add(acceleration, right.MemberId, -force);
                 bool leftCanMove = CanMove(leftAgent, direction, geometry, stoppedIds);
                 bool rightCanMove = CanMove(rightAgent, -direction, geometry, stoppedIds);
-                if (leftCanMove && !rightCanMove) scratch.Transfers.Add((left.MemberId, force));
-                else if (!leftCanMove && rightCanMove) scratch.Transfers.Add((right.MemberId, -force));
+                if (leftCanMove && !rightCanMove)
+                    scratch.Transfers.Add((left.MemberId, force));
+                else if (!leftCanMove && rightCanMove)
+                    scratch.Transfers.Add((right.MemberId, -force));
                 separated.Add(left.MemberId);
                 separated.Add(right.MemberId);
             }
@@ -96,7 +99,8 @@ public static class MessageBubbleCollisionResolver
         for (int index = 0; index < agents.Count; index++)
         {
             var agent = agents[index];
-            if (!separated.Contains(agent.Id)) agent.MessageBubbleSeparationOrder = null;
+            if (!separated.Contains(agent.Id))
+                agent.MessageBubbleSeparationOrder = null;
         }
         foreach (var transfer in scratch.Transfers)
         {

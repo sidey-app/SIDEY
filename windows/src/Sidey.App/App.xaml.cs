@@ -425,7 +425,8 @@ public partial class App : Application
     private static async Task RunStorePreviewStartupSmokeIfRequestedAsync()
     {
         if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) != "1"
-            || Environment.GetEnvironmentVariable("SIDEY_STORE_PREVIEW_SMOKE") != "1") return;
+            || Environment.GetEnvironmentVariable("SIDEY_STORE_PREVIEW_SMOKE") != "1")
+            return;
         var window = new Window { Title = "SIDEY Store Preview Smoke" };
         try
         {
@@ -446,7 +447,8 @@ public partial class App : Application
                 };
                 stage.BeginPresentation();
                 var showing = dialog.ShowAsync();
-                try { await stage.VerifyInteractionSmokeAsync(); }
+                try
+                { await stage.VerifyInteractionSmokeAsync(); }
                 finally
                 {
                     stage.EndPresentation();
@@ -827,11 +829,13 @@ public partial class App : Application
     {
         _dispatcherQueue.TryEnqueue(() =>
         {
-            if (_shuttingDown || language == I18n.Language) return;
+            if (_shuttingDown || language == I18n.Language)
+                return;
             I18n.SetLanguage(language);
             Localization.LocalizedText.RefreshAll();
             _mainWindow?.ViewModel.RefreshLocalizedText();
-            if (_composer is not null) _composer.Title = I18n.Get("window.composerTitle");
+            if (_composer is not null)
+                _composer.Title = I18n.Get("window.composerTitle");
             if (_historyWindow is not null)
             {
                 _historyWindow.Title = I18n.Get("window.historyTitle");

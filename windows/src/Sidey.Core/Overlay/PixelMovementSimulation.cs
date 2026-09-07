@@ -103,7 +103,8 @@ public static class PixelMovementSimulation
         for (var agentIndex = 0; agentIndex < agents.Count; agentIndex++)
         {
             var agent = agents[agentIndex];
-            if (alreadyMovedIds?.Contains(agent.Id) == true) continue;
+            if (alreadyMovedIds?.Contains(agent.Id) == true)
+                continue;
             if (stoppedIds.Contains(agent.Id))
             {
                 agent.Velocity = 0d;
