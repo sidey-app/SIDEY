@@ -91,9 +91,9 @@ public sealed class WindowsUpdateServiceTests
         const string manifest = """
             {
               "channel": "production",
-              "version": "1.0.9",
-              "tag": "windows-v1.0.9",
-              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.9/SIDEY-Windows-x64-v1.0.9-Setup.exe",
+              "version": "1.0.11",
+              "tag": "windows-v1.0.11",
+              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.11/SIDEY-Windows-x64-v1.0.11-Setup.exe",
               "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             }
             """;
@@ -107,10 +107,10 @@ public sealed class WindowsUpdateServiceTests
         WindowsUpdateManifest? update = await service.CheckAsync();
 
         Assert.NotNull(update);
-        Assert.Equal("1.0.9", update.Version);
+        Assert.Equal("1.0.11", update.Version);
         Assert.Equal(
-            "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.9/" +
-            "SIDEY-Windows-x64-v1.0.9-Setup.exe",
+            "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.11/" +
+            "SIDEY-Windows-x64-v1.0.11-Setup.exe",
             update.InstallerUri.AbsoluteUri);
         Assert.Equal(
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -123,8 +123,8 @@ public sealed class WindowsUpdateServiceTests
         const string manifest = """
             {
               "channel": "production",
-              "version": "1.0.9",
-              "tag": "windows-v1.0.9"
+              "version": "1.0.11",
+              "tag": "windows-v1.0.11"
             }
             """;
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
@@ -143,9 +143,9 @@ public sealed class WindowsUpdateServiceTests
         const string manifest = """
             {
               "channel": "production",
-              "version": "1.0.9",
-              "tag": "windows-v1.0.9",
-              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.9/SIDEY-Windows-x64-v1.0.9.msi",
+              "version": "1.0.11",
+              "tag": "windows-v1.0.11",
+              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.11/SIDEY-Windows-x64-v1.0.11.msi",
               "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             }
             """;
