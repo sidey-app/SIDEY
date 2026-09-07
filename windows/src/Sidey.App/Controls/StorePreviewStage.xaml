@@ -18,13 +18,13 @@
         <StackPanel x:Name="LeftNameplate" Canvas.Top="181" Canvas.ZIndex="20" Orientation="Horizontal" Spacing="5">
           <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="#00C853" />
           <Border Height="20" Padding="4,0" Background="#9E050609" CornerRadius="6">
-            <TextBlock Foreground="White" FontSize="11" Text="{i18n:I18n Key=preview.moka}" />
+            <TextBlock Foreground="White" FontSize="11" Text="{Binding Value, Source={i18n:I18n Key=preview.moka}, Mode=OneWay}" />
           </Border>
         </StackPanel>
         <StackPanel x:Name="RightNameplate" Canvas.Top="181" Canvas.ZIndex="20" Orientation="Horizontal" Spacing="5">
           <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="#00C853" />
           <Border Height="20" Padding="4,0" Background="#9E050609" CornerRadius="6">
-            <TextBlock Foreground="White" FontSize="11" Text="{i18n:I18n Key=preview.dubu}" />
+            <TextBlock Foreground="White" FontSize="11" Text="{Binding Value, Source={i18n:I18n Key=preview.dubu}, Mode=OneWay}" />
           </Border>
         </StackPanel>
 

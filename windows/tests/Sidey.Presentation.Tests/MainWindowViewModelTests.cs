@@ -6,8 +6,45 @@ using Sidey.Presentation.ViewModels;
 
 namespace Sidey.Presentation.Tests;
 
+[Collection("Language refresh")]
 public sealed class MainWindowViewModelTests
 {
+    [Fact]
+    public void LanguageRefreshUpdatesExistingItemsAndPreservesDraftsAndFilters()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        coordinator.State = state;
+        var viewModel = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        var character = viewModel.CharacterSelections[0];
+        var bubble = viewModel.BubbleSelections[0];
+        var product = viewModel.StoreProducts[0];
+        viewModel.Nickname = "draft";
+        viewModel.InviteCode = "ABCDEF";
+        viewModel.CreateRoomName = "room draft";
+        viewModel.SelectedStoreKindIndex = 1;
+        viewModel.SelectedStoreSortIndex = 2;
+        string previous = Sidey.Core.Localization.I18n.Language;
+        try
+        {
+            foreach (string language in new[] { "en-US", "ja-JP", "ko-KR" })
+            {
+                Sidey.Core.Localization.I18n.SetLanguage(language);
+                viewModel.RefreshLocalizedText();
+                Assert.Same(character, viewModel.CharacterSelections[0]);
+                Assert.Same(bubble, viewModel.BubbleSelections[0]);
+                Assert.Same(product, viewModel.StoreProducts[0]);
+                Assert.Equal(PixelCharacterCatalog.Get(character.Id).DisplayName, character.DisplayName);
+                Assert.Equal(Sidey.Core.Localization.I18n.Get("profile.defaultBubble"), bubble.DisplayName);
+                Assert.Equal("draft", viewModel.Nickname);
+                Assert.Equal("ABCDEF", viewModel.InviteCode);
+                Assert.Equal("room draft", viewModel.CreateRoomName);
+                Assert.Equal(1, viewModel.SelectedStoreKindIndex);
+                Assert.Equal(2, viewModel.SelectedStoreSortIndex);
+            }
+        }
+        finally { Sidey.Core.Localization.I18n.SetLanguage(previous); }
+    }
+
     [Theory]
     [InlineData(0, "ko-KR")]
     [InlineData(1, "en-US")]

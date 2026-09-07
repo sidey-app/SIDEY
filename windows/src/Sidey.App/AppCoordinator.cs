@@ -99,6 +99,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
     public event Action<string, Exception>? SendFailed;
     public event Action<Exception>? RenderingFailed;
     public event Action? GroupSetupRequested;
+    public event Action<string>? LanguageChanged;
 
     public async Task LoadCachedStateAsync(CancellationToken cancellationToken = default)
     {
@@ -787,6 +788,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             SetState(_state with { Preferences = _state.Preferences with { Language = previousLanguage } });
             throw;
         }
+        LanguageChanged?.Invoke(language);
     }
 
     public void RefreshDisplayTopology()

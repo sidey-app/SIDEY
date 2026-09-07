@@ -132,6 +132,7 @@ public partial class App : Application
         coordinator.RenderingFailed += OnRenderingFailed;
         coordinator.GroupSetupRequested += OnGroupSetupRequested;
         coordinator.StateChanged += OnCoordinatorStateChanged;
+        coordinator.LanguageChanged += OnLanguageChanged;
         if (!coordinator.State.Preferences.OnboardingCompleted)
         {
             CreateOnboardingWindow(coordinator);
@@ -146,6 +147,13 @@ public partial class App : Application
             StartupDiagnostics.Stage("completed-launch-window-hidden");
         }
         await RunStorePreviewStartupSmokeIfRequestedAsync();
+        if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1"
+            && Environment.GetEnvironmentVariable("SIDEY_LANGUAGE_SMOKE") == "1")
+        {
+            // Exercise local settings and bindings without starting an update request.
+            _startupUpdateCheckStarted = true;
+            await EnsureMainWindow().VerifyLiveLanguageSmokeAsync();
+        }
         await RunComposerStartupSmokeIfRequestedAsync();
         _singleInstance!.StartListening(RequestPrimaryActivation);
         try
@@ -800,6 +808,24 @@ public partial class App : Application
                     room.Name,
                     coordinator?.UnreadCount(room.Id) ?? 0)).ToArray(),
                 state.ActiveRoomId));
+        });
+    }
+
+    private void OnLanguageChanged(string language)
+    {
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            if (_shuttingDown || language == I18n.Language) return;
+            I18n.SetLanguage(language);
+            Localization.LocalizedText.RefreshAll();
+            _mainWindow?.ViewModel.RefreshLocalizedText();
+            if (_composer is not null) _composer.Title = I18n.Get("window.composerTitle");
+            if (_historyWindow is not null)
+            {
+                _historyWindow.Title = I18n.Get("window.historyTitle");
+                _historyWindow.ViewModel.RefreshLocalizedText();
+            }
+            StartupDiagnostics.Stage($"language-applied language={language}");
         });
     }
 

@@ -13,7 +13,8 @@ public sealed partial class CharacterSelectionItemViewModel : ObservableObject
 
     public string Id { get; }
 
-    public string DisplayName { get; }
+    [ObservableProperty]
+    public partial string DisplayName { get; set; }
 
     public string CharacterId { get; }
 

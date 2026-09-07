@@ -9,7 +9,9 @@ public sealed class MacParityUiSourceTests
         Assert.True(xaml.IndexOf("Key=settings.language}", StringComparison.Ordinal)
             > xaml.IndexOf("Key=settings.exportMetrics}", StringComparison.Ordinal));
         Assert.Contains("SelectedLanguageIndex, Mode=TwoWay", xaml, StringComparison.Ordinal);
-        Assert.Contains("Key=settings.languageRestart", xaml, StringComparison.Ordinal);
+        Assert.Contains("Key=settings.languageDescription", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"LanguageComboBox\" Grid.Column=\"1\"", xaml, StringComparison.Ordinal);
+        Assert.DoesNotContain("languageRestart", xaml, StringComparison.Ordinal);
         Assert.Contains("<Path Fill=\"#00C7BE\" Visibility=\"{Binding IsActive", xaml, StringComparison.Ordinal);
         var app = ReadRepositoryFile("windows", "src", "Sidey.App", "App.xaml.cs");
         Assert.True(app.IndexOf("I18n.SetLanguage(coordinator.State.Preferences.Language)", StringComparison.Ordinal)
@@ -259,7 +261,7 @@ public sealed class MacParityUiSourceTests
         var viewModel = ReadRepositoryFile(
             "windows", "src", "Sidey.Presentation", "ViewModels", "ComposerViewModel.cs");
 
-        Assert.Contains("PlaceholderText=\"{i18n:I18n Key=composer.placeholder}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("PlaceholderText=\"{Binding Value, Source={i18n:I18n Key=composer.placeholder}, Mode=OneWay}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Padding=\"10,6,10,0\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Width=\"400\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Height=\"56\"", xaml, StringComparison.Ordinal);
@@ -464,7 +466,7 @@ public sealed class MacParityUiSourceTests
             2,
             xaml.Split("MinHeight=\"30\" HorizontalAlignment=\"Center\" Text=\"{Binding DisplayName}\"", StringSplitOptions.None).Length - 1);
         Assert.Contains("ItemsControl ItemsSource=\"{Binding Members}\"", xaml, StringComparison.Ordinal);
-        Assert.Contains("Content=\"{i18n:I18n Key=groups.rename}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Content=\"{Binding Value, Source={i18n:I18n Key=groups.rename}, Mode=OneWay}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding RemoveCommand}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Visibility=\"{Binding CanRemove, Converter={StaticResource BooleanToVisibilityConverter}}\"", xaml, StringComparison.Ordinal);
         Assert.Contains("SelectedIndex=\"{Binding SelectedEdgeIndex, Mode=TwoWay}\"", xaml, StringComparison.Ordinal);

@@ -37,9 +37,12 @@ public sealed partial class StoreProductPreviewViewModel : ObservableObject
     public string CatalogItemId { get; }
     public int SortOrder { get; }
     public int AmountKrw { get; }
-    public string DisplayName { get; }
-    public string Description { get; }
-    public string FormattedPrice { get; }
+    [ObservableProperty]
+    public partial string DisplayName { get; set; }
+    [ObservableProperty]
+    public partial string Description { get; set; }
+    [ObservableProperty]
+    public partial string FormattedPrice { get; set; }
     public IAsyncRelayCommand ActionCommand { get; }
     public IRelayCommand PreviewCommand { get; }
 

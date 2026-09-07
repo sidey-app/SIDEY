@@ -8,7 +8,7 @@ public enum PixelCharacterVisualEffect
 
 public sealed record PixelCharacterDefinition(
     string Id,
-    string DisplayName,
+    string DisplayNameKey,
     string SpriteSheetResource,
     string RawBgraResource,
     string ManifestResource,
@@ -21,7 +21,10 @@ public sealed record PixelCharacterDefinition(
     string? EntitlementKey,
     bool MirrorsToMovementDirection,
     PixelCharacterVisualEffect VisualEffect,
-    IReadOnlyList<string> CompatibleAliases);
+    IReadOnlyList<string> CompatibleAliases)
+{
+    public string DisplayName => Localization.I18n.Get(DisplayNameKey);
+}
 
 public sealed record PixelCharacterFrameContract(
     Range Idle,
@@ -48,45 +51,45 @@ public static class PixelCharacterCatalog
     [
         Create(
             FallbackId,
-            Localization.I18n.Get("characters.hamster"),
+            "characters.hamster",
             "43171c1dd614629058b6d593c57ca0e5841b0be03a04a05181dfda67c53a7f45",
             ["minty_pup"]),
         Create(
             "pixel_cat",
-            Localization.I18n.Get("characters.cat"),
+            "characters.cat",
             "d8b370c03b5cf0ede6aa0d9fa6210030e164b015a920622e89ae86f835e018b2"),
         Create(
             "pixel_puppy",
-            Localization.I18n.Get("characters.dog"),
+            "characters.dog",
             "8f56a5fda51a224802f41d6d1c359a138c83036b7da3e0a35777f9f4ed38d5f7"),
         Create(
             "pixel_rabbit",
-            Localization.I18n.Get("characters.rabbit"),
+            "characters.rabbit",
             "f8e53749200a284f7729ea9baac3237a9fac0caf8efedf9102dcee065e521342"),
         Create(
             "pixel_penguin",
-            Localization.I18n.Get("characters.penguin"),
+            "characters.penguin",
             "f171503f8ffb938732583a4b6f42443e7a69120bb17496f6e8d34372da2ea886"),
         Create(
             "pixel_guinea_pig",
-            Localization.I18n.Get("characters.guineaPig"),
+            "characters.guineaPig",
             "1a0bf85dae86f2e6bb460e8b0b852c2bd010d5ff6f7efd1477cbd6986da64f5b",
             entitlementKey: "character:pixel_guinea_pig",
             mirrorsToMovementDirection: true),
         Create(
             "pixel_monkey",
-            Localization.I18n.Get("characters.monkey"),
+            "characters.monkey",
             "515fe377f5344dd4cbaa2b0faf58de3ce72fdc62be5aff6a9d9de683983c783b",
             entitlementKey: "character:pixel_monkey"),
         Create(
             "pixel_chinchilla",
-            Localization.I18n.Get("characters.chinchilla"),
+            "characters.chinchilla",
             "c0009e007a7a63029fb58ad6f94d2b9a8c9ae7a55f139dd4892050f11614c5d4",
             ["pixel_koala"],
             "character:pixel_chinchilla"),
         Create(
             "pixel_starlight_upalupa",
-            Localization.I18n.Get("characters.starlightUpalupa"),
+            "characters.starlightUpalupa",
             "d180810a8796280077f3f70f6da681888c583c2f8d74776d0f5d300e943a079a",
             entitlementKey: "character:pixel_starlight_upalupa",
             mirrorsToMovementDirection: true,
