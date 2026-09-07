@@ -9,7 +9,7 @@ namespace Sidey.Presentation.Tests;
 public sealed class HistoryWindowViewModelTests
 {
     [Fact]
-    public async Task ActivationLoadsNewestFirstAndFormatsLocalTimeInSelectedLanguage()
+    public async Task ActivationLoadsNewestFirstAndFormatsSystemLocalTime()
     {
         Guid roomId = Guid.NewGuid();
         Guid userId = Guid.NewGuid();
@@ -43,7 +43,7 @@ public sealed class HistoryWindowViewModelTests
         Assert.Equal("최근 메시지 · 테스트", viewModel.Title);
         Assert.Equal(["최신", "이전"], viewModel.Items.Select(item => item.Body));
         Assert.Equal(
-            newerTime.ToLocalTime().ToString("g", Sidey.Core.Localization.I18n.Culture),
+            newerTime.ToLocalTime().ToString("g", CultureInfo.CurrentCulture),
             viewModel.Items[0].LocalTimeText);
         Assert.True(viewModel.Items[0].IsCurrentUser);
         Assert.False(viewModel.IsEmptyStateVisible);

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Globalization;
 using Sidey.Core.Abstractions;
 using Sidey.Core.Domain;
 using Sidey.Presentation.Services;
@@ -12,7 +13,7 @@ public sealed class MainWindowViewModelTests
     [Theory]
     [InlineData("en-US")]
     [InlineData("ja-JP")]
-    public void DisplayFormattingUsesSelectedLanguageWithoutChangingWindowsCulture(string language)
+    public void NumericFormattingUsesSelectedLanguageWithoutChangingWindowsCulture(string language)
     {
         string previousLanguage = Sidey.Core.Localization.I18n.Language;
         var previousCulture = System.Globalization.CultureInfo.CurrentCulture;
@@ -30,6 +31,56 @@ public sealed class MainWindowViewModelTests
         {
             Sidey.Core.Localization.I18n.SetLanguage(previousLanguage);
             System.Globalization.CultureInfo.CurrentCulture = previousCulture;
+        }
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(3)]
+    public async Task LanguageChangesPreserveSystemDateTimeFormats(int daysAgo)
+    {
+        string previousLanguage = Sidey.Core.Localization.I18n.Language;
+        CultureInfo previousCulture = CultureInfo.CurrentCulture;
+        try
+        {
+            // Include custom Windows regional formats, not just a locale's defaults.
+            var systemCulture = (CultureInfo)CultureInfo.GetCultureInfo("fr-FR").Clone();
+            systemCulture.DateTimeFormat.ShortDatePattern = "yyyy/MM/dd";
+            systemCulture.DateTimeFormat.ShortTimePattern = "HH.mm";
+            CultureInfo.CurrentCulture = systemCulture;
+            DateTimeOffset timestamp = new(DateTime.Today.AddDays(-daysAgo).AddHours(13).AddMinutes(24));
+            DateTimeOffset messageTimestamp = DateTimeOffset.Now.AddMinutes(-1);
+            (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+            coordinator.MessagePage =
+            [
+                new ChatMessage(Guid.NewGuid(), state.Rooms[0].Id, state.Profile!.Id, "test", messageTimestamp.ToUniversalTime()),
+            ];
+            var updates = new FakeUpdateService { LastCheckedAt = timestamp.ToUniversalTime() };
+            var main = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), updates);
+            var history = new HistoryWindowViewModel(coordinator);
+            await history.ActivateAsync();
+
+            foreach (string language in new[] { "ko-KR", "en-US", "ja-JP", "ko-KR" })
+            {
+                Sidey.Core.Localization.I18n.SetLanguage(language);
+                main.RefreshLocalizedText();
+                history.RefreshLocalizedText();
+                string display = daysAgo switch
+                {
+                    0 => Sidey.Core.Localization.I18n.Format("settings.updateCheckedToday", timestamp.ToString("t", systemCulture)),
+                    1 => Sidey.Core.Localization.I18n.Format("settings.updateCheckedYesterday", timestamp.ToString("t", systemCulture)),
+                    _ => timestamp.ToString("g", systemCulture),
+                };
+                Assert.Equal(Sidey.Core.Localization.I18n.Format("settings.updateLastChecked", display), main.LastUpdateCheckText);
+                Assert.Equal(messageTimestamp.ToString("g", systemCulture), Assert.Single(history.Items).LocalTimeText);
+                Assert.Same(systemCulture, CultureInfo.CurrentCulture);
+            }
+        }
+        finally
+        {
+            Sidey.Core.Localization.I18n.SetLanguage(previousLanguage);
+            CultureInfo.CurrentCulture = previousCulture;
         }
     }
 

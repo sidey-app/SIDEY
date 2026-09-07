@@ -373,7 +373,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject, IDisposab
             entry.Id,
             member?.Nickname ?? I18n.Get("history.unknownUser"),
             entry.Body,
-            entry.CreatedAt.ToLocalTime().ToString("g", I18n.Culture),
+            entry.CreatedAt.ToLocalTime().ToString("g", CultureInfo.CurrentCulture),
             PixelCharacterCatalog.NormalizeId(member?.CharacterId),
             entry.SenderId == _state.Profile?.Id,
             entry.State == MessageDeliveryState.Pending,
