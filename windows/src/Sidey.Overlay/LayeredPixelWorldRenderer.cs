@@ -432,13 +432,15 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 cached.PixelSize,
                 cached.Definition.FootBaselinePixel * _integerScale,
                 cached.OnlineContentBounds,
-                1d);
+                1d,
+                _edge);
             var destination = DestinationForFoot(
                 foot,
                 cached.PixelSize,
                 cached.Definition.FootBaselinePixel * _integerScale,
                 cached.OnlineContentBounds,
-                pulseScale);
+                pulseScale,
+                _edge);
             if (actionFrame is null
                 && cached.Definition.MirrorsToMovementDirection
                 && Math.Abs(node.Agent.Velocity) > 2d)
@@ -776,7 +778,11 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             }
             var started = Stopwatch.GetTimestamp();
             _throwStartedAt[characterThrow.ActorUserId] = started;
-            _projectiles.Add(new ActiveProjectile(characterThrow, started));
+            var trajectory = new CharacterThrowTrajectory(
+                CharacterCenterPoint(_nodeById[characterThrow.ActorUserId]),
+                CharacterCenterPoint(_nodeById[characterThrow.TargetUserId]),
+                _dpiScale);
+            _projectiles.Add(new ActiveProjectile(characterThrow, started, trajectory));
         }
 
         _textVisuals.Update(snapshot);
@@ -852,7 +858,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         for (var index = _projectiles.Count - 1; index >= 0; index--)
         {
             var projectile = _projectiles[index];
-            if (!_nodeById.TryGetValue(projectile.Event.ActorUserId, out var actor))
+            if (!_nodeById.ContainsKey(projectile.Event.ActorUserId))
             {
                 _projectiles.RemoveAt(index);
                 continue;
@@ -882,16 +888,11 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             }
             if (projectile.Start is null)
             {
-                projectile.Start = FootPoint(actor.Agent.TrackPosition);
+                projectile.Start = projectile.Trajectory.Start;
             }
-            var endpoint = FootPoint(target.Agent.TrackPosition);
-            projectile.End = endpoint;
-            var start = projectile.Start.Value;
-            var distancePixels = Math.Sqrt(
-                Math.Pow(endpoint.X - start.X, 2d) + Math.Pow(endpoint.Y - start.Y, 2d));
-            var distanceDip = distancePixels * 96d / Math.Max(96d, _integerScale * 48d);
-            var duration = Math.Clamp(0.35d + (distanceDip / 1600d), 0.35d, 0.95d);
-            if (projectile.ImpactStartedAt is null && elapsed - ThrowReleaseSeconds >= duration)
+            projectile.End = CharacterCenterPoint(target);
+            if (projectile.ImpactStartedAt is null
+                && elapsed - ThrowReleaseSeconds >= projectile.Trajectory.DurationSeconds)
             {
                 projectile.ImpactStartedAt = Stopwatch.GetTimestamp();
                 _hitStartedAt[target.Member.Id] = projectile.ImpactStartedAt.Value;
@@ -908,7 +909,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     {
         foreach (var projectile in _projectiles)
         {
-            if (projectile.Start is not { } start || projectile.End is not { } end)
+            if (projectile.Start is null || projectile.End is not { } end)
             {
                 continue;
             }
@@ -926,14 +927,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             else
             {
                 var elapsed = Stopwatch.GetElapsedTime(projectile.StartedAt).TotalSeconds - ThrowReleaseSeconds;
-                var distancePixels = Math.Sqrt(
-                    Math.Pow(end.X - start.X, 2d) + Math.Pow(end.Y - start.Y, 2d));
-                var distanceDip = distancePixels * 96d / Math.Max(96d, _integerScale * 48d);
-                var duration = Math.Clamp(0.35d + (distanceDip / 1600d), 0.35d, 0.95d);
-                var progress = Math.Clamp(elapsed / duration, 0d, 1d);
-                var arc = Math.Clamp(distancePixels * 0.18d, 24d * _integerScale / 2d, 96d * _integerScale / 2d);
-                var control = InwardControlPoint(start, end, arc);
-                point = QuadraticBezier(start, control, end, progress);
+                point = projectile.Trajectory.PointAt(end, elapsed, _edge);
                 frame = (int)(Math.Max(0d, elapsed) / 0.083d) % 8;
                 renderScale = 1d;
             }
@@ -970,32 +964,25 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         };
     }
 
-    private (double X, double Y) InwardControlPoint(
-        (double X, double Y) start,
-        (double X, double Y) end,
-        double arc)
+    private (double X, double Y) CharacterCenterPoint(WorldNode node)
     {
-        var midpoint = ((start.X + end.X) / 2d, (start.Y + end.Y) / 2d);
-        return _edge switch
-        {
-            OverlayEdge.Bottom => (midpoint.Item1, midpoint.Item2 - arc),
-            OverlayEdge.Top => (midpoint.Item1, midpoint.Item2 + arc),
-            OverlayEdge.Left => (midpoint.Item1 + arc, midpoint.Item2),
-            OverlayEdge.Right => (midpoint.Item1 - arc, midpoint.Item2),
-            _ => throw new ArgumentOutOfRangeException(),
-        };
+        var cached = _frameCache.Get(node.Member.CharacterId);
+        return CharacterCenterPoint(
+            FootPoint(node.Agent.TrackPosition), cached.PixelSize,
+            cached.Definition.FootBaselinePixel * _integerScale,
+            cached.OnlineContentBounds, _edge);
     }
 
-    private static (double X, double Y) QuadraticBezier(
-        (double X, double Y) start,
-        (double X, double Y) control,
-        (double X, double Y) end,
-        double progress)
+    internal static (double X, double Y) CharacterCenterPoint(
+        (double X, double Y) foot,
+        int pixelSize,
+        int baselinePixels,
+        PixelContentBounds content,
+        OverlayEdge edge)
     {
-        var inverse = 1d - progress;
-        return (
-            (inverse * inverse * start.X) + (2d * inverse * progress * control.X) + (progress * progress * end.X),
-            (inverse * inverse * start.Y) + (2d * inverse * progress * control.Y) + (progress * progress * end.Y));
+        // Use the unpulsed sprite placement, not its foot or sparkle anchor.
+        var destination = DestinationForFoot(foot, pixelSize, baselinePixels, content, 1d, edge);
+        return (destination.X + (pixelSize / 2d), destination.Y + (pixelSize / 2d));
     }
 
     private int FrameIndex(
@@ -1242,22 +1229,23 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         _edgeInsetPixels += Math.CopySign(easedStep, distance);
     }
 
-    private (int X, int Y) DestinationForFoot(
+    private static (int X, int Y) DestinationForFoot(
         (double X, double Y) foot,
         int pixelSize,
         int baselinePixels,
         PixelContentBounds content,
-        double pulseScale)
+        double pulseScale,
+        OverlayEdge edge)
     {
         var scaledSize = pixelSize * pulseScale;
         var scaledBaseline = baselinePixels * pulseScale;
-        var x = _edge switch
+        var x = edge switch
         {
             OverlayEdge.Left => foot.X - (content.MinX * pulseScale),
             OverlayEdge.Right => foot.X - (content.MaxX * pulseScale),
             _ => foot.X - (scaledSize / 2d),
         };
-        var y = _edge switch
+        var y = edge switch
         {
             OverlayEdge.Top => foot.Y - scaledBaseline,
             OverlayEdge.Bottom => foot.Y - (scaledSize - scaledBaseline),
@@ -1501,15 +1489,15 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         };
     }
 
-    private (double X, double Y) ImpactPoint((double X, double Y) foot)
+    private (double X, double Y) ImpactPoint((double X, double Y) center)
     {
         double inward = 10d * _dpiScale;
         return _edge switch
         {
-            OverlayEdge.Bottom => (foot.X, foot.Y - inward),
-            OverlayEdge.Top => (foot.X, foot.Y + inward),
-            OverlayEdge.Left => (foot.X + inward, foot.Y),
-            OverlayEdge.Right => (foot.X - inward, foot.Y),
+            OverlayEdge.Bottom => (center.X, center.Y - inward),
+            OverlayEdge.Top => (center.X, center.Y + inward),
+            OverlayEdge.Left => (center.X + inward, center.Y),
+            OverlayEdge.Right => (center.X - inward, center.Y),
             _ => throw new ArgumentOutOfRangeException(),
         };
     }
@@ -1629,10 +1617,12 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         public bool FacingLeft { get; set; }
     }
 
-    private sealed class ActiveProjectile(CharacterThrowEvent @event, long startedAt)
+    private sealed class ActiveProjectile(
+        CharacterThrowEvent @event, long startedAt, CharacterThrowTrajectory trajectory)
     {
         public CharacterThrowEvent Event { get; } = @event;
         public long StartedAt { get; } = startedAt;
+        public CharacterThrowTrajectory Trajectory { get; } = trajectory;
         public (double X, double Y)? Start { get; set; }
         public (double X, double Y)? End { get; set; }
         public long? ImpactStartedAt { get; set; }

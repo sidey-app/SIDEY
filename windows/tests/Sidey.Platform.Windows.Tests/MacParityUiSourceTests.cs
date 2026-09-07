@@ -178,10 +178,36 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("if (actionFrame is null", renderer, StringComparison.Ordinal);
         Assert.Contains("ShouldMirrorForVelocity(node.Agent.Velocity)", renderer, StringComparison.Ordinal);
         Assert.Contains("ShouldMirrorEmitter(cannon)", renderer, StringComparison.Ordinal);
-        Assert.Contains("projectile.Start = FootPoint(actor.Agent.TrackPosition)", renderer, StringComparison.Ordinal);
-        Assert.Contains("var endpoint = FootPoint(target.Agent.TrackPosition)", renderer, StringComparison.Ordinal);
+        Assert.Contains("CharacterCenterPoint(_nodeById[characterThrow.ActorUserId])", renderer, StringComparison.Ordinal);
+        Assert.Contains("CharacterCenterPoint(_nodeById[characterThrow.TargetUserId])", renderer, StringComparison.Ordinal);
+        Assert.Contains("projectile.Start = projectile.Trajectory.Start", renderer, StringComparison.Ordinal);
+        Assert.Contains("projectile.End = CharacterCenterPoint(target)", renderer, StringComparison.Ordinal);
+        Assert.Contains("projectile.Trajectory.PointAt(end, elapsed, _edge)", renderer, StringComparison.Ordinal);
+        Assert.DoesNotContain("projectile.Start = FootPoint", renderer, StringComparison.Ordinal);
+        Assert.DoesNotContain("_integerScale * 48d", renderer, StringComparison.Ordinal);
         Assert.Contains("point = ImpactPoint(end)", renderer, StringComparison.Ordinal);
         Assert.Contains("double inward = 10d * _dpiScale", renderer, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ProfileCosmeticButtonsUseTheNativeSubtleHoverStyle()
+    {
+        var document = System.Xml.Linq.XDocument.Parse(
+            ReadRepositoryFile("windows", "src", "Sidey.App", "MainWindow.xaml"));
+        System.Xml.Linq.XNamespace ui = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        System.Xml.Linq.XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+        foreach (var selectorName in new[] { "BubbleSelector", "ThrowableSelector" })
+        {
+            var selector = Assert.Single(document.Descendants(ui + "GridView"),
+                element => (string?)element.Attribute(xaml + "Name") == selectorName);
+            var button = Assert.Single(selector.Descendants(ui + "Button"));
+            // This native style shares SubtleFillColorSecondaryBrush with GridViewItem
+            // and retains pressed, disabled and keyboard-focus states without handlers.
+            Assert.Equal("{StaticResource SubtleButtonStyle}", (string?)button.Attribute("Style"));
+            Assert.Equal("8", (string?)button.Attribute("CornerRadius"));
+            Assert.Equal("{Binding SelectCommand}", (string?)button.Attribute("Command"));
+            Assert.Equal("{Binding IsEnabled}", (string?)button.Attribute("IsEnabled"));
+        }
     }
 
     [Fact]

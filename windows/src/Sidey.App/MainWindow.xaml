@@ -234,7 +234,7 @@
                     </GridView.ItemContainerStyle>
                     <GridView.ItemTemplate>
                       <DataTemplate>
-                        <Button Height="116" HorizontalAlignment="Stretch" Padding="2" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}">
+                        <Button Height="116" HorizontalAlignment="Stretch" Padding="2" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}" Style="{StaticResource SubtleButtonStyle}" CornerRadius="8">
                           <Grid MinHeight="98">
                             <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" Spacing="7">
                               <controls:StoreProductArtwork Height="58" ProductKind="{Binding Kind}" CatalogItemId="{Binding CatalogItemId}" CharacterId="{Binding CharacterId}" />
@@ -293,7 +293,7 @@
                     </GridView.ItemContainerStyle>
                     <GridView.ItemTemplate>
                       <DataTemplate>
-                        <Button Height="116" HorizontalAlignment="Stretch" Padding="2" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}">
+                        <Button Height="116" HorizontalAlignment="Stretch" Padding="2" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}" Style="{StaticResource SubtleButtonStyle}" CornerRadius="8">
                           <Grid MinHeight="98">
                             <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" Spacing="7">
                               <controls:StoreProductArtwork Height="58" ProductKind="{Binding Kind}" CatalogItemId="{Binding CatalogItemId}" CharacterId="{Binding CharacterId}" />
