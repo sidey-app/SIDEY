@@ -236,6 +236,23 @@ public sealed class MacParityUiSourceTests
     }
 
     [Fact]
+    public void ComposerConfiguresBorderlessPresenterBeforeAttachingItToTheWindow()
+    {
+        var source = ReadRepositoryFile("windows", "src", "Sidey.App", "ComposerWindow.xaml.cs");
+        int createIndex = source.IndexOf("OverlappedPresenter.Create()", StringComparison.Ordinal);
+        int borderIndex = source.IndexOf("presenter.SetBorderAndTitleBar(false, false)", StringComparison.Ordinal);
+        int attachIndex = source.IndexOf("AppWindow.SetPresenter(presenter)", StringComparison.Ordinal);
+
+        Assert.True(createIndex >= 0);
+        Assert.True(borderIndex > createIndex);
+        Assert.True(attachIndex > borderIndex);
+        Assert.DoesNotContain(
+            "AppWindow.Presenter is OverlappedPresenter",
+            source,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CharacterPreviewsDoNotKeepXamlCanvasResourcesAlive()
     {
         var xaml = ReadRepositoryFile(

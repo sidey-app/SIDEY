@@ -33,14 +33,16 @@ public sealed partial class ComposerWindow : Window
         SideyWindowIcon.Apply(AppWindow);
         ExtendsContentIntoTitleBar = true;
         AppWindow.IsShownInSwitchers = false;
-        if (AppWindow.Presenter is OverlappedPresenter presenter)
-        {
-            presenter.IsAlwaysOnTop = true;
-            presenter.IsMaximizable = false;
-            presenter.IsMinimizable = false;
-            presenter.IsResizable = false;
-            presenter.SetBorderAndTitleBar(false, false);
-        }
+
+        // Configure a detached presenter first. Mutating the live default presenter can
+        // fail-fast inside Microsoft.UI.Windowing/CoreMessaging on supported builds.
+        var presenter = OverlappedPresenter.Create();
+        presenter.IsAlwaysOnTop = true;
+        presenter.IsMaximizable = false;
+        presenter.IsMinimizable = false;
+        presenter.IsResizable = false;
+        presenter.SetBorderAndTitleBar(false, false);
+        AppWindow.SetPresenter(presenter);
 
         ViewModel.CloseRequested += OnCloseRequested;
         Activated += OnWindowActivated;

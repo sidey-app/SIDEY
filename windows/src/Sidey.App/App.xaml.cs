@@ -144,6 +144,7 @@ public partial class App : Application
             _window = _mainWindow;
             StartupDiagnostics.Stage("completed-launch-window-hidden");
         }
+        RunComposerStartupSmokeIfRequested();
         _singleInstance!.StartListening(RequestPrimaryActivation);
         try
         {
@@ -390,11 +391,51 @@ public partial class App : Application
             var viewModel = new ComposerViewModel();
             viewModel.SendRequested += OnSendRequested;
             viewModel.TypingChanged += OnTypingChanged;
-            _composer = new ComposerWindow(viewModel);
+            try
+            {
+                StartupDiagnostics.Stage("composer-window-create-started");
+                _composer = new ComposerWindow(viewModel);
+                StartupDiagnostics.Stage("composer-window-created");
+            }
+            catch (Exception exception)
+            {
+                viewModel.SendRequested -= OnSendRequested;
+                viewModel.TypingChanged -= OnTypingChanged;
+                viewModel.Dispose();
+                StartupDiagnostics.NonFatal("composer-window-create", exception);
+                return;
+            }
         }
 
         _composer.ShowAndFocus(
             _coordinator.State.Preferences.OverlayRegion.MonitorIdentifier);
+    }
+
+    private static void RunComposerStartupSmokeIfRequested()
+    {
+        if (!string.Equals(
+                Environment.GetEnvironmentVariable(
+                    WindowsVersionGuard.StartupSmokeEnvironmentVariable),
+                "1",
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var viewModel = new ComposerViewModel();
+        var composer = new ComposerWindow(viewModel);
+        composer.ShowAndFocus(monitorIdentifier: null);
+        if (composer.AppWindow.Presenter is not Microsoft.UI.Windowing.OverlappedPresenter presenter
+            || presenter.HasBorder
+            || presenter.HasTitleBar)
+        {
+            throw new InvalidOperationException(
+                "The startup composer probe did not retain its borderless presenter.");
+        }
+
+        composer.HideComposer();
+        composer.Close();
+        StartupDiagnostics.Stage("composer-smoke-complete");
     }
 
     private void OnSendRequested(string body) => _ = SendAsync(body);

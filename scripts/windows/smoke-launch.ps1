@@ -78,7 +78,7 @@ try {
                 Get-Content -LiteralPath $_.FullName -Raw
             }) -join [Environment]::NewLine
             $pidPattern = [regex]::Escape("pid=$($process.Id)")
-            if ($log -match "$pidPattern .*stage=(?:(?:main|onboarding)-window-activated|completed-launch-window-hidden)") {
+            if ($log -match "$pidPattern .*stage=composer-smoke-complete") {
                 $ready = $true
                 break
             }
@@ -96,7 +96,7 @@ try {
         else {
             '(SIDEY session log not found)'
         }
-        throw "SIDEY.exe did not activate its main or onboarding window within $TimeoutSeconds seconds.`n$tail"
+        throw "SIDEY.exe did not complete its startup composer probe within $TimeoutSeconds seconds.`n$tail"
     }
     Write-Host "StartupSmokeTest=true"
     Write-Host "ProcessId=$($process.Id)"
