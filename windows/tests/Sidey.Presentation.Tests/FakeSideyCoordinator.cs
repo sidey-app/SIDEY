@@ -255,7 +255,7 @@ internal sealed class FakeUpdateService : IUpdateService
 
     public int ReleaseNotesLaunchCount { get; private set; }
 
-    public Func<AvailableUpdate, CancellationToken, Task>? DownloadHandler { get; set; }
+    public Func<AvailableUpdate, IProgress<int>?, CancellationToken, Task>? DownloadHandler { get; set; }
 
     public Task<AvailableUpdate?> CheckAsync(CancellationToken cancellationToken = default)
     {
@@ -265,11 +265,12 @@ internal sealed class FakeUpdateService : IUpdateService
 
     public Task DownloadAndLaunchInstallerAsync(
         AvailableUpdate update,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<int>? progress = null)
     {
         _ = update;
         InstallerLaunchCount++;
-        return DownloadHandler?.Invoke(update, cancellationToken) ?? Task.CompletedTask;
+        return DownloadHandler?.Invoke(update, progress, cancellationToken) ?? Task.CompletedTask;
     }
 
     public Task OpenReleaseNotesAsync(Uri releaseNotesUri)

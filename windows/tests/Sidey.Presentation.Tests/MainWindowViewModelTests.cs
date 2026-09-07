@@ -766,7 +766,11 @@ public sealed class MainWindowViewModelTests
         var updates = new FakeUpdateService
         {
             AvailableUpdate = new AvailableUpdate("0.3.0-alpha.3"),
-            DownloadHandler = (_, _) => completion.Task,
+            DownloadHandler = (_, progress, _) =>
+            {
+                progress?.Report(42);
+                return completion.Task;
+            },
         };
         var viewModel = new MainWindowViewModel(
             coordinator,
@@ -774,10 +778,11 @@ public sealed class MainWindowViewModelTests
             updates);
 
         Task pending = viewModel.CheckForUpdatesCommand.ExecuteAsync(null);
+        await Task.Yield();
 
         Assert.True(viewModel.IsCheckingForUpdates);
         Assert.True(viewModel.HasUpdateActivity);
-        Assert.Contains("설정창을 닫아도", viewModel.UpdateActivityText, StringComparison.Ordinal);
+        Assert.Equal("업데이트를 다운로드하는 중입니다. (42%)", viewModel.UpdateActivityText);
         Assert.False(viewModel.CheckForUpdatesCommand.CanExecute(null));
 
         completion.SetResult();

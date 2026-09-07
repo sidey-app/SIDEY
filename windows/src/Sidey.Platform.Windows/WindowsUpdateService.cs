@@ -86,7 +86,8 @@ public sealed partial class WindowsUpdateService
 
     public async Task<string> DownloadInstallerAsync(
         WindowsUpdateManifest manifest,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<int>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(manifest);
         string updateDirectory = Path.Combine(
@@ -117,7 +118,40 @@ public sealed partial class WindowsUpdateService
                 bufferSize: 81920,
                 useAsync: true))
             {
-                await source.CopyToAsync(destination, cancellationToken).ConfigureAwait(false);
+                long? totalBytes = response.Content.Headers.ContentLength;
+                long downloadedBytes = 0;
+                var lastReportedPercentage = -1;
+                byte[] buffer = new byte[81920];
+
+                if (totalBytes is > 0)
+                {
+                    progress?.Report(0);
+                    lastReportedPercentage = 0;
+                }
+
+                int bytesRead;
+                while ((bytesRead = await source.ReadAsync(
+                    buffer,
+                    cancellationToken).ConfigureAwait(false)) > 0)
+                {
+                    await destination.WriteAsync(
+                        buffer.AsMemory(0, bytesRead),
+                        cancellationToken).ConfigureAwait(false);
+                    downloadedBytes += bytesRead;
+
+                    if (totalBytes is > 0)
+                    {
+                        int percentage = (int)Math.Clamp(
+                            downloadedBytes * 100d / totalBytes.Value,
+                            0d,
+                            100d);
+                        if (percentage != lastReportedPercentage)
+                        {
+                            progress?.Report(percentage);
+                            lastReportedPercentage = percentage;
+                        }
+                    }
+                }
             }
 
             string actualHash;

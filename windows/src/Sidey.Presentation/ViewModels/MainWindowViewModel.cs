@@ -376,7 +376,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
             }
 
             UpdateActivityText = I18n.Get("update.downloading");
-            await _updates.DownloadAndLaunchInstallerAsync(update);
+            var downloadProgress = new Progress<int>(percentage =>
+            {
+                UpdateActivityText = I18n.Format(
+                    "update.downloadingProgress",
+                    percentage);
+            });
+            await _updates.DownloadAndLaunchInstallerAsync(
+                update,
+                progress: downloadProgress);
             RaiseNotice(
                 I18n.Get("update.installerLaunched"),
                 NoticeKind.Success);

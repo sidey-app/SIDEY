@@ -56,7 +56,8 @@ internal sealed class WindowsUpdateServiceAdapter : IUpdateService
 
     public async Task DownloadAndLaunchInstallerAsync(
         AvailableUpdate update,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<int>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(update);
         if (update.InstallerUri is null || string.IsNullOrWhiteSpace(update.Sha256))
@@ -72,7 +73,8 @@ internal sealed class WindowsUpdateServiceAdapter : IUpdateService
             update.Sha256);
         string installerPath = await _service.DownloadInstallerAsync(
             manifest,
-            cancellationToken);
+            cancellationToken,
+            progress);
         WindowsUpdateService.LaunchInstaller(installerPath);
     }
 

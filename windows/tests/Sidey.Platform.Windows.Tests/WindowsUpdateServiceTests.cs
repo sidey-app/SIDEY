@@ -67,14 +67,19 @@ public sealed class WindowsUpdateServiceTests
             $"windows-v{version}",
             new Uri($"https://example.invalid/{installerName}"),
             sha256);
+        var reportedPercentages = new List<int>();
 
         try
         {
-            string actualPath = await service.DownloadInstallerAsync(manifest);
+            string actualPath = await service.DownloadInstallerAsync(
+                manifest,
+                progress: new InlineProgress<int>(reportedPercentages.Add));
 
             Assert.Equal(expectedPath, actualPath);
             Assert.Equal(installerBytes, await File.ReadAllBytesAsync(actualPath));
             Assert.False(File.Exists($"{expectedPath}.download"));
+            Assert.Equal(0, reportedPercentages.First());
+            Assert.Equal(100, reportedPercentages.Last());
         }
         finally
         {
@@ -195,5 +200,10 @@ public sealed class WindowsUpdateServiceTests
             _ = cancellationToken;
             return Task.FromResult(response);
         }
+    }
+
+    private sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 }
