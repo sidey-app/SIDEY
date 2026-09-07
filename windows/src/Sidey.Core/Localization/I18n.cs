@@ -84,6 +84,10 @@ public static class I18n
         {
             return "en-US";
         }
+        if (requested.StartsWith("ja", StringComparison.OrdinalIgnoreCase))
+        {
+            return "ja-JP";
+        }
 
         return DefaultLanguage;
     }

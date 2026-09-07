@@ -1,7 +1,5 @@
 {
-  "storePreview": {
-    "characterHint": "미리보기 캐릭터를 두 번 누르면 커지고, 친구 캐릭터를 누르면 투척물을 던져요."
-  },
+  "preview": { "moka": "모카", "dubu": "두부", "leftMessage": "저메추좀 해줘", "rightMessage": "곱도리탕 어때?" },
   "window": {
     "settingsTitle": "SIDEY 설정",
     "composerTitle": "SIDEY 메시지 입력",
@@ -172,7 +170,7 @@
       "kindCharacter": "캐릭터",
       "kindBubble": "말풍선",
       "kindThrowable": "투척물",
-      "filter": "필터",
+      "filter": "정렬 및 필터",
       "search": "검색",
       "searchPlaceholder": "상품 이름 또는 설명 검색",
       "sort": "정렬",

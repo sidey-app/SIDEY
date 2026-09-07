@@ -1024,32 +1024,22 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         double? pulseElapsed)
     {
         var center = BodyPoint(node);
-        var ambientOrigin = FootPoint(node.Agent.TrackPosition);
-        if (node.Member.Presence is not PresenceState.Offline and not PresenceState.Reconnecting)
+        var ambientOrigin = CharacterCenterPoint(node);
+        if (node.Member.Presence is PresenceState.Online or PresenceState.Typing)
         {
             double seedOffset = PositiveUnit(node.Member.Id.GetHashCode()) * 0.4d;
-            double phase = ((_tick * FixedDeltaTime) + seedOffset) % AmbientSparkleCycleSeconds;
+            double ambientElapsed = (_tick * FixedDeltaTime) + seedOffset;
             for (var index = 0; index < 5; index++)
             {
-                double progress = (phase - (index * 0.07d)) / AmbientSparkleDurationSeconds;
-                if (progress is < 0d or > 1d)
-                {
-                    continue;
-                }
-
-                double horizontalDip = -25d + (50d * PositiveUnit(
-                    node.Member.Id.GetHashCode() ^ (index * 7919)));
-                double verticalDip = 5d + (32d * PositiveUnit(
-                    node.Member.Id.GetHashCode() ^ (index * 1543) ^ 0x51A7));
-                double rise = 4d * progress * _dpiScale;
-                double opacity = Math.Sin(Math.PI * progress) * 0.96d;
-                double radius = (2.6d + (1.4d * PositiveUnit(index * 3571))) * _dpiScale;
+                var particle = StarlightSparkleLayout.Ambient(ambientElapsed, index, node.Member.Id.GetHashCode());
+                var point = StarlightSparkleLayout.Point(ambientOrigin,
+                    particle.Tangent * _dpiScale, particle.Normal * _dpiScale, _edge);
                 DrawSparkle(
                     destination,
-                    ambientOrigin.X + (horizontalDip * _dpiScale),
-                    ambientOrigin.Y - (verticalDip * _dpiScale) - rise,
-                    radius,
-                    opacity,
+                    point.X,
+                    point.Y,
+                    particle.Radius * _dpiScale,
+                    particle.Opacity,
                     SparkleColor(index));
             }
         }
@@ -1167,7 +1157,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private static double EaseOutCubic(double value) => 1d - Math.Pow(1d - value, 3d);
 
-    private static double PositiveUnit(int value) => (uint)value / (double)uint.MaxValue;
+    private static double PositiveUnit(int value) => StarlightSparkleLayout.Unit(value);
 
     private static (byte Red, byte Green, byte Blue) SparkleColor(int index) => (index % 3) switch
     {

@@ -20,7 +20,7 @@ public sealed partial class StorePreviewStage : UserControl
     private const double PreviewScale = RenderedCharacterSize / 48d;
     private const double RenderedFootBaseline = 9;
     private const double ProjectileSize = 48;
-    private const double ImpactSize = 64;
+    private const double ImpactSize = 72;
     private const double EmitterSize = 72;
     private const double ProjectilePathY = CharacterTop + (RenderedCharacterSize / 2d);
     private const double EmitterTop = PlatformTop - EmitterSize + RenderedFootBaseline;
@@ -55,10 +55,11 @@ public sealed partial class StorePreviewStage : UserControl
     private readonly HashSet<Guid> _stoppedIds = [];
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(1000d / 30d) };
     private readonly Stopwatch _clock = new();
-    private readonly Dictionary<string, IReadOnlyList<ImageSource>> _characters = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, IReadOnlyList<ImageSource>> _actions = new(StringComparer.Ordinal);
-    private readonly List<Image> _leftCharacterLayers = [];
-    private readonly List<Image> _rightCharacterLayers = [];
+    private readonly Dictionary<string, IReadOnlyList<PixelFrameSurface>> _characters = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, IReadOnlyList<PixelFrameSurface>> _actions = new(StringComparer.Ordinal);
+    private readonly List<NearestPixelImage> _leftCharacterLayers = [];
+    private readonly List<NearestPixelImage> _rightCharacterLayers = [];
+    private readonly List<PixelFrameSurface> _ownedFrames = [];
     private readonly EdgeTrackGeometry _movementGeometry = new(
         new RectD(0, 0, StageWidth, 280),
         OverlayEdge.Bottom,
@@ -72,8 +73,8 @@ public sealed partial class StorePreviewStage : UserControl
     private double _manualThrowStartX;
     private double _manualThrowArcHeight;
     private readonly CancellationToken _lifetimeToken;
-    private IReadOnlyList<ImageSource> _projectileFrames = Array.Empty<ImageSource>();
-    private IReadOnlyList<ImageSource> _emitterFrames = Array.Empty<ImageSource>();
+    private IReadOnlyList<PixelFrameSurface> _projectileFrames = Array.Empty<PixelFrameSurface>();
+    private IReadOnlyList<PixelFrameSurface> _emitterFrames = Array.Empty<PixelFrameSurface>();
     private double _manualThrowStarted = -10;
     private double _manualThrowFlightDuration = 0.55;
     private double _lastSceneElapsed;
@@ -135,6 +136,7 @@ public sealed partial class StorePreviewStage : UserControl
         StopAnimation();
         CancelPendingLoad();
         Interlocked.Increment(ref _loadGeneration);
+        ReleasePixelFrames();
         StartupDiagnostics.Stage("store-preview-presentation-ended");
     }
 
@@ -223,10 +225,10 @@ public sealed partial class StorePreviewStage : UserControl
                 string path = Path.Combine(
                     root,
                     definition.SpriteSheetResource.Replace('/', Path.DirectorySeparatorChar));
-                var frames = new ImageSource[6];
+                var frames = new PixelFrameSurface[6];
                 for (int frame = 0; frame < frames.Length; frame++)
                 {
-                    frames[frame] = await StorePreviewImageLoader.LoadFrameAsync(
+                    frames[frame] = await LoadPixelFrameAsync(
                         path,
                         checked((uint)definition.FrameWidth),
                         checked((uint)definition.FrameHeight),
@@ -238,10 +240,10 @@ public sealed partial class StorePreviewStage : UserControl
                 _characters[id] = frames;
 
                 string actionPath = Path.Combine(root, "Characters", id, "throw_hit.png");
-                var actionFrames = new ImageSource[8];
+                var actionFrames = new PixelFrameSurface[8];
                 for (int frame = 0; frame < actionFrames.Length; frame++)
                 {
-                    actionFrames[frame] = await StorePreviewImageLoader.LoadFrameAsync(
+                    actionFrames[frame] = await LoadPixelFrameAsync(
                         actionPath,
                         frameWidth: 24,
                         frameHeight: 24,
@@ -273,10 +275,10 @@ public sealed partial class StorePreviewStage : UserControl
                     ? CatalogItemId
                     : StoreProductArtwork.SignatureObject(CharacterId);
                 string objectPath = Path.Combine(root, "Throwables", objectId, "sprite.png");
-                var projectileFrames = new ImageSource[12];
+                var projectileFrames = new PixelFrameSurface[12];
                 for (int frame = 0; frame < projectileFrames.Length; frame++)
                 {
-                    projectileFrames[frame] = await StorePreviewImageLoader.LoadFrameAsync(
+                    projectileFrames[frame] = await LoadPixelFrameAsync(
                         objectPath,
                         frameWidth: 16,
                         frameHeight: 16,
@@ -294,10 +296,10 @@ public sealed partial class StorePreviewStage : UserControl
                 if (objectId == "throwable_toy_cannon")
                 {
                     string emitterPath = Path.Combine(root, "Throwables", objectId, "emitter.png");
-                    var emitterFrames = new ImageSource[4];
+                    var emitterFrames = new PixelFrameSurface[4];
                     for (int frame = 0; frame < emitterFrames.Length; frame++)
                     {
-                        emitterFrames[frame] = await StorePreviewImageLoader.LoadFrameAsync(
+                        emitterFrames[frame] = await LoadPixelFrameAsync(
                             emitterPath,
                             frameWidth: 24,
                             frameHeight: 24,
@@ -360,6 +362,40 @@ public sealed partial class StorePreviewStage : UserControl
 
     private bool IsCurrentPresentation(int generation) =>
         _isPresented && generation == Volatile.Read(ref _presentationGeneration);
+
+    private async Task<PixelFrameSurface> LoadPixelFrameAsync(
+        string path, uint frameWidth, uint frameHeight, int frame,
+        uint renderedWidth, uint renderedHeight, CancellationToken cancellationToken)
+    {
+        var source = await StorePreviewImageLoader.LoadPixelFrameAsync(
+            path, frameWidth, frameHeight, frame, renderedWidth, renderedHeight, cancellationToken);
+        if (cancellationToken.IsCancellationRequested || !_isPresented)
+        {
+            source.Dispose();
+            throw new OperationCanceledException(cancellationToken);
+        }
+        _ownedFrames.Add(source);
+        return source;
+    }
+
+    private void ReleasePixelFrames()
+    {
+        foreach (var layer in _leftCharacterLayers.Concat(_rightCharacterLayers)) layer.Source = null;
+        ProjectileImage.Source = null;
+        ImpactImage.Source = null;
+        EmitterImage.Source = null;
+        LeftCharacterHost.Children.Clear();
+        RightCharacterHost.Children.Clear();
+        _leftCharacterLayers.Clear();
+        _rightCharacterLayers.Clear();
+        foreach (var source in _ownedFrames) source.Dispose();
+        _ownedFrames.Clear();
+        _characters.Clear();
+        _actions.Clear();
+        _projectileFrames = [];
+        _emitterFrames = [];
+        _resourcesLoaded = false;
+    }
 
     private void ThrowIfLoadExpired(int generation, CancellationToken cancellationToken)
     {
@@ -586,7 +622,7 @@ public sealed partial class StorePreviewStage : UserControl
     }
 
     private static void ApplyCharacterFrame(
-        IReadOnlyList<Image> layers,
+        IReadOnlyList<NearestPixelImage> layers,
         ScaleTransform transform,
         string characterId,
         int frame,
@@ -601,7 +637,7 @@ public sealed partial class StorePreviewStage : UserControl
     }
 
     private static void ApplyActionFrame(
-        IReadOnlyList<Image> layers,
+        IReadOnlyList<NearestPixelImage> layers,
         ScaleTransform transform,
         string characterId,
         int frame,
@@ -616,7 +652,7 @@ public sealed partial class StorePreviewStage : UserControl
     }
 
     private void ApplyCharacterPose(
-        IReadOnlyList<Image> layers,
+        IReadOnlyList<NearestPixelImage> layers,
         ScaleTransform transform,
         string characterId,
         int baseFrame,
@@ -672,19 +708,18 @@ public sealed partial class StorePreviewStage : UserControl
 
     private static void BuildCharacterLayers(
         Grid host,
-        List<Image> layers,
-        IReadOnlyList<ImageSource> movementFrames,
-        IReadOnlyList<ImageSource> actionFrames)
+        List<NearestPixelImage> layers,
+        IReadOnlyList<PixelFrameSurface> movementFrames,
+        IReadOnlyList<PixelFrameSurface> actionFrames)
     {
         host.Children.Clear();
         layers.Clear();
-        foreach (ImageSource source in movementFrames.Concat(actionFrames))
+        foreach (PixelFrameSurface source in movementFrames.Concat(actionFrames))
         {
-            var layer = new Image
+            var layer = new NearestPixelImage
             {
                 Width = RenderedCharacterSize,
                 Height = RenderedCharacterSize,
-                Stretch = Stretch.None,
                 Source = source,
                 Opacity = 0,
                 IsHitTestVisible = false,
@@ -695,7 +730,7 @@ public sealed partial class StorePreviewStage : UserControl
     }
 
     private static void ShowCharacterLayer(
-        IReadOnlyList<Image> layers,
+        IReadOnlyList<NearestPixelImage> layers,
         int requestedLayer,
         ref int visibleLayer)
     {
@@ -713,7 +748,7 @@ public sealed partial class StorePreviewStage : UserControl
         visibleLayer = nextLayer;
     }
 
-    private static void SetImageSource(Image image, ImageSource source)
+    private static void SetImageSource(NearestPixelImage image, PixelFrameSurface source)
     {
         if (!ReferenceEquals(image.Source, source))
         {
@@ -729,7 +764,7 @@ public sealed partial class StorePreviewStage : UserControl
         bool typing = local < 1;
         BubbleText.Text = typing
             ? new string('.', 1 + ((int)(local / TypingFrameSeconds) % 3))
-            : fromLeft ? "저메추좀 해줘" : "곱도리탕 어때?";
+            : I18n.Get(fromLeft ? "preview.leftMessage" : "preview.rightMessage");
         BubbleText.FontSize = typing ? BubbleTypingFontSize : BubbleMessageFontSize;
         BubbleText.Margin = typing
             ? new Thickness(6, 1.5, 6, 1.5)
@@ -971,27 +1006,19 @@ public sealed partial class StorePreviewStage : UserControl
             return;
         }
 
-        double phase = elapsed % AmbientSparkleCycleSeconds;
         for (int index = 0; index < _sparkles.Count; index++)
         {
-            double local = phase - (index * 0.045);
             var star = _sparkles[index];
-            if (local < 0 || local > AmbientSparkleDurationSeconds)
-            {
-                star.Opacity = 0;
-                continue;
-            }
-
-            double progress = local / AmbientSparkleDurationSeconds;
-            double horizontal = -25 + (50 * Unit((index + 1) * 7919));
-            double vertical = 5 + (32 * Unit(((index + 1) * 1543) ^ 0x51A7));
-            double rise = 4 * progress;
+            var particle = StarlightSparkleLayout.Ambient(elapsed, index, 0x51DE59);
             double radius = 3 + ((index % 3) * 0.5);
-            Canvas.SetLeft(
-                star,
-                leftX + (RenderedCharacterSize / 2d) + horizontal - radius);
-            Canvas.SetTop(star, PlatformTop - vertical - rise - radius);
-            star.Opacity = Math.Sin(Math.PI * progress) * 0.96;
+            var point = StarlightSparkleLayout.Point(
+                (leftX + (RenderedCharacterSize / 2d), ProjectilePathY),
+                particle.Tangent * PreviewScale, particle.Normal * PreviewScale, OverlayEdge.Bottom);
+            Canvas.SetLeft(star, point.X - radius);
+            Canvas.SetTop(star, point.Y - radius);
+            var scale = (ScaleTransform)star.RenderTransform;
+            scale.ScaleX = scale.ScaleY = particle.Radius * PreviewScale / radius;
+            star.Opacity = particle.Opacity;
         }
         UpdatePulseSparkles(elapsed - _pulseStarted, leftX);
     }
@@ -1106,6 +1133,7 @@ public sealed partial class StorePreviewStage : UserControl
         while (!_resourcesLoaded && !_loadFailed && DateTimeOffset.UtcNow < deadline)
             await Task.Delay(50);
         if (!_resourcesLoaded) throw new InvalidOperationException("Store preview smoke: resources unavailable.");
+        await Task.Delay(80);
         _timer.Stop();
         if (!TriggerPreviewPulse()) throw new InvalidOperationException("Store preview smoke: pulse rejected.");
         _pulseStarted = _clock.Elapsed.TotalSeconds - 0.2;
@@ -1113,6 +1141,9 @@ public sealed partial class StorePreviewStage : UserControl
         if (Math.Abs(LeftCharacterScale.ScaleX) < 2.99 || LeftCharacterScale.ScaleY < 2.99
             || LeftCharacterScale.CenterY != RenderedCharacterSize - RenderedFootBaseline)
             throw new InvalidOperationException("Store preview smoke: pulse scale or foot anchor mismatch.");
+        if (!_leftCharacterLayers[_leftVisibleCharacterLayer].IsNearestReady
+            || Canvas.GetZIndex(LeftNameplate) <= Canvas.GetZIndex(LeftCharacterHost))
+            throw new InvalidOperationException("Store preview smoke: nearest filtering or nameplate layering missing.");
         if (PixelCharacterCatalog.Get(CharacterId).VisualEffect == PixelCharacterVisualEffect.StarlightSparkles)
         {
             UpdateSparkles(0.3, Canvas.GetLeft(LeftCharacterHost), CharacterId);
@@ -1126,6 +1157,9 @@ public sealed partial class StorePreviewStage : UserControl
         UpdateScene();
         if (ProjectileImage.Visibility != Visibility.Visible)
             throw new InvalidOperationException("Store preview smoke: projectile missing.");
+        await Task.Delay(50);
+        if (!ProjectileImage.IsNearestReady)
+            throw new InvalidOperationException("Store preview smoke: projectile surface not resident.");
         var target = _movementAgents[1];
         double destination = target.Target;
         _manualThrowStarted = _clock.Elapsed.TotalSeconds - ThrowReleaseSeconds - _manualThrowFlightDuration - 0.05;
@@ -1138,7 +1172,7 @@ public sealed partial class StorePreviewStage : UserControl
         if (LeftCharacterScale.ScaleY != 1 || _pulseSparkles.Any(star => star.Opacity > 0))
             throw new InvalidOperationException("Store preview smoke: pulse did not settle.");
         EndPresentation();
-        if (_timer.IsEnabled || TriggerPreviewPulse() || TriggerPreviewThrow())
+        if (_timer.IsEnabled || _ownedFrames.Count != 0 || TriggerPreviewPulse() || TriggerPreviewThrow())
             throw new InvalidOperationException("Store preview smoke: closed preview still active.");
         StartupDiagnostics.Stage($"store-preview-interaction-smoke-complete character={CharacterId}");
     }

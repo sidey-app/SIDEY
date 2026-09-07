@@ -526,7 +526,7 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("ProjectileSize = 48", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("ProjectilePathY = CharacterTop", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("controlY = ProjectilePathY - arcHeight", previewStageSource, StringComparison.Ordinal);
-        Assert.Contains("ImpactSize = 64", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("ImpactSize = 72", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("EmitterSize = 72", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("BubbleTypingWidth = 63", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("BubbleMessageFontSize = 16.5", previewStageSource, StringComparison.Ordinal);
@@ -555,7 +555,7 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("x:Name=\"ImpactImage\"", previewStage, StringComparison.Ordinal);
         Assert.Contains("EmitterScale.ScaleX = leftToRight ? 1 : -1", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("throw_hit.png", previewStageSource, StringComparison.Ordinal);
-        Assert.Contains("projectileFrames = new ImageSource[12]", previewStageSource, StringComparison.Ordinal);
+        Assert.Contains("projectileFrames = new PixelFrameSurface[12]", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("StartAnimation", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("StopAnimation", previewStageSource, StringComparison.Ordinal);
         Assert.Contains("_timer.Start()", previewStageSource, StringComparison.Ordinal);
