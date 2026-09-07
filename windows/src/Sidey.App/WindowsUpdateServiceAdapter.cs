@@ -29,6 +29,19 @@ internal sealed class WindowsUpdateServiceAdapter : IUpdateService
 
     public Uri CurrentReleaseNotesUri => ReleaseNotesUri(CurrentVersion);
 
+    public async Task CleanupInstalledUpdatesAsync()
+    {
+        try
+        {
+            int deletedFiles = await Task.Run(_service.CleanupInstalledUpdates);
+            StartupDiagnostics.Stage($"update-cache-cleanup deleted-files={deletedFiles}");
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal("update-cache-cleanup", exception);
+        }
+    }
+
     public async Task<AvailableUpdate?> CheckAsync(CancellationToken cancellationToken = default)
     {
         StartupDiagnostics.Stage("update-check-started");

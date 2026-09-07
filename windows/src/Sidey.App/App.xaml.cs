@@ -15,7 +15,7 @@ public partial class App : Application
     private static readonly TimeSpan DisplayTopologyRefreshDelay = TimeSpan.FromMilliseconds(500);
 
     private readonly DispatcherQueue _dispatcherQueue;
-    private readonly IUpdateService _updateService;
+    private readonly WindowsUpdateServiceAdapter _updateService;
     private Window? _window;
     private MainWindow? _mainWindow;
     private OnboardingWindow? _onboardingWindow;
@@ -209,6 +209,7 @@ public partial class App : Application
 
         StartupDiagnostics.MarkRunning();
         StartUiResponsivenessMonitor();
+        _ = _updateService.CleanupInstalledUpdatesAsync();
     }
 
     private void StartUiResponsivenessMonitor()
