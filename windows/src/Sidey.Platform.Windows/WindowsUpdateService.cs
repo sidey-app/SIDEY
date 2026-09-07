@@ -15,12 +15,25 @@ public sealed record WindowsUpdateManifest(
     Uri InstallerUri,
     string Sha256);
 
-public sealed partial class WindowsUpdateService(HttpClient? httpClient = null)
+public sealed partial class WindowsUpdateService
 {
     public const string CurrentVersion = "1.0.10";
     public static readonly Uri ManifestUri = new(
         "https://sidey-app.github.io/SIDEY/windows-latest.json");
-    private readonly HttpClient _httpClient = httpClient ?? new HttpClient();
+    private readonly HttpClient _httpClient;
+
+    public WindowsUpdateService(
+        HttpClient? httpClient = null,
+        string? currentVersion = null)
+    {
+        _httpClient = httpClient ?? new HttpClient();
+        EffectiveCurrentVersion = string.IsNullOrWhiteSpace(currentVersion)
+            ? CurrentVersion
+            : currentVersion;
+        _ = ParsedVersion.Parse(EffectiveCurrentVersion);
+    }
+
+    public string EffectiveCurrentVersion { get; }
 
     public async Task<WindowsUpdateManifest?> CheckAsync(
         CancellationToken cancellationToken = default)
@@ -46,7 +59,7 @@ public sealed partial class WindowsUpdateService(HttpClient? httpClient = null)
             throw new InvalidDataException(I18n.Get("update.invalidManifest"));
         }
 
-        if (!IsNewerVersion(manifest.Version, CurrentVersion))
+        if (!IsNewerVersion(manifest.Version, EffectiveCurrentVersion))
         {
             return null;
         }

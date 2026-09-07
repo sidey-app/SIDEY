@@ -118,6 +118,32 @@ public sealed class WindowsUpdateServiceTests
     }
 
     [Fact]
+    public async Task InjectedArtifactVersionCanExerciseAnAlreadyPublishedUpdate()
+    {
+        const string manifest = """
+            {
+              "channel": "production",
+              "version": "1.0.10",
+              "tag": "windows-v1.0.10",
+              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.10/SIDEY-Windows-x64-v1.0.10-Setup.exe",
+              "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+            }
+            """;
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
+        };
+        using var client = new HttpClient(new StubHandler(response));
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.9");
+
+        WindowsUpdateManifest? update = await service.CheckAsync();
+
+        Assert.Equal("1.0.9", service.EffectiveCurrentVersion);
+        Assert.NotNull(update);
+        Assert.Equal("1.0.10", update.Version);
+    }
+
+    [Fact]
     public async Task NewerManifestWithoutInstallerMetadataIsRejected()
     {
         const string manifest = """

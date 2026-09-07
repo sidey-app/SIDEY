@@ -13,14 +13,17 @@ internal sealed class WindowsUpdateServiceAdapter : IUpdateService
         SideyStoragePaths.LocalApplicationDataRoot(),
         "SIDEY",
         "update-last-checked.txt");
-    private readonly WindowsUpdateService _service = new();
+    private readonly WindowsUpdateService _service;
 
     public WindowsUpdateServiceAdapter()
     {
+        string artifactVersion = typeof(App).Assembly.GetName().Version?.ToString(3)
+            ?? WindowsUpdateService.CurrentVersion;
+        _service = new WindowsUpdateService(currentVersion: artifactVersion);
         LastCheckedAt = ReadLastCheckedAt();
     }
 
-    public string CurrentVersion => WindowsUpdateService.CurrentVersion;
+    public string CurrentVersion => _service.EffectiveCurrentVersion;
 
     public DateTimeOffset? LastCheckedAt { get; private set; }
 

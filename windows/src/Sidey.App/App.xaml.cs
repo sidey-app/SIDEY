@@ -426,15 +426,15 @@ public partial class App : Application
         var composer = new ComposerWindow(viewModel);
         composer.ShowAndFocus(monitorIdentifier: null);
         if (composer.AppWindow.Presenter is not Microsoft.UI.Windowing.OverlappedPresenter presenter
-            || presenter.HasBorder
-            || presenter.HasTitleBar)
+            || !presenter.HasBorder
+            || !presenter.HasTitleBar)
         {
             throw new InvalidOperationException(
-                "The startup composer probe did not retain its borderless presenter.");
+                "The startup composer probe did not retain its stable system chrome.");
         }
 
         composer.HideComposer();
-        composer.Close();
+        composer.CloseForExit();
         StartupDiagnostics.Stage("composer-smoke-complete");
     }
 
@@ -1109,7 +1109,7 @@ public partial class App : Application
         {
             _composer.ViewModel.SendRequested -= OnSendRequested;
             _composer.ViewModel.TypingChanged -= OnTypingChanged;
-            _composer.Close();
+            _composer.CloseForExit();
             _composer = null;
         }
         if (_historyWindow is not null)

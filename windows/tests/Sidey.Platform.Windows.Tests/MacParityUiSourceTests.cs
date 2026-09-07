@@ -231,25 +231,22 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("WindowActivationState.Deactivated", source, StringComparison.Ordinal);
         Assert.Contains("HideComposer();", source, StringComparison.Ordinal);
         Assert.Contains("ViewModel.OnHidden();", source, StringComparison.Ordinal);
+        Assert.Contains("AppWindow.ResizeClient", source, StringComparison.Ordinal);
+        Assert.Contains("AppWindow.Closing += OnAppWindowClosing", source, StringComparison.Ordinal);
+        Assert.Contains("args.Cancel = true", source, StringComparison.Ordinal);
+        Assert.Contains("CloseForExit()", source, StringComparison.Ordinal);
         Assert.Contains("CancelAutoClose();", viewModel, StringComparison.Ordinal);
         Assert.Contains("TimeSpan.FromSeconds(5)", viewModel, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ComposerConfiguresBorderlessPresenterBeforeAttachingItToTheWindow()
+    public void ComposerDoesNotMutateBorderOrTitleBarAtRuntime()
     {
         var source = ReadRepositoryFile("windows", "src", "Sidey.App", "ComposerWindow.xaml.cs");
-        int createIndex = source.IndexOf("OverlappedPresenter.Create()", StringComparison.Ordinal);
-        int borderIndex = source.IndexOf("presenter.SetBorderAndTitleBar(false, false)", StringComparison.Ordinal);
-        int attachIndex = source.IndexOf("AppWindow.SetPresenter(presenter)", StringComparison.Ordinal);
 
-        Assert.True(createIndex >= 0);
-        Assert.True(borderIndex > createIndex);
-        Assert.True(attachIndex > borderIndex);
-        Assert.DoesNotContain(
-            "AppWindow.Presenter is OverlappedPresenter",
-            source,
-            StringComparison.Ordinal);
+        Assert.DoesNotContain("SetBorderAndTitleBar", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("AppWindow.SetPresenter", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExtendsContentIntoTitleBar", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -745,6 +742,24 @@ public sealed class MacParityUiSourceTests
         Assert.Contains("winget install NSIS.NSIS", workflow, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("--version 3.12", workflow, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("SelfSigned", workflow, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void UpdateDesignTestUsesTheArtifactVersionWithoutLoweringReleaseSources()
+    {
+        var adapter = ReadRepositoryFile(
+            "windows", "src", "Sidey.App", "WindowsUpdateServiceAdapter.cs");
+        var script = ReadRepositoryFile(
+            "scripts", "windows", "start-update-design-test.ps1");
+
+        Assert.Contains(
+            "typeof(App).Assembly.GetName().Version?.ToString(3)",
+            adapter,
+            StringComparison.Ordinal);
+        Assert.Contains("-p:Version=$TestVersion", script, StringComparison.Ordinal);
+        Assert.Contains("-p:FileVersion=$TestVersion.0", script, StringComparison.Ordinal);
+        Assert.Contains("-p:AssemblyVersion=$TestVersion.0", script, StringComparison.Ordinal);
+        Assert.Contains("[Version]$TestVersion -ge $publicVersion", script, StringComparison.Ordinal);
     }
 
     [Fact]

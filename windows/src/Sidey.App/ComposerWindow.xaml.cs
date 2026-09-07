@@ -21,6 +21,7 @@ public sealed partial class ComposerWindow : Window
     private bool _isHiding;
     private bool _isVisible;
     private bool _isClosed;
+    private bool _allowClose;
     private int _focusRequestId;
 
     public ComposerWindow(ComposerViewModel viewModel)
@@ -31,21 +32,18 @@ public sealed partial class ComposerWindow : Window
         ComposerRoot.DataContext = ViewModel;
         Title = I18n.Get("window.composerTitle");
         SideyWindowIcon.Apply(AppWindow);
-        ExtendsContentIntoTitleBar = true;
         AppWindow.IsShownInSwitchers = false;
-
-        // Configure a detached presenter first. Mutating the live default presenter can
-        // fail-fast inside Microsoft.UI.Windowing/CoreMessaging on supported builds.
-        var presenter = OverlappedPresenter.Create();
-        presenter.IsAlwaysOnTop = true;
-        presenter.IsMaximizable = false;
-        presenter.IsMinimizable = false;
-        presenter.IsResizable = false;
-        presenter.SetBorderAndTitleBar(false, false);
-        AppWindow.SetPresenter(presenter);
+        if (AppWindow.Presenter is OverlappedPresenter presenter)
+        {
+            presenter.IsAlwaysOnTop = true;
+            presenter.IsMaximizable = false;
+            presenter.IsMinimizable = false;
+            presenter.IsResizable = false;
+        }
 
         ViewModel.CloseRequested += OnCloseRequested;
         Activated += OnWindowActivated;
+        AppWindow.Closing += OnAppWindowClosing;
         Closed += OnWindowClosed;
     }
 
@@ -104,6 +102,17 @@ public sealed partial class ComposerWindow : Window
         Activate();
         SideyWindowActivation.BringToForeground(this);
         RequestMessageInputFocus();
+    }
+
+    public void CloseForExit()
+    {
+        if (_isClosed)
+        {
+            return;
+        }
+
+        _allowClose = true;
+        Close();
     }
 
     private void OnMessageInputPreviewKeyDown(object sender, KeyRoutedEventArgs args)
@@ -179,6 +188,20 @@ public sealed partial class ComposerWindow : Window
         }
     }
 
+    private void OnAppWindowClosing(
+        AppWindow sender,
+        AppWindowClosingEventArgs args)
+    {
+        _ = sender;
+        if (_allowClose)
+        {
+            return;
+        }
+
+        args.Cancel = true;
+        OnCloseRequested();
+    }
+
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
         _ = sender;
@@ -187,6 +210,7 @@ public sealed partial class ComposerWindow : Window
         _focusRequestId++;
         _focusRequested = false;
         _isVisible = false;
+        AppWindow.Closing -= OnAppWindowClosing;
         ViewModel.CloseRequested -= OnCloseRequested;
         ViewModel.Dispose();
     }
@@ -231,11 +255,12 @@ public sealed partial class ComposerWindow : Window
         double scale = monitor.Dpi / 96d;
         int width = (int)Math.Round(ComposerWidth * scale, MidpointRounding.AwayFromZero);
         int height = (int)Math.Round(ComposerHeight * scale, MidpointRounding.AwayFromZero);
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(width, height));
+        AppWindow.ResizeClient(new Windows.Graphics.SizeInt32(width, height));
 
         NativePixelRect workArea = monitor.WorkAreaPixels;
+        Windows.Graphics.SizeInt32 windowSize = AppWindow.Size;
         AppWindow.Move(new Windows.Graphics.PointInt32(
-            workArea.X + ((workArea.Width - width) / 2),
+            workArea.X + ((workArea.Width - windowSize.Width) / 2),
             workArea.Y + (int)Math.Round(10 * scale)));
     }
 }
