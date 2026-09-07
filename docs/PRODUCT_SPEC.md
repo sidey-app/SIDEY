@@ -612,6 +612,8 @@ SHA-256은 PowerShell에서 `Get-FileHash .\SIDEY-Windows-x64-v1.0.5.msi -Algori
 
 ### 10.6 Windows v1.0.6 이후 Setup EXE 배포 기준
 
+앱 시작 완료 후 백그라운드에서 `%TEMP%\SIDEY\Updates\<version>`의 다운로드 캐시를 정리한다. 실행 중인 앱 버전 이하의 버전에 맞는 SIDEY Setup EXE·기존 MSI와 해당 `.download` 파일만 삭제하고 빈 버전 폴더만 제거한다. 더 높은 버전, 버전을 해석할 수 없는 폴더, 무관한 파일·하위 폴더와 링크는 보존한다. 파일 잠금·접근 권한으로 정리하지 못하면 앱 실행을 계속하며 다음 시작 때 재시도한다.
+
 v1.0.6부터 Windows 릴리스는 NSIS `3.12`로 만든 머신 단위 `SIDEY-Windows-x64-v<version>-Setup.exe` 하나만 게시한다. 새 설치에서는 기본 `C:\Program Files\SIDEY` 대신 다른 위치를 선택할 수 있으며 업데이트와 복구는 저장된 위치를 다시 사용한다. 같은 버전을 실행하면 복구·제거·닫기를 제공하고 더 낮은 버전은 차단한다.
 
 신규 설치와 새 버전 업그레이드에서는 공개 `/ko/terms/`를 생성하는 `website/src/pages/ko/terms.md` 원문을 패키징 시 Markdown 표식이 없는 UTF-8 일반 텍스트로 변환해 설치기 안에 포함한다. 약관 페이지는 본문과 필수 동의 체크박스를 표시하며, 사용자가 직접 체크하기 전에는 다음 단계로 진행할 수 없다. 같은 버전의 복구·제거·닫기와 일반 제거 흐름에는 약관 동의를 다시 요구하지 않는다.
