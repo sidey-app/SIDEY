@@ -35,6 +35,7 @@ public sealed class AtomicPreferencesStoreTests
             Assert.Null(preferences.CachedNickname);
             Assert.Null(preferences.CachedCharacterId);
             Assert.False(preferences.RequiresRightClickToThrow);
+            Assert.Null(preferences.Language);
         }
         finally
         {
@@ -56,6 +57,7 @@ public sealed class AtomicPreferencesStoreTests
             ShowOfflineMembers = false,
             RequiresRightClickToThrow = true,
             StartAtLogin = true,
+            Language = "ja-JP",
             CachedNickname = "윈도우 테스트",
             CachedCharacterId = "pixel_penguin",
             ActiveRoomId = activeRoomId,

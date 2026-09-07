@@ -124,6 +124,7 @@ public partial class App : Application
         }
 
         StartupDiagnostics.Stage("cached-settings-loaded");
+        I18n.SetLanguage(coordinator.State.Preferences.Language);
         coordinator.ComposerRequested += RequestComposer;
         coordinator.PulseRequested += RequestPulse;
         coordinator.CharacterThrowRequested += RequestCharacterThrow;
@@ -432,6 +433,16 @@ public partial class App : Application
                 }
                 finally { stage.EndPresentation(); }
             }
+            var cannonStage = new Controls.StorePreviewStage(
+                Sidey.Core.Domain.CommerceProductKind.Throwable, "throwable_toy_cannon", "pixel_hamster");
+            try
+            {
+                window.Content = cannonStage;
+                window.Activate();
+                cannonStage.BeginPresentation();
+                await cannonStage.VerifyInteractionSmokeAsync();
+            }
+            finally { cannonStage.EndPresentation(); }
         }
         finally { window.Close(); }
     }

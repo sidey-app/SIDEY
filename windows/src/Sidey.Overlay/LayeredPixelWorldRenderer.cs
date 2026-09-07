@@ -448,6 +448,9 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 desaturate: node.Member.Presence == PresenceState.Offline);
             if (ActiveCannonProjectile(node.Member.Id) is { } cannon)
             {
+                bool emitterMirrored = ShouldMirrorEmitter(cannon);
+                var emitterCenter = CannonEmitterLayout.Center(
+                    CharacterCenterPoint(node), emitterMirrored, _edge, _integerScale / 2d);
                 var emitterFrame = Math.Min(
                     CharacterThrowFrameCache.EmitterFrameCount - 1,
                     (int)(Stopwatch.GetElapsedTime(cannon.StartedAt).TotalSeconds
@@ -456,10 +459,10 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                     destinationPixels,
                     _throwFrameCache.CannonEmitterFrame(
                         emitterFrame,
-                        ShouldMirrorEmitter(cannon)),
+                        emitterMirrored),
                     cached.PixelSize,
-                    baseDestination.X - _renderBounds.X,
-                    baseDestination.Y - _renderBounds.Y,
+                    (int)Math.Round(emitterCenter.X - (cached.PixelSize / 2d)) - _renderBounds.X,
+                    (int)Math.Round(emitterCenter.Y - (cached.PixelSize / 2d)) - _renderBounds.Y,
                     1d,
                     1d);
             }
@@ -1497,12 +1500,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
         double actorPosition = actor.Agent.TrackPosition;
         double targetPosition = target.Agent.TrackPosition;
-        return _edge switch
-        {
-            OverlayEdge.Bottom or OverlayEdge.Right => targetPosition < actorPosition,
-            OverlayEdge.Top or OverlayEdge.Left => targetPosition > actorPosition,
-            _ => throw new ArgumentOutOfRangeException(),
-        };
+        return CannonEmitterLayout.ShouldMirror(actorPosition, targetPosition, _edge);
     }
 
     private double ClampedBubbleVisualTangentStart(

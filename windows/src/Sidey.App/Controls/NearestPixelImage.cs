@@ -26,7 +26,6 @@ public sealed class NearestPixelImage : Grid
         IsHitTestVisible = false;
         Loaded += (_, _) => Attach();
         Unloaded += (_, _) => Detach();
-        SizeChanged += (_, _) => UpdateSize();
     }
 
     internal PixelFrameSurface? Source
@@ -40,7 +39,9 @@ public sealed class NearestPixelImage : Grid
     }
 
     internal bool IsNearestReady => _brush?.Surface is not null
-        && _brush.BitmapInterpolationMode == CompositionBitmapInterpolationMode.NearestNeighbor;
+        && _brush.BitmapInterpolationMode == CompositionBitmapInterpolationMode.NearestNeighbor
+        && _visual?.RelativeSizeAdjustment == Vector2.One
+        && ActualWidth > 0 && ActualHeight > 0;
 
     private void Attach()
     {
@@ -51,13 +52,9 @@ public sealed class NearestPixelImage : Grid
         _brush.Stretch = CompositionStretch.Fill;
         _visual = compositor.CreateSpriteVisual();
         _visual.Brush = _brush;
-        UpdateSize();
+        // Follow the XAML host's arranged size even when Loaded precedes layout.
+        _visual.RelativeSizeAdjustment = Vector2.One;
         ElementCompositionPreview.SetElementChildVisual(this, _visual);
-    }
-
-    private void UpdateSize()
-    {
-        if (_visual is not null) _visual.Size = new Vector2((float)ActualWidth, (float)ActualHeight);
     }
 
     private void Detach()

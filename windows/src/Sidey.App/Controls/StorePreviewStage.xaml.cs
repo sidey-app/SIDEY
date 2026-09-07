@@ -23,7 +23,6 @@ public sealed partial class StorePreviewStage : UserControl
     private const double ImpactSize = 72;
     private const double EmitterSize = 72;
     private const double ProjectilePathY = CharacterTop + (RenderedCharacterSize / 2d);
-    private const double EmitterTop = PlatformTop - EmitterSize + RenderedFootBaseline;
     private const double CharacterTop = PlatformTop - RenderedCharacterSize + RenderedFootBaseline;
     private const double WalkFrameSeconds = 0.16;
     private const double IdleFrameSeconds = 0.55;
@@ -519,9 +518,9 @@ public sealed partial class StorePreviewStage : UserControl
         if (ProductKind == CommerceProductKind.Bubble)
         {
             UpdateBubble(elapsed, leftX, rightX);
-            ProjectileImage.Visibility = Visibility.Collapsed;
-            EmitterImage.Visibility = Visibility.Collapsed;
-            ImpactImage.Visibility = Visibility.Collapsed;
+            ProjectileImage.Opacity = 0;
+            EmitterImage.Opacity = 0;
+            ImpactImage.Opacity = 0;
             return;
         }
 
@@ -830,14 +829,14 @@ public sealed partial class StorePreviewStage : UserControl
         bool leftToRight,
         double flightDuration)
     {
-        ImpactImage.Visibility = Visibility.Collapsed;
+        ImpactImage.Opacity = 0;
         double sequenceEnd = ProductKind == CommerceProductKind.Throwable
             ? ThrowCycleSeconds
             : ThrowReleaseSeconds + flightDuration + HitActionSeconds;
         if (local < 0 || local >= sequenceEnd || _projectileFrames.Count < 12)
         {
-            ProjectileImage.Visibility = Visibility.Collapsed;
-            EmitterImage.Visibility = Visibility.Collapsed;
+            ProjectileImage.Opacity = 0;
+            EmitterImage.Opacity = 0;
             return;
         }
 
@@ -873,11 +872,11 @@ public sealed partial class StorePreviewStage : UserControl
             ProjectileScale.ScaleX = 1;
             Canvas.SetLeft(ProjectileImage, centerX - (ProjectileSize / 2d));
             Canvas.SetTop(ProjectileImage, centerY - (ProjectileSize / 2d));
-            ProjectileImage.Visibility = Visibility.Visible;
+            ProjectileImage.Opacity = 1;
         }
         else
         {
-            ProjectileImage.Visibility = Visibility.Collapsed;
+            ProjectileImage.Opacity = 0;
         }
 
         if (local >= impactStarted && local < impactStarted + ImpactSeconds)
@@ -890,7 +889,7 @@ public sealed partial class StorePreviewStage : UserControl
                 + (RenderedCharacterSize / 2d);
             Canvas.SetLeft(ImpactImage, targetCenterX - (ImpactSize / 2d));
             Canvas.SetTop(ImpactImage, ProjectilePathY - (10 * PreviewScale) - (ImpactSize / 2d));
-            ImpactImage.Visibility = Visibility.Visible;
+            ImpactImage.Opacity = 1;
         }
 
         if (_emitterFrames.Count == 4 && local < ThrowActionSeconds)
@@ -900,13 +899,15 @@ public sealed partial class StorePreviewStage : UserControl
             EmitterScale.ScaleX = leftToRight ? 1 : -1;
             double actorCenterX = (leftToRight ? leftX : rightX)
                 + (RenderedCharacterSize / 2d);
-            Canvas.SetLeft(EmitterImage, actorCenterX - (EmitterSize / 2d));
-            Canvas.SetTop(EmitterImage, EmitterTop);
-            EmitterImage.Visibility = Visibility.Visible;
+            var emitterCenter = CannonEmitterLayout.Center(
+                (actorCenterX, ProjectilePathY), !leftToRight, OverlayEdge.Bottom, PreviewScale);
+            Canvas.SetLeft(EmitterImage, emitterCenter.X - (EmitterSize / 2d));
+            Canvas.SetTop(EmitterImage, emitterCenter.Y - (EmitterSize / 2d));
+            EmitterImage.Opacity = 1;
         }
         else
         {
-            EmitterImage.Visibility = Visibility.Collapsed;
+            EmitterImage.Opacity = 0;
         }
     }
 
@@ -1135,6 +1136,15 @@ public sealed partial class StorePreviewStage : UserControl
         if (!_resourcesLoaded) throw new InvalidOperationException("Store preview smoke: resources unavailable.");
         await Task.Delay(80);
         _timer.Stop();
+        if (ProductKind == CommerceProductKind.Throwable)
+        {
+            await VerifyCannonFramesSmokeAsync();
+            EndPresentation();
+            if (_ownedFrames.Count != 0 || _timer.IsEnabled)
+                throw new InvalidOperationException("Store preview smoke: cannon resources still active.");
+            StartupDiagnostics.Stage("store-preview-cannon-smoke-complete");
+            return;
+        }
         if (!TriggerPreviewPulse()) throw new InvalidOperationException("Store preview smoke: pulse rejected.");
         _pulseStarted = _clock.Elapsed.TotalSeconds - 0.2;
         UpdateScene();
@@ -1155,7 +1165,7 @@ public sealed partial class StorePreviewStage : UserControl
         if (!TriggerPreviewThrow()) throw new InvalidOperationException("Store preview smoke: throw rejected.");
         _manualThrowStarted = _clock.Elapsed.TotalSeconds - ThrowReleaseSeconds - 0.05;
         UpdateScene();
-        if (ProjectileImage.Visibility != Visibility.Visible)
+        if (ProjectileImage.Opacity != 1)
             throw new InvalidOperationException("Store preview smoke: projectile missing.");
         await Task.Delay(50);
         if (!ProjectileImage.IsNearestReady)
@@ -1165,7 +1175,7 @@ public sealed partial class StorePreviewStage : UserControl
         _manualThrowStarted = _clock.Elapsed.TotalSeconds - ThrowReleaseSeconds - _manualThrowFlightDuration - 0.05;
         UpdateScene();
         if (!_stoppedIds.Contains(target.Id) || target.Velocity != 0 || target.Target != destination
-            || ImpactImage.Visibility != Visibility.Visible)
+            || ImpactImage.Opacity != 1)
             throw new InvalidOperationException("Store preview smoke: hit stop or impact missing.");
         _pulseStarted = _clock.Elapsed.TotalSeconds - 1;
         UpdateScene();
@@ -1175,6 +1185,52 @@ public sealed partial class StorePreviewStage : UserControl
         if (_timer.IsEnabled || _ownedFrames.Count != 0 || TriggerPreviewPulse() || TriggerPreviewThrow())
             throw new InvalidOperationException("Store preview smoke: closed preview still active.");
         StartupDiagnostics.Stage($"store-preview-interaction-smoke-complete character={CharacterId}");
+    }
+
+    private async Task VerifyCannonFramesSmokeAsync()
+    {
+        const double left = 80, right = 360;
+        double flight = ThrowFlightDuration(left, right);
+        foreach (bool leftToRight in new[] { true, false })
+        {
+            UpdateThrow(0.1, left, right, leftToRight, flight);
+            await Task.Delay(30);
+            double actorX = (leftToRight ? left : right) + (RenderedCharacterSize / 2d);
+            double emitterX = Canvas.GetLeft(EmitterImage) + (EmitterSize / 2d);
+            if (EmitterImage.Opacity != 1 || !EmitterImage.IsNearestReady
+                || Math.Sign(emitterX - actorX) != (leftToRight ? 1 : -1))
+            {
+                StartupDiagnostics.Stage($"cannon-smoke-emitter-failed forward={leftToRight} opacity={EmitterImage.Opacity} ready={EmitterImage.IsNearestReady} delta={emitterX - actorX}");
+                throw new InvalidOperationException("Store preview smoke: cannon emitter missing or behind actor.");
+            }
+            for (int frame = 0; (frame + 0.5) * ProjectileRotationFrameSeconds < flight; frame++)
+            {
+                UpdateThrow(ThrowReleaseSeconds + (frame + 0.5) * ProjectileRotationFrameSeconds,
+                    left, right, leftToRight, flight);
+                await Task.Delay(20);
+                if (ProjectileImage.Opacity != 1 || !ProjectileImage.IsNearestReady
+                    || !ReferenceEquals(ProjectileImage.Source, _projectileFrames[frame]))
+                {
+                    StartupDiagnostics.Stage($"cannon-smoke-projectile-failed frame={frame} opacity={ProjectileImage.Opacity} ready={ProjectileImage.IsNearestReady} source={ReferenceEquals(ProjectileImage.Source, _projectileFrames[frame])}");
+                    throw new InvalidOperationException("Store preview smoke: projectile frame missing.");
+                }
+            }
+            for (int frame = 0; frame < 4; frame++)
+            {
+                UpdateThrow(ThrowReleaseSeconds + flight + (frame + 0.5) * ImpactSeconds / 4,
+                    left, right, leftToRight, flight);
+                await Task.Delay(20);
+                if (ImpactImage.Opacity != 1 || !ImpactImage.IsNearestReady
+                    || !ReferenceEquals(ImpactImage.Source, _projectileFrames[8 + frame]))
+                {
+                    StartupDiagnostics.Stage($"cannon-smoke-impact-failed frame={frame} opacity={ImpactImage.Opacity} ready={ImpactImage.IsNearestReady} source={ReferenceEquals(ImpactImage.Source, _projectileFrames[8 + frame])}");
+                    throw new InvalidOperationException("Store preview smoke: impact frame missing.");
+                }
+            }
+            UpdateThrow(-1, left, right, leftToRight, flight);
+            if (ProjectileImage.Opacity != 0 || ImpactImage.Opacity != 0 || EmitterImage.Opacity != 0)
+                throw new InvalidOperationException("Store preview smoke: stale throw effect.");
+        }
     }
 
 }

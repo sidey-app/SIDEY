@@ -98,6 +98,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial bool StartAtLogin { get; set; }
 
     [ObservableProperty]
+    public partial int SelectedLanguageIndex { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsLanguageSelectionEnabled { get; set; } = true;
+
+    [ObservableProperty]
     public partial int SelectedEdgeIndex { get; set; }
 
     [ObservableProperty]
@@ -273,6 +279,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
             ShowOfflineMembers = state.Preferences.ShowOfflineMembers;
             RequiresRightClickToThrow = state.Preferences.RequiresRightClickToThrow;
             StartAtLogin = state.Preferences.StartAtLogin;
+            SelectedLanguageIndex = (state.Preferences.Language ?? I18n.Language) switch
+            {
+                "en-US" => 1,
+                "ja-JP" => 2,
+                _ => 0,
+            };
             SelectedEdgeIndex = (int)state.Preferences.OverlayRegion.Edge;
             SelectedSpanIndex = (int)state.Preferences.OverlayRegion.Span;
             string? preferredMonitor = state.Preferences.OverlayRegion.MonitorIdentifier;
@@ -540,6 +552,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             _ = RunCommandAsync(() => _coordinator.SetStartAtLoginAsync(value), null);
         }
+    }
+
+    partial void OnSelectedLanguageIndexChanged(int value)
+    {
+        if (!_isApplyingState && IsLanguageSelectionEnabled && value is >= 0 and <= 2)
+            _ = SaveLanguageAsync(value);
+    }
+
+    private async Task SaveLanguageAsync(int index)
+    {
+        IsLanguageSelectionEnabled = false;
+        string language = index switch { 1 => "en-US", 2 => "ja-JP", _ => "ko-KR" };
+        await RunCommandAsync(() => _coordinator.SetLanguageAsync(language), I18n.Get("settings.languageRestart"));
+        ApplyState(_coordinator.State);
+        IsLanguageSelectionEnabled = true;
     }
 
     partial void OnNicknameChanged(string value)

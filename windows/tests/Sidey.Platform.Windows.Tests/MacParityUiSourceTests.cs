@@ -3,6 +3,34 @@ namespace Sidey.Platform.Windows.Tests;
 public sealed class MacParityUiSourceTests
 {
     [Fact]
+    public void SettingsEndsWithPersistedLanguageSelectorAndActiveGroupsHaveFilledMintIcons()
+    {
+        var xaml = ReadRepositoryFile("windows", "src", "Sidey.App", "MainWindow.xaml");
+        Assert.True(xaml.IndexOf("Key=settings.language}", StringComparison.Ordinal)
+            > xaml.IndexOf("Key=settings.exportMetrics}", StringComparison.Ordinal));
+        Assert.Contains("SelectedLanguageIndex, Mode=TwoWay", xaml, StringComparison.Ordinal);
+        Assert.Contains("Key=settings.languageRestart", xaml, StringComparison.Ordinal);
+        Assert.Contains("<Path Fill=\"#00C7BE\" Visibility=\"{Binding IsActive", xaml, StringComparison.Ordinal);
+        var app = ReadRepositoryFile("windows", "src", "Sidey.App", "App.xaml.cs");
+        Assert.True(app.IndexOf("I18n.SetLanguage(coordinator.State.Preferences.Language)", StringComparison.Ordinal)
+            < app.IndexOf("CreateOnboardingWindow(coordinator)", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void PreviewProjectilesKeepAnArrangedCompositionHostBetweenFrames()
+    {
+        var stage = ReadRepositoryFile("windows", "src", "Sidey.App", "Controls", "StorePreviewStage.xaml.cs");
+        var image = ReadRepositoryFile("windows", "src", "Sidey.App", "Controls", "NearestPixelImage.cs");
+        foreach (string name in new[] { "ProjectileImage", "ImpactImage", "EmitterImage" })
+        {
+            Assert.DoesNotContain(name + ".Visibility =", stage, StringComparison.Ordinal);
+            Assert.Contains(name + ".Opacity = 1", stage, StringComparison.Ordinal);
+        }
+        Assert.Contains("_visual.RelativeSizeAdjustment = Vector2.One", image, StringComparison.Ordinal);
+        Assert.Contains("ActualWidth > 0 && ActualHeight > 0", image, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void FirstRunUsesAWinUiLandingAndStepByStepOnboardingWindow()
     {
         var app = ReadRepositoryFile("windows", "src", "Sidey.App", "App.xaml.cs");

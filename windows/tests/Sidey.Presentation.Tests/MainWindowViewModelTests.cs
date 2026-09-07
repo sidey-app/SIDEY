@@ -8,6 +8,27 @@ namespace Sidey.Presentation.Tests;
 
 public sealed class MainWindowViewModelTests
 {
+    [Theory]
+    [InlineData(0, "ko-KR")]
+    [InlineData(1, "en-US")]
+    [InlineData(2, "ja-JP")]
+    public void LanguageSelectionIsRestoredWithoutSavingAndPersistsUserChoice(int index, string language)
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        coordinator.State = state with { Preferences = state.Preferences with { Language = language } };
+        var viewModel = new MainWindowViewModel(
+            coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        Assert.Equal(index, viewModel.SelectedLanguageIndex);
+        Assert.Equal(0, coordinator.SetLanguageCallCount);
+
+        int next = (index + 1) % 3;
+        viewModel.SelectedLanguageIndex = next;
+        Assert.Equal(1, coordinator.SetLanguageCallCount);
+        Assert.Equal(next switch { 1 => "en-US", 2 => "ja-JP", _ => "ko-KR" }, coordinator.State.Preferences.Language);
+        Assert.True(viewModel.IsLanguageSelectionEnabled);
+        Assert.Equal(next, viewModel.SelectedLanguageIndex);
+    }
+
     [Fact]
     public void CharacterPickerKeepsTheFiveFreeWindowsSelections()
     {

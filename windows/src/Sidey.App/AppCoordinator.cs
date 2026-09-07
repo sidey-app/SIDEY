@@ -771,6 +771,24 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             monitor.IsPrimary))
         .ToArray();
 
+    public async Task SetLanguageAsync(string language, CancellationToken cancellationToken = default)
+    {
+        if (language is not ("ko-KR" or "en-US" or "ja-JP"))
+            throw new ArgumentOutOfRangeException(nameof(language));
+
+        string? previousLanguage = _state.Preferences.Language;
+        SetState(_state with { Preferences = _state.Preferences with { Language = language } });
+        try
+        {
+            await PersistPreferencesAsync(cancellationToken);
+        }
+        catch
+        {
+            SetState(_state with { Preferences = _state.Preferences with { Language = previousLanguage } });
+            throw;
+        }
+    }
+
     public void RefreshDisplayTopology()
     {
         IReadOnlyList<MonitorOption> monitors = GetMonitors();

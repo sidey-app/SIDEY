@@ -148,6 +148,14 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
     public Task SetStartAtLoginAsync(bool enabled, CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
 
+    public int SetLanguageCallCount { get; private set; }
+    public Task SetLanguageAsync(string language, CancellationToken cancellationToken = default)
+    {
+        SetLanguageCallCount++;
+        State = State with { Preferences = State.Preferences with { Language = language } };
+        return Task.CompletedTask;
+    }
+
     public Task SetRegionAsync(
         OverlayRegionPreference preference,
         CancellationToken cancellationToken = default) => Task.CompletedTask;
