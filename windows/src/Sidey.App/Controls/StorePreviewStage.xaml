@@ -2,15 +2,97 @@
     x:Class="Sidey.App.Controls.StorePreviewStage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:canvas="using:Microsoft.Graphics.Canvas.UI.Xaml"
+    Width="540"
+    Height="280"
     Tapped="OnTapped">
-  <Border Background="#12141B" CornerRadius="14" BorderBrush="#33FFFFFF" BorderThickness="1">
-    <canvas:CanvasControl
-        x:Name="StageCanvas"
-        Width="540"
-        Height="280"
-        CreateResources="OnCreateResources"
-        Draw="OnDraw"
-        Unloaded="OnUnloaded" />
+  <Border
+      Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+      BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+      BorderThickness="1"
+      CornerRadius="18">
+    <Grid>
+      <Canvas x:Name="SceneCanvas" Width="540" Height="280" Visibility="Collapsed">
+        <Canvas x:Name="PlatformCanvas" Width="540" Height="24" Canvas.Top="256" IsHitTestVisible="False" />
+
+        <StackPanel x:Name="LeftNameplate" Canvas.Top="181" Orientation="Horizontal" Spacing="5">
+          <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="#00C853" />
+          <Border Height="20" Padding="4,0" Background="#9E050609" CornerRadius="6">
+            <TextBlock Foreground="White" FontSize="11" Text="모카" />
+          </Border>
+        </StackPanel>
+        <StackPanel x:Name="RightNameplate" Canvas.Top="181" Orientation="Horizontal" Spacing="5">
+          <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="#00C853" />
+          <Border Height="20" Padding="4,0" Background="#9E050609" CornerRadius="6">
+            <TextBlock Foreground="White" FontSize="11" Text="두부" />
+          </Border>
+        </StackPanel>
+
+        <Canvas
+            x:Name="BubblePreview"
+            Height="46"
+            Canvas.Top="132"
+            Visibility="Collapsed">
+          <Border
+              x:Name="BubbleBody"
+              Height="28"
+              BorderBrush="#2914171F"
+              BorderThickness="1"
+              CornerRadius="9">
+            <Grid>
+              <TextBlock
+                  x:Name="BubbleText"
+                  Margin="8,7"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  FontSize="11"
+                  TextAlignment="Center"
+                  TextWrapping="NoWrap" />
+            </Grid>
+          </Border>
+          <Image
+              x:Name="BubbleDecoration"
+              Width="32"
+              Height="32"
+              Stretch="None" />
+          <Polygon
+              x:Name="BubbleTail"
+              Points="0,0 12,0 6,8" />
+        </Canvas>
+
+        <Grid x:Name="LeftCharacterHost" Width="72" Height="72" Canvas.Top="193">
+          <Grid.RenderTransform>
+            <ScaleTransform x:Name="LeftCharacterScale" CenterX="36" CenterY="36" />
+          </Grid.RenderTransform>
+        </Grid>
+        <Grid x:Name="RightCharacterHost" Width="72" Height="72" Canvas.Top="193">
+          <Grid.RenderTransform>
+            <ScaleTransform x:Name="RightCharacterScale" CenterX="36" CenterY="36" />
+          </Grid.RenderTransform>
+        </Grid>
+        <Canvas x:Name="SparkleCanvas" Width="540" Height="256" IsHitTestVisible="False" />
+        <Image x:Name="EmitterImage" Width="72" Height="72" Canvas.Top="193" Stretch="None" Visibility="Collapsed">
+          <Image.RenderTransform>
+            <ScaleTransform x:Name="EmitterScale" CenterX="36" CenterY="36" />
+          </Image.RenderTransform>
+        </Image>
+        <Image x:Name="ProjectileImage" Width="48" Height="48" Stretch="None" Visibility="Collapsed">
+          <Image.RenderTransform>
+            <ScaleTransform x:Name="ProjectileScale" CenterX="24" CenterY="24" />
+          </Image.RenderTransform>
+        </Image>
+        <Image x:Name="ImpactImage" Width="64" Height="64" Stretch="None" Visibility="Collapsed" />
+      </Canvas>
+
+      <ProgressRing x:Name="LoadingRing" Width="32" Height="32" IsActive="True" />
+      <TextBlock
+          x:Name="ErrorText"
+          Margin="24"
+          HorizontalAlignment="Center"
+          VerticalAlignment="Center"
+          Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+          TextAlignment="Center"
+          TextWrapping="Wrap"
+          Visibility="Collapsed" />
+    </Grid>
   </Border>
 </UserControl>

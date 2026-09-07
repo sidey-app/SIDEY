@@ -167,6 +167,58 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void ApplyingEquivalentSnapshotPreservesCosmeticItemIdentity()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+        CosmeticSelectionItemViewModel bubble = Assert.Single(viewModel.BubbleSelections);
+        CosmeticSelectionItemViewModel throwable = Assert.Single(viewModel.ThrowableSelections);
+
+        viewModel.ApplyState(state with { RealtimeConnection = ConnectedStatus() });
+
+        Assert.Same(bubble, Assert.Single(viewModel.BubbleSelections));
+        Assert.Same(throwable, Assert.Single(viewModel.ThrowableSelections));
+    }
+
+    [Fact]
+    public void ApplyingEquivalentSnapshotDoesNotRebuildVisibleStoreCards()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+        StoreProductPreviewViewModel[] initialProducts = viewModel.VisibleStoreProducts.ToArray();
+        int collectionChanges = 0;
+        viewModel.VisibleStoreProducts.CollectionChanged += (_, _) => collectionChanges++;
+
+        viewModel.ApplyState(state with { RealtimeConnection = ConnectedStatus() });
+
+        Assert.Equal(0, collectionChanges);
+        Assert.Equal(initialProducts, viewModel.VisibleStoreProducts);
+    }
+
+    [Fact]
+    public void ProfileCharacterUpdateReusesCosmeticItemsAndRefreshesTheirPreview()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+        CosmeticSelectionItemViewModel bubble = Assert.Single(viewModel.BubbleSelections);
+        Profile changedProfile = state.Profile! with { CharacterId = "pixel_penguin" };
+
+        viewModel.ApplyState(state with { Profile = changedProfile });
+
+        Assert.Same(bubble, Assert.Single(viewModel.BubbleSelections));
+        Assert.Equal("pixel_penguin", bubble.CharacterId);
+    }
+
+    [Fact]
     public void DisconnectedStateUsesAnExplicitOfflineLabel()
     {
         (FakeSideyCoordinator coordinator, _) = CreateRoomState();
@@ -213,6 +265,7 @@ public sealed class MainWindowViewModelTests
             coordinator,
             new FakeMainWindowDialogService(),
             new FakeUpdateService());
+        viewModel.Nickname = "새 이름";
 
         Task pending = viewModel.SaveProfileCommand.ExecuteAsync(null);
 
@@ -223,6 +276,131 @@ public sealed class MainWindowViewModelTests
         Assert.False(viewModel.IsSavingProfile);
         Assert.True(viewModel.SaveProfileCommand.CanExecute(null));
         Assert.Equal(1, coordinator.SaveProfileCallCount);
+    }
+
+    [Fact]
+    public async Task CharacterSelectionAppliesImmediatelyWithoutUsingTheNicknameDraft()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.SaveProfileHandler = (_, _, _) => completion.Task;
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService())
+        {
+            Nickname = "저장하지 않은 이름",
+        };
+
+        viewModel.SelectedCharacterId = "pixel_cat";
+
+        Assert.True(viewModel.IsSavingCharacter);
+        Assert.Equal("aryu", coordinator.LastSavedNickname);
+        Assert.Equal("pixel_cat", coordinator.LastSavedCharacterId);
+        Assert.False(viewModel.SaveProfileCommand.CanExecute(null));
+
+        completion.SetResult();
+        for (int attempt = 0; attempt < 200 && viewModel.IsSavingCharacter; attempt++)
+        {
+            await Task.Delay(10);
+        }
+        Assert.False(viewModel.IsSavingCharacter);
+    }
+
+    [Fact]
+    public void NicknameActionAppearsOnlyForAValidChangedNickname()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        Assert.False(viewModel.HasNicknameChanges);
+        Assert.False(viewModel.SaveProfileCommand.CanExecute(null));
+
+        viewModel.Nickname = "새 이름";
+        Assert.True(viewModel.HasNicknameChanges);
+        Assert.True(viewModel.SaveProfileCommand.CanExecute(null));
+
+        viewModel.Nickname = "a";
+        Assert.True(viewModel.HasNicknameChanges);
+        Assert.False(viewModel.SaveProfileCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void StoreFiltersByKindSortsByPriceAndCanHideOwnedProducts()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        coordinator.State = state with
+        {
+            ActiveEntitlementKeys = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "throwable:throwable_bouncy_heart",
+            },
+        };
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        Assert.Equal(4, viewModel.VisibleStoreProducts.Count);
+        Assert.All(viewModel.VisibleStoreProducts, product =>
+            Assert.Equal(CommerceProductKind.Character, product.Kind));
+
+        viewModel.SelectedStoreKindIndex = (int)CommerceProductKind.Throwable;
+        viewModel.SelectedStoreSortIndex = 2;
+        Assert.Equal(
+            [2_900, 990, 990],
+            viewModel.VisibleStoreProducts.Select(product => product.AmountKrw));
+
+        viewModel.HidesOwnedStoreProducts = true;
+        Assert.DoesNotContain(
+            viewModel.VisibleStoreProducts,
+            product => product.ProductId == "throwable_bouncy_heart");
+
+        viewModel.StoreSearchText = "오리";
+        Assert.Collection(
+            viewModel.VisibleStoreProducts,
+            product => Assert.Equal("throwable_squeaky_duck", product.ProductId));
+
+        viewModel.SelectedStoreKindIndex = (int)CommerceProductKind.Character;
+        viewModel.StoreSearchText = "진주빛";
+        Assert.Collection(
+            viewModel.VisibleStoreProducts,
+            product => Assert.Equal("character_starlight_upalupa", product.ProductId));
+    }
+
+    [Fact]
+    public async Task CosmeticSelectionAppliesImmediatelyAndBlocksSameKindDuplicates()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        coordinator.State = state with
+        {
+            ActiveEntitlementKeys = new HashSet<string>(StringComparer.Ordinal)
+            {
+                "bubble:bubble_bunny_pink",
+            },
+        };
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.SetEquippedCosmeticHandler = (_, _, _) => completion.Task;
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        Assert.Equal("기본 말풍선", viewModel.BubbleSelections[0].DisplayName);
+        Task first = viewModel.BubbleSelections[1].SelectCommand.ExecuteAsync(null);
+        Task duplicate = viewModel.BubbleSelections[0].SelectCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, coordinator.SetEquippedCosmeticCallCount);
+        Assert.All(viewModel.BubbleSelections, selection => Assert.False(selection.IsEnabled));
+        Assert.Equal(CommerceProductKind.Bubble, coordinator.LastEquippedCosmeticKind);
+        Assert.Equal("bubble_bunny_pink", coordinator.LastEquippedCosmeticId);
+
+        completion.SetResult();
+        await Task.WhenAll(first, duplicate);
+        Assert.All(viewModel.BubbleSelections, selection => Assert.True(selection.IsEnabled));
     }
 
     [Fact]
@@ -578,6 +756,37 @@ public sealed class MainWindowViewModelTests
         await viewModel.CheckForUpdatesCommand.ExecuteAsync(null);
 
         Assert.Equal(1, updates.InstallerLaunchCount);
+    }
+
+    [Fact]
+    public async Task UpdateDownloadKeepsAVisibleActivityStateUntilTheInstallerLaunches()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var updates = new FakeUpdateService
+        {
+            AvailableUpdate = new AvailableUpdate("0.3.0-alpha.3"),
+            DownloadHandler = (_, _) => completion.Task,
+        };
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            updates);
+
+        Task pending = viewModel.CheckForUpdatesCommand.ExecuteAsync(null);
+
+        Assert.True(viewModel.IsCheckingForUpdates);
+        Assert.True(viewModel.HasUpdateActivity);
+        Assert.Contains("설정창을 닫아도", viewModel.UpdateActivityText, StringComparison.Ordinal);
+        Assert.False(viewModel.CheckForUpdatesCommand.CanExecute(null));
+
+        completion.SetResult();
+        await pending;
+
+        Assert.False(viewModel.IsCheckingForUpdates);
+        Assert.False(viewModel.HasUpdateActivity);
+        Assert.Equal(string.Empty, viewModel.UpdateActivityText);
+        Assert.True(viewModel.CheckForUpdatesCommand.CanExecute(null));
     }
 
     [Fact]

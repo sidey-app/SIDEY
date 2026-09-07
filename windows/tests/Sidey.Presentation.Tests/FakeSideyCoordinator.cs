@@ -26,6 +26,10 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
 
     public int SaveProfileCallCount { get; private set; }
 
+    public string? LastSavedNickname { get; private set; }
+
+    public string? LastSavedCharacterId { get; private set; }
+
     public Func<string, string, CancellationToken, Task>? SaveProfileHandler { get; set; }
 
     public int CompleteOnboardingCallCount { get; private set; }
@@ -64,6 +68,8 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
         CancellationToken cancellationToken = default)
     {
         SaveProfileCallCount++;
+        LastSavedNickname = nickname;
+        LastSavedCharacterId = characterId;
         return SaveProfileHandler?.Invoke(nickname, characterId, cancellationToken)
             ?? Task.CompletedTask;
     }
@@ -159,16 +165,21 @@ internal sealed class FakeSideyCoordinator : ISideyCoordinator
 
     public CommerceProductKind? LastEquippedCosmeticKind { get; private set; }
     public string? LastEquippedCosmeticId { get; private set; }
+    public int SetEquippedCosmeticCallCount { get; private set; }
+    public Func<CommerceProductKind, string?, CancellationToken, Task>?
+        SetEquippedCosmeticHandler
+    { get; set; }
 
     public Task SetEquippedCosmeticAsync(
         CommerceProductKind kind,
         string? catalogItemId,
         CancellationToken cancellationToken = default)
     {
-        _ = cancellationToken;
+        SetEquippedCosmeticCallCount++;
         LastEquippedCosmeticKind = kind;
         LastEquippedCosmeticId = catalogItemId;
-        return Task.CompletedTask;
+        return SetEquippedCosmeticHandler?.Invoke(kind, catalogItemId, cancellationToken)
+            ?? Task.CompletedTask;
     }
 
     public Task CompleteGoogleIdentityLinkAsync(
@@ -244,6 +255,8 @@ internal sealed class FakeUpdateService : IUpdateService
 
     public int ReleaseNotesLaunchCount { get; private set; }
 
+    public Func<AvailableUpdate, CancellationToken, Task>? DownloadHandler { get; set; }
+
     public Task<AvailableUpdate?> CheckAsync(CancellationToken cancellationToken = default)
     {
         LastCheckedAt = DateTimeOffset.UtcNow;
@@ -255,9 +268,8 @@ internal sealed class FakeUpdateService : IUpdateService
         CancellationToken cancellationToken = default)
     {
         _ = update;
-        _ = cancellationToken;
         InstallerLaunchCount++;
-        return Task.CompletedTask;
+        return DownloadHandler?.Invoke(update, cancellationToken) ?? Task.CompletedTask;
     }
 
     public Task OpenReleaseNotesAsync(Uri releaseNotesUri)

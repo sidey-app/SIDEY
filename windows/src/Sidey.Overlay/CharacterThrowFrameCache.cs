@@ -282,7 +282,11 @@ internal sealed class CharacterThrowFrameCache : IDisposable
                 {
                     sourceX = cellSize - 1 - sourceX;
                 }
-                var input = ((sourceY * sheetWidth) + (frame * cellSize) + sourceX) * 4;
+                // Throw, hit, projectile, and emitter BGRA mirrors are stored bottom-up.
+                // Convert the authored top-down coordinate after edge rotation so action
+                // frames keep the same orientation as the base character frames.
+                var storedSourceY = cellSize - 1 - sourceY;
+                var input = ((storedSourceY * sheetWidth) + (frame * cellSize) + sourceX) * 4;
                 var destination = ((y * outputSize) + x) * 4;
                 sheet.Slice(input, 4).CopyTo(output.AsSpan(destination, 4));
             }

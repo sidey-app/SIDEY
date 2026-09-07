@@ -20,7 +20,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private const double ThrowReleaseSeconds = 0.2d;
     private const double HitActionSeconds = 0.44d;
     private const double ImpactSeconds = 0.24d;
-    private const double AmbientSparkleCycleSeconds = 2.25d;
+    private const double AmbientSparkleCycleSeconds = 1.2d;
     private const double AmbientSparkleDurationSeconds = 1.05d;
     private const double SparklePulseDurationSeconds = 0.78d;
     private static readonly IReadOnlyList<RectD> NoAvoidanceRects = Array.Empty<RectD>();
@@ -439,7 +439,13 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 cached.Definition.FootBaselinePixel * _integerScale,
                 cached.OnlineContentBounds,
                 pulseScale);
-            var flipped = ThrowFacingLeft(node) ?? (node.Agent.Velocity < -0.1d);
+            if (actionFrame is null
+                && cached.Definition.MirrorsToMovementDirection
+                && Math.Abs(node.Agent.Velocity) > 2d)
+            {
+                node.FacingLeft = ShouldMirrorForVelocity(node.Agent.Velocity);
+            }
+            var flipped = cached.Definition.MirrorsToMovementDirection && node.FacingLeft;
             Composite(
                 destinationPixels,
                 actionFrame is { } activeAction
@@ -459,7 +465,9 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                         / (ThrowActionSeconds / CharacterThrowFrameCache.EmitterFrameCount)));
                 Composite(
                     destinationPixels,
-                    _throwFrameCache.CannonEmitterFrame(emitterFrame, flipped),
+                    _throwFrameCache.CannonEmitterFrame(
+                        emitterFrame,
+                        ShouldMirrorEmitter(cannon)),
                     cached.PixelSize,
                     baseDestination.X - _renderBounds.X,
                     baseDestination.Y - _renderBounds.Y,
@@ -608,12 +616,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 continue;
             }
 
+            var start = ClampedBubbleVisualTangentStart(senderTangent, bubble);
             var extent = BubbleTangentExtent(bubble);
-            var start = MessageBubbleLayoutPolicy.ClampedTangentStart(
-                senderTangent,
-                _geometry.TangentLength,
-                extent,
-                _bubbleTangentMarginPixels);
             lower = Math.Min(lower, start);
             upper = Math.Max(upper, start + extent);
         }
@@ -826,23 +830,6 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         return null;
     }
 
-    private bool? ThrowFacingLeft(WorldNode node)
-    {
-        ActiveProjectile? latest = null;
-        foreach (var projectile in _projectiles)
-        {
-            if (projectile.Event.ActorUserId == node.Member.Id && projectile.ImpactStartedAt is null)
-            {
-                latest = projectile;
-            }
-        }
-        if (latest is null || !_nodeById.TryGetValue(latest.Event.TargetUserId, out var target))
-        {
-            return null;
-        }
-        return target.Agent.TrackPosition < node.Agent.TrackPosition;
-    }
-
     private ActiveProjectile? ActiveCannonProjectile(Guid actorUserId)
     {
         for (var index = _projectiles.Count - 1; index >= 0; index--)
@@ -895,9 +882,9 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             }
             if (projectile.Start is null)
             {
-                projectile.Start = BodyPoint(actor);
+                projectile.Start = FootPoint(actor.Agent.TrackPosition);
             }
-            var endpoint = BodyPoint(target);
+            var endpoint = FootPoint(target.Agent.TrackPosition);
             projectile.End = endpoint;
             var start = projectile.Start.Value;
             var distancePixels = Math.Sqrt(
@@ -928,11 +915,13 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
             int frame;
             (double X, double Y) point;
+            double renderScale;
             if (projectile.ImpactStartedAt is { } impactStarted)
             {
                 var elapsed = Stopwatch.GetElapsedTime(impactStarted).TotalSeconds;
                 frame = 8 + Math.Min(3, (int)(elapsed / (ImpactSeconds / 4d)));
-                point = end;
+                point = ImpactPoint(end);
+                renderScale = 1.5d;
             }
             else
             {
@@ -946,9 +935,11 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 var control = InwardControlPoint(start, end, arc);
                 point = QuadraticBezier(start, control, end, progress);
                 frame = (int)(Math.Max(0d, elapsed) / 0.083d) % 8;
+                renderScale = 1d;
             }
 
             var size = _throwFrameCache.ObjectPixelSize;
+            int renderedSize = (int)Math.Round(size * renderScale);
             CompositeRectangle(
                 destination,
                 _throwFrameCache.ObjectFrame(
@@ -957,9 +948,9 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                     frame),
                 size,
                 size,
-                (int)Math.Round(point.X - (size / 2d)) - _renderBounds.X,
-                (int)Math.Round(point.Y - (size / 2d)) - _renderBounds.Y,
-                1d,
+                (int)Math.Round(point.X - (renderedSize / 2d)) - _renderBounds.X,
+                (int)Math.Round(point.Y - (renderedSize / 2d)) - _renderBounds.Y,
+                renderScale,
                 1d,
                 desaturate: false);
         }
@@ -1058,6 +1049,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         double? pulseElapsed)
     {
         var center = BodyPoint(node);
+        var ambientOrigin = FootPoint(node.Agent.TrackPosition);
         if (node.Member.Presence is not PresenceState.Offline and not PresenceState.Reconnecting)
         {
             double seedOffset = PositiveUnit(node.Member.Id.GetHashCode()) * 0.4d;
@@ -1070,17 +1062,17 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                     continue;
                 }
 
-                double angle = (Math.PI * 2d * PositiveUnit(
-                    node.Member.Id.GetHashCode() ^ (index * 7919))) - (Math.PI / 2d);
-                double distanceDip = 8d + (29d * PositiveUnit(
+                double horizontalDip = -25d + (50d * PositiveUnit(
+                    node.Member.Id.GetHashCode() ^ (index * 7919)));
+                double verticalDip = 5d + (32d * PositiveUnit(
                     node.Member.Id.GetHashCode() ^ (index * 1543) ^ 0x51A7));
                 double rise = 4d * progress * _dpiScale;
-                double opacity = Math.Sin(Math.PI * progress) * 0.86d;
+                double opacity = Math.Sin(Math.PI * progress) * 0.96d;
                 double radius = (2.6d + (1.4d * PositiveUnit(index * 3571))) * _dpiScale;
                 DrawSparkle(
                     destination,
-                    center.X + (Math.Cos(angle) * distanceDip * _dpiScale),
-                    center.Y + (Math.Sin(angle) * distanceDip * _dpiScale) - rise,
+                    ambientOrigin.X + (horizontalDip * _dpiScale),
+                    ambientOrigin.Y - (verticalDip * _dpiScale) - rise,
                     radius,
                     opacity,
                     SparkleColor(index));
@@ -1335,11 +1327,16 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private void CompositeBubbleTail(
         Span<byte> destination,
-        (int X, int Y) bodyPosition,
-        PremultipliedVisual body,
+        (int X, int Y) visualPosition,
+        PremultipliedVisual visual,
         double senderTangent)
     {
-        var bodyBounds = new RectD(bodyPosition.X, bodyPosition.Y, body.Width, body.Height);
+        var localBody = BubbleBodyBounds(visual);
+        var bodyBounds = new RectD(
+            visualPosition.X + localBody.X,
+            visualPosition.Y + localBody.Y,
+            localBody.Width,
+            localBody.Height);
         var tail = MessageBubbleLayoutPolicy.Tail(
             _edge,
             bodyBounds,
@@ -1354,7 +1351,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             tail,
             bodyBounds,
             _dpiScale,
-            body.BubblePalette);
+            visual.BubblePalette);
     }
 
     private void CompositeVisual(
@@ -1483,28 +1480,86 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         PremultipliedVisual nameplate,
         (int X, int Y) nameplatePosition)
     {
-        var tangentStart = MessageBubbleLayoutPolicy.ClampedTangentStart(
-            senderTangent,
-            _geometry.TangentLength,
-            BubbleTangentExtent(visual),
-            _bubbleTangentMarginPixels);
-        var worldTangentStart = (int)Math.Round(tangentStart) + TangentWorldOrigin();
+        var body = BubbleBodyBounds(visual);
+        var visualTangentStart = ClampedBubbleVisualTangentStart(senderTangent, visual);
+        var worldVisualTangentStart = (int)Math.Round(visualTangentStart) + TangentWorldOrigin();
         return _edge switch
         {
             OverlayEdge.Bottom => (
-                worldTangentStart,
-                nameplatePosition.Y - normalDistance - visual.Height),
+                worldVisualTangentStart,
+                nameplatePosition.Y - normalDistance - body.Height - body.Y),
             OverlayEdge.Top => (
-                worldTangentStart,
-                nameplatePosition.Y + nameplate.Height + normalDistance),
+                worldVisualTangentStart,
+                nameplatePosition.Y + nameplate.Height + normalDistance - body.Y),
             OverlayEdge.Left => (
-                nameplatePosition.X + nameplate.Width + normalDistance,
-                worldTangentStart),
+                nameplatePosition.X + nameplate.Width + normalDistance - body.X,
+                worldVisualTangentStart),
             OverlayEdge.Right => (
-                nameplatePosition.X - normalDistance - visual.Width,
-                worldTangentStart),
+                nameplatePosition.X - normalDistance - body.Width - body.X,
+                worldVisualTangentStart),
             _ => throw new ArgumentOutOfRangeException(),
         };
+    }
+
+    private (double X, double Y) ImpactPoint((double X, double Y) foot)
+    {
+        double inward = 10d * _dpiScale;
+        return _edge switch
+        {
+            OverlayEdge.Bottom => (foot.X, foot.Y - inward),
+            OverlayEdge.Top => (foot.X, foot.Y + inward),
+            OverlayEdge.Left => (foot.X + inward, foot.Y),
+            OverlayEdge.Right => (foot.X - inward, foot.Y),
+            _ => throw new ArgumentOutOfRangeException(),
+        };
+    }
+
+    private bool ShouldMirrorForVelocity(double velocity) => _edge switch
+    {
+        OverlayEdge.Bottom or OverlayEdge.Right => velocity < 0d,
+        OverlayEdge.Top or OverlayEdge.Left => velocity > 0d,
+        _ => throw new ArgumentOutOfRangeException(),
+    };
+
+    private bool ShouldMirrorEmitter(ActiveProjectile projectile)
+    {
+        if (!_nodeById.TryGetValue(projectile.Event.ActorUserId, out var actor)
+            || !_nodeById.TryGetValue(projectile.Event.TargetUserId, out var target))
+        {
+            return false;
+        }
+
+        double actorPosition = actor.Agent.TrackPosition;
+        double targetPosition = target.Agent.TrackPosition;
+        return _edge switch
+        {
+            OverlayEdge.Bottom or OverlayEdge.Right => targetPosition < actorPosition,
+            OverlayEdge.Top or OverlayEdge.Left => targetPosition > actorPosition,
+            _ => throw new ArgumentOutOfRangeException(),
+        };
+    }
+
+    private double ClampedBubbleVisualTangentStart(
+        double senderTangent,
+        PremultipliedVisual visual)
+    {
+        var body = BubbleBodyBounds(visual);
+        int bodyExtent = _edge is OverlayEdge.Bottom or OverlayEdge.Top
+            ? body.Width
+            : body.Height;
+        int bodyStart = _edge is OverlayEdge.Bottom or OverlayEdge.Top
+            ? body.X
+            : body.Y;
+        int visualExtent = BubbleTangentExtent(visual);
+        int trailingOverflow = visualExtent - bodyStart - bodyExtent;
+        double clampedBodyStart = MessageBubbleLayoutPolicy.ClampedBodyTangentStart(
+            senderTangent,
+            _geometry.TangentLength,
+            bodyExtent,
+            bodyStart,
+            trailingOverflow,
+            _bubbleTangentMarginPixels);
+        return clampedBodyStart - bodyStart;
     }
 
     private int TangentWorldOrigin() => _edge is OverlayEdge.Bottom or OverlayEdge.Top
@@ -1515,7 +1570,12 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         _edge is OverlayEdge.Bottom or OverlayEdge.Top ? visual.Width : visual.Height;
 
     private int BubbleNormalExtent(PremultipliedVisual visual) =>
-        _edge is OverlayEdge.Bottom or OverlayEdge.Top ? visual.Height : visual.Width;
+        _edge is OverlayEdge.Bottom or OverlayEdge.Top
+            ? BubbleBodyBounds(visual).Height
+            : BubbleBodyBounds(visual).Width;
+
+    private static PixelVisualBodyBounds BubbleBodyBounds(PremultipliedVisual visual) =>
+        visual.BubbleBodyBounds ?? new PixelVisualBodyBounds(0, 0, visual.Width, visual.Height);
 
     private (int X, int Y) PlaceDoze(
         (int X, int Y) sprite,
@@ -1566,6 +1626,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     {
         public PixelWorldMember Member { get; set; } = member;
         public PixelMovementAgent Agent { get; } = agent;
+        public bool FacingLeft { get; set; }
     }
 
     private sealed class ActiveProjectile(CharacterThrowEvent @event, long startedAt)

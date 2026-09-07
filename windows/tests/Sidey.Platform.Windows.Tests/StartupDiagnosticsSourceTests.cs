@@ -85,7 +85,7 @@ public sealed class StartupDiagnosticsSourceTests
     {
         string app = ReadRepositoryFile("windows", "src", "Sidey.App", "App.xaml.cs");
 
-        int loadCache = app.IndexOf("await _coordinator.LoadCachedStateAsync();", StringComparison.Ordinal);
+        int loadCache = app.IndexOf("await coordinator.LoadCachedStateAsync();", StringComparison.Ordinal);
         int createWindow = app.IndexOf(
             "_mainWindow = new MainWindow(_coordinator, _updateService);",
             StringComparison.Ordinal);
@@ -105,9 +105,32 @@ public sealed class StartupDiagnosticsSourceTests
         Assert.Contains("CheckForUpdatesOnStartupAsync", app, StringComparison.Ordinal);
         Assert.Contains("_tray.NotifyUpdateAvailable(version)", app, StringComparison.Ordinal);
         Assert.Contains("public void NotifyUpdateAvailable", tray, StringComparison.Ordinal);
+        Assert.Contains("data.InfoFlags = NotifyInfoInfo", tray, StringComparison.Ordinal);
         Assert.Contains("CurrentVersionText", xaml, StringComparison.Ordinal);
         Assert.Contains("LastUpdateCheckText", xaml, StringComparison.Ordinal);
+        Assert.Contains("UpdateActivityText", xaml, StringComparison.Ordinal);
+        Assert.Contains("HasUpdateActivity", xaml, StringComparison.Ordinal);
         Assert.Contains("OpenReleaseNotesCommand", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void QueuedUiWorkIsRejectedAfterShutdownStarts()
+    {
+        string app = ReadRepositoryFile("windows", "src", "Sidey.App", "App.xaml.cs");
+
+        Assert.Contains("if (_shuttingDown || _coordinator is null)", app, StringComparison.Ordinal);
+        Assert.Contains("if (!_shuttingDown)", app, StringComparison.Ordinal);
+        Assert.Contains("_monitorConnectionFailures = false", app, StringComparison.Ordinal);
+        Assert.Contains(
+            "if (_shuttingDown || !ReferenceEquals(_coordinator, coordinator))",
+            app,
+            StringComparison.Ordinal);
+        int notificationMethod = app.IndexOf(
+            "private void PostUpdateNotification",
+            StringComparison.Ordinal);
+        int shutdownGuard = app.IndexOf("if (_shuttingDown)", notificationMethod, StringComparison.Ordinal);
+        int trayAccess = app.IndexOf("if (_tray is null)", notificationMethod, StringComparison.Ordinal);
+        Assert.True(notificationMethod >= 0 && shutdownGuard > notificationMethod && trayAccess > shutdownGuard);
     }
 
     private static string ReadRepositoryFile(params string[] pathSegments) =>

@@ -100,6 +100,16 @@ public sealed class CharacterCatalogTests
             character => Assert.Equal(PixelCharacterVisualEffect.None, character.VisualEffect));
     }
 
+    [Fact]
+    public void MovementFacingMatchesTheMacCharacterContract()
+    {
+        Assert.Equal(
+            ["pixel_guinea_pig", "pixel_starlight_upalupa"],
+            PixelCharacterCatalog.All
+                .Where(character => character.MirrorsToMovementDirection)
+                .Select(character => character.Id));
+    }
+
     [Theory]
     [InlineData("pixel_cat", "pixel_cat")]
     [InlineData("pixel_guinea_pig", "pixel_guinea_pig")]

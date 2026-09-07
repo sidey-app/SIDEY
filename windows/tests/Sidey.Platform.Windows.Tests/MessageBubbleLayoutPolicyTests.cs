@@ -26,6 +26,27 @@ public sealed class MessageBubbleLayoutPolicyTests
     }
 
     [Theory]
+    [InlineData(0d, 10d)]
+    [InlineData(50d, 36d)]
+    [InlineData(100d, 68d)]
+    public void DecoratedBubbleKeepsItsOverflowInsideTheTrack(
+        double senderTangent,
+        double expectedBodyStart)
+    {
+        double bodyStart = MessageBubbleLayoutPolicy.ClampedBodyTangentStart(
+            senderTangent,
+            tangentLength: 100d,
+            bodyTangentExtent: 28d,
+            leadingOverflow: 6d,
+            trailingOverflow: 0d,
+            margin: 4d);
+
+        Assert.Equal(expectedBodyStart, bodyStart);
+        Assert.True(bodyStart - 6d >= 4d);
+        Assert.True(bodyStart + 28d <= 96d);
+    }
+
+    [Theory]
     [InlineData(OverlayEdge.Bottom)]
     [InlineData(OverlayEdge.Top)]
     public void HorizontalBubbleTailKeepsItsTipOnTheSender(OverlayEdge edge)

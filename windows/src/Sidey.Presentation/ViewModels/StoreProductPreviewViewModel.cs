@@ -21,6 +21,8 @@ public sealed partial class StoreProductPreviewViewModel : ObservableObject
         CharacterId = product.CharacterId;
         Kind = product.Kind;
         CatalogItemId = product.EffectiveCatalogItemId;
+        SortOrder = product.SortOrder;
+        AmountKrw = product.AmountKrw;
         DisplayName = displayName;
         Description = description;
         FormattedPrice = formattedPrice;
@@ -33,6 +35,8 @@ public sealed partial class StoreProductPreviewViewModel : ObservableObject
     public string CharacterId { get; }
     public CommerceProductKind Kind { get; }
     public string CatalogItemId { get; }
+    public int SortOrder { get; }
+    public int AmountKrw { get; }
     public string DisplayName { get; }
     public string Description { get; }
     public string FormattedPrice { get; }
@@ -51,17 +55,23 @@ public sealed partial class StoreProductPreviewViewModel : ObservableObject
     [ObservableProperty]
     public partial bool IsPreviewOnlyVisible { get; set; } = true;
 
-    public void Apply(CommerceProductState state, bool commerceEnabled)
+    [ObservableProperty]
+    public partial bool IsOwned { get; set; }
+
+    public void Apply(CommerceProductState state, bool commerceEnabled, bool isOwned)
     {
         IsPreviewOnlyVisible = !commerceEnabled;
+        IsOwned = isOwned;
         IsWorking = state.IsWorking;
-        IsActionEnabled = commerceEnabled
+        bool isActionEnabled = commerceEnabled
             && !state.IsWorking
             && state.PurchaseState is (
                 CommercePurchaseState.GoogleConnectionRequired
                 or CommercePurchaseState.Available
                 or CommercePurchaseState.Refunded
                 or CommercePurchaseState.Error);
+        bool actionAvailabilityChanged = IsActionEnabled != isActionEnabled;
+        IsActionEnabled = isActionEnabled;
         ActionText = state.PurchaseState switch
         {
             CommercePurchaseState.GoogleConnectionRequired => I18n.Get("store.connectGoogle"),
@@ -73,6 +83,9 @@ public sealed partial class StoreProductPreviewViewModel : ObservableObject
             CommercePurchaseState.Error => I18n.Get("store.retry"),
             _ => I18n.Get("store.comingSoon"),
         };
-        _actionCommand.NotifyCanExecuteChanged();
+        if (actionAvailabilityChanged)
+        {
+            _actionCommand.NotifyCanExecuteChanged();
+        }
     }
 }

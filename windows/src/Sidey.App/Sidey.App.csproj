@@ -20,13 +20,12 @@
     <AssemblyName>SIDEY.Host</AssemblyName>
     <AssemblyTitle>SIDEY</AssemblyTitle>
     <Product>SIDEY</Product>
-    <Version>1.0.8</Version>
-    <FileVersion>1.0.8.0</FileVersion>
-    <AssemblyVersion>1.0.8.0</AssemblyVersion>
+    <Version>1.0.10</Version>
+    <FileVersion>1.0.10.0</FileVersion>
+    <AssemblyVersion>1.0.10.0</AssemblyVersion>
     <ApplicationIcon>Assets\Icons\SideyAppIcon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Graphics.Win2D" />
     <PackageReference Include="Microsoft.WindowsAppSDK" />
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' != 'Debug'">

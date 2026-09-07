@@ -14,6 +14,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly IMainWindowDialogService _dialogs;
     private readonly IUpdateService _updates;
     private readonly HashSet<Guid> _expandedRoomIds = [];
+    private readonly HashSet<CommerceProductKind> _pendingCosmeticKinds = [];
     private CoordinatorState _state = CoordinatorState.Initial;
     private CoordinatorState _previousState = CoordinatorState.Initial;
     private bool _isApplyingState;
@@ -45,7 +46,31 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial bool AreGroupMutationsEnabled { get; set; } = true;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveProfileCommand))]
     public partial bool IsSavingProfile { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveProfileCommand))]
+    public partial bool IsSavingCharacter { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveProfileCommand))]
+    public partial bool HasNicknameChanges { get; set; }
+
+    [ObservableProperty]
+    public partial int SelectedStoreKindIndex { get; set; }
+
+    [ObservableProperty]
+    public partial int SelectedStoreSortIndex { get; set; }
+
+    [ObservableProperty]
+    public partial bool HidesOwnedStoreProducts { get; set; }
+
+    [ObservableProperty]
+    public partial string StoreSearchText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool HasVisibleStoreProducts { get; set; }
 
     [ObservableProperty]
     public partial bool IsConnected { get; set; }
@@ -85,6 +110,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial bool IsCheckingForUpdates { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasUpdateActivity))]
+    public partial string UpdateActivityText { get; set; } = string.Empty;
+
+    public bool HasUpdateActivity => !string.IsNullOrWhiteSpace(UpdateActivityText);
+
+    [ObservableProperty]
     public partial string CurrentVersionText { get; set; } = string.Empty;
 
     [ObservableProperty]
@@ -107,6 +138,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         StoreProducts = WindowsCommerceCatalog.Products
             .Select(CreateStorePreview)
             .ToArray();
+        RefreshVisibleStoreProducts();
         RefreshMonitors();
         ApplyState(coordinator.State);
         UpdateCharacterSelectionState();
@@ -123,6 +155,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public ObservableCollection<CosmeticSelectionItemViewModel> ThrowableSelections { get; } = [];
 
     public IReadOnlyList<StoreProductPreviewViewModel> StoreProducts { get; }
+
+    public ObservableCollection<StoreProductPreviewViewModel> VisibleStoreProducts { get; } = [];
 
     public ObservableCollection<MonitorOption> Monitors { get; } = [];
 
@@ -150,10 +184,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
         string displayName = product.Kind == CommerceProductKind.Character
             ? character.DisplayName
             : I18n.Get($"store.product.{product.Id}");
+        string description = I18n.Get(descriptionKey);
+        if (product.Kind == CommerceProductKind.Character)
+        {
+            description = $"{description} {I18n.Get($"store.interaction.{character.Id}")}";
+        }
         return new StoreProductPreviewViewModel(
             product,
             displayName,
-            I18n.Get(descriptionKey),
+            description,
             product.AmountKrw switch
             {
                 1_900 => I18n.Get("store.price1900"),
@@ -184,7 +223,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public void ApplyState(CoordinatorState state)
     {
-        bool shouldApplyProfileDraft = ProfileDraftMatchesSyncedState();
+        bool shouldApplyProfileDraft = NicknameDraftMatchesSyncedState();
         (string syncedNickname, string syncedCharacterId) = GetSyncedProfileDraft(state);
         _syncedProfileNickname = syncedNickname;
         _syncedProfileCharacterId = syncedCharacterId;
@@ -206,13 +245,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
             _state = state;
             RefreshCharacterSelections(state.ActiveEntitlementKeys);
-            RefreshCosmeticSelections(state);
             RefreshStoreProducts(state);
             if (shouldApplyProfileDraft)
             {
                 Nickname = syncedNickname;
                 SelectedCharacterId = syncedCharacterId;
             }
+            RefreshCosmeticSelections(state);
+            RefreshNicknameChangeState();
 
             RefreshRoomCards();
             HasRooms = state.Rooms.Count > 0;
@@ -258,7 +298,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public void RefreshDiagnostics() => RefreshValidationMetrics();
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanSaveProfile))]
     private async Task SaveProfileAsync()
     {
         if (IsSavingProfile)
@@ -278,6 +318,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
             IsSavingProfile = false;
         }
     }
+
+    private bool CanSaveProfile() =>
+        HasNicknameChanges
+        && !IsSavingProfile
+        && !IsSavingCharacter
+        && ProfileValidator.IsValidNickname(Nickname);
 
     [RelayCommand]
     private async Task CreateRoomAsync()
@@ -312,6 +358,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private async Task CheckForUpdatesAsync()
     {
         IsCheckingForUpdates = true;
+        UpdateActivityText = I18n.Get("update.checking");
         try
         {
             AvailableUpdate? update = await _updates.CheckAsync();
@@ -322,12 +369,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 return;
             }
 
+            UpdateActivityText = string.Empty;
             if (!await _dialogs.ConfirmUpdateDownloadAsync(update.Version))
             {
                 return;
             }
 
-            RaiseNotice(I18n.Get("update.downloading"), NoticeKind.Informational);
+            UpdateActivityText = I18n.Get("update.downloading");
             await _updates.DownloadAndLaunchInstallerAsync(update);
             RaiseNotice(
                 I18n.Get("update.installerLaunched"),
@@ -340,6 +388,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         finally
         {
             RefreshUpdateInformation();
+            UpdateActivityText = string.Empty;
             IsCheckingForUpdates = false;
         }
     }
@@ -352,6 +401,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
 
         IsCheckingForUpdates = true;
+        UpdateActivityText = I18n.Get("update.checking");
         try
         {
             AvailableUpdate? update = await _updates.CheckAsync();
@@ -367,6 +417,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         finally
         {
             RefreshUpdateInformation();
+            UpdateActivityText = string.Empty;
             IsCheckingForUpdates = false;
         }
     }
@@ -474,7 +525,45 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    partial void OnSelectedCharacterIdChanged(string value) => UpdateCharacterSelectionState();
+    partial void OnNicknameChanged(string value)
+    {
+        _ = value;
+        RefreshNicknameChangeState();
+    }
+
+    partial void OnSelectedCharacterIdChanged(string value)
+    {
+        UpdateCharacterSelectionState();
+        if (!_isApplyingState
+            && !StringComparer.Ordinal.Equals(value, _syncedProfileCharacterId))
+        {
+            _ = SaveCharacterSelectionAsync(value);
+        }
+    }
+
+    partial void OnSelectedStoreKindIndexChanged(int value)
+    {
+        _ = value;
+        RefreshVisibleStoreProducts();
+    }
+
+    partial void OnSelectedStoreSortIndexChanged(int value)
+    {
+        _ = value;
+        RefreshVisibleStoreProducts();
+    }
+
+    partial void OnHidesOwnedStoreProductsChanged(bool value)
+    {
+        _ = value;
+        RefreshVisibleStoreProducts();
+    }
+
+    partial void OnStoreSearchTextChanged(string value)
+    {
+        _ = value;
+        RefreshVisibleStoreProducts();
+    }
 
     partial void OnSelectedEdgeIndexChanged(int value) => ApplyRegionPreference();
 
@@ -496,6 +585,34 @@ public sealed partial class MainWindowViewModel : ObservableObject
             successMessage);
     }
 
+    private async Task SaveCharacterSelectionAsync(string characterId)
+    {
+        if (IsSavingCharacter)
+        {
+            return;
+        }
+
+        IsSavingCharacter = true;
+        bool succeeded = await RunCommandAsync(
+            () => _coordinator.SaveProfileAsync(_syncedProfileNickname, characterId),
+            I18n.Get("profile.characterSaved"));
+        IsSavingCharacter = false;
+        if (succeeded)
+        {
+            return;
+        }
+
+        _isApplyingState = true;
+        try
+        {
+            SelectedCharacterId = _syncedProfileCharacterId;
+        }
+        finally
+        {
+            _isApplyingState = false;
+        }
+    }
+
     private void RefreshStoreProducts(CoordinatorState state)
     {
         Dictionary<string, CommerceProductState> states = state.CommerceProducts
@@ -507,8 +624,81 @@ public sealed partial class MainWindowViewModel : ObservableObject
                     WindowsCommerceCatalog.Find(product.ProductId)!,
                     GoogleConnected: false,
                     CommercePurchaseState.Unavailable);
-            product.Apply(productState, state.DevelopmentCommerceEnabled);
+            product.Apply(
+                productState,
+                state.DevelopmentCommerceEnabled,
+                state.ActiveEntitlementKeys.Contains(productState.Product.EntitlementKey)
+                    || productState.PurchaseState == CommercePurchaseState.Owned);
         }
+        RefreshVisibleStoreProducts();
+    }
+
+    private void RefreshVisibleStoreProducts()
+    {
+        if (StoreProducts is null)
+        {
+            return;
+        }
+
+        var kind = (CommerceProductKind)Math.Clamp(SelectedStoreKindIndex, 0, 2);
+        IEnumerable<StoreProductPreviewViewModel> products = StoreProducts
+            .Where(product => product.Kind == kind)
+            .Where(product => !HidesOwnedStoreProducts || !product.IsOwned);
+        string searchText = StoreSearchText.Trim();
+        if (searchText.Length > 0)
+        {
+            products = products.Where(product =>
+                product.DisplayName.Contains(searchText, StringComparison.CurrentCultureIgnoreCase)
+                || product.Description.Contains(searchText, StringComparison.CurrentCultureIgnoreCase));
+        }
+        products = SelectedStoreSortIndex switch
+        {
+            1 => products.OrderBy(product => product.AmountKrw)
+                .ThenBy(product => product.SortOrder)
+                .ThenBy(product => product.ProductId, StringComparer.Ordinal),
+            2 => products.OrderByDescending(product => product.AmountKrw)
+                .ThenBy(product => product.SortOrder)
+                .ThenBy(product => product.ProductId, StringComparer.Ordinal),
+            _ => products.OrderBy(product => product.SortOrder)
+                .ThenBy(product => product.ProductId, StringComparer.Ordinal),
+        };
+
+        StoreProductPreviewViewModel[] desiredProducts = products.ToArray();
+        for (int index = VisibleStoreProducts.Count - 1; index >= 0; index--)
+        {
+            if (!desiredProducts.Contains(VisibleStoreProducts[index]))
+            {
+                VisibleStoreProducts.RemoveAt(index);
+            }
+        }
+        for (int index = 0; index < desiredProducts.Length; index++)
+        {
+            StoreProductPreviewViewModel product = desiredProducts[index];
+            if (index < VisibleStoreProducts.Count
+                && ReferenceEquals(VisibleStoreProducts[index], product))
+            {
+                continue;
+            }
+
+            int existingIndex = VisibleStoreProducts.IndexOf(product);
+            if (existingIndex >= 0)
+            {
+                VisibleStoreProducts.Move(existingIndex, index);
+            }
+            else
+            {
+                VisibleStoreProducts.Insert(index, product);
+            }
+        }
+        HasVisibleStoreProducts = VisibleStoreProducts.Count > 0;
+    }
+
+    private void RefreshNicknameChangeState()
+    {
+        HasNicknameChanges = !StringComparer.Ordinal.Equals(
+            ProfileValidator.NormalizeNickname(Nickname),
+            ProfileValidator.NormalizeNickname(_syncedProfileNickname));
+        SaveProfileCommand.NotifyCanExecuteChanged();
     }
 
     private void UpdateCharacterSelectionState()
@@ -559,31 +749,81 @@ public sealed partial class MainWindowViewModel : ObservableObject
         string? selectedId,
         IReadOnlySet<string> activeEntitlementKeys)
     {
-        destination.Clear();
-        destination.Add(new CosmeticSelectionItemViewModel(
-            kind,
-            null,
-            I18n.Get("profile.cosmeticDefault"),
-            selectedId is null,
-            () => SetEquippedCosmeticAsync(kind, null)));
-        foreach (CommerceProduct product in WindowsCommerceCatalog.Products.Where(product =>
-                     product.Kind == kind && activeEntitlementKeys.Contains(product.EntitlementKey)))
+        CommerceProduct[] entitledProducts = WindowsCommerceCatalog.Products.Where(product =>
+                product.Kind == kind && activeEntitlementKeys.Contains(product.EntitlementKey))
+            .ToArray();
+        string?[] desiredIds = [null, .. entitledProducts.Select(product => product.EffectiveCatalogItemId)];
+        bool canReuseItems = destination.Count == desiredIds.Length
+            && destination.Select(item => item.CatalogItemId).SequenceEqual(
+                desiredIds,
+                StringComparer.Ordinal);
+
+        if (!canReuseItems)
         {
-            string id = product.EffectiveCatalogItemId;
+            destination.Clear();
             destination.Add(new CosmeticSelectionItemViewModel(
                 kind,
-                id,
-                I18n.Get($"store.product.{product.Id}"),
-                StringComparer.Ordinal.Equals(id, selectedId),
-                () => SetEquippedCosmeticAsync(kind, id)));
+                null,
+                I18n.Get(kind == CommerceProductKind.Bubble
+                    ? "profile.defaultBubble"
+                    : "profile.defaultThrowable"),
+                SelectedCharacterId,
+                selectedId is null,
+                !_pendingCosmeticKinds.Contains(kind),
+                () => SetEquippedCosmeticAsync(kind, null)));
+            foreach (CommerceProduct product in entitledProducts)
+            {
+                string id = product.EffectiveCatalogItemId;
+                destination.Add(new CosmeticSelectionItemViewModel(
+                    kind,
+                    id,
+                    I18n.Get($"store.product.{product.Id}"),
+                    SelectedCharacterId,
+                    StringComparer.Ordinal.Equals(id, selectedId),
+                    !_pendingCosmeticKinds.Contains(kind),
+                    () => SetEquippedCosmeticAsync(kind, id)));
+            }
+            return;
+        }
+
+        bool isEnabled = !_pendingCosmeticKinds.Contains(kind);
+        foreach (CosmeticSelectionItemViewModel item in destination)
+        {
+            item.CharacterId = SelectedCharacterId;
+            item.IsSelected = StringComparer.Ordinal.Equals(item.CatalogItemId, selectedId);
+            item.IsEnabled = isEnabled;
         }
     }
 
     private async Task SetEquippedCosmeticAsync(CommerceProductKind kind, string? catalogItemId)
     {
-        await RunCommandAsync(
-            () => _coordinator.SetEquippedCosmeticAsync(kind, catalogItemId),
-            I18n.Get("profile.cosmeticSaved"));
+        if (!_pendingCosmeticKinds.Add(kind))
+        {
+            return;
+        }
+
+        UpdateCosmeticSelectionAvailability(kind, false);
+        try
+        {
+            await RunCommandAsync(
+                () => _coordinator.SetEquippedCosmeticAsync(kind, catalogItemId),
+                I18n.Get("profile.cosmeticSaved"));
+        }
+        finally
+        {
+            _pendingCosmeticKinds.Remove(kind);
+            UpdateCosmeticSelectionAvailability(kind, true);
+        }
+    }
+
+    private void UpdateCosmeticSelectionAvailability(CommerceProductKind kind, bool isEnabled)
+    {
+        ObservableCollection<CosmeticSelectionItemViewModel> selections =
+            kind == CommerceProductKind.Bubble ? BubbleSelections : ThrowableSelections;
+        foreach (CosmeticSelectionItemViewModel selection in selections)
+        {
+            selection.IsEnabled = isEnabled;
+        }
     }
 
     public void RefreshMonitors()
@@ -616,9 +856,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    private bool ProfileDraftMatchesSyncedState() =>
-        StringComparer.Ordinal.Equals(Nickname, _syncedProfileNickname)
-        && StringComparer.Ordinal.Equals(SelectedCharacterId, _syncedProfileCharacterId);
+    private bool NicknameDraftMatchesSyncedState() =>
+        StringComparer.Ordinal.Equals(
+            ProfileValidator.NormalizeNickname(Nickname),
+            ProfileValidator.NormalizeNickname(_syncedProfileNickname));
 
     private static (string Nickname, string CharacterId) GetSyncedProfileDraft(
         CoordinatorState state) =>

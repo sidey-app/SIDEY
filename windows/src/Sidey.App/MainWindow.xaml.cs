@@ -2,11 +2,13 @@ using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
 using Sidey.App.Controls;
 using Sidey.Core.Localization;
 using Sidey.Platform.Windows;
 using Sidey.Presentation.Services;
 using Sidey.Presentation.ViewModels;
+using Windows.UI.ViewManagement;
 
 namespace Sidey.App;
 
@@ -27,9 +29,13 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     private bool _allowClose;
     private bool _trayAvailable;
     private bool _navigatingBack;
+    private bool _storePreviewDialogOpen;
+    private bool _hideQueued;
+    private bool _isClosed;
     private string _currentNavigationTag = "profile";
     private readonly Stack<string> _navigationHistory = new();
     private readonly WindowsMinimumSizeController _minimumSizeController;
+    private readonly CancellationTokenSource _lifetime = new();
 
     public MainWindow(
         IMainWindowCoordinator coordinator,
@@ -64,14 +70,37 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
 
     public bool ShouldExitOnClose => _allowClose || !_trayAvailable;
 
-    public void ApplyState(CoordinatorState state) => ViewModel.ApplyState(state);
+    public void ApplyState(CoordinatorState state)
+    {
+        if (!_isClosed)
+        {
+            ViewModel.ApplyState(state);
+        }
+    }
 
-    public void RefreshMonitors() => ViewModel.RefreshMonitors();
+    public void RefreshMonitors()
+    {
+        if (!_isClosed)
+        {
+            ViewModel.RefreshMonitors();
+        }
+    }
 
-    public void ShowFatalError(Exception exception) => ViewModel.ReportError(exception);
+    public void ShowFatalError(Exception exception)
+    {
+        if (!_isClosed)
+        {
+            ViewModel.ReportError(exception);
+        }
+    }
 
     public void ShowPage(string tag)
     {
+        if (_isClosed)
+        {
+            return;
+        }
+
         ViewModel.PrepareGroupsForPresentation();
         NavigationViewItem? item = RootNavigation.MenuItems
             .OfType<NavigationViewItem>()
@@ -89,15 +118,26 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
 
     public void CloseForExit()
     {
+        if (_isClosed)
+        {
+            return;
+        }
+
         _allowClose = true;
         Close();
     }
 
-    public void SetTrayAvailable(bool available) => _trayAvailable = available;
+    public void SetTrayAvailable(bool available)
+    {
+        if (!_isClosed)
+        {
+            _trayAvailable = available;
+        }
+    }
 
     public void CheckForUpdates()
     {
-        if (ViewModel.CheckForUpdatesCommand.CanExecute(null))
+        if (!_isClosed && ViewModel.CheckForUpdatesCommand.CanExecute(null))
         {
             ViewModel.CheckForUpdatesCommand.Execute(null);
         }
@@ -105,43 +145,109 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
 
     public async Task<bool> ConfirmInviteCodeRotationAsync()
     {
+        if (ActiveXamlRoot() is not { } xamlRoot)
+        {
+            return false;
+        }
+
         var dialog = new ContentDialog
         {
-            XamlRoot = Content.XamlRoot,
+            XamlRoot = xamlRoot,
             Title = I18n.Get("dialogs.rotateInviteTitle"),
             Content = I18n.Get("dialogs.rotateInviteBody"),
             PrimaryButtonText = I18n.Get("dialogs.rotateInvitePrimary"),
             CloseButtonText = I18n.Get("common.cancel"),
             DefaultButton = ContentDialogButton.Close,
         };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        try
+        {
+            return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        }
+        catch (Exception) when (_isClosed)
+        {
+            return false;
+        }
     }
 
     private async void OnStorePreviewRequested(StoreProductPreviewViewModel product)
     {
-        var content = new StackPanel { Spacing = 12 };
-        content.Children.Add(new StorePreviewStage(
-            product.Kind,
-            product.CatalogItemId,
-            product.CharacterId));
-        content.Children.Add(new TextBlock
+        if (_isClosed || _storePreviewDialogOpen)
         {
-            Text = product.Description,
-            TextWrapping = TextWrapping.Wrap,
-        });
-        var dialog = new ContentDialog
+            return;
+        }
+
+        _storePreviewDialogOpen = true;
+        StorePreviewStage? previewStage = null;
+        try
         {
-            XamlRoot = Content.XamlRoot,
-            Title = product.DisplayName,
-            Content = content,
-            CloseButtonText = I18n.Get("common.close"),
-            DefaultButton = ContentDialogButton.Close,
-        };
-        await dialog.ShowAsync();
+            var content = new StackPanel { Spacing = 12 };
+            previewStage = new StorePreviewStage(
+                product.Kind,
+                product.CatalogItemId,
+                product.CharacterId,
+                _lifetime.Token);
+            if (ActiveXamlRoot() is not { } xamlRoot)
+            {
+                return;
+            }
+
+            content.Children.Add(previewStage);
+            content.Children.Add(new TextBlock
+            {
+                Text = product.DisplayName,
+                FontSize = 22,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                TextAlignment = TextAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+            });
+            content.Children.Add(new TextBlock
+            {
+                Text = product.Description,
+                Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources[
+                    "TextFillColorSecondaryBrush"],
+                TextAlignment = TextAlignment.Center,
+                TextWrapping = TextWrapping.Wrap,
+            });
+            var dialog = new ContentDialog
+            {
+                XamlRoot = xamlRoot,
+                Content = content,
+                PrimaryButtonText = product.IsOwned
+                    ? I18n.Get("store.owned")
+                    : I18n.Format("store.purchase", product.FormattedPrice),
+                IsPrimaryButtonEnabled = false,
+                CloseButtonText = I18n.Get("common.close"),
+                DefaultButton = ContentDialogButton.Close,
+            };
+            dialog.Closing += (_, _) => previewStage.EndPresentation();
+            previewStage.BeginPresentation();
+            await dialog.ShowAsync();
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal("store-preview-dialog", exception);
+            if (!_isClosed)
+            {
+                ViewModel.ReportError(exception);
+            }
+        }
+        finally
+        {
+            previewStage?.EndPresentation();
+            _storePreviewDialogOpen = false;
+        }
     }
 
     public async Task<string?> PromptForRoomNameAsync(string currentName)
     {
+        if (ActiveXamlRoot() is not { } xamlRoot)
+        {
+            return null;
+        }
+
         var input = new TextBox
         {
             Text = currentName,
@@ -150,37 +256,61 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         };
         var dialog = new ContentDialog
         {
-            XamlRoot = Content.XamlRoot,
+            XamlRoot = xamlRoot,
             Title = I18n.Get("groups.renameDialogTitle"),
             Content = input,
             PrimaryButtonText = I18n.Get("common.save"),
             CloseButtonText = I18n.Get("common.cancel"),
             DefaultButton = ContentDialogButton.Primary,
         };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary
-            ? input.Text
-            : null;
+        try
+        {
+            return await dialog.ShowAsync() == ContentDialogResult.Primary
+                ? input.Text
+                : null;
+        }
+        catch (Exception) when (_isClosed)
+        {
+            return null;
+        }
     }
 
     public async Task<bool> ConfirmMemberRemovalAsync(string nickname)
     {
+        if (ActiveXamlRoot() is not { } xamlRoot)
+        {
+            return false;
+        }
+
         var dialog = new ContentDialog
         {
-            XamlRoot = Content.XamlRoot,
+            XamlRoot = xamlRoot,
             Title = I18n.Format("dialogs.removeMemberTitle", nickname),
             Content = I18n.Format("dialogs.removeMemberBody", nickname),
             PrimaryButtonText = I18n.Get("dialogs.removeMemberPrimary"),
             CloseButtonText = I18n.Get("common.cancel"),
             DefaultButton = ContentDialogButton.Close,
         };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        try
+        {
+            return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        }
+        catch (Exception) when (_isClosed)
+        {
+            return false;
+        }
     }
 
     public async Task<bool> ConfirmRoomLeaveAsync(string roomName, bool isOwner)
     {
+        if (ActiveXamlRoot() is not { } xamlRoot)
+        {
+            return false;
+        }
+
         var dialog = new ContentDialog
         {
-            XamlRoot = Content.XamlRoot,
+            XamlRoot = xamlRoot,
             Title = I18n.Format("dialogs.leaveRoomTitle", roomName),
             Content = I18n.Get(isOwner
                 ? "dialogs.leaveOwnedRoomBody"
@@ -189,50 +319,92 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
             CloseButtonText = I18n.Get("common.cancel"),
             DefaultButton = ContentDialogButton.Close,
         };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        try
+        {
+            return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        }
+        catch (Exception) when (_isClosed)
+        {
+            return false;
+        }
     }
 
     public async Task<bool> ConfirmRoomDeletionAsync(string roomName)
     {
+        if (ActiveXamlRoot() is not { } xamlRoot)
+        {
+            return false;
+        }
+
         var impactDialog = new ContentDialog
         {
-            XamlRoot = Content.XamlRoot,
+            XamlRoot = xamlRoot,
             Title = I18n.Format("dialogs.deleteRoomTitle", roomName),
             Content = I18n.Get("dialogs.deleteRoomBody"),
             PrimaryButtonText = I18n.Get("dialogs.deleteRoomContinue"),
             CloseButtonText = I18n.Get("common.cancel"),
             DefaultButton = ContentDialogButton.Close,
         };
-        if (await impactDialog.ShowAsync() != ContentDialogResult.Primary)
+        ContentDialogResult impactResult;
+        try
+        {
+            impactResult = await impactDialog.ShowAsync();
+        }
+        catch (Exception) when (_isClosed)
+        {
+            return false;
+        }
+        if (impactResult != ContentDialogResult.Primary || _isClosed)
         {
             return false;
         }
 
         var finalDialog = new ContentDialog
         {
-            XamlRoot = Content.XamlRoot,
+            XamlRoot = xamlRoot,
             Title = I18n.Get("dialogs.deleteRoomFinalTitle"),
             Content = I18n.Format("dialogs.deleteRoomFinalBody", roomName),
             PrimaryButtonText = I18n.Get("common.delete"),
             CloseButtonText = I18n.Get("common.cancel"),
             DefaultButton = ContentDialogButton.Close,
         };
-        return await finalDialog.ShowAsync() == ContentDialogResult.Primary;
+        try
+        {
+            return await finalDialog.ShowAsync() == ContentDialogResult.Primary;
+        }
+        catch (Exception) when (_isClosed)
+        {
+            return false;
+        }
     }
 
     public async Task<bool> ConfirmUpdateDownloadAsync(string version)
     {
+        if (ActiveXamlRoot() is not { } xamlRoot)
+        {
+            return false;
+        }
+
         var dialog = new ContentDialog
         {
-            XamlRoot = Content.XamlRoot,
+            XamlRoot = xamlRoot,
             Title = I18n.Get("dialogs.updateTitle"),
             Content = I18n.Format("dialogs.updateBody", version),
             PrimaryButtonText = I18n.Get("dialogs.download"),
             CloseButtonText = I18n.Get("dialogs.later"),
             DefaultButton = ContentDialogButton.Primary,
         };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        try
+        {
+            return await dialog.ShowAsync() == ContentDialogResult.Primary;
+        }
+        catch (Exception) when (_isClosed)
+        {
+            return false;
+        }
     }
+
+    private XamlRoot? ActiveXamlRoot() => _isClosed ? null : Content.XamlRoot;
 
     private void OnAppWindowClosing(
         Microsoft.UI.Windowing.AppWindow sender,
@@ -241,11 +413,37 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         _ = sender;
         if (_allowClose || !_trayAvailable)
         {
+            PrepareForClose();
             return;
         }
 
         args.Cancel = true;
-        AppWindow.Hide();
+        if (_hideQueued)
+        {
+            return;
+        }
+
+        _hideQueued = true;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _hideQueued = false;
+            if (!_allowClose && !_isClosed)
+            {
+                AppWindow.Hide();
+            }
+        });
+    }
+
+    private void PrepareForClose()
+    {
+        if (_isClosed)
+        {
+            return;
+        }
+
+        _isClosed = true;
+        _lifetime.Cancel();
+        MainRoot.DataContext = null;
     }
 
     private void OnNavigationSelectionChanged(
@@ -254,7 +452,8 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     {
         _ = sender;
         string tag = (args.SelectedItemContainer?.Tag as string) ?? "profile";
-        if (!StringComparer.Ordinal.Equals(tag, _currentNavigationTag))
+        bool navigationChanged = !StringComparer.Ordinal.Equals(tag, _currentNavigationTag);
+        if (navigationChanged)
         {
             if (!_navigatingBack)
             {
@@ -274,6 +473,96 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         GroupsPage.Visibility = tag == "groups" ? Visibility.Visible : Visibility.Collapsed;
         StorePage.Visibility = tag == "store" ? Visibility.Visible : Visibility.Collapsed;
         SettingsPage.Visibility = tag == "settings" ? Visibility.Visible : Visibility.Collapsed;
+        if (navigationChanged)
+        {
+            AnimatePageRefresh(tag switch
+            {
+                "groups" => GroupsPage,
+                "store" => StorePage,
+                "settings" => SettingsPage,
+                _ => HomePage,
+            });
+        }
+    }
+
+    private void OnStoreKindSelectionChanged(
+        SelectorBar sender,
+        SelectorBarSelectionChangedEventArgs args)
+    {
+        _ = args;
+        if (sender.SelectedItem is null
+            || MainRoot.DataContext is not MainWindowViewModel viewModel)
+        {
+            return;
+        }
+
+        int selectedIndex = sender.Items.IndexOf(sender.SelectedItem);
+        int previousIndex = viewModel.SelectedStoreKindIndex;
+        if (selectedIndex < 0 || selectedIndex == previousIndex)
+        {
+            return;
+        }
+
+        viewModel.SelectedStoreKindIndex = selectedIndex;
+        AnimateSiblingPage(
+            StoreResultsHost,
+            selectedIndex > previousIndex ? 24d : -24d);
+    }
+
+    private static void AnimatePageRefresh(FrameworkElement element) =>
+        AnimateElement(element, horizontalOffset: 0, verticalOffset: 18, durationMilliseconds: 220);
+
+    private static void AnimateSiblingPage(FrameworkElement element, double horizontalOffset) =>
+        AnimateElement(element, horizontalOffset, verticalOffset: 0, durationMilliseconds: 180);
+
+    private static void AnimateElement(
+        FrameworkElement element,
+        double horizontalOffset,
+        double verticalOffset,
+        int durationMilliseconds)
+    {
+        if (!new UISettings().AnimationsEnabled)
+        {
+            element.Opacity = 1;
+            element.RenderTransform = new TranslateTransform();
+            return;
+        }
+
+        var transform = new TranslateTransform();
+        element.RenderTransform = transform;
+        element.Opacity = 1;
+
+        var duration = new Duration(TimeSpan.FromMilliseconds(durationMilliseconds));
+        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var opacity = new DoubleAnimation
+        {
+            From = 0,
+            To = 1,
+            Duration = duration,
+            EasingFunction = easing,
+        };
+        Storyboard.SetTarget(opacity, element);
+        Storyboard.SetTargetProperty(opacity, "Opacity");
+
+        var translation = new DoubleAnimation
+        {
+            From = horizontalOffset == 0 ? verticalOffset : horizontalOffset,
+            To = 0,
+            Duration = duration,
+            EasingFunction = easing,
+            EnableDependentAnimation = true,
+        };
+        Storyboard.SetTarget(translation, element);
+        Storyboard.SetTargetProperty(
+            translation,
+            horizontalOffset == 0
+                ? "(UIElement.RenderTransform).(TranslateTransform.Y)"
+                : "(UIElement.RenderTransform).(TranslateTransform.X)");
+
+        var storyboard = new Storyboard();
+        storyboard.Children.Add(opacity);
+        storyboard.Children.Add(translation);
+        storyboard.Begin();
     }
 
     private void OnTitleBarBackRequested(TitleBar sender, object args)
@@ -358,33 +647,22 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         ExpandedConnectionStatus.Opacity = 1;
     }
 
-    private void OnCharacterSelectorLoaded(object sender, RoutedEventArgs args)
+    private void OnStoreFilterToggleClick(object sender, RoutedEventArgs args)
     {
         _ = sender;
         _ = args;
-        UpdateCharacterSelectorColumns();
-    }
-
-    private void OnCharacterSelectorSizeChanged(object sender, SizeChangedEventArgs args)
-    {
-        _ = sender;
-        _ = args;
-        UpdateCharacterSelectorColumns();
-    }
-
-    private void UpdateCharacterSelectorColumns()
-    {
-        if (CharacterSelector.ItemsPanelRoot is not ItemsWrapGrid panel
-            || CharacterSelector.ActualWidth <= 0)
-        {
-            return;
-        }
-
-        panel.ItemWidth = Math.Max(96, Math.Floor((CharacterSelector.ActualWidth - 24d) / 5d));
+        bool isExpanded = StoreFilterToggle.IsChecked == true;
+        StoreFilterPanel.Visibility = isExpanded ? Visibility.Visible : Visibility.Collapsed;
+        StoreFilterChevron.Glyph = isExpanded ? "\uE70E" : "\uE70D";
     }
 
     private void OnNoticeRaised(NoticeMessage notice)
     {
+        if (_isClosed)
+        {
+            return;
+        }
+
         _statusDismissTimer.Stop();
         StatusInfoBar.Message = notice.Message;
         StatusInfoBar.Severity = notice.Kind switch
@@ -406,7 +684,10 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         _ = sender;
         _ = args;
         _statusDismissTimer.Stop();
-        StatusInfoBar.IsOpen = false;
+        if (!_isClosed)
+        {
+            StatusInfoBar.IsOpen = false;
+        }
     }
 
     private void ApplyBackdrop()
@@ -438,6 +719,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     {
         _ = sender;
         _ = args;
+        PrepareForClose();
         AppWindow.Closing -= OnAppWindowClosing;
         Closed -= OnWindowClosed;
         ViewModel.NoticeRaised -= OnNoticeRaised;
@@ -449,6 +731,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         _validationMetricsTimer.Stop();
         _validationMetricsTimer.Tick -= OnValidationMetricsTimerTick;
 #endif
+        _lifetime.Dispose();
     }
 
 #if DEBUG

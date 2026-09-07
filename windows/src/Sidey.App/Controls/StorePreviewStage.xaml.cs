@@ -1,223 +1,1046 @@
 using System.Diagnostics;
-using Microsoft.Graphics.Canvas;
-using Microsoft.Graphics.Canvas.Text;
-using Microsoft.Graphics.Canvas.UI;
-using Microsoft.Graphics.Canvas.UI.Xaml;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Sidey.Core.Domain;
+using Sidey.Core.Localization;
+using Sidey.Core.Overlay;
 using Sidey.Platform.Windows;
 using Windows.Foundation;
 using Windows.UI;
-using Windows.UI.ViewManagement;
 
 namespace Sidey.App.Controls;
 
 public sealed partial class StorePreviewStage : UserControl
 {
+    private const double StageWidth = 540;
+    private const double PlatformTop = 256;
+    private const double RenderedCharacterSize = 72;
+    private const double RenderedFootBaseline = 9;
+    private const double ProjectileSize = 48;
+    private const double ImpactSize = 64;
+    private const double EmitterSize = 72;
+    private const double ProjectilePathY = PlatformTop
+        - (ProjectileSize / 2d)
+        + RenderedFootBaseline;
+    private const double EmitterTop = PlatformTop - EmitterSize + RenderedFootBaseline;
+    private const double CharacterTop = PlatformTop - RenderedCharacterSize + RenderedFootBaseline;
+    private const double PreviewWallInset = 12;
+    private const double WalkFrameSeconds = 0.16;
+    private const double IdleFrameSeconds = 0.55;
+    private const double TypingFrameSeconds = 0.35;
+    private const double ThrowActionSeconds = 0.4;
+    private const double ThrowReleaseSeconds = 0.2;
+    private const double HitActionSeconds = 0.44;
+    private const double ImpactSeconds = 0.24;
+    private const double ProjectileRotationFrameSeconds = 0.083;
+    private const double ThrowCycleSeconds = 1.0;
+    private const double FirstAutomaticThrowDelaySeconds = 0.35;
+    private const double BubbleTangentMargin = 6;
+    private const double BubbleMessageHeight = 42;
+    private const double BubbleMessageFontSize = 16.5;
+    private const double BubbleTypingWidth = 63;
+    private const double BubbleTypingHeight = 45;
+    private const double BubbleTypingFontSize = 24;
+    private const double BubbleTailHeight = 12;
+    private const double BubbleTailHalfBase = 9;
+    private const double BubbleTailBaseInset = 15;
+    private const double BubbleTailBodyOverlap = 3;
+    private const double BubbleCharacterGap = 6;
+    private const double BubbleDecorationLeadingOverflow = 12;
+    private const double BubbleDecorationTopOverflow = 16;
+    private const double NameplateTop = 181;
+    private const double AmbientSparkleCycleSeconds = 1.2;
+    private const double AmbientSparkleDurationSeconds = 1.05;
+    private static readonly IReadOnlyList<RectD> NoAvoidanceRects = Array.Empty<RectD>();
+    private static readonly IReadOnlySet<Guid> NoStoppedIds = new HashSet<Guid>();
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(1000d / 30d) };
     private readonly Stopwatch _clock = new();
-    private readonly Dictionary<string, CanvasBitmap> _characters = new(StringComparer.Ordinal);
-    private CanvasBitmap? _cosmetic;
-    private CanvasBitmap? _decoration;
-    private CanvasBitmap? _emitter;
+    private readonly Dictionary<string, IReadOnlyList<ImageSource>> _characters = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, IReadOnlyList<ImageSource>> _actions = new(StringComparer.Ordinal);
+    private readonly List<Image> _leftCharacterLayers = [];
+    private readonly List<Image> _rightCharacterLayers = [];
+    private readonly EdgeTrackGeometry _movementGeometry = new(
+        new RectD(0, 0, StageWidth, 280),
+        OverlayEdge.Bottom,
+        tangentExtent: RenderedCharacterSize + (PreviewWallInset * 2));
+    private readonly List<PixelMovementAgent> _movementAgents = [];
+    private readonly PixelMovementScratch _movementScratch = new();
+    private readonly Random _random = new(0x51DE59);
+    private readonly List<Microsoft.UI.Xaml.Shapes.Polygon> _sparkles = [];
+    private readonly CancellationToken _lifetimeToken;
+    private IReadOnlyList<ImageSource> _projectileFrames = Array.Empty<ImageSource>();
+    private IReadOnlyList<ImageSource> _emitterFrames = Array.Empty<ImageSource>();
     private double _manualThrowStarted = -10;
+    private double _manualThrowFlightDuration = 0.55;
+    private double _lastSceneElapsed;
+    private bool _resourcesLoaded;
+    private bool _loadFailed;
+    private bool _isPresented;
+    private int _loadGeneration;
+    private int _presentationGeneration;
+    private CancellationTokenSource? _loadCancellation;
+    private Task? _loadTask;
+    private bool _leftFacingLeft;
+    private bool _rightFacingLeft;
+    private int _leftVisibleCharacterLayer = -1;
+    private int _rightVisibleCharacterLayer = -1;
 
-    public StorePreviewStage(CommerceProductKind kind, string catalogItemId, string characterId)
+    public StorePreviewStage(
+        CommerceProductKind kind,
+        string catalogItemId,
+        string characterId,
+        CancellationToken lifetimeToken = default)
     {
         InitializeComponent();
         ProductKind = kind;
         CatalogItemId = catalogItemId;
-        CharacterId = characterId;
-        _timer.Tick += (_, _) => StageCanvas.Invalidate();
-        if (new UISettings().AnimationsEnabled)
-        {
-            _clock.Start();
-            _timer.Start();
-        }
+        CharacterId = PixelCharacterCatalog.NormalizeId(characterId);
+        _lifetimeToken = lifetimeToken;
+        _timer.Tick += OnTimerTick;
+        BuildPlatform();
+        BuildSparkles();
+        BuildMovementAgents();
     }
 
     public CommerceProductKind ProductKind { get; }
     public string CatalogItemId { get; }
     public string CharacterId { get; }
 
-    private async void OnCreateResources(CanvasControl sender, CanvasCreateResourcesEventArgs args)
+    public void BeginPresentation()
     {
-        _ = args;
-        string root = Path.Combine(SideyDeploymentPaths.DeploymentRoot(), "Assets");
-        foreach (string id in new[] { "pixel_hamster", "pixel_cat", CharacterId }.Distinct(StringComparer.Ordinal))
+        if (_isPresented)
         {
-            PixelCharacterDefinition definition = PixelCharacterCatalog.Get(id);
-            string path = Path.Combine(root, definition.SpriteSheetResource.Replace('/', Path.DirectorySeparatorChar));
-            _characters[id] = await CanvasBitmap.LoadAsync(sender, path);
+            return;
         }
-        if (ProductKind == CommerceProductKind.Bubble)
+
+        _isPresented = true;
+        int presentationGeneration = Interlocked.Increment(ref _presentationGeneration);
+        StartupDiagnostics.Stage($"store-preview-presentation-started generation={presentationGeneration}");
+        _ = RunPresentationAsync(presentationGeneration);
+    }
+
+    public void EndPresentation()
+    {
+        if (!_isPresented)
         {
-            _decoration = await CanvasBitmap.LoadAsync(sender,
-                Path.Combine(root, "Bubbles", CatalogItemId, "decoration.png"));
+            return;
         }
-        else
+
+        _isPresented = false;
+        Interlocked.Increment(ref _presentationGeneration);
+        StopAnimation();
+        CancelPendingLoad();
+        Interlocked.Increment(ref _loadGeneration);
+        StartupDiagnostics.Stage("store-preview-presentation-ended");
+    }
+
+    private async Task RunPresentationAsync(int presentationGeneration)
+    {
+        try
         {
-            string objectId = ProductKind == CommerceProductKind.Throwable
-                ? CatalogItemId
-                : SignatureObject(CharacterId);
-            _cosmetic = await CanvasBitmap.LoadAsync(sender,
-                Path.Combine(root, "Throwables", objectId, "sprite.png"));
-            if (objectId == "throwable_toy_cannon")
+            await InitializeAsync(presentationGeneration, _lifetimeToken);
+        }
+        catch (OperationCanceledException) when (
+            !_isPresented || _lifetimeToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        if (IsCurrentPresentation(presentationGeneration) && _resourcesLoaded)
+        {
+            StartAnimation();
+        }
+    }
+
+    private async Task InitializeAsync(
+        int presentationGeneration,
+        CancellationToken cancellationToken)
+    {
+        while (IsCurrentPresentation(presentationGeneration)
+            && !_resourcesLoaded
+            && !_loadFailed)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Task loadTask = _loadTask ?? StartResourceLoad(cancellationToken);
+            await loadTask;
+            if (ReferenceEquals(_loadTask, loadTask))
             {
-                _emitter = await CanvasBitmap.LoadAsync(sender,
-                    Path.Combine(root, "Throwables", objectId, "emitter.png"));
+                _loadTask = null;
             }
         }
     }
 
-    private void OnDraw(CanvasControl sender, CanvasDrawEventArgs args)
+    private Task StartResourceLoad(CancellationToken cancellationToken)
     {
-        var drawing = args.DrawingSession;
-        double elapsed = _clock.IsRunning ? _clock.Elapsed.TotalSeconds : 0;
-        DrawFloor(drawing);
-        string leftId = ProductKind == CommerceProductKind.Character ? CharacterId : "pixel_hamster";
-        DrawCharacter(drawing, leftId, 92, 190, elapsed, faceLeft: false);
-        DrawCharacter(drawing, "pixel_cat", 400, 190, elapsed + 0.4, faceLeft: true);
+        CancelPendingLoad();
+        _loadFailed = false;
+        LoadingRing.IsActive = true;
+        LoadingRing.Visibility = Visibility.Visible;
+        ErrorText.Visibility = Visibility.Collapsed;
+        var cancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _loadCancellation = cancellation;
+        int generation = Interlocked.Increment(ref _loadGeneration);
+        StartupDiagnostics.Stage($"store-preview-load-started generation={generation}");
+        return LoadResourcesAsync(generation, cancellation);
+    }
 
-        if (ProductKind == CommerceProductKind.Bubble)
+    public void StartAnimation()
+    {
+        if (!_isPresented || !_resourcesLoaded)
         {
-            DrawBubbleScenario(drawing, elapsed);
+            return;
+        }
+
+        _clock.Start();
+        _timer.Start();
+        UpdateScene();
+    }
+
+    public void StopAnimation()
+    {
+        _timer.Stop();
+        _clock.Stop();
+    }
+
+    private async Task LoadResourcesAsync(
+        int generation,
+        CancellationTokenSource cancellation)
+    {
+        CancellationToken cancellationToken = cancellation.Token;
+        try
+        {
+            string root = Path.Combine(SideyDeploymentPaths.DeploymentRoot(), "Assets");
+            string leftId = ProductKind == CommerceProductKind.Character
+                ? CharacterId
+                : PixelCharacterCatalog.FallbackId;
+            foreach (string id in new[] { leftId, "pixel_cat" }.Distinct(StringComparer.Ordinal))
+            {
+                PixelCharacterDefinition definition = PixelCharacterCatalog.Get(id);
+                string path = Path.Combine(
+                    root,
+                    definition.SpriteSheetResource.Replace('/', Path.DirectorySeparatorChar));
+                var frames = new ImageSource[6];
+                for (int frame = 0; frame < frames.Length; frame++)
+                {
+                    frames[frame] = await StorePreviewImageLoader.LoadFrameAsync(
+                        path,
+                        checked((uint)definition.FrameWidth),
+                        checked((uint)definition.FrameHeight),
+                        frame,
+                        renderedWidth: checked((uint)RenderedCharacterSize),
+                        renderedHeight: checked((uint)RenderedCharacterSize),
+                        cancellationToken);
+                }
+                _characters[id] = frames;
+
+                string actionPath = Path.Combine(root, "Characters", id, "throw_hit.png");
+                var actionFrames = new ImageSource[8];
+                for (int frame = 0; frame < actionFrames.Length; frame++)
+                {
+                    actionFrames[frame] = await StorePreviewImageLoader.LoadFrameAsync(
+                        actionPath,
+                        frameWidth: 24,
+                        frameHeight: 24,
+                        frame,
+                        renderedWidth: checked((uint)RenderedCharacterSize),
+                        renderedHeight: checked((uint)RenderedCharacterSize),
+                        cancellationToken);
+                }
+                _actions[id] = actionFrames;
+            }
+
+            if (ProductKind == CommerceProductKind.Bubble)
+            {
+                ImageSource bubbleDecoration = await StorePreviewImageLoader.LoadFrameAsync(
+                    Path.Combine(root, "Bubbles", CatalogItemId, "decoration.png"),
+                    frameWidth: 16,
+                    frameHeight: 16,
+                    frame: 0,
+                    renderedWidth: 32,
+                    renderedHeight: 32,
+                    cancellationToken);
+                ThrowIfLoadExpired(generation, cancellationToken);
+                BubbleDecoration.Source = bubbleDecoration;
+                ApplyBubbleColors();
+            }
+            else
+            {
+                string objectId = ProductKind == CommerceProductKind.Throwable
+                    ? CatalogItemId
+                    : StoreProductArtwork.SignatureObject(CharacterId);
+                string objectPath = Path.Combine(root, "Throwables", objectId, "sprite.png");
+                var projectileFrames = new ImageSource[12];
+                for (int frame = 0; frame < projectileFrames.Length; frame++)
+                {
+                    projectileFrames[frame] = await StorePreviewImageLoader.LoadFrameAsync(
+                        objectPath,
+                        frameWidth: 16,
+                        frameHeight: 16,
+                        frame,
+                        renderedWidth: frame < 8
+                            ? checked((uint)ProjectileSize)
+                            : checked((uint)ImpactSize),
+                        renderedHeight: frame < 8
+                            ? checked((uint)ProjectileSize)
+                            : checked((uint)ImpactSize),
+                        cancellationToken);
+                }
+                _projectileFrames = projectileFrames;
+
+                if (objectId == "throwable_toy_cannon")
+                {
+                    string emitterPath = Path.Combine(root, "Throwables", objectId, "emitter.png");
+                    var emitterFrames = new ImageSource[4];
+                    for (int frame = 0; frame < emitterFrames.Length; frame++)
+                    {
+                        emitterFrames[frame] = await StorePreviewImageLoader.LoadFrameAsync(
+                            emitterPath,
+                            frameWidth: 24,
+                            frameHeight: 24,
+                            frame,
+                            renderedWidth: checked((uint)EmitterSize),
+                            renderedHeight: checked((uint)EmitterSize),
+                            cancellationToken);
+                    }
+                    _emitterFrames = emitterFrames;
+                }
+            }
+
+            BuildCharacterLayers(
+                LeftCharacterHost,
+                _leftCharacterLayers,
+                _characters[leftId],
+                _actions[leftId]);
+            BuildCharacterLayers(
+                RightCharacterHost,
+                _rightCharacterLayers,
+                _characters["pixel_cat"],
+                _actions["pixel_cat"]);
+            _leftVisibleCharacterLayer = -1;
+            _rightVisibleCharacterLayer = -1;
+
+            ThrowIfLoadExpired(generation, cancellationToken);
+            _resourcesLoaded = true;
+            LoadingRing.IsActive = false;
+            LoadingRing.Visibility = Visibility.Collapsed;
+            SceneCanvas.Visibility = Visibility.Visible;
+            UpdateScene();
+            StartupDiagnostics.Stage($"store-preview-load-completed generation={generation}");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            StartupDiagnostics.Stage($"store-preview-load-cancelled generation={generation}");
+        }
+        catch (Exception exception)
+        {
+            if (generation == Volatile.Read(ref _loadGeneration)
+                && !cancellationToken.IsCancellationRequested)
+            {
+                _loadFailed = true;
+                LoadingRing.IsActive = false;
+                LoadingRing.Visibility = Visibility.Collapsed;
+                ErrorText.Text = I18n.Get("store.previewUnavailable");
+                ErrorText.Visibility = Visibility.Visible;
+            }
+            StartupDiagnostics.NonFatal("store-preview-load", exception);
+        }
+        finally
+        {
+            if (ReferenceEquals(_loadCancellation, cancellation))
+            {
+                _loadCancellation = null;
+                cancellation.Dispose();
+            }
+        }
+    }
+
+    private bool IsCurrentPresentation(int generation) =>
+        _isPresented && generation == Volatile.Read(ref _presentationGeneration);
+
+    private void ThrowIfLoadExpired(int generation, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (generation != Volatile.Read(ref _loadGeneration))
+        {
+            throw new OperationCanceledException(cancellationToken);
+        }
+    }
+
+    private void CancelPendingLoad()
+    {
+        CancellationTokenSource? cancellation = _loadCancellation;
+        _loadCancellation = null;
+        if (cancellation is null)
+        {
+            return;
+        }
+
+        cancellation.Cancel();
+        cancellation.Dispose();
+    }
+
+    private void OnTimerTick(object? sender, object args)
+    {
+        _ = sender;
+        _ = args;
+        UpdateScene();
+    }
+
+    private void UpdateScene()
+    {
+        if (!_resourcesLoaded)
+        {
+            return;
+        }
+
+        double elapsed = _clock.IsRunning ? _clock.Elapsed.TotalSeconds : 0;
+        string leftId = ProductKind == CommerceProductKind.Character
+            ? CharacterId
+            : PixelCharacterCatalog.FallbackId;
+        double leftX;
+        double rightX;
+        int leftFrame;
+        int rightFrame;
+        if (ProductKind == CommerceProductKind.Throwable)
+        {
+            leftX = (StageWidth * 0.22) - (RenderedCharacterSize / 2d);
+            rightX = (StageWidth * 0.78) - (RenderedCharacterSize / 2d);
+            leftFrame = CharacterFrame(elapsed, velocity: 0);
+            rightFrame = CharacterFrame(elapsed + 0.08, velocity: 0);
         }
         else
         {
-            double start = ProductKind == CommerceProductKind.Throwable
-                ? Math.Floor(Math.Max(0, elapsed - 0.35)) + 0.35
-                : _manualThrowStarted;
-            DrawThrow(drawing, elapsed - start);
+            AdvanceMovement(elapsed);
+            PixelMovementAgent leftAgent = _movementAgents[0];
+            PixelMovementAgent rightAgent = _movementAgents[1];
+            leftX = leftAgent.TrackPosition - (RenderedCharacterSize / 2d);
+            rightX = rightAgent.TrackPosition - (RenderedCharacterSize / 2d);
+            leftFrame = CharacterFrame(elapsed, leftAgent.Velocity);
+            rightFrame = CharacterFrame(elapsed + 0.08, rightAgent.Velocity);
+            UpdateFacing(leftAgent, leftId, ref _leftFacingLeft);
+            UpdateFacing(rightAgent, "pixel_cat", ref _rightFacingLeft);
         }
-    }
 
-    private static void DrawFloor(CanvasDrawingSession drawing)
-    {
-        drawing.DrawLine(28, 238, 512, 238, Color.FromArgb(90, 255, 255, 255), 1);
-        for (int x = 36; x < 510; x += 24)
+        double throwLocal = -1;
+        bool leftToRight = true;
+        if (ProductKind == CommerceProductKind.Throwable)
         {
-            drawing.FillRectangle(x, 242, 12, 2, Color.FromArgb(45, 255, 255, 255));
+            double sequenceTime = elapsed - FirstAutomaticThrowDelaySeconds;
+            if (sequenceTime >= 0)
+            {
+                int sequenceIndex = (int)Math.Floor(sequenceTime / ThrowCycleSeconds);
+                throwLocal = sequenceTime % ThrowCycleSeconds;
+                leftToRight = sequenceIndex % 2 == 0;
+            }
+        }
+        else if (ProductKind == CommerceProductKind.Character)
+        {
+            throwLocal = elapsed - _manualThrowStarted;
+        }
+
+        double flightDuration = ProductKind == CommerceProductKind.Character && throwLocal >= 0
+            ? _manualThrowFlightDuration
+            : ThrowFlightDuration(leftX, rightX);
+        ApplyCharacterPose(
+            _leftCharacterLayers,
+            LeftCharacterScale,
+            leftId,
+            leftFrame,
+            _leftFacingLeft,
+            throwLocal,
+            flightDuration,
+            leftToRight,
+            isLeftCharacter: true,
+            ref _leftVisibleCharacterLayer);
+        ApplyCharacterPose(
+            _rightCharacterLayers,
+            RightCharacterScale,
+            "pixel_cat",
+            rightFrame,
+            _rightFacingLeft,
+            throwLocal,
+            flightDuration,
+            leftToRight,
+            isLeftCharacter: false,
+            ref _rightVisibleCharacterLayer);
+
+        PositionCharacters(leftX, rightX);
+        UpdateSparkles(elapsed, leftX, leftId);
+
+        if (ProductKind == CommerceProductKind.Bubble)
+        {
+            UpdateBubble(elapsed, leftX, rightX);
+            ProjectileImage.Visibility = Visibility.Collapsed;
+            EmitterImage.Visibility = Visibility.Collapsed;
+            ImpactImage.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        BubblePreview.Visibility = Visibility.Collapsed;
+        UpdateThrow(throwLocal, leftX, rightX, leftToRight, flightDuration);
+    }
+
+    private void PositionCharacters(double leftX, double rightX)
+    {
+        Canvas.SetLeft(LeftCharacterHost, leftX);
+        Canvas.SetTop(LeftCharacterHost, CharacterTop);
+        Canvas.SetLeft(RightCharacterHost, rightX);
+        Canvas.SetTop(RightCharacterHost, CharacterTop);
+        PositionNameplate(LeftNameplate, leftX);
+        PositionNameplate(RightNameplate, rightX);
+    }
+
+    private static void PositionNameplate(StackPanel nameplate, double characterLeft)
+    {
+        nameplate.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        double width = nameplate.DesiredSize.Width;
+        Canvas.SetLeft(
+            nameplate,
+            Math.Clamp(
+                characterLeft + (RenderedCharacterSize / 2d) - (width / 2d),
+                BubbleTangentMargin,
+                StageWidth - width - BubbleTangentMargin));
+        Canvas.SetTop(nameplate, NameplateTop);
+    }
+
+    private void BuildMovementAgents()
+    {
+        double lower = _movementGeometry.TrackLowerBound;
+        double length = _movementGeometry.TrackUpperBound - lower;
+        double leftFraction = ProductKind == CommerceProductKind.Bubble ? 0.28 : 0.22;
+        double rightFraction = ProductKind == CommerceProductKind.Bubble ? 0.72 : 0.78;
+        _movementAgents.Add(new PixelMovementAgent(
+            new Guid("D5F0D9BB-FBDA-4B10-AEF9-A7E2A4CFBD25"),
+            lower + (length * leftFraction),
+            _movementGeometry.TrackUpperBound));
+        _movementAgents.Add(new PixelMovementAgent(
+            new Guid("26E5237A-69A1-4EA7-868E-822C831069B6"),
+            lower + (length * rightFraction),
+            _movementGeometry.TrackLowerBound));
+    }
+
+    private void AdvanceMovement(double elapsed)
+    {
+        double deltaTime = _lastSceneElapsed <= 0
+            ? 1d / 30d
+            : Math.Clamp(elapsed - _lastSceneElapsed, 0, 0.1);
+        _lastSceneElapsed = elapsed;
+
+        double lower = _movementGeometry.TrackLowerBound;
+        double upper = _movementGeometry.TrackUpperBound;
+        foreach (PixelMovementAgent agent in _movementAgents)
+        {
+            if (Math.Abs(agent.Target - agent.TrackPosition) > 2)
+            {
+                continue;
+            }
+
+            if (agent.TrackPosition <= lower + 2)
+            {
+                TurnFromWall(agent, towardUpper: true, lower, upper);
+            }
+            else if (agent.TrackPosition >= upper - 2)
+            {
+                TurnFromWall(agent, towardUpper: false, lower, upper);
+            }
+            else
+            {
+                agent.Target = RandomTarget(lower, upper);
+                agent.IdleRemaining = 0.8 + (_random.NextDouble() * 2.2);
+            }
+        }
+
+        PixelMovementSimulation.Step(
+            _movementAgents,
+            deltaTime,
+            _movementGeometry,
+            NoAvoidanceRects,
+            NoStoppedIds,
+            _movementScratch);
+
+        foreach (PixelMovementAgent agent in _movementAgents)
+        {
+            if (agent.TrackPosition <= lower + 0.01 && agent.Velocity < 0)
+            {
+                TurnFromWall(agent, towardUpper: true, lower, upper);
+            }
+            else if (agent.TrackPosition >= upper - 0.01 && agent.Velocity > 0)
+            {
+                TurnFromWall(agent, towardUpper: false, lower, upper);
+            }
         }
     }
 
-    private void DrawCharacter(CanvasDrawingSession drawing, string id, double x, double y, double elapsed, bool faceLeft)
+    private double RandomTarget(double lower, double upper) =>
+        lower + (_random.NextDouble() * (upper - lower));
+
+    private void TurnFromWall(
+        PixelMovementAgent agent,
+        bool towardUpper,
+        double lower,
+        double upper)
     {
-        if (!_characters.TryGetValue(PixelCharacterCatalog.NormalizeId(id), out var sheet))
+        double midpoint = lower + ((upper - lower) / 2d);
+        agent.Target = towardUpper
+            ? midpoint + (_random.NextDouble() * (upper - midpoint))
+            : lower + (_random.NextDouble() * (midpoint - lower));
+        agent.Velocity = towardUpper
+            ? Math.Max(6, Math.Abs(agent.Velocity))
+            : -Math.Max(6, Math.Abs(agent.Velocity));
+        agent.IdleRemaining = 0;
+    }
+
+    private static int CharacterFrame(double elapsed, double velocity) =>
+        Math.Abs(velocity) > 2
+            ? 2 + ((int)(elapsed / WalkFrameSeconds) % 4)
+            : (int)(elapsed / IdleFrameSeconds) % 2;
+
+    private static void UpdateFacing(
+        PixelMovementAgent agent,
+        string characterId,
+        ref bool facingLeft)
+    {
+        if (!PixelCharacterCatalog.Get(characterId).MirrorsToMovementDirection)
+        {
+            facingLeft = false;
+            return;
+        }
+
+        double targetDelta = agent.Target - agent.TrackPosition;
+        if (Math.Abs(targetDelta) > 2d)
+        {
+            facingLeft = targetDelta < 0d;
+        }
+    }
+
+    private static void ApplyCharacterFrame(
+        IReadOnlyList<Image> layers,
+        ScaleTransform transform,
+        string characterId,
+        int frame,
+        bool facingLeft,
+        ref int visibleLayer)
+    {
+        ShowCharacterLayer(layers, Math.Clamp(frame, 0, 5), ref visibleLayer);
+        transform.ScaleX = PixelCharacterCatalog.Get(characterId).MirrorsToMovementDirection
+            && facingLeft
+                ? -1
+                : 1;
+    }
+
+    private static void ApplyActionFrame(
+        IReadOnlyList<Image> layers,
+        ScaleTransform transform,
+        string characterId,
+        int frame,
+        bool facingLeft,
+        ref int visibleLayer)
+    {
+        ShowCharacterLayer(layers, 6 + Math.Clamp(frame, 0, 7), ref visibleLayer);
+        transform.ScaleX = PixelCharacterCatalog.Get(characterId).MirrorsToMovementDirection
+            && facingLeft
+                ? -1
+                : 1;
+    }
+
+    private void ApplyCharacterPose(
+        IReadOnlyList<Image> layers,
+        ScaleTransform transform,
+        string characterId,
+        int baseFrame,
+        bool facingLeft,
+        double throwLocal,
+        double flightDuration,
+        bool leftToRight,
+        bool isLeftCharacter,
+        ref int visibleLayer)
+    {
+        bool isActor = leftToRight == isLeftCharacter;
+        if (isActor && throwLocal is >= 0 and < ThrowActionSeconds)
+        {
+            int actionFrame = Math.Min(
+                3,
+                (int)(throwLocal / (ThrowActionSeconds / 4d)));
+            ApplyActionFrame(
+                layers,
+                transform,
+                characterId,
+                actionFrame,
+                facingLeft,
+                ref visibleLayer);
+            return;
+        }
+
+        double impactStarted = ThrowReleaseSeconds + flightDuration;
+        if (!isActor
+            && throwLocal >= impactStarted
+            && throwLocal < impactStarted + HitActionSeconds)
+        {
+            int hitFrame = 4 + Math.Min(
+                3,
+                (int)((throwLocal - impactStarted) / (HitActionSeconds / 4d)));
+            ApplyActionFrame(
+                layers,
+                transform,
+                characterId,
+                hitFrame,
+                facingLeft,
+                ref visibleLayer);
+            return;
+        }
+
+        ApplyCharacterFrame(
+            layers,
+            transform,
+            characterId,
+            baseFrame,
+            facingLeft,
+            ref visibleLayer);
+    }
+
+    private static void BuildCharacterLayers(
+        Grid host,
+        List<Image> layers,
+        IReadOnlyList<ImageSource> movementFrames,
+        IReadOnlyList<ImageSource> actionFrames)
+    {
+        host.Children.Clear();
+        layers.Clear();
+        foreach (ImageSource source in movementFrames.Concat(actionFrames))
+        {
+            var layer = new Image
+            {
+                Width = RenderedCharacterSize,
+                Height = RenderedCharacterSize,
+                Stretch = Stretch.None,
+                Source = source,
+                Opacity = 0,
+                IsHitTestVisible = false,
+            };
+            layers.Add(layer);
+            host.Children.Add(layer);
+        }
+    }
+
+    private static void ShowCharacterLayer(
+        IReadOnlyList<Image> layers,
+        int requestedLayer,
+        ref int visibleLayer)
+    {
+        if (requestedLayer == visibleLayer || layers.Count == 0)
         {
             return;
         }
-        PixelCharacterDefinition definition = PixelCharacterCatalog.Get(id);
-        int frame = 2 + ((int)(elapsed * 7) % 4);
-        var source = new Rect(frame * definition.FrameWidth, 0, definition.FrameWidth, definition.FrameHeight);
-        var destination = new Rect(x, y, 48, 48);
-        if (!faceLeft)
+
+        if (visibleLayer >= 0 && visibleLayer < layers.Count)
         {
-            drawing.DrawImage(sheet, destination, source, 1, CanvasImageInterpolation.NearestNeighbor);
-            return;
+            layers[visibleLayer].Opacity = 0;
         }
-        drawing.Transform = System.Numerics.Matrix3x2.CreateScale(-1, 1, new System.Numerics.Vector2((float)(x + 24), 0));
-        drawing.DrawImage(sheet, destination, source, 1, CanvasImageInterpolation.NearestNeighbor);
-        drawing.Transform = System.Numerics.Matrix3x2.Identity;
+        int nextLayer = Math.Clamp(requestedLayer, 0, layers.Count - 1);
+        layers[nextLayer].Opacity = 1;
+        visibleLayer = nextLayer;
     }
 
-    private void DrawBubbleScenario(CanvasDrawingSession drawing, double elapsed)
+    private static void SetImageSource(Image image, ImageSource source)
+    {
+        if (!ReferenceEquals(image.Source, source))
+        {
+            image.Source = source;
+        }
+    }
+
+    private void UpdateBubble(double elapsed, double leftX, double rightX)
     {
         double phase = elapsed % 6;
         bool fromLeft = phase < 3;
         double local = phase % 3;
-        string text = local < 1 ? new string('.', 1 + ((int)(local * 3) % 3))
+        bool typing = local < 1;
+        BubbleText.Text = typing
+            ? new string('.', 1 + ((int)(local / TypingFrameSeconds) % 3))
             : fromLeft ? "저메추좀 해줘" : "곱도리탕 어때?";
-        var theme = BubbleColors(CatalogItemId);
-        float width = local < 1 ? 54 : 124;
-        float x = fromLeft ? 72 : 344;
-        drawing.FillRoundedRectangle(x, 128, width, 42, 10, 10, theme.Background);
-        drawing.DrawRoundedRectangle(x + .5f, 128.5f, width - 1, 41, 10, 10,
-            Color.FromArgb(50, 20, 23, 31), 1);
-        using var format = new CanvasTextFormat
+        BubbleText.FontSize = typing ? BubbleTypingFontSize : BubbleMessageFontSize;
+        BubbleText.Margin = typing
+            ? new Thickness(6, 1.5, 6, 1.5)
+            : new Thickness(12, 10.5, 12, 10.5);
+        BubbleText.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+        double bubbleWidth = typing
+            ? BubbleTypingWidth
+            : Math.Clamp(Math.Ceiling(BubbleText.DesiredSize.Width), 42, 330);
+        double bubbleHeight = typing
+            ? BubbleTypingHeight
+            : Math.Max(BubbleMessageHeight, Math.Ceiling(BubbleText.DesiredSize.Height));
+        double decorationLeadingOverflow = BubbleDecorationLeadingOverflow;
+        double decorationTopOverflow = BubbleDecorationTopOverflow;
+        BubblePreview.Width = bubbleWidth + decorationLeadingOverflow;
+        BubblePreview.Height = decorationTopOverflow
+            + bubbleHeight
+            + BubbleTailHeight
+            - BubbleTailBodyOverlap;
+        BubbleBody.Width = bubbleWidth;
+        BubbleBody.Height = bubbleHeight;
+        BubbleBody.CornerRadius = new CornerRadius(13.5);
+        Canvas.SetLeft(BubbleBody, decorationLeadingOverflow);
+        Canvas.SetTop(BubbleBody, decorationTopOverflow);
+        BubbleDecoration.Visibility = Visibility.Visible;
+        Canvas.SetLeft(BubbleDecoration, 0);
+        Canvas.SetTop(BubbleDecoration, 0);
+
+        double senderCenter = (fromLeft ? leftX : rightX) + (RenderedCharacterSize / 2d);
+        double halfWidth = bubbleWidth / 2d;
+        double minimumCenter = halfWidth + BubbleTangentMargin + decorationLeadingOverflow;
+        double maximumCenter = Math.Max(
+            minimumCenter,
+            StageWidth - halfWidth - BubbleTangentMargin);
+        double bodyCenter = Math.Clamp(senderCenter, minimumCenter, maximumCenter);
+        double bodyLeft = bodyCenter - halfWidth;
+        double visualLeft = bodyLeft - decorationLeadingOverflow;
+        double tailBaseCenter = Math.Clamp(
+            senderCenter,
+            bodyLeft + BubbleTailBaseInset,
+            bodyLeft + bubbleWidth - BubbleTailBaseInset);
+        double tailBaseY = decorationTopOverflow + bubbleHeight - BubbleTailBodyOverlap;
+        BubbleTail.Points = new PointCollection
         {
-            FontFamily = "Segoe UI",
-            FontSize = local < 1 ? 16 : 13,
-            HorizontalAlignment = CanvasHorizontalAlignment.Center,
-            VerticalAlignment = CanvasVerticalAlignment.Center,
+            new Point(tailBaseCenter - BubbleTailHalfBase - visualLeft, tailBaseY),
+            new Point(senderCenter - visualLeft, tailBaseY + BubbleTailHeight),
+            new Point(tailBaseCenter + BubbleTailHalfBase - visualLeft, tailBaseY),
         };
-        drawing.DrawText(text, new Rect(x + 8, 129, width - 16, 40), theme.Foreground, format);
-        if (_decoration is not null)
+        Canvas.SetLeft(BubbleTail, 0);
+        Canvas.SetTop(BubbleTail, 0);
+        Canvas.SetLeft(BubblePreview, visualLeft);
+        double bodyTop = NameplateTop
+            - BubbleCharacterGap
+            - BubbleTailHeight
+            - bubbleHeight;
+        Canvas.SetTop(BubblePreview, bodyTop - decorationTopOverflow);
+        BubblePreview.Visibility = Visibility.Visible;
+    }
+
+    private void UpdateThrow(
+        double local,
+        double leftX,
+        double rightX,
+        bool leftToRight,
+        double flightDuration)
+    {
+        ImpactImage.Visibility = Visibility.Collapsed;
+        double sequenceEnd = ProductKind == CommerceProductKind.Throwable
+            ? ThrowCycleSeconds
+            : ThrowReleaseSeconds + flightDuration + HitActionSeconds;
+        if (local < 0 || local >= sequenceEnd || _projectileFrames.Count < 12)
         {
-            drawing.DrawImage(_decoration, new Rect(x - 8, 122, 32, 32), new Rect(0, 0, 16, 16),
-                1, CanvasImageInterpolation.NearestNeighbor);
+            ProjectileImage.Visibility = Visibility.Collapsed;
+            EmitterImage.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        double impactStarted = ThrowReleaseSeconds + flightDuration;
+
+        if (local >= ThrowReleaseSeconds && local < impactStarted)
+        {
+            double progress = (local - ThrowReleaseSeconds) / flightDuration;
+            double startCenterX = leftToRight
+                ? leftX + (RenderedCharacterSize / 2d)
+                : rightX + (RenderedCharacterSize / 2d);
+            double endCenterX = leftToRight
+                ? rightX + (RenderedCharacterSize / 2d)
+                : leftX + (RenderedCharacterSize / 2d);
+            double inverse = 1 - progress;
+            double distance = Math.Abs(endCenterX - startCenterX);
+            double arcHeight = Math.Clamp(distance * 0.18, 24, 96);
+            double centerX = (inverse * inverse * startCenterX)
+                + (2 * inverse * progress * ((startCenterX + endCenterX) / 2d))
+                + (progress * progress * endCenterX);
+            // A quadratic Bezier reaches only half of its control-point offset
+            // at the midpoint. Double the control offset so arcHeight is the
+            // visible peak height, and keep the enlarged sprite above the floor.
+            double controlY = ProjectilePathY - (arcHeight * 2d);
+            double centerY = (inverse * inverse * ProjectilePathY)
+                + (2 * inverse * progress * controlY)
+                + (progress * progress * ProjectilePathY);
+            int projectileFrame = (int)((local - ThrowReleaseSeconds) / ProjectileRotationFrameSeconds) % 8;
+            SetImageSource(ProjectileImage, _projectileFrames[projectileFrame]);
+            ProjectileScale.ScaleX = 1;
+            Canvas.SetLeft(ProjectileImage, centerX - (ProjectileSize / 2d));
+            Canvas.SetTop(ProjectileImage, centerY - (ProjectileSize / 2d));
+            ProjectileImage.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            ProjectileImage.Visibility = Visibility.Collapsed;
+        }
+
+        if (local >= impactStarted && local < impactStarted + ImpactSeconds)
+        {
+            int impactFrame = 8 + Math.Min(
+                3,
+                (int)((local - impactStarted) / (ImpactSeconds / 4d)));
+            SetImageSource(ImpactImage, _projectileFrames[impactFrame]);
+            double targetCenterX = (leftToRight ? rightX : leftX)
+                + (RenderedCharacterSize / 2d);
+            Canvas.SetLeft(ImpactImage, targetCenterX - (ImpactSize / 2d));
+            Canvas.SetTop(ImpactImage, PlatformTop - 10 - (ImpactSize / 2d));
+            ImpactImage.Visibility = Visibility.Visible;
+        }
+
+        if (_emitterFrames.Count == 4 && local < ThrowActionSeconds)
+        {
+            int emitterFrame = Math.Min(3, (int)(local / (ThrowActionSeconds / 4d)));
+            SetImageSource(EmitterImage, _emitterFrames[emitterFrame]);
+            EmitterScale.ScaleX = leftToRight ? 1 : -1;
+            double actorCenterX = (leftToRight ? leftX : rightX)
+                + (RenderedCharacterSize / 2d);
+            Canvas.SetLeft(EmitterImage, actorCenterX - (EmitterSize / 2d));
+            Canvas.SetTop(EmitterImage, EmitterTop);
+            EmitterImage.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            EmitterImage.Visibility = Visibility.Collapsed;
         }
     }
 
-    private void DrawThrow(CanvasDrawingSession drawing, double local)
+    private static double ThrowFlightDuration(double leftX, double rightX)
     {
-        if (local < 0 || local > 1.1)
-        {
-            return;
-        }
-        string objectId = ProductKind == CommerceProductKind.Throwable
-            ? CatalogItemId
-            : SignatureObject(CharacterId);
-        CanvasBitmap? sheet = _cosmetic;
-        if (sheet is null)
-        {
-            return;
-        }
-        if (objectId == "throwable_toy_cannon" && _emitter is not null && local < 0.4)
-        {
-            int emitterFrame = Math.Min(3, (int)(local / 0.1));
-            drawing.DrawImage(_emitter, new Rect(92, 190, 48, 48), new Rect(emitterFrame * 24, 0, 24, 24),
-                1, CanvasImageInterpolation.NearestNeighbor);
-        }
-        double progress = Math.Clamp((local - 0.2) / 0.65, 0, 1);
-        int frame = progress >= 1 ? 8 + Math.Min(3, (int)((local - .85) / .06)) : (int)(local / .083) % 8;
-        double x = 132 + (292 * progress);
-        double y = 210 - (Math.Sin(progress * Math.PI) * 62);
-        drawing.DrawImage(sheet, new Rect(x, y, 32, 32), new Rect(frame * 16, 0, 16, 16),
-            1, CanvasImageInterpolation.NearestNeighbor);
+        double distance = Math.Abs(rightX - leftX);
+        return Math.Clamp(0.35 + (distance / 1600d), 0.35, 0.95);
     }
 
-    private static (Color Background, Color Foreground) BubbleColors(string id) => id switch
+    private void ApplyBubbleColors()
     {
-        "bubble_bunny_pink" => (Color.FromArgb(245, 0xF7, 0xA9, 0xB8), Color.FromArgb(255, 0x1C, 0x1F, 0x29)),
-        "bubble_butter_chick" => (Color.FromArgb(245, 0xFF, 0xE3, 0x8A), Color.FromArgb(255, 0x1C, 0x1F, 0x29)),
-        _ => (Color.FromArgb(245, 0x40, 0x3A, 0x78), Color.FromArgb(255, 0xFF, 0xF7, 0xE8)),
-    };
+        (Color background, Color foreground) = CatalogItemId switch
+        {
+            "bubble_bunny_pink" =>
+                (Color.FromArgb(255, 0xF7, 0xA9, 0xB8), Color.FromArgb(255, 0x1C, 0x1F, 0x29)),
+            "bubble_butter_chick" =>
+                (Color.FromArgb(255, 0xFF, 0xE3, 0x8A), Color.FromArgb(255, 0x1C, 0x1F, 0x29)),
+            _ =>
+                (Color.FromArgb(255, 0x40, 0x3A, 0x78), Color.FromArgb(255, 0xFF, 0xF7, 0xE8)),
+        };
+        background = Color.FromArgb(245, background.R, background.G, background.B);
+        var backgroundBrush = new SolidColorBrush(background);
+        BubbleBody.Background = backgroundBrush;
+        BubbleTail.Fill = backgroundBrush;
+        BubbleText.Foreground = new SolidColorBrush(foreground);
+    }
 
-    private static string SignatureObject(string characterId) => characterId switch
+    private void BuildPlatform()
     {
-        "pixel_guinea_pig" => "mini_paprika",
-        "pixel_monkey" => "banana",
-        "pixel_chinchilla" => "dust_bath_pouch",
-        "pixel_starlight_upalupa" => "starlight_orb",
-        _ => "patch_soft_ball",
-    };
+        var baseBrush = new SolidColorBrush(Color.FromArgb(255, 0xB8, 0xBA, 0xBF));
+        var alternateBrush = new SolidColorBrush(Color.FromArgb(255, 0xCD, 0xD0, 0xD3));
+        PlatformCanvas.Background = baseBrush;
+        const int pixel = 4;
+        for (int row = 0; row < 6; row += 2)
+        {
+            for (int column = 0; column < StageWidth / pixel; column++)
+            {
+                if ((column % 2 == 0) == (row % 4 == 0))
+                {
+                    var tile = new Microsoft.UI.Xaml.Shapes.Rectangle
+                    {
+                        Width = pixel,
+                        Height = pixel,
+                        Fill = alternateBrush,
+                    };
+                    Canvas.SetLeft(tile, column * pixel);
+                    Canvas.SetTop(tile, row * pixel);
+                    PlatformCanvas.Children.Add(tile);
+                }
+            }
+        }
+    }
+
+    private void BuildSparkles()
+    {
+        Color[] colors =
+        [
+            Color.FromArgb(255, 120, 194, 173),
+            Color.FromArgb(255, 168, 135, 214),
+            Color.FromArgb(255, 245, 186, 56),
+        ];
+        for (int index = 0; index < 6; index++)
+        {
+            double radius = 3 + ((index % 3) * 0.5);
+            var star = new Microsoft.UI.Xaml.Shapes.Polygon
+            {
+                Fill = new SolidColorBrush(colors[index % colors.Length]),
+                Points = new PointCollection
+                {
+                    new Point(radius, 0),
+                    new Point(radius + 1, radius - 1),
+                    new Point(radius * 2, radius),
+                    new Point(radius + 1, radius + 1),
+                    new Point(radius, radius * 2),
+                    new Point(radius - 1, radius + 1),
+                    new Point(0, radius),
+                    new Point(radius - 1, radius - 1),
+                },
+                Opacity = 0,
+            };
+            _sparkles.Add(star);
+            SparkleCanvas.Children.Add(star);
+        }
+    }
+
+    private void UpdateSparkles(double elapsed, double leftX, string leftId)
+    {
+        bool active = PixelCharacterCatalog.Get(leftId).VisualEffect
+            == PixelCharacterVisualEffect.StarlightSparkles;
+        SparkleCanvas.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+        if (!active)
+        {
+            return;
+        }
+
+        double phase = elapsed % AmbientSparkleCycleSeconds;
+        for (int index = 0; index < _sparkles.Count; index++)
+        {
+            double local = phase - (index * 0.045);
+            var star = _sparkles[index];
+            if (local < 0 || local > AmbientSparkleDurationSeconds)
+            {
+                star.Opacity = 0;
+                continue;
+            }
+
+            double progress = local / AmbientSparkleDurationSeconds;
+            double horizontal = -25 + (50 * Unit((index + 1) * 7919));
+            double vertical = 5 + (32 * Unit(((index + 1) * 1543) ^ 0x51A7));
+            double rise = 4 * progress;
+            double radius = 3 + ((index % 3) * 0.5);
+            Canvas.SetLeft(
+                star,
+                leftX + (RenderedCharacterSize / 2d) + horizontal - radius);
+            Canvas.SetTop(star, PlatformTop - vertical - rise - radius);
+            star.Opacity = Math.Sin(Math.PI * progress) * 0.96;
+        }
+    }
+
+    private static double Unit(int value)
+    {
+        uint mixed = (uint)value;
+        mixed ^= mixed >> 16;
+        mixed *= 0x7FEB352D;
+        mixed ^= mixed >> 15;
+        mixed *= 0x846CA68B;
+        mixed ^= mixed >> 16;
+        return mixed / (double)uint.MaxValue;
+    }
 
     private void OnTapped(object sender, TappedRoutedEventArgs args)
     {
         _ = sender;
         _ = args;
-        if (ProductKind == CommerceProductKind.Character)
+        if (ProductKind == CommerceProductKind.Character && _resourcesLoaded)
         {
+            _manualThrowFlightDuration = ThrowFlightDuration(
+                _movementAgents[0].TrackPosition - (RenderedCharacterSize / 2d),
+                _movementAgents[1].TrackPosition - (RenderedCharacterSize / 2d));
             _manualThrowStarted = _clock.Elapsed.TotalSeconds;
+            UpdateScene();
         }
     }
 
-    private void OnUnloaded(object sender, RoutedEventArgs args)
-    {
-        _ = sender;
-        _ = args;
-        _timer.Stop();
-        _clock.Stop();
-        foreach (CanvasBitmap bitmap in _characters.Values)
-        {
-            bitmap.Dispose();
-        }
-        _characters.Clear();
-        _cosmetic?.Dispose();
-        _decoration?.Dispose();
-        _emitter?.Dispose();
-    }
 }

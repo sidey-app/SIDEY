@@ -32,6 +32,23 @@ internal static class MessageBubbleLayoutPolicy
         return center - halfExtent;
     }
 
+    internal static double ClampedBodyTangentStart(
+        double senderTangent,
+        double tangentLength,
+        double bodyTangentExtent,
+        double leadingOverflow,
+        double trailingOverflow,
+        double margin)
+    {
+        var halfExtent = bodyTangentExtent / 2d;
+        var minimumCenter = halfExtent + margin + Math.Max(0d, leadingOverflow);
+        var maximumCenter = Math.Max(
+            minimumCenter,
+            tangentLength - halfExtent - margin - Math.Max(0d, trailingOverflow));
+        var center = Math.Clamp(senderTangent, minimumCenter, maximumCenter);
+        return center - halfExtent;
+    }
+
     internal static int TypingFrameIndex(long tick, int framesPerSecond, int frameCount)
     {
         if (framesPerSecond <= 0)
