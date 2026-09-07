@@ -23,7 +23,7 @@ public sealed class WindowsStartupServiceTests
             "windows", "src", "Sidey.App", "App.xaml.cs"));
 
         int onboardingBranch = source.IndexOf(
-            "if (!_coordinator.State.Preferences.OnboardingCompleted)",
+            "if (!coordinator.State.Preferences.OnboardingCompleted)",
             StringComparison.Ordinal);
         int completedHidden = source.IndexOf(
             "StartupDiagnostics.Stage(\"completed-launch-window-hidden\")",

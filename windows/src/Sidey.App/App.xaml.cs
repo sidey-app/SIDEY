@@ -63,6 +63,9 @@ public partial class App : Application
         {
             await LaunchAsync(args);
         }
+        catch (Exception) when (_shuttingDown)
+        {
+        }
         catch (Exception exception)
         {
             StartupDiagnostics.Fatal("launch", exception, showDialog: _mainWindow is null);
@@ -112,19 +115,25 @@ public partial class App : Application
             return;
         }
 
-        _coordinator = new AppCoordinator();
-        await _coordinator.LoadCachedStateAsync();
-        StartupDiagnostics.Stage("cached-settings-loaded");
-        _coordinator.ComposerRequested += RequestComposer;
-        _coordinator.PulseRequested += RequestPulse;
-        _coordinator.CharacterThrowRequested += RequestCharacterThrow;
-        _coordinator.SendFailed += RestoreFailedDraft;
-        _coordinator.RenderingFailed += OnRenderingFailed;
-        _coordinator.GroupSetupRequested += OnGroupSetupRequested;
-        _coordinator.StateChanged += OnCoordinatorStateChanged;
-        if (!_coordinator.State.Preferences.OnboardingCompleted)
+        var coordinator = new AppCoordinator();
+        _coordinator = coordinator;
+        await coordinator.LoadCachedStateAsync();
+        if (_shuttingDown || !ReferenceEquals(_coordinator, coordinator))
         {
-            CreateOnboardingWindow(_coordinator);
+            return;
+        }
+
+        StartupDiagnostics.Stage("cached-settings-loaded");
+        coordinator.ComposerRequested += RequestComposer;
+        coordinator.PulseRequested += RequestPulse;
+        coordinator.CharacterThrowRequested += RequestCharacterThrow;
+        coordinator.SendFailed += RestoreFailedDraft;
+        coordinator.RenderingFailed += OnRenderingFailed;
+        coordinator.GroupSetupRequested += OnGroupSetupRequested;
+        coordinator.StateChanged += OnCoordinatorStateChanged;
+        if (!coordinator.State.Preferences.OnboardingCompleted)
+        {
+            CreateOnboardingWindow(coordinator);
             _window = _onboardingWindow;
             _onboardingWindow!.Activate();
             StartupDiagnostics.Stage("onboarding-window-activated");
@@ -161,10 +170,15 @@ public partial class App : Application
 #endif
         try
         {
-            await _coordinator.InitializeAsync();
+            await coordinator.InitializeAsync();
+            if (_shuttingDown || !ReferenceEquals(_coordinator, coordinator))
+            {
+                return;
+            }
+
             StartupDiagnostics.Stage("coordinator-initialized");
 #if SIDEY_DEVELOPMENT_COMMERCE
-            if (_coordinator.State.DevelopmentCommerceEnabled
+            if (coordinator.State.DevelopmentCommerceEnabled
                 && Environment.ProcessPath is { } executablePath)
             {
                 WindowsProtocolRegistration.EnsureCurrentUserDevelopmentCallback(executablePath);
@@ -175,12 +189,22 @@ public partial class App : Application
         catch (Exception exception)
         {
             StartupDiagnostics.NonFatal("coordinator-initialize", exception);
+            if (_shuttingDown || !ReferenceEquals(_coordinator, coordinator))
+            {
+                return;
+            }
+
             EnsureMainWindow().ShowFatalError(exception);
             _onboardingWindow?.ShowError(exception);
         }
 
+        if (_shuttingDown || !ReferenceEquals(_coordinator, coordinator))
+        {
+            return;
+        }
+
         _monitorConnectionFailures = true;
-        UpdateConnectionFailureNotification(_coordinator.State.Connected);
+        UpdateConnectionFailureNotification(coordinator.State.Connected);
 
         StartupDiagnostics.MarkRunning();
         StartUiResponsivenessMonitor();
@@ -213,7 +237,7 @@ public partial class App : Application
 
     private void StartStartupUpdateCheck()
     {
-        if (_startupUpdateCheckStarted || _mainWindow is null)
+        if (_shuttingDown || _startupUpdateCheckStarted || _mainWindow is null)
         {
             return;
         }
@@ -249,7 +273,9 @@ public partial class App : Application
             StartupDiagnostics.Stage("startup-update-check-started");
             AvailableUpdate? update = await mainWindow.ViewModel.CheckForUpdatesOnStartupAsync();
             StartupDiagnostics.Stage("startup-update-checked");
-            if (update is not null)
+            if (!_shuttingDown
+                && ReferenceEquals(_mainWindow, mainWindow)
+                && update is not null)
             {
                 PostUpdateNotification(update.Version);
             }
@@ -262,6 +288,11 @@ public partial class App : Application
 
     private void PostUpdateNotification(string version)
     {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
         if (_tray is null)
         {
             _pendingUpdateNotificationVersion = version;
@@ -333,12 +364,23 @@ public partial class App : Application
 
     private void RequestComposer()
     {
-        _dispatcherQueue.TryEnqueue(ShowComposer);
+        if (_shuttingDown)
+        {
+            return;
+        }
+
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            if (!_shuttingDown)
+            {
+                ShowComposer();
+            }
+        });
     }
 
     private void ShowComposer()
     {
-        if (_coordinator is null)
+        if (_shuttingDown || _coordinator is null)
         {
             return;
         }
@@ -384,9 +426,14 @@ public partial class App : Application
 
     private void RequestPulse()
     {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
         _dispatcherQueue.TryEnqueue(async () =>
         {
-            if (_coordinator is null)
+            if (_shuttingDown || _coordinator is null)
             {
                 return;
             }
@@ -397,16 +444,24 @@ public partial class App : Application
             }
             catch (Exception exception)
             {
-                EnsureMainWindow().ShowFatalError(exception);
+                if (!_shuttingDown)
+                {
+                    EnsureMainWindow().ShowFatalError(exception);
+                }
             }
         });
     }
 
     private void RequestCharacterThrow(Guid targetUserId)
     {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
         _dispatcherQueue.TryEnqueue(async () =>
         {
-            if (_coordinator is null)
+            if (_shuttingDown || _coordinator is null)
             {
                 return;
             }
@@ -422,9 +477,20 @@ public partial class App : Application
         });
     }
 
-    private void RestoreFailedDraft(string body, Exception exception) =>
+    private void RestoreFailedDraft(string body, Exception exception)
+    {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
         _dispatcherQueue.TryEnqueue(() =>
         {
+            if (_shuttingDown)
+            {
+                return;
+            }
+
             ShowComposer();
             _composer?.RestoreDraftAndFocus(body);
             MainWindow mainWindow = EnsureMainWindow();
@@ -433,21 +499,40 @@ public partial class App : Application
                 exception));
             ShowPrimaryWindow();
         });
+    }
 
     private void OnRenderingFailed(Exception exception)
     {
         StartupDiagnostics.NonFatal("overlay-render", exception);
-        _dispatcherQueue.TryEnqueue(() => EnsureMainWindow().ShowFatalError(exception));
+        if (!_shuttingDown)
+        {
+            _dispatcherQueue.TryEnqueue(() =>
+            {
+                if (!_shuttingDown)
+                {
+                    EnsureMainWindow().ShowFatalError(exception);
+                }
+            });
+        }
     }
 
     private void OnGroupSetupRequested()
     {
-        _dispatcherQueue.TryEnqueue(() => EnsureMainWindow().ShowPage("groups"));
+        if (!_shuttingDown)
+        {
+            _dispatcherQueue.TryEnqueue(() =>
+            {
+                if (!_shuttingDown)
+                {
+                    EnsureMainWindow().ShowPage("groups");
+                }
+            });
+        }
     }
 
     private void OnOnboardingCompleted()
     {
-        if (_onboardingWindow is null)
+        if (_shuttingDown || _onboardingWindow is null)
         {
             return;
         }
@@ -487,12 +572,27 @@ public partial class App : Application
 
     private void RequestPrimaryActivation(string? activationArgument)
     {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
         _dispatcherQueue.TryEnqueue(async () =>
         {
+            if (_shuttingDown)
+            {
+                return;
+            }
+
             if (await TryHandleActivationRequestAsync(activationArgument))
             {
                 return;
             }
+            if (_shuttingDown)
+            {
+                return;
+            }
+
             if (_onboardingWindow is null
                 && _coordinator is not null
                 && !_coordinator.State.Preferences.OnboardingCompleted)
@@ -513,7 +613,7 @@ public partial class App : Application
 
     private async Task<bool> TryHandleActivationRequestAsync(string? activationArgument)
     {
-        if (_coordinator is null)
+        if (_shuttingDown || _coordinator is null)
         {
             return false;
         }
@@ -534,17 +634,28 @@ public partial class App : Application
         try
         {
             await _coordinator.CompleteGoogleIdentityLinkAsync(callbackUri!);
-            mainWindow.ViewModel.ReportSuccess(I18n.Get("store.googleConnected"));
+            if (!_shuttingDown && ReferenceEquals(_mainWindow, mainWindow))
+            {
+                mainWindow.ViewModel.ReportSuccess(I18n.Get("store.googleConnected"));
+            }
         }
         catch (Exception exception)
         {
-            mainWindow.ViewModel.ReportError(exception);
+            if (!_shuttingDown && ReferenceEquals(_mainWindow, mainWindow))
+            {
+                mainWindow.ViewModel.ReportError(exception);
+            }
         }
         return true;
     }
 
     private void ShowPrimaryWindow()
     {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
         MainWindow mainWindow = EnsureMainWindow();
         _window = mainWindow;
         mainWindow.AppWindow.Show();
@@ -554,9 +665,19 @@ public partial class App : Application
 
     private void OnCoordinatorStateChanged(CoordinatorState state)
     {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
         var coordinator = _coordinator;
         _dispatcherQueue.TryEnqueue(() =>
         {
+            if (_shuttingDown)
+            {
+                return;
+            }
+
             UpdateConnectionFailureNotification(state.Connected);
             _mainWindow?.ApplyState(state);
             _onboardingWindow?.ApplyState(state);
@@ -574,14 +695,30 @@ public partial class App : Application
         });
     }
 
-    private void OnTrayCommandInvoked(TrayCommand command) =>
-        _dispatcherQueue.TryEnqueue(() => HandleTrayCommand(command));
+    private void OnTrayCommandInvoked(TrayCommand command)
+    {
+        if (!_shuttingDown)
+        {
+            _dispatcherQueue.TryEnqueue(() =>
+            {
+                if (!_shuttingDown)
+                {
+                    HandleTrayCommand(command);
+                }
+            });
+        }
+    }
 
     private void OnTrayRoomSelected(Guid roomId)
     {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
         _dispatcherQueue.TryEnqueue(async () =>
         {
-            if (_coordinator is null)
+            if (_shuttingDown || _coordinator is null)
             {
                 return;
             }
@@ -592,7 +729,10 @@ public partial class App : Application
             }
             catch (Exception exception)
             {
-                EnsureMainWindow().ShowFatalError(exception);
+                if (!_shuttingDown)
+                {
+                    EnsureMainWindow().ShowFatalError(exception);
+                }
             }
         });
     }
@@ -820,7 +960,7 @@ public partial class App : Application
 
     private void ShowHistory()
     {
-        if (_coordinator is null)
+        if (_shuttingDown || _coordinator is null)
         {
             return;
         }
@@ -843,8 +983,16 @@ public partial class App : Application
         }
         catch (Exception exception)
         {
-            _dispatcherQueue.TryEnqueue(
-                () => EnsureMainWindow().ShowFatalError(exception));
+            if (!_shuttingDown)
+            {
+                _dispatcherQueue.TryEnqueue(() =>
+                {
+                    if (!_shuttingDown)
+                    {
+                        EnsureMainWindow().ShowFatalError(exception);
+                    }
+                });
+            }
         }
     }
 
@@ -885,6 +1033,7 @@ public partial class App : Application
         }
 
         _shuttingDown = true;
+        _monitorConnectionFailures = false;
         CancelConnectionFailureNotification();
         CancelDisplayTopologyRefresh();
         _uiResponsivenessTimer?.Dispose();

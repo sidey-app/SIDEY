@@ -20,6 +20,7 @@ public sealed partial class ComposerWindow : Window
     private bool _focusRequested;
     private bool _isHiding;
     private bool _isVisible;
+    private bool _isClosed;
     private int _focusRequestId;
 
     public ComposerWindow(ComposerViewModel viewModel)
@@ -50,6 +51,11 @@ public sealed partial class ComposerWindow : Window
 
     public void ShowAndFocus(string? monitorIdentifier)
     {
+        if (_isClosed)
+        {
+            return;
+        }
+
         ViewModel.OnShown();
         ResizeAndCenter(monitorIdentifier);
         _isVisible = true;
@@ -61,7 +67,7 @@ public sealed partial class ComposerWindow : Window
 
     public void HideComposer()
     {
-        if (!_isVisible || _isHiding)
+        if (_isClosed || !_isVisible || _isHiding)
         {
             return;
         }
@@ -85,6 +91,11 @@ public sealed partial class ComposerWindow : Window
 
     public void RestoreDraftAndFocus(string body)
     {
+        if (_isClosed)
+        {
+            return;
+        }
+
         ViewModel.RestoreDraft(body);
         _isVisible = true;
         AppWindow.Show();
@@ -149,7 +160,18 @@ public sealed partial class ComposerWindow : Window
 
     private void OnCloseRequested()
     {
-        if (!_uiDispatcherQueue.TryEnqueue(HideComposer))
+        if (_isClosed)
+        {
+            return;
+        }
+
+        if (!_uiDispatcherQueue.TryEnqueue(() =>
+            {
+                if (!_isClosed)
+                {
+                    HideComposer();
+                }
+            }))
         {
             StartupDiagnostics.Stage("composer-hide-queue-rejected");
         }
@@ -159,6 +181,7 @@ public sealed partial class ComposerWindow : Window
     {
         _ = sender;
         _ = args;
+        _isClosed = true;
         _focusRequestId++;
         _focusRequested = false;
         _isVisible = false;
@@ -177,7 +200,7 @@ public sealed partial class ComposerWindow : Window
     {
         DispatcherQueue.TryEnqueue(() =>
         {
-            if (requestId != _focusRequestId || !_isVisible)
+            if (_isClosed || requestId != _focusRequestId || !_isVisible)
             {
                 return;
             }

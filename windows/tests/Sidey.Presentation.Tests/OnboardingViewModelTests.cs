@@ -199,5 +199,35 @@ public sealed class OnboardingViewModelTests
         Assert.Equal("pixel_cat", viewModel.SelectedCharacterId);
     }
 
+    [Fact]
+    public async Task DisposedViewModelIgnoresAnInFlightProfileCompletion()
+    {
+        var completion = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var coordinator = new FakeSideyCoordinator
+        {
+            State = CoordinatorState.Initial with { RealtimeConnection = ConnectedStatus() },
+            SaveProfileHandler = (_, _, _) => completion.Task,
+        };
+        var viewModel = new OnboardingViewModel(coordinator)
+        {
+            Step = 1,
+            Nickname = "sidey",
+        };
+        int propertyChanges = 0;
+        viewModel.PropertyChanged += (_, _) => propertyChanges++;
+
+        Task operation = viewModel.SaveProfileCommand.ExecuteAsync(null);
+        Assert.Equal(1, coordinator.SaveProfileCallCount);
+        viewModel.Dispose();
+        int changesAtDispose = propertyChanges;
+
+        completion.SetResult();
+        await operation;
+
+        Assert.Equal(1, viewModel.Step);
+        Assert.Equal(changesAtDispose, propertyChanges);
+    }
+
     private static RealtimeConnectionStatus ConnectedStatus() => new(true, true, true);
 }

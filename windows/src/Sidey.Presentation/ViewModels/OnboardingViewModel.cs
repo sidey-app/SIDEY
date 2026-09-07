@@ -7,9 +7,10 @@ using Sidey.Presentation.Services;
 
 namespace Sidey.Presentation.ViewModels;
 
-public sealed partial class OnboardingViewModel : ObservableObject
+public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
 {
     private readonly IOnboardingCoordinator _coordinator;
+    private bool _disposed;
     private CoordinatorState _state;
     private string _syncedProfileNickname = string.Empty;
     private string _syncedProfileCharacterId = PixelCharacterCatalog.FallbackId;
@@ -107,6 +108,11 @@ public sealed partial class OnboardingViewModel : ObservableObject
 
     public void ApplyState(CoordinatorState state)
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         bool shouldApplyProfileDraft = ProfileDraftMatchesSyncedState();
         (string syncedNickname, string syncedCharacterId) = GetSyncedProfileDraft(state);
         bool shouldApplyRoomDraft = StringComparer.Ordinal.Equals(RoomName, _syncedRoomName);
@@ -140,11 +146,22 @@ public sealed partial class OnboardingViewModel : ObservableObject
         RaiseActionAvailability();
     }
 
-    public void ReportError(Exception exception) => ErrorMessage = exception.Message;
+    public void ReportError(Exception exception)
+    {
+        if (!_disposed)
+        {
+            ErrorMessage = exception.Message;
+        }
+    }
 
     [RelayCommand]
     private void Begin()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         ErrorMessage = null;
         Step = 1;
     }
@@ -152,6 +169,11 @@ public sealed partial class OnboardingViewModel : ObservableObject
     [RelayCommand]
     private void Back()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         ErrorMessage = null;
         if (Step == 2)
         {
@@ -166,7 +188,7 @@ public sealed partial class OnboardingViewModel : ObservableObject
     [RelayCommand]
     private async Task SaveProfileAsync()
     {
-        if (!CanSaveProfile)
+        if (_disposed || !CanSaveProfile)
         {
             return;
         }
@@ -174,6 +196,10 @@ public sealed partial class OnboardingViewModel : ObservableObject
         await RunAsync(async () =>
         {
             await _coordinator.SaveProfileAsync(Nickname, SelectedCharacterId);
+            if (_disposed)
+            {
+                return;
+            }
             ApplyState(_coordinator.State);
             Step = 2;
         });
@@ -182,7 +208,7 @@ public sealed partial class OnboardingViewModel : ObservableObject
     [RelayCommand]
     private async Task CreateRoomAsync()
     {
-        if (!CanCreateRoom)
+        if (_disposed || !CanCreateRoom)
         {
             return;
         }
@@ -190,6 +216,10 @@ public sealed partial class OnboardingViewModel : ObservableObject
         await RunAsync(async () =>
         {
             await _coordinator.CreateRoomAsync(RoomName);
+            if (_disposed)
+            {
+                return;
+            }
             ApplyState(_coordinator.State);
             Step = 3;
         });
@@ -198,7 +228,7 @@ public sealed partial class OnboardingViewModel : ObservableObject
     [RelayCommand]
     private async Task JoinRoomAsync()
     {
-        if (!CanJoinRoom)
+        if (_disposed || !CanJoinRoom)
         {
             return;
         }
@@ -206,6 +236,10 @@ public sealed partial class OnboardingViewModel : ObservableObject
         await RunAsync(async () =>
         {
             await _coordinator.JoinRoomAsync(InviteCode.Trim().ToUpperInvariant());
+            if (_disposed)
+            {
+                return;
+            }
             ApplyState(_coordinator.State);
             Step = 3;
         });
@@ -214,6 +248,11 @@ public sealed partial class OnboardingViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanSkipGroup))]
     private void SkipGroup()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         ErrorMessage = null;
         Step = 3;
     }
@@ -223,7 +262,7 @@ public sealed partial class OnboardingViewModel : ObservableObject
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task FinishAsync()
     {
-        if (Step != 3)
+        if (_disposed || Step != 3)
         {
             return;
         }
@@ -231,7 +270,10 @@ public sealed partial class OnboardingViewModel : ObservableObject
         await RunAsync(async () =>
         {
             await _coordinator.CompleteOnboardingAsync();
-            Completed?.Invoke();
+            if (!_disposed)
+            {
+                Completed?.Invoke();
+            }
         });
     }
 
@@ -248,6 +290,11 @@ public sealed partial class OnboardingViewModel : ObservableObject
 
     private async Task RunAsync(Func<Task> action)
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         IsWorking = true;
         ErrorMessage = null;
         try
@@ -256,12 +303,24 @@ public sealed partial class OnboardingViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            ErrorMessage = exception.Message;
+            if (!_disposed)
+            {
+                ErrorMessage = exception.Message;
+            }
         }
         finally
         {
-            IsWorking = false;
+            if (!_disposed)
+            {
+                IsWorking = false;
+            }
         }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Completed = null;
     }
 
     private void UpdateCharacterSelectionState()

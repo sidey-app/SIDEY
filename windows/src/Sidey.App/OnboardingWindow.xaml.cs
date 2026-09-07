@@ -10,6 +10,8 @@ namespace Sidey.App;
 
 public sealed partial class OnboardingWindow : Window
 {
+    private bool _isClosed;
+
     public OnboardingWindow(AppCoordinator coordinator)
     {
         InitializeComponent();
@@ -28,24 +30,63 @@ public sealed partial class OnboardingWindow : Window
         SetTitleBar(DragRegion);
         ApplyBackdrop();
         ApplyResponsiveSize();
+        AppWindow.Closing += OnAppWindowClosing;
     }
 
     public event Action? Completed;
 
     public OnboardingViewModel ViewModel { get; }
 
-    public void ApplyState(CoordinatorState state) => ViewModel.ApplyState(state);
+    public void ApplyState(CoordinatorState state)
+    {
+        if (!_isClosed)
+        {
+            ViewModel.ApplyState(state);
+        }
+    }
 
-    public void ShowError(Exception exception) => ViewModel.ReportError(exception);
+    public void ShowError(Exception exception)
+    {
+        if (!_isClosed)
+        {
+            ViewModel.ReportError(exception);
+        }
+    }
 
     public void ShowAndActivate()
     {
+        if (_isClosed)
+        {
+            return;
+        }
+
         AppWindow.Show();
         Activate();
         SideyWindowActivation.BringToForeground(this);
     }
 
     private void OnCompleted() => Completed?.Invoke();
+
+    private void OnAppWindowClosing(
+        Microsoft.UI.Windowing.AppWindow sender,
+        Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        PrepareForClose();
+    }
+
+    private void PrepareForClose()
+    {
+        if (_isClosed)
+        {
+            return;
+        }
+
+        _isClosed = true;
+        OnboardingRoot.DataContext = null;
+        ViewModel.Dispose();
+    }
 
     private void ApplyBackdrop()
     {
@@ -72,6 +113,8 @@ public sealed partial class OnboardingWindow : Window
     {
         _ = sender;
         _ = args;
+        PrepareForClose();
+        AppWindow.Closing -= OnAppWindowClosing;
         ViewModel.Completed -= OnCompleted;
     }
 }
