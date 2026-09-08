@@ -1,9 +1,9 @@
 # SIDEY 제품 기획서
 
 - 문서 버전: 0.8
-- 최종 갱신: 2026-09-07
+- 최종 갱신: 2026-09-09
 - 상태: macOS `v1.0.10`(build 21) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.1.1` 정식 출시
-- 비공개 후보 기준: Mac App Store `1.0.10`(build 22); 공개 manifest와 다운로드 페이지는 실제 출시 전까지 기존 버전을 유지
+- 비공개 후보 기준: Mac App Store 타깃의 버전·build는 [Xcode 프로젝트 설정](../macos/SIDEY.xcodeproj/project.pbxproj)의 `MARKETING_VERSION`·`CURRENT_PROJECT_VERSION`을 참조한다; 공개 manifest와 다운로드 페이지는 실제 출시 전까지 기존 버전을 유지
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
 
@@ -191,7 +191,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 
 결제 확인과 동시에 디지털 캐릭터 사용권 제공을 시작한다. 제공 시작 뒤 단순 변심에 따른 청약철회와 환불은 허용하지 않으며, 사용권 미제공·표시 또는 계약 내용 불일치·중복 결제·본인이 승인하지 않은 결제 등 관련 법령상 사유가 확인된 경우에만 전액 환불한다. 환불은 PortOne 취소 상태를 다시 확인한 뒤 구매 entitlement를 회수하며, 법이 보장하는 취소·피해구제 권리는 제한하지 않는다.
 
-전환 시 지정 활동 계정 5개(`9c169b9f-e95c-4a3e-b0e9-ab329a035c6f`, `e68ec90f-6f5a-4a93-be0a-364f6a3f378f`, `839ec4d5-ada1-466d-bb1d-2a100dea2185`, `b4877c8c-3147-46ef-b035-5dbb95e86d4f`, `f0462289-2465-4a27-b90d-d4820ccf4b8c`)에는 기니피그·원숭이·친칠라 complimentary entitlement를 각각 지급한다. 주문과 분리된 총 15개 지급이며 `grant_reference`로 감사 근거를 남긴다. Windows는 무료 5종과 현재 계정의 활성 entitlement 캐릭터를 선택할 수 있고 구매는 지원하지 않으며, 추가 4종을 상점에서 미리 보고 원격 친구 모습으로 렌더링한다.
+complimentary 지급은 구매·환불과 분리해 원장에 출처와 근거를 보존한다. 프로필 선택과 꾸미기 장착은 현재 계정의 활성 entitlement를 기준으로 허용하며, 판매 잠금 중에도 이미 가진 사용권은 유지한다.
 
 - 논리 프레임: 24×24 픽셀
 - 화면 크기: 2배 정수 확대, 약 48pt
@@ -462,15 +462,13 @@ OverlayRegionPreference(
 - 7일 초과·프로필 없음·방 없음인 미완성 익명 가입만 삭제
 - `rename_room(uuid,text)`, `remove_room_member(uuid,uuid)`, 방장 전용 `delete_room(uuid) returns void`; 삭제는 기존 FK cascade로 방 멤버십과 메시지를 함께 제거
 
-적용 완료된 과거 commerce migration과 Toss 거래는 감사 이력으로 보존하고 수정하지 않는다. 신규 forward-only `20260902050000_paid_characters_portone_v2.sql`은 다음 계약을 추가한다.
+commerce는 다음 현행 계약을 유지한다. 적용된 migration과 과거 결제·가격·정책 동의 원문은 감사 이력으로 보존하고 변경은 forward-only로 적용한다.
 
-- migration 시작 단계에서 운영 판매를 `false`로 잠그고 legacy pending 주문을 취소한다.
-- 우파루파의 990원 가격은 비활성 이력으로 남기고 1,900원 활성 가격을 추가한다. 기니피그·원숭이·친칠라 상품과 각 990원 가격을 추가한다.
-- `commerce_entitlements.grant_kind`는 `purchase | complimentary`, `grant_reference`는 주문 없는 지급 근거를 기록한다. `upsert_profile`은 상품 등록된 4종 모두 활성 entitlement를 검사한다.
+- production은 `sales_enabled=false`와 PortOne 시크릿 미설정에서 실패 폐쇄한다. 판매 잠금은 이미 보유한 상품의 선택·장착을 막지 않는다.
+- 주문 가격은 서버의 활성 catalog 가격을 사용한다. `upsert_profile`과 꾸미기 장착 RPC는 현재 계정의 활성 entitlement를 검사한다.
+- PortOne·App Store·complimentary 지급은 출처별 원장에 기록하고, 클라이언트는 RLS가 적용된 유효 소유권 projection을 읽는다. 주문 없는 지급도 출처와 지급 근거를 보존하며 한 출처의 환불이 다른 활성 지급을 회수하지 않는다.
 - PortOne V2 결제 상태에는 payment ID, Store ID, Channel Key, V2, TEST/LIVE, 상태, KRW, 서버 주문 금액, `EASY_PAY` 일치를 요구한다. event ID와 payload hash를 함께 저장해 중복 웹훅과 상충 payload를 분리한다.
-- 직접 Toss 실행 RPC 권한, Edge Function, 웹 SDK·CSP·문구·시크릿을 제거한다. 과거 Toss payment row는 삭제하지 않는다.
-
-forward-only `20260903000000_commerce_refund_policy_v2.sql`은 기존 주문에 저장된 결제 당시 동의 원문을 바꾸지 않고, 새 checkout의 정책 버전을 `2026-09-03-portone-v2`로 올려 제공 시작 뒤 단순 변심 환불 불가와 관련 법령상 환불 사유를 명시한다.
+- 새 checkout은 현행 정책 버전과 제공 시작·환불 조건에 대한 동의를 기록하며 기존 주문에 저장된 결제 당시 동의 원문은 바꾸지 않는다.
 
 forward-only `20260903010000_character_throw.sql`은 `broadcast_character_throw(p_room_id, p_realtime_epoch, p_event_id, p_target_user_id)` 전용 RPC를 추가한다. 서버는 인증, 최신 room epoch, 송신자·대상 멤버십, 자기 자신 대상 금지와 필수 UUID를 검증하고 송신자 프로필에서 `source_character_id`를 읽는다. 송신자당 10초 20회 제한을 적용한 뒤 schema version, room/event/actor/target UUID와 source character ID만 현재 private ephemeral topic의 `character_throw`로 발행한다. 이벤트는 Postgres 메시지나 기록에 저장하지 않고 재접속 뒤 재생하지 않는다.
 
@@ -582,14 +580,14 @@ App Store판은 Apple subject와 사용자가 공유한 경우의 relay email, S
 
 ### 10.4 macOS 배포 절차
 
-1. 운영 DB에 forward-only commerce migration을 먼저 적용해 `sales_enabled=false`, legacy pending 0건, 활성 가격 10개와 complimentary 15개를 확인한다. 신규 6종은 공개 판매 중으로 표시하지 않는다.
-2. production에는 PortOne V2 Edge Functions를 배포하되 PortOne 시크릿은 설정하지 않고 실패 폐쇄를 확인한다. 예전 `commerce-return`과 Toss 시크릿은 제거한다.
+1. 해당 릴리스가 요구하는 서버 schema·RLS·함수와 활성 catalog 가격·소유권 계약을 확인한다. 필요한 변경만 forward-only로 먼저 적용하며 production `sales_enabled=false`를 유지한다.
+2. production의 PortOne V2 Edge Functions가 판매 잠금·PortOne 시크릿 미설정에서 실패 폐쇄하는지 확인한다.
 3. 전체 Swift 테스트, 로컬 2클라이언트 Realtime 통합 테스트, pgTAP, 웹사이트 빌드와 Release 빌드를 통과한다.
 4. Developer ID Application과 Hardened Runtime으로 앱·로그인 항목·Sparkle 중첩 코드를 서명하고 Apple 공증 뒤 ticket을 staple한다.
 5. 공개 버전·build와 관련 문서·링크를 `release/macos.json`에서 파생하고 일관성 검사를 통과한다. production 카드 잠금과 구매 action 0회를 최종 확인한다.
 6. 운영자 Mac에서 `scripts/release_macos.sh` 한 명령으로 Developer ID·Hardened Runtime 서명과 공증을 거친 DMG·ZIP·SHA-256을 만든다. 스크립트가 동일 `main` 커밋의 draft Release에 네 자산을 올리고 다시 내려받아 byte 단위로 대조한 뒤에만 정식 공개한다.
 7. 같은 명령이 Release ZIP의 공개 다운로드를 재검증해 signed appcast PR을 만들고, 공증 DMG의 URL·SHA-256으로 `sidey-app/homebrew-tap` Cask PR을 만든다. 개인 서명키·공증 profile·Sparkle 키는 운영자 Mac 밖으로 내보내지 않는다.
-8. `SIDEY-staging`이 준비되면 같은 migration·Google OAuth·PortOne test Store/Channel/Webhook을 구성하고 Sidey-dev로 신규 상품별 결제 성공→자동 장착→재실행 복원→장착 해제→전액 환불→회수를 실제 검증한다.
+8. commerce 변경이 포함되면 production과 같은 schema·RLS를 적용한 `SIDEY-staging`에서 Google OAuth·PortOne test Store/Channel/Webhook을 사용하고, Sidey-dev로 해당 상품의 결제 성공→자동 장착→재실행 복원→장착 해제→전액 환불→회수를 실제 검증한다.
 9. 추후 실판매는 별도 결정과 법률·운영 검증 뒤 production 앱의 `StoreAvailability`를 여는 새 버전을 먼저 배포하고, 마지막 단계에서만 운영 `sales_enabled=true`와 live 시크릿을 설정한다.
 
 Sparkle `2.9.6`이 production 앱에 내장되며 메뉴바 `업데이트 확인…`과 설정의 업데이트 카드에서 수동 확인할 수 있다. 설정 버튼은 production updater가 사용 가능한 동안에만 활성화한다. 자동 확인은 Sparkle의 사용자 동의 흐름을 사용하고, 익명 system profiling은 활성화하지 않는다. appcast와 ZIP은 서로 다른 검증 대상이므로 둘 다 `sidey-app` EdDSA 키로 서명하며 `SURequireSignedFeed`와 `SUVerifyUpdateBeforeExtraction`을 강제한다. 피드는 GitHub raw HTTPS URL, 설치 파일은 GitHub Releases를 사용한다.
@@ -606,23 +604,7 @@ Keychain 접근은 앱 실행 동안 하나의 `LAContext`를 공유하고 `loca
 
 자동화 테스트와 공개 배포는 장시간 수동 기준을 대신하지 않는다. 수행하지 않은 장시간 항목을 통과했다고 기록하지 않고 정식판에서도 지속 검증한다.
 
-### 10.5 Windows v1.0.5 정식 배포 절차
-
-1. Windows 전체 단위·계약·창 정책·업데이트·배포 source 테스트와 10.3의 실기·장시간 기준을 통과한다.
-2. staging에서 익명 세션·RLS·private Realtime을 통과한 뒤 production publishable 구성에서도 다시 확인한다. service-role·secret key는 클라이언트·저장소·CI 산출물에 넣지 않는다.
-3. CI에서 `win-x64` unpackaged·multi-file self-contained 앱을 `PublishSingleFile=false`로 게시한다. 루트 `SIDEY.exe` 런처가 인수를 `Runtime\SIDEY.Host.exe`로 전달하고, 앱·.NET·Windows App SDK 런타임은 `Runtime`, 사용자 콘텐츠는 `Assets`, SIDEY 번역은 `Langs`에 둔다. 게시한 런처와 호스트를 실제 시작해 main 또는 미지원 OS 창 활성화 로그가 남고 프로세스가 유지되는지 확인한다.
-4. WiX Toolset `6.0.2`로 전체 payload와 내부 cabinet을 포함한 머신 단위 `SIDEY-Windows-x64-v1.0.5.msi`를 만든다. Burn Setup EXE·ZIP·MSIX는 만들거나 공개하지 않는다.
-5. 자체 서명 인증서·임시 PFX·공개 CER를 만들지 않고 Release용 MSI와 내부 검증용 SHA-256만 생성한다. `.sha256` 파일은 Release 자산으로 게시하지 않는다.
-6. clean install·공용 시작 메뉴·아이콘이 포함된 `Uninstall.exe`·repair·실행 중 upgrade·downgrade 차단을 확인한다. Windows 설정·MSI·`Uninstall.exe`의 일반 제거에서 데이터 삭제 옵션이 기본 미선택이고, 선택 시에만 현재 사용자의 설정·로그·로그인 정보를 삭제하며 upgrade·repair에는 삭제하지 않는지 검증한 뒤, 검증된 커밋에 `windows-v1.0.5` 태그와 GitHub 정식 Release를 만든다. Release에는 MSI 하나만 게시하고 제거 옵션의 영향을 명시한다.
-7. Windows Actions가 성공하면 Pages Actions가 GitHub 정식 Release의 단일 MSI를 다시 내려받아 SHA-256을 계산한다. 태그·고정 MSI URL·자산 구성이 모두 맞을 때 Astro 배포 사본의 `windows-latest.json`과 호환 경로 `windows/update.json`에 64자리 SHA-256을 기록하고 Windows 다운로드 버튼을 활성화한다. 앱은 시작 시 한 번 새 버전을 확인하고 트레이·설정에서 수동 확인하며, 사용자 승인 뒤 다운로드·hash 검증을 통과한 설치기만 실행한다.
-
-공개 MSI는 관리자 승인 뒤 모든 사용자용으로 `C:\Program Files\SIDEY`에 설치하고 공용 시작 메뉴에 앱과 제거 바로가기를 만든다. 설치 폴더에는 앱 아이콘을 포함한 `Uninstall.exe`를 두고, MSI 제품 정보에는 같은 아이콘을 등록한다. 기존 per-user·Burn 테스트 설치는 등록 방식이 달라 자동 전환하지 않으며 먼저 Windows 설정에서 제거하도록 안내한다. `Uninstall.exe`를 직접 실행하면 Windows Installer 제거를 시작하고, Windows 설정과 MSI 유지 관리 화면을 포함한 일반 제거에는 `설정, 로그 및 로그인 정보도 삭제` 체크박스를 기본 미선택으로 표시한다. 선택하면 MSI가 `Uninstall.exe --cleanup`을 실행해 현재 사용자의 `%LOCALAPPDATA%\SIDEY`와 Credential Manager의 `SIDEY/` 자격 증명을 삭제한다. 선택하지 않으면 사용자 데이터를 보존하며 major upgrade와 repair에서는 이 정리를 실행하지 않는다.
-
-v1.0.3·v1.0.4의 앱 내 업데이트는 SHA-256 검사에 사용한 파일 스트림이 열린 상태에서 설치 파일 이름을 바꾸려 해 Windows 파일 잠금 오류로 실패한다. 따라서 기존 사용자는 v1.0.5 MSI를 한 번 수동 설치해야 하며, 설정·로그인 정보는 major upgrade에서 보존한다. v1.0.5는 검사 스트림을 닫은 뒤 검증된 MSI를 게시하고 설치기를 실행한다.
-
-SHA-256은 PowerShell에서 `Get-FileHash .\SIDEY-Windows-x64-v1.0.5.msi -Algorithm SHA256`으로 계산한다. GitHub에서 다시 내려받은 MSI와 CI 후보가 같은지 검증하고 이 값을 업데이트 manifest에 기록하되 별도 `.sha256` Release 자산은 만들지 않는다.
-
-### 10.6 Windows v1.0.6 이후 Setup EXE 배포 기준
+### 10.5 Windows Setup EXE 배포 기준
 
 설치 시작 화면은 `en-US`, `ko-KR`, `ja-JP`, `zh-CN`, `zh-TW`, `ru-RU`, `uk-UA` 중 언어를 선택하게 한다. 현재 Windows 표시 언어에 대응하는 항목을 맨 위에 두고 나머지를 영어 이름 기준 Chinese (Simplified), Chinese (Traditional), English, Japanese, Korean, Russian, Ukrainian 순으로 배열한다. 목록에는 각 언어의 고유 표기도 함께 표시한다. 지역별 영어 등은 같은 언어로, 중국어 싱가포르는 간체로, 홍콩·마카오는 번체로 대응한다. 미지원 언어는 영어를 기본 선택하며 목록은 전체 알파벳순이다. 기존 설치에서 저장한 선택은 기본 선택으로 복원하되 시스템 언어 우선 정렬은 유지한다. 설치·복구·제거·prerequisite 오류 안내를 번역하고 약관 본문은 기존 한국어 원문을 보존한다.
 
@@ -642,11 +624,13 @@ v1.0.6부터 Windows 릴리스는 NSIS `3.12`로 만든 머신 단위 `SIDEY-Win
 
 Setup EXE는 기존 정식 WiX MSI를 감지하면 SIDEY 프로세스를 종료하고 MSI를 무인 제거한 뒤 새 파일을 설치한다. 이 전환과 일반 업데이트·복구에서는 설정·로그·로그인 자격 증명을 삭제하지 않는다. 과거 per-user·Burn 테스트 설치는 자동 전환 대상이 아니므로 먼저 Windows 설정에서 제거한다.
 
+v1.0.3·v1.0.4의 앱 내 업데이트는 파일 잠금 오류로 실패하므로 최신 Setup EXE를 한 번 수동 설치해야 한다. 기존 v1.0.5 MSI 사용자도 최신 Setup EXE로 전환할 수 있으며 설정·로그·로그인 정보는 보존한다.
+
 일반 제거 화면은 설정·로그와 저장된 로그인 자격 증명을 별도 항목으로 제공하며 둘 다 기본 미선택이다. 선택한 항목만 현재 사용자 프로필에서 삭제한다. CI는 게시 런처 스모크, 전체 자동 테스트, NSIS 컴파일, 단일 Setup EXE 자산명과 SHA-256을 검증한다. 실제 Windows 검증에서는 신규 설치·선택 위치·동일 버전 복구/제거·실행 중 업데이트·downgrade 차단·v1.0.5 MSI 전환·각 데이터 삭제 선택을 확인한다.
 
 Windows CI는 PR과 `main` 검증만 담당하며 태그 push로 배포하지 않는다. 정식 배포는 `main`에서 `release/windows.json`의 버전을 다시 입력하는 수동 `Windows Release` 워크플로 하나만 사용한다. 이 워크플로가 전체 검사와 패키징을 다시 수행하고 draft Release의 단일 Setup EXE를 내려받아 후보 SHA-256과 대조한 뒤 공개하며, 성공한 경우에만 Pages 재사용 워크플로를 호출한다.
 
-### 10.7 공개 웹 탐색·미리보기·정책 보정
+### 10.6 공개 웹 탐색·미리보기·정책 보정
 
 - 공개 웹 배경은 방사형 색면만 사용하고 반복 점 격자는 표시하지 않는다. 랜딩 모니터 안의 토리 입력 중 말풍선과 콩이 메시지 말풍선은 내용 폭을 제외한 30px 높이·글자 크기·정렬·외곽선·꼬리를 같은 규격으로 표시한다.
 - 랜딩의 기능 해시 `#features`는 첫 화면 바로 다음의 실제 macOS 사용 장면에서 시작한다. 분할형 섹션 제목의 설명은 오른쪽에 정렬한다. 첫 화면 다운로드 선택기는 기존보다 폭과 높이를 줄이고 CSS 꺾쇠를 항상 표시하며, 다운로드 버튼 hover는 색과 표면만 바꾸고 위치를 움직이지 않는다. 다운로드 전 고지는 이용약관 및 개인정보 처리방침 동의로 표시한다.
