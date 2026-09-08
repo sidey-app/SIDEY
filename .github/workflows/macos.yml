@@ -44,5 +44,25 @@ jobs:
       - name: Validate central pixel assets and mirrors
         run: python3 ./scripts/validate_pixel_assets.py
 
+      - name: Read Xcode build version
+        id: xcode
+        run: |
+          build_version=$(xcodebuild -version | awk '/^Build version / { print $3 }')
+          test -n "$build_version"
+          echo "build-version=$build_version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Swift package sources and artifacts
+        id: packages
+        uses: actions/cache@v6
+        continue-on-error: true
+        with:
+          # Xcode package downloads only; DerivedData remains fresh for every run.
+          path: ${{ runner.temp }}/sidey-source-packages
+          key: sidey-spm-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.build-version }}-${{ hashFiles('macos/SIDEY.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+
+      - name: Prepare fresh packages after a cache miss or restore failure
+        if: steps.packages.outputs.cache-hit != 'true'
+        run: rm -rf "$RUNNER_TEMP/sidey-source-packages"
+
       - name: Run native test suite
-        run: ./scripts/macos/test_native.sh
+        run: ./scripts/macos/test_native.sh -clonedSourcePackagesDirPath "$RUNNER_TEMP/sidey-source-packages"
