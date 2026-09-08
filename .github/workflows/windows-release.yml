@@ -135,7 +135,7 @@ jobs:
             -File ./windows/installer/Sidey.Setup/SetupRuntime.ps1 -ProvisionAllUsers
           if ($LASTEXITCODE -ne 0) { throw 'Runtime prerequisites are not ready for the startup smoke test.' }
           ./scripts/windows/smoke-launch.ps1 `
-            -PublishDir ./build/windows/publish
+            -PublishDir ./build/windows/publish -TimeoutSeconds 60
           ./scripts/windows/package.ps1 `
             -PublishDir ./build/windows/publish `
             -OutDir ./build/windows/artifacts `

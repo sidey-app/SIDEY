@@ -89,7 +89,7 @@ jobs:
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
             -File ./windows/installer/Sidey.Setup/SetupRuntime.ps1 -ProvisionAllUsers
           if ($LASTEXITCODE -ne 0) { throw 'Runtime prerequisites are not ready for the startup smoke test.' }
-          ./scripts/windows/smoke-launch.ps1 -PublishDir ./build/windows/publish
+          ./scripts/windows/smoke-launch.ps1 -PublishDir ./build/windows/publish -TimeoutSeconds 60
 
       - name: Compile NSIS installer
         run: |
