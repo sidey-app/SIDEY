@@ -10,6 +10,9 @@ $ErrorActionPreference = 'Stop'
 $resolvedPublishDir = (Resolve-Path $PublishDir).Path
 $executable = Join-Path $resolvedPublishDir 'SIDEY.exe'
 $hostExecutable = Join-Path $resolvedPublishDir 'Runtime\SIDEY.Host.exe'
+if (Test-Path -LiteralPath (Join-Path $resolvedPublishDir 'Runtime/Assets')) {
+    throw 'Startup smoke must use external Assets without a private Runtime/Assets copy.'
+}
 if (-not (Test-Path $executable -PathType Leaf)) {
     throw "SIDEY.exe was not found in the publish directory: $resolvedPublishDir"
 }
@@ -35,6 +38,7 @@ try {
     $launcherProcess = Start-Process `
         -FilePath $executable `
         -WorkingDirectory $resolvedPublishDir `
+        -WindowStyle Hidden `
         -PassThru
     if (-not $launcherProcess.WaitForExit(5000) -or $launcherProcess.ExitCode -ne 0) {
         throw "SIDEY launcher did not forward startup successfully."
@@ -81,7 +85,8 @@ try {
             if ($log -match "$pidPattern fatal ") {
                 throw "SIDEY startup composer probe failed.`n$log"
             }
-            if ($log -match "$pidPattern .*stage=composer-smoke-complete") {
+            if ($log -match "$pidPattern .*stage=composer-smoke-complete" -and
+                $log -match "$pidPattern .*stage=external-assets-smoke-complete") {
                 $ready = $true
                 break
             }

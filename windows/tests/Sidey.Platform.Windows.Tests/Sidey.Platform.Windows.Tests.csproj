@@ -23,6 +23,7 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../../installer/Sidey.Setup/InstallerLanguages.cs" Link="InstallerLanguages.cs" />
     <ProjectReference Include="../../src/Sidey.Overlay/Sidey.Overlay.csproj" />
     <ProjectReference Include="../../src/Sidey.Infrastructure/Sidey.Infrastructure.csproj" />
     <ProjectReference Include="../../src/Sidey.Platform.Windows/Sidey.Platform.Windows.csproj" />

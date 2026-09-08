@@ -21,6 +21,9 @@ Unicode true
 !ifndef TERMS_LICENSE_FILE
   !error "TERMS_LICENSE_FILE is required."
 !endif
+!ifndef LANGUAGE_SELECTOR_EXE
+  !error "LANGUAGE_SELECTOR_EXE is required."
+!endif
 
 !define PRODUCT_NAME "SIDEY"
 !define PRODUCT_PUBLISHER "SIDEY"
@@ -34,6 +37,7 @@ Unicode true
 !include "WordFunc.nsh"
 !include "nsDialogs.nsh"
 !include "WinMessages.nsh"
+!include "x64.nsh"
 
 !insertmacro VersionCompare
 
@@ -69,6 +73,7 @@ VIAddVersionKey /LANG=1033 "FileVersion" "${APP_FILE_VERSION}"
 !define MUI_LANGDLL_REGISTRY_ROOT "HKLM"
 !define MUI_LANGDLL_REGISTRY_KEY "${PRODUCT_REGISTRY_KEY}"
 !define MUI_LANGDLL_REGISTRY_VALUENAME "Language"
+!define MUI_CUSTOMFUNCTION_GUIINIT ShowInstallerAfterLanguageSelection
 
 !insertmacro MUI_PAGE_WELCOME
 Page custom MaintenancePageCreate
@@ -90,9 +95,19 @@ UninstPage custom un.CleanupPageCreate un.CleanupPageLeave
 
 !insertmacro MUI_LANGUAGE "English"
 !insertmacro MUI_LANGUAGE "Korean"
+!insertmacro MUI_LANGUAGE "Japanese"
+!insertmacro MUI_LANGUAGE "SimpChinese"
+!insertmacro MUI_LANGUAGE "TradChinese"
+!insertmacro MUI_LANGUAGE "Russian"
+!insertmacro MUI_LANGUAGE "Ukrainian"
 
 SetFont /LANG=${LANG_ENGLISH} "Segoe UI" 9
 SetFont /LANG=${LANG_KOREAN} "맑은 고딕" 9
+SetFont /LANG=${LANG_JAPANESE} "Yu Gothic UI" 9
+SetFont /LANG=${LANG_SIMPCHINESE} "Microsoft YaHei UI" 9
+SetFont /LANG=${LANG_TRADCHINESE} "Microsoft JhengHei UI" 9
+SetFont /LANG=${LANG_RUSSIAN} "Segoe UI" 9
+SetFont /LANG=${LANG_UKRAINIAN} "Segoe UI" 9
 
 LangString LaunchSidey ${LANG_ENGLISH} "Launch SIDEY"
 LangString LaunchSidey ${LANG_KOREAN} "SIDEY 실행"
@@ -124,6 +139,12 @@ LangString LegacyMigrationRestart ${LANG_ENGLISH} "Windows must restart to finis
 LangString LegacyMigrationRestart ${LANG_KOREAN} "이전 SIDEY MSI 삭제를 마치려면 Windows를 다시 시작해야 합니다. 다시 시작한 뒤 설치 프로그램을 다시 실행해 주세요."
 LangString ExistingRemovalFailed ${LANG_ENGLISH} "The existing SIDEY installation could not be prepared for this installation. Error code: $0"
 LangString ExistingRemovalFailed ${LANG_KOREAN} "기존 SIDEY 설치를 새 설치용으로 정리하지 못했습니다. 오류 코드: $0"
+LangString PrerequisitesStatus ${LANG_ENGLISH} "Checking required runtimes; missing runtimes will be downloaded from Microsoft..."
+LangString PrerequisitesStatus ${LANG_KOREAN} "필수 런타임을 확인하고 있습니다. 없는 런타임은 Microsoft에서 다운로드합니다..."
+LangString PrerequisitesFailed ${LANG_ENGLISH} "Required runtimes could not be installed. Check your internet connection and run Setup again. The existing SIDEY has not been removed. Error code: $0"
+LangString PrerequisitesFailed ${LANG_KOREAN} "필수 런타임을 설치하지 못했습니다. 인터넷 연결을 확인한 뒤 다시 설치해 주세요. 기존 SIDEY는 제거하지 않았습니다. 오류 코드: $0"
+LangString PrerequisitesRestart ${LANG_ENGLISH} "Restart Windows to finish installing the required runtimes, then run Setup again. The existing SIDEY has not been removed."
+LangString PrerequisitesRestart ${LANG_KOREAN} "필수 런타임 설치를 마치려면 Windows를 다시 시작한 뒤 설치 프로그램을 다시 실행해 주세요. 기존 SIDEY는 제거하지 않았습니다."
 LangString CleanupTitle ${LANG_ENGLISH} "Remove optional SIDEY data"
 LangString CleanupTitle ${LANG_KOREAN} "SIDEY 선택 데이터 삭제"
 LangString CleanupSubtitle ${LANG_ENGLISH} "Choose the current-user data to remove."
@@ -137,6 +158,8 @@ LangString DeleteCredentials ${LANG_KOREAN} "저장된 SIDEY 로그인 자격 �
 LangString CleanupFailed ${LANG_ENGLISH} "Some selected current-user data could not be removed. Error code: $0"
 LangString CleanupFailed ${LANG_KOREAN} "선택한 현재 사용자 데이터 일부를 삭제하지 못했습니다. 오류 코드: $0"
 
+!include "${__FILEDIR__}\Languages.nsh"
+
 Var InstallState
 Var InstalledVersion
 Var VersionResult
@@ -149,11 +172,12 @@ Var DeleteCredentialsCheckbox
 Var DeleteLocalData
 Var DeleteCredentials
 Var HasNsisInstall
+Var HasPrivateRuntime
 
 Function .onInit
   SetRegView 64
   SetShellVarContext all
-  !insertmacro MUI_LANGDLL_DISPLAY
+  Call SelectInstallerLanguage
 
   StrCpy $InstallState "fresh"
   StrCpy $HasNsisInstall "false"
@@ -265,10 +289,70 @@ Function StopSideyProcesses
   Pop $0
 FunctionEnd
 
+Function SelectInstallerLanguage
+  ; Select before NSIS initializes its language tables. LangDLL sorts its combo
+  ; internally, so reuse its native template with explicitly ordered insertions.
+  InitPluginsDir
+  File /oname=$PLUGINSDIR\Sidey.SetupLanguage.exe "${LANGUAGE_SELECTOR_EXE}"
+  ReadRegStr $0 HKLM "${PRODUCT_REGISTRY_KEY}" "Language"
+  System::Call 'kernel32::GetCurrentProcessId() i.r2'
+  ClearErrors
+  ${If} ${Silent}
+    ExecWait '"$PLUGINSDIR\Sidey.SetupLanguage.exe" "$0" $2 --silent' $1
+  ${Else}
+    ExecWait '"$PLUGINSDIR\Sidey.SetupLanguage.exe" "$0" $2' $1
+  ${EndIf}
+  ${If} ${Errors}
+  ${OrIf} $1 == 1
+    SetErrorLevel 1
+    MessageBox MB_OK|MB_ICONSTOP "$(LanguageSelectionFailed)" /SD IDOK
+    Abort
+  ${ElseIf} $1 == 0
+    SetErrorLevel 1602
+    Abort
+  ${EndIf}
+  StrCpy $LANGUAGE $1
+FunctionEnd
+
+Function ShowInstallerAfterLanguageSelection
+  ; The selector grants this process foreground access before closing. Wait for
+  ; the NSIS window to exist before restoring and activating it.
+  BringToFront
+FunctionEnd
+
+Function PrepareRuntimeHelper
+  InitPluginsDir
+  File /oname=$PLUGINSDIR\SetupRuntime.ps1 "${__FILEDIR__}\SetupRuntime.ps1"
+  File /oname=$PLUGINSDIR\Prerequisites.ps1 "${__FILEDIR__}\Prerequisites.ps1"
+  File /oname=$PLUGINSDIR\prerequisites.json "${__FILEDIR__}\prerequisites.json"
+FunctionEnd
+
+Function EnsurePrerequisites
+  Call PrepareRuntimeHelper
+  DetailPrint "$(PrerequisitesStatus)"
+  ${DisableX64FSRedirection}
+  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\SetupRuntime.ps1" -ProvisionAllUsers'
+  Pop $0
+  ${EnableX64FSRedirection}
+  ${If} $0 == 3010
+    SetErrorLevel 3010
+    MessageBox MB_OK|MB_ICONSTOP "$(PrerequisitesRestart)" /SD IDOK
+    Abort
+  ${ElseIf} $0 != 0
+    SetErrorLevel 1
+    MessageBox MB_OK|MB_ICONSTOP "$(PrerequisitesFailed)" /SD IDOK
+    Abort
+  ${EndIf}
+FunctionEnd
+
 Section "SIDEY" MainSection
   SetRegView 64
   SetShellVarContext all
   SetOverwrite on
+  Call EnsurePrerequisites
+  StrCpy $HasPrivateRuntime "false"
+  IfFileExists "$INSTDIR\Runtime\SIDEY.Host.exe" 0 +2
+    StrCpy $HasPrivateRuntime "true"
   Call StopSideyProcesses
 
   ${If} $HasNsisInstall == "true"
@@ -299,6 +383,21 @@ Section "SIDEY" MainSection
     Abort
   ${EndIf}
 
+  ; The previous uninstaller removes its recorded payload. Also remove leftover
+  ; self-contained files in SIDEY's private Runtime tree before copying new files.
+  ${If} $HasPrivateRuntime == "true"
+  ${OrIf} $HasNsisInstall == "true"
+    ${DisableX64FSRedirection}
+    nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\SetupRuntime.ps1" -InstallDirectory "$INSTDIR"'
+    Pop $0
+    ${EnableX64FSRedirection}
+    ${If} $0 != 0
+      SetErrorLevel 1
+      MessageBox MB_OK|MB_ICONSTOP "$(ExistingRemovalFailed)" /SD IDOK
+      Abort
+    ${EndIf}
+  ${EndIf}
+
   !include "${PAYLOAD_INSTALL_INCLUDE}"
   SetOutPath "$INSTDIR\Runtime"
   File /oname=SIDEY.UninstallHelper.exe "${PUBLISH_DIR}\Uninstall.exe"
@@ -311,9 +410,10 @@ Section "SIDEY" MainSection
   WriteRegStr HKLM "${PRODUCT_PROTOCOL_KEY}" "" "URL:SIDEY authentication callback"
   WriteRegStr HKLM "${PRODUCT_PROTOCOL_KEY}" "URL Protocol" ""
   WriteRegStr HKLM "${PRODUCT_PROTOCOL_KEY}\DefaultIcon" "" "$INSTDIR\Assets\Icons\SideyAppIcon.ico"
-  WriteRegStr HKLM "${PRODUCT_PROTOCOL_KEY}\shell\open\command" "" '$"$INSTDIR\SIDEY.exe$" $"%1$"'
+  WriteRegStr HKLM "${PRODUCT_PROTOCOL_KEY}\shell\open\command" "" '$\"$INSTDIR\SIDEY.exe$\" $\"%1$\"'
 
   WriteRegStr HKLM "${PRODUCT_REGISTRY_KEY}" "InstalledVersion" "${APP_VERSION}"
+  WriteRegStr HKLM "${PRODUCT_REGISTRY_KEY}" "Language" $LANGUAGE
   WriteRegStr HKLM "${PRODUCT_REGISTRY_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKLM "${PRODUCT_UNINSTALL_KEY}" "DisplayName" "SIDEY"
   WriteRegStr HKLM "${PRODUCT_UNINSTALL_KEY}" "DisplayVersion" "${APP_VERSION}"
@@ -329,7 +429,10 @@ SectionEnd
 Function un.onInit
   SetRegView 64
   SetShellVarContext all
-  !insertmacro MUI_UNGETLANGUAGE
+  ReadRegStr $0 HKLM "${PRODUCT_REGISTRY_KEY}" "Language"
+  ${If} $0 != ""
+    StrCpy $LANGUAGE $0
+  ${EndIf}
   StrCpy $DeleteLocalData 0
   StrCpy $DeleteCredentials 0
 FunctionEnd

@@ -10,8 +10,9 @@
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <UseWinUI>true</UseWinUI>
     <WindowsPackageType>None</WindowsPackageType>
-    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
-    <SelfContained>true</SelfContained>
+    <WindowsAppSDKSelfContained>false</WindowsAppSDKSelfContained>
+    <SelfContained>false</SelfContained>
+    <WindowsAppSdkBootstrapInitialize>true</WindowsAppSdkBootstrapInitialize>
     <EnableMsixTooling>true</EnableMsixTooling>
     <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
     <PublishSingleFile>false</PublishSingleFile>
@@ -28,6 +29,16 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" />
   </ItemGroup>
+  <!-- SDK 2.4's ML target suppresses build copies, but publish resolves native
+       NuGet assets again. These DLLs are supplied by the shared framework. -->
+  <Target Name="ExcludeSharedWindowsMLRuntimeFromPublish"
+          AfterTargets="ComputeFilesToPublish"
+          Condition="'$(WindowsAppSDKSelfContained)' != 'true'">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+          Condition="'%(ResolvedFileToPublish.NuGetPackageId)' == 'Microsoft.Windows.AI.MachineLearning' and '%(ResolvedFileToPublish.AssetType)' == 'native'" />
+    </ItemGroup>
+  </Target>
   <ItemGroup Condition="'$(Configuration)' != 'Debug'">
     <Compile Remove="DevelopmentUpdateService.cs" />
   </ItemGroup>

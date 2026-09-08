@@ -76,14 +76,14 @@ dotnet run --project ./windows/src/Sidey.App/Sidey.App.csproj --configuration De
 
 ## Setup EXE 생성과 정식 배포
 
-unpackaged·multi-file self-contained WinUI 앱을 `PublishSingleFile=false`로 게시합니다. 루트의 작은 `SIDEY.exe` 런처가 모든 인수를 `Runtime\SIDEY.Host.exe`로 전달하고, NSIS가 아이콘이 포함된 `Uninstall.exe`를 생성합니다. 앱 본체와 .NET·Windows App SDK 런타임은 `Runtime` 안에 격리합니다. 사용자 콘텐츠는 `Assets`, SIDEY 자체 JSON 번역 리소스는 `Langs`에 둡니다. 별도 런타임 설치는 필요하지 않으며 모든 파일은 하나의 검증된 버전 단위로 함께 설치·업데이트합니다. 자세한 기준은 [`DEPLOYMENT_LAYOUT.md`](DEPLOYMENT_LAYOUT.md)에 있습니다.
+unpackaged·multi-file framework-dependent WinUI 앱을 `SelfContained=false`, `WindowsAppSDKSelfContained=false`, `PublishSingleFile=false`로 게시합니다. 루트의 작은 `SIDEY.exe` 런처가 모든 인수를 `Runtime\SIDEY.Host.exe`로 전달하고, NSIS가 아이콘이 포함된 `Uninstall.exe`를 생성합니다. `Runtime`에는 앱 본체·의존성·bootstrapper를 두며 .NET 10 / Windows App Runtime 본체는 포함하지 않습니다. 설치기는 누락된 공유 런타임을 Microsoft 공식 경로에서 받아 서명과 설치 결과를 확인한 후 기존 SIDEY를 제거하고 새 앱을 설치합니다. 기존 self-contained `Runtime` 잔여 파일은 정리하고 공유 런타임은 SIDEY 제거 후에도 보존합니다. 사용자 콘텐츠는 `Assets`, SIDEY 자체 JSON 번역 리소스는 `Langs`에 둡니다. 자세한 기준은 [`DEPLOYMENT_LAYOUT.md`](DEPLOYMENT_LAYOUT.md)에 있습니다.
 
 NSIS `3.12`는 게시 트리 전체를 포함하는 머신 단위 Setup EXE를 만듭니다. 배포 파이프라인은 SIDEY 파일을 자체 서명하지 않으며, 공급자가 서명한 .NET·Windows App SDK 파일은 원래 서명을 유지합니다.
 
 ```powershell
 dotnet publish ./windows/src/Sidey.App/Sidey.App.csproj `
-  -c Release -r win-x64 --self-contained true `
-  -p:PublishSingleFile=false -p:Version=1.0.8 `
+  -c Release -r win-x64 --self-contained false `
+  -p:WindowsAppSDKSelfContained=false -p:PublishSingleFile=false -p:Version=1.0.8 `
   -o ./build/windows/publish
 
 pwsh ./scripts/windows/package.ps1 `

@@ -19,11 +19,18 @@ try {
     dotnet publish (Join-Path $repositoryRoot 'windows/src/Sidey.App/Sidey.App.csproj') `
         --configuration Release `
         --runtime win-x64 `
-        --self-contained true `
+        --self-contained false `
         --no-restore `
+        -p:WindowsAppSDKSelfContained=false `
         "-p:Version=$Version" `
         -p:PublishSingleFile=false `
         --output (Join-Path $repositoryRoot 'build/windows/publish-smoke')
+    & (Join-Path $repositoryRoot 'scripts/windows/test-prerequisites.ps1')
+    & (Join-Path $repositoryRoot 'scripts/windows/verify-framework-publish.ps1') `
+        -PublishDir (Join-Path $repositoryRoot 'build/windows/publish-smoke')
+    powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+        -File (Join-Path $repositoryRoot 'windows/installer/Sidey.Setup/SetupRuntime.ps1')
+    if ($LASTEXITCODE -ne 0) { throw 'Runtime prerequisites are not ready.' }
     & (Join-Path $repositoryRoot 'scripts/windows/smoke-launch.ps1') `
         -PublishDir (Join-Path $repositoryRoot 'build/windows/publish-smoke')
     if ($LASTEXITCODE -ne 0) {

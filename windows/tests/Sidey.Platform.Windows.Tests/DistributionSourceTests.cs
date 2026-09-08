@@ -5,13 +5,14 @@ namespace Sidey.Platform.Windows.Tests;
 public sealed class DistributionSourceTests
 {
     [Fact]
-    public void AppPublishIsMultiFileSelfContainedWithExternalAssets()
+    public void AppPublishIsMultiFileFrameworkDependentWithExternalAssets()
     {
         var project = XDocument.Load(AssetPath("Sidey.App.csproj.xml"));
 
         Assert.Equal("false", Value(project, "PublishSingleFile"));
-        Assert.Equal("true", Value(project, "WindowsAppSDKSelfContained"));
-        Assert.Equal("true", Value(project, "SelfContained"));
+        Assert.Equal("false", Value(project, "WindowsAppSDKSelfContained"));
+        Assert.Equal("false", Value(project, "SelfContained"));
+        Assert.Equal("true", Value(project, "WindowsAppSdkBootstrapInitialize"));
         Assert.Equal("true", Value(project, "EnableMsixTooling"));
         Assert.Equal("false", Value(project, "IncludeAllContentForSelfExtract"));
         Assert.Equal("false", Value(project, "PublishTrimmed"));
@@ -67,7 +68,7 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
-    public void OverlaySupportsTheUnpackagedSelfContainedApp()
+    public void OverlaySupportsTheUnpackagedApp()
     {
         var project = XDocument.Load(AssetPath("Sidey.Overlay.csproj.xml"));
 
@@ -94,12 +95,19 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
-    public void SetupExeSupportsEnglishAndKorean()
+    public void SetupExeSupportsAllSevenInstallerLanguages()
     {
         string setup = ReadSetupScript();
 
         Assert.Contains("MUI_LANGUAGE \"English\"", setup, StringComparison.Ordinal);
         Assert.Contains("MUI_LANGUAGE \"Korean\"", setup, StringComparison.Ordinal);
+        foreach (string language in new[] { "Japanese", "SimpChinese", "TradChinese", "Russian", "Ukrainian" })
+        {
+            Assert.Contains($"MUI_LANGUAGE \"{language}\"", setup, StringComparison.Ordinal);
+        }
+        Assert.Contains("Call SelectInstallerLanguage", setup, StringComparison.Ordinal);
+        Assert.DoesNotContain("MUI_LANGDLL_DISPLAY", setup, StringComparison.Ordinal);
+        Assert.Contains("WriteRegStr HKLM \"${PRODUCT_REGISTRY_KEY}\" \"Language\" $LANGUAGE", setup, StringComparison.Ordinal);
         Assert.Contains("SetFont /LANG=${LANG_ENGLISH} \"Segoe UI\" 9", setup, StringComparison.Ordinal);
         Assert.Contains("SetFont /LANG=${LANG_KOREAN} \"맑은 고딕\" 9", setup, StringComparison.Ordinal);
         Assert.Contains("LangString MaintenanceTitle ${LANG_ENGLISH}", setup, StringComparison.Ordinal);
@@ -306,6 +314,58 @@ public sealed class DistributionSourceTests
     }
 
     private static string ReadSetupScript() => File.ReadAllText(AssetPath("Sidey.Setup.nsi"));
+
+    [Fact]
+    public void PrerequisitesFinishBeforeStoppingOrRemovingTheExistingApp()
+    {
+        string setup = ReadSetupScript();
+        string section = setup[setup.IndexOf("Section \"SIDEY\" MainSection", StringComparison.Ordinal)..];
+        string[] operations =
+        [
+            "Call EnsurePrerequisites",
+            "Call StopSideyProcesses",
+            "ExecWait '\"$INSTDIR\\Uninstall.exe\" /S _?=$INSTDIR'",
+            "--uninstall-legacy-msi",
+            "-InstallDirectory \"$INSTDIR\"",
+            "!include \"${PAYLOAD_INSTALL_INCLUDE}\"",
+        ];
+        int previous = -1;
+        foreach (string operation in operations)
+        {
+            int position = section.IndexOf(operation, StringComparison.Ordinal);
+            Assert.True(position > previous, $"Expected operation after the previous step: {operation}");
+            previous = position;
+        }
+
+        int start = setup.IndexOf("Function EnsurePrerequisites", StringComparison.Ordinal);
+        string prerequisiteFunction = setup[start..setup.IndexOf("FunctionEnd", start, StringComparison.Ordinal)];
+        Assert.Contains("-ProvisionAllUsers", prerequisiteFunction, StringComparison.Ordinal);
+        Assert.Contains("$0 == 3010", prerequisiteFunction, StringComparison.Ordinal);
+        Assert.Contains("$0 != 0", prerequisiteFunction, StringComparison.Ordinal);
+        Assert.Equal(2, prerequisiteFunction.Split("    Abort", StringSplitOptions.None).Length - 1);
+
+        string uninstall = setup[setup.IndexOf("Section \"Uninstall\"", StringComparison.Ordinal)..];
+        Assert.DoesNotContain("SetupRuntime.ps1", uninstall, StringComparison.Ordinal);
+        Assert.DoesNotContain("EnsurePrerequisites", uninstall, StringComparison.Ordinal);
+        Assert.DoesNotContain("Remove-AppxPackage", uninstall, StringComparison.Ordinal);
+        Assert.DoesNotContain("$PROGRAMFILES64\\dotnet", uninstall, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("windows.yml")]
+    [InlineData("windows-release.yml")]
+    public void CiValidatesPublishedFilesAndInstallsRuntimesBeforeSmoke(string workflowName)
+    {
+        string workflow = File.ReadAllText(RepositoryPath(".github", "workflows", workflowName));
+        Assert.Contains("--self-contained false", workflow, StringComparison.Ordinal);
+        Assert.Contains("-p:WindowsAppSDKSelfContained=false", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("--self-contained true", workflow, StringComparison.Ordinal);
+        Assert.Contains("test-prerequisites.ps1", workflow, StringComparison.Ordinal);
+        int verification = workflow.IndexOf("verify-framework-publish.ps1", StringComparison.Ordinal);
+        int prerequisites = workflow.IndexOf("SetupRuntime.ps1", StringComparison.Ordinal);
+        int smoke = workflow.IndexOf("smoke-launch.ps1", StringComparison.Ordinal);
+        Assert.True(verification >= 0 && prerequisites > verification && smoke > prerequisites);
+    }
 
     private static string Value(XDocument document, string name) =>
         document.Descendants(name).Single().Value;

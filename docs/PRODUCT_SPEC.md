@@ -624,6 +624,14 @@ SHA-256은 PowerShell에서 `Get-FileHash .\SIDEY-Windows-x64-v1.0.5.msi -Algori
 
 ### 10.6 Windows v1.0.6 이후 Setup EXE 배포 기준
 
+설치 시작 화면은 `en-US`, `ko-KR`, `ja-JP`, `zh-CN`, `zh-TW`, `ru-RU`, `uk-UA` 중 언어를 선택하게 한다. 현재 Windows 표시 언어에 대응하는 항목을 맨 위에 두고 나머지를 영어 이름 기준 Chinese (Simplified), Chinese (Traditional), English, Japanese, Korean, Russian, Ukrainian 순으로 배열한다. 목록에는 각 언어의 고유 표기도 함께 표시한다. 지역별 영어 등은 같은 언어로, 중국어 싱가포르는 간체로, 홍콩·마카오는 번체로 대응한다. 미지원 언어는 영어를 기본 선택하며 목록은 전체 알파벳순이다. 기존 설치에서 저장한 선택은 기본 선택으로 복원하되 시스템 언어 우선 정렬은 유지한다. 설치·복구·제거·prerequisite 오류 안내를 번역하고 약관 본문은 기존 한국어 원문을 보존한다.
+
+외부 이미지·픽셀 에셋은 설치 루트 `Assets`에서 읽는다. 제목 표시줄 아이콘도 설치 루트의 절대 파일 경로를 사용하므로 `Runtime/Assets` 전체 복사를 만들지 않는다. 호스트 옆 컴파일된 XAML/PRI 리소스는 유지하고, publish 검증은 중복 Assets 트리가 없는지 확인하며 실행 스모크는 외부 아이콘의 실제 디코딩까지 검사한다.
+
+다음 Windows 배포부터 `SelfContained=false`, `WindowsAppSDKSelfContained=false`, `PublishSingleFile=false`로 게시한다. `Runtime` 폴더에는 SIDEY 호스트와 앱 의존성·공유 런타임 로딩용 bootstrapper만 두며, .NET 런타임과 Windows App SDK / WinUI 런타임 본체·런타임 설치 파일은 포함하지 않는다. `.NET 10 Runtime` x64와 앱이 요구하는 Windows App Runtime 버전·아키텍처를 설치 시 확인한다. 누락된 prerequisite는 공식 Microsoft HTTPS 배포 경로에서 내려받고 Microsoft 서명을 검증해 설치하며, 설치 후 사용 가능 여부를 다시 확인한다. 이 단계는 SIDEY 프로세스 종료·기존 NSIS/MSI 제거보다 먼저 수행한다. 다운로드·검증·설치 실패나 재시작 필요 시 설치를 중단하고 기존 앱을 보존한다.
+
+prerequisite 확인이 끝나면 기존 제거기를 실행하고, 설치 폴더의 이전 self-contained `Runtime` 파일을 정리한 뒤 새 payload를 설치한다. 사용자 데이터와 시스템에 설치한 공유 .NET / Windows App Runtime은 이 정리와 일반 SIDEY 제거 대상에 포함하지 않는다. CI는 framework-dependent publish의 runtimeconfig와 실제 파일 목록을 검사해 self-contained 런타임 혼입을 차단하고, prerequisite 설치 후 게시 런처 스모크를 실행한다. 설치 실패 시 기존 앱 보존, 기존 self-contained 업데이트, 같은 버전 복구, 공유 런타임 보존을 회귀 검증한다.
+
 Windows 설치 실행 승인창을 취소하면 `업데이트 설치를 취소했습니다.`를 일반 안내로 표시한다. 실제 실행 실패는 재시도를 안내하고, 업데이트 확인·다운로드·설치 오류의 내부 예외와 파일 경로는 화면에 노출하지 않고 진단 로그에 기록한다.
 
 앱 시작 완료 후 백그라운드에서 `%TEMP%\SIDEY\Updates\<version>`의 다운로드 캐시를 정리한다. 실행 중인 앱 버전 이하의 버전에 맞는 SIDEY Setup EXE·기존 MSI와 해당 `.download` 파일만 삭제하고 빈 버전 폴더만 제거한다. 더 높은 버전, 버전을 해석할 수 없는 폴더, 무관한 파일·하위 폴더와 링크는 보존한다. 파일 잠금·접근 권한으로 정리하지 못하면 앱 실행을 계속하며 다음 시작 때 재시도한다.

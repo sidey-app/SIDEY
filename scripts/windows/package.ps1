@@ -22,6 +22,7 @@ $runtimeDir = Join-Path $resolvedPublishDir 'Runtime'
 $hostExecutable = Join-Path $runtimeDir 'SIDEY.Host.exe'
 $legacyExecutable = Join-Path $resolvedPublishDir 'Sidey.App.exe'
 $setupScript = Join-Path $repositoryRoot 'windows/installer/Sidey.Setup/Sidey.Setup.nsi'
+& (Join-Path $PSScriptRoot 'verify-framework-publish.ps1') -PublishDir $resolvedPublishDir
 
 function Get-SideyRelativePath {
     param(
@@ -213,6 +214,7 @@ if (-not $publishedVersionInfo.FileVersion.StartsWith(
 [IO.Directory]::CreateDirectory($resolvedOutDir) | Out-Null
 $internalDir = Join-Path $resolvedOutDir 'internal/setup-build'
 [IO.Directory]::CreateDirectory($internalDir) | Out-Null
+$languageSelector = Join-Path $internalDir 'language/Sidey.SetupLanguage.exe'
 $termsSource = Join-Path $repositoryRoot 'website/src/pages/ko/terms.md'
 $termsGenerator = Join-Path $repositoryRoot 'scripts/windows/generate-installer-terms.ps1'
 $termsLicenseFile = Join-Path $internalDir 'SideyTerms.txt'
@@ -266,6 +268,10 @@ $makensisVersion = [Version]::Parse($Matches.version)
 if ($makensisVersion -lt [Version]'3.12') {
     throw "NSIS 3.12 or newer is required. Found $makensisVersion."
 }
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+    -File (Join-Path $PSScriptRoot 'build-installer-language.ps1') -OutputPath $languageSelector `
+    -NsisDirectory (Split-Path -Parent $resolvedMakensisPath)
+if ($LASTEXITCODE -ne 0) { throw 'Installer language selector build failed.' }
 
 function ConvertTo-NsisLiteral {
     param([Parameter(Mandatory = $true)][string]$Value)
@@ -322,6 +328,7 @@ $uninstallLines | Set-Content -LiteralPath $uninstallInclude -Encoding utf8
     "/DPAYLOAD_INSTALL_INCLUDE=$installInclude" `
     "/DPAYLOAD_UNINSTALL_INCLUDE=$uninstallInclude" `
     "/DTERMS_LICENSE_FILE=$termsLicenseFile" `
+    "/DLANGUAGE_SELECTOR_EXE=$languageSelector" `
     $setupScript
 if ($LASTEXITCODE -ne 0) {
     throw 'SIDEY Setup EXE build failed.'
@@ -338,7 +345,7 @@ Copy-Item -LiteralPath $builtSetupFiles[0].FullName -Destination $setupPath -For
 $hash = (Get-FileHash -LiteralPath $setupPath -Algorithm SHA256).Hash.ToLowerInvariant()
 $publishBytes = ($deployableFiles | Measure-Object -Property Length -Sum).Sum
 
-Write-Host "PublishLayout=structured self-contained; Files=$($deployableFiles.Count); Bytes=$publishBytes"
+Write-Host "PublishLayout=structured framework-dependent; Files=$($deployableFiles.Count); Bytes=$publishBytes"
 Write-Host "NSIS=$makensisVersion"
 Write-Host "Created public Setup EXE $setupPath"
 Write-Host "SHA256=$hash"

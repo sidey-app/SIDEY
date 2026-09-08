@@ -85,14 +85,8 @@ if (Test-Path -LiteralPath $legacyAssembly -PathType Leaf) {
 if (-not (Test-Path -LiteralPath $assetsDirectory -PathType Container)) {
     throw "Published Assets directory is missing: $assetsDirectory"
 }
-# WinUI's PRI/XAML loader resolves compiled app resources beside the real host.
-# SIDEY resolves mutable assets from the deployment root, while this private
-# copy keeps native XAML resource loading intact inside the opaque Runtime tree.
-Copy-Item `
-    -LiteralPath $assetsDirectory `
-    -Destination (Join-Path $runtimeDirectory 'Assets') `
-    -Recurse `
-    -Force
+# Compiled PRI/XAML stays beside the host. File assets, including the title bar
+# icon, are loaded explicitly from the deployment root; no private copy is needed.
 
 $assemblyVersion = [Version]$FileVersion
 function Build-SideyExecutable {

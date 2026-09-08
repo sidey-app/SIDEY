@@ -17,11 +17,7 @@
         IsBackButtonVisible="True"
         IsPaneToggleButtonVisible="True"
         PaneToggleRequested="OnTitleBarPaneToggleRequested"
-        Title="SIDEY">
-      <TitleBar.IconSource>
-        <ImageIconSource ImageSource="/Assets/Icons/SideyAppIcon-20.png" />
-      </TitleBar.IconSource>
-    </TitleBar>
+        Title="SIDEY" />
     <NavigationView
         x:Name="RootNavigation"
         Grid.Row="1"

@@ -146,6 +146,11 @@ public partial class App : Application
             _window = _mainWindow;
             StartupDiagnostics.Stage("completed-launch-window-hidden");
         }
+        if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1")
+        {
+            _startupUpdateCheckStarted = true;
+            await EnsureMainWindow().VerifyExternalAssetsSmokeAsync();
+        }
         await RunStorePreviewStartupSmokeIfRequestedAsync();
         if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1"
             && Environment.GetEnvironmentVariable("SIDEY_LANGUAGE_SMOKE") == "1")

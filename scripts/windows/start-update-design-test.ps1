@@ -35,7 +35,8 @@ if (-not $BuildOnly -and $runningHosts.Count -gt 0) {
 dotnet publish (Join-Path $repositoryRoot 'windows/src/Sidey.App/Sidey.App.csproj') `
     --configuration Release `
     --runtime win-x64 `
-    --self-contained true `
+    --self-contained false `
+    -p:WindowsAppSDKSelfContained=false `
     -p:PublishSingleFile=false `
     "-p:Version=$TestVersion" `
     "-p:FileVersion=$TestVersion.0" `
@@ -53,6 +54,10 @@ Write-Host "PublishDirectory=$publishDirectory"
 if ($BuildOnly) {
     return
 }
+
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+    -File (Join-Path $repositoryRoot 'windows/installer/Sidey.Setup/SetupRuntime.ps1')
+if ($LASTEXITCODE -ne 0) { throw 'Runtime prerequisites are not ready.' }
 
 $firstLaunch = Start-Process `
     -FilePath $launcherExecutable `

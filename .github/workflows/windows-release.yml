@@ -73,6 +73,9 @@ jobs:
       - name: Test
         run: dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build --logger trx --collect:"XPlat Code Coverage" --settings windows/coverlet.runsettings --results-directory artifacts/coverage
 
+      - name: Test runtime prerequisites and migration cleanup
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./scripts/windows/test-prerequisites.ps1
+
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@v5
@@ -121,10 +124,16 @@ jobs:
           dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
             --configuration Release `
             --runtime win-x64 `
-            --self-contained true `
+            --self-contained false `
             --no-restore `
+            -p:WindowsAppSDKSelfContained=false `
             -p:PublishSingleFile=false `
             --output build/windows/publish
+          ./scripts/windows/verify-framework-publish.ps1 -PublishDir ./build/windows/publish
+          ./scripts/windows/test-framework-publish.ps1 -PublishDir ./build/windows/publish
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+            -File ./windows/installer/Sidey.Setup/SetupRuntime.ps1 -ProvisionAllUsers
+          if ($LASTEXITCODE -ne 0) { throw 'Runtime prerequisites are not ready for the startup smoke test.' }
           ./scripts/windows/smoke-launch.ps1 `
             -PublishDir ./build/windows/publish
           ./scripts/windows/package.ps1 `

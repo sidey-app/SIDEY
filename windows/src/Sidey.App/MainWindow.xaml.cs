@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
+using Microsoft.UI.Xaml.Media.Imaging;
 using Sidey.App.Controls;
 using Sidey.Core.Localization;
 using Sidey.Platform.Windows;
@@ -42,6 +43,11 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         IUpdateService updateService)
     {
         InitializeComponent();
+        AppTitleBar.IconSource = new ImageIconSource
+        {
+            ImageSource = new BitmapImage(new Uri(Path.Combine(
+                SideyDeploymentPaths.DeploymentRoot(), "Assets", "Icons", "SideyAppIcon-20.png"))),
+        };
         ViewModel = new MainWindowViewModel(coordinator, this, updateService);
         MainRoot.DataContext = ViewModel;
         ViewModel.PrepareGroupsForPresentation();
@@ -69,6 +75,22 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     public MainWindowViewModel ViewModel { get; }
 
     public bool ShouldExitOnClose => _allowClose || !_trayAvailable;
+
+    internal async Task VerifyExternalAssetsSmokeAsync()
+    {
+        Activate();
+        var image = (BitmapImage)((ImageIconSource)AppTitleBar.IconSource).ImageSource;
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        while (image.PixelWidth == 0 && DateTimeOffset.UtcNow < deadline)
+        {
+            await Task.Delay(25);
+        }
+        if (image.PixelWidth != 20 || image.PixelHeight != 20)
+        {
+            throw new InvalidOperationException("The external title bar icon did not decode at its expected size.");
+        }
+        StartupDiagnostics.Stage("external-assets-smoke-complete titlebar-icon=20x20");
+    }
 
     internal async Task VerifyLiveLanguageSmokeAsync()
     {
