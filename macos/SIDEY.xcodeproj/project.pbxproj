@@ -51,9 +51,21 @@
 		100000000000000000000047 /* SIDEYAppStore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SIDEYAppStore.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+        100000000000000000000060 /* Direct stun assets excluded from App Store */ = {
+            isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+            membershipExceptions = (
+                Resources/DirectStun/character-stun-star.png,
+                Resources/DirectStun/character-stun-ring.png,
+            );
+            target = 100000000000000000000049 /* SIDEYAppStore */;
+        };
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		100000000000000000000005 /* SIDEY */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (100000000000000000000060 /* Direct stun assets excluded from App Store */, );
 			path = SIDEY;
 			sourceTree = "<group>";
 		};

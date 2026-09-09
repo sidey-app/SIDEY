@@ -11,6 +11,8 @@ struct PixelWorldView: View {
 
     var body: some View {
         PixelWorldRepresentable(
+            model: model,
+            realtimeAvailable: model.activeRoomTransportConnected,
             roomID: model.activeRoom?.id,
             members: model.pixelWorldMembers,
             bubbles: model.activeBubbles,
@@ -26,6 +28,8 @@ struct PixelWorldView: View {
 }
 
 private struct PixelWorldRepresentable: NSViewRepresentable {
+    let model: AppModel
+    let realtimeAvailable: Bool
     let roomID: UUID?
     let members: [PixelWorldMember]
     let bubbles: [ActiveBubble]
@@ -54,11 +58,17 @@ private struct PixelWorldRepresentable: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ view: SKView, coordinator: Void) {
+        #if !APP_STORE
+        (view.scene as? PixelWorldScene)?.resetStunState()
+        #endif
         view.isPaused = true
         view.presentScene(nil)
     }
 
     private func apply(to scene: PixelWorldScene) {
+        #if !APP_STORE
+        scene.useStunState(model.characterStunState, realtimeAvailable: realtimeAvailable)
+        #endif
         scene.apply(
             roomID: roomID,
             members: members,
