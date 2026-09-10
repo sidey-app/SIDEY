@@ -49,7 +49,8 @@ public sealed partial class StorePreviewStage : UserControl
     private const double BubbleCharacterGap = 6;
     private const double BubbleDecorationLeadingOverflow = 12;
     private const double BubbleDecorationTopOverflow = 16;
-    private const double NameplateTop = 181;
+    private const double NameplateHeight = 20;
+    private const double NameplateTop = PlatformTop - CharacterNameplateLayout.DistanceFromFoot * 3 - NameplateHeight;
     private const double AmbientSparkleCycleSeconds = 1.2;
     private const double AmbientSparkleDurationSeconds = 1.05;
     private static readonly IReadOnlyList<RectD> NoAvoidanceRects = Array.Empty<RectD>();
@@ -91,6 +92,17 @@ public sealed partial class StorePreviewStage : UserControl
     private bool _rightFacingLeft;
     private int _leftVisibleCharacterLayer = -1;
     private int _rightVisibleCharacterLayer = -1;
+    private bool _animationsEnabled = true;
+    private readonly CharacterStunState _stun;
+    private readonly Guid _audioScope = Guid.NewGuid();
+    private double _lastImpactStart = double.NegativeInfinity;
+    private int _automaticSequence = -1;
+    private bool _automaticSuppressed;
+    private readonly Canvas _stunCanvas = new() { IsHitTestVisible = false };
+    private readonly List<Microsoft.UI.Xaml.Shapes.Rectangle> _stunPixels = [];
+    private readonly TextBlock _motionNotice = new() { FontSize = 11, TextWrapping = TextWrapping.Wrap, Width = 500, Visibility = Visibility.Collapsed };
+    public event Action<string, Guid, long>? CharacterImpact;
+    public event Action<Guid>? StopSounds;
 
     public StorePreviewStage(
         CommerceProductKind kind,
@@ -99,6 +111,7 @@ public sealed partial class StorePreviewStage : UserControl
         CancellationToken lifetimeToken = default)
     {
         InitializeComponent();
+        _stun = new CharacterStunState(() => _clock.Elapsed.TotalSeconds);
         ProductKind = kind;
         CatalogItemId = catalogItemId;
         CharacterId = PixelCharacterCatalog.NormalizeId(characterId);
@@ -107,6 +120,39 @@ public sealed partial class StorePreviewStage : UserControl
         BuildPlatform();
         BuildSparkles();
         BuildMovementAgents();
+        SceneCanvas.Children.Add(_stunCanvas);
+        Canvas.SetZIndex(_stunCanvas, 21);
+        for (int i = 0; i < CharacterStunPixels.MaximumPixelCount * 2; i++)
+        {
+            var pixel = new Microsoft.UI.Xaml.Shapes.Rectangle { Width = 3, Height = 3, Visibility = Visibility.Collapsed };
+            _stunPixels.Add(pixel);
+            _stunCanvas.Children.Add(pixel);
+        }
+        Canvas.SetLeft(_motionNotice, 20);
+        Canvas.SetTop(_motionNotice, 12);
+        SceneCanvas.Children.Add(_motionNotice);
+    }
+
+    public void SetAnimationsEnabled(bool enabled)
+    {
+        if (_animationsEnabled == enabled)
+            return;
+        _animationsEnabled = enabled;
+        StopAnimation();
+        StopSounds?.Invoke(_audioScope);
+        _clock.Reset();
+        _stun.Reset();
+        _pulseStarted = double.NegativeInfinity;
+        _manualThrowStarted = -10;
+        _lastImpactStart = double.NegativeInfinity;
+        _automaticSequence = -1;
+        _lastSceneElapsed = 0;
+        _movementAgents.Clear();
+        BuildMovementAgents();
+        _motionNotice.Text = I18n.Get("motion.disabled");
+        _motionNotice.Visibility = enabled ? Visibility.Collapsed : Visibility.Visible;
+        if (_isPresented && _resourcesLoaded)
+            StartAnimation();
     }
 
     public CommerceProductKind ProductKind { get; }
@@ -134,6 +180,8 @@ public sealed partial class StorePreviewStage : UserControl
         }
 
         _isPresented = false;
+        StopSounds?.Invoke(_audioScope);
+        _stun.Reset();
         Interlocked.Increment(ref _presentationGeneration);
         StopAnimation();
         CancelPendingLoad();
@@ -199,8 +247,11 @@ public sealed partial class StorePreviewStage : UserControl
             return;
         }
 
-        _clock.Start();
-        _timer.Start();
+        if (_animationsEnabled)
+        {
+            _clock.Start();
+            _timer.Start();
+        }
         UpdateScene();
     }
 
@@ -227,7 +278,7 @@ public sealed partial class StorePreviewStage : UserControl
                 string path = Path.Combine(
                     root,
                     definition.SpriteSheetResource.Replace('/', Path.DirectorySeparatorChar));
-                var frames = new PixelFrameSurface[6];
+                var frames = new PixelFrameSurface[10];
                 for (int frame = 0; frame < frames.Length; frame++)
                 {
                     frames[frame] = await LoadPixelFrameAsync(
@@ -480,7 +531,8 @@ public sealed partial class StorePreviewStage : UserControl
         }
         else
         {
-            AdvanceMovement(elapsed);
+            if (_animationsEnabled)
+                AdvanceMovement(elapsed);
             PixelMovementAgent leftAgent = _movementAgents[0];
             PixelMovementAgent rightAgent = _movementAgents[1];
             leftX = leftAgent.TrackPosition - (RenderedCharacterSize / 2d);
@@ -507,6 +559,13 @@ public sealed partial class StorePreviewStage : UserControl
                 int sequenceIndex = (int)Math.Floor(sequenceTime / ThrowCycleSeconds);
                 throwLocal = sequenceTime % ThrowCycleSeconds;
                 leftToRight = sequenceIndex % 2 == 0;
+                if (_automaticSequence != sequenceIndex)
+                {
+                    _automaticSequence = sequenceIndex;
+                    _automaticSuppressed = _stun.IsStunned(_movementAgents[leftToRight ? 0 : 1].Id);
+                }
+                if (_automaticSuppressed)
+                    throwLocal = -1;
             }
         }
         else if (ProductKind == CommerceProductKind.Character)
@@ -541,14 +600,18 @@ public sealed partial class StorePreviewStage : UserControl
             ref _rightVisibleCharacterLayer);
 
         PositionCharacters(leftX, rightX);
-        double pulseScale = PreviewPulseScale(elapsed - _pulseStarted);
+        double pulseScale = _animationsEnabled && !_stun.IsStunned(_movementAgents[0].Id) ? PreviewPulseScale(elapsed - _pulseStarted) : 1;
         LeftCharacterScale.ScaleX *= pulseScale;
         LeftCharacterScale.ScaleY = pulseScale;
         UpdateSparkles(elapsed, leftX, leftId);
+        if (!_animationsEnabled || _stun.IsStunned(_movementAgents[0].Id))
+            foreach (var sparkle in _sparkles.Concat(_pulseSparkles))
+                sparkle.Opacity = 0;
+        UpdateStunPixels(leftX, rightX);
 
         if (ProductKind == CommerceProductKind.Bubble)
         {
-            UpdateBubble(elapsed, leftX, rightX);
+            UpdateBubble(_animationsEnabled ? elapsed : 1.5, leftX, rightX);
             ProjectileImage.Opacity = 0;
             EmitterImage.Opacity = 0;
             ImpactImage.Opacity = 0;
@@ -558,6 +621,31 @@ public sealed partial class StorePreviewStage : UserControl
         BubblePreview.Visibility = Visibility.Collapsed;
         UpdateThrow(throwLocal, leftX, rightX, leftToRight, flightDuration);
     }
+
+    private void UpdateStunPixels(double leftX, double rightX)
+    {
+        int index = 0;
+        for (int side = 0; side < 2; side++)
+        {
+            if (_stun.Elapsed(_movementAgents[side].Id) is not { } elapsed)
+                continue;
+            foreach (var p in CharacterStunPixels.Create(elapsed, _animationsEnabled))
+            {
+                if (index >= _stunPixels.Count)
+                    break;
+                var pixel = _stunPixels[index++];
+                pixel.Fill = p.IsOutline ? StunOutlineBrush : p.IsStar ? StunStarBrush : StunRingBrush;
+                Canvas.SetLeft(pixel, Math.Round(side == 0 ? leftX : rightX) + p.X * 3);
+                Canvas.SetTop(pixel, CharacterTop + p.Y * 3);
+                pixel.Visibility = Visibility.Visible;
+            }
+        }
+        while (index < _stunPixels.Count)
+            _stunPixels[index++].Visibility = Visibility.Collapsed;
+    }
+    private static readonly SolidColorBrush StunStarBrush = new(Color.FromArgb(255, 255, 224, 72));
+    private static readonly SolidColorBrush StunOutlineBrush = new(Color.FromArgb(255, 130, 82, 12));
+    private static readonly SolidColorBrush StunRingBrush = new(Color.FromArgb(255, 255, 175, 104));
 
     private void PositionCharacters(double leftX, double rightX)
     {
@@ -573,13 +661,15 @@ public sealed partial class StorePreviewStage : UserControl
     {
         nameplate.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         double width = nameplate.DesiredSize.Width;
+        var position = CharacterNameplateLayout.Position(
+            (characterLeft + RenderedCharacterSize / 2, PlatformTop), width, NameplateHeight, 3, OverlayEdge.Bottom);
         Canvas.SetLeft(
             nameplate,
             Math.Clamp(
-                characterLeft + (RenderedCharacterSize / 2d) - (width / 2d),
+                position.X,
                 BubbleTangentMargin,
                 StageWidth - width - BubbleTangentMargin));
-        Canvas.SetTop(nameplate, NameplateTop);
+        Canvas.SetTop(nameplate, position.Y);
     }
 
     private void BuildMovementAgents()
@@ -607,6 +697,9 @@ public sealed partial class StorePreviewStage : UserControl
         _lastSceneElapsed = elapsed;
 
         _stoppedIds.Clear();
+        foreach (var agent in _movementAgents)
+            if (_stun.IsStunned(agent.Id))
+                _stoppedIds.Add(agent.Id);
         double hitStarted = _manualThrowStarted + ThrowReleaseSeconds + _manualThrowFlightDuration;
         if (ProductKind == CommerceProductKind.Character
             && elapsed >= hitStarted && elapsed < hitStarted + HitActionSeconds)
@@ -659,7 +752,7 @@ public sealed partial class StorePreviewStage : UserControl
         bool facingLeft,
         ref int visibleLayer)
     {
-        ShowCharacterLayer(layers, Math.Clamp(frame, 0, 5), ref visibleLayer);
+        ShowCharacterLayer(layers, Math.Clamp(frame, 0, 9), ref visibleLayer);
         transform.ScaleX = PixelCharacterCatalog.Get(characterId).MirrorsToMovementDirection
             && facingLeft
                 ? -1
@@ -674,7 +767,7 @@ public sealed partial class StorePreviewStage : UserControl
         bool facingLeft,
         ref int visibleLayer)
     {
-        ShowCharacterLayer(layers, 6 + Math.Clamp(frame, 0, 7), ref visibleLayer);
+        ShowCharacterLayer(layers, 10 + Math.Clamp(frame, 0, 7), ref visibleLayer);
         transform.ScaleX = PixelCharacterCatalog.Get(characterId).MirrorsToMovementDirection
             && facingLeft
                 ? -1
@@ -693,6 +786,13 @@ public sealed partial class StorePreviewStage : UserControl
         bool isLeftCharacter,
         ref int visibleLayer)
     {
+        if (_stun.Elapsed(_movementAgents[isLeftCharacter ? 0 : 1].Id) is { } stunElapsed)
+        {
+            var range = PixelCharacterCatalog.Get(characterId).Frames.Offline;
+            int frame = range.Start.Value + (_animationsEnabled ? (int)(stunElapsed / 1.2) % (range.End.Value - range.Start.Value) : 0);
+            ApplyCharacterFrame(layers, transform, characterId, frame, facingLeft, ref visibleLayer);
+            return;
+        }
         bool isActor = leftToRight == isLeftCharacter;
         if (isActor && throwLocal is >= 0 and < ThrowActionSeconds)
         {
@@ -864,7 +964,7 @@ public sealed partial class StorePreviewStage : UserControl
         double sequenceEnd = ProductKind == CommerceProductKind.Throwable
             ? ThrowCycleSeconds
             : ThrowReleaseSeconds + flightDuration + HitActionSeconds;
-        if (local < 0 || local >= sequenceEnd || _projectileFrames.Count < 12)
+        if (!_animationsEnabled || local < 0 || local >= sequenceEnd || _projectileFrames.Count < 12)
         {
             ProjectileImage.Opacity = 0;
             EmitterImage.Opacity = 0;
@@ -912,6 +1012,15 @@ public sealed partial class StorePreviewStage : UserControl
 
         if (local >= impactStarted && local < impactStarted + ImpactSeconds)
         {
+            double eventStart = ProductKind == CommerceProductKind.Throwable ? _automaticSequence : _manualThrowStarted;
+            if (eventStart != _lastImpactStart)
+            {
+                _lastImpactStart = eventStart;
+                Guid target = _movementAgents[leftToRight ? 1 : 0].Id;
+                _stun.RecordHit(target);
+                string soundId = ProductKind == CommerceProductKind.Throwable ? CatalogItemId : ImpactSoundCatalog.Resolve(CharacterId, null);
+                CharacterImpact?.Invoke(soundId, _audioScope, Stopwatch.GetTimestamp());
+            }
             int impactFrame = 8 + Math.Min(
                 3,
                 (int)((local - impactStarted) / (ImpactSeconds / 4d)));
@@ -1117,6 +1226,8 @@ public sealed partial class StorePreviewStage : UserControl
 
     private bool TriggerPreviewThrow()
     {
+        if (!_animationsEnabled || _stun.IsStunned(_movementAgents[0].Id))
+            return false;
         if (ProductKind == CommerceProductKind.Character && _resourcesLoaded && _isPresented)
         {
             _manualThrowStartX = _movementAgents[0].TrackPosition;
@@ -1140,6 +1251,8 @@ public sealed partial class StorePreviewStage : UserControl
 
     private bool TriggerPreviewPulse()
     {
+        if (!_animationsEnabled || _stun.IsStunned(_movementAgents[0].Id))
+            return false;
         if (ProductKind != CommerceProductKind.Character || !_resourcesLoaded || !_isPresented)
         {
             return false;
@@ -1171,6 +1284,19 @@ public sealed partial class StorePreviewStage : UserControl
             throw new InvalidOperationException("Store preview smoke: resources unavailable.");
         await Task.Delay(80);
         _timer.Stop();
+        if (ProductKind == CommerceProductKind.Bubble)
+        {
+            SetAnimationsEnabled(false);
+            if (_timer.IsEnabled || _clock.IsRunning || BubbleText.Text != I18n.Get("preview.leftMessage")
+                || BubblePreview.Visibility != Visibility.Visible || TriggerPreviewThrow() || TriggerPreviewPulse())
+                throw new InvalidOperationException("Feedback smoke: static bubble preview failed.");
+            SetAnimationsEnabled(true);
+            if (!_timer.IsEnabled || !_clock.IsRunning)
+                throw new InvalidOperationException("Feedback smoke: bubble preview did not resume.");
+            EndPresentation();
+            StartupDiagnostics.Stage("bubble-feedback-preview-smoke-complete");
+            return;
+        }
         if (ProductKind == CommerceProductKind.Throwable)
         {
             await VerifyCannonFramesSmokeAsync();
@@ -1221,6 +1347,40 @@ public sealed partial class StorePreviewStage : UserControl
         UpdateScene();
         if (LeftCharacterScale.ScaleY != 1 || _pulseSparkles.Any(star => star.Opacity > 0))
             throw new InvalidOperationException("Store preview smoke: pulse did not settle.");
+        for (int i = 0; i < 10; i++)
+        {
+            _stun.RecordHit(_movementAgents[0].Id);
+            _stun.RecordHit(_movementAgents[1].Id);
+        }
+        UpdateScene();
+        if (TriggerPreviewPulse() || TriggerPreviewThrow() || !_stunPixels.Any(pixel => pixel.Visibility == Visibility.Visible)
+            || _leftVisibleCharacterLayer < PixelCharacterCatalog.Get(CharacterId).Frames.Offline.Start.Value)
+            throw new InvalidOperationException("Feedback smoke: stun pose or input gate failed.");
+        VerifyFixedNameplatePositions();
+        ImpactImage.Opacity = 0;
+        ProjectileImage.Opacity = 0;
+        await VerifyRenderedStunAsync();
+        try
+        {
+            // Force a label/effect intersection to test actual draw order, not just the normal gap.
+            Canvas.SetTop(LeftNameplate, CharacterTop + 6);
+            Canvas.SetTop(RightNameplate, CharacterTop + 6);
+            await VerifyRenderedStunAsync(export: false);
+        }
+        finally
+        {
+            Canvas.SetTop(LeftNameplate, NameplateTop);
+            Canvas.SetTop(RightNameplate, NameplateTop);
+        }
+        SetAnimationsEnabled(false);
+        VerifyFixedNameplatePositions();
+        if (_timer.IsEnabled || _clock.IsRunning || TriggerPreviewPulse() || TriggerPreviewThrow()
+            || _stunPixels.Any(pixel => pixel.Visibility == Visibility.Visible))
+            throw new InvalidOperationException("Feedback smoke: static preview retains motion.");
+        SetAnimationsEnabled(true);
+        if (!_timer.IsEnabled || !_clock.IsRunning)
+            throw new InvalidOperationException("Feedback smoke: preview did not resume.");
+        StartupDiagnostics.Stage("character-feedback-preview-smoke-complete");
         EndPresentation();
         if (_timer.IsEnabled || (_ownedFrames.Count != 0 || _ownedImageFrames.Count != 0) || TriggerPreviewPulse() || TriggerPreviewThrow())
             throw new InvalidOperationException("Store preview smoke: closed preview still active.");
@@ -1251,6 +1411,50 @@ public sealed partial class StorePreviewStage : UserControl
         if (changed < 8)
             throw new InvalidOperationException("Preview effect is not visible in the composed scene.");
         StartupDiagnostics.Stage($"preview-rendered-effect-verified changed-bytes={changed}");
+    }
+
+    private void VerifyFixedNameplatePositions()
+    {
+        if (Canvas.GetTop(LeftNameplate) != NameplateTop || Canvas.GetTop(RightNameplate) != NameplateTop)
+            throw new InvalidOperationException("Nameplate height changed with character or stun state.");
+    }
+
+    private async Task VerifyRenderedStunAsync(bool export = true)
+    {
+        var rendered = new RenderTargetBitmap();
+        await rendered.RenderAsync(SceneCanvas);
+        byte[] pixels = (await rendered.GetPixelsAsync()).ToArray();
+        double scaleX = rendered.PixelWidth / SceneCanvas.ActualWidth;
+        double scaleY = rendered.PixelHeight / SceneCanvas.ActualHeight;
+        var expected = new Dictionary<(int X, int Y), Color>();
+        foreach (var pixel in _stunPixels.Where(p => p.Visibility == Visibility.Visible))
+            expected[((int)((Canvas.GetLeft(pixel) + 1.5) * scaleX), (int)((Canvas.GetTop(pixel) + 1.5) * scaleY))]
+                = ((SolidColorBrush)pixel.Fill).Color;
+        int visible = 0;
+        foreach (var (point, color) in expected)
+        {
+            int offset = (point.Y * rendered.PixelWidth + point.X) * 4;
+            if (offset >= 0 && offset + 3 < pixels.Length && pixels[offset] == color.B
+                && pixels[offset + 1] == color.G && pixels[offset + 2] == color.R)
+                visible++;
+        }
+        if (expected.Count < 160 || visible < expected.Count * 0.9)
+            throw new InvalidOperationException($"Stun smoke: stars are covered or missing ({visible}/{expected.Count}).");
+        // Only this synthetic preview is exported, never desktop/window contents or user data.
+        string? root = Environment.GetEnvironmentVariable("SIDEY_STARTUP_SMOKE_DATA_ROOT");
+        if (export && !string.IsNullOrEmpty(root))
+        {
+            using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+            var encoder = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId, stream);
+            encoder.SetPixelData(Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8,
+                Windows.Graphics.Imaging.BitmapAlphaMode.Premultiplied, (uint)rendered.PixelWidth, (uint)rendered.PixelHeight, 96, 96, pixels);
+            await encoder.FlushAsync();
+            stream.Seek(0);
+            byte[] png = new byte[(int)stream.Size];
+            await stream.AsStreamForRead().ReadExactlyAsync(png);
+            await File.WriteAllBytesAsync(Path.Combine(root, $"stun-{CharacterId}.png"), png);
+        }
+        StartupDiagnostics.Stage($"stun-rendered-verified visible={visible} expected={expected.Count}");
     }
 
     private async Task VerifyCannonFramesSmokeAsync()
