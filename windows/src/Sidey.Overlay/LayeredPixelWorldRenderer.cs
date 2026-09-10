@@ -12,7 +12,6 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private const int FramesPerSecond = 30;
     private const double FixedDeltaTime = 1d / FramesPerSecond;
     private const double EdgeInsetAnimationSpeedDipPerSecond = 72d;
-    private const int NameplateCharacterGapPixels = 10;
     private const double DozeRestingOpacity = 0.55d;
     private const double DozeFloatingDistanceDip = 3d;
     private const int MaximumActiveProjectiles = 32;
@@ -26,6 +25,52 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private static readonly IReadOnlyList<RectD> NoAvoidanceRects = Array.Empty<RectD>();
 
     private readonly object _gate = new();
+    private readonly CharacterStunState _stun = new();
+    private volatile bool _hasPresentedFrame;
+    public bool HasPresentedFrame => _hasPresentedFrame;
+
+    public void VerifyMemberVisualsForSmoke(IEnumerable<Guid> expectedIds, byte red, byte green, byte blue)
+    {
+        lock (_gate)
+        {
+            var ids = expectedIds.ToHashSet();
+            if (!ids.SetEquals(_nodeById.Keys))
+                throw new InvalidOperationException("Overlay renderer did not retain every expected member.");
+            foreach (var id in ids)
+            {
+                var pixels = _textVisuals.Get(id).Nameplate.Pixels;
+                bool found = false;
+                for (int offset = 0; offset < pixels.Length; offset += 4)
+                {
+                    if (pixels[offset] == blue && pixels[offset + 1] == green
+                        && pixels[offset + 2] == red && pixels[offset + 3] == 255)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                    throw new InvalidOperationException("Rendered nameplate does not contain the expected status color.");
+            }
+        }
+    }
+    private readonly List<(int X, int Y, double Elapsed)> _stunDraws = new(12);
+    private readonly Func<bool> _animationsEnabled;
+    private readonly Action<string, long>? _impact;
+    private readonly Queue<(string Id, long Time)> _impactNotifications = new();
+    private Guid _selfId;
+    private readonly object _selfGate = new();
+    public bool IsSelfStunned { get { lock (_selfGate) return _stun.IsStunned(_selfId); } }
+
+    public void ResetFeedback()
+    {
+        lock (_gate)
+        {
+            _stun.Reset();
+            _projectiles.Clear();
+            _impactNotifications.Clear();
+        }
+    }
     private readonly NativePixelRect _activityBounds;
     private readonly NativePixelRect _renderBounds;
     private readonly int _hotspotPixelSize;
@@ -101,7 +146,9 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         Action<double, double, long, long>? performanceSampled,
         IReadOnlySet<string>? cachedCharacterIds = null,
         ValidationMetricsCollector? metrics = null,
-        int initialEdgeInsetPixels = 0)
+        int initialEdgeInsetPixels = 0,
+        Func<bool>? animationsEnabled = null,
+        Action<string, long>? impact = null)
     {
         if (!activityBounds.IsValid || !renderBounds.IsValid)
         {
@@ -109,6 +156,9 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         }
 
         _activityBounds = activityBounds;
+        _ = CharacterStunPixels.Create(0, false);
+        _animationsEnabled = animationsEnabled ?? (() => true);
+        _impact = impact;
         _renderBounds = renderBounds;
         _hotspotsMoved = hotspotsMoved ?? throw new ArgumentNullException(nameof(hotspotsMoved));
         _renderingFailed = renderingFailed ?? throw new ArgumentNullException(nameof(renderingFailed));
@@ -252,6 +302,16 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         try
         {
             Tick();
+            while (true)
+            {
+                (string Id, long Time) next;
+                lock (_gate)
+                {
+                    if (!_impactNotifications.TryDequeue(out next))
+                        break;
+                }
+                _impact?.Invoke(next.Id, next.Time);
+            }
         }
         catch (Exception exception)
         {
@@ -401,6 +461,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     {
         Span<byte> destinationPixels = _surface.Pixels;
         destinationPixels.Clear();
+        _stunDraws.Clear();
         _drawnBubbleIds.Clear();
         NativePixelRect? currentUserHotspot = null;
         _targetHotspots.Clear();
@@ -409,10 +470,16 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         {
             var cached = _frameCache.Get(node.Member.CharacterId);
             var moving = PixelRoamingPolicy.IsWalking(node.Agent, _stoppedIds.Contains(node.Member.Id), _dpiScale);
-            var actionFrame = ActionFrame(node.Member.Id);
+            double? stunElapsed = _stun.Elapsed(node.Member.Id);
+            var actionFrame = stunElapsed is not null ? null : ActionFrame(node.Member.Id);
             var frame = FrameIndex(node.Member.Presence, moving, cached.Definition.Frames);
+            if (stunElapsed is { } asleep)
+            {
+                var range = cached.Definition.Frames.Offline;
+                frame = range.Start.Value + (_animationsEnabled() ? (int)(asleep / 1.2) % (range.End.Value - range.Start.Value) : 0);
+            }
             var pulseElapsed = PulseElapsed(node.Member.Id);
-            var pulseScale = PulseScale(node.Member.Id);
+            var pulseScale = stunElapsed is not null ? 1 : PulseScale(node.Member.Id);
             var foot = FootPoint(node.Agent.TrackPosition);
             var baseDestination = DestinationForFoot(
                 foot,
@@ -446,7 +513,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 pulseScale,
                 node.Member.Presence == PresenceState.Offline ? 0.75d : 1d,
                 desaturate: node.Member.Presence == PresenceState.Offline);
-            if (ActiveCannonProjectile(node.Member.Id) is { } cannon)
+            if (stunElapsed is null && ActiveCannonProjectile(node.Member.Id) is { } cannon)
             {
                 bool emitterMirrored = ShouldMirrorEmitter(cannon);
                 var emitterCenter = CannonEmitterLayout.Center(
@@ -466,10 +533,12 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                     1d,
                     1d);
             }
-            if (cached.Definition.VisualEffect == PixelCharacterVisualEffect.StarlightSparkles)
+            if (stunElapsed is null && cached.Definition.VisualEffect == PixelCharacterVisualEffect.StarlightSparkles)
             {
                 DrawStarlightSparkles(destinationPixels, node, pulseElapsed);
             }
+            if (stunElapsed is { } effectElapsed)
+                _stunDraws.Add((baseDestination.X, baseDestination.Y, effectElapsed));
 
             if (node.Member.IsCurrentUser)
             {
@@ -483,11 +552,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             }
 
             var visuals = _textVisuals.Get(node.Member.Id);
-            var nameplate = PlaceNameplate(
-                baseDestination,
-                cached.PixelSize,
-                visuals.Nameplate,
-                cached.OnlineContentBounds);
+            var nameplate = PlaceNameplate(foot, visuals.Nameplate);
             CompositeVisual(destinationPixels, visuals.Nameplate, nameplate.X, nameplate.Y);
             if (_bubblesBySender.TryGetValue(node.Member.Id, out var activeBubbles)
                 && activeBubbles.Count > 0)
@@ -509,7 +574,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                     visuals.Nameplate,
                     nameplate);
             }
-            if (visuals.Doze is { } doze)
+            if (stunElapsed is null && visuals.Doze is { } doze)
             {
                 var dozePosition = PlaceDoze(baseDestination, cached.PixelSize, doze);
                 long startedAt = _dozeStartedAt.GetValueOrDefault(node.Member.Id, _tick);
@@ -526,9 +591,13 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             }
         }
 
+        // Draw after every nameplate, including neighboring characters' labels.
+        foreach (var effect in _stunDraws)
+            DrawStun(destinationPixels, effect.X, effect.Y, effect.Elapsed);
         RenderProjectiles(destinationPixels);
 
         _surface.Present(_renderBounds.X, _renderBounds.Y);
+        _hasPresentedFrame = true;
         ReportPresentedMessageBubbles();
         if (_hotspotTrackingElapsed >= HotspotTrackingPolicy.MinimumUpdateInterval.TotalSeconds)
         {
@@ -638,8 +707,12 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private void ApplySnapshotWithinGate(WorldSnapshot snapshot)
     {
+        lock (_selfGate)
+            _selfId = snapshot.Members.FirstOrDefault(member => member.IsCurrentUser)?.Id ?? Guid.Empty;
         if (_roomId != snapshot.RoomId)
         {
+            _stun.Reset();
+            _impactNotifications.Clear();
             _roomId = snapshot.RoomId;
             _projectiles.Clear();
             _throwStartedAt.Clear();
@@ -660,6 +733,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             }
 
             _nodes.RemoveAt(index);
+            _stun.Remove(node.Member.Id);
             _agents.Remove(node.Agent);
             _nodeById.Remove(node.Member.Id);
             _stoppedIds.Remove(node.Member.Id);
@@ -744,7 +818,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
         foreach (var pulse in snapshot.Pulses)
         {
-            if (!_pulseReplayGuard.TryAccept(pulse))
+            if (!_pulseReplayGuard.TryAccept(pulse) || _stun.IsStunned(pulse.UserId))
             {
                 continue;
             }
@@ -758,7 +832,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 || characterThrow.ActorUserId == characterThrow.TargetUserId
                 || !_nodeById.ContainsKey(characterThrow.ActorUserId)
                 || !_nodeById.ContainsKey(characterThrow.TargetUserId)
-                || !_throwReplayGuard.TryAccept(characterThrow))
+                || !_throwReplayGuard.TryAccept(characterThrow)
+                || _stun.IsStunned(characterThrow.ActorUserId))
             {
                 continue;
             }
@@ -785,7 +860,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         foreach (var node in _nodes)
         {
             if (node.Member.Presence is PresenceState.Away or PresenceState.Offline or PresenceState.Reconnecting
-                || _hitStartedAt.ContainsKey(node.Member.Id))
+                || _hitStartedAt.ContainsKey(node.Member.Id) || _stun.IsStunned(node.Member.Id))
             {
                 _stoppedIds.Add(node.Member.Id);
             }
@@ -886,7 +961,17 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 && elapsed - ThrowReleaseSeconds >= projectile.Trajectory.DurationSeconds)
             {
                 projectile.ImpactStartedAt = Stopwatch.GetTimestamp();
-                _hitStartedAt[target.Member.Id] = projectile.ImpactStartedAt.Value;
+                if (elapsed - ThrowReleaseSeconds - projectile.Trajectory.DurationSeconds <= 0.5)
+                    _impactNotifications.Enqueue((ImpactSoundCatalog.Resolve(projectile.Event.SourceCharacterId, projectile.Event.ThrowableId), projectile.ImpactStartedAt.Value));
+                if (_stun.RecordHit(target.Member.Id))
+                {
+                    _pulseStartedAt.Remove(target.Member.Id);
+                    _throwStartedAt.Remove(target.Member.Id);
+                    _hitStartedAt.Remove(target.Member.Id);
+                    target.Agent.Velocity = 0;
+                }
+                if (!_stun.IsStunned(target.Member.Id))
+                    _hitStartedAt[target.Member.Id] = projectile.ImpactStartedAt.Value;
             }
             if (projectile.ImpactStartedAt is { } impactStarted
                 && Stopwatch.GetElapsedTime(impactStarted).TotalSeconds >= ImpactSeconds)
@@ -974,6 +1059,33 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         // Use the unpulsed sprite placement, not its foot or sparkle anchor.
         var destination = DestinationForFoot(foot, pixelSize, baselinePixels, content, 1d, edge);
         return (destination.X + (pixelSize / 2d), destination.Y + (pixelSize / 2d));
+    }
+
+    private void DrawStun(Span<byte> pixels, int worldX, int worldY, double elapsed)
+    {
+        foreach (var p in CharacterStunPixels.Create(elapsed, _animationsEnabled()))
+        {
+            (int x, int y) = _edge switch
+            {
+                OverlayEdge.Top => (23 - p.X, 23 - p.Y),
+                OverlayEdge.Left => (23 - p.Y, p.X),
+                OverlayEdge.Right => (p.Y, 23 - p.X),
+                _ => (p.X, p.Y),
+            };
+            for (int dy = 0; dy < _integerScale; dy++)
+                for (int dx = 0; dx < _integerScale; dx++)
+                {
+                    int px = worldX - _renderBounds.X + x * _integerScale + dx;
+                    int py = worldY - _renderBounds.Y + y * _integerScale + dy;
+                    if (px < 0 || py < 0 || px >= _renderBounds.Width || py >= _renderBounds.Height)
+                        continue;
+                    int index = (py * _renderBounds.Width + px) * 4;
+                    pixels[index] = p.IsOutline ? (byte)12 : p.IsStar ? (byte)72 : (byte)104;
+                    pixels[index + 1] = p.IsOutline ? (byte)82 : p.IsStar ? (byte)224 : (byte)175;
+                    pixels[index + 2] = p.IsOutline ? (byte)130 : (byte)255;
+                    pixels[index + 3] = 255;
+                }
+        }
     }
 
     private int FrameIndex(
@@ -1422,25 +1534,12 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     }
 
     private (int X, int Y) PlaceNameplate(
-        (int X, int Y) sprite,
-        int spriteSize,
-        PremultipliedVisual visual,
-        PixelContentBounds content) => _edge switch
-        {
-            OverlayEdge.Bottom => (
-                sprite.X + ((spriteSize - visual.Width) / 2),
-                sprite.Y + content.MinY - NameplateCharacterGapPixels - visual.Height),
-            OverlayEdge.Top => (
-                sprite.X + ((spriteSize - visual.Width) / 2),
-                sprite.Y + content.MaxY + NameplateCharacterGapPixels),
-            OverlayEdge.Left => (
-                sprite.X + content.MaxX + NameplateCharacterGapPixels,
-                sprite.Y + ((spriteSize - visual.Height) / 2)),
-            OverlayEdge.Right => (
-                sprite.X + content.MinX - NameplateCharacterGapPixels - visual.Width,
-                sprite.Y + ((spriteSize - visual.Height) / 2)),
-            _ => throw new ArgumentOutOfRangeException(),
-        };
+        (double X, double Y) foot, PremultipliedVisual visual)
+    {
+        var position = CharacterNameplateLayout.Position(foot, visual.Width, visual.Height, _integerScale, _edge);
+        return ((int)Math.Round(position.X, MidpointRounding.AwayFromZero),
+            (int)Math.Round(position.Y, MidpointRounding.AwayFromZero));
+    }
 
     private (int X, int Y) PlaceBubbleBody(
         double senderTangent,

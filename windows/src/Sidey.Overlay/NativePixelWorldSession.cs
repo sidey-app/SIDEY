@@ -13,10 +13,13 @@ public sealed record NativePixelWorldSessionOptions(
     Action<int>? MessageBubblesPresented = null,
     Action<string>? Diagnostic = null,
     Action<string, Exception>? DiagnosticFailure = null,
-    Action<double, double, long, long>? RendererPerformanceSampled = null);
+    Action<double, double, long, long>? RendererPerformanceSampled = null,
+    Func<bool>? AnimationsEnabled = null,
+    Action<string, long>? CharacterImpact = null);
 
 public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
 {
+    public bool IsSelfStunned => _renderer.IsSelfStunned;
     private static readonly TimeSpan ThrowTargetingDuration = TimeSpan.FromSeconds(10);
 
     private readonly object _throwGate = new();
@@ -82,6 +85,10 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
     }
 
     public bool IsVisible { get; private set; } = true;
+    public bool HasPresentedFrame => _renderer.HasPresentedFrame;
+
+    public void VerifyMemberVisualsForSmoke(IEnumerable<Guid> expectedIds, byte red, byte green, byte blue) =>
+        _renderer.VerifyMemberVisualsForSmoke(expectedIds, red, green, blue);
 
     public string? ValidationMetricsPath => _metrics?.OutputPath;
 
@@ -173,11 +180,13 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
                     options.RendererPerformanceSampled,
                     normalizedValidationIds,
                     metrics,
-                    initialTaskbarInset);
+                    initialTaskbarInset,
+                    options.AnimationsEnabled,
+                    options.CharacterImpact);
                 return renderer;
             },
             requestComposer,
-            requestPulse,
+            () => { if (session?.IsSelfStunned != true) requestPulse(); },
             () => session?.ActivateThrowTargeting(),
             index => session?.ActivateTarget(index));
         session = new NativePixelWorldSession(
@@ -224,6 +233,7 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         _selfWindowShown = visible && _selfHotspotAvailable;
         if (!visible)
         {
+            _renderer.ResetFeedback();
             lock (_throwGate)
             {
                 CancelThrowTargetingWithinGate();
@@ -243,6 +253,8 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
 
     public void ConfigureThrowInteraction(bool requiresRightClickToThrow, bool realtimeConnected)
     {
+        if (_realtimeConnected != realtimeConnected)
+            _renderer.ResetFeedback();
         lock (_throwGate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -295,7 +307,7 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         lock (_throwGate)
         {
             if (_disposed || !_requiresRightClickToThrow || !_realtimeConnected
-                || !IsVisible || !_selfHotspotAvailable)
+                || !IsVisible || !_selfHotspotAvailable || IsSelfStunned)
             {
                 return;
             }
@@ -352,6 +364,8 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
             }
 
             _selfHotspotAvailable = self is not null;
+            if (IsSelfStunned)
+                CancelThrowTargetingWithinGate();
             if (self is { } selfBounds)
             {
                 if (!_selfWindowShown || MovedAtLeastOneDip(_lastSelfHotspot, selfBounds))
@@ -389,6 +403,7 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         IsVisible
         && _realtimeConnected
         && _selfHotspotAvailable
+        && !IsSelfStunned
         && (!_requiresRightClickToThrow || _throwTargetingActive);
 
     private void RefreshTargetVisibilityWithinGate()
