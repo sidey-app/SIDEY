@@ -79,4 +79,5 @@ foreach ($required in @('Microsoft.WindowsAppRuntime.Bootstrap.dll', 'Microsoft.
         throw "Required bootstrapper or managed projection missing: $required"
     }
 }
+& (Join-Path $PSScriptRoot 'verify-impact-audio.ps1') -AssetsDir (Join-Path $publishRoot 'Assets')
 Write-Host "FrameworkDependentPublish=true; Files=$($files.Count); Bytes=$(($files | Measure-Object Length -Sum).Sum); SharedRuntimeFiles=0"

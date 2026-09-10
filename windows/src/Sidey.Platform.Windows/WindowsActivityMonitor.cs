@@ -64,7 +64,7 @@ public sealed class WindowsActivityMonitor(
             : PresenceState.Online;
     }
 
-    private static bool IsScreenLocked()
+    public static bool IsScreenLocked()
     {
         var desktop = NativeMethods.OpenInputDesktop(0, false, 0x0001);
         if (desktop == nint.Zero)

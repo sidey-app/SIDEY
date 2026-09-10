@@ -36,6 +36,8 @@ public sealed class AtomicPreferencesStoreTests
             Assert.Null(preferences.CachedCharacterId);
             Assert.False(preferences.RequiresRightClickToThrow);
             Assert.Null(preferences.Language);
+            Assert.True(preferences.CharacterSoundEffectsEnabled);
+            Assert.Equal(100, preferences.CharacterSoundEffectsVolume);
         }
         finally
         {
@@ -54,6 +56,8 @@ public sealed class AtomicPreferencesStoreTests
             OnboardingCompleted = true,
             OverlayVisible = false,
             QuietMode = true,
+            CharacterSoundEffectsEnabled = false,
+            CharacterSoundEffectsVolume = 0,
             ShowOfflineMembers = false,
             RequiresRightClickToThrow = true,
             StartAtLogin = true,

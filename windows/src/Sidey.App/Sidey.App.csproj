@@ -58,6 +58,10 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
     </None>
+    <None Update="Assets/Impacts/**/*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </None>
     <_SideyExternalIconAsset Include="Assets\Icons\*" />
     <_SideyExternalCharacterAsset Include="../Sidey.Overlay/Assets/Characters/**/*" />
     <_SideyExternalThrowableAsset Include="../Sidey.Overlay/Assets/Throwables/**/*" />
