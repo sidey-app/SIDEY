@@ -9,6 +9,43 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <description>Signed macOS updates for SIDEY</description>
         <language>ko</language>
         <item>
+            <title>1.1.0</title>
+            <pubDate>Thu, 10 Sep 2026 13:11:33 +0900</pubDate>
+            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.1.0</link>
+            <sparkle:version>24</sparkle:version>
+            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.1.0
+
+`1.1.0` build `24` · 2026년 9월 10일 · macOS 26+ · Apple Silicon(arm64)
+
+캐릭터 피격 효과음과 기절 모션을 추가하고 꾸미기 선택 표시를 통일했습니다.
+
+## 변경 사항
+
+- 캐릭터가 맞을 때 투척물별 효과음 8종을 재생합니다.
+- 설정의 `소리 → 캐릭터 효과음`에서 소리를 켜고 끌 수 있으며 기본값은 켜짐입니다.
+- 10초 안에 10번 맞으면 수면 자세 위로 노란 별과 링이 도는 기절 모션을 6초 동안 보여줍니다.
+- 기절 중에는 이동·확대·던지기가 멈추지만 채팅은 계속할 수 있습니다.
+- 기절 중 더 맞아도 시간이 늘어나지 않으며 회복 직후부터 다시 피격 횟수를 셉니다.
+- 캐릭터·말풍선·투척물의 선택 표시를 보라색 테두리와 체크로 통일했습니다.
+
+## 설치 및 업데이트
+
+- 새로 설치할 때는 `SIDEY-macOS-arm64-v1.1.0.dmg`를 사용하세요.
+- 기존 사용자는 앱의 `업데이트 확인` 또는 Homebrew로 업데이트할 수 있습니다.
+- 로그인 상태와 그룹 설정은 업데이트 뒤에도 유지됩니다.
+
+## 현재 제한
+
+- 이번 기능은 macOS 직배포판에 적용되며 App Store판과 Windows판에는 포함되지 않습니다.
+- 정식판 상점의 실제 판매는 아직 열리지 않았습니다.
+- 보안 화면, DRM 앱, 권한이 더 높은 앱, 모든 독점 전체화면 게임 위 표시를 보장하지 않습니다.
+]]></description>
+            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.1.0/SIDEY-macOS-arm64-v1.1.0.zip" length="5890648" type="application/octet-stream" sparkle:edSignature="F0V5mf3DImhuLomCir+1nokaYGsyqkEqdbnuc9tuAVE12vNpWGhjnrg6rwVssJcPug7pcSqhdFfCL0TemiKfDA=="/>
+        </item>
+        <item>
             <title>1.0.10</title>
             <pubDate>Sun, 06 Sep 2026 00:13:24 +0900</pubDate>
             <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.10</link>
@@ -147,40 +184,9 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
 ]]></description>
             <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.7/SIDEY-macOS-arm64-v1.0.7.zip" length="5505964" type="application/octet-stream" sparkle:edSignature="V3eFEWcyP49EH7J2yLegZlYbaC8lEcsSIv4fPcm7B8JOi0iFnRkI6tubb6QYBD39tIfCPmJJglag4FDPMAEKDg=="/>
         </item>
-        <item>
-            <title>1.0.6</title>
-            <pubDate>Fri, 04 Sep 2026 01:45:36 +0900</pubDate>
-            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.6</link>
-            <sparkle:version>17</sparkle:version>
-            <sparkle:shortVersionString>1.0.6</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.6
-
-`1.0.6` build `17` · macOS 26+ · Apple Silicon(arm64)
-
-## 변경 사항
-
-- 네트워크 연결이 끊겼다가 돌아온 뒤 앱을 재실행해야 정상화되던 문제를 수정했습니다.
-- 재연결할 때 그룹, 최근 메시지와 친구 상태를 자동으로 다시 맞춰 내 캐릭터가 회색, 친구들이 빨간색으로 반복 표시되던 현상을 수정했습니다.
-
-## 설치 및 업데이트
-
-- 신규 설치는 `SIDEY-macOS-arm64-v1.0.6.dmg`를 사용하세요.
-- 기존 사용자는 앱의 `업데이트 확인…` 또는 Homebrew로 업데이트할 수 있습니다.
-- 업데이트해도 SIDEY 계정, 그룹, 닉네임과 로컬 설정은 유지됩니다.
-
-## 현재 제한
-
-- 정식판 상점의 실제 캐릭터 판매는 아직 시작하지 않습니다.
-- Windows v1.0.5 배포물과 Windows의 무료 캐릭터 정책은 이번 macOS 릴리스에서 변경되지 않습니다.
-- 보안 화면, DRM 앱, 권한이 더 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
-]]></description>
-            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.6/SIDEY-macOS-arm64-v1.0.6.zip" length="5492005" type="application/octet-stream" sparkle:edSignature="Si8Cl94TW+wyrkW9cdbuCxW4NjNIODs2ZFc+Etit9mh4BhtAIn6ds5KF4SNhzMw/0NsqmchmtgWX/fXDcJPQBQ=="/>
-        </item>
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: cTG7g9/RhlHbDzlKGxkicC+AmQsXUm6nscO2dVwh6c87G6S8F3LT7cuMvEAN/o856aIEW1JRQrjQw0b12ZQGBQ==
-length: 10920
+edSignature: mHT/ua9rT8cMZ2ypf9FnlyH0Qa+KQdrSC8R8mywR3j8vLhReQfLgrBChzGvahhbzvxkJKeU8Lhaji+oN22N1Cg==
+length: 11344
 -->

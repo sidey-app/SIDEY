@@ -98,3 +98,7 @@ macOS 직배포판 프로필의 캐릭터·말풍선·투척물 선택 표시는
 - macOS v1.0.10부터의 변경 중 새 기절·효과음은 MINOR, 선택 표시 통일과 패키징 보정은 PATCH이며 호환성을 깨는 변경은 없다. 다음 버전은 1.1.0이다.
 - 기존 직배포 build 21, Xcode Organizer의 2026-09-07 App Store 업로드 성공 build 23을 확인해 다음 build 24를 배정했다. App Store 1.0.10(23)과 Windows는 유지한다.
 - 12명·24 throws/s의 30분 실시간 부하 검증은 아직 실행하지 않았다. 위 자동 검사와 구분해 후속 장시간 검증으로 남긴다.
+
+- 통합된 1.1.0(24) 전체 XCTest도 274건 중 273건 통과·staging 1건 제외·실패 0건이다. Release 빌드에서 승인 WAV의 SHA-256과 Debug 방 제외를 확인했다.
+- Developer ID 서명·Hardened Runtime·앱과 DMG의 Apple 공증·staple·Gatekeeper 검증을 통과했다. GitHub 초안에서 네 배포 파일을 내려받아 원본과 바이트 단위로 대조했다.
+- 공증 DMG SHA-256: `5eebac02920f681f02ef247644aff65debe418865491fb1211cd55352940bade`. 이 파일로 Homebrew Cask를 갱신했고 `brew style`을 통과했다.
