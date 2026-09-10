@@ -167,11 +167,14 @@ private struct ActiveCharacterProjectile {
     let startPoint: CGPoint
     let inwardArcHeight: CGFloat
     var hasReleased = false
+    var playsSound = true
 }
 
 final class PixelWorldScene: SKScene {
     private let clock: () -> TimeInterval
     #if !APP_STORE
+    var onCharacterImpact: ((String, TimeInterval) -> Void)?
+    var onStopCharacterSounds: (() -> Void)?
     private(set) var stunState = CharacterStunState()
     private var stunRealtimeAvailable: Bool?
 
@@ -187,6 +190,7 @@ final class PixelWorldScene: SKScene {
     }
 
     func resetStunState() {
+        onStopCharacterSounds?()
         stunState.reset()
         for node in characterNodes.values { node.updateStun(startedAt: nil, time: clock()) }
     }
@@ -210,6 +214,10 @@ final class PixelWorldScene: SKScene {
     private var edge: OverlayEdge = .bottom
     private var activityFrame: CGRect?
     private var composerVisible = false
+    #if !APP_STORE
+    private var lifecycleObservers: [(NotificationCenter, NSObjectProtocol)] = []
+    private var suspendedReasons: Set<String> = []
+    #endif
     private var lastUpdateTime: TimeInterval?
     private var lastHotspotReportTime: TimeInterval = 0
     private var lastHotspotFrames: [UUID: CGRect] = [:]
@@ -229,7 +237,42 @@ final class PixelWorldScene: SKScene {
         scaleMode = .resizeFill
         backgroundColor = .clear
         anchorPoint = .zero
+        #if !APP_STORE
+        let workspace = NSWorkspace.shared.notificationCenter
+        let distributed = DistributedNotificationCenter.default()
+        let events: [(NotificationCenter, Notification.Name, String, Bool)] = [
+            (workspace, NSWorkspace.willSleepNotification, "sleep", true),
+            (workspace, NSWorkspace.didWakeNotification, "sleep", false),
+            (workspace, NSWorkspace.screensDidSleepNotification, "display", true),
+            (workspace, NSWorkspace.screensDidWakeNotification, "display", false),
+            (workspace, NSWorkspace.sessionDidResignActiveNotification, "session", true),
+            (workspace, NSWorkspace.sessionDidBecomeActiveNotification, "session", false),
+            (distributed, Notification.Name("com.apple.screenIsLocked"), "lock", true),
+            (distributed, Notification.Name("com.apple.screenIsUnlocked"), "lock", false)
+        ]
+        for (center, name, reason, suspended) in events {
+            let token = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.setSuspended(suspended, reason: reason) }
+            }
+            lifecycleObservers.append((center, token))
+        }
+        #endif
     }
+
+    #if !APP_STORE
+    isolated deinit {
+        for (center, token) in lifecycleObservers { center.removeObserver(token) }
+    }
+
+    func setSuspended(_ suspended: Bool, reason: String) {
+        if suspended { suspendedReasons.insert(reason) } else { suspendedReasons.remove(reason) }
+        resetStunState()
+        projectiles.forEach { $0.node.removeFromParent() }
+        projectiles.removeAll()
+        hitUntil.removeAll()
+        lastUpdateTime = nil
+    }
+    #endif
 
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
@@ -558,12 +601,12 @@ final class PixelWorldScene: SKScene {
             })?.key
     }
 
-    func playLocalPreviewThrow(_ event: CharacterThrowEvent) {
+    func playLocalPreviewThrow(_ event: CharacterThrowEvent, playsSound: Bool = true) {
         guard renderingConfiguration.allowsLocalPreviewEvents else { return }
         #if !APP_STORE
         guard !stunState.isStunned(event.actorUserID, at: clock()) else { return }
         #endif
-        beginThrow(event)
+        beginThrow(event, playsSound: playsSound)
     }
 
     func cancelLocalPreviewPlayback() {
@@ -684,7 +727,7 @@ final class PixelWorldScene: SKScene {
         onCurrentUserFrameChanged?(currentID.flatMap { frames[$0] })
     }
 
-    private func beginThrow(_ event: CharacterThrowEvent) {
+    private func beginThrow(_ event: CharacterThrowEvent, playsSound: Bool = true) {
         guard !recentThrowEventIDSet.contains(event.id),
               event.actorUserID != event.targetUserID,
               characterNodes[event.actorUserID] != nil,
@@ -695,6 +738,10 @@ final class PixelWorldScene: SKScene {
         if recentThrowEventIDs.count > 256 {
             recentThrowEventIDSet.remove(recentThrowEventIDs.removeFirst())
         }
+        #if !APP_STORE
+        // Consume events received while locked so a later view update cannot replay them.
+        guard suspendedReasons.isEmpty else { return }
+        #endif
         characterNodes[event.actorUserID]?.playThrow(sourceCharacterID: event.sourceCharacterID)
         recordPreviewEvent(.throwStarted(event.actorUserID))
         guard projectiles.count < PixelCharacterThrowStyle.maximumActiveProjectiles,
@@ -726,7 +773,8 @@ final class PixelWorldScene: SKScene {
             startedAt: clock(),
             flightDuration: PixelCharacterThrowStyle.flightDuration(for: distance),
             startPoint: start,
-            inwardArcHeight: PixelCharacterThrowStyle.arcHeight(for: distance)
+            inwardArcHeight: PixelCharacterThrowStyle.arcHeight(for: distance),
+            playsSound: playsSound
         ))
     }
 
@@ -780,6 +828,10 @@ final class PixelWorldScene: SKScene {
                 )
                 recordPreviewEvent(.impact(projectile.event.targetUserID))
                 #if !APP_STORE
+                if projectile.playsSound, elapsed <= PixelCharacterThrowStyle.releaseDelay + projectile.flightDuration + 0.5 {
+                    onCharacterImpact?(PixelCharacterThrowCatalog.resolvedObjectID(
+                        for: projectile.event.sourceCharacterID, equippedObjectID: projectile.event.throwableID), currentTime)
+                }
                 let targetID = projectile.event.targetUserID
                 stunState.recordHit(targetID, at: currentTime)
                 if stunState.isStunned(targetID, at: currentTime) {

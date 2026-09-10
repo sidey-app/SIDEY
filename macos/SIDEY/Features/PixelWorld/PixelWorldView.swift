@@ -68,6 +68,11 @@ private struct PixelWorldRepresentable: NSViewRepresentable {
     private func apply(to scene: PixelWorldScene) {
         #if !APP_STORE
         scene.useStunState(model.characterStunState, realtimeAvailable: realtimeAvailable)
+        model.characterImpactAudio.isEnabled = model.preferences.characterSoundEffectsEnabled
+        scene.onCharacterImpact = { [weak model] id, time in
+            model?.characterImpactAudio.play(objectID: id, at: time)
+        }
+        scene.onStopCharacterSounds = { [weak model] in model?.characterImpactAudio.stopAll() }
         #endif
         scene.apply(
             roomID: roomID,

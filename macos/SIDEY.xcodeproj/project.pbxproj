@@ -57,6 +57,14 @@
             membershipExceptions = (
                 Resources/DirectStun/character-stun-star.png,
                 Resources/DirectStun/character-stun-ring.png,
+                Resources/DirectImpactAudio/impact-throwable_bouncy_heart.wav,
+                Resources/DirectImpactAudio/impact-throwable_squeaky_duck.wav,
+                Resources/DirectImpactAudio/impact-throwable_toy_cannon.wav,
+                Resources/DirectImpactAudio/impact-patch_soft_ball.wav,
+                Resources/DirectImpactAudio/impact-mini_paprika.wav,
+                Resources/DirectImpactAudio/impact-banana.wav,
+                Resources/DirectImpactAudio/impact-dust_bath_pouch.wav,
+                Resources/DirectImpactAudio/impact-starlight_orb.wav,
             );
             target = 100000000000000000000049 /* SIDEYAppStore */;
         };

@@ -77,6 +77,17 @@ struct AppSettingsView: View {
                 )
             }
 
+            #if !APP_STORE
+            SettingsSection(title: "소리", subtitle: "캐릭터 효과음 재생을 설정합니다.", systemImage: "speaker.wave.2") {
+                SettingsToggleRow(
+                    title: "캐릭터 효과음",
+                    description: "현재 그룹에서 캐릭터가 맞을 때 효과음을 재생합니다.",
+                    isOn: Binding(get: { model.preferences.characterSoundEffectsEnabled },
+                                  set: { actions.onCharacterSoundEffectsChanged($0) })
+                )
+            }
+            #endif
+
             if !storeAvailability.usesAppStore {
                 SettingsSection(
                     title: "업데이트",

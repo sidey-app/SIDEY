@@ -60,7 +60,7 @@ final class PreferencesTests: XCTestCase {
 
         let value = try JSONDecoder().decode(AppPreferences.self, from: Data(json.utf8))
 
-        XCTAssertEqual(value.schemaVersion, 8)
+        XCTAssertEqual(value.schemaVersion, AppPreferences.currentSchemaVersion)
         XCTAssertFalse(value.keychainTransitionComplete)
         XCTAssertTrue(value.hasShownNativeLanding)
         XCTAssertTrue(value.onboardingComplete)
@@ -72,7 +72,7 @@ final class PreferencesTests: XCTestCase {
     }
 
     func testFreshInstallSkipsLegacyKeychainTransitionNotice() {
-        XCTAssertEqual(AppPreferences.defaults.schemaVersion, 8)
+        XCTAssertEqual(AppPreferences.defaults.schemaVersion, AppPreferences.currentSchemaVersion)
         XCTAssertTrue(AppPreferences.defaults.keychainTransitionComplete)
         XCTAssertFalse(AppPreferences.defaults.requiresRightClickToThrow)
     }
@@ -81,7 +81,7 @@ final class PreferencesTests: XCTestCase {
         let json = #"{"schemaVersion":7,"keychainTransitionComplete":true,"overlayVisible":true}"#
         let value = try JSONDecoder().decode(AppPreferences.self, from: Data(json.utf8))
 
-        XCTAssertEqual(value.schemaVersion, 8)
+        XCTAssertEqual(value.schemaVersion, AppPreferences.currentSchemaVersion)
         XCTAssertTrue(value.keychainTransitionComplete)
         XCTAssertFalse(value.requiresRightClickToThrow)
     }

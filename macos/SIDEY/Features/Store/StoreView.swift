@@ -344,7 +344,7 @@ struct StoreProductDetailSheet: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            StorePreviewStage(product: productState.product)
+            StorePreviewStage(product: productState.product, onCharacterImpact: actions.onCharacterImpact, onStopCharacterSounds: actions.onStopCharacterSounds)
             Text(productState.product.displayName).font(.title2.bold())
             Text(detailDescription)
                 .foregroundStyle(.secondary)

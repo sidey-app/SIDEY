@@ -45,6 +45,10 @@ final class CharacterStunState {
         }
     }
 
+    func recentHitCount(_ id: UUID, at time: TimeInterval) -> Int {
+        (hits[id] ?? []).filter { $0 >= time - Self.window }.count
+    }
+
     func remove(_ id: UUID) {
         hits.removeValue(forKey: id)
         startedAt.removeValue(forKey: id)
