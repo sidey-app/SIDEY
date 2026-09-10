@@ -16,6 +16,148 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly IUpdateService _updates;
     private readonly HashSet<Guid> _expandedRoomIds = [];
     private readonly HashSet<CommerceProductKind> _pendingCosmeticKinds = [];
+    private readonly Dictionary<CommerceProductKind, string?> _pendingCosmeticIds = [];
+    private string? _pendingCharacterId;
+    private long _selectionGeneration;
+    private Guid? _selectionUserId;
+    private (bool Enabled, int Volume)? _pendingSoundSettings;
+    private bool _savingSoundSettings;
+    private int _lastNonzeroSoundVolume = 100;
+    private CancellationTokenSource? _soundSaveDelay;
+    private Task _saveSoundSettingsTask = Task.CompletedTask;
+    private readonly Guid _soundFeedbackScope = Guid.NewGuid();
+    private bool _soundFeedbackPending;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SoundMuteActionText))]
+    public partial bool CharacterSoundEffectsEnabled { get; set; } = true;
+    public string SoundMuteActionText => I18n.Get(CharacterSoundEffectsEnabled ? "settings.muteSound" : "settings.unmuteSound");
+
+    [RelayCommand]
+    private void ToggleCharacterSoundMute() => CharacterSoundEffectsEnabled = !CharacterSoundEffectsEnabled;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CharacterSoundVolumeLabel))]
+    public partial double CharacterSoundEffectsVolume { get; set; } = 100;
+    public string CharacterSoundVolumeLabel => $"{CharacterSoundEffectsVolume:0}%";
+
+    partial void OnCharacterSoundEffectsVolumeChanged(double value)
+    {
+        if (_isApplyingState)
+            return;
+        int volume = double.IsFinite(value) ? (int)Math.Clamp(Math.Round(value), 0, 100) : 100;
+        if (volume > 0)
+            _lastNonzeroSoundVolume = volume;
+        _isApplyingState = true;
+        try
+        { CharacterSoundEffectsEnabled = volume > 0; }
+        finally { _isApplyingState = false; }
+        QueueSoundSettings(volume > 0, volume);
+        if (volume == 0)
+            StopSoundVolumeFeedback();
+        else
+            _soundFeedbackPending = true;
+    }
+
+    partial void OnCharacterSoundEffectsEnabledChanged(bool value)
+    {
+        if (_isApplyingState)
+            return;
+        StopSoundVolumeFeedback();
+        int volume = (int)CharacterSoundEffectsVolume;
+        if (value && volume == 0)
+        {
+            volume = _lastNonzeroSoundVolume;
+            _isApplyingState = true;
+            try
+            { CharacterSoundEffectsVolume = volume; }
+            finally { _isApplyingState = false; }
+        }
+        QueueSoundSettings(value, volume);
+    }
+
+    private void QueueSoundSettings(bool enabled, int volume)
+    {
+        _coordinator.ApplyCharacterSoundEffects(enabled, volume);
+        _pendingSoundSettings = (enabled, volume);
+        if (!_savingSoundSettings)
+            _saveSoundSettingsTask = SaveSoundSettingsAsync();
+    }
+
+    public void CompleteSoundVolumeAdjustment()
+    {
+        if (!_soundFeedbackPending)
+            return;
+        _soundFeedbackPending = false;
+        if (!CharacterSoundEffectsEnabled || CharacterSoundEffectsVolume <= 0)
+            return;
+        long now = System.Diagnostics.Stopwatch.GetTimestamp();
+        _coordinator.StopImpactSounds(_soundFeedbackScope);
+        _coordinator.PlayImpactSound("patch_soft_ball", _soundFeedbackScope, now);
+    }
+
+    public void StopSoundVolumeFeedback()
+    {
+        _soundFeedbackPending = false;
+        _coordinator.StopImpactSounds(_soundFeedbackScope);
+    }
+
+    public Task FlushSoundSettingsAsync()
+    {
+        _soundSaveDelay?.Cancel();
+        return _saveSoundSettingsTask;
+    }
+
+    private async Task SaveSoundSettingsAsync()
+    {
+        _savingSoundSettings = true;
+        try
+        {
+            while (_pendingSoundSettings is { } settings)
+            {
+                using var delay = new CancellationTokenSource();
+                _soundSaveDelay = delay;
+                try
+                { await Task.Delay(200, delay.Token); }
+                catch (OperationCanceledException) when (delay.IsCancellationRequested) { }
+                finally { _soundSaveDelay = null; }
+                if (_pendingSoundSettings != settings && !delay.IsCancellationRequested)
+                    continue;
+                settings = _pendingSoundSettings ?? settings;
+                _pendingSoundSettings = null;
+                bool saved = await RunCommandAsync(
+                    () => _coordinator.SaveCharacterSoundEffectsAsync(settings.Enabled, settings.Volume), null,
+                    () => _pendingSoundSettings is null);
+                if (!saved && _pendingSoundSettings is null)
+                {
+                    StopSoundVolumeFeedback();
+                    var previous = _coordinator.State.Preferences;
+                    _isApplyingState = true;
+                    try
+                    {
+                        CharacterSoundEffectsEnabled = previous.CharacterSoundEffectsEnabled;
+                        CharacterSoundEffectsVolume = previous.CharacterSoundEffectsVolume;
+                    }
+                    finally { _isApplyingState = false; }
+                    _coordinator.ApplyCharacterSoundEffects(previous.CharacterSoundEffectsEnabled, previous.CharacterSoundEffectsVolume);
+                }
+            }
+        }
+        finally { _savingSoundSettings = false; }
+    }
+
+    public void RefreshFeedbackPresentation()
+    {
+        foreach (var item in CharacterSelections)
+        {
+            item.AnimationsEnabled = _coordinator.AnimationsEnabled;
+            item.RefreshSelectionStatus();
+        }
+        foreach (var item in BubbleSelections.Concat(ThrowableSelections))
+        {
+            item.AnimationsEnabled = _coordinator.AnimationsEnabled;
+            item.RefreshSelectionStatus();
+        }
+    }
     private CoordinatorState _state = CoordinatorState.Initial;
     private CoordinatorState _previousState = CoordinatorState.Initial;
     private bool _isApplyingState;
@@ -76,7 +218,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial bool HasVisibleStoreProducts { get; set; }
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RetryConnectionCommand))]
     public partial bool IsConnected { get; set; }
+
+    private bool CanRetryConnection() => !IsConnected;
+
+    [RelayCommand(CanExecute = nameof(CanRetryConnection))]
+    private async Task RetryConnectionAsync()
+    {
+        await RunCommandAsync(() => _coordinator.RetryConnectionAsync(), successMessage: null);
+    }
 
     [ObservableProperty]
     public partial string ConnectionText { get; set; } = I18n.Get("connection.reconnecting");
@@ -232,6 +383,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public void ApplyState(CoordinatorState state)
     {
+        if (_selectionUserId != state.Profile?.Id)
+        {
+            _selectionUserId = state.Profile?.Id;
+            _selectionGeneration++;
+            _pendingCharacterId = null;
+            _pendingCosmeticIds.Clear();
+            _pendingCosmeticKinds.Clear();
+            IsSavingCharacter = false;
+        }
         bool shouldApplyProfileDraft = NicknameDraftMatchesSyncedState();
         (string syncedNickname, string syncedCharacterId) = GetSyncedProfileDraft(state);
         _syncedProfileNickname = syncedNickname;
@@ -261,6 +421,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 SelectedCharacterId = syncedCharacterId;
             }
             RefreshCosmeticSelections(state);
+            UpdateCosmeticSelectionAvailability(CommerceProductKind.Bubble, !_pendingCosmeticKinds.Contains(CommerceProductKind.Bubble));
+            UpdateCosmeticSelectionAvailability(CommerceProductKind.Throwable, !_pendingCosmeticKinds.Contains(CommerceProductKind.Throwable));
+            UpdateCharacterSelectionState();
+            RefreshFeedbackPresentation();
             RefreshNicknameChangeState();
 
             RefreshRoomCards();
@@ -278,6 +442,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 : I18n.Get("connection.disconnected");
             IsOverlayVisible = state.Preferences.OverlayVisible;
             IsQuietMode = state.Preferences.QuietMode;
+            if (!_savingSoundSettings)
+            {
+                CharacterSoundEffectsEnabled = state.Preferences.CharacterSoundEffectsEnabled;
+                CharacterSoundEffectsVolume = state.Preferences.CharacterSoundEffectsVolume;
+                if (CharacterSoundEffectsVolume > 0)
+                    _lastNonzeroSoundVolume = (int)CharacterSoundEffectsVolume;
+            }
             ShowOfflineMembers = state.Preferences.ShowOfflineMembers;
             RequiresRightClickToThrow = state.Preferences.RequiresRightClickToThrow;
             StartAtLogin = state.Preferences.StartAtLogin;
@@ -308,6 +479,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public void RefreshLocalizedText()
     {
+        OnPropertyChanged(nameof(SoundMuteActionText));
+        RefreshFeedbackPresentation();
         // Keep the existing items, selection, drafts and in-flight commands alive.
         foreach (var character in CharacterSelections)
             character.DisplayName = PixelCharacterCatalog.Get(character.Id).DisplayName;
@@ -667,10 +840,19 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
 
         IsSavingCharacter = true;
+        long generation = _selectionGeneration;
+        _pendingCharacterId = characterId;
+        UpdateCharacterSelectionState();
         bool succeeded = await RunCommandAsync(
             () => _coordinator.SaveProfileAsync(_syncedProfileNickname, characterId),
-            I18n.Get("profile.characterSaved"));
+            I18n.Get("profile.characterSaved"), () => generation == _selectionGeneration);
+        if (generation != _selectionGeneration)
+            return;
+        _pendingCharacterId = null;
         IsSavingCharacter = false;
+        if (succeeded)
+            _syncedProfileCharacterId = PixelCharacterCatalog.NormalizeId(characterId);
+        UpdateCharacterSelectionState();
         if (succeeded)
         {
             return;
@@ -779,7 +961,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         foreach (CharacterSelectionItemViewModel character in CharacterSelections)
         {
-            character.IsSelected = StringComparer.Ordinal.Equals(character.Id, SelectedCharacterId);
+            character.IsSelected = StringComparer.Ordinal.Equals(character.Id, _syncedProfileCharacterId);
+            character.IsPending = StringComparer.Ordinal.Equals(character.Id, _pendingCharacterId);
+            character.IsEnabled = !IsSavingCharacter;
+            character.AnimationsEnabled = _coordinator.AnimationsEnabled;
         }
     }
 
@@ -876,17 +1061,23 @@ public sealed partial class MainWindowViewModel : ObservableObject
             return;
         }
 
+        long generation = _selectionGeneration;
+        _pendingCosmeticIds[kind] = catalogItemId;
         UpdateCosmeticSelectionAvailability(kind, false);
         try
         {
             await RunCommandAsync(
                 () => _coordinator.SetEquippedCosmeticAsync(kind, catalogItemId),
-                I18n.Get("profile.cosmeticSaved"));
+                I18n.Get("profile.cosmeticSaved"), () => generation == _selectionGeneration);
         }
         finally
         {
-            _pendingCosmeticKinds.Remove(kind);
-            UpdateCosmeticSelectionAvailability(kind, true);
+            if (generation == _selectionGeneration)
+            {
+                _pendingCosmeticKinds.Remove(kind);
+                _pendingCosmeticIds.Remove(kind);
+                UpdateCosmeticSelectionAvailability(kind, true);
+            }
         }
     }
 
@@ -897,6 +1088,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         foreach (CosmeticSelectionItemViewModel selection in selections)
         {
             selection.IsEnabled = isEnabled;
+            selection.IsPending = _pendingCosmeticIds.TryGetValue(kind, out var pendingId)
+                && StringComparer.Ordinal.Equals(pendingId, selection.CatalogItemId);
+            selection.AnimationsEnabled = _coordinator.AnimationsEnabled;
         }
     }
 
@@ -1138,11 +1332,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
             I18n.Get("groups.deleted"));
     }
 
-    private async Task<bool> RunCommandAsync(Func<Task> action, string? successMessage)
+    private async Task<bool> RunCommandAsync(Func<Task> action, string? successMessage, Func<bool>? isCurrent = null)
     {
         try
         {
             await action();
+            if (isCurrent?.Invoke() == false)
+                return false;
             if (!string.IsNullOrWhiteSpace(successMessage))
             {
                 RaiseNotice(successMessage, NoticeKind.Success);
@@ -1151,6 +1347,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception exception)
         {
+            if (isCurrent?.Invoke() == false)
+                return false;
             RaiseNotice(exception.Message, NoticeKind.Error);
             return false;
         }

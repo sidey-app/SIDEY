@@ -9,23 +9,28 @@ internal sealed class SingleInstanceGuard : IDisposable
     private const string ActivationPipeName = "SIDEY.app.sidey.desktop.activate";
     private const int MaximumActivationBytes = 4096;
     private readonly Mutex _mutex;
+    private readonly string _activationPipeName;
     private readonly CancellationTokenSource _listening = new();
     private Task? _activationTask;
 
     private SingleInstanceGuard(
         Mutex mutex,
-        bool isPrimary)
+        bool isPrimary, string activationPipeName)
     {
         _mutex = mutex;
         IsPrimary = isPrimary;
+        _activationPipeName = activationPipeName;
     }
 
     public bool IsPrimary { get; }
 
-    public static SingleInstanceGuard Acquire()
+    public static SingleInstanceGuard Acquire(string? smokeDataRoot = null)
     {
-        var mutex = new Mutex(initiallyOwned: true, MutexName, out var createdNew);
-        return new SingleInstanceGuard(mutex, createdNew);
+        // The startup harness already isolates its data; isolate activation too so it cannot target a user's app.
+        string suffix = string.IsNullOrWhiteSpace(smokeDataRoot) ? string.Empty
+            : ".smoke." + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(smokeDataRoot)))[..24];
+        var mutex = new Mutex(initiallyOwned: true, MutexName + suffix, out var createdNew);
+        return new SingleInstanceGuard(mutex, createdNew, ActivationPipeName + suffix);
     }
 
     public void StartListening(Action<string?> activate)
@@ -48,14 +53,14 @@ internal sealed class SingleInstanceGuard : IDisposable
         }
         using var pipe = new NamedPipeClientStream(
             ".",
-            ActivationPipeName,
+            _activationPipeName,
             PipeDirection.Out,
             PipeOptions.CurrentUserOnly);
         pipe.Connect(10000);
         pipe.Write(payload);
     }
 
-    private static async Task ListenAsync(
+    private async Task ListenAsync(
         Action<string?> activate,
         CancellationToken cancellationToken)
     {
@@ -64,7 +69,7 @@ internal sealed class SingleInstanceGuard : IDisposable
             try
             {
                 await using var pipe = new NamedPipeServerStream(
-                    ActivationPipeName,
+                    _activationPipeName,
                     PipeDirection.In,
                     1,
                     PipeTransmissionMode.Byte,

@@ -99,6 +99,13 @@
                 VerticalAlignment="Center"
                 Fill="{Binding IsConnected, Converter={StaticResource ConnectionBrushConverter}}" />
           </Border>
+          <Button
+              Margin="4" Padding="0" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+              Background="Transparent" BorderThickness="0" CornerRadius="8"
+              Style="{StaticResource SubtleButtonStyle}"
+              Command="{Binding RetryConnectionCommand}"
+              AutomationProperties.Name="{Binding Value, Source={i18n:I18n Key=connection.retry}, Mode=OneWay}"
+              ToolTipService.ToolTip="{Binding Value, Source={i18n:I18n Key=connection.retry}, Mode=OneWay}" />
         </Grid>
       </NavigationView.PaneFooter>
 
@@ -158,6 +165,9 @@
                     </GridView.ItemsPanel>
                     <GridView.ItemContainerStyle>
                       <Style TargetType="GridViewItem">
+                        <Setter Property="IsEnabled" Value="{Binding IsEnabled}" />
+                        <Setter Property="AutomationProperties.Name" Value="{Binding DisplayName}" />
+                        <Setter Property="AutomationProperties.ItemStatus" Value="{Binding SelectionStatus}" />
                         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                         <Setter Property="VerticalContentAlignment" Value="Stretch" />
                         <Setter Property="Margin" Value="0" />
@@ -167,6 +177,7 @@
                     <GridView.ItemTemplate>
                       <DataTemplate>
                         <Grid Height="116" HorizontalAlignment="Stretch">
+                          <controls:SelectionProgress Canvas.ZIndex="10" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6" IsPending="{Binding IsPending}" AnimationsEnabled="{Binding AnimationsEnabled}" />
                           <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" Padding="8" Spacing="7">
                             <Border Width="48" Height="48" HorizontalAlignment="Center">
                               <controls:PixelCharacterPreview CharacterId="{Binding CharacterId}" />
@@ -230,8 +241,9 @@
                     </GridView.ItemContainerStyle>
                     <GridView.ItemTemplate>
                       <DataTemplate>
-                        <Button Height="116" HorizontalAlignment="Stretch" Padding="2" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}" Style="{StaticResource SubtleButtonStyle}" CornerRadius="8">
+                        <Button Height="116" HorizontalAlignment="Stretch" Padding="2" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}" AutomationProperties.Name="{Binding DisplayName}" AutomationProperties.ItemStatus="{Binding SelectionStatus}" Style="{StaticResource SubtleButtonStyle}" CornerRadius="8">
                           <Grid MinHeight="98">
+                            <controls:SelectionProgress Canvas.ZIndex="10" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6" IsPending="{Binding IsPending}" AnimationsEnabled="{Binding AnimationsEnabled}" />
                             <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" Spacing="7">
                               <controls:StoreProductArtwork Height="58" ProductKind="{Binding Kind}" CatalogItemId="{Binding CatalogItemId}" CharacterId="{Binding CharacterId}" />
                               <TextBlock MinHeight="30" HorizontalAlignment="Center" Text="{Binding DisplayName}" TextAlignment="Center" TextWrapping="Wrap" />
@@ -289,8 +301,9 @@
                     </GridView.ItemContainerStyle>
                     <GridView.ItemTemplate>
                       <DataTemplate>
-                        <Button Height="116" HorizontalAlignment="Stretch" Padding="2" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}" Style="{StaticResource SubtleButtonStyle}" CornerRadius="8">
+                        <Button Height="116" HorizontalAlignment="Stretch" Padding="2" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}" AutomationProperties.Name="{Binding DisplayName}" AutomationProperties.ItemStatus="{Binding SelectionStatus}" Style="{StaticResource SubtleButtonStyle}" CornerRadius="8">
                           <Grid MinHeight="98">
+                            <controls:SelectionProgress Canvas.ZIndex="10" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="6" IsPending="{Binding IsPending}" AnimationsEnabled="{Binding AnimationsEnabled}" />
                             <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" Spacing="7">
                               <controls:StoreProductArtwork Height="58" ProductKind="{Binding Kind}" CatalogItemId="{Binding CatalogItemId}" CharacterId="{Binding CharacterId}" />
                               <TextBlock MinHeight="30" HorizontalAlignment="Center" Text="{Binding DisplayName}" TextAlignment="Center" TextWrapping="Wrap" />
@@ -739,6 +752,32 @@
                 </StackPanel>
               </Border>
 
+              <StackPanel Spacing="4">
+                <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="{Binding Value, Source={i18n:I18n Key=settings.soundTitle}, Mode=OneWay}" />
+                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" Text="{Binding Value, Source={i18n:I18n Key=settings.soundDescription}, Mode=OneWay}" />
+              </StackPanel>
+              <Border x:Name="SoundSettingsCard" Style="{StaticResource SideySettingsCardStyle}">
+                <Grid ColumnSpacing="16">
+                  <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                  <StackPanel VerticalAlignment="Center" Spacing="4">
+                    <TextBlock Text="{Binding Value, Source={i18n:I18n Key=settings.characterSounds}, Mode=OneWay}" />
+                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" Text="{Binding Value, Source={i18n:I18n Key=settings.characterSoundsDescription}, Mode=OneWay}" />
+                  </StackPanel>
+                  <Grid Grid.Column="1" Width="340" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="36" /><ColumnDefinition Width="44" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                    <Button x:Name="SoundMuteButton" Width="36" Height="36" Padding="0" VerticalAlignment="Center"
+                        Style="{StaticResource SubtleButtonStyle}" Command="{Binding ToggleCharacterSoundMuteCommand}"
+                        ToolTipService.ToolTip="{Binding SoundMuteActionText}" AutomationProperties.Name="{Binding SoundMuteActionText}">
+                      <Grid>
+                        <SymbolIcon Symbol="Volume" Visibility="{Binding CharacterSoundEffectsEnabled, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        <SymbolIcon Symbol="Mute" Visibility="{Binding CharacterSoundEffectsEnabled, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                      </Grid>
+                    </Button>
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding CharacterSoundVolumeLabel}" />
+                    <controls:SoundVolumeSlider x:Name="CharacterSoundVolumeSlider" Style="{StaticResource DefaultSliderStyle}" Grid.Column="2" VerticalAlignment="Center" Minimum="0" Maximum="100" StepFrequency="1" SmallChange="1" LargeChange="10" Value="{Binding CharacterSoundEffectsVolume, Mode=TwoWay}" AutomationProperties.Name="{Binding Value, Source={i18n:I18n Key=settings.soundVolume}, Mode=OneWay}" />
+                  </Grid>
+                </Grid>
+              </Border>
               <StackPanel Spacing="4">
                 <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="{Binding Value, Source={i18n:I18n Key=settings.updateTitle}, Mode=OneWay}" />
                 <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=settings.updateDescription}, Mode=OneWay}" />

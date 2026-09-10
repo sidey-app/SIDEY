@@ -33,6 +33,12 @@ public interface IOnboardingCoordinator : ICoordinatorStateSource
 
 public interface IMainWindowCoordinator : IOnboardingCoordinator
 {
+    Task RetryConnectionAsync(bool userInitiated = true);
+    bool AnimationsEnabled { get; }
+    void ApplyCharacterSoundEffects(bool enabled, int volume);
+    Task SaveCharacterSoundEffectsAsync(bool enabled, int volume, CancellationToken cancellationToken = default);
+    void PlayImpactSound(string id, Guid scope, long requestedAt);
+    void StopImpactSounds(Guid? scope = null);
     bool IsValidationMode { get; }
 
     string? ValidationMetricsPath { get; }

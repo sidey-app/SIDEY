@@ -458,7 +458,15 @@ public sealed class MacParityUiSourceTests
             xaml.Split("Width=\"{Binding ActualWidth, ElementName=ProfileCardContent}\"", StringSplitOptions.None).Length - 1);
         Assert.Contains("x:Name=\"BubbleSelector\"", xaml, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ThrowableSelector\"", xaml, StringComparison.Ordinal);
-        Assert.Equal(2, xaml.Split("Background=\"Transparent\" BorderThickness=\"0\"", StringSplitOptions.None).Length - 1);
+        var document = System.Xml.Linq.XDocument.Parse(xaml);
+        System.Xml.Linq.XNamespace names = "http://schemas.microsoft.com/winfx/2006/xaml";
+        foreach (string selectorName in new[] { "BubbleSelector", "ThrowableSelector" })
+        {
+            var selector = document.Descendants().Single(element => (string?)element.Attribute(names + "Name") == selectorName);
+            var button = selector.Descendants().Single(element => element.Name.LocalName == "Button");
+            Assert.Equal("Transparent", (string?)button.Attribute("Background"));
+            Assert.Equal("0", (string?)button.Attribute("BorderThickness"));
+        }
         Assert.Equal(3, xaml.Split("BorderThickness=\"1.5\"", StringSplitOptions.None).Length - 1);
         Assert.Contains(
             "HorizontalAlignment=\"Stretch\" VerticalAlignment=\"Center\" Padding=\"8\" Spacing=\"7\"",

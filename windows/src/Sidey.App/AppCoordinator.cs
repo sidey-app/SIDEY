@@ -3,6 +3,7 @@ using System.Globalization;
 using Sidey.Core.Abstractions;
 using Sidey.Core.Domain;
 using Sidey.Core.Localization;
+using Sidey.Core.Overlay;
 using Sidey.Core.Realtime;
 using Sidey.Infrastructure;
 using Sidey.Overlay;
@@ -18,6 +19,16 @@ namespace Sidey.App;
 /// </summary>
 public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 {
+    private readonly WindowsAnimationSettings _animations = new();
+    private readonly WindowsImpactAudio _audio;
+    private readonly SemaphoreSlim _soundSettingGate = new(1, 1);
+    private readonly Guid _overlayAudioScope = Guid.NewGuid();
+    private readonly object _overlayAudioGate = new();
+    private long _overlayAudioNotBefore;
+    private Guid? _feedbackRoomId;
+    private bool _feedbackConnected;
+    public bool AnimationsEnabled => _animations.Enabled;
+    public event Action? AnimationsChanged;
     private readonly IPreferencesStore _preferencesStore;
     private readonly ICredentialStore _credentialStore;
     private readonly CancellationTokenSource _lifetime = new();
@@ -48,6 +59,8 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
     private CancellationTokenSource? _typingKeepalive;
     private PresenceState _localPresence = PresenceState.Online;
     private bool _cachedStateLoaded;
+    private bool _initialSnapshotReceived;
+    private bool OverlayInteractionConnected => _state.ActiveRoomConnected || (_backend is null && _previewSnapshot is not null);
 
     public AppCoordinator(
         IPreferencesStore? preferencesStore = null,
@@ -55,6 +68,132 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
     {
         _preferencesStore = preferencesStore ?? new AtomicPreferencesStore();
         _credentialStore = credentialStore ?? new WindowsCredentialStore();
+        _audio = new WindowsImpactAudio(StartupDiagnostics.NonFatal);
+        _animations.Changed += OnAnimationsChanged;
+    }
+
+    private void OnAnimationsChanged() => AnimationsChanged?.Invoke();
+    internal async Task VerifyImpactAudioSmokeAsync()
+    {
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(20);
+        while (!_audio.IsReady && DateTimeOffset.UtcNow < deadline)
+            await Task.Delay(25);
+        if (!_audio.IsReady)
+            throw new InvalidOperationException("Impact smoke: audio worker did not initialize.");
+        Guid scope = Guid.NewGuid();
+        _audio.SetEnabled(true);
+        try
+        {
+            foreach (string id in ImpactSoundCatalog.Ids)
+            {
+                int completedBefore = await _audio.CompletedPlaybackCountAsync();
+                int previous = _audio.PlaybackStartedCount;
+                _audio.Play(id, scope, Stopwatch.GetTimestamp());
+                var wait = Stopwatch.StartNew();
+                while (_audio.PlaybackStartedCount == previous && wait.Elapsed < TimeSpan.FromSeconds(2))
+                    await Task.Delay(20);
+                if (_audio.PlaybackStartedCount != previous + 1)
+                {
+                    StartupDiagnostics.Stage($"impact-smoke-failed id={id} locked={WindowsActivityMonitor.IsScreenLocked()} {_audio.DiagnosticState}");
+                    throw new InvalidOperationException("Impact smoke: playback failed for " + id);
+                }
+                while (await _audio.CompletedPlaybackCountAsync() == completedBefore && wait.Elapsed < TimeSpan.FromSeconds(2))
+                    await Task.Delay(20);
+                if (await _audio.CompletedPlaybackCountAsync() != completedBefore + 1)
+                    throw new InvalidOperationException("Impact smoke: native buffer did not finish for " + id);
+                // Reproduce a single short hit after an idle interval, not just a burst.
+                await Task.Delay(id == "patch_soft_ball" ? 1500 : 120);
+            }
+            foreach (int volume in new[] { 37, 0, 100 })
+            {
+                _audio.SetVolume(volume);
+                if (!await _audio.VerifyVolumeAsync(volume).WaitAsync(TimeSpan.FromSeconds(3)))
+                    throw new InvalidOperationException("Impact smoke: native volume was not applied.");
+                if (volume == 0)
+                {
+                    int silentCount = _audio.PlaybackStartedCount;
+                    _audio.Play(ImpactSoundCatalog.Ids[0], scope, Stopwatch.GetTimestamp());
+                    await Task.Delay(150);
+                    if (_audio.PlaybackStartedCount != silentCount)
+                        throw new InvalidOperationException("Impact smoke: zero-volume playback.");
+                }
+            }
+            _audio.SetEnabled(false);
+            int mutedCount = _audio.PlaybackStartedCount;
+            _audio.Play(ImpactSoundCatalog.Ids[0], scope, Stopwatch.GetTimestamp());
+            await Task.Delay(150);
+            if (_audio.PlaybackStartedCount != mutedCount)
+                throw new InvalidOperationException("Impact smoke: muted playback.");
+            StartupDiagnostics.Stage($"impact-audio-smoke-complete sounds=8 muted=true volume=0,37,100 {_audio.DiagnosticState}");
+        }
+        finally
+        {
+            _audio.StopScope(scope);
+            _audio.SetEnabled(_state.Preferences.CharacterSoundEffectsEnabled);
+            _audio.SetVolume(_state.Preferences.CharacterSoundEffectsVolume);
+        }
+    }
+    public void PlayImpactSound(string id, Guid scope, long requestedAt) => _audio.Play(id, scope, requestedAt);
+    public void ApplyCharacterSoundEffects(bool enabled, int volume)
+    {
+        _audio.SetVolume(volume);
+        _audio.SetEnabled(enabled && volume > 0);
+    }
+    public async Task SaveCharacterSoundEffectsAsync(bool enabled, int volume, CancellationToken cancellationToken = default)
+    {
+        await _soundSettingGate.WaitAsync(cancellationToken);
+        var previous = _state.Preferences;
+        try
+        {
+            _state = _state with
+            {
+                Preferences = _state.Preferences with
+                {
+                    CharacterSoundEffectsVolume = Math.Clamp(volume, 0, 100),
+                    CharacterSoundEffectsEnabled = enabled && volume > 0,
+                }
+            };
+            await PersistPreferencesAsync(cancellationToken);
+            PublishState();
+        }
+        catch
+        {
+            _state = _state with
+            {
+                Preferences = _state.Preferences with
+                {
+                    CharacterSoundEffectsVolume = previous.CharacterSoundEffectsVolume,
+                    CharacterSoundEffectsEnabled = previous.CharacterSoundEffectsEnabled,
+                }
+            };
+            PublishState();
+            throw;
+        }
+        finally { _soundSettingGate.Release(); }
+    }
+    private void StopOverlayAudio()
+    {
+        lock (_overlayAudioGate)
+        {
+            _overlayAudioNotBefore = Stopwatch.GetTimestamp();
+            _audio.StopScope(_overlayAudioScope);
+        }
+    }
+    private void PlayOverlayImpact(string id, long requestedAt)
+    {
+        lock (_overlayAudioGate)
+        {
+            if (requestedAt >= _overlayAudioNotBefore && _state.Preferences.OverlayVisible
+                && OverlayInteractionConnected)
+                _audio.Play(id, _overlayAudioScope, requestedAt);
+        }
+    }
+    public void StopImpactSounds(Guid? scope = null)
+    {
+        if (scope is { } id)
+            _audio.StopScope(id);
+        else
+            _audio.StopAll();
     }
 
     public CoordinatorState State => _state;
@@ -109,6 +248,8 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         }
 
         var preferences = await _preferencesStore.LoadAsync(cancellationToken);
+        _audio.SetEnabled(preferences.CharacterSoundEffectsEnabled);
+        _audio.SetVolume(preferences.CharacterSoundEffectsVolume);
         bool startAtLogin = _startup.IsEnabled();
         if (startAtLogin)
         {
@@ -119,9 +260,37 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         _cachedStateLoaded = true;
     }
 
-    public async Task InitializeAsync(CancellationToken cancellationToken = default)
+    private Task? _initializationTask;
+
+    public Task InitializeAsync(CancellationToken cancellationToken = default)
+    {
+        // Initialization and manual retry run on the UI thread and share one attempt.
+        if (_initializationTask is { IsFaulted: false, IsCanceled: false })
+            return _initializationTask;
+        return _initializationTask = InitializeCoreAsync(cancellationToken);
+    }
+
+    public async Task RetryConnectionAsync(bool userInitiated = true)
+    {
+        if (_initializationTask is { IsCompleted: false })
+            return;
+        if (_initializationTask?.IsCompletedSuccessfully != true)
+        {
+            await InitializeAsync(_lifetime.Token);
+            return;
+        }
+        if (_backend is SupabaseBackendGateway backend)
+        {
+            if (userInitiated && backend.IsRealtimeRecoveryPaused)
+                await RefreshSnapshotAsync(_lifetime.Token);
+            backend.RetryRealtimeConnection(userInitiated);
+        }
+    }
+
+    private async Task InitializeCoreAsync(CancellationToken cancellationToken)
     {
         await LoadCachedStateAsync(cancellationToken);
+        ShowStartupOverlay();
         AppPreferences preferences = _state.Preferences;
 
 #if DEBUG
@@ -166,25 +335,32 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                 : WindowsCommerceCatalog.LockedStates(),
         });
 
-        var auth = new SupabaseAnonymousAuthService(configuration, _credentialStore);
-        StartupDiagnostics.Stage("auth-session-read-started");
-        var stored = await _credentialStore.ReadAsync(
-            CredentialKey.SupabaseSession,
-            cancellationToken);
-        bool restoringSession = !string.IsNullOrWhiteSpace(stored);
-        StartupDiagnostics.Stage(
-            $"auth-session-read-completed result={(restoringSession ? "present" : "missing")}");
-        StartupDiagnostics.Stage(
-            $"auth-session-bootstrap-started mode={(restoringSession ? "restore" : "create")}");
-        await AnonymousSessionBootstrapper.RestoreOrCreateAsync(
-            auth,
-            hasStoredSession: restoringSession,
-            cancellationToken);
-        StartupDiagnostics.Stage(
-            $"auth-session-bootstrap-completed mode={(restoringSession ? "restore" : "create")}");
-        var backend = new SupabaseBackendGateway(configuration, auth, _credentialStore);
-        _auth = auth;
-        _backend = backend;
+        if (_backend is not SupabaseBackendGateway)
+        {
+            var auth = new SupabaseAnonymousAuthService(configuration, _credentialStore);
+            try
+            {
+                StartupDiagnostics.Stage("auth-session-read-started");
+                var stored = await _credentialStore.ReadAsync(
+                    CredentialKey.SupabaseSession,
+                    cancellationToken);
+                bool restoringSession = !string.IsNullOrWhiteSpace(stored);
+                StartupDiagnostics.Stage(
+                    $"auth-session-read-completed result={(restoringSession ? "present" : "missing")}");
+                StartupDiagnostics.Stage(
+                    $"auth-session-bootstrap-started mode={(restoringSession ? "restore" : "create")}");
+                await AnonymousSessionBootstrapper.RestoreOrCreateAsync(
+                    auth,
+                    hasStoredSession: restoringSession,
+                    cancellationToken);
+                StartupDiagnostics.Stage(
+                    $"auth-session-bootstrap-completed mode={(restoringSession ? "restore" : "create")}");
+                _backend = new SupabaseBackendGateway(configuration, auth, _credentialStore);
+                _auth = auth;
+            }
+            catch { auth.Dispose(); throw; }
+        }
+        var backend = (SupabaseBackendGateway)_backend;
 
         StartupDiagnostics.Stage("server-snapshot-fetch-started");
         var snapshot = await backend.FetchSnapshotAsync(cancellationToken);
@@ -214,12 +390,12 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             ErrorMessage = commerceStateError,
         };
 
-        _roomSwitch = new RoomSwitchPipeline(
+        _roomSwitch ??= new RoomSwitchPipeline(
             PerformRoomSwitchAsync,
             RestoreCommittedRoomAsync,
             CommitRoomSwitch);
         _roomSwitch.InitializeCommittedRoom(activeRoomId);
-        _eventPump = PumpBackendEventsAsync();
+        _eventPump ??= PumpBackendEventsAsync();
         StartupDiagnostics.Stage(
             $"realtime-subscription-sync-started rooms={snapshot.Rooms.Count}");
         await backend.SynchronizeRealtimeRoomsAsync(
@@ -229,6 +405,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             cancellationToken);
         StartupDiagnostics.Stage(
             $"realtime-subscription-sync-completed rooms={snapshot.Rooms.Count}");
+        _activityPump ??= PumpActivityAsync();
         if (activeRoomId is { } roomId)
         {
             StartupDiagnostics.Stage("message-history-fetch-started active=true");
@@ -237,7 +414,6 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             StartupDiagnostics.Stage(
                 $"message-history-fetch-completed result=success count={history.Count}");
         }
-        _activityPump = PumpActivityAsync();
         await PersistPreferencesAsync(cancellationToken);
         PublishState();
     }
@@ -248,7 +424,12 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         var backend = RequiredBackend();
+        Guid? userId = _state.Profile?.Id;
         var profile = await backend.SaveProfileAsync(nickname, characterId, cancellationToken);
+        if (!ReferenceEquals(backend, _backend) || _state.Profile?.Id != userId || _lifetime.IsCancellationRequested)
+            return;
+        if (_state.Profile is { } current)
+            profile = current with { Nickname = profile.Nickname, CharacterId = profile.CharacterId };
         SetState(_state with
         {
             Profile = profile,
@@ -393,10 +574,19 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             }
         }
 
-        Profile profile = await RequiredBackend().SetEquippedCosmeticAsync(
+        var backend = RequiredBackend();
+        Guid? userId = _state.Profile?.Id;
+        Profile profile = await backend.SetEquippedCosmeticAsync(
             kind,
             catalogItemId,
             cancellationToken);
+        if (!ReferenceEquals(backend, _backend) || _state.Profile?.Id != userId || _lifetime.IsCancellationRequested)
+            return;
+        // Independent equipment requests can complete out of order; apply only this request's field.
+        if (_state.Profile is { } current)
+            profile = kind == CommerceProductKind.Bubble
+                ? current with { EquippedBubbleStyleId = profile.EquippedBubbleStyleId }
+                : current with { EquippedThrowableId = profile.EquippedThrowableId };
         IReadOnlyList<Room> rooms = _state.Rooms.Select(room => room with
         {
             Members = room.Members.Select(member => member.UserId == profile.Id
@@ -701,6 +891,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 
         if (!visible)
         {
+            StopOverlayAudio();
             _overlay?.Dispose();
             _overlay = null;
         }
@@ -713,6 +904,10 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             else if (_state.ActiveRoomId is not null)
             {
                 StartOverlay(CurrentWorldSnapshot());
+            }
+            else
+            {
+                ShowStartupOverlay();
             }
         }
 
@@ -750,7 +945,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             Preferences = _state.Preferences with { RequiresRightClickToThrow = enabled },
         });
         await PersistPreferencesAsync(cancellationToken);
-        _overlay?.ConfigureThrowInteraction(enabled, _backend is null || _state.ActiveRoomConnected);
+        _overlay?.ConfigureThrowInteraction(enabled, OverlayInteractionConnected);
     }
 
     public async Task SetStartAtLoginAsync(
@@ -893,6 +1088,10 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 
     public async Task PulseCurrentCharacterAsync(CancellationToken cancellationToken = default)
     {
+        if (!OverlayInteractionConnected)
+            return;
+        if (_overlay?.IsSelfStunned == true)
+            return;
         var roomId = _state.ActiveRoomId ?? _previewRoomId;
         var userId = _state.Profile?.Id ?? _previewUserId;
         if (roomId is null || userId is null)
@@ -923,6 +1122,8 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         Guid targetUserId,
         CancellationToken cancellationToken = default)
     {
+        if (_overlay?.IsSelfStunned == true)
+            return;
         var roomId = _state.ActiveRoomId ?? _previewRoomId;
         var actor = _state.Profile;
         var actorUserId = actor?.Id ?? _previewUserId;
@@ -985,6 +1186,9 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _animations.Changed -= OnAnimationsChanged;
+        _animations.Dispose();
+        _audio.Dispose();
         _lifetime.Cancel();
         StopTypingKeepalive();
         if (_eventPump is not null)
@@ -1394,7 +1598,12 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                     : profile.CharacterId,
             },
         };
+        _initialSnapshotReceived = true;
         PublishState();
+        if (_overlay is null && activeRoomId is not null && _state.Preferences.OverlayVisible)
+            StartOverlay(CurrentWorldSnapshot());
+        else
+            ApplyWorldSnapshot("server-snapshot");
     }
 
     private async Task RefreshSnapshotAsync(CancellationToken cancellationToken)
@@ -1475,14 +1684,112 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         }
     }
 
+    public void ShowStartupOverlay()
+    {
+#if DEBUG
+        if (Environment.GetEnvironmentVariable("SIDEY_WINDOWS_VALIDATION_MODE") == "1")
+            return; // The dedicated validation scene selects its own character set.
+#endif
+        if (_overlay is not null || _initialSnapshotReceived || _previewSnapshot is not null)
+            return;
+        if (CachedStartupWorld.Create(_state.Preferences) is { } snapshot)
+        {
+            StartOverlay(snapshot);
+            StartupDiagnostics.Stage("overlay-cached-startup state=reconnecting indicator=gray");
+        }
+    }
+
+    internal async Task VerifyStartupOverlaySmokeAsync()
+    {
+        if (_backend is not null || _overlay is not null)
+            throw new InvalidOperationException("Startup overlay smoke requires an isolated, unconnected coordinator.");
+        var saved = _state;
+        var roomId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var characters = PixelCharacterCatalog.All.ToArray();
+        var peers = Enumerable.Range(0, 11).Select(index => new RoomMember(Guid.NewGuid(),
+            "친구", characters[index % characters.Length].Id, PresenceState.Offline)).ToArray();
+        try
+        {
+            _state = CoordinatorState.Initial with
+            {
+                Preferences = saved.Preferences with
+                {
+                    OnboardingCompleted = true,
+                    OverlayVisible = true,
+                    ShowOfflineMembers = false,
+                    CachedNickname = "모카",
+                    CachedCharacterId = "pixel_cat",
+                    ActiveRoomId = roomId,
+                }
+            };
+            ShowStartupOverlay();
+            var initialOverlay = _overlay;
+            var deadline = Stopwatch.StartNew();
+            while (_overlay?.HasPresentedFrame != true && deadline.Elapsed.TotalSeconds < 3)
+                await Task.Delay(20);
+            var cached = CurrentWorldSnapshot();
+            if (_overlay?.IsVisible != true || !_overlay.HasPresentedFrame || OverlayInteractionConnected
+                || cached.RoomId is not null || cached.Members.Count != 1 || cached.Members[0].Presence != PresenceState.Reconnecting)
+                throw new InvalidOperationException("Cached connecting character was not presented before backend initialization.");
+            _overlay.VerifyMemberVisualsForSmoke(cached.Members.Select(member => member.Id), 142, 142, 147);
+            await Task.Delay(300); // No authentication, room response or live transport is available yet.
+            if (!ReferenceEquals(initialOverlay, _overlay) || _backend is not null)
+                throw new InvalidOperationException("Startup overlay depended on a live backend.");
+            _state = _state with { Preferences = _state.Preferences with { ShowOfflineMembers = true } };
+            ApplySnapshot(new BackendSnapshot(new Profile(userId, "모카", "pixel_cat"),
+                [new Room(roomId, "startup smoke", userId,
+                    [new RoomMember(userId, "모카", "pixel_cat", PresenceState.Offline), .. peers], "", false, 1)],
+                userId, new HashSet<string>()));
+            var pending = CurrentWorldSnapshot();
+            if (pending.RoomId != roomId || pending.Members.Count != 12
+                || pending.Members.Any(member => member.Presence != PresenceState.Reconnecting)
+                || !pending.Members.Any(member => member.Id == userId && member.IsCurrentUser))
+                throw new InvalidOperationException("Server snapshot did not display all twelve members while connecting.");
+            _overlay.VerifyMemberVisualsForSmoke(pending.Members.Select(member => member.Id), 142, 142, 147);
+            _state = _state with { Preferences = _state.Preferences with { ShowOfflineMembers = false } };
+            ApplyWorldSnapshot();
+            if (CurrentWorldSnapshot().Members.Count != 1)
+                throw new InvalidOperationException("Offline member filtering did not retain only the current user.");
+            _overlay.VerifyMemberVisualsForSmoke([userId], 142, 142, 147);
+            _state = _state with { Preferences = _state.Preferences with { ShowOfflineMembers = true } };
+            SetRealtimeConnection(new RealtimeConnectionStatus(true, true, false));
+            if (!ReferenceEquals(initialOverlay, _overlay) || !OverlayInteractionConnected
+                || CurrentWorldSnapshot().Members.Count != 12
+                || CurrentWorldSnapshot().Members.Single(member => member.IsCurrentUser).Presence != PresenceState.Online
+                || CurrentWorldSnapshot().Members.Where(member => !member.IsCurrentUser).Any(member => member.Presence != PresenceState.Offline))
+                throw new InvalidOperationException("Live transport did not promote the existing overlay to online.");
+            foreach (var peer in peers)
+                UpdatePresence(roomId, peer.UserId, PresenceState.Online);
+            ApplyWorldSnapshot();
+            _overlay.VerifyMemberVisualsForSmoke(pending.Members.Select(member => member.Id), 52, 199, 89);
+            SetRealtimeConnection(RealtimeConnectionStatus.Disconnected);
+            _overlay.VerifyMemberVisualsForSmoke(pending.Members.Select(member => member.Id), 142, 142, 147);
+            StartupDiagnostics.Stage("startup-overlay-smoke-complete cached=gray first-frame=true snapshot=gray members=12 connected=green reconnected=gray pixels=verified reused=true");
+        }
+        finally
+        {
+            _overlay?.Dispose();
+            _overlay = null;
+            StopOverlayAudio();
+            _basePresence.Clear();
+            _initialSnapshotReceived = false;
+            _feedbackRoomId = null;
+            _feedbackConnected = false;
+            SetState(saved);
+        }
+    }
+
     private void StartOverlay(WorldSnapshot snapshot, IReadOnlySet<string>? validationIds = null)
     {
+        StopOverlayAudio();
         if (!_state.Preferences.OverlayVisible)
         {
             return;
         }
 
         _overlay?.Dispose();
+        StopOverlayAudio();
         try
         {
             _overlay = NativePixelWorldSession.Start(
@@ -1492,9 +1799,11 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                 RequestCharacterPulse,
                 RequestCharacterThrow,
                 _state.Preferences.RequiresRightClickToThrow,
-                _backend is null || _state.ActiveRoomConnected,
+                OverlayInteractionConnected,
                 exception => RenderingFailed?.Invoke(exception),
                 new NativePixelWorldSessionOptions(
+                    AnimationsEnabled: () => _animations.Enabled,
+                    CharacterImpact: PlayOverlayImpact,
                     ValidationCharacterIds: validationIds,
                     CollectValidationMetrics: validationIds is not null,
                     MessageBubblesPresented: count => StartupDiagnostics.Stage(
@@ -1526,6 +1835,13 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 
     private void ApplyWorldSnapshot(string? diagnosticContext = null)
     {
+        bool connected = OverlayInteractionConnected;
+        if (_feedbackRoomId != _state.ActiveRoomId || _feedbackConnected != connected)
+        {
+            _feedbackRoomId = _state.ActiveRoomId;
+            _feedbackConnected = connected;
+            StopOverlayAudio();
+        }
         if (_overlay is null)
         {
             if (diagnosticContext is not null)
@@ -1537,6 +1853,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         }
         _bubbles.Prune();
         WorldSnapshot snapshot = CurrentWorldSnapshot();
+        _overlay.ConfigureThrowInteraction(_state.Preferences.RequiresRightClickToThrow, connected);
         if (diagnosticContext is not null)
         {
             StartupDiagnostics.Stage(
@@ -1586,18 +1903,21 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             };
         }
 
+        if (!_initialSnapshotReceived && CachedStartupWorld.Create(_state.Preferences) is { } cached)
+            return cached;
+
         var room = _state.ActiveRoomId is { } roomId
             ? _state.Rooms.FirstOrDefault(candidate => candidate.Id == roomId)
             : null;
         var members = room?.Members
-            .Where(member => _state.Preferences.ShowOfflineMembers
+            .Where(member => member.UserId == _state.Profile?.Id || _state.Preferences.ShowOfflineMembers
                 || member.Presence != PresenceState.Offline)
             .Select(member => new PixelWorldMember(
                 member.UserId,
                 member.Nickname,
                 PixelCharacterCatalog.NormalizeId(member.CharacterId),
-                member.Presence,
-                IsTyping: room is not null && _typing.Contains((room.Id, member.UserId)),
+                LocalPresenceProjection.ForOverlay(member.Presence, _state.ActiveRoomConnected),
+                IsTyping: _state.ActiveRoomConnected && room is not null && _typing.Contains((room.Id, member.UserId)),
                 IsCurrentUser: member.UserId == _state.Profile?.Id,
                 EquippedBubbleStyleId: member.EquippedBubbleStyleId))
             .ToArray() ?? [];

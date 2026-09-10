@@ -91,7 +91,9 @@ public partial class App : Application
             || WindowsStartupService.IsBackgroundLaunch(processArguments);
         StartupDiagnostics.Stage("launch-entered");
         StartupDiagnostics.Stage($"launch-mode background={backgroundLaunch}");
-        _singleInstance = SingleInstanceGuard.Acquire();
+        _singleInstance = SingleInstanceGuard.Acquire(
+            Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1"
+                ? Environment.GetEnvironmentVariable("SIDEY_STARTUP_SMOKE_DATA_ROOT") : null);
         if (!_singleInstance.IsPrimary)
         {
             _singleInstance.Signal(processArguments);
@@ -133,6 +135,7 @@ public partial class App : Application
         coordinator.GroupSetupRequested += OnGroupSetupRequested;
         coordinator.StateChanged += OnCoordinatorStateChanged;
         coordinator.LanguageChanged += OnLanguageChanged;
+        coordinator.ShowStartupOverlay();
         if (!coordinator.State.Preferences.OnboardingCompleted)
         {
             CreateOnboardingWindow(coordinator);
@@ -152,6 +155,15 @@ public partial class App : Application
             await EnsureMainWindow().VerifyExternalAssetsSmokeAsync();
         }
         await RunStorePreviewStartupSmokeIfRequestedAsync();
+        if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1"
+            && Environment.GetEnvironmentVariable("SIDEY_OVERLAY_STARTUP_SMOKE") == "1")
+            await coordinator.VerifyStartupOverlaySmokeAsync();
+        if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1"
+            && Environment.GetEnvironmentVariable("SIDEY_IMPACT_AUDIO_SMOKE") == "1")
+        {
+            await coordinator.VerifyImpactAudioSmokeAsync();
+            await EnsureMainWindow().VerifySoundControlsSmokeAsync();
+        }
         if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1"
             && Environment.GetEnvironmentVariable("SIDEY_LANGUAGE_SMOKE") == "1")
         {
@@ -427,7 +439,7 @@ public partial class App : Application
             _coordinator.State.Preferences.OverlayRegion.MonitorIdentifier);
     }
 
-    private static async Task RunStorePreviewStartupSmokeIfRequestedAsync()
+    private async Task RunStorePreviewStartupSmokeIfRequestedAsync()
     {
         if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) != "1"
             || Environment.GetEnvironmentVariable("SIDEY_STORE_PREVIEW_SMOKE") != "1")
@@ -441,6 +453,8 @@ public partial class App : Application
             await Task.Delay(80);
             async Task VerifyDialogAsync(Controls.StorePreviewStage stage)
             {
+                stage.CharacterImpact += _coordinator!.PlayImpactSound;
+                stage.StopSounds += scope => _coordinator.StopImpactSounds(scope);
                 var content = new Microsoft.UI.Xaml.Controls.StackPanel { Spacing = 12 };
                 content.Children.Add(stage);
                 content.Children.Add(new Microsoft.UI.Xaml.Controls.TextBlock { Text = "SIDEY preview" });
@@ -462,7 +476,7 @@ public partial class App : Application
                     dialog.Content = null;
                 }
             }
-            foreach (var character in new[] { "pixel_guinea_pig", "pixel_monkey", "pixel_chinchilla", "pixel_starlight_upalupa" })
+            foreach (var character in Sidey.Core.Domain.PixelCharacterCatalog.All.Select(definition => definition.Id))
             {
                 var stage = new Controls.StorePreviewStage(Sidey.Core.Domain.CommerceProductKind.Character, character, character);
                 await VerifyDialogAsync(stage);
@@ -470,6 +484,8 @@ public partial class App : Application
             var cannonStage = new Controls.StorePreviewStage(
                 Sidey.Core.Domain.CommerceProductKind.Throwable, "throwable_toy_cannon", "pixel_hamster");
             await VerifyDialogAsync(cannonStage);
+            await VerifyDialogAsync(new Controls.StorePreviewStage(
+                Sidey.Core.Domain.CommerceProductKind.Bubble, "bubble_bunny_pink", "pixel_hamster"));
         }
         finally { window.Close(); }
     }
@@ -1191,6 +1207,7 @@ public partial class App : Application
         }
 
         bool shouldExit = mainWindow.ShouldExitOnClose;
+        _pendingSettingsSave = mainWindow.ViewModel.FlushSoundSettingsAsync();
         mainWindow.Closed -= OnMainWindowClosed;
         _mainWindow = null;
         if (ReferenceEquals(_window, mainWindow))
@@ -1203,6 +1220,8 @@ public partial class App : Application
             BeginShutdown();
         }
     }
+
+    private Task _pendingSettingsSave = Task.CompletedTask;
 
     private async void BeginShutdown()
     {
@@ -1220,6 +1239,7 @@ public partial class App : Application
         if (_mainWindow is not null)
         {
             MainWindow mainWindow = _mainWindow;
+            _pendingSettingsSave = mainWindow.ViewModel.FlushSoundSettingsAsync();
             _mainWindow = null;
             mainWindow.Closed -= OnMainWindowClosed;
             mainWindow.CloseForExit();
@@ -1264,6 +1284,9 @@ public partial class App : Application
         }
         if (_coordinator is not null)
         {
+            try
+            { await _pendingSettingsSave; }
+            catch (Exception exception) { StartupDiagnostics.NonFatal("shutdown-settings-save", exception); }
             _coordinator.ComposerRequested -= RequestComposer;
             _coordinator.PulseRequested -= RequestPulse;
             _coordinator.CharacterThrowRequested -= RequestCharacterThrow;

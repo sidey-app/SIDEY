@@ -6,6 +6,27 @@ namespace Sidey.Presentation.Tests;
 
 internal sealed class FakeSideyCoordinator : ISideyCoordinator
 {
+    public int ConnectionRetryCount { get; private set; }
+    public Task RetryConnectionAsync(bool userInitiated = true) { ConnectionRetryCount++; return Task.CompletedTask; }
+    public bool AnimationsEnabled { get; set; } = true;
+    public Func<bool, Task>? SoundSettingHandler { get; set; }
+    public List<string> PreviewedSounds { get; } = [];
+    public int LiveSoundVolume { get; private set; } = 100;
+    public List<int> SavedSoundVolumes { get; } = [];
+    public Func<int, Task>? SoundVolumeHandler { get; set; }
+    public bool LiveSoundEnabled { get; private set; } = true;
+    public void ApplyCharacterSoundEffects(bool enabled, int volume) { LiveSoundEnabled = enabled; LiveSoundVolume = volume; }
+    public async Task SaveCharacterSoundEffectsAsync(bool enabled, int volume, CancellationToken cancellationToken = default)
+    {
+        SavedSoundVolumes.Add(volume);
+        if (SoundSettingHandler is not null)
+            await SoundSettingHandler(enabled);
+        if (SoundVolumeHandler is not null)
+            await SoundVolumeHandler(volume);
+        State = State with { Preferences = State.Preferences with { CharacterSoundEffectsEnabled = enabled, CharacterSoundEffectsVolume = volume } };
+    }
+    public void PlayImpactSound(string id, Guid scope, long requestedAt) => PreviewedSounds.Add(id);
+    public void StopImpactSounds(Guid? scope = null) { }
     public CoordinatorState State { get; set; } = CoordinatorState.Initial;
 
     public IReadOnlyList<ChatMessage> MessagePage { get; set; } = [];

@@ -1,4 +1,5 @@
 {
+  "motion": { "disabled": "Windowsのアニメーション効果がオフになっています。" },
   "preview": { "moka": "モカ", "dubu": "とうふ", "leftMessage": "今日の晩ごはん、どうする？", "rightMessage": "カレーにしない？" },
   "window": { "settingsTitle": "SIDEY 設定", "composerTitle": "SIDEY メッセージ", "historyTitle": "SIDEY メッセージ履歴", "onboardingTitle": "SIDEYへようこそ" },
   "launcher": { "runtimeMissing": "起動に必要なファイルが見つかりません。SIDEYを再インストールしてください。", "startupFailed": "SIDEYを起動できませんでした。", "fatalTitle": "SIDEY 起動エラー" },
@@ -11,6 +12,8 @@
     "nicknameRequired": "ニックネームを入力してください。", "roomNameRequired": "グループ名を入力してください。", "inviteRequired": "招待コードを入力してください。", "creatingRoom": "グループを作成中…", "joiningRoom": "グループに参加中…", "saving": "設定を保存中…", "complete": "設定が完了しました", "connected": "接続済み", "disconnected": "未接続", "serverConnected": "SIDEYに接続しました", "serverConnecting": "SIDEYに接続中…"
   },
   "profile": {
+    "equipped": "装着中",
+    "applying": "適用中",
     "title": "マイプロフィール", "description": "友だちに表示される名前とキャラクターを設定できます。", "nickname": "ニックネーム", "nicknameDescription": "画面やメッセージに表示される名前（2〜8文字）", "character": "キャラクター", "characterDescription": "友だちの画面に表示する、あなたのキャラクターを選びます。", "bubble": "吹き出し", "bubbleDescription": "持っている吹き出しを選ぶと、すべてのグループにすぐ反映されます。", "throwable": "投げるアイテム", "throwableDescription": "持っているアイテムを選ぶと、すべてのグループにすぐ反映されます。", "cosmeticDefault": "標準", "defaultBubble": "標準の吹き出し", "defaultThrowable": "キャラクターのお決まりアイテム", "cosmeticSaved": "変更を反映しました。", "characterSaved": "キャラクターを変更しました。", "duplicateNotice": "友だちと同じ名前やキャラクターも使えます。", "save": "プロフィールを保存", "saveTooltip": "ニックネームとキャラクターの変更を保存します。", "changeNickname": "ニックネームを変更", "changeNicknameTooltip": "変更したニックネームを保存します。", "saved": "プロフィールを保存しました。"
   },
   "groups": {
@@ -25,6 +28,13 @@
     "interaction": { "pixel_starlight_upalupa": "友だちのキャラクターをクリックすると、きらめく星の玉を投げます。", "pixel_guinea_pig": "友だちのキャラクターをクリックすると、ミニパプリカをぽんっと投げます。", "pixel_monkey": "友だちのキャラクターをクリックすると、熟れたバナナを投げます。", "pixel_chinchilla": "友だちのキャラクターをクリックすると、砂浴び用の小さな砂袋を投げます。" }, "price2900": "2,900ウォン", "price1900": "1,900ウォン", "price990": "990ウォン"
   },
   "settings": {
+    "soundTitle": "サウンド",
+    "soundDescription": "キャラクターの効果音の再生を設定します。",
+    "characterSounds": "キャラクターの効果音",
+    "characterSoundsDescription": "現在のグループでキャラクターに投げたものが当たると、効果音を再生します。",
+    "soundVolume": "音量",
+    "muteSound": "ミュート",
+    "unmuteSound": "ミュートを解除",
     "language": "言語 / Language",
     "languageDescription": "アプリで使用する言語を選択します。",
     "generalTitle": "一般", "generalDescription": "SIDEYの表示や起動方法を設定できます。", "overlay": "ピクセルワールドを表示", "overlayDescription": "選んだ画面の端に、友だちのピクセルワールドを表示します。", "overlayTooltip": "ピクセルワールドの表示を切り替えます", "startup": "サインイン時に自動起動", "startupDescription": "Windowsへのサインイン時にSIDEYを自動で起動します。", "startupTooltip": "Windowsサインイン時の自動起動を切り替えます",
@@ -39,7 +49,7 @@
   "overlay": { "currentUser": "{0} · 自分" },
   "unsupported": { "title": "対応していないWindowsです", "description": "SIDEYにはWindows 11 25H2（ビルド26200）以降のx64版が必要です。", "windowTitle": "SIDEY — 非対応のWindows" },
   "dialogs": { "rotateInviteTitle": "招待コードを再発行しますか？", "rotateInviteBody": "現在のコードはすぐに無効になります。この操作は取り消せません。", "rotateInvitePrimary": "再発行", "roomNamePlaceholder": "グループ名（1〜20文字）", "removeMemberTitle": "「{0}」を退出させますか？", "removeMemberBody": "このメンバーはグループや過去のメッセージにアクセスできなくなります。", "removeMemberPrimary": "退出させる", "leaveRoomTitle": "「{0}」から退出しますか？", "leaveRoomBody": "このグループや最近のメッセージにアクセスできなくなります。", "leaveOwnedRoomBody": "残ったメンバーのうち、最も早く参加した人がオーナーになります。誰も残らない場合は、グループが削除されます。", "leaveRoomPrimary": "退出", "deleteRoomTitle": "「{0}」を削除しますか？", "deleteRoomBody": "メンバー情報とメッセージがサーバーから削除されます。この操作は取り消せません。", "deleteRoomContinue": "続ける", "deleteRoomFinalTitle": "このグループを完全に削除しますか？", "deleteRoomFinalBody": "「{0}」とすべてのメッセージが、今すぐ完全に削除されます。", "updateTitle": "新しいアップデートがあります", "updateBody": "SIDEY {0}をダウンロードしますか？", "download": "ダウンロード", "later": "あとで" },
-  "connection": { "connected": "接続済み", "disconnected": "未接続", "reconnecting": "接続中", "offline": "オフライン", "serverConnected": "SIDEYサーバーに接続しました。", "serverReconnecting": "SIDEYサーバーに再接続しています。" },
+  "connection": { "retry": "今すぐ再接続", "accessRequired": "認証またはグループへのアクセスが拒否されたため、自動再接続を停止しました。接続状態を押すと再試行できます。", "connected": "接続済み", "disconnected": "未接続", "reconnecting": "接続中", "offline": "オフライン", "serverConnected": "SIDEYサーバーに接続しました。", "serverReconnecting": "SIDEYサーバーに再接続しています。" },
   "update": { "checking": "アップデートを確認中…", "available": "SIDEY {0}を利用できます。", "latest": "最新バージョンを使用しています。", "failed": "アップデートを完了できませんでした。しばらくしてからお試しください。", "installCancelled": "アップデートのインストールをキャンセルしました。", "installerLaunchFailed": "インストーラーを開けませんでした。「アップデートを確認」からもう一度お試しください。", "downloading": "アップデートをダウンロード中…", "downloadingProgress": "アップデートをダウンロード中…（{0}%）", "installerLaunched": "ダウンロードが完了し、インストーラーを開きました。", "startupAvailable": "バージョン{0}を利用できます。「アップデートを確認」からリリースページを開いてください。", "releaseNotesFailed": "リリース情報を開けませんでした：{0}", "notPublished": "Windows版のアップデート情報はまだ公開されていません。", "invalidManifest": "SIDEY Windows版のアップデート情報が正しくありません。", "invalidInstaller": "SIDEY Windows版のインストーラー情報が正しくありません。", "hashMismatch": "アップデートファイルを確認できませんでした。もう一度ダウンロードしてください。", "missingInstaller": "SIDEYのアップデート用インストーラー情報がありません。" },
   "metrics": { "rendererNotStarted": "計測用レンダラーが起動していません。", "rendererNotRunning": "計測用レンダラーが動作していません。", "noSamples": "計測データなし", "exportPath": "保存先：{0}", "exported": "現在の指標をJSONで保存しました。手動検証はnot_runのままです。", "exportFailed": "指標の保存に失敗しました：{0}", "summary": "経過 {0:F0}秒 · {1}サンプル · 最大フレーム {2:F2}ms · メモリ {3:F1}MB（最大 {4:F1}MB） · GDI {5} · USER {6}" },
   "validation": { "nicknameLength": "ニックネームを2〜8文字で入力してください。", "roomNameLength": "グループ名を1〜20文字で入力してください。", "messageLength": "メッセージを1〜500文字で入力してください。", "invalidInviteCode": "有効な招待コードを入力してください。" },

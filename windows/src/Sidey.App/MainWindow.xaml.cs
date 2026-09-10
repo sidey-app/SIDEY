@@ -1,6 +1,7 @@
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Media.Imaging;
@@ -37,18 +38,41 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     private readonly Stack<string> _navigationHistory = new();
     private readonly WindowsMinimumSizeController _minimumSizeController;
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly IMainWindowCoordinator _coordinator;
+    private readonly WindowsFeedbackWindowMonitor? _feedbackMonitor;
+    private StorePreviewStage? _activePreview;
 
     public MainWindow(
         IMainWindowCoordinator coordinator,
         IUpdateService updateService)
     {
         InitializeComponent();
+        _coordinator = coordinator;
         AppTitleBar.IconSource = new ImageIconSource
         {
             ImageSource = new BitmapImage(new Uri(Path.Combine(
                 SideyDeploymentPaths.DeploymentRoot(), "Assets", "Icons", "SideyAppIcon-20.png"))),
         };
         ViewModel = new MainWindowViewModel(coordinator, this, updateService);
+        CharacterSoundVolumeSlider.AdjustmentCompleted += () =>
+        {
+            ViewModel.CharacterSoundEffectsVolume = CharacterSoundVolumeSlider.Value;
+            ViewModel.CompleteSoundVolumeAdjustment();
+        };
+        CharacterSoundVolumeSlider.AdjustmentCanceled += ViewModel.StopSoundVolumeFeedback;
+        if (coordinator is AppCoordinator appCoordinator)
+            appCoordinator.AnimationsChanged += OnAnimationsChanged;
+        try
+        {
+            _feedbackMonitor = new WindowsFeedbackWindowMonitor(WinRT.Interop.WindowNative.GetWindowHandle(this),
+                () => coordinator.StopImpactSounds(), async () =>
+                {
+                    try
+                    { await coordinator.RetryConnectionAsync(userInitiated: false); }
+                    catch (Exception exception) { StartupDiagnostics.NonFatal("resume-connection", exception); }
+                });
+        }
+        catch (Exception exception) { StartupDiagnostics.NonFatal("feedback-system-notifications", exception); }
         MainRoot.DataContext = ViewModel;
         ViewModel.PrepareGroupsForPresentation();
         Title = "SIDEY";
@@ -74,6 +98,17 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
 
     public MainWindowViewModel ViewModel { get; }
 
+    private void OnAnimationsChanged()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_isClosed)
+                return;
+            ViewModel.RefreshFeedbackPresentation();
+            _activePreview?.SetAnimationsEnabled(_coordinator.AnimationsEnabled);
+        });
+    }
+
     public bool ShouldExitOnClose => _allowClose || !_trayAvailable;
 
     internal async Task VerifyExternalAssetsSmokeAsync()
@@ -90,6 +125,82 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
             throw new InvalidOperationException("The external title bar icon did not decode at its expected size.");
         }
         StartupDiagnostics.Stage("external-assets-smoke-complete titlebar-icon=20x20");
+    }
+
+    internal async Task VerifySoundControlsSmokeAsync()
+    {
+        ShowPage("settings");
+        await Task.Delay(60);
+        if (CharacterSoundVolumeSlider.CompletionThumbCount == 0)
+            throw new InvalidOperationException("Sound controls smoke: slider Thumb completion is not connected.");
+        int originalVolume = _coordinator.State.Preferences.CharacterSoundEffectsVolume;
+        bool originalEnabled = _coordinator.State.Preferences.CharacterSoundEffectsEnabled;
+        try
+        {
+            CharacterSoundVolumeSlider.Value = 37;
+            var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+            while (ViewModel.CharacterSoundEffectsVolume != 37 && DateTimeOffset.UtcNow < deadline)
+                await Task.Delay(10);
+            await ViewModel.FlushSoundSettingsAsync();
+            if (_coordinator.State.Preferences.CharacterSoundEffectsVolume != 37
+                || ViewModel.CharacterSoundVolumeLabel != "37%")
+            {
+                StartupDiagnostics.Stage($"sound-controls-failed slider={CharacterSoundVolumeSlider.Value} model={ViewModel.CharacterSoundEffectsVolume} saved={_coordinator.State.Preferences.CharacterSoundEffectsVolume}");
+                throw new InvalidOperationException("Sound controls smoke: slider did not save its value.");
+            }
+            ViewModel.CompleteSoundVolumeAdjustment();
+            await ExportSoundCardSmokeAsync("enabled");
+            SoundMuteButton.Command.Execute(null);
+            await ViewModel.FlushSoundSettingsAsync();
+            if (ViewModel.CharacterSoundEffectsEnabled || ViewModel.CharacterSoundEffectsVolume != 37)
+                throw new InvalidOperationException("Sound controls smoke: mute button lost volume or did not mute.");
+            await ExportSoundCardSmokeAsync("muted");
+            SoundMuteButton.Command.Execute(null);
+            await ViewModel.FlushSoundSettingsAsync();
+            if (!ViewModel.CharacterSoundEffectsEnabled || ViewModel.CharacterSoundEffectsVolume != 37)
+                throw new InvalidOperationException("Sound controls smoke: unmute button failed.");
+            CharacterSoundVolumeSlider.Value = 0;
+            await Task.Delay(30);
+            await ViewModel.FlushSoundSettingsAsync();
+            if (ViewModel.CharacterSoundEffectsEnabled || !CharacterSoundVolumeSlider.IsEnabled)
+                throw new InvalidOperationException("Sound controls smoke: zero volume did not mute or slider was disabled.");
+            CharacterSoundVolumeSlider.Value = 25;
+            await Task.Delay(30);
+            await ViewModel.FlushSoundSettingsAsync();
+            if (!ViewModel.CharacterSoundEffectsEnabled || !_coordinator.State.Preferences.CharacterSoundEffectsEnabled)
+                throw new InvalidOperationException("Sound controls smoke: positive volume did not enable sound.");
+            ViewModel.CompleteSoundVolumeAdjustment();
+            StartupDiagnostics.Stage("sound-controls-smoke-complete slider=0,25,37 mute-button=true");
+        }
+        finally
+        {
+            ViewModel.StopSoundVolumeFeedback();
+            await _coordinator.SaveCharacterSoundEffectsAsync(originalEnabled, originalVolume);
+            _coordinator.ApplyCharacterSoundEffects(originalEnabled, originalVolume);
+            ViewModel.ApplyState(_coordinator.State);
+        }
+    }
+
+    private async Task ExportSoundCardSmokeAsync(string state)
+    {
+        string? root = Environment.GetEnvironmentVariable("SIDEY_STARTUP_SMOKE_DATA_ROOT");
+        if (string.IsNullOrEmpty(root))
+            return;
+        var rendered = new RenderTargetBitmap();
+        await rendered.RenderAsync(SoundSettingsCard);
+        using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
+        var encoder = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId, stream);
+        var buffer = await rendered.GetPixelsAsync();
+        byte[] pixels = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.ToArray(buffer);
+        encoder.SetPixelData(Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8,
+            Windows.Graphics.Imaging.BitmapAlphaMode.Premultiplied, (uint)rendered.PixelWidth, (uint)rendered.PixelHeight, 96, 96, pixels);
+        await encoder.FlushAsync();
+        stream.Seek(0);
+        using var reader = new Windows.Storage.Streams.DataReader(stream);
+        await reader.LoadAsync((uint)stream.Size);
+        byte[] png = new byte[(int)stream.Size];
+        reader.ReadBytes(png);
+        await File.WriteAllBytesAsync(Path.Combine(root, $"sound-settings-{state}.png"), png);
     }
 
     internal async Task VerifyLiveLanguageSmokeAsync()
@@ -257,6 +368,10 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
                 product.CatalogItemId,
                 product.CharacterId,
                 _lifetime.Token);
+            _activePreview = previewStage;
+            previewStage.SetAnimationsEnabled(_coordinator.AnimationsEnabled);
+            previewStage.CharacterImpact += _coordinator.PlayImpactSound;
+            previewStage.StopSounds += scope => _coordinator.StopImpactSounds(scope);
             if (ActiveXamlRoot() is not { } xamlRoot)
             {
                 return;
@@ -308,6 +423,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         finally
         {
             previewStage?.EndPresentation();
+            _activePreview = null;
             _storePreviewDialogOpen = false;
         }
     }
@@ -482,6 +598,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
     {
         _ = sender;
+        ViewModel.StopSoundVolumeFeedback();
         if (_allowClose || !_trayAvailable)
         {
             PrepareForClose();
@@ -513,6 +630,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
 
         _isClosed = true;
+        ViewModel.StopSoundVolumeFeedback();
         _lifetime.Cancel();
         MainRoot.DataContext = null;
     }
@@ -523,6 +641,8 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     {
         _ = sender;
         string tag = (args.SelectedItemContainer?.Tag as string) ?? "profile";
+        if (tag != "settings")
+            ViewModel.StopSoundVolumeFeedback();
         bool navigationChanged = !StringComparer.Ordinal.Equals(tag, _currentNavigationTag);
         if (navigationChanged)
         {
@@ -796,6 +916,10 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         ViewModel.NoticeRaised -= OnNoticeRaised;
         ViewModel.StorePreviewRequested -= OnStorePreviewRequested;
         _minimumSizeController.Dispose();
+        _feedbackMonitor?.Dispose();
+        if (_coordinator is AppCoordinator appCoordinator)
+            appCoordinator.AnimationsChanged -= OnAnimationsChanged;
+        _activePreview?.EndPresentation();
         _statusDismissTimer.Stop();
         _statusDismissTimer.Tick -= OnStatusDismissTimerTick;
 #if DEBUG

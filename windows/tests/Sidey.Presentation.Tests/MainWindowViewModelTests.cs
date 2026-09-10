@@ -10,6 +10,202 @@ namespace Sidey.Presentation.Tests;
 [Collection("Language refresh")]
 public sealed class MainWindowViewModelTests
 {
+    [Fact]
+    public async Task ConnectionStatusRetriesWhileDisconnectedAndDisablesAfterConnection()
+    {
+        var coordinator = new FakeSideyCoordinator();
+        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        Assert.True(model.RetryConnectionCommand.CanExecute(null));
+        await model.RetryConnectionCommand.ExecuteAsync(null);
+        Assert.Equal(1, coordinator.ConnectionRetryCount);
+        model.IsConnected = true;
+        Assert.False(model.RetryConnectionCommand.CanExecute(null));
+    }
+    [Fact]
+    public async Task MuteButtonPreservesVolumeAndRestoresItAfterZero()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        model.CharacterSoundEffectsVolume = 37;
+        model.ToggleCharacterSoundMuteCommand.Execute(null);
+        Assert.False(coordinator.LiveSoundEnabled);
+        Assert.Equal(37, model.CharacterSoundEffectsVolume);
+        model.ToggleCharacterSoundMuteCommand.Execute(null);
+        Assert.True(coordinator.LiveSoundEnabled);
+        Assert.Equal(37, model.CharacterSoundEffectsVolume);
+        model.CharacterSoundEffectsVolume = 0;
+        model.ToggleCharacterSoundMuteCommand.Execute(null);
+        Assert.True(coordinator.LiveSoundEnabled);
+        Assert.Equal(37, model.CharacterSoundEffectsVolume);
+        await model.FlushSoundSettingsAsync();
+        Assert.Empty(coordinator.PreviewedSounds);
+    }
+
+    [Fact]
+    public async Task SoundSettingFailureRestoresToggle()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.SoundSettingHandler = _ => completion.Task;
+        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        model.CharacterSoundEffectsEnabled = false;
+        Assert.False(coordinator.LiveSoundEnabled);
+        Task saving = model.FlushSoundSettingsAsync();
+        completion.SetException(new IOException("Cannot save settings"));
+        await saving.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.True(model.CharacterSoundEffectsEnabled);
+        Assert.True(coordinator.LiveSoundEnabled);
+    }
+
+    [Fact]
+    public async Task SoundVolumeUpdatesLiveAndCoalescesSettingsWrites()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        model.CharacterSoundEffectsVolume = 75;
+        model.CharacterSoundEffectsVolume = 40;
+        model.CharacterSoundEffectsVolume = 0;
+        Assert.Equal(0, coordinator.LiveSoundVolume);
+        Assert.Empty(coordinator.SavedSoundVolumes);
+        model.ApplyState(state);
+        Assert.Equal(0, model.CharacterSoundEffectsVolume);
+        await model.FlushSoundSettingsAsync();
+        Assert.Equal(0, Assert.Single(coordinator.SavedSoundVolumes));
+        Assert.Equal(0, coordinator.State.Preferences.CharacterSoundEffectsVolume);
+        Assert.Empty(coordinator.PreviewedSounds);
+    }
+
+    [Fact]
+    public async Task SoundVolumeSaveFailureRestoresSavedVolumeAndReportsFailure()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        coordinator.State = state with { Preferences = state.Preferences with { CharacterSoundEffectsVolume = 60 } };
+        coordinator.SoundVolumeHandler = _ => Task.FromException(new IOException("Cannot save volume"));
+        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        NoticeMessage? notice = null;
+        model.NoticeRaised += value => notice = value;
+        model.CharacterSoundEffectsVolume = 20;
+        await model.FlushSoundSettingsAsync();
+        Assert.Equal(60, model.CharacterSoundEffectsVolume);
+        Assert.Equal(60, coordinator.LiveSoundVolume);
+        Assert.Equal(NoticeKind.Error, notice?.Kind);
+    }
+
+    [Fact]
+    public async Task LateVolumeSaveFailureDoesNotOverwriteNewerSliderValue()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstSave = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.SoundVolumeHandler = volume =>
+        {
+            if (volume != 80)
+                return Task.CompletedTask;
+            firstStarted.TrySetResult();
+            return firstSave.Task;
+        };
+        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        var notices = new List<NoticeMessage>();
+        model.NoticeRaised += notices.Add;
+        model.CharacterSoundEffectsVolume = 80;
+        Task saving = model.FlushSoundSettingsAsync();
+        await firstStarted.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        model.CharacterSoundEffectsVolume = 25;
+        firstSave.SetException(new IOException("Older write failed"));
+        await saving.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Equal(25, model.CharacterSoundEffectsVolume);
+        Assert.Equal(25, coordinator.LiveSoundVolume);
+        Assert.Equal(25, coordinator.State.Preferences.CharacterSoundEffectsVolume);
+        Assert.Equal(new[] { 80, 25 }, coordinator.SavedSoundVolumes);
+        Assert.Empty(notices);
+    }
+
+    [Fact]
+    public async Task SliderLinksMuteAndOnlyUserVolumeChangesPlayDefaultImpact()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        model.ApplyState(state with { Preferences = state.Preferences with { CharacterSoundEffectsVolume = 60 } });
+        Assert.Empty(coordinator.PreviewedSounds);
+        model.CharacterSoundEffectsVolume = 0;
+        Assert.False(model.CharacterSoundEffectsEnabled);
+        Assert.False(coordinator.LiveSoundEnabled);
+        Assert.Empty(coordinator.PreviewedSounds);
+        await model.FlushSoundSettingsAsync();
+        Assert.False(coordinator.State.Preferences.CharacterSoundEffectsEnabled);
+        model.CharacterSoundEffectsVolume = 25;
+        Assert.True(model.CharacterSoundEffectsEnabled);
+        Assert.True(coordinator.LiveSoundEnabled);
+        Assert.Empty(coordinator.PreviewedSounds);
+        await model.FlushSoundSettingsAsync();
+        Assert.True(coordinator.State.Preferences.CharacterSoundEffectsEnabled);
+        Assert.Empty(coordinator.PreviewedSounds);
+        model.CompleteSoundVolumeAdjustment();
+        model.CompleteSoundVolumeAdjustment();
+        Assert.Equal("patch_soft_ball", Assert.Single(coordinator.PreviewedSounds));
+        model.CharacterSoundEffectsVolume = 0;
+        model.CompleteSoundVolumeAdjustment();
+        Assert.Single(coordinator.PreviewedSounds);
+        await model.FlushSoundSettingsAsync();
+    }
+
+    [Fact]
+    public async Task ManualMutePreservesVolumeAndUnmutingZeroRestoresLastPositiveVolume()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        model.CharacterSoundEffectsVolume = 45;
+        model.CharacterSoundEffectsEnabled = false;
+        await model.FlushSoundSettingsAsync();
+        Assert.Equal(45, coordinator.State.Preferences.CharacterSoundEffectsVolume);
+        Assert.False(coordinator.State.Preferences.CharacterSoundEffectsEnabled);
+        model.CharacterSoundEffectsVolume = 0;
+        model.CharacterSoundEffectsEnabled = true;
+        await model.FlushSoundSettingsAsync();
+        Assert.Equal(45, model.CharacterSoundEffectsVolume);
+        Assert.True(coordinator.State.Preferences.CharacterSoundEffectsEnabled);
+        Assert.Equal(45, coordinator.LiveSoundVolume);
+    }
+
+    [Fact]
+    public void AnimationChangeUpdatesExistingSelectionItems()
+    {
+        (FakeSideyCoordinator coordinator, _) = CreateRoomState();
+        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        var first = model.CharacterSelections[0];
+        coordinator.AnimationsEnabled = false;
+        model.RefreshFeedbackPresentation();
+        Assert.Same(first, model.CharacterSelections[0]);
+        Assert.All(model.CharacterSelections, item => Assert.False(item.AnimationsEnabled));
+        Assert.All(model.BubbleSelections, item => Assert.False(item.AnimationsEnabled));
+    }
+    [Fact]
+    public async Task PendingCharacterRetainsConfirmedCheckAndFailurePreservesDraft()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.SaveProfileHandler = (_, _, _) => completion.Task;
+        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        model.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(model.IsSavingCharacter) && !model.IsSavingCharacter)
+                finished.TrySetResult();
+        };
+        model.Nickname = "my-draft";
+        model.SelectedCharacterId = "pixel_cat";
+        Assert.True(model.CharacterSelections.Single(x => x.Id == "pixel_hamster").IsSelected);
+        Assert.True(model.CharacterSelections.Single(x => x.Id == "pixel_cat").IsPending);
+        Assert.All(model.CharacterSelections, x => Assert.False(x.IsEnabled));
+        model.ApplyState(state);
+        Assert.True(model.CharacterSelections.Single(x => x.Id == "pixel_cat").IsPending);
+        completion.SetException(new InvalidOperationException("failed"));
+        await finished.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        Assert.Equal("my-draft", model.Nickname);
+        Assert.All(model.CharacterSelections, x => Assert.False(x.IsPending));
+        Assert.True(model.CharacterSelections.Single(x => x.Id == "pixel_hamster").IsSelected);
+    }
+
     [Theory]
     [InlineData("en-US")]
     [InlineData("ja-JP")]
@@ -529,12 +725,18 @@ public sealed class MainWindowViewModelTests
 
         Assert.Equal(1, coordinator.SetEquippedCosmeticCallCount);
         Assert.All(viewModel.BubbleSelections, selection => Assert.False(selection.IsEnabled));
+        Assert.True(viewModel.BubbleSelections[0].IsSelected);
+        Assert.True(viewModel.BubbleSelections[1].IsPending);
+        Assert.False(viewModel.BubbleSelections[1].IsSelected);
+        viewModel.ApplyState(coordinator.State);
+        Assert.True(viewModel.BubbleSelections[1].IsPending);
         Assert.Equal(CommerceProductKind.Bubble, coordinator.LastEquippedCosmeticKind);
         Assert.Equal("bubble_bunny_pink", coordinator.LastEquippedCosmeticId);
 
         completion.SetResult();
         await Task.WhenAll(first, duplicate);
         Assert.All(viewModel.BubbleSelections, selection => Assert.True(selection.IsEnabled));
+        Assert.All(viewModel.BubbleSelections, selection => Assert.False(selection.IsPending));
     }
 
     [Fact]
@@ -682,7 +884,8 @@ public sealed class MainWindowViewModelTests
             SelectedCharacterId = "pixel_cat",
         };
 
-        viewModel.ApplyState(state with { RealtimeConnection = ConnectedStatus() });
+        // Character selection has completed independently of the unsaved nickname.
+        viewModel.ApplyState(state with { Profile = state.Profile! with { CharacterId = "pixel_cat" }, RealtimeConnection = ConnectedStatus() });
 
         Assert.Equal("draft-name", viewModel.Nickname);
         Assert.Equal("pixel_cat", viewModel.SelectedCharacterId);
