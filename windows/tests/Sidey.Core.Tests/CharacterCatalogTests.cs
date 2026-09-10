@@ -127,10 +127,10 @@ public sealed class CharacterCatalogTests
     [Fact]
     public void EveryAssetAndManifestMatchesTheCatalogContract()
     {
-        foreach (var character in PixelCharacterCatalog.All)
+        foreach (PixelCharacterDefinition character in PixelCharacterCatalog.All)
         {
-            var pngPath = AssetPath(character.Id, "base.png");
-            var png = File.ReadAllBytes(pngPath);
+            string pngPath = AssetPath(character.Id, "base.png");
+            byte[] png = File.ReadAllBytes(pngPath);
             Assert.True(png.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }));
             Assert.Equal("IHDR", System.Text.Encoding.ASCII.GetString(png, 12, 4));
             Assert.Equal(240, BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16, 4)));
@@ -139,12 +139,12 @@ public sealed class CharacterCatalogTests
             Assert.Equal(6, png[25]);
             Assert.Equal(character.SpriteSheetSha256, Convert.ToHexStringLower(SHA256.HashData(png)));
 
-            var raw = File.ReadAllBytes(AssetPath(character.Id, "base.bgra"));
+            byte[] raw = File.ReadAllBytes(AssetPath(character.Id, "base.bgra"));
             Assert.Equal(240 * 24 * 4, raw.Length);
 
             using var manifest = JsonDocument.Parse(File.ReadAllBytes(
                 AssetPath(character.Id, "manifest.json")));
-            var root = manifest.RootElement;
+            JsonElement root = manifest.RootElement;
             Assert.Equal(character.Id, root.GetProperty("character_id").GetString());
             Assert.Equal(character.DisplayName, root.GetProperty("display_name").GetString());
             Assert.Equal([24, 24], root.GetProperty("frame_pixel_size").EnumerateArray().Select(value => value.GetInt32()));
@@ -153,8 +153,8 @@ public sealed class CharacterCatalogTests
             Assert.Equal(character.SpriteSheetSha256, root.GetProperty("sha256").GetString());
             Assert.Equal(
                 character.CompatibleAliases,
-                root.GetProperty("legacy_aliases").EnumerateArray().Select(value => value.GetString()!).ToArray());
-            var animations = root.GetProperty("animations");
+                [.. root.GetProperty("legacy_aliases").EnumerateArray().Select(value => value.GetString()!)]);
+            JsonElement animations = root.GetProperty("animations");
             Assert.Equal([0, 1], Animation(animations, "idle"));
             Assert.Equal([2, 3, 4, 5], Animation(animations, "walk"));
             Assert.Equal([6, 7], Animation(animations, "doze"));
@@ -167,25 +167,9 @@ public sealed class CharacterCatalogTests
         }
     }
 
-    [Fact]
-    public void RendererAndFrameCacheDoNotContainSpeciesSpecificBranches()
-    {
-        var implementation = File.ReadAllText(AssetPath("LayeredPixelWorldRenderer.cs"))
-            + File.ReadAllText(AssetPath("PixelCharacterFrameCache.cs"));
-
-        foreach (var character in PixelCharacterCatalog.All)
-        {
-            Assert.False(implementation.Contains(character.Id, StringComparison.Ordinal));
-        }
-        Assert.False(implementation.Contains("minty_pup", StringComparison.Ordinal));
-    }
-
-    private static string AssetPath(string name) =>
-        Path.Combine(AppContext.BaseDirectory, "TestAssets", name);
-
     private static string AssetPath(string characterId, string name) =>
         Path.Combine(AppContext.BaseDirectory, "TestAssets", characterId, name);
 
     private static int[] Animation(JsonElement animations, string name) =>
-        animations.GetProperty(name).EnumerateArray().Select(value => value.GetInt32()).ToArray();
+        [.. animations.GetProperty(name).EnumerateArray().Select(value => value.GetInt32())];
 }

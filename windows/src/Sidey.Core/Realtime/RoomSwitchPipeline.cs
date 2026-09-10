@@ -27,7 +27,7 @@ public sealed class RoomSwitchPipeline(
 
     public async Task RequestAsync(Guid roomId, CancellationToken cancellationToken = default)
     {
-        var generation = Interlocked.Increment(ref _generation);
+        long generation = Interlocked.Increment(ref _generation);
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
             _shutdown.Token);
@@ -47,7 +47,7 @@ public sealed class RoomSwitchPipeline(
 
             try
             {
-                var messages = await _performSwitch(roomId, linked.Token);
+                IReadOnlyList<ChatMessage> messages = await _performSwitch(roomId, linked.Token);
                 if (generation != Volatile.Read(ref _generation))
                 {
                     return;

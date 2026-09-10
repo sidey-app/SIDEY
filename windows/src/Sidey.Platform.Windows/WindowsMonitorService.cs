@@ -15,10 +15,10 @@ public sealed record WindowsMonitorInfo(
 
 public sealed class WindowsMonitorService : IMonitorService
 {
-    public IReadOnlyList<MonitorGeometry> GetMonitors() => GetAll()
+    public IReadOnlyList<MonitorGeometry> GetMonitors() => [.. GetAll()
         .Select(monitor =>
         {
-            var scale = monitor.Dpi / 96d;
+            double scale = monitor.Dpi / 96d;
             return new MonitorGeometry(
                 monitor.Identifier,
                 monitor.Name,
@@ -29,8 +29,7 @@ public sealed class WindowsMonitorService : IMonitorService
                     monitor.WorkAreaPixels.Height / scale),
                 monitor.Dpi,
                 monitor.IsPrimary);
-        })
-        .ToArray();
+        })];
 
     public static IReadOnlyList<WindowsMonitorInfo> GetAll()
     {
@@ -55,15 +54,15 @@ public sealed class WindowsMonitorService : IMonitorService
                     return true;
                 }
 
-                var dpi = NativeMethods.GetDpiForMonitor(
+                uint dpi = NativeMethods.GetDpiForMonitor(
                     monitor,
                     MonitorDpiType.Effective,
-                    out var dpiX,
+                    out uint dpiX,
                     out _) == 0
                     ? dpiX
                     : NativeMethods.GetDpiForSystem();
-                var work = info.Work;
-                var identifier = string.IsNullOrWhiteSpace(info.DeviceName)
+                NativeRect work = info.Work;
+                string identifier = string.IsNullOrWhiteSpace(info.DeviceName)
                     ? $"monitor-{monitors.Count + 1}"
                     : info.DeviceName;
                 monitors.Add(new WindowsMonitorInfo(
@@ -89,7 +88,7 @@ public sealed class WindowsMonitorService : IMonitorService
 
     public static WindowsMonitorInfo Select(string? identifier)
     {
-        var monitors = GetAll();
+        IReadOnlyList<WindowsMonitorInfo> monitors = GetAll();
         if (monitors.Count == 0)
         {
             throw new InvalidOperationException(I18n.Get("platform.noMonitor"));

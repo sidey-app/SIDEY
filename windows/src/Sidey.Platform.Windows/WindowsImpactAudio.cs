@@ -19,13 +19,13 @@ public sealed class WindowsImpactAudio : IDisposable
 
     private sealed class ScopeLease { public bool Stopped; }
     private readonly Action<string, Exception> _diagnostic;
-    private readonly BlockingCollection<Action> _work = new();
+    private readonly BlockingCollection<Action> _work = [];
     private readonly Dictionary<string, (nint Data, int Length)> _samples = [];
     private readonly List<Voice> _voices = [];
     private XAudio2Output? _output;
     private readonly ImpactSoundAdmission _admission = new();
     private readonly Dictionary<Guid, ScopeLease> _scopeLeases = [];
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private long _generation;
     private int _pendingPlays;
     private bool _enabled = true;
@@ -68,7 +68,7 @@ public sealed class WindowsImpactAudio : IDisposable
                 catch (Exception exception) { Report("impact-prepare-" + id, exception); }
             }
             ReopenVoices();
-            foreach (var action in _work.GetConsumingEnumerable())
+            foreach (Action action in _work.GetConsumingEnumerable())
             {
                 lock (_gate)
                     if (_disposed)
@@ -89,7 +89,7 @@ public sealed class WindowsImpactAudio : IDisposable
             MediaDevice.DefaultAudioRenderDeviceChanged -= OnDeviceChanged;
             _ready = false;
             CloseVoices();
-            foreach (var sample in _samples.Values)
+            foreach ((nint Data, int Length) sample in _samples.Values)
                 Marshal.FreeHGlobal(sample.Data);
             _work.Dispose();
         }
@@ -136,7 +136,7 @@ public sealed class WindowsImpactAudio : IDisposable
             if (_disposed || !_enabled || _volume == 0 || !_ready || _pendingPlays >= 64 || !ImpactSoundCatalog.Ids.Contains(id))
                 return;
             long generation = _generation;
-            if (!_scopeLeases.TryGetValue(scope, out var lease))
+            if (!_scopeLeases.TryGetValue(scope, out ScopeLease? lease))
                 _scopeLeases[scope] = lease = new ScopeLease();
             _pendingPlays++;
             _work.Add(() =>
@@ -151,8 +151,8 @@ public sealed class WindowsImpactAudio : IDisposable
                 if (!_ready || WindowsActivityMonitor.IsScreenLocked() || !_admission.Accept(Now,
                     (double)requestedAt / Stopwatch.Frequency, _voices.Count(v => v.Active), true))
                     return;
-                var available = _voices.First(v => !v.Active);
-                if (!_samples.TryGetValue(id, out var sample))
+                Voice available = _voices.First(v => !v.Active);
+                if (!_samples.TryGetValue(id, out (nint Data, int Length) sample))
                     return;
                 available.Scope = scope;
                 _output!.SetRunning(true);
@@ -188,7 +188,7 @@ public sealed class WindowsImpactAudio : IDisposable
                 { latest = _volume; _volumeUpdateQueued = false; }
                 _output?.SetVolume(latest);
                 if (latest == 0)
-                    foreach (var voice in _voices)
+                    foreach (Voice voice in _voices)
                         StopVoice(voice);
                 UpdateEngineRunning();
             });
@@ -230,7 +230,7 @@ public sealed class WindowsImpactAudio : IDisposable
 
     private void RefreshCompletedVoices()
     {
-        foreach (var voice in _voices)
+        foreach (Voice voice in _voices)
             if (voice.Active && XAudio2Output.QueuedBuffers(voice.Handle) == 0)
             {
                 voice.Active = false;
@@ -244,11 +244,11 @@ public sealed class WindowsImpactAudio : IDisposable
         {
             if (_disposed)
                 return;
-            if (_scopeLeases.Remove(scope, out var lease))
+            if (_scopeLeases.Remove(scope, out ScopeLease? lease))
                 lease.Stopped = true;
             _work.Add(() =>
             {
-                foreach (var voice in _voices.Where(v => v.Scope == scope))
+                foreach (Voice? voice in _voices.Where(v => v.Scope == scope))
                     StopVoice(voice);
                 if (_lastStartedScope == scope)
                 { _admission.Reset(); _lastStartedScope = null; }
@@ -264,7 +264,7 @@ public sealed class WindowsImpactAudio : IDisposable
                 return;
             _generation++;
             _scopeLeases.Clear();
-            _work.Add(() => { foreach (var voice in _voices) StopVoice(voice); _admission.Reset(); UpdateEngineRunning(); });
+            _work.Add(() => { foreach (Voice voice in _voices) StopVoice(voice); _admission.Reset(); UpdateEngineRunning(); });
         }
     }
 
@@ -279,7 +279,7 @@ public sealed class WindowsImpactAudio : IDisposable
     private void CloseVoices()
     {
         // DestroyVoice synchronizes with the native engine before PCM memory is released.
-        foreach (var voice in _voices)
+        foreach (Voice voice in _voices)
             XAudio2Output.DestroyVoice(voice.Handle);
         _voices.Clear();
         _output?.Dispose();

@@ -34,15 +34,15 @@ public sealed class ValidationMetricsCollector(
 {
     private const uint GdiObjects = 0;
     private const uint UserObjects = 1;
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
+    private static readonly JsonSerializerOptions s_serializerOptions = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true,
     };
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly Stopwatch _uptime = Stopwatch.StartNew();
     private readonly DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
     private readonly List<ValidationMetricSample> _samples = [];
-    private readonly IReadOnlyList<string> _characterIds = characterIds.ToArray();
+    private readonly IReadOnlyList<string> _characterIds = [.. characterIds];
     private readonly string _outputPath = outputPath ?? DefaultOutputPath();
     private double _lastSampleSecond = -1d;
     private double _intervalMaximumFrameMilliseconds;
@@ -51,7 +51,7 @@ public sealed class ValidationMetricsCollector(
 
     internal void RecordFrame(TimeSpan duration)
     {
-        var elapsed = _uptime.Elapsed.TotalSeconds;
+        double elapsed = _uptime.Elapsed.TotalSeconds;
         lock (_gate)
         {
             _intervalMaximumFrameMilliseconds = Math.Max(
@@ -78,7 +78,7 @@ public sealed class ValidationMetricsCollector(
     {
         lock (_gate)
         {
-            var last = _samples.LastOrDefault();
+            ValidationMetricSample? last = _samples.LastOrDefault();
             return new ValidationMetricsSummary(
                 _uptime.Elapsed.TotalSeconds,
                 _samples.Count,
@@ -107,7 +107,7 @@ public sealed class ValidationMetricsCollector(
             await JsonSerializer.SerializeAsync(
                 stream,
                 report,
-                SerializerOptions,
+                s_serializerOptions,
                 cancellationToken).ConfigureAwait(false);
             await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -128,7 +128,7 @@ public sealed class ValidationMetricsCollector(
             4096,
             FileOptions.WriteThrough))
         {
-            JsonSerializer.Serialize(stream, report, SerializerOptions);
+            JsonSerializer.Serialize(stream, report, s_serializerOptions);
             stream.Flush(flushToDisk: true);
         }
 
@@ -141,7 +141,7 @@ public sealed class ValidationMetricsCollector(
         ValidationMetricSample[] samples;
         lock (_gate)
         {
-            samples = _samples.ToArray();
+            samples = [.. _samples];
         }
 
         return new ValidationMetricsReport(

@@ -40,9 +40,9 @@ public sealed class WindowsCredentialStore : ICredentialStore
     {
         cancellationToken.ThrowIfCancellationRequested();
         EnsureWindows();
-        if (!NativeMethods.CredRead(target, CredentialType.Generic, 0, out var pointer))
+        if (!NativeMethods.CredRead(target, CredentialType.Generic, 0, out nint pointer))
         {
-            var error = Marshal.GetLastPInvokeError();
+            int error = Marshal.GetLastPInvokeError();
             return error == NativeMethods.ErrorNotFound
                 ? ValueTask.FromResult<string?>(null)
                 : ValueTask.FromException<string?>(new Win32Exception(error, "Credential Manager read failed."));
@@ -50,7 +50,7 @@ public sealed class WindowsCredentialStore : ICredentialStore
 
         try
         {
-            var credential = Marshal.PtrToStructure<NativeCredential>(pointer);
+            NativeCredential credential = Marshal.PtrToStructure<NativeCredential>(pointer);
             if (credential.CredentialBlob == nint.Zero || credential.CredentialBlobSize == 0)
             {
                 return ValueTask.FromResult<string?>(string.Empty);
@@ -74,8 +74,8 @@ public sealed class WindowsCredentialStore : ICredentialStore
         ArgumentNullException.ThrowIfNull(value);
         cancellationToken.ThrowIfCancellationRequested();
         EnsureWindows();
-        var bytes = checked((uint)(value.Length * sizeof(char)));
-        var pointer = Marshal.StringToCoTaskMemUni(value);
+        uint bytes = checked((uint)(value.Length * sizeof(char)));
+        nint pointer = Marshal.StringToCoTaskMemUni(value);
         try
         {
             var credential = new NativeCredential
@@ -106,7 +106,7 @@ public sealed class WindowsCredentialStore : ICredentialStore
         EnsureWindows();
         if (!NativeMethods.CredDelete(target, CredentialType.Generic, 0))
         {
-            var error = Marshal.GetLastPInvokeError();
+            int error = Marshal.GetLastPInvokeError();
             if (error != NativeMethods.ErrorNotFound)
             {
                 return ValueTask.FromException(new Win32Exception(

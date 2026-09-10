@@ -54,7 +54,7 @@ public sealed class OnboardingViewModelTests
     [Fact]
     public async Task RestoredProfileAndGroupArePrefilledButRequireExplicitProgress()
     {
-        Guid userId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
         var profile = new Profile(userId, "사이드", "pixel_cat");
         var room = new Room(
             Guid.NewGuid(),

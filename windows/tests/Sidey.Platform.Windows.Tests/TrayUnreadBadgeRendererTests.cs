@@ -1,24 +1,25 @@
-namespace Sidey.Platform.Windows.Tests;
 
 using System.Runtime.InteropServices;
+
+namespace Sidey.Platform.Windows.Tests;
 
 public sealed class TrayUnreadBadgeRendererTests
 {
     [Fact]
     public void PaintsAnOpaqueRedDotInTheUpperRightCorner()
     {
-        const int size = 32;
-        var pixels = new byte[size * size * 4];
+        const int Size = 32;
+        byte[] pixels = new byte[Size * Size * 4];
 
-        TrayUnreadBadgeRenderer.Apply(pixels, size, size);
+        TrayUnreadBadgeRenderer.Apply(pixels, Size, Size);
 
-        int center = ((7 * size) + 24) * 4;
+        int center = ((7 * Size) + 24) * 4;
         Assert.True(pixels[center + 2] >= 220);
         Assert.True(pixels[center + 1] <= 40);
         Assert.True(pixels[center] <= 60);
         Assert.Equal(255, pixels[center + 3]);
 
-        int lowerLeft = ((28 * size) + 3) * 4;
+        int lowerLeft = ((28 * Size) + 3) * 4;
         Assert.Equal([0, 0, 0, 0], pixels[lowerLeft..(lowerLeft + 4)]);
     }
 
@@ -29,7 +30,7 @@ public sealed class TrayUnreadBadgeRendererTests
     [InlineData(32)]
     public void SupportsCommonWindowsTrayIconSizes(int size)
     {
-        var pixels = new byte[size * size * 4];
+        byte[] pixels = new byte[size * size * 4];
 
         TrayUnreadBadgeRenderer.Apply(pixels, size, size);
 

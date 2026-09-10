@@ -19,18 +19,18 @@ public sealed record AvailableUpdate(
 
 public interface IUpdateService
 {
-    string CurrentVersion { get; }
+    public string CurrentVersion { get; }
 
-    DateTimeOffset? LastCheckedAt { get; }
+    public DateTimeOffset? LastCheckedAt { get; }
 
-    Uri CurrentReleaseNotesUri { get; }
+    public Uri CurrentReleaseNotesUri { get; }
 
-    Task<AvailableUpdate?> CheckAsync(CancellationToken cancellationToken = default);
+    public Task<AvailableUpdate?> CheckAsync(CancellationToken cancellationToken = default);
 
-    Task DownloadAndLaunchInstallerAsync(
+    public Task DownloadAndLaunchInstallerAsync(
         AvailableUpdate update,
         CancellationToken cancellationToken = default,
         IProgress<int>? progress = null);
 
-    Task OpenReleaseNotesAsync(Uri releaseNotesUri);
+    public Task OpenReleaseNotesAsync(Uri releaseNotesUri);
 }

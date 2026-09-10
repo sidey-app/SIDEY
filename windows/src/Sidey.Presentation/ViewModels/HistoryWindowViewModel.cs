@@ -293,7 +293,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject, IDisposab
             return;
         }
 
-        var cutoff = DateTimeOffset.UtcNow - MessageLedger.ConfirmedRetention;
+        DateTimeOffset cutoff = DateTimeOffset.UtcNow - MessageLedger.ConfirmedRetention;
         var entriesById = _pagedMessages.Values
             .Where(message => message.RoomId == roomId && message.CreatedAt >= cutoff)
             .ToDictionary(
@@ -311,11 +311,10 @@ public sealed partial class HistoryWindowViewModel : ObservableObject, IDisposab
             entriesById[entry.Id] = entry;
         }
 
-        HistoryEntryViewModel[] desired = entriesById.Values
+        HistoryEntryViewModel[] desired = [.. entriesById.Values
             .OrderByDescending(entry => entry.CreatedAt)
             .ThenByDescending(entry => entry.Id.ToString("D"), StringComparer.Ordinal)
-            .Select(ToViewModel)
-            .ToArray();
+            .Select(ToViewModel)];
         ReplaceItems(desired);
         UpdateEmptyState();
     }

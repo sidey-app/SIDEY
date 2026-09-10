@@ -206,10 +206,10 @@ public static class WindowsCommerceCatalog
             StringComparer.Ordinal.Equals(product.Id, productId));
 
     public static IReadOnlyList<CommerceProductState> LockedStates() =>
-        Products.Select(product => new CommerceProductState(
+        [.. Products.Select(product => new CommerceProductState(
             product,
             GoogleConnected: false,
-            CommercePurchaseState.Unavailable)).ToArray();
+            CommercePurchaseState.Unavailable))];
 }
 
 public static class CharacterThrowTargetPolicy

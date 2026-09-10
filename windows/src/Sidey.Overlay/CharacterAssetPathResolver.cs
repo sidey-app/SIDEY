@@ -9,10 +9,10 @@ internal static class CharacterAssetPathResolver
         processPath ??= Environment.ProcessPath;
         appBaseDirectory ??= AppContext.BaseDirectory;
 
-        var deploymentRoot = Sidey.Platform.Windows.SideyDeploymentPaths.DeploymentRoot(
+        string deploymentRoot = Sidey.Platform.Windows.SideyDeploymentPaths.DeploymentRoot(
             processPath,
             appBaseDirectory);
-        var executableAssetRoot = Path.Combine(
+        string executableAssetRoot = Path.Combine(
             deploymentRoot,
             "Assets",
             "Characters");
@@ -21,7 +21,7 @@ internal static class CharacterAssetPathResolver
             return executableAssetRoot;
         }
 
-        var appBaseAssetRoot = Path.Combine(appBaseDirectory, "Assets", "Characters");
+        string appBaseAssetRoot = Path.Combine(appBaseDirectory, "Assets", "Characters");
         return Directory.Exists(appBaseAssetRoot)
             ? appBaseAssetRoot
             : executableAssetRoot;

@@ -24,7 +24,7 @@ public sealed class CharacterFeedbackTests
     {
         double now = 0;
         var state = new CharacterStunState(() => now);
-        Guid target = Guid.NewGuid();
+        var target = Guid.NewGuid();
         for (int i = 0; i < 9; i++)
             state.RecordHit(target);
         now = 10.001;
@@ -66,20 +66,20 @@ public sealed class CharacterFeedbackTests
     [Fact]
     public void StaticStunPixelsKeepSameLayoutAndAllPixelsStayOnCharacterCanvas()
     {
-        var still = CharacterStunPixels.Create(0, false).ToArray();
+        StunPixel[] still = [.. CharacterStunPixels.Create(0, false)];
         Assert.Equal(still, CharacterStunPixels.Create(25, false));
         Assert.True(still.Count(p => p.IsStar && !p.IsOutline) >= 42);
         Assert.True(still.Count(p => p.IsOutline) >= 45);
-        foreach (var frame in Enumerable.Range(0, 36).Select(i => CharacterStunPixels.Create(i / 30d, true)))
+        foreach (IReadOnlyList<StunPixel>? frame in Enumerable.Range(0, 36).Select(i => CharacterStunPixels.Create(i / 30d, true)))
         {
             Assert.True(frame.Count <= CharacterStunPixels.MaximumPixelCount);
-            foreach (var p in frame)
+            foreach (StunPixel p in frame)
             {
                 Assert.InRange(p.X, 0, 23);
                 Assert.InRange(p.Y, 0, 23);
             }
         }
-        Assert.NotEqual(still, CharacterStunPixels.Create(0.3, true).ToArray());
+        Assert.NotEqual(still, [.. CharacterStunPixels.Create(0.3, true)]);
     }
 
     [Fact]

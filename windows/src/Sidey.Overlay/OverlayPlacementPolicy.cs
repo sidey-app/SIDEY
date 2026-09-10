@@ -15,8 +15,8 @@ internal static class OverlayPlacementPolicy
 
     internal static double Fraction(Guid id, long sessionSeed, long salt = 0)
     {
-        var bytes = id.ToByteArray();
-        var value = BitConverter.ToUInt64(bytes, 0)
+        byte[] bytes = id.ToByteArray();
+        ulong value = BitConverter.ToUInt64(bytes, 0)
             ^ BitConverter.ToUInt64(bytes, 8)
             ^ unchecked((ulong)(sessionSeed ^ salt));
         value ^= value >> 33;

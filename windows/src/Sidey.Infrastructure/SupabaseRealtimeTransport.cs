@@ -6,7 +6,6 @@ using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Security.Authentication;
 using System.Text.Json;
-using System.Threading.Channels;
 using Sidey.Core.Abstractions;
 using Sidey.Core.Domain;
 using Sidey.Core.Localization;
@@ -21,19 +20,13 @@ internal sealed record RealtimePresenceIntent(
 
 internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 {
-    private static readonly TimeSpan UnhealthyAfter = TimeSpan.FromSeconds(15);
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly TimeSpan s_unhealthyAfter = TimeSpan.FromSeconds(15);
+    private static readonly JsonSerializerOptions s_jsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly SupabaseRuntimeConfiguration _configuration;
     private readonly IAuthSessionAccessor _sessions;
     private readonly Func<Uri, CancellationToken, Task<ClientWebSocket>> _connectSocket;
-    private readonly Channel<BackendEvent> _events = Channel.CreateBounded<BackendEvent>(
-        new BoundedChannelOptions(256)
-        {
-            FullMode = BoundedChannelFullMode.Wait,
-            SingleReader = true,
-            SingleWriter = false,
-        });
+    private readonly RealtimeEventQueue _events = new();
     private readonly SemaphoreSlim _connectionGate = new(1, 1);
     private readonly SemaphoreSlim _sendGate = new(1, 1);
     private readonly CancellationTokenSource _shutdown = new();
@@ -43,7 +36,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
     private readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _pendingReplies = [];
     private readonly ConcurrentDictionary<string, string> _joinReferences = [];
     private readonly ConcurrentDictionary<Guid, IReadOnlySet<Guid>> _presentUsersByRoom = [];
-    private readonly object _recoveryGate = new();
+    private readonly Lock _recoveryGate = new();
     private IReadOnlyDictionary<Guid, long> _desiredRoomEpochs = new Dictionary<Guid, long>();
     private Guid? _activeRoomId;
     private PresenceState _localPresence = PresenceState.Online;
@@ -63,8 +56,6 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
     private int _recoveryPaused;
     private int _authorizationFailures;
     private long _lastRecoveryHint;
-    private int _overflowed;
-    private long _overflowCount;
 
     public SupabaseRealtimeTransport(
         SupabaseRuntimeConfiguration configuration,
@@ -126,24 +117,9 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
     public async IAsyncEnumerable<BackendEvent> ReadEventsAsync(
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        while (await _events.Reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+        await foreach (BackendEvent backendEvent in _events.ReadAllAsync(cancellationToken))
         {
-            while (_events.Reader.TryRead(out var backendEvent))
-            {
-                if (Interlocked.Exchange(ref _overflowed, 0) != 0)
-                {
-                    long dropped = Interlocked.Exchange(ref _overflowCount, 0);
-                    while (_events.Reader.TryRead(out _))
-                    {
-                        dropped++;
-                    }
-                    yield return new BackendEvent.Diagnostic(
-                        $"realtime-event-queue-overflow capacity=256 dropped={dropped}");
-                    yield return new BackendEvent.ReconciliationRequired();
-                    break;
-                }
-                yield return backendEvent;
-            }
+            yield return backendEvent;
         }
     }
 
@@ -160,7 +136,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             var desired = roomEpochs.ToDictionary(pair => pair.Key, pair => pair.Value);
             Emit(new BackendEvent.Diagnostic(
                 $"realtime-synchronization-started rooms={desired.Count}"));
-            var delta = RealtimeEpochSubscriptionPlan.CreateDelta(_desiredRoomEpochs, desired);
+            RealtimeRoomSubscriptionDelta delta = RealtimeEpochSubscriptionPlan.CreateDelta(_desiredRoomEpochs, desired);
             bool roomsChanged = !_desiredRoomEpochs.OrderBy(pair => pair.Key).SequenceEqual(desired.OrderBy(pair => pair.Key));
             _desiredRoomEpochs = desired;
             Volatile.Write(ref _hasSynchronized, 1);
@@ -169,7 +145,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 Volatile.Write(ref _recoveryPaused, 0);
                 Interlocked.Exchange(ref _authorizationFailures, 0);
             }
-            foreach (var roomId in _presentUsersByRoom.Keys.Where(id => !desired.ContainsKey(id)))
+            foreach (Guid roomId in _presentUsersByRoom.Keys.Where(id => !desired.ContainsKey(id)))
             {
                 _presentUsersByRoom.TryRemove(roomId, out _);
             }
@@ -181,7 +157,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 EmitDisconnected();
                 return;
             }
-            var openedNewSocket = _socketSession?.Socket.State != WebSocketState.Open;
+            bool openedNewSocket = _socketSession?.Socket.State != WebSocketState.Open;
             try
             {
                 await EnsureConnectedWithinGateAsync(cancellationToken).ConfigureAwait(false);
@@ -199,9 +175,9 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 return;
             }
             IEnumerable<RealtimeRoomDescriptor> leaves = openedNewSocket
-                ? Array.Empty<RealtimeRoomDescriptor>()
+                ? []
                 : delta.Leaves;
-            foreach (var descriptor in leaves)
+            foreach (RealtimeRoomDescriptor descriptor in leaves)
             {
                 await SendAsync(descriptor.PhoenixTopic, "phx_leave", new { }, cancellationToken)
                     .ConfigureAwait(false);
@@ -275,7 +251,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             recoveryCancellation = _recoveryCancellation;
         }
         CancelRecoverySafely(recoveryCancellation);
-        foreach (var reply in _pendingReplies.Values)
+        foreach (TaskCompletionSource<bool> reply in _pendingReplies.Values)
         {
             reply.TrySetCanceled();
         }
@@ -312,7 +288,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         await recoveryTask.ConfigureAwait(false);
         await _typingExpiries.DisposeAsync().ConfigureAwait(false);
 
-        _events.Writer.TryComplete();
+        _events.Complete();
         _shutdown.Dispose();
         _connectionGate.Dispose();
         _sendGate.Dispose();
@@ -328,7 +304,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(1));
         try
         {
-            foreach (var topic in _joinReferences.Keys.Order(StringComparer.Ordinal))
+            foreach (string? topic in _joinReferences.Keys.Order(StringComparer.Ordinal))
             {
                 await SendAsync(topic, "phx_leave", new { }, timeout.Token)
                     .ConfigureAwait(false);
@@ -378,7 +354,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 
         await DisconnectSocketWithinGateAsync().ConfigureAwait(false);
         _joinReferences.Clear();
-        var generation = Interlocked.Increment(ref _connectionGeneration);
+        long generation = Interlocked.Increment(ref _connectionGeneration);
         Volatile.Write(ref _lastReceiveTimestamp, Stopwatch.GetTimestamp());
         _socketSession = new RealtimeSocketSession(
             socket,
@@ -416,7 +392,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 
     private static string ConnectionFailureMessage(Exception exception)
     {
-        var current = exception;
+        Exception current = exception;
         while (current.InnerException is { } inner)
         {
             current = inner;
@@ -445,9 +421,9 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         RealtimeRoomDescriptor descriptor,
         CancellationToken cancellationToken)
     {
-        var session = await _sessions.GetStoredSessionAsync(cancellationToken).ConfigureAwait(false)
+        StoredSupabaseSession session = await _sessions.GetStoredSessionAsync(cancellationToken).ConfigureAwait(false)
             ?? throw new UnauthorizedAccessException(I18n.Get("auth.sessionMissing"));
-        var isEphemeral = descriptor.Kind == RealtimeTopicKind.Ephemeral;
+        bool isEphemeral = descriptor.Kind == RealtimeTopicKind.Ephemeral;
         string topicKind = isEphemeral ? "ephemeral" : "database";
         Emit(new BackendEvent.Diagnostic(
             $"realtime-topic-subscribe-started kind={topicKind}"));
@@ -476,7 +452,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             };
         }
         var reply = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        var reference = await SendAsync(
+        string reference = await SendAsync(
             descriptor.PhoenixTopic,
             "phx_join",
             new
@@ -511,11 +487,11 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         RealtimePresenceIntent intent,
         CancellationToken cancellationToken)
     {
-        var session = await _sessions.GetStoredSessionAsync(cancellationToken).ConfigureAwait(false)
+        StoredSupabaseSession session = await _sessions.GetStoredSessionAsync(cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidOperationException(I18n.Get("auth.sessionMissing"));
-        foreach (var room in intent.RoomEpochs.OrderBy(pair => pair.Key))
+        foreach (KeyValuePair<Guid, long> room in intent.RoomEpochs.OrderBy(pair => pair.Key))
         {
-            var state = PresencePublicationPlan.StateFor(
+            PresenceState state = PresencePublicationPlan.StateFor(
                 room.Key,
                 intent.ActiveRoomId,
                 intent.LocalPresence);
@@ -548,17 +524,17 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         CancellationToken cancellationToken,
         TaskCompletionSource<bool>? reply = null)
     {
-        var socket = _socketSession?.Socket;
+        ClientWebSocket? socket = _socketSession?.Socket;
         if (socket?.State != WebSocketState.Open)
         {
             throw new WebSocketException(I18n.Get("backend.realtimeUnavailable"));
         }
 
-        var reference = Interlocked.Increment(ref _reference).ToString();
-        var joinReference = eventName == "phx_join"
+        string reference = Interlocked.Increment(ref _reference).ToString();
+        string? joinReference = eventName == "phx_join"
             ? reference
             : _joinReferences.GetValueOrDefault(topic);
-        var bytes = JsonSerializer.SerializeToUtf8Bytes(
+        byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(
             new
             {
                 join_ref = joinReference,
@@ -567,7 +543,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 payload,
                 @ref = reference,
             },
-            JsonOptions);
+            s_jsonOptions);
         if (reply is not null && !_pendingReplies.TryAdd(reference, reply))
         {
             throw new InvalidOperationException("Supabase Realtime reference collision.");
@@ -601,12 +577,12 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 
     private async Task ReceiveLoopAsync(ClientWebSocket socket, long generation)
     {
-        var buffer = new byte[64 * 1024];
+        byte[] buffer = new byte[64 * 1024];
         try
         {
             while (!_shutdown.IsCancellationRequested && socket.State == WebSocketState.Open)
             {
-                var count = 0;
+                int count = 0;
                 ValueWebSocketReceiveResult result;
                 do
                 {
@@ -648,9 +624,9 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 
             Emit(new BackendEvent.Diagnostic($"realtime-receive-failed {ConnectionFailureMessage(exception)}"));
             socket.Abort();
-            foreach (var reference in _pendingReplies.Keys)
+            foreach (string reference in _pendingReplies.Keys)
             {
-                if (_pendingReplies.TryRemove(reference, out var reply))
+                if (_pendingReplies.TryRemove(reference, out TaskCompletionSource<bool>? reply))
                     reply.TrySetException(new WebSocketException("Realtime connection was lost before its reply.", exception));
             }
             if (IsRecoveryPaused)
@@ -674,7 +650,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 continue;
             }
 
-            var socket = _socketSession?.Socket;
+            ClientWebSocket? socket = _socketSession?.Socket;
             if (socket?.State != WebSocketState.Open)
             {
                 EmitDisconnected();
@@ -682,8 +658,8 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 continue;
             }
 
-            var silence = Stopwatch.GetElapsedTime(Volatile.Read(ref _lastReceiveTimestamp));
-            if (silence >= UnhealthyAfter)
+            TimeSpan silence = Stopwatch.GetElapsedTime(Volatile.Read(ref _lastReceiveTimestamp));
+            if (silence >= s_unhealthyAfter)
             {
                 Emit(new BackendEvent.Diagnostic(
                     $"realtime-heartbeat-timeout silence-ms={(long)silence.TotalMilliseconds}"));
@@ -699,7 +675,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 _lastConnectionHealthTimestamp = Stopwatch.GetTimestamp();
                 Emit(new BackendEvent.Diagnostic(
                     $"realtime-health silence-ms={(long)silence.TotalMilliseconds} "
-                    + $"event-queue-size={_events.Reader.Count}"));
+                    + $"event-queue-size={_events.Count}"));
             }
 
             try
@@ -724,7 +700,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 
         try
         {
-            for (var attempt = 1; !cancellationToken.IsCancellationRequested; attempt++)
+            for (int attempt = 1; !cancellationToken.IsCancellationRequested; attempt++)
             {
                 if (!IsNetworkAvailable || Volatile.Read(ref _recoveryPaused) != 0)
                 {
@@ -835,15 +811,15 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
     private void HandleMessage(ReadOnlyMemory<byte> utf8)
     {
         using var document = JsonDocument.Parse(utf8);
-        var root = document.RootElement;
-        if (root.TryGetProperty("event", out var replyEvent)
+        JsonElement root = document.RootElement;
+        if (root.TryGetProperty("event", out JsonElement replyEvent)
             && replyEvent.GetString() == "phx_reply"
-            && root.TryGetProperty("ref", out var replyReference)
+            && root.TryGetProperty("ref", out JsonElement replyReference)
             && replyReference.GetString() is { } reference
-            && _pendingReplies.TryRemove(reference, out var completion))
+            && _pendingReplies.TryRemove(reference, out TaskCompletionSource<bool>? completion))
         {
-            var succeeded = root.TryGetProperty("payload", out var replyPayload)
-                && replyPayload.TryGetProperty("status", out var status)
+            bool succeeded = root.TryGetProperty("payload", out JsonElement replyPayload)
+                && replyPayload.TryGetProperty("status", out JsonElement status)
                 && status.GetString() == "ok";
             if (succeeded)
             {
@@ -857,19 +833,19 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             return;
         }
 
-        if (!root.TryGetProperty("topic", out var topicElement)
+        if (!root.TryGetProperty("topic", out JsonElement topicElement)
             || !RealtimeRoomDescriptor.TryParsePhoenixTopic(
                 topicElement.GetString(),
-                out var descriptor)
-            || !_desiredRoomEpochs.TryGetValue(descriptor.RoomId, out var expectedEpoch)
+                out RealtimeRoomDescriptor descriptor)
+            || !_desiredRoomEpochs.TryGetValue(descriptor.RoomId, out long expectedEpoch)
             || expectedEpoch != descriptor.Epoch
-            || !root.TryGetProperty("event", out var eventElement))
+            || !root.TryGetProperty("event", out JsonElement eventElement))
         {
             return;
         }
 
-        var eventName = eventElement.GetString();
-        var payload = root.TryGetProperty("payload", out var value) ? value : default;
+        string? eventName = eventElement.GetString();
+        JsonElement payload = root.TryGetProperty("payload", out JsonElement value) ? value : default;
         if (eventName == "presence_diff" && descriptor.Kind == RealtimeTopicKind.Ephemeral)
         {
             HandlePresence(descriptor.RoomId, payload);
@@ -886,11 +862,11 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             return;
         }
 
-        var broadcastEvent = payload.TryGetProperty("event", out var broadcastEventElement)
+        string? broadcastEvent = payload.TryGetProperty("event", out JsonElement broadcastEventElement)
             ? broadcastEventElement.GetString()
             : null;
-        var inner = payload.TryGetProperty("payload", out var innerPayload) ? innerPayload : payload;
-        if (!TryGuid(inner, "room_id", out var payloadRoomId)
+        JsonElement inner = payload.TryGetProperty("payload", out JsonElement innerPayload) ? innerPayload : payload;
+        if (!TryGuid(inner, "room_id", out Guid payloadRoomId)
             || payloadRoomId != descriptor.RoomId)
         {
             return;
@@ -911,22 +887,22 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 HandleTyping(descriptor.RoomId, inner, active: false);
                 break;
             case "character_pulse":
-                if (TryGuid(inner, "user_id", out var pulseUserId)
-                    && TryGuid(inner, "event_id", out var pulseId))
+                if (TryGuid(inner, "user_id", out Guid pulseUserId)
+                    && TryGuid(inner, "event_id", out Guid pulseId))
                 {
                     Emit(new BackendEvent.CharacterPulsed(
                         new CharacterPulseEvent(pulseId, descriptor.RoomId, pulseUserId)));
                 }
                 break;
             case "character_throw":
-                if (inner.TryGetProperty("schema_version", out var schemaVersion)
-                    && schemaVersion.TryGetInt32(out var version)
+                if (inner.TryGetProperty("schema_version", out JsonElement schemaVersion)
+                    && schemaVersion.TryGetInt32(out int version)
                     && version == 1
-                    && TryGuid(inner, "event_id", out var throwId)
-                    && TryGuid(inner, "actor_user_id", out var actorUserId)
-                    && TryGuid(inner, "target_user_id", out var targetUserId)
+                    && TryGuid(inner, "event_id", out Guid throwId)
+                    && TryGuid(inner, "actor_user_id", out Guid actorUserId)
+                    && TryGuid(inner, "target_user_id", out Guid targetUserId)
                     && actorUserId != targetUserId
-                    && inner.TryGetProperty("source_character_id", out var sourceCharacterElement)
+                    && inner.TryGetProperty("source_character_id", out JsonElement sourceCharacterElement)
                     && sourceCharacterElement.ValueKind == JsonValueKind.String
                     && sourceCharacterElement.GetString() is { Length: > 0 and <= 40 } sourceCharacterId
                     && IsValidCharacterId(sourceCharacterId))
@@ -945,7 +921,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 
     private static bool IsValidCharacterId(string value)
     {
-        foreach (var character in value)
+        foreach (char character in value)
         {
             if (character != '_'
                 && (character < 'a' || character > 'z')
@@ -959,7 +935,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 
     private static string? TryOptionalCatalogId(JsonElement element, string propertyName, string prefix)
     {
-        if (!element.TryGetProperty(propertyName, out var value)
+        if (!element.TryGetProperty(propertyName, out JsonElement value)
             || value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
         {
             return null;
@@ -984,9 +960,9 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         switch (eventName)
         {
             case "message_changed":
-                var hasOperation = payload.TryGetProperty("operation", out var operationElement);
-                var operation = hasOperation ? operationElement.GetString() : null;
-                if (TryGuid(payload, "message_id", out var messageId)
+                bool hasOperation = payload.TryGetProperty("operation", out JsonElement operationElement);
+                string? operation = hasOperation ? operationElement.GetString() : null;
+                if (TryGuid(payload, "message_id", out Guid messageId)
                     && operation is "INSERT" or "UPDATE" or "DELETE")
                 {
                     Emit(new BackendEvent.MessageChanged(
@@ -999,9 +975,9 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 Emit(new BackendEvent.MessagesInvalidated(roomId));
                 break;
             case "structure_changed":
-                if (payload.TryGetProperty("entity", out var entity)
+                if (payload.TryGetProperty("entity", out JsonElement entity)
                     && entity.GetString() is "profiles" or "rooms" or "room_members"
-                    && payload.TryGetProperty("operation", out var structuralOperation)
+                    && payload.TryGetProperty("operation", out JsonElement structuralOperation)
                     && structuralOperation.GetString() is "INSERT" or "UPDATE" or "DELETE")
                 {
                     Emit(new BackendEvent.RoomStructureChanged(roomId));
@@ -1018,11 +994,11 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         }
 
         var joined = new Dictionary<Guid, PresenceState>();
-        if (payload.TryGetProperty("joins", out var joins) && joins.ValueKind == JsonValueKind.Object)
+        if (payload.TryGetProperty("joins", out JsonElement joins) && joins.ValueKind == JsonValueKind.Object)
         {
-            foreach (var property in joins.EnumerateObject())
+            foreach (JsonProperty property in joins.EnumerateObject())
             {
-                if (!Guid.TryParse(property.Name, out var userId))
+                if (!Guid.TryParse(property.Name, out Guid userId))
                 {
                     continue;
                 }
@@ -1032,18 +1008,18 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         }
 
         var left = new HashSet<Guid>();
-        if (payload.TryGetProperty("leaves", out var leaves) && leaves.ValueKind == JsonValueKind.Object)
+        if (payload.TryGetProperty("leaves", out JsonElement leaves) && leaves.ValueKind == JsonValueKind.Object)
         {
-            foreach (var property in leaves.EnumerateObject())
+            foreach (JsonProperty property in leaves.EnumerateObject())
             {
-                if (Guid.TryParse(property.Name, out var userId))
+                if (Guid.TryParse(property.Name, out Guid userId))
                 {
                     left.Add(userId);
                 }
             }
         }
 
-        foreach (var update in PresenceChangePlan.Updates(joined, left))
+        foreach (PresenceUpdate update in PresenceChangePlan.Updates(joined, left))
         {
             Emit(new BackendEvent.PresenceChanged(
                 roomId,
@@ -1068,9 +1044,9 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         }
 
         var current = new Dictionary<Guid, PresenceState>();
-        foreach (var property in payload.EnumerateObject())
+        foreach (JsonProperty property in payload.EnumerateObject())
         {
-            if (Guid.TryParse(property.Name, out var userId))
+            if (Guid.TryParse(property.Name, out Guid userId))
             {
                 current[userId] = ParsePresenceState(property.Value);
             }
@@ -1080,7 +1056,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             roomId,
             new HashSet<Guid>());
         _presentUsersByRoom[roomId] = current.Keys.ToHashSet();
-        foreach (var update in PresenceSnapshotPlan.Updates(current, previous))
+        foreach (PresenceUpdate update in PresenceSnapshotPlan.Updates(current, previous))
         {
             Emit(new BackendEvent.PresenceChanged(
                 roomId,
@@ -1091,7 +1067,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 
     private static PresenceState ParsePresenceState(JsonElement value)
     {
-        if (value.TryGetProperty("metas", out var metas)
+        if (value.TryGetProperty("metas", out JsonElement metas)
             && metas.ValueKind == JsonValueKind.Array
             && metas.GetArrayLength() > 0)
         {
@@ -1104,20 +1080,20 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 
     private static PresenceState ParsePresenceMeta(JsonElement value)
     {
-        return value.TryGetProperty("state", out var stateElement)
-            && Enum.TryParse<PresenceState>(stateElement.GetString(), true, out var parsed)
+        return value.TryGetProperty("state", out JsonElement stateElement)
+            && Enum.TryParse<PresenceState>(stateElement.GetString(), true, out PresenceState parsed)
                 ? parsed
                 : PresenceState.Online;
     }
 
     private void HandleTyping(Guid roomId, JsonElement payload, bool active)
     {
-        if (!TryGuid(payload, "user_id", out var userId))
+        if (!TryGuid(payload, "user_id", out Guid userId))
         {
             return;
         }
 
-        var key = (roomId, userId);
+        (Guid roomId, Guid userId) key = (roomId, userId);
         _typingExpiries.Cancel(key);
 
         Emit(new BackendEvent.TypingChanged(roomId, userId, active));
@@ -1133,16 +1109,14 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
     {
         value = default;
         return element.ValueKind == JsonValueKind.Object
-            && element.TryGetProperty(name, out var property)
+            && element.TryGetProperty(name, out JsonElement property)
             && Guid.TryParse(property.GetString(), out value);
     }
 
     private void Emit(BackendEvent backendEvent)
     {
-        if (!_events.Writer.TryWrite(backendEvent))
+        if (!_events.TryWrite(backendEvent))
         {
-            Interlocked.Exchange(ref _overflowed, 1);
-            Interlocked.Increment(ref _overflowCount);
             ScheduleRecovery();
         }
     }
@@ -1230,7 +1204,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 
     private void ScheduleRecovery(bool immediate = false)
     {
-        CancellationTokenSource? superseded = null;
+        CancellationTokenSource? superseded;
         lock (_recoveryGate)
         {
             if (_shutdown.IsCancellationRequested || !IsNetworkAvailable
@@ -1266,7 +1240,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             }
 
             superseded = _recoveryCancellation;
-            var previous = _recoveryTask;
+            Task previous = _recoveryTask;
             _recoveryCancellation = cancellation;
             _recoveryTask = RunScheduledRecoveryAfterAsync(
                 previous,

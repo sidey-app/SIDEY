@@ -25,8 +25,10 @@ public sealed class MainWindowViewModelTests
     public async Task MuteButtonPreservesVolumeAndRestoresItAfterZero()
     {
         (FakeSideyCoordinator coordinator, _) = CreateRoomState();
-        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
-        model.CharacterSoundEffectsVolume = 37;
+        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService())
+        {
+            CharacterSoundEffectsVolume = 37
+        };
         model.ToggleCharacterSoundMuteCommand.Execute(null);
         Assert.False(coordinator.LiveSoundEnabled);
         Assert.Equal(37, model.CharacterSoundEffectsVolume);
@@ -47,8 +49,10 @@ public sealed class MainWindowViewModelTests
         (FakeSideyCoordinator coordinator, _) = CreateRoomState();
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         coordinator.SoundSettingHandler = _ => completion.Task;
-        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
-        model.CharacterSoundEffectsEnabled = false;
+        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService())
+        {
+            CharacterSoundEffectsEnabled = false
+        };
         Assert.False(coordinator.LiveSoundEnabled);
         Task saving = model.FlushSoundSettingsAsync();
         completion.SetException(new IOException("Cannot save settings"));
@@ -61,8 +65,10 @@ public sealed class MainWindowViewModelTests
     public async Task SoundVolumeUpdatesLiveAndCoalescesSettingsWrites()
     {
         (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
-        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
-        model.CharacterSoundEffectsVolume = 75;
+        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService())
+        {
+            CharacterSoundEffectsVolume = 75
+        };
         model.CharacterSoundEffectsVolume = 40;
         model.CharacterSoundEffectsVolume = 0;
         Assert.Equal(0, coordinator.LiveSoundVolume);
@@ -153,9 +159,11 @@ public sealed class MainWindowViewModelTests
     public async Task ManualMutePreservesVolumeAndUnmutingZeroRestoresLastPositiveVolume()
     {
         (FakeSideyCoordinator coordinator, _) = CreateRoomState();
-        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
-        model.CharacterSoundEffectsVolume = 45;
-        model.CharacterSoundEffectsEnabled = false;
+        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService())
+        {
+            CharacterSoundEffectsVolume = 45,
+            CharacterSoundEffectsEnabled = false
+        };
         await model.FlushSoundSettingsAsync();
         Assert.Equal(45, coordinator.State.Preferences.CharacterSoundEffectsVolume);
         Assert.False(coordinator.State.Preferences.CharacterSoundEffectsEnabled);
@@ -172,7 +180,7 @@ public sealed class MainWindowViewModelTests
     {
         (FakeSideyCoordinator coordinator, _) = CreateRoomState();
         var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
-        var first = model.CharacterSelections[0];
+        CharacterSelectionItemViewModel first = model.CharacterSelections[0];
         coordinator.AnimationsEnabled = false;
         model.RefreshFeedbackPresentation();
         Assert.Same(first, model.CharacterSelections[0]);
@@ -212,7 +220,7 @@ public sealed class MainWindowViewModelTests
     public void NumericFormattingUsesSelectedLanguageWithoutChangingWindowsCulture(string language)
     {
         string previousLanguage = Sidey.Core.Localization.I18n.Language;
-        var previousCulture = System.Globalization.CultureInfo.CurrentCulture;
+        CultureInfo previousCulture = System.Globalization.CultureInfo.CurrentCulture;
         try
         {
             System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo("fr-FR");
@@ -286,9 +294,9 @@ public sealed class MainWindowViewModelTests
         (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
         coordinator.State = state;
         var viewModel = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
-        var character = viewModel.CharacterSelections[0];
-        var bubble = viewModel.BubbleSelections[0];
-        var product = viewModel.StoreProducts[0];
+        CharacterSelectionItemViewModel character = viewModel.CharacterSelections[0];
+        CosmeticSelectionItemViewModel bubble = viewModel.BubbleSelections[0];
+        StoreProductPreviewViewModel product = viewModel.StoreProducts[0];
         viewModel.Nickname = "draft";
         viewModel.InviteCode = "ABCDEF";
         viewModel.CreateRoomName = "room draft";
@@ -394,11 +402,11 @@ public sealed class MainWindowViewModelTests
         coordinator.State = state with
         {
             DevelopmentCommerceEnabled = true,
-            CommerceProducts = WindowsCommerceCatalog.Products.Select(product =>
+            CommerceProducts = [.. WindowsCommerceCatalog.Products.Select(product =>
                 new CommerceProductState(
                     product,
                     GoogleConnected: false,
-                    CommercePurchaseState.GoogleConnectionRequired)).ToArray(),
+                    CommercePurchaseState.GoogleConnectionRequired))],
         };
         var viewModel = new MainWindowViewModel(
             coordinator,
@@ -427,13 +435,13 @@ public sealed class MainWindowViewModelTests
         coordinator.State = state with
         {
             DevelopmentCommerceEnabled = true,
-            CommerceProducts = WindowsCommerceCatalog.Products.Select(product =>
+            CommerceProducts = [.. WindowsCommerceCatalog.Products.Select(product =>
                 new CommerceProductState(
                     product,
                     GoogleConnected: true,
                     product == ownedProduct
                         ? CommercePurchaseState.Owned
-                        : CommercePurchaseState.Available)).ToArray(),
+                        : CommercePurchaseState.Available))],
         };
         var viewModel = new MainWindowViewModel(
             coordinator,
@@ -521,7 +529,7 @@ public sealed class MainWindowViewModelTests
             coordinator,
             new FakeMainWindowDialogService(),
             new FakeUpdateService());
-        StoreProductPreviewViewModel[] initialProducts = viewModel.VisibleStoreProducts.ToArray();
+        StoreProductPreviewViewModel[] initialProducts = [.. viewModel.VisibleStoreProducts];
         int collectionChanges = 0;
         viewModel.VisibleStoreProducts.CollectionChanged += (_, _) => collectionChanges++;
 
@@ -594,8 +602,10 @@ public sealed class MainWindowViewModelTests
         var viewModel = new MainWindowViewModel(
             coordinator,
             new FakeMainWindowDialogService(),
-            new FakeUpdateService());
-        viewModel.Nickname = "새 이름";
+            new FakeUpdateService())
+        {
+            Nickname = "새 이름"
+        };
 
         Task pending = viewModel.SaveProfileCommand.ExecuteAsync(null);
 
@@ -620,9 +630,8 @@ public sealed class MainWindowViewModelTests
             new FakeUpdateService())
         {
             Nickname = "저장하지 않은 이름",
+            SelectedCharacterId = "pixel_cat"
         };
-
-        viewModel.SelectedCharacterId = "pixel_cat";
 
         Assert.True(viewModel.IsSavingCharacter);
         Assert.Equal("aryu", coordinator.LastSavedNickname);
@@ -690,15 +699,13 @@ public sealed class MainWindowViewModelTests
             product => product.ProductId == "throwable_bouncy_heart");
 
         viewModel.StoreSearchText = "오리";
-        Assert.Collection(
-            viewModel.VisibleStoreProducts,
-            product => Assert.Equal("throwable_squeaky_duck", product.ProductId));
+        StoreProductPreviewViewModel throwable = Assert.Single(viewModel.VisibleStoreProducts);
+        Assert.Equal("throwable_squeaky_duck", throwable.ProductId);
 
         viewModel.SelectedStoreKindIndex = (int)CommerceProductKind.Character;
         viewModel.StoreSearchText = "진주빛";
-        Assert.Collection(
-            viewModel.VisibleStoreProducts,
-            product => Assert.Equal("character_starlight_upalupa", product.ProductId));
+        StoreProductPreviewViewModel character = Assert.Single(viewModel.VisibleStoreProducts);
+        Assert.Equal("character_starlight_upalupa", character.ProductId);
     }
 
     [Fact]
@@ -915,7 +922,7 @@ public sealed class MainWindowViewModelTests
     [Fact]
     public void CachedProfileSeedsTheFirstFrameBeforeTheServerProfileArrives()
     {
-        var preferences = AppPreferences.CreateDefault() with
+        AppPreferences preferences = AppPreferences.CreateDefault() with
         {
             CachedNickname = "캐시 이름",
             CachedCharacterId = "pixel_penguin",
@@ -1034,7 +1041,7 @@ public sealed class MainWindowViewModelTests
             coordinator,
             new FakeMainWindowDialogService(),
             new FakeUpdateService());
-        var noticeCount = 0;
+        int noticeCount = 0;
         viewModel.NoticeRaised += _ => noticeCount++;
 
         await viewModel.CheckForUpdatesOnStartupAsync();
@@ -1157,10 +1164,10 @@ public sealed class MainWindowViewModelTests
         NoticeKind expectedKind)
     {
         (FakeSideyCoordinator coordinator, _) = CreateRoomState();
-        const string internalDetails = @"An error occurred trying to start process C:\Users\private\Temp\Setup.exe";
+        const string InternalDetails = @"An error occurred trying to start process C:\Users\private\Temp\Setup.exe";
         Exception failure = nativeErrorCode == 0
-            ? new IOException(internalDetails)
-            : new Win32Exception(nativeErrorCode, internalDetails);
+            ? new IOException(InternalDetails)
+            : new Win32Exception(nativeErrorCode, InternalDetails);
         var updates = new FakeUpdateService
         {
             AvailableUpdate = new AvailableUpdate("1.0.10"),
@@ -1234,7 +1241,7 @@ public sealed class MainWindowViewModelTests
     public async Task MemberRemovalRequiresNamedConfirmationAndUsesGlobalInAppNotice()
     {
         (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
-        Guid friendId = Guid.NewGuid();
+        var friendId = Guid.NewGuid();
         Room room = state.Rooms[0] with
         {
             Members =
@@ -1292,8 +1299,8 @@ public sealed class MainWindowViewModelTests
 
     private static (FakeSideyCoordinator Coordinator, CoordinatorState State) CreateRoomState()
     {
-        Guid userId = Guid.NewGuid();
-        Guid roomId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var roomId = Guid.NewGuid();
         var profile = new Profile(userId, "aryu", "pixel_hamster");
         var room = new Room(
             roomId,
@@ -1318,7 +1325,7 @@ public sealed class MainWindowViewModelTests
     private static (FakeSideyCoordinator Coordinator, CoordinatorState State) CreateMultiRoomState()
     {
         (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
-        Guid secondRoomId = Guid.NewGuid();
+        var secondRoomId = Guid.NewGuid();
         Room secondRoom = state.Rooms[0] with
         {
             Id = secondRoomId,

@@ -13,13 +13,13 @@ public sealed class RoomSwitchAndCoalescingTests
         var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var commits = new List<Guid>();
-        var activeNetworkCalls = 0;
-        var maximumNetworkCalls = 0;
+        int activeNetworkCalls = 0;
+        int maximumNetworkCalls = 0;
 
         await using var pipeline = new RoomSwitchPipeline(
             async (roomId, _) =>
             {
-                var active = Interlocked.Increment(ref activeNetworkCalls);
+                int active = Interlocked.Increment(ref activeNetworkCalls);
                 maximumNetworkCalls = Math.Max(maximumNetworkCalls, active);
                 try
                 {
@@ -28,7 +28,7 @@ public sealed class RoomSwitchAndCoalescingTests
                         firstStarted.TrySetResult();
                         await releaseFirst.Task;
                     }
-                    return Array.Empty<ChatMessage>();
+                    return [];
                 }
                 finally
                 {
@@ -39,9 +39,9 @@ public sealed class RoomSwitchAndCoalescingTests
             (roomId, _) => commits.Add(roomId),
             TimeSpan.Zero);
 
-        var firstRequest = pipeline.RequestAsync(first);
+        Task firstRequest = pipeline.RequestAsync(first);
         await firstStarted.Task;
-        var secondRequest = pipeline.RequestAsync(second);
+        Task secondRequest = pipeline.RequestAsync(second);
         releaseFirst.TrySetResult();
         await Task.WhenAll(firstRequest, secondRequest);
 
@@ -79,11 +79,11 @@ public sealed class RoomSwitchAndCoalescingTests
         var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var releaseFirst = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var published = new List<int>();
-        var active = 0;
-        var maximumActive = 0;
+        int active = 0;
+        int maximumActive = 0;
         await using var queue = new CoalescingPublicationQueue<int>(async (value, _) =>
         {
-            var current = Interlocked.Increment(ref active);
+            int current = Interlocked.Increment(ref active);
             maximumActive = Math.Max(maximumActive, current);
             try
             {
@@ -100,10 +100,10 @@ public sealed class RoomSwitchAndCoalescingTests
             }
         });
 
-        var first = queue.SubmitAsync(1);
+        Task first = queue.SubmitAsync(1);
         await firstStarted.Task;
-        var superseded = queue.SubmitAsync(2);
-        var latest = queue.SubmitAsync(3);
+        Task superseded = queue.SubmitAsync(2);
+        Task latest = queue.SubmitAsync(3);
         releaseFirst.TrySetResult();
         await Task.WhenAll(first, superseded, latest);
 

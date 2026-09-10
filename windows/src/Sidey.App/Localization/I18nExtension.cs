@@ -29,15 +29,15 @@ public sealed class I18nExtension : MarkupExtension
 public sealed class LocalizedText : INotifyPropertyChanged
 {
     // Bindings own their text sources. This registry must not keep closed windows alive.
-    private static readonly List<WeakReference<LocalizedText>> Sources = [];
+    private static readonly List<WeakReference<LocalizedText>> s_sources = [];
     private readonly string _key;
 
     public LocalizedText(string key)
     {
         _key = key;
-        if (Sources.Count % 64 == 0)
-            Sources.RemoveAll(source => !source.TryGetTarget(out _));
-        Sources.Add(new WeakReference<LocalizedText>(this));
+        if (s_sources.Count % 64 == 0)
+            s_sources.RemoveAll(source => !source.TryGetTarget(out _));
+        s_sources.Add(new WeakReference<LocalizedText>(this));
     }
 
     public string Value => I18n.Get(_key);
@@ -46,9 +46,9 @@ public sealed class LocalizedText : INotifyPropertyChanged
     // Called on the XAML dispatcher after the catalog has changed.
     public static void RefreshAll()
     {
-        foreach (var source in Sources.ToArray())
-            if (source.TryGetTarget(out var text))
+        foreach (WeakReference<LocalizedText> source in s_sources.ToArray())
+            if (source.TryGetTarget(out LocalizedText? text))
                 text.PropertyChanged?.Invoke(text, new PropertyChangedEventArgs(nameof(Value)));
-        Sources.RemoveAll(source => !source.TryGetTarget(out _));
+        s_sources.RemoveAll(source => !source.TryGetTarget(out _));
     }
 }

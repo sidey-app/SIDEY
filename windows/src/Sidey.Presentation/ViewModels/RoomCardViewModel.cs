@@ -251,7 +251,7 @@ public sealed class RoomCardViewModel : ObservableObject, IDisposable
 
     private void UpdateMembers(IReadOnlyList<RoomMemberCardViewModel> desiredMembers)
     {
-        HashSet<Guid> desiredIds = desiredMembers.Select(member => member.UserId).ToHashSet();
+        var desiredIds = desiredMembers.Select(member => member.UserId).ToHashSet();
         for (int index = Members.Count - 1; index >= 0; index--)
         {
             if (!desiredIds.Contains(Members[index].UserId))

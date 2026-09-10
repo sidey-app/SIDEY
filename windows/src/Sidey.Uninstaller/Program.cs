@@ -73,11 +73,13 @@ namespace Sidey.Uninstaller
 
                 string systemDirectory = Environment.GetFolderPath(Environment.SpecialFolder.System);
                 string installerPath = Path.Combine(systemDirectory, "msiexec.exe");
-                ProcessStartInfo start = new ProcessStartInfo();
-                start.FileName = installerPath;
-                start.Arguments = "/x " + QuoteArgument(productCode);
-                start.UseShellExecute = true;
-                start.Verb = "runas";
+                var start = new ProcessStartInfo
+                {
+                    FileName = installerPath,
+                    Arguments = "/x " + QuoteArgument(productCode),
+                    UseShellExecute = true,
+                    Verb = "runas",
+                };
                 Process.Start(start);
 
                 // Do not wait here. The installed helper must exit before MSI
@@ -105,10 +107,12 @@ namespace Sidey.Uninstaller
                 }
 
                 string systemDirectory = Environment.GetFolderPath(Environment.SpecialFolder.System);
-                ProcessStartInfo start = new ProcessStartInfo();
-                start.FileName = Path.Combine(systemDirectory, "msiexec.exe");
-                start.Arguments = "/x " + QuoteArgument(productCode) + " /quiet /norestart";
-                start.UseShellExecute = false;
+                var start = new ProcessStartInfo
+                {
+                    FileName = Path.Combine(systemDirectory, "msiexec.exe"),
+                    Arguments = "/x " + QuoteArgument(productCode) + " /quiet /norestart",
+                    UseShellExecute = false,
+                };
                 using (Process process = Process.Start(start))
                 {
                     if (process == null)

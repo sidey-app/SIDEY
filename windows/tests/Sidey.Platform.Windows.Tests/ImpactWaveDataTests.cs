@@ -25,7 +25,7 @@ public sealed class ImpactWaveDataTests
         writer.Write((ushort)16);
         writer.Write("data"u8);
         writer.Write(4);
-        writer.Write(new byte[] { 1, 2, 3, 4 });
+        writer.Write([1, 2, 3, 4]);
         return stream.ToArray();
     }
 

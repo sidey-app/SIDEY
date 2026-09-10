@@ -18,8 +18,7 @@ public sealed class StarlightSparkleLayoutTests
     [Fact]
     public void IdleParticlesAreAboveCenterSpreadOutAndChangeEachCycle()
     {
-        var particles = Enumerable.Range(0, 6)
-            .Select(index => StarlightSparkleLayout.Ambient(0.525, index, 0x51DE59)).ToArray();
+        (double Tangent, double Normal, double Radius, double Opacity)[] particles = [.. Enumerable.Range(0, 6).Select(index => StarlightSparkleLayout.Ambient(0.525, index, 0x51DE59))];
         Assert.All(particles, particle =>
         {
             Assert.InRange(particle.Tangent, -25, 25);

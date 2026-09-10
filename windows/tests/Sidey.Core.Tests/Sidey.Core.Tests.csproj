@@ -33,11 +33,5 @@
     <None Include="../../src/Sidey.Overlay/Assets/Characters/**/*.json" Link="TestAssets/%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="../../src/Sidey.Overlay/LayeredPixelWorldRenderer.cs" Link="TestAssets/LayeredPixelWorldRenderer.cs">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="../../src/Sidey.Overlay/PixelCharacterFrameCache.cs" Link="TestAssets/PixelCharacterFrameCache.cs">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
   </ItemGroup>
 </Project>

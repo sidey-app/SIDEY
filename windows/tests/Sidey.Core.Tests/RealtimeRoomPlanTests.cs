@@ -9,7 +9,7 @@ public sealed class RealtimeRoomPlanTests
     {
         var roomId = Guid.NewGuid();
 
-        var delta = RealtimeEpochSubscriptionPlan.CreateDelta(
+        RealtimeRoomSubscriptionDelta delta = RealtimeEpochSubscriptionPlan.CreateDelta(
             new Dictionary<Guid, long> { [roomId] = 3 },
             new Dictionary<Guid, long> { [roomId] = 4 });
 
@@ -29,7 +29,7 @@ public sealed class RealtimeRoomPlanTests
 
         Assert.True(RealtimeRoomDescriptor.TryParsePhoenixTopic(
             expected.PhoenixTopic,
-            out var parsed));
+            out RealtimeRoomDescriptor parsed));
         Assert.Equal(expected, parsed);
         Assert.False(RealtimeRoomDescriptor.TryParsePhoenixTopic(
             $"realtime:room:{expected.RoomId:D}:11:unknown",

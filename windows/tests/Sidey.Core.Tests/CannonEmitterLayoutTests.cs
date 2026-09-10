@@ -31,7 +31,7 @@ public sealed class CannonEmitterLayoutTests
         foreach (double target in new[] { 50d, 150d })
         {
             bool mirrored = CannonEmitterLayout.ShouldMirror(100, target, edge);
-            var center = CannonEmitterLayout.Center((100, 100), mirrored, edge, 1);
+            (double X, double Y) center = CannonEmitterLayout.Center((100, 100), mirrored, edge, 1);
             double tangent = edge is OverlayEdge.Bottom or OverlayEdge.Top ? center.X : center.Y;
             Assert.Equal(Math.Sign(target - 100), Math.Sign(tangent - 100));
         }

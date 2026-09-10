@@ -3,7 +3,7 @@ namespace Sidey.Infrastructure;
 internal sealed class ExpiringLeaseRegistry<TKey> : IAsyncDisposable
     where TKey : notnull
 {
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly Dictionary<TKey, Lease> _leases = [];
     private readonly CancellationTokenSource _shutdown = new();
     private readonly TimeSpan _duration;
@@ -70,7 +70,7 @@ internal sealed class ExpiringLeaseRegistry<TKey> : IAsyncDisposable
             }
 
             _disposed = true;
-            leases = _leases.Values.ToArray();
+            leases = [.. _leases.Values];
             _leases.Clear();
         }
 

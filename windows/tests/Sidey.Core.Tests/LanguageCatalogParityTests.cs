@@ -10,10 +10,10 @@ public sealed class LanguageCatalogParityTests
     [InlineData("ja-JP")]
     public void EveryLanguageHasAllKeysAndPreservesFormatArguments(string language)
     {
-        var korean = Read("ko-KR");
-        var translated = Read(language);
+        Dictionary<string, string> korean = Read("ko-KR");
+        Dictionary<string, string> translated = Read(language);
         Assert.Equal(korean.Keys.Order(), translated.Keys.Order());
-        foreach (var (key, value) in korean)
+        foreach ((string? key, string? value) in korean)
         {
             Assert.False(string.IsNullOrWhiteSpace(translated[key]), key);
             Assert.DoesNotMatch("[가-힣]", translated[key]);
@@ -22,7 +22,7 @@ public sealed class LanguageCatalogParityTests
     }
 
     private static string[] Placeholders(string value) =>
-        Regex.Matches(value, @"\{\d+(?::[^}]+)?\}").Select(match => match.Value).Order().ToArray();
+        [.. Regex.Matches(value, @"\{\d+(?::[^}]+)?\}").Select(match => match.Value).Order()];
 
     private static Dictionary<string, string> Read(string language)
     {
@@ -35,7 +35,7 @@ public sealed class LanguageCatalogParityTests
 
     private static void Flatten(JsonElement element, string prefix, Dictionary<string, string> result)
     {
-        foreach (var property in element.EnumerateObject())
+        foreach (JsonProperty property in element.EnumerateObject())
         {
             string key = string.IsNullOrEmpty(prefix) ? property.Name : prefix + "." + property.Name;
             if (property.Value.ValueKind == JsonValueKind.Object)

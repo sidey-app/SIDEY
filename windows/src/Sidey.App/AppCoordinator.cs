@@ -23,7 +23,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
     private readonly WindowsImpactAudio _audio;
     private readonly SemaphoreSlim _soundSettingGate = new(1, 1);
     private readonly Guid _overlayAudioScope = Guid.NewGuid();
-    private readonly object _overlayAudioGate = new();
+    private readonly Lock _overlayAudioGate = new();
     private long _overlayAudioNotBefore;
     private Guid? _feedbackRoomId;
     private bool _feedbackConnected;
@@ -52,7 +52,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
     private Task? _activityPump;
     private long _groupOperationGeneration;
     private CoordinatorState _state = CoordinatorState.Initial;
-    private bool _validationMode = false;
+    private readonly bool _validationMode;
     private Guid? _previewRoomId;
     private Guid? _previewUserId;
     private WorldSnapshot? _previewSnapshot;
@@ -70,17 +70,25 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         _credentialStore = credentialStore ?? new WindowsCredentialStore();
         _audio = new WindowsImpactAudio(StartupDiagnostics.NonFatal);
         _animations.Changed += OnAnimationsChanged;
+#if DEBUG
+        _validationMode = string.Equals(
+            Environment.GetEnvironmentVariable("SIDEY_WINDOWS_VALIDATION_MODE"),
+            "1",
+            StringComparison.Ordinal);
+#else
+        _validationMode = false;
+#endif
     }
 
     private void OnAnimationsChanged() => AnimationsChanged?.Invoke();
     internal async Task VerifyImpactAudioSmokeAsync()
     {
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(20);
+        DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(20);
         while (!_audio.IsReady && DateTimeOffset.UtcNow < deadline)
             await Task.Delay(25);
         if (!_audio.IsReady)
             throw new InvalidOperationException("Impact smoke: audio worker did not initialize.");
-        Guid scope = Guid.NewGuid();
+        var scope = Guid.NewGuid();
         _audio.SetEnabled(true);
         try
         {
@@ -142,7 +150,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
     public async Task SaveCharacterSoundEffectsAsync(bool enabled, int volume, CancellationToken cancellationToken = default)
     {
         await _soundSettingGate.WaitAsync(cancellationToken);
-        var previous = _state.Preferences;
+        AppPreferences previous = _state.Preferences;
         try
         {
             _state = _state with
@@ -247,7 +255,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             return;
         }
 
-        var preferences = await _preferencesStore.LoadAsync(cancellationToken);
+        AppPreferences preferences = await _preferencesStore.LoadAsync(cancellationToken);
         _audio.SetEnabled(preferences.CharacterSoundEffectsEnabled);
         _audio.SetVolume(preferences.CharacterSoundEffectsVolume);
         bool startAtLogin = _startup.IsEnabled();
@@ -293,13 +301,6 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         ShowStartupOverlay();
         AppPreferences preferences = _state.Preferences;
 
-#if DEBUG
-        _validationMode = string.Equals(
-            Environment.GetEnvironmentVariable("SIDEY_WINDOWS_VALIDATION_MODE"),
-            "1",
-            StringComparison.Ordinal);
-#endif
-
         SupabaseRuntimeConfiguration? configuration;
 #if DEBUG
         configuration = _validationMode ? null : SupabaseRuntimeConfiguration.FromEnvironment();
@@ -341,7 +342,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             try
             {
                 StartupDiagnostics.Stage("auth-session-read-started");
-                var stored = await _credentialStore.ReadAsync(
+                string? stored = await _credentialStore.ReadAsync(
                     CredentialKey.SupabaseSession,
                     cancellationToken);
                 bool restoringSession = !string.IsNullOrWhiteSpace(stored);
@@ -363,10 +364,10 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         var backend = (SupabaseBackendGateway)_backend;
 
         StartupDiagnostics.Stage("server-snapshot-fetch-started");
-        var snapshot = await backend.FetchSnapshotAsync(cancellationToken);
+        BackendSnapshot snapshot = await backend.FetchSnapshotAsync(cancellationToken);
         StartupDiagnostics.Stage(
             $"server-snapshot-fetch-completed rooms={snapshot.Rooms.Count} profile={(snapshot.Profile is null ? "missing" : "present")}");
-        var activeRoomId = SelectActiveRoom(preferences.ActiveRoomId, snapshot.Rooms);
+        Guid? activeRoomId = SelectActiveRoom(preferences.ActiveRoomId, snapshot.Rooms);
         _state = _state with { ActiveRoomId = activeRoomId };
         ApplySnapshot(snapshot);
         string? commerceStateError = null;
@@ -409,7 +410,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         if (activeRoomId is { } roomId)
         {
             StartupDiagnostics.Stage("message-history-fetch-started active=true");
-            var history = await backend.FetchRecentMessagesAsync(roomId, cancellationToken);
+            IReadOnlyList<ChatMessage> history = await backend.FetchRecentMessagesAsync(roomId, cancellationToken);
             _messages.ReplaceConfirmed(roomId, history);
             StartupDiagnostics.Stage(
                 $"message-history-fetch-completed result=success count={history.Count}");
@@ -423,9 +424,9 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         string characterId,
         CancellationToken cancellationToken = default)
     {
-        var backend = RequiredBackend();
+        IBackendGateway backend = RequiredBackend();
         Guid? userId = _state.Profile?.Id;
-        var profile = await backend.SaveProfileAsync(nickname, characterId, cancellationToken);
+        Profile profile = await backend.SaveProfileAsync(nickname, characterId, cancellationToken);
         if (!ReferenceEquals(backend, _backend) || _state.Profile?.Id != userId || _lifetime.IsCancellationRequested)
             return;
         if (_state.Profile is { } current)
@@ -574,7 +575,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             }
         }
 
-        var backend = RequiredBackend();
+        IBackendGateway backend = RequiredBackend();
         Guid? userId = _state.Profile?.Id;
         Profile profile = await backend.SetEquippedCosmeticAsync(
             kind,
@@ -587,12 +588,12 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             profile = kind == CommerceProductKind.Bubble
                 ? current with { EquippedBubbleStyleId = profile.EquippedBubbleStyleId }
                 : current with { EquippedThrowableId = profile.EquippedThrowableId };
-        IReadOnlyList<Room> rooms = _state.Rooms.Select(room => room with
+        IReadOnlyList<Room> rooms = [.. _state.Rooms.Select(room => room with
         {
-            Members = room.Members.Select(member => member.UserId == profile.Id
+            Members = [.. room.Members.Select(member => member.UserId == profile.Id
                 ? member with { EquippedBubbleStyleId = profile.EquippedBubbleStyleId }
-                : member).ToArray(),
-        }).ToArray();
+                : member)],
+        })];
         SetState(_state with { Profile = profile, Rooms = rooms, ErrorMessage = null });
         ApplyWorldSnapshot();
     }
@@ -652,7 +653,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         });
         try
         {
-            var result = await RequiredBackend().CreateRoomAsync(name, cancellationToken);
+            CreateRoomResult result = await RequiredBackend().CreateRoomAsync(name, cancellationToken);
             await RefreshSnapshotAndSelectAsync(result.Room.Id, cancellationToken);
         }
         catch (Exception exception)
@@ -677,7 +678,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         });
         try
         {
-            var room = await RequiredBackend().JoinRoomAsync(inviteCode, cancellationToken);
+            Room room = await RequiredBackend().JoinRoomAsync(inviteCode, cancellationToken);
             await RefreshSnapshotAndSelectAsync(room.Id, cancellationToken);
         }
         catch (Exception exception)
@@ -803,26 +804,22 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         Guid roomId,
         CancellationToken cancellationToken = default)
     {
-        var room = _state.Rooms.FirstOrDefault(room => room.Id == roomId);
-        if (room is null)
-        {
-            throw new InvalidOperationException(I18n.Get("groups.notFound"));
-        }
+        Room room = _state.Rooms.FirstOrDefault(room => room.Id == roomId) ?? throw new InvalidOperationException(I18n.Get("groups.notFound"));
         if (!room.InviteCodeReady)
         {
             throw new InvalidOperationException(
                 I18n.Get("groups.inviteRevoked"));
         }
 
-        var code = await GetInviteCodeAsync(roomId, cancellationToken);
+        string? code = await GetInviteCodeAsync(roomId, cancellationToken);
         if (string.IsNullOrWhiteSpace(code))
         {
             return false;
         }
-        var normalizedCode = code.Replace("-", string.Empty, StringComparison.Ordinal)
+        string normalizedCode = code.Replace("-", string.Empty, StringComparison.Ordinal)
             .Trim()
             .ToUpperInvariant();
-        var hintSuffix = room.InviteCodeHint[(room.InviteCodeHint.LastIndexOf('-') + 1)..]
+        string hintSuffix = room.InviteCodeHint[(room.InviteCodeHint.LastIndexOf('-') + 1)..]
             .ToUpperInvariant();
         if (hintSuffix.Length != 4
             || normalizedCode.Length < hintSuffix.Length
@@ -847,7 +844,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             throw new InvalidOperationException(I18n.Get("composer.activeRoomRequired"));
         }
 
-        var normalized = MessageValidator.Normalize(body);
+        string normalized = MessageValidator.Normalize(body);
         if (!MessageValidator.IsValid(normalized))
         {
             throw new ArgumentException(I18n.Get("validation.messageLength"), nameof(body));
@@ -860,7 +857,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         ApplyWorldSnapshot();
         try
         {
-            var confirmed = await RequiredBackend().SendMessageAsync(
+            ChatMessage confirmed = await RequiredBackend().SendMessageAsync(
                 id,
                 roomId,
                 normalized,
@@ -871,7 +868,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         catch (Exception exception)
         {
             _bubbles.Remove(id);
-            var restored = _messages.Fail(id);
+            string? restored = _messages.Fail(id);
             PublishState();
             ApplyWorldSnapshot();
             if (restored is not null)
@@ -960,12 +957,11 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         await PersistPreferencesAsync(cancellationToken);
     }
 
-    public IReadOnlyList<MonitorOption> GetMonitors() => WindowsMonitorService.GetAll()
+    public IReadOnlyList<MonitorOption> GetMonitors() => [.. WindowsMonitorService.GetAll()
         .Select(monitor => new MonitorOption(
             monitor.Identifier,
             monitor.Name,
-            monitor.IsPrimary))
-        .ToArray();
+            monitor.IsPrimary))];
 
     public async Task SetLanguageAsync(string language, CancellationToken cancellationToken = default)
     {
@@ -1012,8 +1008,8 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             return;
         }
 
-        var actions = _typingLease.Update(active, _state.ActiveRoomId);
-        foreach (var action in actions)
+        IReadOnlyList<TypingLeaseAction> actions = _typingLease.Update(active, _state.ActiveRoomId);
+        foreach (TypingLeaseAction action in actions)
         {
             switch (action)
             {
@@ -1092,8 +1088,8 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             return;
         if (_overlay?.IsSelfStunned == true)
             return;
-        var roomId = _state.ActiveRoomId ?? _previewRoomId;
-        var userId = _state.Profile?.Id ?? _previewUserId;
+        Guid? roomId = _state.ActiveRoomId ?? _previewRoomId;
+        Guid? userId = _state.Profile?.Id ?? _previewUserId;
         if (roomId is null || userId is null)
         {
             return;
@@ -1124,10 +1120,10 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
     {
         if (_overlay?.IsSelfStunned == true)
             return;
-        var roomId = _state.ActiveRoomId ?? _previewRoomId;
-        var actor = _state.Profile;
-        var actorUserId = actor?.Id ?? _previewUserId;
-        var sourceCharacterId = actor?.CharacterId
+        Guid? roomId = _state.ActiveRoomId ?? _previewRoomId;
+        Profile? actor = _state.Profile;
+        Guid? actorUserId = actor?.Id ?? _previewUserId;
+        string? sourceCharacterId = actor?.CharacterId
             ?? _previewSnapshot?.Members.FirstOrDefault(member => member.IsCurrentUser)?.CharacterId;
         if (roomId is null || actorUserId is null || sourceCharacterId is null
             || actorUserId == targetUserId
@@ -1136,8 +1132,8 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             return;
         }
 
-        var world = CurrentWorldSnapshot();
-        var target = world.Members.FirstOrDefault(member => member.Id == targetUserId);
+        WorldSnapshot world = CurrentWorldSnapshot();
+        PixelWorldMember? target = world.Members.FirstOrDefault(member => member.Id == targetUserId);
         if (world.RoomId != roomId || target is null
             || !CharacterThrowTargetPolicy.CanTarget(target))
         {
@@ -1232,7 +1228,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         Guid roomId,
         CancellationToken cancellationToken)
     {
-        var backend = RequiredBackend();
+        IBackendGateway backend = RequiredBackend();
         await backend.SynchronizeRealtimeRoomsAsync(
             RoomEpochs(_state.Rooms),
             roomId,
@@ -1274,7 +1270,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
     {
         try
         {
-            await foreach (var backendEvent in RequiredBackend().SubscribeAsync(_lifetime.Token))
+            await foreach (BackendEvent backendEvent in RequiredBackend().SubscribeAsync(_lifetime.Token))
             {
                 switch (backendEvent)
                 {
@@ -1351,8 +1347,8 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                         }
                         break;
                     case BackendEvent.CharacterThrown thrown:
-                        var characterThrow = thrown.Throw;
-                        var activeRoom = _state.ActiveRoomId is { } activeRoomId
+                        CharacterThrowEvent characterThrow = thrown.Throw;
+                        Room? activeRoom = _state.ActiveRoomId is { } activeRoomId
                             ? _state.Rooms.FirstOrDefault(room => room.Id == activeRoomId)
                             : null;
                         if (activeRoom?.Id == characterThrow.RoomId
@@ -1401,7 +1397,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 
     private async Task PumpActivityAsync()
     {
-        await foreach (var presence in _activityMonitor.ObserveAsync(_lifetime.Token))
+        await foreach (PresenceState presence in _activityMonitor.ObserveAsync(_lifetime.Token))
         {
             _localPresence = presence;
             if (_state.Profile is { } profile && _state.ActiveRoomId is { } activeRoomId)
@@ -1434,14 +1430,14 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
     {
         _state = _state with
         {
-            Rooms = _state.Rooms.Select(room => room.Id == roomId
+            Rooms = [.. _state.Rooms.Select(room => room.Id == roomId
                 ? room with
                 {
-                    Members = room.Members.Select(member => member.UserId == userId
+                    Members = [.. room.Members.Select(member => member.UserId == userId
                         ? update(member)
-                        : member).ToArray(),
+                        : member)],
                 }
-                : room).ToArray(),
+                : room)],
         };
         PublishState();
         ApplyWorldSnapshot();
@@ -1449,7 +1445,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 
     private void UpdatePresence(Guid roomId, Guid userId, PresenceState presence)
     {
-        var key = (roomId, userId);
+        (Guid roomId, Guid userId) key = (roomId, userId);
         _basePresence[key] = presence;
         if (presence == PresenceState.Offline)
         {
@@ -1475,13 +1471,13 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             _typing.Clear();
         }
 
-        var currentUserId = _state.Profile?.Id;
+        Guid? currentUserId = _state.Profile?.Id;
         IReadOnlyList<Room> rooms = activeRoomConnectionChanged
-            ? _state.Rooms.Select(room => room with
+            ? [.. _state.Rooms.Select(room => room with
             {
-                Members = room.Members.Select(member =>
+                Members = [.. room.Members.Select(member =>
                 {
-                    var key = (room.Id, member.UserId);
+                    (Guid Id, Guid UserId) key = (room.Id, member.UserId);
                     if (status.ActiveRoomTransportConnected)
                     {
                         return member with
@@ -1502,8 +1498,8 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                         _basePresence[key] = PresenceState.Offline;
                     }
                     return member with { Presence = PresenceState.Reconnecting };
-                }).ToArray(),
-            }).ToArray()
+                })],
+            })]
             : _state.Rooms;
 
         SetState(_state with { Rooms = rooms, RealtimeConnection = status });
@@ -1524,7 +1520,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 
     private void ApplySnapshot(BackendSnapshot snapshot)
     {
-        var activeRoomId = SelectActiveRoom(_state.ActiveRoomId, snapshot.Rooms);
+        Guid? activeRoomId = SelectActiveRoom(_state.ActiveRoomId, snapshot.Rooms);
         Profile? profile = snapshot.Profile is null
             ? null
             : snapshot.Profile with
@@ -1542,12 +1538,12 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                     snapshot.ActiveEntitlementKeys),
             };
         PresenceState? KnownPresence(Guid roomId, Guid userId) =>
-            _basePresence.TryGetValue((roomId, userId), out var presence)
+            _basePresence.TryGetValue((roomId, userId), out PresenceState presence)
                 ? presence
                 : null;
-        var projectedRooms = snapshot.Rooms.Select(room => room with
+        Room[] projectedRooms = [.. snapshot.Rooms.Select(room => room with
         {
-            Members = room.Members.Select(member => member with
+            Members = [.. room.Members.Select(member => member with
             {
                 CharacterId = member.UserId == snapshot.CurrentUserId && profile is not null
                     ? profile.CharacterId
@@ -1561,24 +1557,24 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                     member.Presence,
                     KnownPresence(room.Id, member.UserId),
                     _localPresence),
-            }).ToArray(),
-        }).ToArray();
+            })],
+        })];
         var validPresenceKeys = projectedRooms
             .SelectMany(room => room.Members.Select(member => (room.Id, member.UserId)))
             .ToHashSet();
-        foreach (var key in _basePresence.Keys.Where(key => !validPresenceKeys.Contains(key)).ToArray())
+        foreach ((Guid RoomId, Guid UserId) key in _basePresence.Keys.Where(key => !validPresenceKeys.Contains(key)).ToArray())
         {
             _basePresence.Remove(key);
         }
-        foreach (var room in snapshot.Rooms)
+        foreach (Room room in snapshot.Rooms)
         {
-            foreach (var member in room.Members)
+            foreach (RoomMember member in room.Members)
             {
                 _basePresence.TryAdd((room.Id, member.UserId), member.Presence);
             }
         }
         var roomIds = snapshot.Rooms.Select(room => room.Id).ToHashSet();
-        foreach (var removedRoomId in _unreadByRoom.Keys.Where(id => !roomIds.Contains(id)).ToArray())
+        foreach (Guid removedRoomId in _unreadByRoom.Keys.Where(id => !roomIds.Contains(id)).ToArray())
         {
             _unreadByRoom.Remove(removedRoomId);
         }
@@ -1608,7 +1604,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 
     private async Task RefreshSnapshotAsync(CancellationToken cancellationToken)
     {
-        var snapshot = await RequiredBackend().FetchSnapshotAsync(cancellationToken);
+        BackendSnapshot snapshot = await RequiredBackend().FetchSnapshotAsync(cancellationToken);
         await ReconcileSnapshotAsync(snapshot, cancellationToken);
     }
 
@@ -1616,7 +1612,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         BackendSnapshot snapshot,
         CancellationToken cancellationToken)
     {
-        var previousActiveRoomId = _state.ActiveRoomId;
+        Guid? previousActiveRoomId = _state.ActiveRoomId;
         ApplySnapshot(snapshot);
         if (_state.ActiveRoomId != previousActiveRoomId)
         {
@@ -1627,7 +1623,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             _roomSwitch?.InitializeCommittedRoom(_state.ActiveRoomId);
             if (_state.ActiveRoomId is { } activeRoomId)
             {
-                var history = await RequiredBackend().FetchRecentMessagesAsync(
+                IReadOnlyList<ChatMessage> history = await RequiredBackend().FetchRecentMessagesAsync(
                     activeRoomId,
                     cancellationToken);
                 _messages.ReplaceConfirmed(activeRoomId, history);
@@ -1675,10 +1671,10 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 
     private void StartPreviewOverlay(AppPreferences preferences)
     {
-        var ids = _validationMode
-            ? new[] { PixelCharacterCatalog.FallbackId }
-            : PixelCharacterCatalog.All.Select(character => character.Id).ToArray();
-        var snapshot = PixelWorldPreview.Create(
+        string[] ids = _validationMode
+            ? [PixelCharacterCatalog.FallbackId]
+            : [.. PixelCharacterCatalog.All.Select(character => character.Id)];
+        WorldSnapshot snapshot = PixelWorldPreview.Create(
             ids,
             preferences.InstallationSeed,
             preferences.OverlayRegion.Edge);
@@ -1710,12 +1706,12 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
     {
         if (_backend is not null || _overlay is not null)
             throw new InvalidOperationException("Startup overlay smoke requires an isolated, unconnected coordinator.");
-        var saved = _state;
+        CoordinatorState saved = _state;
         var roomId = Guid.NewGuid();
         var userId = Guid.NewGuid();
-        var characters = PixelCharacterCatalog.All.ToArray();
-        var peers = Enumerable.Range(0, 11).Select(index => new RoomMember(Guid.NewGuid(),
-            "친구", characters[index % characters.Length].Id, PresenceState.Offline)).ToArray();
+        PixelCharacterDefinition[] characters = [.. PixelCharacterCatalog.All];
+        RoomMember[] peers = [.. Enumerable.Range(0, 11).Select(index => new RoomMember(Guid.NewGuid(),
+            "친구", characters[index % characters.Length].Id, PresenceState.Offline))];
         try
         {
             _state = CoordinatorState.Initial with
@@ -1731,11 +1727,11 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                 }
             };
             ShowStartupOverlay();
-            var initialOverlay = _overlay;
+            NativePixelWorldSession? initialOverlay = _overlay;
             var deadline = Stopwatch.StartNew();
             while (_overlay?.HasPresentedFrame != true && deadline.Elapsed.TotalSeconds < 3)
                 await Task.Delay(20);
-            var cached = CurrentWorldSnapshot();
+            WorldSnapshot cached = CurrentWorldSnapshot();
             if (_overlay?.IsVisible != true || !_overlay.HasPresentedFrame || OverlayInteractionConnected
                 || cached.RoomId is not null || cached.Members.Count != 1 || cached.Members[0].Presence != PresenceState.Reconnecting)
                 throw new InvalidOperationException("Cached connecting character was not presented before backend initialization.");
@@ -1748,7 +1744,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                 [new Room(roomId, "startup smoke", userId,
                     [new RoomMember(userId, "모카", "pixel_cat", PresenceState.Offline), .. peers], "", false, 1)],
                 userId, new HashSet<string>()));
-            var pending = CurrentWorldSnapshot();
+            WorldSnapshot pending = CurrentWorldSnapshot();
             if (pending.RoomId != roomId || pending.Members.Count != 12
                 || pending.Members.Any(member => member.Presence != PresenceState.Reconnecting)
                 || !pending.Members.Any(member => member.Id == userId && member.IsCurrentUser))
@@ -1766,7 +1762,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
                 || CurrentWorldSnapshot().Members.Single(member => member.IsCurrentUser).Presence != PresenceState.Online
                 || CurrentWorldSnapshot().Members.Where(member => !member.IsCurrentUser).Any(member => member.Presence != PresenceState.Offline))
                 throw new InvalidOperationException("Live transport did not promote the existing overlay to online.");
-            foreach (var peer in peers)
+            foreach (RoomMember? peer in peers)
                 UpdatePresence(roomId, peer.UserId, PresenceState.Online);
             ApplyWorldSnapshot();
             _overlay.VerifyMemberVisualsForSmoke(pending.Members.Select(member => member.Id), 52, 199, 89);
@@ -1834,7 +1830,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 
     private void RestartOverlayForRegionChange()
     {
-        var snapshot = CurrentWorldSnapshot();
+        WorldSnapshot snapshot = CurrentWorldSnapshot();
         _overlay?.Dispose();
         _overlay = null;
         StartOverlay(snapshot);
@@ -1903,8 +1899,8 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         {
             return preview with
             {
-                Pulses = _pendingPulses.ToArray(),
-                Throws = _pendingThrows.ToArray(),
+                Pulses = [.. _pendingPulses],
+                Throws = [.. _pendingThrows],
                 Edge = _state.Preferences.OverlayRegion.Edge,
                 InstallationSeed = _state.Preferences.InstallationSeed,
             };
@@ -1913,10 +1909,10 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
         if (!_initialSnapshotReceived && CachedStartupWorld.Create(_state.Preferences) is { } cached)
             return cached;
 
-        var room = _state.ActiveRoomId is { } roomId
+        Room? room = _state.ActiveRoomId is { } roomId
             ? _state.Rooms.FirstOrDefault(candidate => candidate.Id == roomId)
             : null;
-        var members = room?.Members
+        PixelWorldMember[] members = room?.Members
             .Where(member => member.UserId == _state.Profile?.Id || _state.Preferences.ShowOfflineMembers
                 || member.Presence != PresenceState.Offline)
             .Select(member => new PixelWorldMember(
@@ -1932,8 +1928,8 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
             room?.Id,
             members,
             _state.Preferences.QuietMode ? [] : _bubbles.Bubbles.ToArray(),
-            _pendingPulses.ToArray(),
-            _pendingThrows.ToArray(),
+            [.. _pendingPulses],
+            [.. _pendingThrows],
             _state.Preferences.OverlayRegion.Edge,
             _state.Preferences.InstallationSeed);
     }
@@ -2023,7 +2019,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 
     private void SetState(CoordinatorState state)
     {
-        _state = state with { Messages = _messages.Entries.ToArray() };
+        _state = state with { Messages = [.. _messages.Entries] };
         StateChanged?.Invoke(_state);
     }
 

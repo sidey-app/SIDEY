@@ -39,7 +39,7 @@ public sealed class InstallerLanguageTests
         Assert.Equal(systemLanguage, ordered[0].Id);
         Assert.Equal(7, ordered.Length);
         Assert.Equal(7, ordered.Select(language => language.Id).Distinct().Count());
-        string[] remaining = ordered.Skip(1).Select(language => language.EnglishName).ToArray();
+        string[] remaining = [.. ordered.Skip(1).Select(language => language.EnglishName)];
         Assert.Equal(remaining.Order(StringComparer.Ordinal), remaining);
     }
 
@@ -66,9 +66,7 @@ public sealed class InstallerLanguageTests
     {
         string source = File.ReadAllText(RepositoryPath("windows", "installer", "Sidey.Setup", "Sidey.Setup.nsi"))
             + Environment.NewLine + File.ReadAllText(RepositoryPath("windows", "installer", "Sidey.Setup", "Languages.nsh"));
-        var strings = Regex.Matches(source, "^LangString (\\w+) \\$\\{LANG_(\\w+)\\} \\\"(.*)\\\"\\r?$", RegexOptions.Multiline)
-            .Select(match => (Key: match.Groups[1].Value, Language: match.Groups[2].Value, Value: match.Groups[3].Value))
-            .ToArray();
+        (string Key, string Language, string Value)[] strings = [.. Regex.Matches(source, "^LangString (\\w+) \\$\\{LANG_(\\w+)\\} \\\"(.*)\\\"\\r?$", RegexOptions.Multiline).Select(match => (Key: match.Groups[1].Value, Language: match.Groups[2].Value, match.Groups[3].Value))];
         var english = strings.Where(value => value.Language == "ENGLISH").ToDictionary(value => value.Key, value => value.Value);
         Assert.True(english.Count >= 25);
         foreach (string language in new[] { "ENGLISH", "KOREAN", "JAPANESE", "SIMPCHINESE", "TRADCHINESE", "RUSSIAN", "UKRAINIAN" })
@@ -84,8 +82,8 @@ public sealed class InstallerLanguageTests
     }
 
     private static string[] Placeholders(string text) =>
-        Regex.Matches(text, @"\$\{[A-Z_]+\}|\$[0-9]|%LOCALAPPDATA%")
-            .Select(match => match.Value).Order(StringComparer.Ordinal).ToArray();
+        [.. Regex.Matches(text, @"\$\{[A-Z_]+\}|\$[0-9]|%LOCALAPPDATA%")
+            .Select(match => match.Value).Order(StringComparer.Ordinal)];
 
     private static string RepositoryPath(params string[] parts)
     {

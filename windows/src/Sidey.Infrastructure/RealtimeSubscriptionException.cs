@@ -11,9 +11,9 @@ internal sealed class RealtimeSubscriptionException(bool authorizationFailure)
     {
         // Inspect only the documented error category. Never retain/log tokens, topics, or raw replies.
         string? reason = payload.ValueKind == JsonValueKind.Object
-            && payload.TryGetProperty("response", out var response)
+            && payload.TryGetProperty("response", out JsonElement response)
             && response.ValueKind == JsonValueKind.Object
-            && response.TryGetProperty("reason", out var value)
+            && response.TryGetProperty("reason", out JsonElement value)
             && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
         string? code = reason?.Split(':', 2)[0];
         return new(code is "Unauthorized" or "InvalidJWTToken" or "MalformedJWT" or "JwtSignatureError"

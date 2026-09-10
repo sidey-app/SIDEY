@@ -29,7 +29,7 @@ public sealed class SoundVolumeSlider : Slider
 
     protected override void OnApplyTemplate()
     {
-        foreach (var thumb in _thumbs)
+        foreach (Thumb thumb in _thumbs)
             thumb.DragCompleted -= OnDragCompleted;
         _thumbs.Clear();
         base.OnApplyTemplate();

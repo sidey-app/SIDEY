@@ -5,15 +5,18 @@ namespace Sidey.Core.Tests;
 
 public sealed class OverlayGeometryTests
 {
-    public static IEnumerable<object[]> RegionPresets()
+    public static TheoryData<OverlayEdge, OverlaySpan> RegionPresets()
     {
-        foreach (var edge in Enum.GetValues<OverlayEdge>())
+        var presets = new TheoryData<OverlayEdge, OverlaySpan>();
+        foreach (OverlayEdge edge in Enum.GetValues<OverlayEdge>())
         {
-            foreach (var span in Enum.GetValues<OverlaySpan>())
+            foreach (OverlaySpan span in Enum.GetValues<OverlaySpan>())
             {
-                yield return [edge, span];
+                presets.Add(edge, span);
             }
         }
+
+        return presets;
     }
 
     [Theory]
@@ -22,7 +25,7 @@ public sealed class OverlayGeometryTests
     {
         var workArea = new RectD(100, 50, 1_920, 1_040);
 
-        var frame = OverlayRegionLayout.Frame(new OverlayRegionPreference(edge, span, null), workArea);
+        RectD frame = OverlayRegionLayout.Frame(new OverlayRegionPreference(edge, span, null), workArea);
 
         Assert.InRange(frame.MinX, workArea.MinX, workArea.MaxX);
         Assert.InRange(frame.MaxX, workArea.MinX, workArea.MaxX);
@@ -43,7 +46,7 @@ public sealed class OverlayGeometryTests
     [Fact]
     public void DepthCapsAtOneThirdOfShortWorkArea()
     {
-        var frame = OverlayRegionLayout.Frame(
+        RectD frame = OverlayRegionLayout.Frame(
             OverlayRegionPreference.Default,
             new RectD(0, 0, 600, 300));
 
@@ -56,7 +59,7 @@ public sealed class OverlayGeometryTests
         var secondary = new MonitorGeometry("secondary", "보조", new RectD(0, 0, 800, 600), 96, false);
         var primary = new MonitorGeometry("primary", "주", new RectD(800, 0, 1_920, 1_040), 144, true);
 
-        var selected = OverlayRegionLayout.SelectMonitor(
+        MonitorGeometry? selected = OverlayRegionLayout.SelectMonitor(
             new OverlayRegionPreference(OverlayEdge.Bottom, OverlaySpan.Full, "gone"),
             [secondary, primary]);
 
@@ -76,13 +79,13 @@ public sealed class OverlayGeometryTests
     [Fact]
     public void FootTouchesEverySelectedScreenEdge()
     {
-        foreach (var edge in Enum.GetValues<OverlayEdge>())
+        foreach (OverlayEdge edge in Enum.GetValues<OverlayEdge>())
         {
-            var bounds = edge is OverlayEdge.Bottom or OverlayEdge.Top
+            RectD bounds = edge is OverlayEdge.Bottom or OverlayEdge.Top
                 ? new RectD(0, 0, 800, 240)
                 : new RectD(0, 0, 240, 800);
             var geometry = new EdgeTrackGeometry(bounds, edge);
-            var foot = geometry.FootPointFor(geometry.TrackLowerBound);
+            PointD foot = geometry.FootPointFor(geometry.TrackLowerBound);
 
             switch (edge)
             {
@@ -129,7 +132,7 @@ public sealed class OverlayGeometryTests
         var workArea = new RectD(0, 0, 1_920, 1_080);
         var preference = new OverlayRegionPreference(OverlayEdge.Bottom, OverlaySpan.Half, null);
 
-        var frames = OverlayRegionLayout.Frames(preference, workArea);
+        OverlayRegionFrames frames = OverlayRegionLayout.Frames(preference, workArea);
 
         Assert.Equal(new RectD(480, 0, 960, 240), frames.ActivityFrame);
         Assert.Equal(new RectD(336, 0, 1_248, 360), frames.RenderFrame);

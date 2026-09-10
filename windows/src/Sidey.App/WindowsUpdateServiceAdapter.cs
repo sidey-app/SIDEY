@@ -10,7 +10,7 @@ namespace Sidey.App;
 
 internal sealed class WindowsUpdateServiceAdapter : IUpdateService
 {
-    private static readonly string LastCheckedPath = Path.Combine(
+    private static readonly string s_lastCheckedPath = Path.Combine(
         SideyStoragePaths.LocalApplicationDataRoot(),
         "SIDEY",
         "update-last-checked.txt");
@@ -132,7 +132,7 @@ internal sealed class WindowsUpdateServiceAdapter : IUpdateService
     {
         try
         {
-            string value = File.ReadAllText(LastCheckedPath).Trim();
+            string value = File.ReadAllText(s_lastCheckedPath).Trim();
             return DateTimeOffset.TryParseExact(
                 value,
                 "O",
@@ -156,7 +156,7 @@ internal sealed class WindowsUpdateServiceAdapter : IUpdateService
     {
         try
         {
-            string? directory = Path.GetDirectoryName(LastCheckedPath);
+            string? directory = Path.GetDirectoryName(s_lastCheckedPath);
             if (directory is null)
             {
                 return;
@@ -164,7 +164,7 @@ internal sealed class WindowsUpdateServiceAdapter : IUpdateService
 
             Directory.CreateDirectory(directory);
             File.WriteAllText(
-                LastCheckedPath,
+                s_lastCheckedPath,
                 timestamp.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture));
         }
         catch (IOException)

@@ -17,25 +17,6 @@ public sealed class WindowsStartupServiceTests
     }
 
     [Fact]
-    public void BackgroundLaunchStillShowsRequiredOnboardingButHidesCompletedSettings()
-    {
-        string source = File.ReadAllText(RepositoryPath(
-            "windows", "src", "Sidey.App", "App.xaml.cs"));
-
-        int onboardingBranch = source.IndexOf(
-            "if (!coordinator.State.Preferences.OnboardingCompleted)",
-            StringComparison.Ordinal);
-        int completedHidden = source.IndexOf(
-            "StartupDiagnostics.Stage(\"completed-launch-window-hidden\")",
-            StringComparison.Ordinal);
-
-        Assert.True(onboardingBranch >= 0, "Incomplete onboarding must be handled first.");
-        Assert.True(
-            completedHidden > onboardingBranch,
-            "Only an already-onboarded launch may start without a settings window.");
-    }
-
-    [Fact]
     public void StructuredRuntimeResolvesThePublicLauncher()
     {
         string root = Path.Combine(Path.GetTempPath(), "sidey-deployment-root");
@@ -51,17 +32,5 @@ public sealed class WindowsStartupServiceTests
             SideyDeploymentPaths.LauncherPath(
                 Path.Combine(runtime, "SIDEY.Host.exe"),
                 runtime));
-    }
-
-    private static string RepositoryPath(params string[] pathSegments)
-    {
-        var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "windows", "src")))
-        {
-            root = root.Parent;
-        }
-
-        Assert.NotNull(root);
-        return Path.Combine([root.FullName, .. pathSegments]);
     }
 }

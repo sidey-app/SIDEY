@@ -6,7 +6,7 @@ namespace Sidey.Presentation.Tests;
 
 public sealed class MvvmArchitectureTests
 {
-    private static readonly string[] ForbiddenAssemblyPrefixes =
+    private static readonly string[] s_forbiddenAssemblyPrefixes =
     [
         "Microsoft.UI",
         "Sidey.App",
@@ -18,18 +18,17 @@ public sealed class MvvmArchitectureTests
     [Fact]
     public void PresentationProjectReferencesOnlyCoreAsAProductProject()
     {
-        XDocument project = XDocument.Load(RepositoryPath(
+        var project = XDocument.Load(RepositoryPath(
             "windows",
             "src",
             "Sidey.Presentation",
             "Sidey.Presentation.csproj"));
 
-        string[] references = project
+        string[] references = [.. project
             .Descendants("ProjectReference")
             .Select(element => element.Attribute("Include")?.Value.Replace('\\', '/'))
             .Where(path => path is not null)
-            .Cast<string>()
-            .ToArray();
+            .Cast<string>()];
 
         Assert.Equal(["../Sidey.Core/Sidey.Core.csproj"], references);
     }
@@ -47,10 +46,9 @@ public sealed class MvvmArchitectureTests
     [Fact]
     public void ViewModelPublicContractsDoNotExposeViewOrPlatformTypes()
     {
-        Type[] viewModels = typeof(MainWindowViewModel).Assembly
+        Type[] viewModels = [.. typeof(MainWindowViewModel).Assembly
             .GetTypes()
-            .Where(type => type.Namespace == typeof(MainWindowViewModel).Namespace)
-            .ToArray();
+            .Where(type => type.Namespace == typeof(MainWindowViewModel).Namespace)];
 
         foreach (Type viewModel in viewModels)
         {
@@ -73,7 +71,7 @@ public sealed class MvvmArchitectureTests
     [InlineData("OnboardingWindow.xaml", "SkipGroupCommand")]
     public void ViewActionsUseCommandBindings(string fileName, string commandName)
     {
-        XDocument view = XDocument.Load(RepositoryPath(
+        var view = XDocument.Load(RepositoryPath(
             "windows",
             "src",
             "Sidey.App",
@@ -103,7 +101,7 @@ public sealed class MvvmArchitectureTests
 
     private static bool IsForbiddenAssembly(string? name) =>
         name is not null
-        && ForbiddenAssemblyPrefixes.Any(prefix => name.StartsWith(prefix, StringComparison.Ordinal));
+        && s_forbiddenAssemblyPrefixes.Any(prefix => name.StartsWith(prefix, StringComparison.Ordinal));
 
     private static string RepositoryPath(params string[] pathSegments)
     {

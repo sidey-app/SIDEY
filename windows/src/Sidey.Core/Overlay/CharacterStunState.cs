@@ -9,7 +9,7 @@ public sealed class CharacterStunState(Func<double>? clock = null)
     public const double DurationSeconds = 6;
     public const int HitThreshold = 10;
     private readonly Func<double> _clock = clock ?? (() => (double)Stopwatch.GetTimestamp() / Stopwatch.Frequency);
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly Dictionary<Guid, Queue<double>> _hits = [];
     private readonly Dictionary<Guid, double> _started = [];
 
@@ -34,7 +34,7 @@ public sealed class CharacterStunState(Func<double>? clock = null)
             if (IsStunned(id))
                 return false;
             double now = _clock();
-            if (!_hits.TryGetValue(id, out var hits))
+            if (!_hits.TryGetValue(id, out Queue<double>? hits))
                 _hits[id] = hits = new Queue<double>();
             while (hits.TryPeek(out double hit) && hit < now - WindowSeconds)
                 hits.Dequeue();

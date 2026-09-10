@@ -50,8 +50,8 @@ public sealed class AtomicPreferencesStoreTests
     {
         string directory = Path.Combine(Path.GetTempPath(), $"sidey-preferences-{Guid.NewGuid():N}");
         string path = Path.Combine(directory, "preferences.json");
-        Guid activeRoomId = Guid.NewGuid();
-        var expected = AppPreferences.CreateDefault(1234) with
+        var activeRoomId = Guid.NewGuid();
+        AppPreferences expected = AppPreferences.CreateDefault(1234) with
         {
             OnboardingCompleted = true,
             OverlayVisible = false,

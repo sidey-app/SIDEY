@@ -8,7 +8,7 @@ public sealed class OverlayBehaviorPolicyTests
     [Fact]
     public void ExistingPulseDoesNotReplayAfterWorldIsRecreated()
     {
-        var pulse = Pulse();
+        CharacterPulseEvent pulse = Pulse();
         var guard = new CharacterPulseReplayGuard();
 
         guard.SeedExisting([pulse]);
@@ -20,13 +20,13 @@ public sealed class OverlayBehaviorPolicyTests
     [Fact]
     public void ExistingThrowDoesNotReplayAndGuardIsBounded()
     {
-        var existing = Throw();
+        CharacterThrowEvent existing = Throw();
         var guard = new CharacterThrowReplayGuard(capacity: 2);
 
         guard.SeedExisting([existing]);
         Assert.False(guard.TryAccept(existing));
-        var second = Throw();
-        var third = Throw();
+        CharacterThrowEvent second = Throw();
+        CharacterThrowEvent third = Throw();
         Assert.True(guard.TryAccept(second));
         Assert.True(guard.TryAccept(third));
         Assert.True(guard.TryAccept(existing));
@@ -36,8 +36,8 @@ public sealed class OverlayBehaviorPolicyTests
     public void PlacementSessionEntropyChangesInitialPositions()
     {
         var memberId = Guid.Parse("5ec7a319-2dde-48df-af96-e2554fc0cf2a");
-        var firstSeed = OverlayPlacementPolicy.CombineSeed(1234, 10);
-        var secondSeed = OverlayPlacementPolicy.CombineSeed(1234, 11);
+        long firstSeed = OverlayPlacementPolicy.CombineSeed(1234, 10);
+        long secondSeed = OverlayPlacementPolicy.CombineSeed(1234, 11);
 
         Assert.NotEqual(
             OverlayPlacementPolicy.Fraction(memberId, firstSeed),
@@ -60,7 +60,7 @@ public sealed class OverlayBehaviorPolicyTests
         int expectedHeight,
         byte[] expectedBlueValues)
     {
-        var oriented = PixelVisualOrientation.Apply(Visual(2, 3), edge);
+        PremultipliedVisual oriented = PixelVisualOrientation.Apply(Visual(2, 3), edge);
 
         Assert.Equal(expectedWidth, oriented.Width);
         Assert.Equal(expectedHeight, oriented.Height);
@@ -84,7 +84,7 @@ public sealed class OverlayBehaviorPolicyTests
             8,
             BubbleBodyBounds: new PixelVisualBodyBounds(2, 3, 6, 4));
 
-        var oriented = PixelVisualOrientation.Apply(source, edge);
+        PremultipliedVisual oriented = PixelVisualOrientation.Apply(source, edge);
 
         Assert.Equal(
             new PixelVisualBodyBounds(expectedX, expectedY, expectedWidth, expectedHeight),
@@ -105,8 +105,8 @@ public sealed class OverlayBehaviorPolicyTests
 
     private static PremultipliedVisual Visual(int width, int height)
     {
-        var pixels = new byte[width * height * 4];
-        for (var pixel = 0; pixel < width * height; pixel++)
+        byte[] pixels = new byte[width * height * 4];
+        for (int pixel = 0; pixel < width * height; pixel++)
         {
             pixels[pixel * 4] = (byte)(pixel + 1);
             pixels[(pixel * 4) + 3] = 255;
@@ -115,7 +115,5 @@ public sealed class OverlayBehaviorPolicyTests
     }
 
     private static byte[] BlueValues(PremultipliedVisual visual) =>
-        Enumerable.Range(0, visual.Width * visual.Height)
-            .Select(index => visual.Pixels[index * 4])
-            .ToArray();
+        [.. Enumerable.Range(0, visual.Width * visual.Height).Select(index => visual.Pixels[index * 4])];
 }

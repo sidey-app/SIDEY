@@ -1,6 +1,7 @@
-namespace Sidey.Platform.Windows.Tests;
 
 using Sidey.Core.Domain;
+
+namespace Sidey.Platform.Windows.Tests;
 
 public sealed class WindowPolicyTests
 {
@@ -14,7 +15,7 @@ public sealed class WindowPolicyTests
     [Fact]
     public void WorldWindowIsLayeredClickThroughTopmostAndNonActivating()
     {
-        var style = NativeOverlayWindow.ExtendedStyleBits(NativeOverlayWindowRole.World);
+        uint style = NativeOverlayWindow.ExtendedStyleBits(NativeOverlayWindowRole.World);
 
         AssertHas(style, Topmost);
         AssertHas(style, Transparent);
@@ -27,7 +28,7 @@ public sealed class WindowPolicyTests
     [Fact]
     public void HotspotReceivesInputButNeverActivatesOrAppearsInTaskSwitcher()
     {
-        var style = NativeOverlayWindow.ExtendedStyleBits(NativeOverlayWindowRole.Hotspot);
+        uint style = NativeOverlayWindow.ExtendedStyleBits(NativeOverlayWindowRole.Hotspot);
 
         AssertHas(style, Topmost);
         AssertHas(style, ToolWindow);
@@ -94,7 +95,7 @@ public sealed class WindowPolicyTests
     {
         var workArea = new NativePixelRect(-1920, -200, 1920, 1000);
 
-        var frame = WindowsOverlayRegionLayout.Frame(
+        NativePixelRect frame = WindowsOverlayRegionLayout.Frame(
             workArea,
             120,
             new OverlayRegionPreference(edge, span, null));
@@ -107,11 +108,11 @@ public sealed class WindowPolicyTests
     {
         var workArea = new NativePixelRect(-1920, -200, 1920, 1000);
 
-        foreach (var edge in Enum.GetValues<OverlayEdge>())
+        foreach (OverlayEdge edge in Enum.GetValues<OverlayEdge>())
         {
-            foreach (var span in Enum.GetValues<OverlaySpan>())
+            foreach (OverlaySpan span in Enum.GetValues<OverlaySpan>())
             {
-                var frame = WindowsOverlayRegionLayout.Frame(
+                NativePixelRect frame = WindowsOverlayRegionLayout.Frame(
                     workArea,
                     120,
                     new OverlayRegionPreference(edge, span, null));
@@ -156,7 +157,7 @@ public sealed class WindowPolicyTests
         var workArea = new NativePixelRect(0, 0, 1920, 1080);
         var preference = new OverlayRegionPreference(OverlayEdge.Bottom, OverlaySpan.Half, null);
 
-        var frames = WindowsOverlayRegionLayout.Frames(workArea, 96, preference);
+        WindowsOverlayRegionFrames frames = WindowsOverlayRegionLayout.Frames(workArea, 96, preference);
 
         Assert.Equal(new NativePixelRect(480, 840, 960, 240), frames.ActivityFrame);
         Assert.Equal(new NativePixelRect(336, 720, 1248, 360), frames.RenderFrame);
@@ -167,7 +168,7 @@ public sealed class WindowPolicyTests
     public void ShownAutoHideTaskbarMovesTheBottomTrackAboveIt()
     {
         var monitor = new NativePixelRect(0, 0, 1920, 1080);
-        var fullScreenWorkArea = monitor;
+        NativePixelRect fullScreenWorkArea = monitor;
 
         Assert.Equal(
             48,

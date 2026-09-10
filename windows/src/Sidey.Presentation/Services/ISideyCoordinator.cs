@@ -5,12 +5,12 @@ namespace Sidey.Presentation.Services;
 
 public interface ICoordinatorStateSource
 {
-    CoordinatorState State { get; }
+    public CoordinatorState State { get; }
 }
 
 public interface IHistoryCoordinator : ICoordinatorStateSource
 {
-    Task<MessageHistoryPage> FetchMessagePageAsync(
+    public Task<MessageHistoryPage> FetchMessagePageAsync(
         Guid roomId,
         MessageHistoryCursor? before,
         int limit = 50,
@@ -19,90 +19,90 @@ public interface IHistoryCoordinator : ICoordinatorStateSource
 
 public interface IOnboardingCoordinator : ICoordinatorStateSource
 {
-    Task CompleteOnboardingAsync(CancellationToken cancellationToken = default);
+    public Task CompleteOnboardingAsync(CancellationToken cancellationToken = default);
 
-    Task SaveProfileAsync(
+    public Task SaveProfileAsync(
         string nickname,
         string characterId,
         CancellationToken cancellationToken = default);
 
-    Task CreateRoomAsync(string name, CancellationToken cancellationToken = default);
+    public Task CreateRoomAsync(string name, CancellationToken cancellationToken = default);
 
-    Task JoinRoomAsync(string inviteCode, CancellationToken cancellationToken = default);
+    public Task JoinRoomAsync(string inviteCode, CancellationToken cancellationToken = default);
 }
 
 public interface IMainWindowCoordinator : IOnboardingCoordinator
 {
-    Task RetryConnectionAsync(bool userInitiated = true);
-    bool AnimationsEnabled { get; }
-    void ApplyCharacterSoundEffects(bool enabled, int volume);
-    Task SaveCharacterSoundEffectsAsync(bool enabled, int volume, CancellationToken cancellationToken = default);
-    void PlayImpactSound(string id, Guid scope, long requestedAt);
-    void StopImpactSounds(Guid? scope = null);
-    bool IsValidationMode { get; }
+    public Task RetryConnectionAsync(bool userInitiated = true);
+    public bool AnimationsEnabled { get; }
+    public void ApplyCharacterSoundEffects(bool enabled, int volume);
+    public Task SaveCharacterSoundEffectsAsync(bool enabled, int volume, CancellationToken cancellationToken = default);
+    public void PlayImpactSound(string id, Guid scope, long requestedAt);
+    public void StopImpactSounds(Guid? scope = null);
+    public bool IsValidationMode { get; }
 
-    string? ValidationMetricsPath { get; }
+    public string? ValidationMetricsPath { get; }
 
-    ValidationMetricsSnapshot? ValidationMetricsSummary { get; }
+    public ValidationMetricsSnapshot? ValidationMetricsSummary { get; }
 
-    Task SwitchRoomAsync(Guid roomId, CancellationToken cancellationToken = default);
+    public Task SwitchRoomAsync(Guid roomId, CancellationToken cancellationToken = default);
 
-    Task RenameRoomAsync(
+    public Task RenameRoomAsync(
         Guid roomId,
         string name,
         CancellationToken cancellationToken = default);
 
-    Task RotateInviteCodeAsync(Guid roomId, CancellationToken cancellationToken = default);
+    public Task RotateInviteCodeAsync(Guid roomId, CancellationToken cancellationToken = default);
 
-    Task RemoveRoomMemberAsync(
+    public Task RemoveRoomMemberAsync(
         Guid roomId,
         Guid userId,
         CancellationToken cancellationToken = default);
 
-    Task DeleteRoomAsync(Guid roomId, CancellationToken cancellationToken = default);
+    public Task DeleteRoomAsync(Guid roomId, CancellationToken cancellationToken = default);
 
-    Task LeaveRoomAsync(Guid roomId, CancellationToken cancellationToken = default);
+    public Task LeaveRoomAsync(Guid roomId, CancellationToken cancellationToken = default);
 
-    Task<bool> CopyInviteCodeAsync(Guid roomId, CancellationToken cancellationToken = default);
+    public Task<bool> CopyInviteCodeAsync(Guid roomId, CancellationToken cancellationToken = default);
 
-    Task SetOverlayVisibleAsync(bool visible, CancellationToken cancellationToken = default);
+    public Task SetOverlayVisibleAsync(bool visible, CancellationToken cancellationToken = default);
 
-    Task SetQuietModeAsync(bool enabled, CancellationToken cancellationToken = default);
+    public Task SetQuietModeAsync(bool enabled, CancellationToken cancellationToken = default);
 
-    Task SetShowOfflineMembersAsync(
+    public Task SetShowOfflineMembersAsync(
         bool enabled,
         CancellationToken cancellationToken = default);
 
-    Task SetRequiresRightClickToThrowAsync(
+    public Task SetRequiresRightClickToThrowAsync(
         bool enabled,
         CancellationToken cancellationToken = default);
 
-    Task SetStartAtLoginAsync(bool enabled, CancellationToken cancellationToken = default);
+    public Task SetStartAtLoginAsync(bool enabled, CancellationToken cancellationToken = default);
 
-    Task SetLanguageAsync(string language, CancellationToken cancellationToken = default);
+    public Task SetLanguageAsync(string language, CancellationToken cancellationToken = default);
 
-    Task SetRegionAsync(
+    public Task SetRegionAsync(
         OverlayRegionPreference preference,
         CancellationToken cancellationToken = default);
 
-    Task ActivateStoreProductAsync(
+    public Task ActivateStoreProductAsync(
         string productId,
         CancellationToken cancellationToken = default);
 
-    Task SetEquippedCosmeticAsync(
+    public Task SetEquippedCosmeticAsync(
         CommerceProductKind kind,
         string? catalogItemId,
         CancellationToken cancellationToken = default);
 
-    Task CompleteGoogleIdentityLinkAsync(
+    public Task CompleteGoogleIdentityLinkAsync(
         Uri callbackUri,
         CancellationToken cancellationToken = default);
 
-    IReadOnlyList<MonitorOption> GetMonitors();
+    public IReadOnlyList<MonitorOption> GetMonitors();
 
-    void RequestComposer();
+    public void RequestComposer();
 
-    Task<string?> ExportValidationMetricsAsync(CancellationToken cancellationToken = default);
+    public Task<string?> ExportValidationMetricsAsync(CancellationToken cancellationToken = default);
 }
 
 public interface ISideyCoordinator :

@@ -38,15 +38,15 @@ public static class MessageBubbleCollisionResolver
         double coordinateScale = 1d)
     {
         ArgumentNullException.ThrowIfNull(scratch);
-        var agentById = scratch.AgentById;
-        var acceleration = scratch.Acceleration;
-        var separated = scratch.Separated;
+        Dictionary<Guid, PixelMovementAgent> agentById = scratch.AgentById;
+        Dictionary<Guid, double> acceleration = scratch.Acceleration;
+        HashSet<Guid> separated = scratch.Separated;
         agentById.Clear();
         acceleration.Clear();
         separated.Clear();
         scratch.Transfers.Clear();
         scratch.TransferAcceleration.Clear();
-        var deltaTime = Math.Clamp(rawDeltaTime, 0d, 0.1d);
+        double deltaTime = Math.Clamp(rawDeltaTime, 0d, 0.1d);
         if (deltaTime <= 0d || messageBubbles.Count < 2)
         {
             for (int index = 0; index < agents.Count; index++)
@@ -54,30 +54,30 @@ public static class MessageBubbleCollisionResolver
             return separated;
         }
 
-        for (var agentIndex = 0; agentIndex < agents.Count; agentIndex++)
+        for (int agentIndex = 0; agentIndex < agents.Count; agentIndex++)
         {
-            var agent = agents[agentIndex];
+            PixelMovementAgent agent = agents[agentIndex];
             agentById[agent.Id] = agent;
         }
-        for (var leftIndex = 0; leftIndex < messageBubbles.Count; leftIndex++)
+        for (int leftIndex = 0; leftIndex < messageBubbles.Count; leftIndex++)
         {
-            for (var rightIndex = leftIndex + 1; rightIndex < messageBubbles.Count; rightIndex++)
+            for (int rightIndex = leftIndex + 1; rightIndex < messageBubbles.Count; rightIndex++)
             {
-                var left = messageBubbles[leftIndex];
-                var right = messageBubbles[rightIndex];
-                var overlap = Math.Min(left.Upper, right.Upper)
+                MessageBubbleTrackBounds left = messageBubbles[leftIndex];
+                MessageBubbleTrackBounds right = messageBubbles[rightIndex];
+                double overlap = Math.Min(left.Upper, right.Upper)
                     - Math.Max(left.Lower, right.Lower)
                     + (RequiredGap * coordinateScale);
                 if (overlap <= 0d
-                    || !agentById.TryGetValue(left.MemberId, out var leftAgent)
-                    || !agentById.TryGetValue(right.MemberId, out var rightAgent))
+                    || !agentById.TryGetValue(left.MemberId, out PixelMovementAgent? leftAgent)
+                    || !agentById.TryGetValue(right.MemberId, out PixelMovementAgent? rightAgent))
                 {
                     continue;
                 }
 
                 leftAgent.MessageBubbleSeparationOrder ??= leftAgent.TrackPosition;
                 rightAgent.MessageBubbleSeparationOrder ??= rightAgent.TrackPosition;
-                var direction = leftAgent.MessageBubbleSeparationOrder < rightAgent.MessageBubbleSeparationOrder
+                double direction = leftAgent.MessageBubbleSeparationOrder < rightAgent.MessageBubbleSeparationOrder
                     || (leftAgent.MessageBubbleSeparationOrder == rightAgent.MessageBubbleSeparationOrder
                         && left.MemberId.CompareTo(right.MemberId) < 0)
                     ? -1d
@@ -98,27 +98,27 @@ public static class MessageBubbleCollisionResolver
 
         for (int index = 0; index < agents.Count; index++)
         {
-            var agent = agents[index];
+            PixelMovementAgent agent = agents[index];
             if (!separated.Contains(agent.Id))
                 agent.MessageBubbleSeparationOrder = null;
         }
-        foreach (var transfer in scratch.Transfers)
+        foreach ((Guid Id, double Force) transfer in scratch.Transfers)
         {
             if (acceleration.GetValueOrDefault(transfer.Id) * transfer.Force > 0)
                 Add(scratch.TransferAcceleration, transfer.Id, transfer.Force);
         }
-        foreach (var transfer in scratch.TransferAcceleration)
+        foreach (KeyValuePair<Guid, double> transfer in scratch.TransferAcceleration)
             Add(acceleration, transfer.Key, transfer.Value);
-        foreach (var (id, requestedForce) in acceleration)
+        foreach ((Guid id, double requestedForce) in acceleration)
         {
-            var agent = agentById[id];
+            PixelMovementAgent agent = agentById[id];
             if (stoppedIds?.Contains(id) == true)
             {
                 agent.Velocity = 0;
                 continue;
             }
             agent.IdleRemaining = 0d;
-            var force = CanMove(agent, requestedForce, geometry, stoppedIds) ? requestedForce : 0d;
+            double force = CanMove(agent, requestedForce, geometry, stoppedIds) ? requestedForce : 0d;
             if (Math.Abs(force) <= 0.001d)
             {
                 agent.Velocity = 0;

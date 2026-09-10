@@ -13,7 +13,7 @@ public sealed class RealtimeConnectionTracker
 
     public void ReplaceDesiredRoomIds(IEnumerable<Guid> roomIds)
     {
-        _desiredRoomIds = roomIds.ToHashSet();
+        _desiredRoomIds = [.. roomIds];
         _subscribedRoomIds.IntersectWith(_desiredRoomIds);
     }
 
@@ -90,11 +90,10 @@ public static class PresenceChangePlan
     public static IReadOnlyList<PresenceUpdate> Updates(
         IReadOnlyDictionary<Guid, PresenceState> joined,
         IReadOnlySet<Guid> left) =>
-        left.Except(joined.Keys)
+        [.. left.Except(joined.Keys)
             .Select(userId => new PresenceUpdate(userId, PresenceState.Offline))
             .Concat(joined.Select(pair => new PresenceUpdate(pair.Key, pair.Value)))
-            .OrderBy(update => update.UserId.ToString("D"), StringComparer.Ordinal)
-            .ToArray();
+            .OrderBy(update => update.UserId.ToString("D"), StringComparer.Ordinal)];
 }
 
 public static class PresenceSnapshotPlan
@@ -102,11 +101,10 @@ public static class PresenceSnapshotPlan
     public static IReadOnlyList<PresenceUpdate> Updates(
         IReadOnlyDictionary<Guid, PresenceState> current,
         IReadOnlySet<Guid> previouslyPresent) =>
-        previouslyPresent.Except(current.Keys)
+        [.. previouslyPresent.Except(current.Keys)
             .Select(userId => new PresenceUpdate(userId, PresenceState.Offline))
             .Concat(current.Select(pair => new PresenceUpdate(pair.Key, pair.Value)))
-            .OrderBy(update => update.UserId.ToString("D"), StringComparer.Ordinal)
-            .ToArray();
+            .OrderBy(update => update.UserId.ToString("D"), StringComparer.Ordinal)];
 }
 
 public abstract record TypingLeaseAction(Guid RoomId)
@@ -165,8 +163,8 @@ public sealed class CharacterPulseCooldown
             return false;
         }
 
-        var key = (roomId, userId);
-        if (_lastAcceptedUptime.TryGetValue(key, out var last) && uptime - last < Duration)
+        (Guid roomId, Guid userId) key = (roomId, userId);
+        if (_lastAcceptedUptime.TryGetValue(key, out TimeSpan last) && uptime - last < Duration)
         {
             return false;
         }
@@ -189,8 +187,8 @@ public sealed class CharacterThrowCooldown
             return false;
         }
 
-        var key = (roomId, userId);
-        if (_lastAcceptedUptime.TryGetValue(key, out var last) && uptime - last < Duration)
+        (Guid roomId, Guid userId) key = (roomId, userId);
+        if (_lastAcceptedUptime.TryGetValue(key, out TimeSpan last) && uptime - last < Duration)
         {
             return false;
         }
@@ -242,7 +240,7 @@ public static class RealtimeRecoveryPolicy
 public sealed class CoalescingPublicationQueue<T>(Func<T, CancellationToken, Task> publish)
     : IAsyncDisposable
 {
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly Func<T, CancellationToken, Task> _publish = publish
         ?? throw new ArgumentNullException(nameof(publish));
     private readonly CancellationTokenSource _shutdown = new();
@@ -347,7 +345,7 @@ public sealed class CoalescingPublicationQueue<T>(Func<T, CancellationToken, Tas
         IEnumerable<TaskCompletionSource> completions,
         Action<TaskCompletionSource> complete)
     {
-        foreach (var completion in completions)
+        foreach (TaskCompletionSource completion in completions)
         {
             complete(completion);
         }

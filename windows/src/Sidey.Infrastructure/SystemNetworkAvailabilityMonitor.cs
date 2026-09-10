@@ -6,18 +6,18 @@ namespace Sidey.Infrastructure;
 
 internal interface INetworkAvailabilityMonitor : IDisposable
 {
-    bool IsAvailable { get; }
+    public bool IsAvailable { get; }
 
-    event Action<bool>? AvailabilityChanged;
-    event Action? PathChanged;
+    public event Action<bool>? AvailabilityChanged;
+    public event Action? PathChanged;
 
-    void Start();
-    void Refresh();
+    public void Start();
+    public void Refresh();
 }
 
 internal sealed class SystemNetworkAvailabilityMonitor : INetworkAvailabilityMonitor
 {
-    private readonly object _refreshGate = new();
+    private readonly Lock _refreshGate = new();
     private readonly Func<bool> _readAvailability;
     private int _available;
     private int _started;

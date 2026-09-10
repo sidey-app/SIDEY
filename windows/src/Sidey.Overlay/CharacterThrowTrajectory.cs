@@ -16,7 +16,7 @@ internal readonly record struct CharacterThrowTrajectory
         double dpiScale)
     {
         Start = start;
-        var distanceDip = Math.Sqrt(
+        double distanceDip = Math.Sqrt(
             Math.Pow(end.X - start.X, 2d) + Math.Pow(end.Y - start.Y, 2d)) / dpiScale;
         DurationSeconds = Math.Clamp(0.35d + (distanceDip / 1600d), 0.35d, 0.95d);
         ArcHeightPixels = Math.Clamp(distanceDip * 0.18d, 24d, 96d) * dpiScale;
@@ -27,8 +27,8 @@ internal readonly record struct CharacterThrowTrajectory
         double flightElapsedSeconds,
         OverlayEdge edge)
     {
-        var midpoint = ((Start.X + end.X) / 2d, (Start.Y + end.Y) / 2d);
-        var control = edge switch
+        (double, double) midpoint = ((Start.X + end.X) / 2d, (Start.Y + end.Y) / 2d);
+        (double, double) control = edge switch
         {
             OverlayEdge.Bottom => (midpoint.Item1, midpoint.Item2 - ArcHeightPixels),
             OverlayEdge.Top => (midpoint.Item1, midpoint.Item2 + ArcHeightPixels),
@@ -36,8 +36,8 @@ internal readonly record struct CharacterThrowTrajectory
             OverlayEdge.Right => (midpoint.Item1 - ArcHeightPixels, midpoint.Item2),
             _ => throw new ArgumentOutOfRangeException(nameof(edge)),
         };
-        var progress = Math.Clamp(flightElapsedSeconds / DurationSeconds, 0d, 1d);
-        var inverse = 1d - progress;
+        double progress = Math.Clamp(flightElapsedSeconds / DurationSeconds, 0d, 1d);
+        double inverse = 1d - progress;
         return (
             (inverse * inverse * Start.X) + (2d * inverse * progress * control.Item1) + (progress * progress * end.X),
             (inverse * inverse * Start.Y) + (2d * inverse * progress * control.Item2) + (progress * progress * end.Y));

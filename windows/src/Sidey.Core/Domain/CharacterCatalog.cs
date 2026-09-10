@@ -47,7 +47,7 @@ public static class PixelCharacterCatalog
 {
     public const string FallbackId = "pixel_hamster";
 
-    private static readonly PixelCharacterDefinition[] Definitions =
+    private static readonly PixelCharacterDefinition[] s_definitions =
     [
         Create(
             FallbackId,
@@ -96,30 +96,29 @@ public static class PixelCharacterCatalog
             visualEffect: PixelCharacterVisualEffect.StarlightSparkles),
     ];
 
-    private static readonly PixelCharacterDefinition[] SelectableDefinitions = Definitions[..5];
+    private static readonly PixelCharacterDefinition[] s_selectableDefinitions = s_definitions[..5];
 
-    private static readonly IReadOnlyDictionary<string, PixelCharacterDefinition> ById =
-        Definitions.ToDictionary(definition => definition.Id, StringComparer.Ordinal);
+    private static readonly IReadOnlyDictionary<string, PixelCharacterDefinition> s_byId =
+        s_definitions.ToDictionary(definition => definition.Id, StringComparer.Ordinal);
 
-    private static readonly IReadOnlyDictionary<string, string> AliasToId = Definitions
+    private static readonly IReadOnlyDictionary<string, string> s_aliasToId = s_definitions
         .SelectMany(definition => definition.CompatibleAliases.Select(alias => (alias, definition.Id)))
         .ToDictionary(pair => pair.alias, pair => pair.Id, StringComparer.Ordinal);
 
-    public static IReadOnlyList<PixelCharacterDefinition> All => Definitions;
+    public static IReadOnlyList<PixelCharacterDefinition> All => s_definitions;
 
     /// <summary>
     /// Characters that every account can select without an entitlement.
     /// </summary>
-    public static IReadOnlyList<PixelCharacterDefinition> Selectable => SelectableDefinitions;
+    public static IReadOnlyList<PixelCharacterDefinition> Selectable => s_selectableDefinitions;
 
     public static IReadOnlyList<PixelCharacterDefinition> SelectableFor(
         IReadOnlySet<string> activeEntitlementKeys)
     {
         ArgumentNullException.ThrowIfNull(activeEntitlementKeys);
-        return Definitions
+        return [.. s_definitions
             .Where(definition => definition.EntitlementKey is null
-                || activeEntitlementKeys.Contains(definition.EntitlementKey))
-            .ToArray();
+                || activeEntitlementKeys.Contains(definition.EntitlementKey))];
     }
 
     public static IReadOnlySet<string> ResolveActiveEntitlementKeys(
@@ -137,21 +136,21 @@ public static class PixelCharacterCatalog
             : new HashSet<string>([entitlementKey], StringComparer.Ordinal);
     }
 
-    public static PixelCharacterDefinition Fallback => ById[FallbackId];
+    public static PixelCharacterDefinition Fallback => s_byId[FallbackId];
 
     public static string NormalizeId(string? characterId)
     {
-        if (characterId is not null && ById.ContainsKey(characterId))
+        if (characterId is not null && s_byId.ContainsKey(characterId))
         {
             return characterId;
         }
 
-        return characterId is not null && AliasToId.TryGetValue(characterId, out var canonical)
+        return characterId is not null && s_aliasToId.TryGetValue(characterId, out string? canonical)
             ? canonical
             : FallbackId;
     }
 
-    public static PixelCharacterDefinition Get(string? characterId) => ById[NormalizeId(characterId)];
+    public static PixelCharacterDefinition Get(string? characterId) => s_byId[NormalizeId(characterId)];
 
     public static bool CanSelect(
         string? characterId,
@@ -192,5 +191,5 @@ public static class PixelCharacterCatalog
             EntitlementKey: entitlementKey,
             MirrorsToMovementDirection: mirrorsToMovementDirection,
             VisualEffect: visualEffect,
-            CompatibleAliases: aliases ?? Array.Empty<string>());
+            CompatibleAliases: aliases ?? []);
 }

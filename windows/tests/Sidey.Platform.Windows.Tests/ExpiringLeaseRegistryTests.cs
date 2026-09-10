@@ -29,7 +29,7 @@ public sealed class ExpiringLeaseRegistryTests
     public async Task CancelPreventsExpiryCallback()
     {
         var delay = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var expiryCount = 0;
+        int expiryCount = 0;
         await using var registry = new ExpiringLeaseRegistry<string>(
             TimeSpan.FromSeconds(4),
             _ => Interlocked.Increment(ref expiryCount),

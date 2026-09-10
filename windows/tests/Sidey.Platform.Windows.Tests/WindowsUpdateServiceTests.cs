@@ -14,7 +14,7 @@ public sealed class WindowsUpdateServiceTests
             new HttpResponseMessage(HttpStatusCode.NotFound)));
         var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.CheckAsync());
 
         Assert.Equal("Windows 업데이트 정보가 아직 게시되지 않았습니다.", exception.Message);
@@ -23,7 +23,7 @@ public sealed class WindowsUpdateServiceTests
     [Fact]
     public async Task CurrentWindowsManifestDoesNotOfferAnUpdate()
     {
-        const string manifest = """
+        const string Manifest = """
             {
               "channel": "production",
               "version": "1.0.6",
@@ -32,7 +32,7 @@ public sealed class WindowsUpdateServiceTests
             """;
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
+            Content = new StringContent(Manifest, Encoding.UTF8, "application/json"),
         };
         using var client = new HttpClient(new StubHandler(response));
         var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
@@ -93,7 +93,7 @@ public sealed class WindowsUpdateServiceTests
     [Fact]
     public async Task NewerManifestRequiresTheVersionedInstallerAndSha256()
     {
-        const string manifest = """
+        const string Manifest = """
             {
               "channel": "production",
               "version": "1.0.11",
@@ -104,7 +104,7 @@ public sealed class WindowsUpdateServiceTests
             """;
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
+            Content = new StringContent(Manifest, Encoding.UTF8, "application/json"),
         };
         using var client = new HttpClient(new StubHandler(response));
         var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
@@ -125,7 +125,7 @@ public sealed class WindowsUpdateServiceTests
     [Fact]
     public async Task InjectedArtifactVersionCanExerciseAnAlreadyPublishedUpdate()
     {
-        const string manifest = """
+        const string Manifest = """
             {
               "channel": "production",
               "version": "1.0.10",
@@ -136,7 +136,7 @@ public sealed class WindowsUpdateServiceTests
             """;
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
+            Content = new StringContent(Manifest, Encoding.UTF8, "application/json"),
         };
         using var client = new HttpClient(new StubHandler(response));
         var service = new WindowsUpdateService(client, currentVersion: "1.0.9");
@@ -151,7 +151,7 @@ public sealed class WindowsUpdateServiceTests
     [Fact]
     public async Task NewerManifestWithoutInstallerMetadataIsRejected()
     {
-        const string manifest = """
+        const string Manifest = """
             {
               "channel": "production",
               "version": "1.0.11",
@@ -160,7 +160,7 @@ public sealed class WindowsUpdateServiceTests
             """;
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
+            Content = new StringContent(Manifest, Encoding.UTF8, "application/json"),
         };
         using var client = new HttpClient(new StubHandler(response));
         var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
@@ -171,7 +171,7 @@ public sealed class WindowsUpdateServiceTests
     [Fact]
     public async Task NewerManifestRejectsTheFormerMsiContract()
     {
-        const string manifest = """
+        const string Manifest = """
             {
               "channel": "production",
               "version": "1.0.11",
@@ -182,7 +182,7 @@ public sealed class WindowsUpdateServiceTests
             """;
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
+            Content = new StringContent(Manifest, Encoding.UTF8, "application/json"),
         };
         using var client = new HttpClient(new StubHandler(response));
         var service = new WindowsUpdateService(client, currentVersion: "1.0.10");

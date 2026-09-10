@@ -12,7 +12,7 @@ internal sealed class CharacterPulseReplayGuard(int capacity = 256)
 
     internal void SeedExisting(IEnumerable<CharacterPulseEvent> pulses)
     {
-        foreach (var pulse in pulses)
+        foreach (CharacterPulseEvent pulse in pulses)
         {
             Remember(pulse.Id);
         }

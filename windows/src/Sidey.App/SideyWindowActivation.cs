@@ -8,7 +8,7 @@ internal static class SideyWindowActivation
 {
     internal static void BringToForeground(Window window)
     {
-        var handle = WindowNative.GetWindowHandle(window);
+        nint handle = WindowNative.GetWindowHandle(window);
         if (handle == nint.Zero)
         {
             return;

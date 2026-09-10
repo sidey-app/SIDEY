@@ -11,8 +11,8 @@ public sealed record SupabaseRuntimeConfiguration(Uri Url, string PublishableKey
 
     public static SupabaseRuntimeConfiguration FromEnvironment()
     {
-        var url = Environment.GetEnvironmentVariable("SIDEY_SUPABASE_URL")?.Trim();
-        var key = Environment.GetEnvironmentVariable("SIDEY_SUPABASE_PUBLISHABLE_KEY")?.Trim();
+        string? url = Environment.GetEnvironmentVariable("SIDEY_SUPABASE_URL")?.Trim();
+        string? key = Environment.GetEnvironmentVariable("SIDEY_SUPABASE_PUBLISHABLE_KEY")?.Trim();
         if (string.IsNullOrEmpty(url) && string.IsNullOrEmpty(key))
         {
             return new SupabaseRuntimeConfiguration(
@@ -20,7 +20,7 @@ public sealed record SupabaseRuntimeConfiguration(Uri Url, string PublishableKey
                 ProductionPublishableKey);
         }
 
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed)
+        if (!Uri.TryCreate(url, UriKind.Absolute, out Uri? parsed)
             || !IsAllowedBackend(parsed)
             || string.IsNullOrWhiteSpace(key)
             || LooksLikeSecretKey(key))
@@ -44,7 +44,7 @@ public sealed record SupabaseRuntimeConfiguration(Uri Url, string PublishableKey
             return true;
         }
 
-        var parts = value.Split('.');
+        string[] parts = value.Split('.');
         if (parts.Length != 3)
         {
             return false;
@@ -52,10 +52,10 @@ public sealed record SupabaseRuntimeConfiguration(Uri Url, string PublishableKey
 
         try
         {
-            var encoded = parts[1].Replace('-', '+').Replace('_', '/');
+            string encoded = parts[1].Replace('-', '+').Replace('_', '/');
             encoded = encoded.PadRight(encoded.Length + ((4 - (encoded.Length % 4)) % 4), '=');
             using var document = JsonDocument.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(encoded)));
-            return document.RootElement.TryGetProperty("role", out var role)
+            return document.RootElement.TryGetProperty("role", out JsonElement role)
                 && role.GetString() == "service_role";
         }
         catch (Exception exception) when (exception is FormatException or JsonException)

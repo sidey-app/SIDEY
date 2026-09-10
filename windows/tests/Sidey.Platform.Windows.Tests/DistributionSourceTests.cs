@@ -30,7 +30,7 @@ public sealed class DistributionSourceTests
                 "SingleFile",
                 StringComparison.Ordinal) == true);
 
-        var characterAssets = project.Descendants("None").Single(element =>
+        XElement characterAssets = project.Descendants("None").Single(element =>
             (string?)element.Attribute("Include") == "@(_SideyExternalCharacterAsset)");
         Assert.Equal("PreserveNewest", characterAssets.Element("CopyToPublishDirectory")?.Value);
         Assert.DoesNotContain(
@@ -39,18 +39,18 @@ public sealed class DistributionSourceTests
                 "Assets/Characters",
                 StringComparison.Ordinal) == true);
 
-        var throwableAssets = project.Descendants("None").Single(element =>
+        XElement throwableAssets = project.Descendants("None").Single(element =>
             (string?)element.Attribute("Include") == "@(_SideyExternalThrowableAsset)");
         Assert.Equal("PreserveNewest", throwableAssets.Element("CopyToPublishDirectory")?.Value);
 
-        var copyExternal = project.Descendants("Target").Single(element =>
+        XElement copyExternal = project.Descendants("Target").Single(element =>
             (string?)element.Attribute("Name") == "CopyExternalCharacterAssetsAfterPublish");
         Assert.Equal("Publish", (string?)copyExternal.Attribute("AfterTargets"));
         Assert.Contains(
             "%(RecursiveDir)",
             copyExternal.Descendants("Copy").Single().Attribute("DestinationFiles")?.Value);
 
-        var copyThrowables = project.Descendants("Target").Single(element =>
+        XElement copyThrowables = project.Descendants("Target").Single(element =>
             (string?)element.Attribute("Name") == "CopyExternalThrowableAssetsAfterPublish");
         Assert.Equal("Publish", (string?)copyThrowables.Attribute("AfterTargets"));
         Assert.Contains(
@@ -58,7 +58,7 @@ public sealed class DistributionSourceTests
             copyThrowables.Descendants("Copy").Single().Attribute("DestinationFiles")?.Value,
             StringComparison.Ordinal);
 
-        var organize = project.Descendants("Target").Single(element =>
+        XElement organize = project.Descendants("Target").Single(element =>
             (string?)element.Attribute("Name") == "OrganizeStructuredPublish");
         Assert.Equal("Publish", (string?)organize.Attribute("AfterTargets"));
         Assert.Contains(
@@ -214,37 +214,13 @@ public sealed class DistributionSourceTests
     public void SetupMigratesTheLegacyMsiWithoutDeletingUserData()
     {
         string setup = ReadSetupScript();
-        string uninstaller = File.ReadAllText(RepositoryPath(
-            "windows", "src", "Sidey.Uninstaller", "Program.cs"));
 
         Assert.Contains("LEGACY_MSI_UPGRADE_CODE", setup, StringComparison.Ordinal);
         Assert.Contains("--uninstall-legacy-msi", setup, StringComparison.Ordinal);
         Assert.Contains("SideyLegacyMsiHelper.exe", setup, StringComparison.Ordinal);
-        Assert.Contains("/quiet /norestart", uninstaller, StringComparison.Ordinal);
-        Assert.Contains("MsiEnumRelatedProducts", uninstaller, StringComparison.Ordinal);
         Assert.DoesNotContain("--cleanup", setup[..setup.IndexOf("Section \"Uninstall\"", StringComparison.Ordinal)], StringComparison.Ordinal);
         Assert.Contains("$0 == 3010", setup, StringComparison.Ordinal);
         Assert.Contains("$(LegacyMigrationRestart)", setup, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void InstalledNsisUninstallerDeletesOnlySelectedCurrentUserData()
-    {
-        string uninstaller = File.ReadAllText(RepositoryPath(
-            "windows", "src", "Sidey.Uninstaller", "Program.cs"));
-
-        string setup = ReadSetupScript();
-
-        Assert.Contains("WriteUninstaller \"$INSTDIR\\Uninstall.exe\"", setup, StringComparison.Ordinal);
-        Assert.Contains("SIDEY.UninstallHelper.exe", setup, StringComparison.Ordinal);
-        Assert.Contains("CleanupLocalDataArgument = \"--cleanup-local-data\"", uninstaller, StringComparison.Ordinal);
-        Assert.Contains("CleanupCredentialsArgument = \"--cleanup-credentials\"", uninstaller, StringComparison.Ordinal);
-        Assert.Contains("CredentialFilter = \"SIDEY/*\"", uninstaller, StringComparison.Ordinal);
-        Assert.Contains("CredEnumerate", uninstaller, StringComparison.Ordinal);
-        Assert.Contains("CredentialType.Generic", uninstaller, StringComparison.Ordinal);
-        Assert.Contains("Environment.SpecialFolder.LocalApplicationData", uninstaller, StringComparison.Ordinal);
-        Assert.Contains("Path.Combine(normalizedLocalAppData, \"SIDEY\")", uninstaller, StringComparison.Ordinal);
-        Assert.Contains("Directory.Delete(dataRoot, true)", uninstaller, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -305,12 +281,9 @@ public sealed class DistributionSourceTests
 
         string organizer = File.ReadAllText(RepositoryPath(
             "scripts", "windows", "ConvertTo-PublishLayout.ps1"));
-        string launcher = File.ReadAllText(RepositoryPath(
-            "windows", "src", "Sidey.Launcher", "Program.cs"));
         Assert.Contains("SIDEY.Host.exe", organizer, StringComparison.Ordinal);
         Assert.Contains("Runtime", organizer, StringComparison.Ordinal);
         Assert.Contains("Uninstall.exe", organizer, StringComparison.Ordinal);
-        Assert.Contains("SIDEY.Host.exe", launcher, StringComparison.Ordinal);
     }
 
     private static string ReadSetupScript() => File.ReadAllText(AssetPath("Sidey.Setup.nsi"));

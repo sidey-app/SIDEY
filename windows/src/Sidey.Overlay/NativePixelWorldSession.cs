@@ -20,9 +20,9 @@ public sealed record NativePixelWorldSessionOptions(
 public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
 {
     public bool IsSelfStunned => _renderer.IsSelfStunned;
-    private static readonly TimeSpan ThrowTargetingDuration = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan s_throwTargetingDuration = TimeSpan.FromSeconds(10);
 
-    private readonly object _throwGate = new();
+    private readonly Lock _throwGate = new();
     private readonly NativeOverlayWindowThread _windows;
     private readonly LayeredPixelWorldRenderer _renderer;
     private readonly ValidationMetricsCollector? _metrics;
@@ -129,7 +129,7 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
                 nameof(initialSnapshot));
         }
 
-        var monitor = WindowsMonitorService.Select(preference.MonitorIdentifier);
+        WindowsMonitorInfo monitor = WindowsMonitorService.Select(preference.MonitorIdentifier);
         IReadOnlyList<WindowsMonitorInfo> monitors = WindowsMonitorService.GetAll();
         int monitorIndex = Math.Max(
             0,
@@ -137,25 +137,25 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         options.Diagnostic?.Invoke(
             $"overlay-environment monitor={monitorIndex + 1} dpi={monitor.Dpi} "
             + $"scale={(monitor.Dpi / 96d).ToString("F2", CultureInfo.InvariantCulture)}");
-        var initialTaskbarInset = WindowsTaskbarService.VisibleInset(
+        int initialTaskbarInset = WindowsTaskbarService.VisibleInset(
             monitor.MonitorPixels,
             monitor.MonitorPixels,
             preference.Edge);
-        var frames = WindowsOverlayRegionLayout.Frames(
+        WindowsOverlayRegionFrames frames = WindowsOverlayRegionLayout.Frames(
             monitor.MonitorPixels,
             monitor.Dpi,
             preference);
-        var hotspotSize = Math.Max(
+        int hotspotSize = Math.Max(
             1,
             (int)Math.Round(52d * monitor.Dpi / 96d, MidpointRounding.AwayFromZero));
-        var initialHotspot = InitialHotspot(
+        NativePixelRect initialHotspot = InitialHotspot(
             frames.ActivityFrame,
             preference.Edge,
             hotspotSize,
             initialTaskbarInset);
-        var metrics = options.CollectValidationMetrics
+        ValidationMetricsCollector? metrics = options.CollectValidationMetrics
             ? new ValidationMetricsCollector(
-                normalizedValidationIds?.ToArray() ?? PixelCharacterCatalog.All.Select(item => item.Id).ToArray(),
+                normalizedValidationIds?.ToArray() ?? [.. PixelCharacterCatalog.All.Select(item => item.Id)],
                 options.ValidationMetricsPath)
             : null;
 
@@ -313,7 +313,7 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
             }
 
             _throwTargetingActive = true;
-            _throwTargetingTimer.Change(ThrowTargetingDuration, Timeout.InfiniteTimeSpan);
+            _throwTargetingTimer.Change(s_throwTargetingDuration, Timeout.InfiniteTimeSpan);
             RefreshTargetVisibilityWithinGate();
         }
     }
@@ -385,13 +385,13 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
                 CancelThrowTargetingWithinGate();
             }
 
-            var count = Math.Min(targets.Count, _targetUserIds.Length);
-            for (var index = 0; index < count; index++)
+            int count = Math.Min(targets.Count, _targetUserIds.Length);
+            for (int index = 0; index < count; index++)
             {
                 _targetUserIds[index] = targets[index].UserId;
                 _targetBounds[index] = targets[index].Bounds;
             }
-            for (var index = count; index < _targetUserIds.Length; index++)
+            for (int index = count; index < _targetUserIds.Length; index++)
             {
                 _targetUserIds[index] = null;
             }
@@ -408,10 +408,10 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
 
     private void RefreshTargetVisibilityWithinGate()
     {
-        var enabled = TargetsEnabledWithinGate();
-        for (var index = 0; index < _targetUserIds.Length; index++)
+        bool enabled = TargetsEnabledWithinGate();
+        for (int index = 0; index < _targetUserIds.Length; index++)
         {
-            var visible = enabled && _targetUserIds[index] is not null;
+            bool visible = enabled && _targetUserIds[index] is not null;
             if (visible)
             {
                 if (!_targetWindowsShown[index]
@@ -452,11 +452,11 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         {
             return true;
         }
-        var minimumPixels = Math.Max(1d, _monitor.Dpi / 96d);
-        var previousCenterX = previous.X + (previous.Width / 2d);
-        var previousCenterY = previous.Y + (previous.Height / 2d);
-        var currentCenterX = current.X + (current.Width / 2d);
-        var currentCenterY = current.Y + (current.Height / 2d);
+        double minimumPixels = Math.Max(1d, _monitor.Dpi / 96d);
+        double previousCenterX = previous.X + (previous.Width / 2d);
+        double previousCenterY = previous.Y + (previous.Height / 2d);
+        double currentCenterX = current.X + (current.Width / 2d);
+        double currentCenterY = current.Y + (current.Height / 2d);
         return Math.Abs(currentCenterX - previousCenterX) >= minimumPixels
             || Math.Abs(currentCenterY - previousCenterY) >= minimumPixels;
     }
@@ -520,10 +520,10 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
         int hotspotSize,
         int edgeInset)
     {
-        var tangent = edge is OverlayEdge.Bottom or OverlayEdge.Top
+        double tangent = edge is OverlayEdge.Bottom or OverlayEdge.Top
             ? activity.Width / 2d
             : activity.Height / 2d;
-        var foot = edge switch
+        (double X, double Y) foot = edge switch
         {
             OverlayEdge.Bottom => (
                 X: activity.X + tangent,
@@ -539,7 +539,7 @@ public sealed class NativePixelWorldSession : IOverlayHost, IDisposable
                 Y: activity.Y + tangent),
             _ => throw new ArgumentOutOfRangeException(nameof(edge)),
         };
-        var tangentOrigin = edge is OverlayEdge.Bottom or OverlayEdge.Top
+        int tangentOrigin = edge is OverlayEdge.Bottom or OverlayEdge.Top
             ? (int)Math.Round(foot.X - (hotspotSize / 2d), MidpointRounding.AwayFromZero)
             : (int)Math.Round(foot.Y - (hotspotSize / 2d), MidpointRounding.AwayFromZero);
         return edge switch
@@ -576,21 +576,21 @@ public static class PixelWorldPreview
         long installationSeed = 0x51DE7,
         OverlayEdge edge = OverlayEdge.Bottom)
     {
-        var ids = characterIds ?? PixelCharacterCatalog.All.Select(character => character.Id).ToArray();
+        IReadOnlyList<string> ids = characterIds ?? [.. PixelCharacterCatalog.All.Select(character => character.Id)];
         var roomId = Guid.Parse("51de7000-0000-0000-0000-000000000100");
-        var members = ids.Select((characterId, index) => new PixelWorldMember(
+        PixelWorldMember[] members = [.. ids.Select((characterId, index) => new PixelWorldMember(
             StableMemberId(index),
             PixelCharacterCatalog.Get(characterId).DisplayName,
             PixelCharacterCatalog.NormalizeId(characterId),
             PresenceState.Online,
             IsTyping: false,
-            IsCurrentUser: index == 0)).ToArray();
+            IsCurrentUser: index == 0))];
         return new WorldSnapshot(
             roomId,
             members,
-            Array.Empty<ActiveBubble>(),
-            Array.Empty<CharacterPulseEvent>(),
-            Array.Empty<CharacterThrowEvent>(),
+            [],
+            [],
+            [],
             edge,
             installationSeed);
     }

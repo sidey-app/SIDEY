@@ -38,7 +38,7 @@ public sealed class TextValidatorTests
     [InlineData("2026-09-01T12:34:56.123456+09:00")]
     public void PostgresTimestampRequiresAndPreservesExplicitOffset(string value)
     {
-        var parsed = PostgresTimestampParser.Parse(value);
+        DateTimeOffset parsed = PostgresTimestampParser.Parse(value);
 
         Assert.Equal(2026, parsed.Year);
         Assert.Throws<FormatException>(() =>

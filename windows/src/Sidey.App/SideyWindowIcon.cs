@@ -6,7 +6,7 @@ internal static class SideyWindowIcon
 {
     internal static void Apply(AppWindow window)
     {
-        var path = Path.Combine(
+        string path = Path.Combine(
             Sidey.Platform.Windows.SideyDeploymentPaths.DeploymentRoot(),
             "Assets",
             "Icons",

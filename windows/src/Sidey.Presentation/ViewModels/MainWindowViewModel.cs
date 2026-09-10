@@ -130,7 +130,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 if (!saved && _pendingSoundSettings is null)
                 {
                     StopSoundVolumeFeedback();
-                    var previous = _coordinator.State.Preferences;
+                    AppPreferences previous = _coordinator.State.Preferences;
                     _isApplyingState = true;
                     try
                     {
@@ -147,12 +147,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public void RefreshFeedbackPresentation()
     {
-        foreach (var item in CharacterSelections)
+        foreach (CharacterSelectionItemViewModel item in CharacterSelections)
         {
             item.AnimationsEnabled = _coordinator.AnimationsEnabled;
             item.RefreshSelectionStatus();
         }
-        foreach (var item in BubbleSelections.Concat(ThrowableSelections))
+        foreach (CosmeticSelectionItemViewModel? item in BubbleSelections.Concat(ThrowableSelections))
         {
             item.AnimationsEnabled = _coordinator.AnimationsEnabled;
             item.RefreshSelectionStatus();
@@ -295,9 +295,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _updates = updates ?? throw new ArgumentNullException(nameof(updates));
-        StoreProducts = WindowsCommerceCatalog.Products
-            .Select(CreateStorePreview)
-            .ToArray();
+        StoreProducts = [.. WindowsCommerceCatalog.Products.Select(CreateStorePreview)];
         RefreshVisibleStoreProducts();
         RefreshMonitors();
         ApplyState(coordinator.State);
@@ -482,15 +480,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(SoundMuteActionText));
         RefreshFeedbackPresentation();
         // Keep the existing items, selection, drafts and in-flight commands alive.
-        foreach (var character in CharacterSelections)
+        foreach (CharacterSelectionItemViewModel character in CharacterSelections)
             character.DisplayName = PixelCharacterCatalog.Get(character.Id).DisplayName;
-        foreach (var cosmetic in BubbleSelections.Concat(ThrowableSelections))
+        foreach (CosmeticSelectionItemViewModel? cosmetic in BubbleSelections.Concat(ThrowableSelections))
             cosmetic.DisplayName = I18n.Get(cosmetic.CatalogItemId is { } id
                 ? $"store.product.{id}"
                 : cosmetic.Kind == CommerceProductKind.Bubble ? "profile.defaultBubble" : "profile.defaultThrowable");
-        foreach (var product in StoreProducts)
+        foreach (StoreProductPreviewViewModel product in StoreProducts)
         {
-            var localized = CreateStorePreview(WindowsCommerceCatalog.Products.First(item => item.Id == product.ProductId));
+            StoreProductPreviewViewModel localized = CreateStorePreview(WindowsCommerceCatalog.Products.First(item => item.Id == product.ProductId));
             product.DisplayName = localized.DisplayName;
             product.Description = localized.Description;
             product.FormattedPrice = localized.FormattedPrice;
@@ -871,7 +869,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private void RefreshStoreProducts(CoordinatorState state)
     {
-        Dictionary<string, CommerceProductState> states = state.CommerceProducts
+        var states = state.CommerceProducts
             .ToDictionary(item => item.Product.Id, StringComparer.Ordinal);
         foreach (StoreProductPreviewViewModel product in StoreProducts)
         {
@@ -919,7 +917,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 .ThenBy(product => product.ProductId, StringComparer.Ordinal),
         };
 
-        StoreProductPreviewViewModel[] desiredProducts = products.ToArray();
+        StoreProductPreviewViewModel[] desiredProducts = [.. products];
         for (int index = VisibleStoreProducts.Count - 1; index >= 0; index--)
         {
             if (!desiredProducts.Contains(VisibleStoreProducts[index]))
@@ -1008,9 +1006,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         string? selectedId,
         IReadOnlySet<string> activeEntitlementKeys)
     {
-        CommerceProduct[] entitledProducts = WindowsCommerceCatalog.Products.Where(product =>
-                product.Kind == kind && activeEntitlementKeys.Contains(product.EntitlementKey))
-            .ToArray();
+        CommerceProduct[] entitledProducts = [.. WindowsCommerceCatalog.Products.Where(product =>
+                product.Kind == kind && activeEntitlementKeys.Contains(product.EntitlementKey))];
         string?[] desiredIds = [null, .. entitledProducts.Select(product => product.EffectiveCatalogItemId)];
         bool canReuseItems = destination.Count == desiredIds.Length
             && destination.Select(item => item.CatalogItemId).SequenceEqual(
@@ -1088,7 +1085,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         foreach (CosmeticSelectionItemViewModel selection in selections)
         {
             selection.IsEnabled = isEnabled;
-            selection.IsPending = _pendingCosmeticIds.TryGetValue(kind, out var pendingId)
+            selection.IsPending = _pendingCosmeticIds.TryGetValue(kind, out string? pendingId)
                 && StringComparer.Ordinal.Equals(pendingId, selection.CatalogItemId);
             selection.AnimationsEnabled = _coordinator.AnimationsEnabled;
         }
@@ -1179,7 +1176,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         bool mutationsEnabled = _state.GroupOperation == GroupOperation.Idle;
         bool isSwitching = _state.GroupOperation == GroupOperation.Switching
             && _state.SwitchingRoomId == room.Id;
-        RoomMemberCardViewModel[] members = room.Members.Select(member =>
+        RoomMemberCardViewModel[] members = [.. room.Members.Select(member =>
             new RoomMemberCardViewModel(
                 room.Id,
                 member.UserId,
@@ -1188,8 +1185,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 member.UserId == room.OwnerId,
                 member.UserId == _state.Profile?.Id,
                 mutationsEnabled && isOwner && member.UserId != room.OwnerId,
-                new AsyncRelayCommand(() => RemoveMemberAsync(room.Id, member.UserId))))
-            .ToArray();
+                new AsyncRelayCommand(() => RemoveMemberAsync(room.Id, member.UserId))))];
         card.Update(
             room,
             room.InviteCodeReady
@@ -1381,7 +1377,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private void RefreshRoomCards()
     {
-        HashSet<Guid> desiredIds = _state.Rooms.Select(room => room.Id).ToHashSet();
+        var desiredIds = _state.Rooms.Select(room => room.Id).ToHashSet();
         for (int index = Rooms.Count - 1; index >= 0; index--)
         {
             if (!desiredIds.Contains(Rooms[index].Room.Id))

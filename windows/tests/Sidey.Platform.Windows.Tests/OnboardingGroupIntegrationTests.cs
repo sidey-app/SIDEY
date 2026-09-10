@@ -18,7 +18,7 @@ public sealed class OnboardingGroupIntegrationTests
     public async Task SuccessfulGroupSetupReachesReadyAndSelectsTheRoom(bool joining, bool existingRoom)
     {
         await using var coordinator = new AppCoordinator(new MemoryPreferences());
-        var backend = DispatchProxy.Create<IBackendGateway, GroupBackend>();
+        IBackendGateway backend = DispatchProxy.Create<IBackendGateway, GroupBackend>();
         var server = (GroupBackend)backend;
         Room? previous = existingRoom ? server.NewRoom("Existing") : null;
         server.Rooms = previous is null ? [] : [previous];
@@ -114,7 +114,7 @@ public sealed class OnboardingGroupIntegrationTests
                 case nameof(IBackendGateway.CreateRoomAsync):
                 case nameof(IBackendGateway.JoinRoomAsync):
                     Mutations++;
-                    var room = NewRoom("Friends");
+                    Room room = NewRoom("Friends");
                     Rooms = [.. Rooms, room];
                     return targetMethod.Name == nameof(IBackendGateway.CreateRoomAsync)
                         ? Task.FromResult(new CreateRoomResult(room, "TEST"))

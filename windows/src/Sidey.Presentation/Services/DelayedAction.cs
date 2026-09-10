@@ -5,7 +5,7 @@ namespace Sidey.Presentation.Services;
 internal sealed class DelayedAction
 {
     private readonly CancellationTokenSource _cancellation = new();
-    private readonly object _lifetimeGate = new();
+    private readonly Lock _lifetimeGate = new();
     private bool _disposed;
 
     private DelayedAction(TimeSpan delay, Action action)

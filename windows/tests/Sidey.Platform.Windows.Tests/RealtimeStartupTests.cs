@@ -13,6 +13,8 @@ namespace Sidey.Platform.Windows.Tests;
 
 public sealed class RealtimeStartupTests
 {
+    private static readonly Guid s_userId = Guid.Parse("10000000-0000-0000-0000-000000000001");
+
     [Fact]
     public async Task BothSubscriptionsAreSentBeforeEitherReplyAndOnlyAcknowledgedTopicsConnect()
     {
@@ -20,19 +22,40 @@ public sealed class RealtimeStartupTests
         var releaseReplies = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var server = new LocalServer(async (socket, _, token) =>
         {
-            var first = await ReadAsync(socket, token);
-            var second = await ReadAsync(socket, token);
+            JsonElement first = await ReadAsync(socket, token);
+            JsonElement second = await ReadAsync(socket, token);
             Assert.Equal("phx_join", first.GetProperty("event").GetString());
             Assert.Equal("phx_join", second.GetProperty("event").GetString());
             Assert.NotEqual(first.GetProperty("topic").GetString(), second.GetProperty("topic").GetString());
+
+            JsonElement[] joins = [first, second];
+            JsonElement ephemeral = Assert.Single(
+                joins,
+                join => join.GetProperty("topic").GetString()!.EndsWith(":ephemeral", StringComparison.Ordinal));
+            JsonElement database = Assert.Single(
+                joins,
+                join => join.GetProperty("topic").GetString()!.EndsWith(":db", StringComparison.Ordinal));
+            JsonElement ephemeralConfig = ephemeral.GetProperty("payload").GetProperty("config");
+            Assert.True(ephemeralConfig.GetProperty("presence").GetProperty("enabled").GetBoolean());
+            Assert.Equal(
+                s_userId.ToString("D"),
+                ephemeralConfig.GetProperty("presence").GetProperty("key").GetString());
+            Assert.False(database.GetProperty("payload").GetProperty("config").TryGetProperty(
+                "presence",
+                out JsonElement _));
+            Assert.All(
+                joins,
+                join => Assert.Equal(
+                    "test-token",
+                    join.GetProperty("payload").GetProperty("access_token").GetString()));
             bothReceived.SetResult();
             await releaseReplies.Task.WaitAsync(token);
             await ReplyAsync(socket, second, token); // Out-of-order acknowledgements are valid.
             await ReplyAsync(socket, first, token);
         });
-        await using var transport = CreateTransport(server);
+        await using SupabaseRealtimeTransport transport = CreateTransport(server);
         var roomId = Guid.NewGuid();
-        var synchronization = transport.SynchronizeAsync(new Dictionary<Guid, long> { [roomId] = 1 },
+        Task synchronization = transport.SynchronizeAsync(new Dictionary<Guid, long> { [roomId] = 1 },
             roomId, PresenceState.Online, server.Token);
         await bothReceived.Task.WaitAsync(TimeSpan.FromSeconds(3));
         Assert.False(synchronization.IsCompleted);
@@ -40,6 +63,106 @@ public sealed class RealtimeStartupTests
         releaseReplies.SetResult();
         await synchronization.WaitAsync(TimeSpan.FromSeconds(3));
         Assert.True(transport.ConnectionStatus.ActiveRoomTransportConnected);
+        Assert.Equal("?apikey=test-key&vsn=1.0.0", server.LastConnectUri?.Query);
+    }
+
+    [Fact]
+    public async Task DatabaseBroadcastEmitsMessageIdentityWithoutTrustingMessageBody()
+    {
+        var roomId = Guid.Parse("20000000-0000-0000-0000-000000000001");
+        var messageId = Guid.Parse("30000000-0000-0000-0000-000000000001");
+        await using var server = new LocalServer(async (socket, _, token) =>
+        {
+            JsonElement[] joins = [await ReadAsync(socket, token), await ReadAsync(socket, token)];
+            foreach (JsonElement join in joins)
+            {
+                await ReplyAsync(socket, join, token);
+            }
+
+            JsonElement database = Assert.Single(
+                joins,
+                join => join.GetProperty("topic").GetString()!.EndsWith(":db", StringComparison.Ordinal));
+            await SendEventAsync(
+                socket,
+                database.GetProperty("topic").GetString()!,
+                "broadcast",
+                new
+                {
+                    @event = "message_changed",
+                    payload = new
+                    {
+                        room_id = roomId,
+                        message_id = messageId,
+                        operation = "INSERT",
+                        body = "This body must never become a ChatMessage.",
+                    },
+                },
+                token);
+        });
+        await using SupabaseRealtimeTransport transport = CreateTransport(server);
+
+        await transport.SynchronizeAsync(
+            new Dictionary<Guid, long> { [roomId] = 1 },
+            roomId,
+            PresenceState.Online,
+            server.Token);
+        BackendEvent.MessageChanged changed = await WaitForEventAsync<BackendEvent.MessageChanged>(transport);
+
+        Assert.Equal(roomId, changed.RoomId);
+        Assert.Equal(messageId, changed.MessageId);
+        Assert.Equal("INSERT", changed.Operation);
+    }
+
+    [Fact]
+    public async Task PresenceSnapshotPublishesRemoteStateAndMarksMissingUsersOffline()
+    {
+        var roomId = Guid.Parse("20000000-0000-0000-0000-000000000002");
+        var friendId = Guid.Parse("10000000-0000-0000-0000-000000000002");
+        var firstSnapshotSent = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var sendEmptySnapshot = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var server = new LocalServer(async (socket, _, token) =>
+        {
+            JsonElement[] joins = [await ReadAsync(socket, token), await ReadAsync(socket, token)];
+            foreach (JsonElement join in joins)
+            {
+                await ReplyAsync(socket, join, token);
+            }
+
+            JsonElement ephemeral = Assert.Single(
+                joins,
+                join => join.GetProperty("topic").GetString()!.EndsWith(":ephemeral", StringComparison.Ordinal));
+            string topic = ephemeral.GetProperty("topic").GetString()!;
+            await SendEventAsync(
+                socket,
+                topic,
+                "presence_state",
+                new Dictionary<string, object>
+                {
+                    [friendId.ToString("D")] = new { metas = new[] { new { state = "Away" } } },
+                },
+                token);
+            firstSnapshotSent.SetResult();
+            await sendEmptySnapshot.Task.WaitAsync(token);
+            await SendEventAsync(socket, topic, "presence_state", new { }, token);
+        });
+        await using SupabaseRealtimeTransport transport = CreateTransport(server);
+
+        await transport.SynchronizeAsync(
+            new Dictionary<Guid, long> { [roomId] = 1 },
+            roomId,
+            PresenceState.Online,
+            server.Token);
+        await firstSnapshotSent.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        BackendEvent.PresenceChanged away = await WaitForEventAsync<BackendEvent.PresenceChanged>(
+            transport,
+            item => item.UserId == friendId && item.State == PresenceState.Away);
+        sendEmptySnapshot.SetResult();
+        BackendEvent.PresenceChanged offline = await WaitForEventAsync<BackendEvent.PresenceChanged>(
+            transport,
+            item => item.UserId == friendId && item.State == PresenceState.Offline);
+
+        Assert.Equal(roomId, away.RoomId);
+        Assert.Equal(roomId, offline.RoomId);
     }
 
     [Fact]
@@ -48,8 +171,8 @@ public sealed class RealtimeStartupTests
         var dropped = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var server = new LocalServer(async (socket, connection, token) =>
         {
-            var first = await ReadAsync(socket, token);
-            var second = await ReadAsync(socket, token);
+            JsonElement first = await ReadAsync(socket, token);
+            JsonElement second = await ReadAsync(socket, token);
             if (connection == 1)
             {
                 await socket.CloseOutputAsync(WebSocketCloseStatus.EndpointUnavailable, "retry", token);
@@ -59,14 +182,14 @@ public sealed class RealtimeStartupTests
             await ReplyAsync(socket, first, token);
             await ReplyAsync(socket, second, token);
         });
-        await using var transport = CreateTransport(server);
+        await using SupabaseRealtimeTransport transport = CreateTransport(server);
         var roomId = Guid.NewGuid();
-        var synchronization = transport.SynchronizeAsync(new Dictionary<Guid, long> { [roomId] = 1 },
+        Task synchronization = transport.SynchronizeAsync(new Dictionary<Guid, long> { [roomId] = 1 },
             roomId, PresenceState.Online, server.Token);
         await dropped.Task.WaitAsync(TimeSpan.FromSeconds(3));
         await synchronization.WaitAsync(TimeSpan.FromSeconds(2)); // Must not wait for the five-second join timeout.
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await foreach (var item in transport.ReadEventsAsync(deadline.Token))
+        await foreach (BackendEvent item in transport.ReadEventsAsync(deadline.Token))
         {
             if (item is BackendEvent.ConnectionChanged { Status.ActiveRoomTransportConnected: true })
                 break;
@@ -103,20 +226,20 @@ public sealed class RealtimeStartupTests
     {
         await using var server = new LocalServer(async (socket, _, token) =>
         {
-            var first = await ReadAsync(socket, token);
-            var second = await ReadAsync(socket, token);
+            JsonElement first = await ReadAsync(socket, token);
+            JsonElement second = await ReadAsync(socket, token);
             await ReplyAsync(socket, first, token);
             await ReplyAsync(socket, second, token);
         });
         var network = new Network();
-        await using var transport = CreateTransport(server, network);
+        await using SupabaseRealtimeTransport transport = CreateTransport(server, network);
         var roomId = Guid.NewGuid();
         var rooms = new Dictionary<Guid, long> { [roomId] = 1 };
         await transport.SynchronizeAsync(rooms, roomId, PresenceState.Online, server.Token);
         Assert.True(transport.ConnectionStatus.ActiveRoomTransportConnected);
 
         var reconciliationStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var reconciliation = transport.RunWhileConnectedAsync(async token =>
+        Task<bool> reconciliation = transport.RunWhileConnectedAsync(async token =>
         {
             reconciliationStarted.SetResult();
             await Task.Delay(Timeout.InfiniteTimeSpan, token);
@@ -133,7 +256,7 @@ public sealed class RealtimeStartupTests
 
         network.SetAvailable(true);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await foreach (var item in transport.ReadEventsAsync(deadline.Token))
+        await foreach (BackendEvent item in transport.ReadEventsAsync(deadline.Token))
         {
             if (item is BackendEvent.ConnectionChanged { Status.ActiveRoomTransportConnected: true }
                 && transport.ConnectionStatus.ActiveRoomTransportConnected)
@@ -150,8 +273,8 @@ public sealed class RealtimeStartupTests
     {
         await using var server = new LocalServer(async (socket, connection, token) =>
         {
-            var first = await ReadAsync(socket, token);
-            var second = await ReadAsync(socket, token);
+            JsonElement first = await ReadAsync(socket, token);
+            JsonElement second = await ReadAsync(socket, token);
             if (connection <= 2)
             {
                 await socket.CloseOutputAsync(WebSocketCloseStatus.EndpointUnavailable, "retry", token);
@@ -161,7 +284,7 @@ public sealed class RealtimeStartupTests
             await ReplyAsync(socket, second, token);
         });
         var network = new Network();
-        await using var transport = CreateTransport(server, network);
+        await using SupabaseRealtimeTransport transport = CreateTransport(server, network);
         var room = Guid.NewGuid();
         await transport.SynchronizeAsync(new Dictionary<Guid, long> { [room] = 1 }, room, PresenceState.Online, server.Token);
         await WaitForEventAsync(transport, item => item is BackendEvent.Diagnostic diagnostic
@@ -196,7 +319,7 @@ public sealed class RealtimeStartupTests
                 throw new InvalidOperationException("The offline handshake must be canceled.");
             });
         var room = Guid.NewGuid();
-        var synchronization = transport.SynchronizeAsync(new Dictionary<Guid, long> { [room] = 1 },
+        Task synchronization = transport.SynchronizeAsync(new Dictionary<Guid, long> { [room] = 1 },
             room, PresenceState.Online, CancellationToken.None);
         await connecting.Task.WaitAsync(TimeSpan.FromSeconds(3));
         network.SetAvailable(false);
@@ -209,8 +332,8 @@ public sealed class RealtimeStartupTests
     {
         await using var server = new LocalServer(async (socket, _, token) =>
         {
-            var first = await ReadAsync(socket, token);
-            var second = await ReadAsync(socket, token);
+            JsonElement first = await ReadAsync(socket, token);
+            JsonElement second = await ReadAsync(socket, token);
             await ReplyAsync(socket, first, token);
             await ReplyAsync(socket, second, token);
         });
@@ -251,8 +374,8 @@ public sealed class RealtimeStartupTests
         var acknowledge = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         await using var server = new LocalServer(async (socket, connection, token) =>
         {
-            var first = await ReadAsync(socket, token);
-            var second = await ReadAsync(socket, token);
+            JsonElement first = await ReadAsync(socket, token);
+            JsonElement second = await ReadAsync(socket, token);
             if (connection == 2)
             {
                 newJoins.SetResult();
@@ -261,7 +384,7 @@ public sealed class RealtimeStartupTests
             await ReplyAsync(socket, first, token);
             await ReplyAsync(socket, second, token);
         });
-        await using var transport = CreateTransport(server);
+        await using SupabaseRealtimeTransport transport = CreateTransport(server);
         var room = Guid.NewGuid();
         await transport.SynchronizeAsync(new Dictionary<Guid, long> { [room] = 1 }, room, PresenceState.Online, server.Token);
         transport.RequestReconnect();
@@ -279,11 +402,11 @@ public sealed class RealtimeStartupTests
     {
         await using var server = new LocalServer(async (socket, connection, token) =>
         {
-            var first = await ReadAsync(socket, token);
-            var second = await ReadAsync(socket, token);
+            JsonElement first = await ReadAsync(socket, token);
+            JsonElement second = await ReadAsync(socket, token);
             if (connection <= 2)
             {
-                foreach (var request in new[] { first, second })
+                foreach (JsonElement request in new[] { first, second })
                     await socket.SendAsync(JsonSerializer.SerializeToUtf8Bytes(new
                     {
                         topic = request.GetProperty("topic").GetString(),
@@ -297,7 +420,7 @@ public sealed class RealtimeStartupTests
             await ReplyAsync(socket, second, token);
         });
         var network = new Network();
-        await using var transport = CreateTransport(server, network);
+        await using SupabaseRealtimeTransport transport = CreateTransport(server, network);
         var room = Guid.NewGuid();
         await transport.SynchronizeAsync(new Dictionary<Guid, long> { [room] = 1 }, room, PresenceState.Online, server.Token);
         await WaitForEventAsync(transport, item => item is BackendEvent.Diagnostic { Stage: "realtime-reconnect-paused reason=authorization" });
@@ -316,10 +439,27 @@ public sealed class RealtimeStartupTests
     private static async Task WaitForEventAsync(SupabaseRealtimeTransport transport, Func<BackendEvent, bool> predicate)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        await foreach (var item in transport.ReadEventsAsync(timeout.Token))
+        await foreach (BackendEvent item in transport.ReadEventsAsync(timeout.Token))
             if (predicate(item))
                 return;
         Assert.Fail("Expected realtime event was not emitted.");
+    }
+
+    private static async Task<TEvent> WaitForEventAsync<TEvent>(
+        SupabaseRealtimeTransport transport,
+        Func<TEvent, bool>? predicate = null)
+        where TEvent : BackendEvent
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        await foreach (BackendEvent item in transport.ReadEventsAsync(timeout.Token))
+        {
+            if (item is TEvent typed && (predicate is null || predicate(typed)))
+            {
+                return typed;
+            }
+        }
+
+        throw new Xunit.Sdk.XunitException($"Expected {typeof(TEvent).Name} was not emitted.");
     }
 
     private static SupabaseRealtimeTransport CreateTransport(LocalServer server, Network? network = null) => new(
@@ -328,7 +468,7 @@ public sealed class RealtimeStartupTests
 
     private static async Task<JsonElement> ReadAsync(WebSocket socket, CancellationToken token)
     {
-        var bytes = new byte[8192];
+        byte[] bytes = new byte[8192];
         int count = 0;
         ValueWebSocketReceiveResult result;
         do
@@ -351,10 +491,31 @@ public sealed class RealtimeStartupTests
             payload = new { status = "ok", response = new { } },
         }), WebSocketMessageType.Text, true, token);
 
+    private static async Task SendEventAsync(
+        WebSocket socket,
+        string topic,
+        string eventName,
+        object payload,
+        CancellationToken token) =>
+        await socket.SendAsync(
+            JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                topic,
+                @event = eventName,
+                payload,
+            }),
+            WebSocketMessageType.Text,
+            true,
+            token);
+
     private sealed class Sessions : IAuthSessionAccessor
     {
         public ValueTask<StoredSupabaseSession?> GetStoredSessionAsync(CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult<StoredSupabaseSession?>(new("test-token", "test-refresh", Guid.NewGuid(), DateTimeOffset.UtcNow.AddHours(1)));
+            ValueTask.FromResult<StoredSupabaseSession?>(new(
+                "test-token",
+                "test-refresh",
+                s_userId,
+                DateTimeOffset.MaxValue));
     }
 
     private sealed class Network : INetworkAvailabilityMonitor
@@ -379,6 +540,7 @@ public sealed class RealtimeStartupTests
         private readonly CancellationTokenSource _lifetime = new(TimeSpan.FromSeconds(15));
         private readonly List<Task> _handlers = [];
         public int ConnectionCount { get; private set; }
+        public Uri? LastConnectUri { get; private set; }
         public CancellationToken Token => _lifetime.Token;
 
         private static TcpListener StartListener()
@@ -388,8 +550,9 @@ public sealed class RealtimeStartupTests
             return listener;
         }
 
-        public async Task<ClientWebSocket> ConnectAsync(Uri _, CancellationToken token)
+        public async Task<ClientWebSocket> ConnectAsync(Uri uri, CancellationToken token)
         {
+            LastConnectUri = uri;
             int connection = ++ConnectionCount;
             _handlers.Add(ServeAsync(connection));
             var client = new ClientWebSocket();
@@ -405,18 +568,18 @@ public sealed class RealtimeStartupTests
         {
             try
             {
-                using var client = await _listener.AcceptTcpClientAsync(Token);
-                var stream = client.GetStream();
+                using TcpClient client = await _listener.AcceptTcpClientAsync(Token);
+                NetworkStream stream = client.GetStream();
                 var header = new StringBuilder();
-                var one = new byte[1];
+                byte[] one = new byte[1];
                 while (!header.ToString().EndsWith("\r\n\r\n", StringComparison.Ordinal))
                 {
                     if (await stream.ReadAsync(one, Token) == 0)
                         throw new IOException("Incomplete upgrade.");
                     header.Append((char)one[0]);
                 }
-                var key = header.ToString().Split("\r\n").Single(line => line.StartsWith("Sec-WebSocket-Key:", StringComparison.OrdinalIgnoreCase)).Split(':', 2)[1].Trim();
-                var accept = Convert.ToBase64String(SHA1.HashData(Encoding.ASCII.GetBytes(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")));
+                string key = header.ToString().Split("\r\n").Single(line => line.StartsWith("Sec-WebSocket-Key:", StringComparison.OrdinalIgnoreCase)).Split(':', 2)[1].Trim();
+                string accept = Convert.ToBase64String(SHA1.HashData(Encoding.ASCII.GetBytes(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")));
                 await stream.WriteAsync(Encoding.ASCII.GetBytes($"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\n\r\n"), Token);
                 using var socket = WebSocket.CreateFromStream(stream, true, null, Timeout.InfiniteTimeSpan);
                 await script(socket, connection, Token);

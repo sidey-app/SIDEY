@@ -17,7 +17,7 @@ public sealed class MessageLedgerTests
 
         Assert.False(ledger.Confirm(message));
         Assert.False(ledger.Confirm(message));
-        var entry = Assert.Single(ledger.Entries);
+        MessageLedgerEntry entry = Assert.Single(ledger.Entries);
         Assert.Equal(senderId, entry.SenderId);
         Assert.Equal(MessageDeliveryState.Confirmed, entry.State);
     }
@@ -77,8 +77,8 @@ public sealed class MessageLedgerTests
         var roomId = Guid.NewGuid();
         var senderId = Guid.NewGuid();
         var ledger = new MessageLedger();
-        var start = DateTimeOffset.UtcNow.AddMinutes(-2);
-        for (var index = 0; index < 51; index++)
+        DateTimeOffset start = DateTimeOffset.UtcNow.AddMinutes(-2);
+        for (int index = 0; index < 51; index++)
         {
             ledger.Confirm(new ChatMessage(
                 Guid.NewGuid(),
@@ -138,9 +138,9 @@ public sealed class MessageLedgerTests
     {
         var ledger = new ActiveBubbleLedger();
         var start = DateTimeOffset.FromUnixTimeSeconds(1_000);
-        var senders = Enumerable.Range(0, 12).Select(_ => Guid.NewGuid()).ToArray();
+        Guid[] senders = [.. Enumerable.Range(0, 12).Select(_ => Guid.NewGuid())];
 
-        for (var index = 0; index < senders.Length; index++)
+        for (int index = 0; index < senders.Length; index++)
         {
             ledger.Show(
                 senders[index],

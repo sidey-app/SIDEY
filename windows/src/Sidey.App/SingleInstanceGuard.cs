@@ -29,7 +29,7 @@ internal sealed class SingleInstanceGuard : IDisposable
         // The startup harness already isolates its data; isolate activation too so it cannot target a user's app.
         string suffix = string.IsNullOrWhiteSpace(smokeDataRoot) ? string.Empty
             : ".smoke." + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(smokeDataRoot)))[..24];
-        var mutex = new Mutex(initiallyOwned: true, MutexName + suffix, out var createdNew);
+        var mutex = new Mutex(initiallyOwned: true, MutexName + suffix, out bool createdNew);
         return new SingleInstanceGuard(mutex, createdNew, ActivationPipeName + suffix);
     }
 
@@ -75,7 +75,7 @@ internal sealed class SingleInstanceGuard : IDisposable
                     PipeTransmissionMode.Byte,
                     PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
                 await pipe.WaitForConnectionAsync(cancellationToken);
-                var buffer = new byte[MaximumActivationBytes + 1];
+                byte[] buffer = new byte[MaximumActivationBytes + 1];
                 int count = 0;
                 while (count < buffer.Length)
                 {

@@ -10,6 +10,7 @@ using Sidey.Core.Localization;
 using Sidey.Core.Overlay;
 using Sidey.Platform.Windows;
 using Windows.Foundation;
+using Windows.Graphics.Imaging;
 using Windows.UI;
 
 namespace Sidey.App.Controls;
@@ -53,7 +54,7 @@ public sealed partial class StorePreviewStage : UserControl
     private const double NameplateTop = PlatformTop - CharacterNameplateLayout.DistanceFromFoot * 3 - NameplateHeight;
     private const double AmbientSparkleCycleSeconds = 1.2;
     private const double AmbientSparkleDurationSeconds = 1.05;
-    private static readonly IReadOnlyList<RectD> NoAvoidanceRects = Array.Empty<RectD>();
+    private static readonly IReadOnlyList<RectD> s_noAvoidanceRects = [];
     private readonly HashSet<Guid> _stoppedIds = [];
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(1000d / 30d) };
     private readonly Stopwatch _clock = new();
@@ -423,7 +424,7 @@ public sealed partial class StorePreviewStage : UserControl
         string path, uint frameWidth, uint frameHeight, int frame,
         uint renderedWidth, uint renderedHeight, CancellationToken cancellationToken)
     {
-        var source = await StorePreviewImageLoader.LoadPixelFrameAsync(
+        PixelFrameSurface source = await StorePreviewImageLoader.LoadPixelFrameAsync(
             path, frameWidth, frameHeight, frame, renderedWidth, renderedHeight, cancellationToken);
         if (cancellationToken.IsCancellationRequested || !_isPresented)
         {
@@ -438,7 +439,7 @@ public sealed partial class StorePreviewStage : UserControl
         string path, uint frameWidth, uint frameHeight, int frame,
         uint renderedWidth, uint renderedHeight, CancellationToken cancellationToken)
     {
-        var source = await StorePreviewImageLoader.LoadFrameAsync(
+        ImageSource source = await StorePreviewImageLoader.LoadFrameAsync(
             path, frameWidth, frameHeight, frame, renderedWidth, renderedHeight, cancellationToken);
         if (cancellationToken.IsCancellationRequested || !_isPresented)
         {
@@ -451,19 +452,19 @@ public sealed partial class StorePreviewStage : UserControl
 
     private void ReleasePixelFrames()
     {
-        foreach (var layer in _leftCharacterLayers.Concat(_rightCharacterLayers))
+        foreach (NearestPixelImage? layer in _leftCharacterLayers.Concat(_rightCharacterLayers))
             layer.Source = null;
         ProjectileImage.ClearFrames();
         ImpactImage.ClearFrames();
         EmitterImage.ClearFrames();
-        foreach (var source in _ownedImageFrames)
+        foreach (ImageSource source in _ownedImageFrames)
             StorePreviewImageLoader.ReleaseFrame(source);
         _ownedImageFrames.Clear();
         LeftCharacterHost.Children.Clear();
         RightCharacterHost.Children.Clear();
         _leftCharacterLayers.Clear();
         _rightCharacterLayers.Clear();
-        foreach (var source in _ownedFrames)
+        foreach (PixelFrameSurface source in _ownedFrames)
             source.Dispose();
         _ownedFrames.Clear();
         _characters.Clear();
@@ -605,7 +606,7 @@ public sealed partial class StorePreviewStage : UserControl
         LeftCharacterScale.ScaleY = pulseScale;
         UpdateSparkles(elapsed, leftX, leftId);
         if (!_animationsEnabled || _stun.IsStunned(_movementAgents[0].Id))
-            foreach (var sparkle in _sparkles.Concat(_pulseSparkles))
+            foreach (Microsoft.UI.Xaml.Shapes.Polygon? sparkle in _sparkles.Concat(_pulseSparkles))
                 sparkle.Opacity = 0;
         UpdateStunPixels(leftX, rightX);
 
@@ -629,12 +630,12 @@ public sealed partial class StorePreviewStage : UserControl
         {
             if (_stun.Elapsed(_movementAgents[side].Id) is not { } elapsed)
                 continue;
-            foreach (var p in CharacterStunPixels.Create(elapsed, _animationsEnabled))
+            foreach (StunPixel p in CharacterStunPixels.Create(elapsed, _animationsEnabled))
             {
                 if (index >= _stunPixels.Count)
                     break;
-                var pixel = _stunPixels[index++];
-                pixel.Fill = p.IsOutline ? StunOutlineBrush : p.IsStar ? StunStarBrush : StunRingBrush;
+                Microsoft.UI.Xaml.Shapes.Rectangle pixel = _stunPixels[index++];
+                pixel.Fill = p.IsOutline ? s_stunOutlineBrush : p.IsStar ? s_stunStarBrush : s_stunRingBrush;
                 Canvas.SetLeft(pixel, Math.Round(side == 0 ? leftX : rightX) + p.X * 3);
                 Canvas.SetTop(pixel, CharacterTop + p.Y * 3);
                 pixel.Visibility = Visibility.Visible;
@@ -643,9 +644,9 @@ public sealed partial class StorePreviewStage : UserControl
         while (index < _stunPixels.Count)
             _stunPixels[index++].Visibility = Visibility.Collapsed;
     }
-    private static readonly SolidColorBrush StunStarBrush = new(Color.FromArgb(255, 255, 224, 72));
-    private static readonly SolidColorBrush StunOutlineBrush = new(Color.FromArgb(255, 130, 82, 12));
-    private static readonly SolidColorBrush StunRingBrush = new(Color.FromArgb(255, 255, 175, 104));
+    private static readonly SolidColorBrush s_stunStarBrush = new(Color.FromArgb(255, 255, 224, 72));
+    private static readonly SolidColorBrush s_stunOutlineBrush = new(Color.FromArgb(255, 130, 82, 12));
+    private static readonly SolidColorBrush s_stunRingBrush = new(Color.FromArgb(255, 255, 175, 104));
 
     private void PositionCharacters(double leftX, double rightX)
     {
@@ -661,7 +662,7 @@ public sealed partial class StorePreviewStage : UserControl
     {
         nameplate.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
         double width = nameplate.DesiredSize.Width;
-        var position = CharacterNameplateLayout.Position(
+        (double X, double Y) position = CharacterNameplateLayout.Position(
             (characterLeft + RenderedCharacterSize / 2, PlatformTop), width, NameplateHeight, 3, OverlayEdge.Bottom);
         Canvas.SetLeft(
             nameplate,
@@ -697,7 +698,7 @@ public sealed partial class StorePreviewStage : UserControl
         _lastSceneElapsed = elapsed;
 
         _stoppedIds.Clear();
-        foreach (var agent in _movementAgents)
+        foreach (PixelMovementAgent agent in _movementAgents)
             if (_stun.IsStunned(agent.Id))
                 _stoppedIds.Add(agent.Id);
         double hitStarted = _manualThrowStarted + ThrowReleaseSeconds + _manualThrowFlightDuration;
@@ -711,7 +712,7 @@ public sealed partial class StorePreviewStage : UserControl
             _movementAgents,
             deltaTime,
             _movementGeometry,
-            NoAvoidanceRects,
+            s_noAvoidanceRects,
             _stoppedIds,
             _movementScratch,
             PreviewScale);
@@ -788,7 +789,7 @@ public sealed partial class StorePreviewStage : UserControl
     {
         if (_stun.Elapsed(_movementAgents[isLeftCharacter ? 0 : 1].Id) is { } stunElapsed)
         {
-            var range = PixelCharacterCatalog.Get(characterId).Frames.Offline;
+            Range range = PixelCharacterCatalog.Get(characterId).Frames.Offline;
             int frame = range.Start.Value + (_animationsEnabled ? (int)(stunElapsed / 1.2) % (range.End.Value - range.Start.Value) : 0);
             ApplyCharacterFrame(layers, transform, characterId, frame, facingLeft, ref visibleLayer);
             return;
@@ -936,12 +937,12 @@ public sealed partial class StorePreviewStage : UserControl
             bodyLeft + BubbleTailBaseInset,
             bodyLeft + bubbleWidth - BubbleTailBaseInset);
         double tailBaseY = decorationTopOverflow + bubbleHeight - BubbleTailBodyOverlap;
-        BubbleTail.Points = new PointCollection
-        {
+        BubbleTail.Points =
+        [
             new Point(tailBaseCenter - BubbleTailHalfBase - visualLeft, tailBaseY),
             new Point(senderCenter - visualLeft, tailBaseY + BubbleTailHeight),
             new Point(tailBaseCenter + BubbleTailHalfBase - visualLeft, tailBaseY),
-        };
+        ];
         Canvas.SetLeft(BubbleTail, 0);
         Canvas.SetTop(BubbleTail, 0);
         Canvas.SetLeft(BubblePreview, visualLeft);
@@ -1039,7 +1040,7 @@ public sealed partial class StorePreviewStage : UserControl
             EmitterScale.ScaleX = leftToRight ? 1 : -1;
             double actorCenterX = (leftToRight ? leftX : rightX)
                 + (RenderedCharacterSize / 2d);
-            var emitterCenter = CannonEmitterLayout.Center(
+            (double X, double Y) emitterCenter = CannonEmitterLayout.Center(
                 (actorCenterX, ProjectilePathY), !leftToRight, OverlayEdge.Bottom, PreviewScale);
             Canvas.SetLeft(EmitterImage, emitterCenter.X - (EmitterSize / 2d));
             Canvas.SetTop(EmitterImage, emitterCenter.Y - (EmitterSize / 2d));
@@ -1080,21 +1081,21 @@ public sealed partial class StorePreviewStage : UserControl
         var baseBrush = new SolidColorBrush(Color.FromArgb(255, 0xB8, 0xBA, 0xBF));
         var alternateBrush = new SolidColorBrush(Color.FromArgb(255, 0xCD, 0xD0, 0xD3));
         PlatformCanvas.Background = baseBrush;
-        const int pixel = 4;
+        const int Pixel = 4;
         for (int row = 0; row < 6; row += 2)
         {
-            for (int column = 0; column < StageWidth / pixel; column++)
+            for (int column = 0; column < StageWidth / Pixel; column++)
             {
                 if ((column % 2 == 0) == (row % 4 == 0))
                 {
                     var tile = new Microsoft.UI.Xaml.Shapes.Rectangle
                     {
-                        Width = pixel,
-                        Height = pixel,
+                        Width = Pixel,
+                        Height = Pixel,
                         Fill = alternateBrush,
                     };
-                    Canvas.SetLeft(tile, column * pixel);
-                    Canvas.SetTop(tile, row * pixel);
+                    Canvas.SetLeft(tile, column * Pixel);
+                    Canvas.SetTop(tile, row * Pixel);
                     PlatformCanvas.Children.Add(tile);
                 }
             }
@@ -1117,8 +1118,8 @@ public sealed partial class StorePreviewStage : UserControl
             var star = new Microsoft.UI.Xaml.Shapes.Polygon
             {
                 Fill = new SolidColorBrush(colors[index % colors.Length]),
-                Points = new PointCollection
-                {
+                Points =
+                [
                     new Point(radius, 0),
                     new Point(radius + 1, radius - 1),
                     new Point(radius * 2, radius),
@@ -1127,7 +1128,7 @@ public sealed partial class StorePreviewStage : UserControl
                     new Point(radius - 1, radius + 1),
                     new Point(0, radius),
                     new Point(radius - 1, radius - 1),
-                },
+                ],
                 Opacity = 0,
                 RenderTransform = new ScaleTransform { CenterX = radius, CenterY = radius },
             };
@@ -1151,10 +1152,10 @@ public sealed partial class StorePreviewStage : UserControl
 
         for (int index = 0; index < _sparkles.Count; index++)
         {
-            var star = _sparkles[index];
-            var particle = StarlightSparkleLayout.Ambient(elapsed, index, 0x51DE59);
+            Microsoft.UI.Xaml.Shapes.Polygon star = _sparkles[index];
+            (double Tangent, double Normal, double Radius, double Opacity) particle = StarlightSparkleLayout.Ambient(elapsed, index, 0x51DE59);
             double radius = 3 + ((index % 3) * 0.5);
-            var point = StarlightSparkleLayout.Point(
+            (double X, double Y) point = StarlightSparkleLayout.Point(
                 (leftX + (RenderedCharacterSize / 2d), ProjectilePathY),
                 particle.Tangent * PreviewScale, particle.Normal * PreviewScale, OverlayEdge.Bottom);
             Canvas.SetLeft(star, point.X - radius);
@@ -1170,7 +1171,7 @@ public sealed partial class StorePreviewStage : UserControl
     {
         for (int index = 0; index < _pulseSparkles.Count; index++)
         {
-            var star = _pulseSparkles[index];
+            Microsoft.UI.Xaml.Shapes.Polygon star = _pulseSparkles[index];
             if (elapsed < 0 || elapsed >= 0.78)
             {
                 star.Opacity = 0;
@@ -1277,7 +1278,7 @@ public sealed partial class StorePreviewStage : UserControl
 
     internal async Task VerifyInteractionSmokeAsync()
     {
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(20);
+        DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(20);
         while (!_resourcesLoaded && !_loadFailed && DateTimeOffset.UtcNow < deadline)
             await Task.Delay(50);
         if (!_resourcesLoaded)
@@ -1334,7 +1335,7 @@ public sealed partial class StorePreviewStage : UserControl
         if (!ProjectileImage.IsFrameReady)
             throw new InvalidOperationException("Store preview smoke: projectile image not ready.");
         await VerifyRenderedEffectAsync(ProjectileImage);
-        var target = _movementAgents[1];
+        PixelMovementAgent target = _movementAgents[1];
         double destination = target.Target;
         _manualThrowStarted = _clock.Elapsed.TotalSeconds - ThrowReleaseSeconds - _manualThrowFlightDuration - 0.05;
         UpdateScene();
@@ -1427,11 +1428,11 @@ public sealed partial class StorePreviewStage : UserControl
         double scaleX = rendered.PixelWidth / SceneCanvas.ActualWidth;
         double scaleY = rendered.PixelHeight / SceneCanvas.ActualHeight;
         var expected = new Dictionary<(int X, int Y), Color>();
-        foreach (var pixel in _stunPixels.Where(p => p.Visibility == Visibility.Visible))
+        foreach (Microsoft.UI.Xaml.Shapes.Rectangle? pixel in _stunPixels.Where(p => p.Visibility == Visibility.Visible))
             expected[((int)((Canvas.GetLeft(pixel) + 1.5) * scaleX), (int)((Canvas.GetTop(pixel) + 1.5) * scaleY))]
                 = ((SolidColorBrush)pixel.Fill).Color;
         int visible = 0;
-        foreach (var (point, color) in expected)
+        foreach (((int X, int Y) point, Color color) in expected)
         {
             int offset = (point.Y * rendered.PixelWidth + point.X) * 4;
             if (offset >= 0 && offset + 3 < pixels.Length && pixels[offset] == color.B
@@ -1445,7 +1446,7 @@ public sealed partial class StorePreviewStage : UserControl
         if (export && !string.IsNullOrEmpty(root))
         {
             using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
-            var encoder = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId, stream);
+            BitmapEncoder encoder = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId, stream);
             encoder.SetPixelData(Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8,
                 Windows.Graphics.Imaging.BitmapAlphaMode.Premultiplied, (uint)rendered.PixelWidth, (uint)rendered.PixelHeight, 96, 96, pixels);
             await encoder.FlushAsync();
@@ -1459,15 +1460,15 @@ public sealed partial class StorePreviewStage : UserControl
 
     private async Task VerifyCannonFramesSmokeAsync()
     {
-        const double left = 80, right = 360;
-        double flight = ThrowFlightDuration(left, right);
+        const double Left = 80, Right = 360;
+        double flight = ThrowFlightDuration(Left, Right);
         foreach (bool leftToRight in new[] { true, false })
         {
-            UpdateThrow(0.1, left, right, leftToRight, flight);
+            UpdateThrow(0.1, Left, Right, leftToRight, flight);
             // Simulate a dispatcher tick that was queued before the smoke paused playback.
             OnTimerTick(null, EventArgs.Empty);
             await Task.Delay(30);
-            double actorX = (leftToRight ? left : right) + (RenderedCharacterSize / 2d);
+            double actorX = (leftToRight ? Left : Right) + (RenderedCharacterSize / 2d);
             double emitterX = Canvas.GetLeft(EmitterImage) + (EmitterSize / 2d);
             if (EmitterImage.Opacity != 1 || !EmitterImage.IsFrameReady
                 || Math.Sign(emitterX - actorX) != (leftToRight ? 1 : -1))
@@ -1479,7 +1480,7 @@ public sealed partial class StorePreviewStage : UserControl
             for (int frame = 0; (frame + 0.5) * ProjectileRotationFrameSeconds < flight; frame++)
             {
                 UpdateThrow(ThrowReleaseSeconds + (frame + 0.5) * ProjectileRotationFrameSeconds,
-                    left, right, leftToRight, flight);
+                    Left, Right, leftToRight, flight);
                 await Task.Delay(20);
                 if (ProjectileImage.Opacity != 1 || !ProjectileImage.IsFrameReady
                     || !ReferenceEquals(ProjectileImage.Source, _projectileFrames[frame]))
@@ -1492,7 +1493,7 @@ public sealed partial class StorePreviewStage : UserControl
             for (int frame = 0; frame < 4; frame++)
             {
                 UpdateThrow(ThrowReleaseSeconds + flight + (frame + 0.5) * ImpactSeconds / 4,
-                    left, right, leftToRight, flight);
+                    Left, Right, leftToRight, flight);
                 await Task.Delay(20);
                 if (ImpactImage.Opacity != 1 || !ImpactImage.IsFrameReady
                     || !ReferenceEquals(ImpactImage.Source, _projectileFrames[8 + frame]))
@@ -1502,7 +1503,7 @@ public sealed partial class StorePreviewStage : UserControl
                 }
                 await VerifyRenderedEffectAsync(ImpactImage);
             }
-            UpdateThrow(-1, left, right, leftToRight, flight);
+            UpdateThrow(-1, Left, Right, leftToRight, flight);
             if (ProjectileImage.Opacity != 0 || ImpactImage.Opacity != 0 || EmitterImage.Opacity != 0)
                 throw new InvalidOperationException("Store preview smoke: stale throw effect.");
         }

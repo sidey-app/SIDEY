@@ -8,7 +8,7 @@ public sealed class DelayedActionTests
     public async Task CancelAfterCompletionIsSafeAndDoesNotRepeatAction()
     {
         int calls = 0;
-        DelayedAction action = DelayedAction.Start(TimeSpan.FromMilliseconds(10), () => calls++);
+        var action = DelayedAction.Start(TimeSpan.FromMilliseconds(10), () => calls++);
 
         await action.Completion.WaitAsync(TimeSpan.FromSeconds(5));
         action.Cancel();
@@ -21,7 +21,7 @@ public sealed class DelayedActionTests
     public async Task RepeatedCancellationSuppressesPendingAction()
     {
         int calls = 0;
-        DelayedAction action = DelayedAction.Start(TimeSpan.FromSeconds(30), () => calls++);
+        var action = DelayedAction.Start(TimeSpan.FromSeconds(30), () => calls++);
 
         action.Cancel();
         action.Cancel();
@@ -37,7 +37,7 @@ public sealed class DelayedActionTests
         for (int iteration = 0; iteration < 100; iteration++)
         {
             int calls = 0;
-            DelayedAction action = DelayedAction.Start(
+            var action = DelayedAction.Start(
                 TimeSpan.FromMilliseconds(1), () => Interlocked.Increment(ref calls));
 
             await Task.WhenAll(

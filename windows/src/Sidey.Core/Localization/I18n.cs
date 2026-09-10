@@ -10,10 +10,10 @@ public static class I18n
 {
     public const string DefaultLanguage = "ko-KR";
 
-    private static readonly object SyncRoot = new();
-    private static IReadOnlyDictionary<string, string>? strings;
-    private static string? languageOverride;
-    private static string? catalogRootOverride;
+    private static readonly Lock s_syncRoot = new();
+    private static IReadOnlyDictionary<string, string>? s_strings;
+    private static string? s_languageOverride;
+    private static string? s_catalogRootOverride;
 
     public static string Language => ResolveLanguage();
     public static CultureInfo Culture => CultureInfo.GetCultureInfo(Language);
@@ -33,36 +33,36 @@ public static class I18n
 
     public static void SetLanguage(string? language)
     {
-        lock (SyncRoot)
+        lock (s_syncRoot)
         {
-            languageOverride = string.IsNullOrWhiteSpace(language) ? null : language;
-            strings = null;
+            s_languageOverride = string.IsNullOrWhiteSpace(language) ? null : language;
+            s_strings = null;
         }
     }
 
     public static void SetCatalogRoot(string? catalogRoot)
     {
-        lock (SyncRoot)
+        lock (s_syncRoot)
         {
-            catalogRootOverride = string.IsNullOrWhiteSpace(catalogRoot)
+            s_catalogRootOverride = string.IsNullOrWhiteSpace(catalogRoot)
                 ? null
                 : Path.GetFullPath(catalogRoot);
-            strings = null;
+            s_strings = null;
         }
     }
 
     private static IReadOnlyDictionary<string, string> GetCatalog()
     {
-        lock (SyncRoot)
+        lock (s_syncRoot)
         {
-            return strings ??= LoadCatalog();
+            return s_strings ??= LoadCatalog();
         }
     }
 
     private static IReadOnlyDictionary<string, string> LoadCatalog()
     {
         var catalog = new Dictionary<string, string>(StringComparer.Ordinal);
-        string root = catalogRootOverride ?? FindCatalogRoot();
+        string root = s_catalogRootOverride ?? FindCatalogRoot();
 
         LoadFile(Path.Combine(root, $"{DefaultLanguage}.json"), catalog);
 
@@ -77,7 +77,7 @@ public static class I18n
 
     private static string ResolveLanguage()
     {
-        string requested = languageOverride
+        string requested = s_languageOverride
             ?? Environment.GetEnvironmentVariable("SIDEY_LANGUAGE")
             ?? CultureInfo.CurrentUICulture.Name;
 
@@ -122,7 +122,7 @@ public static class I18n
             return;
         }
 
-        using JsonDocument document = JsonDocument.Parse(
+        using var document = JsonDocument.Parse(
             File.ReadAllText(path),
             new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
         Flatten(document.RootElement, null, target);

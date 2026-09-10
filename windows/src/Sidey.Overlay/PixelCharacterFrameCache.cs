@@ -56,8 +56,8 @@ internal sealed class PixelCharacterFrameCache : IDisposable
     public CachedCharacterFrames Get(string? characterId)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var normalized = PixelCharacterCatalog.NormalizeId(characterId);
-        if (_entries.TryGetValue(normalized, out var entry))
+        string normalized = PixelCharacterCatalog.NormalizeId(characterId);
+        if (_entries.TryGetValue(normalized, out CachedCharacterFrames? entry))
         {
             return entry;
         }
@@ -89,7 +89,7 @@ internal sealed class PixelCharacterFrameCache : IDisposable
         }
 
         _disposed = true;
-        foreach (var entry in _entries.Values)
+        foreach (CachedCharacterFrames entry in _entries.Values)
         {
             ClearFrames(entry);
         }
@@ -98,11 +98,11 @@ internal sealed class PixelCharacterFrameCache : IDisposable
 
     private static void ClearFrames(CachedCharacterFrames entry)
     {
-        foreach (var frame in entry.Normal)
+        foreach (byte[] frame in entry.Normal)
         {
             Array.Clear(frame);
         }
-        foreach (var frame in entry.Flipped)
+        foreach (byte[] frame in entry.Flipped)
         {
             Array.Clear(frame);
         }
@@ -112,9 +112,9 @@ internal sealed class PixelCharacterFrameCache : IDisposable
 
     private static string ResolveAssetPath(string assetRoot, string catalogResource)
     {
-        const string catalogPrefix = "Characters/";
-        var relativePath = catalogResource.StartsWith(catalogPrefix, StringComparison.Ordinal)
-            ? catalogResource[catalogPrefix.Length..]
+        const string CatalogPrefix = "Characters/";
+        string relativePath = catalogResource.StartsWith(CatalogPrefix, StringComparison.Ordinal)
+            ? catalogResource[CatalogPrefix.Length..]
             : catalogResource;
         return Path.Combine(assetRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
     }
@@ -123,17 +123,17 @@ internal sealed class PixelCharacterFrameCache : IDisposable
     {
         PixelCharacterDefinition definition = PixelCharacterCatalog.All.First(
             candidate => StringComparer.Ordinal.Equals(candidate.Id, characterId));
-        var pngPath = ResolveAssetPath(_assetRoot, definition.SpriteSheetResource);
-        var png = File.ReadAllBytes(pngPath);
-        var hash = Convert.ToHexStringLower(SHA256.HashData(png));
+        string pngPath = ResolveAssetPath(_assetRoot, definition.SpriteSheetResource);
+        byte[] png = File.ReadAllBytes(pngPath);
+        string hash = Convert.ToHexStringLower(SHA256.HashData(png));
         if (!StringComparer.Ordinal.Equals(hash, definition.SpriteSheetSha256))
         {
             throw new InvalidDataException($"{definition.Id} sprite hash does not match its catalog entry.");
         }
 
-        var rawPath = ResolveAssetPath(_assetRoot, definition.RawBgraResource);
-        var sheet = File.ReadAllBytes(rawPath);
-        var expectedLength = checked(
+        string rawPath = ResolveAssetPath(_assetRoot, definition.RawBgraResource);
+        byte[] sheet = File.ReadAllBytes(rawPath);
+        int expectedLength = checked(
             definition.FrameWidth
             * definition.FrameCount
             * definition.FrameHeight
@@ -144,9 +144,9 @@ internal sealed class PixelCharacterFrameCache : IDisposable
                 $"{definition.Id} BGRA sheet must contain {expectedLength} bytes, found {sheet.Length}.");
         }
 
-        var normal = new byte[definition.FrameCount][];
-        var flipped = new byte[definition.FrameCount][];
-        for (var frame = 0; frame < definition.FrameCount; frame++)
+        byte[][] normal = new byte[definition.FrameCount][];
+        byte[][] flipped = new byte[definition.FrameCount][];
+        for (int frame = 0; frame < definition.FrameCount; frame++)
         {
             normal[frame] = PremultipliedBgraFrameBuilder.BuildFrame(
                 sheet,
@@ -182,18 +182,18 @@ internal sealed class PixelCharacterFrameCache : IDisposable
         PixelCharacterDefinition definition,
         int size)
     {
-        var minX = size;
-        var minY = size;
-        var maxX = 0;
-        var maxY = 0;
-        foreach (var frameIndex in FrameIndexes(definition.Frames.Idle)
+        int minX = size;
+        int minY = size;
+        int maxX = 0;
+        int maxY = 0;
+        foreach (int frameIndex in FrameIndexes(definition.Frames.Idle)
                      .Concat(FrameIndexes(definition.Frames.Walk)))
         {
-            foreach (var frame in new[] { normal[frameIndex], flipped[frameIndex] })
+            foreach (byte[]? frame in new[] { normal[frameIndex], flipped[frameIndex] })
             {
-                for (var y = 0; y < size; y++)
+                for (int y = 0; y < size; y++)
                 {
-                    for (var x = 0; x < size; x++)
+                    for (int x = 0; x < size; x++)
                     {
                         if (frame[((y * size) + x) * 4 + 3] == 0)
                         {

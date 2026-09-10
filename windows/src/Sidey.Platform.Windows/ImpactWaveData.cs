@@ -19,7 +19,7 @@ public static class ImpactWaveData
             uint length = BinaryPrimitives.ReadUInt32LittleEndian(file.Slice(offset + 4, 4));
             if (length > file.Length - offset - 8)
                 throw new InvalidDataException("Truncated WAV data.");
-            var chunk = file.Slice(offset + 8, (int)length);
+            ReadOnlySpan<byte> chunk = file.Slice(offset + 8, (int)length);
             if (file.Slice(offset, 4).SequenceEqual("fmt "u8))
             {
                 validFormat = chunk.Length >= 16

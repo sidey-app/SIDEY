@@ -7,7 +7,7 @@ namespace Sidey.Platform.Windows.Tests;
 
 public sealed class CharacterThrowAssetTests
 {
-    private static readonly IReadOnlyDictionary<string, string> PngHashes =
+    private static readonly IReadOnlyDictionary<string, string> s_pngHashes =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["Characters/pixel_hamster/throw_hit"] = "b9915afdbb5476b17ea7b7f0a06eea09cc20b96dd1995328bdae2f806c3285c8",
@@ -29,7 +29,7 @@ public sealed class CharacterThrowAssetTests
             ["Throwables/throwable_squeaky_duck/sprite"] = "3b6935398d41b6d1cd5efa922392dbf4864782deb9880c5d0f10885e00906e7a",
         };
 
-    private static readonly IReadOnlyDictionary<string, string> CosmeticBgraHashes =
+    private static readonly IReadOnlyDictionary<string, string> s_cosmeticBgraHashes =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["Throwables/throwable_bouncy_heart/sprite"] = "d1b5cd206fcdcccc91370dcb018375ca6e414d2893eee2f166bfdda055b7ca1c",
@@ -41,18 +41,18 @@ public sealed class CharacterThrowAssetTests
     [Fact]
     public void ApprovedPngsAndPreconvertedBgraSheetsMatchTheContract()
     {
-        foreach (var pair in PngHashes)
+        foreach (KeyValuePair<string, string> pair in s_pngHashes)
         {
-            var png = File.ReadAllBytes(AssetPath(pair.Key + ".png"));
+            byte[] png = File.ReadAllBytes(AssetPath(pair.Key + ".png"));
             Assert.Equal(pair.Value, Convert.ToHexStringLower(SHA256.HashData(png)));
             Assert.Equal("IHDR", System.Text.Encoding.ASCII.GetString(png, 12, 4));
-            var width = BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16, 4));
-            var height = BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20, 4));
+            int width = BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16, 4));
+            int height = BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20, 4));
             Assert.Equal(192, width);
             Assert.Equal(pair.Key.StartsWith("Characters/", StringComparison.Ordinal) ? 24 : 16, height);
             Assert.Equal(width * height * 4, File.ReadAllBytes(AssetPath(pair.Key + ".bgra")).Length);
         }
-        foreach (var pair in CosmeticBgraHashes)
+        foreach (KeyValuePair<string, string> pair in s_cosmeticBgraHashes)
         {
             byte[] bgra = File.ReadAllBytes(AssetPath(pair.Key + ".bgra"));
             Assert.Equal(pair.Value, Convert.ToHexStringLower(SHA256.HashData(bgra)));
@@ -68,14 +68,14 @@ public sealed class CharacterThrowAssetTests
             scale: 1,
             edge: OverlayEdge.Bottom);
 
-        var hamsterAction = cache.ActionFrame("pixel_hamster", frame: 0, flipped: false).ToArray();
+        byte[] hamsterAction = cache.ActionFrame("pixel_hamster", frame: 0, flipped: false).ToArray();
         Assert.False(hamsterAction.SequenceEqual(cache.ActionFrame("pixel_guinea_pig", frame: 0, flipped: false).ToArray()));
         Assert.False(hamsterAction.SequenceEqual(cache.ActionFrame("pixel_monkey", frame: 0, flipped: false).ToArray()));
         Assert.False(hamsterAction.SequenceEqual(cache.ActionFrame("pixel_chinchilla", frame: 0, flipped: false).ToArray()));
         Assert.False(hamsterAction.SequenceEqual(cache.ActionFrame("pixel_starlight_upalupa", frame: 0, flipped: false).ToArray()));
         Assert.Equal(hamsterAction, cache.ActionFrame("unknown_character", frame: 0, flipped: false).ToArray());
 
-        var patchBall = cache.ObjectFrame("pixel_hamster", frame: 0).ToArray();
+        byte[] patchBall = cache.ObjectFrame("pixel_hamster", frame: 0).ToArray();
         Assert.False(patchBall.SequenceEqual(cache.ObjectFrame("pixel_guinea_pig", frame: 0).ToArray()));
         Assert.False(patchBall.SequenceEqual(cache.ObjectFrame("pixel_monkey", frame: 0).ToArray()));
         Assert.False(patchBall.SequenceEqual(cache.ObjectFrame("pixel_chinchilla", frame: 0).ToArray()));
@@ -99,13 +99,13 @@ public sealed class CharacterThrowAssetTests
             scale: 1,
             edge: OverlayEdge.Bottom);
         byte[] sheet = File.ReadAllBytes(AssetPath("Characters/pixel_hamster/throw_hit.bgra"));
-        var expected = new byte[24 * 24 * 4];
-        const int sheetRowBytes = 192 * 4;
-        const int frameRowBytes = 24 * 4;
+        byte[] expected = new byte[24 * 24 * 4];
+        const int SheetRowBytes = 192 * 4;
+        const int FrameRowBytes = 24 * 4;
         for (int y = 0; y < 24; y++)
         {
-            sheet.AsSpan((23 - y) * sheetRowBytes, frameRowBytes)
-                .CopyTo(expected.AsSpan(y * frameRowBytes, frameRowBytes));
+            sheet.AsSpan((23 - y) * SheetRowBytes, FrameRowBytes)
+                .CopyTo(expected.AsSpan(y * FrameRowBytes, FrameRowBytes));
         }
 
         Assert.Equal(expected, cache.ActionFrame("pixel_hamster", frame: 0, flipped: false).ToArray());

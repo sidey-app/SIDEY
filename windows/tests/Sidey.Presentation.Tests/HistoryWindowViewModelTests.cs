@@ -11,8 +11,8 @@ public sealed class HistoryWindowViewModelTests
     [Fact]
     public async Task ActivationLoadsNewestFirstAndFormatsSystemLocalTime()
     {
-        Guid roomId = Guid.NewGuid();
-        Guid userId = Guid.NewGuid();
+        var roomId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
         DateTimeOffset newerTime = DateTimeOffset.UtcNow.AddMinutes(-1);
         var room = new Room(
             roomId,
@@ -64,9 +64,9 @@ public sealed class HistoryWindowViewModelTests
     [Fact]
     public async Task LiveLedgerReplacesPendingWithConfirmedAndKeepsFailedMessages()
     {
-        Guid roomId = Guid.NewGuid();
-        Guid userId = Guid.NewGuid();
-        Guid messageId = Guid.NewGuid();
+        var roomId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var messageId = Guid.NewGuid();
         DateTimeOffset createdAt = DateTimeOffset.UtcNow;
         Room room = RoomWithMember(roomId, userId);
         var pending = new MessageLedgerEntry(
@@ -109,9 +109,9 @@ public sealed class HistoryWindowViewModelTests
     [Fact]
     public async Task RoomChangeCancelsStalePageAndLoadsOnlyTheNewRoom()
     {
-        Guid firstRoomId = Guid.NewGuid();
-        Guid secondRoomId = Guid.NewGuid();
-        Guid userId = Guid.NewGuid();
+        var firstRoomId = Guid.NewGuid();
+        var secondRoomId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
         var firstStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var firstCancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var coordinator = new FakeSideyCoordinator
@@ -155,8 +155,8 @@ public sealed class HistoryWindowViewModelTests
     [Fact]
     public async Task LoadsFiftyAtATimeAndUsesCompositeNextCursor()
     {
-        Guid roomId = Guid.NewGuid();
-        Guid userId = Guid.NewGuid();
+        var roomId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
         DateTimeOffset createdAt = DateTimeOffset.UtcNow;
         MessageHistoryCursor? requestedCursor = null;
         int requestedPageSize = 0;
@@ -192,8 +192,8 @@ public sealed class HistoryWindowViewModelTests
     [Fact]
     public async Task InitialFailureHasAnIndependentRetryState()
     {
-        Guid roomId = Guid.NewGuid();
-        Guid userId = Guid.NewGuid();
+        var roomId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
         int calls = 0;
         var coordinator = new FakeSideyCoordinator
         {
@@ -223,8 +223,8 @@ public sealed class HistoryWindowViewModelTests
     [Fact]
     public async Task LoadMoreFailureKeepsTheFirstPageAndCanRetryIndependently()
     {
-        Guid roomId = Guid.NewGuid();
-        Guid userId = Guid.NewGuid();
+        var roomId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
         DateTimeOffset createdAt = DateTimeOffset.UtcNow;
         var cursor = new MessageHistoryCursor(createdAt.AddMinutes(-1), Guid.NewGuid());
         int loadMoreCalls = 0;

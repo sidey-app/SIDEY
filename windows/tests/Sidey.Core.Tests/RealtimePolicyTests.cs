@@ -28,7 +28,7 @@ public sealed class RealtimePolicyTests
         var replaced = Guid.NewGuid();
         var departed = Guid.NewGuid();
 
-        var updates = PresenceChangePlan.Updates(
+        IReadOnlyList<PresenceUpdate> updates = PresenceChangePlan.Updates(
             new Dictionary<Guid, PresenceState> { [replaced] = PresenceState.Away },
             new HashSet<Guid> { replaced, departed });
 
@@ -43,7 +43,7 @@ public sealed class RealtimePolicyTests
         var online = Guid.NewGuid();
         var departed = Guid.NewGuid();
 
-        var updates = PresenceSnapshotPlan.Updates(
+        IReadOnlyList<PresenceUpdate> updates = PresenceSnapshotPlan.Updates(
             new Dictionary<Guid, PresenceState> { [online] = PresenceState.Online },
             new HashSet<Guid> { online, departed });
 

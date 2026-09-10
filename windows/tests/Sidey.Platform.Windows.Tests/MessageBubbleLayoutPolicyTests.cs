@@ -14,7 +14,7 @@ public sealed class MessageBubbleLayoutPolicyTests
         double senderTangent,
         double expectedStart)
     {
-        var start = MessageBubbleLayoutPolicy.ClampedTangentStart(
+        double start = MessageBubbleLayoutPolicy.ClampedTangentStart(
             senderTangent,
             tangentLength: 500d,
             bodyTangentExtent: 100d,
@@ -53,7 +53,7 @@ public sealed class MessageBubbleLayoutPolicyTests
     {
         var body = new RectD(4d, 100d, 100d, 30d);
 
-        var tail = MessageBubbleLayoutPolicy.Tail(
+        MessageBubbleTail tail = MessageBubbleLayoutPolicy.Tail(
             edge,
             body,
             senderWorldTangent: 0d,
@@ -76,7 +76,7 @@ public sealed class MessageBubbleLayoutPolicyTests
     {
         var body = new RectD(100d, 4d, 30d, 100d);
 
-        var tail = MessageBubbleLayoutPolicy.Tail(
+        MessageBubbleTail tail = MessageBubbleLayoutPolicy.Tail(
             edge,
             body,
             senderWorldTangent: 0d,
@@ -103,7 +103,7 @@ public sealed class MessageBubbleLayoutPolicyTests
     {
         var body = new RectD(100d, 100d, 30d, 30d);
 
-        var tail = MessageBubbleLayoutPolicy.Tail(
+        MessageBubbleTail tail = MessageBubbleLayoutPolicy.Tail(
             edge,
             body,
             senderWorldTangent: 115d,
@@ -112,7 +112,7 @@ public sealed class MessageBubbleLayoutPolicyTests
             baseInset: 10d,
             baseOverlap: 2d);
 
-        var actualNormalCoordinate = edge is OverlayEdge.Top or OverlayEdge.Bottom
+        double actualNormalCoordinate = edge is OverlayEdge.Top or OverlayEdge.Bottom
             ? tail.BaseStart.Y
             : tail.BaseStart.X;
         Assert.Equal(expectedNormalCoordinate, actualNormalCoordinate);

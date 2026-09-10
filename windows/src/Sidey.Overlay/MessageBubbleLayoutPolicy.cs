@@ -25,10 +25,10 @@ internal static class MessageBubbleLayoutPolicy
         double bodyTangentExtent,
         double margin)
     {
-        var halfExtent = bodyTangentExtent / 2d;
-        var minimumCenter = halfExtent + margin;
-        var maximumCenter = Math.Max(minimumCenter, tangentLength - halfExtent - margin);
-        var center = Math.Clamp(senderTangent, minimumCenter, maximumCenter);
+        double halfExtent = bodyTangentExtent / 2d;
+        double minimumCenter = halfExtent + margin;
+        double maximumCenter = Math.Max(minimumCenter, tangentLength - halfExtent - margin);
+        double center = Math.Clamp(senderTangent, minimumCenter, maximumCenter);
         return center - halfExtent;
     }
 
@@ -40,12 +40,12 @@ internal static class MessageBubbleLayoutPolicy
         double trailingOverflow,
         double margin)
     {
-        var halfExtent = bodyTangentExtent / 2d;
-        var minimumCenter = halfExtent + margin + Math.Max(0d, leadingOverflow);
-        var maximumCenter = Math.Max(
+        double halfExtent = bodyTangentExtent / 2d;
+        double minimumCenter = halfExtent + margin + Math.Max(0d, leadingOverflow);
+        double maximumCenter = Math.Max(
             minimumCenter,
             tangentLength - halfExtent - margin - Math.Max(0d, trailingOverflow));
-        var center = Math.Clamp(senderTangent, minimumCenter, maximumCenter);
+        double center = Math.Clamp(senderTangent, minimumCenter, maximumCenter);
         return center - halfExtent;
     }
 
@@ -65,8 +65,8 @@ internal static class MessageBubbleLayoutPolicy
             throw new ArgumentOutOfRangeException(nameof(tick));
         }
 
-        const int intervalHundredths = 35;
-        var elapsedIntervals = (tick * 100) / (framesPerSecond * intervalHundredths);
+        const int IntervalHundredths = 35;
+        long elapsedIntervals = (tick * 100) / (framesPerSecond * IntervalHundredths);
         return (int)(elapsedIntervals % frameCount);
     }
 
@@ -121,7 +121,7 @@ internal static class MessageBubbleLayoutPolicy
         double halfBase,
         double baseInset)
     {
-        var baseCenter = Math.Clamp(
+        double baseCenter = Math.Clamp(
             senderWorldTangent,
             body.MinX + baseInset,
             body.MaxX - baseInset);
@@ -139,7 +139,7 @@ internal static class MessageBubbleLayoutPolicy
         double halfBase,
         double baseInset)
     {
-        var baseCenter = Math.Clamp(
+        double baseCenter = Math.Clamp(
             senderWorldTangent,
             body.MinY + baseInset,
             body.MaxY - baseInset);

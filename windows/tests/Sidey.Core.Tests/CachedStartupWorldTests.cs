@@ -18,9 +18,9 @@ public sealed class CachedStartupWorldTests
     [Fact]
     public void CachedSelfWaitsForConnectionWithoutCreatingARoomOrLiveActions()
     {
-        var preferences = Saved;
-        var world = Assert.IsType<WorldSnapshot>(CachedStartupWorld.Create(preferences));
-        var self = Assert.Single(world.Members);
+        AppPreferences preferences = Saved;
+        WorldSnapshot world = Assert.IsType<WorldSnapshot>(CachedStartupWorld.Create(preferences));
+        PixelWorldMember self = Assert.Single(world.Members);
         Assert.Equal("모카", self.Nickname);
         Assert.Equal("pixel_cat", self.CharacterId);
         Assert.Equal(PresenceState.Reconnecting, self.Presence);
@@ -45,15 +45,15 @@ public sealed class CachedStartupWorldTests
     [Fact]
     public void CachedPaidCharactersAndSavedGeometryUseTheSharedCatalog()
     {
-        foreach (var character in PixelCharacterCatalog.All)
-            foreach (var edge in Enum.GetValues<OverlayEdge>())
+        foreach (PixelCharacterDefinition character in PixelCharacterCatalog.All)
+            foreach (OverlayEdge edge in Enum.GetValues<OverlayEdge>())
             {
-                var preferences = Saved with
+                AppPreferences preferences = Saved with
                 {
                     CachedCharacterId = character.Id,
                     OverlayRegion = OverlayRegionPreference.Default with { Edge = edge }
                 };
-                var world = CachedStartupWorld.Create(preferences)!;
+                WorldSnapshot world = CachedStartupWorld.Create(preferences)!;
                 Assert.Equal(character.Id, Assert.Single(world.Members).CharacterId);
                 Assert.Equal(edge, world.Edge);
                 Assert.Equal(preferences.InstallationSeed, world.InstallationSeed);

@@ -52,8 +52,8 @@ public sealed class MessageLedger
 
     public bool Confirm(ChatMessage message, DateTimeOffset? now = null)
     {
-        var index = _entries.FindIndex(entry => entry.Id == message.Id);
-        var wasKnown = index >= 0;
+        int index = _entries.FindIndex(entry => entry.Id == message.Id);
+        bool wasKnown = index >= 0;
         var confirmed = new MessageLedgerEntry(
             message.Id,
             message.RoomId,
@@ -80,7 +80,7 @@ public sealed class MessageLedger
     public void ReplaceConfirmed(Guid roomId, IEnumerable<ChatMessage> messages)
     {
         _entries.RemoveAll(entry => entry.RoomId == roomId && entry.State == MessageDeliveryState.Confirmed);
-        foreach (var message in messages.Where(message => message.RoomId == roomId))
+        foreach (ChatMessage? message in messages.Where(message => message.RoomId == roomId))
         {
             Confirm(message);
         }
@@ -88,13 +88,13 @@ public sealed class MessageLedger
 
     public string? Fail(Guid id)
     {
-        var index = _entries.FindIndex(entry => entry.Id == id && entry.State == MessageDeliveryState.Pending);
+        int index = _entries.FindIndex(entry => entry.Id == id && entry.State == MessageDeliveryState.Pending);
         if (index < 0)
         {
             return null;
         }
 
-        var body = _entries[index].Body;
+        string body = _entries[index].Body;
         _entries[index] = _entries[index] with { State = MessageDeliveryState.Failed };
         return body;
     }
@@ -107,15 +107,15 @@ public sealed class MessageLedger
 
     public void PruneConfirmed(DateTimeOffset? now = null)
     {
-        var cutoff = (now ?? DateTimeOffset.UtcNow) - ConfirmedRetention;
+        DateTimeOffset cutoff = (now ?? DateTimeOffset.UtcNow) - ConfirmedRetention;
         _entries.RemoveAll(entry =>
             entry.State == MessageDeliveryState.Confirmed && entry.CreatedAt < cutoff);
-        foreach (var room in _entries
+        foreach (IGrouping<Guid, MessageLedgerEntry>? room in _entries
             .Where(entry => entry.State == MessageDeliveryState.Confirmed)
             .GroupBy(entry => entry.RoomId)
             .ToArray())
         {
-            var excess = room.Count() - MaximumConfirmedPerRoom;
+            int excess = room.Count() - MaximumConfirmedPerRoom;
             if (excess <= 0)
             {
                 continue;
@@ -131,7 +131,7 @@ public sealed class MessageLedger
 
     private void SortEntries() => _entries.Sort(static (left, right) =>
     {
-        var dateComparison = left.CreatedAt.CompareTo(right.CreatedAt);
+        int dateComparison = left.CreatedAt.CompareTo(right.CreatedAt);
         return dateComparison != 0
             ? dateComparison
             : StringComparer.Ordinal.Compare(left.Id.ToString("D"), right.Id.ToString("D"));
@@ -163,15 +163,13 @@ public sealed class ActiveBubbleLedger
             CosmeticCatalog.NormalizeBubbleStyleId(bubbleStyleId)));
         _bubbles.Sort(static (left, right) =>
         {
-            var dateComparison = left.ExpiresAt.CompareTo(right.ExpiresAt);
+            int dateComparison = left.ExpiresAt.CompareTo(right.ExpiresAt);
             return dateComparison != 0
                 ? dateComparison
                 : StringComparer.Ordinal.Compare(left.MessageId.ToString("D"), right.MessageId.ToString("D"));
         });
 
-        var senderBubbles = _bubbles
-            .Where(bubble => bubble.SenderId == senderId)
-            .ToArray();
+        ActiveBubble[] senderBubbles = [.. _bubbles.Where(bubble => bubble.SenderId == senderId)];
         if (senderBubbles.Length > MaximumVisiblePerSender)
         {
             var removedIds = senderBubbles
@@ -189,7 +187,7 @@ public sealed class ActiveBubbleLedger
 
     public void Prune(DateTimeOffset? date = null)
     {
-        var cutoff = date ?? DateTimeOffset.UtcNow;
+        DateTimeOffset cutoff = date ?? DateTimeOffset.UtcNow;
         _bubbles.RemoveAll(bubble => bubble.ExpiresAt <= cutoff);
     }
 }

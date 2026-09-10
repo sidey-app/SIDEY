@@ -1,18 +1,20 @@
 using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Sidey.Core.Localization;
 using Sidey.Platform.Windows;
 using Sidey.Presentation.Services;
 using Sidey.Presentation.ViewModels;
+using Windows.Foundation;
 
 namespace Sidey.App;
 
 public partial class App : Application
 {
-    private static readonly TimeSpan ConnectionFailureNotificationDelay = TimeSpan.FromSeconds(15);
-    private static readonly TimeSpan ConnectionFailureNotificationCooldown = TimeSpan.FromMinutes(15);
-    private static readonly TimeSpan DisplayTopologyRefreshDelay = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan s_connectionFailureNotificationDelay = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan s_connectionFailureNotificationCooldown = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan s_displayTopologyRefreshDelay = TimeSpan.FromMilliseconds(500);
 
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly WindowsUpdateServiceAdapter _updateService;
@@ -379,7 +381,7 @@ public partial class App : Application
         System.UnhandledExceptionEventArgs args)
     {
         _ = sender;
-        var exception = args.ExceptionObject as Exception
+        Exception exception = args.ExceptionObject as Exception
             ?? new InvalidOperationException("A non-Exception object reached the unhandled exception boundary.");
         StartupDiagnostics.Fatal("app-domain-unhandled", exception, showDialog: true);
     }
@@ -465,7 +467,7 @@ public partial class App : Application
                     CloseButtonText = I18n.Get("common.close"),
                 };
                 stage.BeginPresentation();
-                var showing = dialog.ShowAsync();
+                IAsyncOperation<ContentDialogResult> showing = dialog.ShowAsync();
                 try
                 { await stage.VerifyInteractionSmokeAsync(); }
                 finally
@@ -476,7 +478,7 @@ public partial class App : Application
                     dialog.Content = null;
                 }
             }
-            foreach (var character in Sidey.Core.Domain.PixelCharacterCatalog.All.Select(definition => definition.Id))
+            foreach (string? character in Sidey.Core.Domain.PixelCharacterCatalog.All.Select(definition => definition.Id))
             {
                 var stage = new Controls.StorePreviewStage(Sidey.Core.Domain.CommerceProductKind.Character, character, character);
                 await VerifyDialogAsync(stage);
@@ -501,14 +503,14 @@ public partial class App : Application
             return;
         }
 
-        for (var windowIndex = 0; windowIndex < 5; windowIndex++)
+        for (int windowIndex = 0; windowIndex < 5; windowIndex++)
         {
             var viewModel = new ComposerViewModel();
             var composer = new ComposerWindow(viewModel);
             var input = (Microsoft.UI.Xaml.Controls.TextBox)
                 ((FrameworkElement)composer.Content).FindName("MessageInput");
             viewModel.Draft = "한글 입력 테스트 ABC";
-            for (var cycle = 0; cycle < 10; cycle++)
+            for (int cycle = 0; cycle < 10; cycle++)
             {
                 composer.ShowAndFocus(monitorIdentifier: null);
                 await Task.Delay(150);
@@ -845,7 +847,7 @@ public partial class App : Application
             return;
         }
 
-        var coordinator = _coordinator;
+        AppCoordinator? coordinator = _coordinator;
         _dispatcherQueue.TryEnqueue(() =>
         {
             if (_shuttingDown)
@@ -862,10 +864,10 @@ public partial class App : Application
                 state.Preferences.QuietMode,
                 state.Preferences.StartAtLogin,
                 coordinator?.TotalUnreadCount ?? 0,
-                state.Rooms.Select(room => new TrayRoomMenuItem(
+                [.. state.Rooms.Select(room => new TrayRoomMenuItem(
                     room.Id,
                     room.Name,
-                    coordinator?.UnreadCount(room.Id) ?? 0)).ToArray(),
+                    coordinator?.UnreadCount(room.Id) ?? 0))],
                 state.ActiveRoomId));
         });
     }
@@ -879,8 +881,7 @@ public partial class App : Application
             I18n.SetLanguage(language);
             Localization.LocalizedText.RefreshAll();
             _mainWindow?.ViewModel.RefreshLocalizedText();
-            if (_composer is not null)
-                _composer.Title = I18n.Get("window.composerTitle");
+            _composer?.Title = I18n.Get("window.composerTitle");
             if (_historyWindow is not null)
             {
                 _historyWindow.Title = I18n.Get("window.historyTitle");
@@ -956,8 +957,8 @@ public partial class App : Application
             return;
         }
 
-        var timer = _dispatcherQueue.CreateTimer();
-        timer.Interval = DisplayTopologyRefreshDelay;
+        DispatcherQueueTimer timer = _dispatcherQueue.CreateTimer();
+        timer.Interval = s_displayTopologyRefreshDelay;
         timer.IsRepeating = false;
         timer.Tick += OnDisplayTopologyRefreshElapsed;
         _displayTopologyRefreshTimer = timer;
@@ -1092,14 +1093,14 @@ public partial class App : Application
             return;
         }
 
-        var timer = _dispatcherQueue.CreateTimer();
-        timer.Interval = ConnectionFailureNotificationDelay;
+        DispatcherQueueTimer timer = _dispatcherQueue.CreateTimer();
+        timer.Interval = s_connectionFailureNotificationDelay;
         timer.IsRepeating = false;
         timer.Tick += OnConnectionFailureNotificationElapsed;
         _connectionFailureNotificationTimer = timer;
         timer.Start();
         StartupDiagnostics.Stage(
-            $"connection-failure-notification-deferred delay-ms={(long)ConnectionFailureNotificationDelay.TotalMilliseconds}");
+            $"connection-failure-notification-deferred delay-ms={(long)s_connectionFailureNotificationDelay.TotalMilliseconds}");
     }
 
     private void OnConnectionFailureNotificationElapsed(
@@ -1143,7 +1144,7 @@ public partial class App : Application
         _connectionFailureNotificationArmed = false;
         DateTimeOffset now = DateTimeOffset.UtcNow;
         if (_lastConnectionFailureNotificationAt is { } previous
-            && now - previous < ConnectionFailureNotificationCooldown)
+            && now - previous < s_connectionFailureNotificationCooldown)
         {
             return;
         }
@@ -1270,11 +1271,9 @@ public partial class App : Application
             _composer.CloseForExit();
             _composer = null;
         }
-        if (_historyWindow is not null)
-        {
-            _historyWindow.Close();
-            _historyWindow = null;
-        }
+
+        _historyWindow?.Close();
+        _historyWindow = null;
         if (_onboardingWindow is not null)
         {
             _onboardingWindow.Completed -= OnOnboardingCompleted;

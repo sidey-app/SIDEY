@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
-using System.IO;
 using System.Globalization;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -25,13 +25,15 @@ public static class Program
 
         try
         {
-            ProcessStartInfo start = new ProcessStartInfo();
-            start.FileName = hostPath;
-            // WinUI's PRI/XAML loader resolves app resources relative to the
-            // real host directory, not the public launcher directory.
-            start.WorkingDirectory = Path.GetDirectoryName(hostPath);
-            start.UseShellExecute = false;
-            start.Arguments = JoinArguments(arguments);
+            var start = new ProcessStartInfo
+            {
+                FileName = hostPath,
+                // WinUI's PRI/XAML loader resolves app resources relative to the
+                // real host directory, not the public launcher directory.
+                WorkingDirectory = Path.GetDirectoryName(hostPath),
+                UseShellExecute = false,
+                Arguments = JoinArguments(arguments),
+            };
             Process.Start(start);
             return 0;
         }
@@ -76,13 +78,14 @@ public static class Program
 
     private static string JoinArguments(string[] arguments)
     {
-        StringBuilder commandLine = new StringBuilder();
+        var commandLine = new StringBuilder();
         foreach (string argument in arguments)
         {
             if (commandLine.Length > 0)
             {
                 commandLine.Append(' ');
             }
+
             commandLine.Append(QuoteArgument(argument));
         }
         return commandLine.ToString();
@@ -96,7 +99,7 @@ public static class Program
             return argument;
         }
 
-        StringBuilder quoted = new StringBuilder();
+        var quoted = new StringBuilder();
         quoted.Append('"');
         int backslashes = 0;
         foreach (char character in argument)
@@ -113,6 +116,7 @@ public static class Program
                 backslashes = 0;
                 continue;
             }
+
             quoted.Append('\\', backslashes);
             backslashes = 0;
             quoted.Append(character);

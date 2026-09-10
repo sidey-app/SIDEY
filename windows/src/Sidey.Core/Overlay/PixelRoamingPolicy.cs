@@ -10,7 +10,7 @@ public static class PixelRoamingPolicy
     {
         for (int index = 0; index < agents.Count; index++)
         {
-            var agent = agents[index];
+            PixelMovementAgent agent = agents[index];
             if (stoppedIds.Contains(agent.Id)
                 || Math.Abs(agent.TrackPosition - agent.Target) >= 3d * coordinateScale)
             {

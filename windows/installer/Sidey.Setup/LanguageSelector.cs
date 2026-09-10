@@ -9,20 +9,23 @@ namespace Sidey.Installer
 {
     internal static class LanguageSelector
     {
-        private delegate IntPtr DialogProc(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+        private const uint InitializeDialogMessage = 0x0110;
+        private const uint CommandMessage = 0x0111;
+        private const uint SetIconMessage = 0x0170;
+        private const uint GetCurrentSelectionMessage = 0x0147;
+        private const uint InsertStringMessage = 0x014a;
+        private const uint SetCurrentSelectionMessage = 0x014e;
+        private const int DialogIconControl = 1008;
+        private const int DialogPromptControl = 1007;
+        private const int LanguageListControl = 1002;
+        private const int AcceptCommand = 1;
+        private const int CancelCommand = 2;
 
-        [DllImport("kernel32.dll")] private static extern ushort GetUserDefaultUILanguage();
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr GetModuleHandle(string name);
-        [DllImport("user32.dll")] private static extern bool AllowSetForegroundWindow(uint processId);
-        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-        private static extern IntPtr DialogBoxIndirectParam(IntPtr instance, IntPtr template, IntPtr parent, DialogProc callback, IntPtr parameter);
-        [DllImport("user32.dll")] private static extern bool EndDialog(IntPtr window, IntPtr result);
-        [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern bool SetWindowText(IntPtr window, string text);
-        [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern bool SetDlgItemText(IntPtr window, int item, string text);
-        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-        private static extern IntPtr SendDlgItemMessage(IntPtr window, int item, uint message, IntPtr wParam, IntPtr lParam);
-        [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "SendDlgItemMessageW")]
-        private static extern IntPtr InsertLanguage(IntPtr window, int item, uint message, IntPtr index, string text);
+        private delegate IntPtr DialogProcedure(
+            IntPtr window,
+            uint message,
+            IntPtr wordParameter,
+            IntPtr longParameter);
 
         [STAThread]
         private static int Main(string[] arguments)
@@ -30,68 +33,168 @@ namespace Sidey.Installer
             try
             {
                 int savedLanguage = 0;
-                if (arguments.Length > 0) { int.TryParse(arguments[0], out savedLanguage); }
+                if (arguments.Length > 0)
+                {
+                    int.TryParse(arguments[0], out savedLanguage);
+                }
+
                 int systemLanguage = GetUserDefaultUILanguage();
                 int selectedLanguage = InstallerLanguages.DefaultSelection(systemLanguage, savedLanguage);
-                if (Array.IndexOf(arguments, "--silent") >= 0) { return selectedLanguage; }
-                uint installerProcess = 0;
-                if (arguments.Length > 1) { uint.TryParse(arguments[1], out installerProcess); }
-                InstallerLanguage[] languages = InstallerLanguages.Ordered(systemLanguage);
+                if (Array.IndexOf(arguments, "--silent") >= 0)
+                {
+                    return selectedLanguage;
+                }
 
-                using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("Sidey.Installer.LanguageDialog"))
-                using (var reader = new BinaryReader(stream))
-                using (var icon = Icon.ExtractAssociatedIcon(Process.GetCurrentProcess().MainModule.FileName))
+                uint installerProcess = 0;
+                if (arguments.Length > 1)
+                {
+                    uint.TryParse(arguments[1], out installerProcess);
+                }
+
+                InstallerLanguage[] languages = InstallerLanguages.Ordered(systemLanguage);
+                using (Stream stream = Assembly.GetExecutingAssembly()
+                    .GetManifestResourceStream("Sidey.Installer.LanguageDialog"))
+                using (BinaryReader reader = new BinaryReader(stream))
+                using (Icon icon = Icon.ExtractAssociatedIcon(Process.GetCurrentProcess().MainModule.FileName))
                 {
                     byte[] bytes = reader.ReadBytes(checked((int)stream.Length));
                     IntPtr template = Marshal.AllocHGlobal(bytes.Length);
                     try
                     {
                         Marshal.Copy(bytes, 0, template, bytes.Length);
-                        DialogProc callback = delegate(IntPtr window, uint message, IntPtr wParam, IntPtr lParam) {
-                            if (message == 0x110) // WM_INITDIALOG
+                        DialogProcedure callback = delegate(
+                            IntPtr window,
+                            uint message,
+                            IntPtr wordParameter,
+                            IntPtr longParameter)
+                        {
+                            if (message == InitializeDialogMessage)
                             {
                                 SetWindowText(window, "Installer Language");
-                                SetDlgItemText(window, 1007, "Please select a language.");
-                                SendDlgItemMessage(window, 1008, 0x170, icon.Handle, IntPtr.Zero); // STM_SETICON
+                                SetDlgItemText(window, DialogPromptControl, "Please select a language.");
+                                SendDlgItemMessage(
+                                    window,
+                                    DialogIconControl,
+                                    SetIconMessage,
+                                    icon.Handle,
+                                    IntPtr.Zero);
                                 for (int index = 0; index < languages.Length; index++)
                                 {
                                     // CB_INSERTSTRING preserves our order even though the
                                     // original NSIS template has the CBS_SORT style.
-                                    InsertLanguage(window, 1002, 0x14a, (IntPtr)index, languages[index].DisplayName);
+                                    InsertLanguage(
+                                        window,
+                                        LanguageListControl,
+                                        InsertStringMessage,
+                                        (IntPtr)index,
+                                        languages[index].DisplayName);
                                     if (languages[index].Id == selectedLanguage)
                                     {
-                                        SendDlgItemMessage(window, 1002, 0x14e, (IntPtr)index, IntPtr.Zero); // CB_SETCURSEL
+                                        SendDlgItemMessage(
+                                            window,
+                                            LanguageListControl,
+                                            SetCurrentSelectionMessage,
+                                            (IntPtr)index,
+                                            IntPtr.Zero);
                                     }
                                 }
+
                                 return (IntPtr)1;
                             }
-                            if (message == 0x111) // WM_COMMAND
+
+                            if (message == CommandMessage)
                             {
-                                int command = (int)(wParam.ToInt64() & 0xffff);
-                                if (command == 1) // IDOK
+                                int command = (int)(wordParameter.ToInt64() & 0xffff);
+                                if (command == AcceptCommand)
                                 {
-                                    int index = SendDlgItemMessage(window, 1002, 0x147, IntPtr.Zero, IntPtr.Zero).ToInt32();
-                                    // Transfer activation before the selector loses foreground.
-                                    if (installerProcess != 0) { AllowSetForegroundWindow(installerProcess); }
-                                    EndDialog(window, (IntPtr)(index >= 0 && index < languages.Length ? languages[index].Id : 1));
+                                    int index = SendDlgItemMessage(
+                                        window,
+                                        LanguageListControl,
+                                        GetCurrentSelectionMessage,
+                                        IntPtr.Zero,
+                                        IntPtr.Zero).ToInt32();
+                                    if (installerProcess != 0)
+                                    {
+                                        AllowSetForegroundWindow(installerProcess);
+                                    }
+
+                                    int selectionResult = index >= 0 && index < languages.Length
+                                        ? languages[index].Id
+                                        : 1;
+                                    EndDialog(window, (IntPtr)selectionResult);
                                     return (IntPtr)1;
                                 }
-                                if (command == 2) // IDCANCEL (also Escape / window close)
+
+                                if (command == CancelCommand)
                                 {
                                     EndDialog(window, IntPtr.Zero);
                                     return (IntPtr)1;
                                 }
                             }
+
                             return IntPtr.Zero;
                         };
-                        int result = DialogBoxIndirectParam(GetModuleHandle(null), template, IntPtr.Zero, callback, IntPtr.Zero).ToInt32();
+                        int dialogResult = DialogBoxIndirectParam(
+                            GetModuleHandle(null),
+                            template,
+                            IntPtr.Zero,
+                            callback,
+                            IntPtr.Zero).ToInt32();
                         GC.KeepAlive(callback);
-                        return result == -1 ? 1 : result;
+                        return dialogResult == -1 ? 1 : dialogResult;
                     }
-                    finally { Marshal.FreeHGlobal(template); }
+                    finally
+                    {
+                        Marshal.FreeHGlobal(template);
+                    }
                 }
             }
-            catch { return 1; }
+            catch
+            {
+                return 1;
+            }
         }
+
+        [DllImport("kernel32.dll")]
+        private static extern ushort GetUserDefaultUILanguage();
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr GetModuleHandle(string name);
+
+        [DllImport("user32.dll")]
+        private static extern bool AllowSetForegroundWindow(uint processId);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr DialogBoxIndirectParam(
+            IntPtr instance,
+            IntPtr template,
+            IntPtr parent,
+            DialogProcedure callback,
+            IntPtr parameter);
+
+        [DllImport("user32.dll")]
+        private static extern bool EndDialog(IntPtr window, IntPtr result);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern bool SetWindowText(IntPtr window, string text);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern bool SetDlgItemText(IntPtr window, int item, string text);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr SendDlgItemMessage(
+            IntPtr window,
+            int item,
+            uint message,
+            IntPtr wordParameter,
+            IntPtr longParameter);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "SendDlgItemMessageW")]
+        private static extern IntPtr InsertLanguage(
+            IntPtr window,
+            int item,
+            uint message,
+            IntPtr index,
+            string text);
     }
 }

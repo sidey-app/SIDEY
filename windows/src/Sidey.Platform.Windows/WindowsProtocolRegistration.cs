@@ -12,8 +12,8 @@ public static class WindowsProtocolRegistration
             throw new ArgumentException("A fully qualified executable path is required.", nameof(executablePath));
         }
 
-        const string scheme = WindowsAuthCallback.DevelopmentScheme;
-        using RegistryKey key = Registry.CurrentUser.CreateSubKey($"Software\\Classes\\{scheme}");
+        const string Scheme = WindowsAuthCallback.DevelopmentScheme;
+        using RegistryKey key = Registry.CurrentUser.CreateSubKey($"Software\\Classes\\{Scheme}");
         key.SetValue(string.Empty, "URL:SIDEY development authentication callback");
         key.SetValue("URL Protocol", string.Empty);
         using RegistryKey command = key.CreateSubKey("shell\\open\\command");

@@ -26,18 +26,18 @@ public readonly record struct RealtimeRoomDescriptor(
             return false;
         }
 
-        var parts = topic.Split(':', StringSplitOptions.None);
+        string[] parts = topic.Split(':', StringSplitOptions.None);
         if (parts.Length != 5
             || parts[0] != "realtime"
             || parts[1] != "room"
-            || !Guid.TryParse(parts[2], out var roomId)
-            || !long.TryParse(parts[3], out var epoch)
+            || !Guid.TryParse(parts[2], out Guid roomId)
+            || !long.TryParse(parts[3], out long epoch)
             || epoch < 1)
         {
             return false;
         }
 
-        var kind = parts[4] switch
+        RealtimeTopicKind? kind = parts[4] switch
         {
             "db" => RealtimeTopicKind.Database,
             "ephemeral" => RealtimeTopicKind.Ephemeral,
@@ -67,16 +67,14 @@ public static class RealtimeEpochSubscriptionPlan
         ArgumentNullException.ThrowIfNull(desired);
         Validate(desired);
 
-        var leaves = current
-            .Where(pair => !desired.TryGetValue(pair.Key, out var epoch) || epoch != pair.Value)
+        RealtimeRoomDescriptor[] leaves = [.. current
+            .Where(pair => !desired.TryGetValue(pair.Key, out long epoch) || epoch != pair.Value)
             .OrderBy(pair => pair.Key)
-            .SelectMany(pair => Descriptors(pair.Key, pair.Value))
-            .ToArray();
-        var joins = desired
-            .Where(pair => !current.TryGetValue(pair.Key, out var epoch) || epoch != pair.Value)
+            .SelectMany(pair => Descriptors(pair.Key, pair.Value))];
+        RealtimeRoomDescriptor[] joins = [.. desired
+            .Where(pair => !current.TryGetValue(pair.Key, out long epoch) || epoch != pair.Value)
             .OrderBy(pair => pair.Key)
-            .SelectMany(pair => Descriptors(pair.Key, pair.Value))
-            .ToArray();
+            .SelectMany(pair => Descriptors(pair.Key, pair.Value))];
         return new RealtimeRoomSubscriptionDelta(leaves, joins);
     }
 

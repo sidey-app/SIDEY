@@ -22,9 +22,9 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private const double AmbientSparkleCycleSeconds = 1.2d;
     private const double AmbientSparkleDurationSeconds = 1.05d;
     private const double SparklePulseDurationSeconds = 0.78d;
-    private static readonly IReadOnlyList<RectD> NoAvoidanceRects = Array.Empty<RectD>();
+    private static readonly IReadOnlyList<RectD> s_noAvoidanceRects = [];
 
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly CharacterStunState _stun = new();
     private volatile bool _hasPresentedFrame;
     public bool HasPresentedFrame => _hasPresentedFrame;
@@ -36,9 +36,9 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             var ids = expectedIds.ToHashSet();
             if (!ids.SetEquals(_nodeById.Keys))
                 throw new InvalidOperationException("Overlay renderer did not retain every expected member.");
-            foreach (var id in ids)
+            foreach (Guid id in ids)
             {
-                var pixels = _textVisuals.Get(id).Nameplate.Pixels;
+                byte[] pixels = _textVisuals.Get(id).Nameplate.Pixels;
                 bool found = false;
                 for (int offset = 0; offset < pixels.Length; offset += 4)
                 {
@@ -59,7 +59,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private readonly Action<string, long>? _impact;
     private readonly Queue<(string Id, long Time)> _impactNotifications = new();
     private Guid _selfId;
-    private readonly object _selfGate = new();
+    private readonly Lock _selfGate = new();
     public bool IsSelfStunned { get { lock (_selfGate) return _stun.IsStunned(_selfId); } }
 
     public void ResetFeedback()
@@ -186,14 +186,14 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             new RectD(0, 0, activityBounds.Width, activityBounds.Height),
             edge,
             Math.Max(24 * _integerScale, _hotspotPixelSize));
-        var assetRoot = CharacterAssetPathResolver.Resolve();
+        string assetRoot = CharacterAssetPathResolver.Resolve();
         PixelCharacterFrameCache? frameCache = null;
         CharacterThrowFrameCache? throwFrameCache = null;
         PixelTextVisualCache? textVisuals = null;
         NativeLayeredBitmap? surface = null;
         try
         {
-            var initialCharacterIds = cachedCharacterIds
+            IReadOnlySet<string> initialCharacterIds = cachedCharacterIds
                 ?? initialSnapshot.Members
                     .Select(member => PixelCharacterCatalog.NormalizeId(member.CharacterId))
                     .ToHashSet(StringComparer.Ordinal);
@@ -202,10 +202,10 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 _integerScale,
                 edge,
                 initialCharacterIds);
-            var throwableAssetRoot = Path.Combine(
+            string throwableAssetRoot = Path.Combine(
                 Directory.GetParent(assetRoot)?.FullName ?? assetRoot,
                 "Throwables");
-            var bubbleAssetRoot = Path.Combine(
+            string bubbleAssetRoot = Path.Combine(
                 Directory.GetParent(assetRoot)?.FullName ?? assetRoot,
                 "Bubbles");
             throwFrameCache = new CharacterThrowFrameCache(
@@ -213,10 +213,10 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 throwableAssetRoot,
                 _integerScale,
                 edge);
-            var tangentLengthDip = (edge is OverlayEdge.Bottom or OverlayEdge.Top
+            double tangentLengthDip = (edge is OverlayEdge.Bottom or OverlayEdge.Top
                 ? activityBounds.Width
                 : activityBounds.Height) / _dpiScale;
-            var bubbleMaximumWidthDip = (float)Math.Min(
+            float bubbleMaximumWidthDip = (float)Math.Min(
                 220d,
                 Math.Max(24d, tangentLengthDip - 16d));
             textVisuals = new PixelTextVisualCache(
@@ -298,7 +298,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             return;
         }
 
-        var started = Stopwatch.GetTimestamp();
+        long started = Stopwatch.GetTimestamp();
         try
         {
             Tick();
@@ -400,10 +400,10 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             RefreshStoppedIds();
 
             _expiredBubbleSenders.Clear();
-            var now = DateTimeOffset.UtcNow;
-            foreach (var senderBubbles in _bubblesBySender)
+            DateTimeOffset now = DateTimeOffset.UtcNow;
+            foreach (KeyValuePair<Guid, List<ActiveBubble>> senderBubbles in _bubblesBySender)
             {
-                for (var index = senderBubbles.Value.Count - 1; index >= 0; index--)
+                for (int index = senderBubbles.Value.Count - 1; index >= 0; index--)
                 {
                     if (senderBubbles.Value[index].ExpiresAt <= now)
                     {
@@ -415,24 +415,24 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                     _expiredBubbleSenders.Add(senderBubbles.Key);
                 }
             }
-            foreach (var senderId in _expiredBubbleSenders)
+            foreach (Guid senderId in _expiredBubbleSenders)
             {
                 _bubblesBySender.Remove(senderId);
             }
             _bubbleTrackBounds.Clear();
-            foreach (var senderBubbles in _bubblesBySender)
+            foreach (KeyValuePair<Guid, List<ActiveBubble>> senderBubbles in _bubblesBySender)
             {
-                if (!_nodeById.TryGetValue(senderBubbles.Key, out var node))
+                if (!_nodeById.TryGetValue(senderBubbles.Key, out WorldNode? node))
                 {
                     continue;
                 }
-                var visuals = _textVisuals.Get(senderBubbles.Key);
+                PixelMemberVisuals visuals = _textVisuals.Get(senderBubbles.Key);
                 if (!TryGetBubbleTangentRange(
                     node.Agent.TrackPosition,
                     senderBubbles.Value,
                     visuals,
-                    out var lower,
-                    out var upper))
+                    out double lower,
+                    out double upper))
                 {
                     continue;
                 }
@@ -441,14 +441,14 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                     lower,
                     upper));
             }
-            var separatedIds = MessageBubbleCollisionResolver.Apply(
+            IReadOnlySet<Guid> separatedIds = MessageBubbleCollisionResolver.Apply(
                 _agents,
                 _bubbleTrackBounds,
                 FixedDeltaTime,
                 _geometry,
                 _bubbleCollisionScratch, _stoppedIds, _dpiScale);
             PixelMovementSimulation.Step(
-                _agents, FixedDeltaTime, _geometry, NoAvoidanceRects,
+                _agents, FixedDeltaTime, _geometry, s_noAvoidanceRects,
                 _stoppedIds, _movementScratch, _dpiScale, separatedIds);
             PixelRoamingPolicy.UpdateAfterMovement(_agents, _stoppedIds, _geometry, _random, _dpiScale);
             _tick++;
@@ -466,29 +466,29 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         NativePixelRect? currentUserHotspot = null;
         _targetHotspots.Clear();
         UpdateProjectiles();
-        foreach (var node in _nodes)
+        foreach (WorldNode node in _nodes)
         {
-            var cached = _frameCache.Get(node.Member.CharacterId);
-            var moving = PixelRoamingPolicy.IsWalking(node.Agent, _stoppedIds.Contains(node.Member.Id), _dpiScale);
+            CachedCharacterFrames cached = _frameCache.Get(node.Member.CharacterId);
+            bool moving = PixelRoamingPolicy.IsWalking(node.Agent, _stoppedIds.Contains(node.Member.Id), _dpiScale);
             double? stunElapsed = _stun.Elapsed(node.Member.Id);
-            var actionFrame = stunElapsed is not null ? null : ActionFrame(node.Member.Id);
-            var frame = FrameIndex(node.Member.Presence, moving, cached.Definition.Frames);
+            int? actionFrame = stunElapsed is not null ? null : ActionFrame(node.Member.Id);
+            int frame = FrameIndex(node.Member.Presence, moving, cached.Definition.Frames);
             if (stunElapsed is { } asleep)
             {
-                var range = cached.Definition.Frames.Offline;
+                Range range = cached.Definition.Frames.Offline;
                 frame = range.Start.Value + (_animationsEnabled() ? (int)(asleep / 1.2) % (range.End.Value - range.Start.Value) : 0);
             }
-            var pulseElapsed = PulseElapsed(node.Member.Id);
-            var pulseScale = stunElapsed is not null ? 1 : PulseScale(node.Member.Id);
-            var foot = FootPoint(node.Agent.TrackPosition);
-            var baseDestination = DestinationForFoot(
+            double? pulseElapsed = PulseElapsed(node.Member.Id);
+            double pulseScale = stunElapsed is not null ? 1 : PulseScale(node.Member.Id);
+            (double X, double Y) foot = FootPoint(node.Agent.TrackPosition);
+            (int X, int Y) baseDestination = DestinationForFoot(
                 foot,
                 cached.PixelSize,
                 cached.Definition.FootBaselinePixel * _integerScale,
                 cached.OnlineContentBounds,
                 1d,
                 _edge);
-            var destination = DestinationForFoot(
+            (int X, int Y) destination = DestinationForFoot(
                 foot,
                 cached.PixelSize,
                 cached.Definition.FootBaselinePixel * _integerScale,
@@ -501,7 +501,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             {
                 node.FacingLeft = ShouldMirrorForVelocity(node.Agent.Velocity);
             }
-            var flipped = cached.Definition.MirrorsToMovementDirection && node.FacingLeft;
+            bool flipped = cached.Definition.MirrorsToMovementDirection && node.FacingLeft;
             Composite(
                 destinationPixels,
                 actionFrame is { } activeAction
@@ -516,9 +516,9 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             if (stunElapsed is null && ActiveCannonProjectile(node.Member.Id) is { } cannon)
             {
                 bool emitterMirrored = ShouldMirrorEmitter(cannon);
-                var emitterCenter = CannonEmitterLayout.Center(
+                (double X, double Y) emitterCenter = CannonEmitterLayout.Center(
                     CharacterCenterPoint(node), emitterMirrored, _edge, _integerScale / 2d);
-                var emitterFrame = Math.Min(
+                int emitterFrame = Math.Min(
                     CharacterThrowFrameCache.EmitterFrameCount - 1,
                     (int)(Stopwatch.GetElapsedTime(cannon.StartedAt).TotalSeconds
                         / (ThrowActionSeconds / CharacterThrowFrameCache.EmitterFrameCount)));
@@ -551,10 +551,10 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                     HotspotBounds(baseDestination, cached.PixelSize, foot)));
             }
 
-            var visuals = _textVisuals.Get(node.Member.Id);
-            var nameplate = PlaceNameplate(foot, visuals.Nameplate);
+            PixelMemberVisuals visuals = _textVisuals.Get(node.Member.Id);
+            (int X, int Y) nameplate = PlaceNameplate(foot, visuals.Nameplate);
             CompositeVisual(destinationPixels, visuals.Nameplate, nameplate.X, nameplate.Y);
-            if (_bubblesBySender.TryGetValue(node.Member.Id, out var activeBubbles)
+            if (_bubblesBySender.TryGetValue(node.Member.Id, out List<ActiveBubble>? activeBubbles)
                 && activeBubbles.Count > 0)
             {
                 RenderMessageBubbles(
@@ -576,10 +576,10 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             }
             if (stunElapsed is null && visuals.Doze is { } doze)
             {
-                var dozePosition = PlaceDoze(baseDestination, cached.PixelSize, doze);
+                (int X, int Y) dozePosition = PlaceDoze(baseDestination, cached.PixelSize, doze);
                 long startedAt = _dozeStartedAt.GetValueOrDefault(node.Member.Id, _tick);
-                var progress = DozeAnimationProgress(_tick - startedAt);
-                var animatedPosition = FloatDozeTowardInterior(
+                double progress = DozeAnimationProgress(_tick - startedAt);
+                (int X, int Y) animatedPosition = FloatDozeTowardInterior(
                     dozePosition,
                     (int)Math.Round(progress * _dozeFloatingDistancePixels));
                 CompositeVisual(
@@ -592,7 +592,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         }
 
         // Draw after every nameplate, including neighboring characters' labels.
-        foreach (var effect in _stunDraws)
+        foreach ((int X, int Y, double Elapsed) effect in _stunDraws)
             DrawStun(destinationPixels, effect.X, effect.Y, effect.Elapsed);
         RenderProjectiles(destinationPixels);
 
@@ -614,16 +614,16 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         PremultipliedVisual nameplate,
         (int X, int Y) nameplatePosition)
     {
-        var normalDistance = _bubbleCharacterGapPixels + _bubbleTailHeightPixels;
-        for (var index = bubbles.Count - 1; index >= 0; index--)
+        int normalDistance = _bubbleCharacterGapPixels + _bubbleTailHeightPixels;
+        for (int index = bubbles.Count - 1; index >= 0; index--)
         {
-            var activeBubble = bubbles[index];
-            if (!visuals.MessageBubbles.TryGetValue(activeBubble.MessageId, out var bubble))
+            ActiveBubble activeBubble = bubbles[index];
+            if (!visuals.MessageBubbles.TryGetValue(activeBubble.MessageId, out PremultipliedVisual? bubble))
             {
                 continue;
             }
 
-            var position = PlaceBubbleBody(
+            (int X, int Y) position = PlaceBubbleBody(
                 senderTangent,
                 bubble,
                 normalDistance,
@@ -646,12 +646,12 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         PremultipliedVisual nameplate,
         (int X, int Y) nameplatePosition)
     {
-        var frameIndex = MessageBubbleLayoutPolicy.TypingFrameIndex(
+        int frameIndex = MessageBubbleLayoutPolicy.TypingFrameIndex(
             _tick,
             FramesPerSecond,
             visuals.TypingFrames.Count);
-        var bubble = visuals.TypingFrames[frameIndex];
-        var position = PlaceBubbleBody(
+        PremultipliedVisual bubble = visuals.TypingFrames[frameIndex];
+        (int X, int Y) position = PlaceBubbleBody(
             senderTangent,
             bubble,
             _bubbleCharacterGapPixels + _bubbleTailHeightPixels,
@@ -670,15 +670,15 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     {
         lower = double.PositiveInfinity;
         upper = double.NegativeInfinity;
-        foreach (var activeBubble in bubbles)
+        foreach (ActiveBubble activeBubble in bubbles)
         {
-            if (!visuals.MessageBubbles.TryGetValue(activeBubble.MessageId, out var bubble))
+            if (!visuals.MessageBubbles.TryGetValue(activeBubble.MessageId, out PremultipliedVisual? bubble))
             {
                 continue;
             }
 
-            var start = ClampedBubbleVisualTangentStart(senderTangent, bubble);
-            var extent = BubbleTangentExtent(bubble);
+            double start = ClampedBubbleVisualTangentStart(senderTangent, bubble);
+            int extent = BubbleTangentExtent(bubble);
             lower = Math.Min(lower, start);
             upper = Math.Max(upper, start + extent);
         }
@@ -720,13 +720,13 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         }
         _frameCache.RetainCharacters(snapshot.Members.Select(member => member.CharacterId));
         _incomingMemberIds.Clear();
-        foreach (var member in snapshot.Members)
+        foreach (PixelWorldMember member in snapshot.Members)
         {
             _incomingMemberIds.Add(member.Id);
         }
-        for (var index = _nodes.Count - 1; index >= 0; index--)
+        for (int index = _nodes.Count - 1; index >= 0; index--)
         {
-            var node = _nodes[index];
+            WorldNode node = _nodes[index];
             if (_incomingMemberIds.Contains(node.Member.Id))
             {
                 continue;
@@ -741,9 +741,9 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             _dozeStartedAt.Remove(node.Member.Id);
         }
 
-        foreach (var member in snapshot.Members)
+        foreach (PixelWorldMember member in snapshot.Members)
         {
-            if (_nodeById.TryGetValue(member.Id, out var existing))
+            if (_nodeById.TryGetValue(member.Id, out WorldNode? existing))
             {
                 bool wasAway = existing.Member.Presence == PresenceState.Away;
                 existing.Member = member with
@@ -762,14 +762,14 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             }
             else
             {
-                var fraction = OverlayPlacementPolicy.Fraction(member.Id, _initialPositionSeed);
-                var targetFraction = OverlayPlacementPolicy.Fraction(
+                double fraction = OverlayPlacementPolicy.Fraction(member.Id, _initialPositionSeed);
+                double targetFraction = OverlayPlacementPolicy.Fraction(
                     member.Id,
                     _initialPositionSeed,
                     OverlayPlacementPolicy.TargetSalt);
-                var position = _geometry.TrackLowerBound
+                double position = _geometry.TrackLowerBound
                     + (fraction * (_geometry.TrackUpperBound - _geometry.TrackLowerBound));
-                var target = _geometry.Clamp(
+                double target = _geometry.Clamp(
                     _geometry.TrackLowerBound
                     + (targetFraction * (_geometry.TrackUpperBound - _geometry.TrackLowerBound)));
                 var agent = new PixelMovementAgent(member.Id, position, target,
@@ -790,22 +790,22 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         RefreshStoppedIds();
 
         _bubblesBySender.Clear();
-        var now = DateTimeOffset.UtcNow;
-        foreach (var bubble in snapshot.Bubbles)
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        foreach (ActiveBubble bubble in snapshot.Bubbles)
         {
             if (bubble.ExpiresAt <= now)
             {
                 continue;
             }
 
-            if (!_bubblesBySender.TryGetValue(bubble.SenderId, out var senderBubbles))
+            if (!_bubblesBySender.TryGetValue(bubble.SenderId, out List<ActiveBubble>? senderBubbles))
             {
                 senderBubbles = [];
                 _bubblesBySender.Add(bubble.SenderId, senderBubbles);
             }
             senderBubbles.Add(bubble);
         }
-        foreach (var senderBubbles in _bubblesBySender.Values)
+        foreach (List<ActiveBubble> senderBubbles in _bubblesBySender.Values)
         {
             senderBubbles.Sort(CompareBubbles);
             if (senderBubbles.Count > ActiveBubbleLedger.MaximumVisiblePerSender)
@@ -816,7 +816,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             }
         }
 
-        foreach (var pulse in snapshot.Pulses)
+        foreach (CharacterPulseEvent pulse in snapshot.Pulses)
         {
             if (!_pulseReplayGuard.TryAccept(pulse) || _stun.IsStunned(pulse.UserId))
             {
@@ -826,7 +826,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             _pulseStartedAt[pulse.UserId] = Stopwatch.GetTimestamp();
         }
 
-        foreach (var characterThrow in snapshot.Throws)
+        foreach (CharacterThrowEvent characterThrow in snapshot.Throws)
         {
             if (characterThrow.RoomId != snapshot.RoomId
                 || characterThrow.ActorUserId == characterThrow.TargetUserId
@@ -842,7 +842,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             {
                 _projectiles.RemoveAt(0);
             }
-            var started = Stopwatch.GetTimestamp();
+            long started = Stopwatch.GetTimestamp();
             _throwStartedAt[characterThrow.ActorUserId] = started;
             var trajectory = new CharacterThrowTrajectory(
                 CharacterCenterPoint(_nodeById[characterThrow.ActorUserId]),
@@ -857,7 +857,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private void RefreshStoppedIds()
     {
         _stoppedIds.Clear();
-        foreach (var node in _nodes)
+        foreach (WorldNode node in _nodes)
         {
             if (node.Member.Presence is PresenceState.Away or PresenceState.Offline or PresenceState.Reconnecting
                 || _hitStartedAt.ContainsKey(node.Member.Id) || _stun.IsStunned(node.Member.Id))
@@ -870,14 +870,14 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private void ExpireHitAnimations()
     {
         _expiredHitIds.Clear();
-        foreach (var hit in _hitStartedAt)
+        foreach (KeyValuePair<Guid, long> hit in _hitStartedAt)
         {
             if (Stopwatch.GetElapsedTime(hit.Value).TotalSeconds >= HitActionSeconds)
             {
                 _expiredHitIds.Add(hit.Key);
             }
         }
-        foreach (var userId in _expiredHitIds)
+        foreach (Guid userId in _expiredHitIds)
         {
             _hitStartedAt.Remove(userId);
         }
@@ -885,14 +885,14 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private int? ActionFrame(Guid userId)
     {
-        if (_hitStartedAt.TryGetValue(userId, out var hitStarted))
+        if (_hitStartedAt.TryGetValue(userId, out long hitStarted))
         {
-            var elapsed = Stopwatch.GetElapsedTime(hitStarted).TotalSeconds;
+            double elapsed = Stopwatch.GetElapsedTime(hitStarted).TotalSeconds;
             return 4 + Math.Min(3, (int)(elapsed / (HitActionSeconds / 4d)));
         }
-        if (_throwStartedAt.TryGetValue(userId, out var throwStarted))
+        if (_throwStartedAt.TryGetValue(userId, out long throwStarted))
         {
-            var elapsed = Stopwatch.GetElapsedTime(throwStarted).TotalSeconds;
+            double elapsed = Stopwatch.GetElapsedTime(throwStarted).TotalSeconds;
             if (elapsed < ThrowActionSeconds)
             {
                 return Math.Min(3, (int)(elapsed / (ThrowActionSeconds / 4d)));
@@ -904,7 +904,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private ActiveProjectile? ActiveCannonProjectile(Guid actorUserId)
     {
-        for (var index = _projectiles.Count - 1; index >= 0; index--)
+        for (int index = _projectiles.Count - 1; index >= 0; index--)
         {
             ActiveProjectile projectile = _projectiles[index];
             if (projectile.Event.ActorUserId == actorUserId
@@ -921,16 +921,16 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private void UpdateProjectiles()
     {
-        for (var index = _projectiles.Count - 1; index >= 0; index--)
+        for (int index = _projectiles.Count - 1; index >= 0; index--)
         {
-            var projectile = _projectiles[index];
+            ActiveProjectile projectile = _projectiles[index];
             if (!_nodeById.ContainsKey(projectile.Event.ActorUserId))
             {
                 _projectiles.RemoveAt(index);
                 continue;
             }
 
-            if (!_nodeById.TryGetValue(projectile.Event.TargetUserId, out var target))
+            if (!_nodeById.TryGetValue(projectile.Event.TargetUserId, out WorldNode? target))
             {
                 if (projectile.Start is not null && projectile.End is not null)
                 {
@@ -947,15 +947,12 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 continue;
             }
 
-            var elapsed = Stopwatch.GetElapsedTime(projectile.StartedAt).TotalSeconds;
+            double elapsed = Stopwatch.GetElapsedTime(projectile.StartedAt).TotalSeconds;
             if (elapsed < ThrowReleaseSeconds)
             {
                 continue;
             }
-            if (projectile.Start is null)
-            {
-                projectile.Start = projectile.Trajectory.Start;
-            }
+            projectile.Start ??= projectile.Trajectory.Start;
             projectile.End = CharacterCenterPoint(target);
             if (projectile.ImpactStartedAt is null
                 && elapsed - ThrowReleaseSeconds >= projectile.Trajectory.DurationSeconds)
@@ -983,7 +980,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private void RenderProjectiles(Span<byte> destination)
     {
-        foreach (var projectile in _projectiles)
+        foreach (ActiveProjectile projectile in _projectiles)
         {
             if (projectile.Start is null || projectile.End is not { } end)
             {
@@ -995,20 +992,20 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             double renderScale;
             if (projectile.ImpactStartedAt is { } impactStarted)
             {
-                var elapsed = Stopwatch.GetElapsedTime(impactStarted).TotalSeconds;
+                double elapsed = Stopwatch.GetElapsedTime(impactStarted).TotalSeconds;
                 frame = 8 + Math.Min(3, (int)(elapsed / (ImpactSeconds / 4d)));
                 point = ImpactPoint(end);
                 renderScale = 1.5d;
             }
             else
             {
-                var elapsed = Stopwatch.GetElapsedTime(projectile.StartedAt).TotalSeconds - ThrowReleaseSeconds;
+                double elapsed = Stopwatch.GetElapsedTime(projectile.StartedAt).TotalSeconds - ThrowReleaseSeconds;
                 point = projectile.Trajectory.PointAt(end, elapsed, _edge);
                 frame = (int)(Math.Max(0d, elapsed) / 0.083d) % 8;
                 renderScale = 1d;
             }
 
-            var size = _throwFrameCache.ObjectPixelSize;
+            int size = _throwFrameCache.ObjectPixelSize;
             int renderedSize = (int)Math.Round(size * renderScale);
             CompositeRectangle(
                 destination,
@@ -1028,8 +1025,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private (double X, double Y) BodyPoint(WorldNode node)
     {
-        var foot = FootPoint(node.Agent.TrackPosition);
-        var inward = 12d * _integerScale;
+        (double X, double Y) foot = FootPoint(node.Agent.TrackPosition);
+        double inward = 12d * _integerScale;
         return _edge switch
         {
             OverlayEdge.Bottom => (foot.X, foot.Y - inward),
@@ -1042,7 +1039,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private (double X, double Y) CharacterCenterPoint(WorldNode node)
     {
-        var cached = _frameCache.Get(node.Member.CharacterId);
+        CachedCharacterFrames cached = _frameCache.Get(node.Member.CharacterId);
         return CharacterCenterPoint(
             FootPoint(node.Agent.TrackPosition), cached.PixelSize,
             cached.Definition.FootBaselinePixel * _integerScale,
@@ -1057,13 +1054,13 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         OverlayEdge edge)
     {
         // Use the unpulsed sprite placement, not its foot or sparkle anchor.
-        var destination = DestinationForFoot(foot, pixelSize, baselinePixels, content, 1d, edge);
+        (int X, int Y) destination = DestinationForFoot(foot, pixelSize, baselinePixels, content, 1d, edge);
         return (destination.X + (pixelSize / 2d), destination.Y + (pixelSize / 2d));
     }
 
     private void DrawStun(Span<byte> pixels, int worldX, int worldY, double elapsed)
     {
-        foreach (var p in CharacterStunPixels.Create(elapsed, _animationsEnabled()))
+        foreach (StunPixel p in CharacterStunPixels.Create(elapsed, _animationsEnabled()))
         {
             (int x, int y) = _edge switch
             {
@@ -1093,27 +1090,27 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         bool moving,
         PixelCharacterFrameContract frames)
     {
-        var range = presence switch
+        Range range = presence switch
         {
             PresenceState.Away => frames.Doze,
             PresenceState.Offline => frames.Offline,
             _ when moving => frames.Walk,
             _ => frames.Idle,
         };
-        var start = range.Start.Value;
-        var count = range.End.Value - start;
-        var divisor = moving ? 4L : 18L;
+        int start = range.Start.Value;
+        int count = range.End.Value - start;
+        long divisor = moving ? 4L : 18L;
         return start + (int)((_tick / divisor) % count);
     }
 
     private double PulseScale(Guid userId)
     {
-        if (!_pulseStartedAt.TryGetValue(userId, out var started))
+        if (!_pulseStartedAt.TryGetValue(userId, out long started))
         {
             return 1d;
         }
 
-        var elapsed = Stopwatch.GetElapsedTime(started).TotalSeconds;
+        double elapsed = Stopwatch.GetElapsedTime(started).TotalSeconds;
         if (elapsed <= 0.2d)
         {
             return 1d + (6d * elapsed / 0.2d);
@@ -1138,16 +1135,16 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         WorldNode node,
         double? pulseElapsed)
     {
-        var center = BodyPoint(node);
-        var ambientOrigin = CharacterCenterPoint(node);
+        (double X, double Y) center = BodyPoint(node);
+        (double X, double Y) ambientOrigin = CharacterCenterPoint(node);
         if (node.Member.Presence is PresenceState.Online or PresenceState.Typing)
         {
             double seedOffset = PositiveUnit(node.Member.Id.GetHashCode()) * 0.4d;
             double ambientElapsed = (_tick * FixedDeltaTime) + seedOffset;
-            for (var index = 0; index < 5; index++)
+            for (int index = 0; index < 5; index++)
             {
-                var particle = StarlightSparkleLayout.Ambient(ambientElapsed, index, node.Member.Id.GetHashCode());
-                var point = StarlightSparkleLayout.Point(ambientOrigin,
+                (double Tangent, double Normal, double Radius, double Opacity) particle = StarlightSparkleLayout.Ambient(ambientElapsed, index, node.Member.Id.GetHashCode());
+                (double X, double Y) point = StarlightSparkleLayout.Point(ambientOrigin,
                     particle.Tangent * _dpiScale, particle.Normal * _dpiScale, _edge);
                 DrawSparkle(
                     destination,
@@ -1204,7 +1201,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         }
 
         int seed = userId.GetHashCode();
-        for (var index = 0; index < count; index++)
+        for (int index = 0; index < count; index++)
         {
             double jitter = PositiveUnit(seed ^ (index * 6151));
             double angle = ((Math.PI * 2d * index) / count) + angleOffset + ((jitter - 0.5d) * 0.18d);
@@ -1236,7 +1233,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         int centerY = (int)Math.Round(worldCenterY) - _renderBounds.Y;
         int extent = Math.Max(1, (int)Math.Ceiling(radius));
         byte alpha = (byte)Math.Clamp((int)Math.Round(255d * opacity), 0, 255);
-        for (var y = -extent; y <= extent; y++)
+        for (int y = -extent; y <= extent; y++)
         {
             int destinationY = centerY + y;
             if (destinationY < 0 || destinationY >= _renderBounds.Height)
@@ -1244,7 +1241,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                 continue;
             }
 
-            for (var x = -extent; x <= extent; x++)
+            for (int x = -extent; x <= extent; x++)
             {
                 int destinationX = centerX + x;
                 if (destinationX < 0 || destinationX >= _renderBounds.Width)
@@ -1300,7 +1297,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private int ClampEdgeInset(int edgeInsetPixels)
     {
-        var depth = _edge is OverlayEdge.Bottom or OverlayEdge.Top
+        int depth = _edge is OverlayEdge.Bottom or OverlayEdge.Top
             ? _activityBounds.Height
             : _activityBounds.Width;
         return Math.Clamp(edgeInsetPixels, 0, Math.Max(0, depth - 1));
@@ -1308,8 +1305,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private void AnimateEdgeInset()
     {
-        var distance = _targetEdgeInsetPixels - _edgeInsetPixels;
-        var maximumStep = EdgeInsetAnimationSpeedDipPerSecond
+        double distance = _targetEdgeInsetPixels - _edgeInsetPixels;
+        double maximumStep = EdgeInsetAnimationSpeedDipPerSecond
             * (_integerScale / 2d)
             * FixedDeltaTime;
         if (Math.Abs(distance) <= 1d)
@@ -1318,7 +1315,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             return;
         }
 
-        var easedStep = Math.Clamp(Math.Abs(distance) * 0.24d, 1d, maximumStep);
+        double easedStep = Math.Clamp(Math.Abs(distance) * 0.24d, 1d, maximumStep);
         _edgeInsetPixels += Math.CopySign(easedStep, distance);
     }
 
@@ -1330,15 +1327,15 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         double pulseScale,
         OverlayEdge edge)
     {
-        var scaledSize = pixelSize * pulseScale;
-        var scaledBaseline = baselinePixels * pulseScale;
-        var x = edge switch
+        double scaledSize = pixelSize * pulseScale;
+        double scaledBaseline = baselinePixels * pulseScale;
+        double x = edge switch
         {
             OverlayEdge.Left => foot.X - (content.MinX * pulseScale),
             OverlayEdge.Right => foot.X - (content.MaxX * pulseScale),
             _ => foot.X - (scaledSize / 2d),
         };
-        var y = edge switch
+        double y = edge switch
         {
             OverlayEdge.Top => foot.Y - scaledBaseline,
             OverlayEdge.Bottom => foot.Y - (scaledSize - scaledBaseline),
@@ -1354,10 +1351,10 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         int spriteSize,
         (double X, double Y) foot)
     {
-        var centeredX = sprite.X + ((spriteSize - _hotspotPixelSize) / 2);
-        var centeredY = sprite.Y + ((spriteSize - _hotspotPixelSize) / 2);
-        var footX = (int)Math.Round(foot.X, MidpointRounding.AwayFromZero);
-        var footY = (int)Math.Round(foot.Y, MidpointRounding.AwayFromZero);
+        int centeredX = sprite.X + ((spriteSize - _hotspotPixelSize) / 2);
+        int centeredY = sprite.Y + ((spriteSize - _hotspotPixelSize) / 2);
+        int footX = (int)Math.Round(foot.X, MidpointRounding.AwayFromZero);
+        int footY = (int)Math.Round(foot.Y, MidpointRounding.AwayFromZero);
         return _edge switch
         {
             OverlayEdge.Bottom => new NativePixelRect(
@@ -1412,13 +1409,13 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         PremultipliedVisual visual,
         double senderTangent)
     {
-        var localBody = BubbleBodyBounds(visual);
+        PixelVisualBodyBounds localBody = BubbleBodyBounds(visual);
         var bodyBounds = new RectD(
             visualPosition.X + localBody.X,
             visualPosition.Y + localBody.Y,
             localBody.Width,
             localBody.Height);
-        var tail = MessageBubbleLayoutPolicy.Tail(
+        MessageBubbleTail tail = MessageBubbleLayoutPolicy.Tail(
             _edge,
             bodyBounds,
             TangentWorldOrigin() + senderTangent,
@@ -1463,29 +1460,29 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         double opacity,
         bool desaturate)
     {
-        var destinationWidth = Math.Max(1, (int)Math.Round(sourceWidth * scale));
-        var destinationHeight = Math.Max(1, (int)Math.Round(sourceHeight * scale));
-        var useDirectColors = opacity >= 0.999d && !desaturate;
-        for (var y = 0; y < destinationHeight; y++)
+        int destinationWidth = Math.Max(1, (int)Math.Round(sourceWidth * scale));
+        int destinationHeight = Math.Max(1, (int)Math.Round(sourceHeight * scale));
+        bool useDirectColors = opacity >= 0.999d && !desaturate;
+        for (int y = 0; y < destinationHeight; y++)
         {
-            var worldY = destinationY + y;
+            int worldY = destinationY + y;
             if (worldY < 0 || worldY >= _renderBounds.Height)
             {
                 continue;
             }
 
-            var sourceY = Math.Min(sourceHeight - 1, (int)(y / scale));
-            for (var x = 0; x < destinationWidth; x++)
+            int sourceY = Math.Min(sourceHeight - 1, (int)(y / scale));
+            for (int x = 0; x < destinationWidth; x++)
             {
-                var worldX = destinationX + x;
+                int worldX = destinationX + x;
                 if (worldX < 0 || worldX >= _renderBounds.Width)
                 {
                     continue;
                 }
 
-                var sourceX = Math.Min(sourceWidth - 1, (int)(x / scale));
-                var sourceIndex = ((sourceY * sourceWidth) + sourceX) * 4;
-                var sourceAlpha = useDirectColors
+                int sourceX = Math.Min(sourceWidth - 1, (int)(x / scale));
+                int sourceIndex = ((sourceY * sourceWidth) + sourceX) * 4;
+                byte sourceAlpha = useDirectColors
                     ? source[sourceIndex + 3]
                     : (byte)Math.Round(source[sourceIndex + 3] * opacity);
                 if (sourceAlpha == 0)
@@ -1493,14 +1490,14 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
                     continue;
                 }
 
-                var destinationIndex = ((worldY * _renderBounds.Width) + worldX) * 4;
-                var inverseAlpha = 255 - sourceAlpha;
-                var sourceBlue = source[sourceIndex];
-                var sourceGreen = source[sourceIndex + 1];
-                var sourceRed = source[sourceIndex + 2];
+                int destinationIndex = ((worldY * _renderBounds.Width) + worldX) * 4;
+                int inverseAlpha = 255 - sourceAlpha;
+                byte sourceBlue = source[sourceIndex];
+                byte sourceGreen = source[sourceIndex + 1];
+                byte sourceRed = source[sourceIndex + 2];
                 if (desaturate)
                 {
-                    var gray = (byte)((sourceBlue * 11 + sourceGreen * 59 + sourceRed * 30) / 100);
+                    byte gray = (byte)((sourceBlue * 11 + sourceGreen * 59 + sourceRed * 30) / 100);
                     sourceBlue = (byte)((sourceBlue * 42 + gray * 58) / 100);
                     sourceGreen = (byte)((sourceGreen * 42 + gray * 58) / 100);
                     sourceRed = (byte)((sourceRed * 42 + gray * 58) / 100);
@@ -1536,7 +1533,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private (int X, int Y) PlaceNameplate(
         (double X, double Y) foot, PremultipliedVisual visual)
     {
-        var position = CharacterNameplateLayout.Position(foot, visual.Width, visual.Height, _integerScale, _edge);
+        (double X, double Y) position = CharacterNameplateLayout.Position(foot, visual.Width, visual.Height, _integerScale, _edge);
         return ((int)Math.Round(position.X, MidpointRounding.AwayFromZero),
             (int)Math.Round(position.Y, MidpointRounding.AwayFromZero));
     }
@@ -1548,9 +1545,9 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         PremultipliedVisual nameplate,
         (int X, int Y) nameplatePosition)
     {
-        var body = BubbleBodyBounds(visual);
-        var visualTangentStart = ClampedBubbleVisualTangentStart(senderTangent, visual);
-        var worldVisualTangentStart = (int)Math.Round(visualTangentStart) + TangentWorldOrigin();
+        PixelVisualBodyBounds body = BubbleBodyBounds(visual);
+        double visualTangentStart = ClampedBubbleVisualTangentStart(senderTangent, visual);
+        int worldVisualTangentStart = (int)Math.Round(visualTangentStart) + TangentWorldOrigin();
         return _edge switch
         {
             OverlayEdge.Bottom => (
@@ -1591,8 +1588,8 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private bool ShouldMirrorEmitter(ActiveProjectile projectile)
     {
-        if (!_nodeById.TryGetValue(projectile.Event.ActorUserId, out var actor)
-            || !_nodeById.TryGetValue(projectile.Event.TargetUserId, out var target))
+        if (!_nodeById.TryGetValue(projectile.Event.ActorUserId, out WorldNode? actor)
+            || !_nodeById.TryGetValue(projectile.Event.TargetUserId, out WorldNode? target))
         {
             return false;
         }
@@ -1606,7 +1603,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
         double senderTangent,
         PremultipliedVisual visual)
     {
-        var body = BubbleBodyBounds(visual);
+        PixelVisualBodyBounds body = BubbleBodyBounds(visual);
         int bodyExtent = _edge is OverlayEdge.Bottom or OverlayEdge.Top
             ? body.Width
             : body.Height;
@@ -1654,7 +1651,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private static double DozeAnimationProgress(long tick)
     {
-        var phase = tick % FramesPerSecond;
+        long phase = tick % FramesPerSecond;
         return phase <= FramesPerSecond / 2
             ? phase / (FramesPerSecond / 2d)
             : (FramesPerSecond - phase) / (FramesPerSecond / 2d);
@@ -1677,7 +1674,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private static int CompareBubbles(ActiveBubble left, ActiveBubble right)
     {
-        var dateComparison = left.ExpiresAt.CompareTo(right.ExpiresAt);
+        int dateComparison = left.ExpiresAt.CompareTo(right.ExpiresAt);
         return dateComparison != 0
             ? dateComparison
             : StringComparer.Ordinal.Compare(

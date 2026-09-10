@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using Windows.Win32;
+using Windows.Win32.Foundation;
 using Windows.Win32.Graphics.Gdi;
 
 namespace Sidey.Platform.Windows;
@@ -19,7 +20,7 @@ public static class PrimaryMonitorService
             throw new PlatformNotSupportedException("Monitor discovery requires Windows.");
         }
 
-        var monitor = PInvoke.MonitorFromPoint(
+        HMONITOR monitor = PInvoke.MonitorFromPoint(
             new Point(0, 0),
             MONITOR_FROM_FLAGS.MONITOR_DEFAULTTOPRIMARY);
         var info = new MONITORINFO
@@ -31,7 +32,7 @@ public static class PrimaryMonitorService
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "GetMonitorInfoW failed.");
         }
 
-        var work = info.rcWork;
+        RECT work = info.rcWork;
         return new PrimaryMonitorInfo(
             new NativePixelRect(
                 work.left,

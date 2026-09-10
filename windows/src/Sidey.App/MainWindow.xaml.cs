@@ -10,6 +10,9 @@ using Sidey.Core.Localization;
 using Sidey.Platform.Windows;
 using Sidey.Presentation.Services;
 using Sidey.Presentation.ViewModels;
+using Windows.Graphics.Imaging;
+using Windows.Storage;
+using Windows.Storage.Streams;
 using Windows.UI.ViewManagement;
 
 namespace Sidey.App;
@@ -115,14 +118,14 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     {
         Activate();
         var image = (BitmapImage)((ImageIconSource)AppTitleBar.IconSource).ImageSource;
-        var iconFile = await Windows.Storage.StorageFile.GetFileFromPathAsync(image.UriSource.LocalPath);
-        using var iconStream = await iconFile.OpenReadAsync();
-        var decoder = await Windows.Graphics.Imaging.BitmapDecoder.CreateAsync(iconStream);
+        StorageFile iconFile = await Windows.Storage.StorageFile.GetFileFromPathAsync(image.UriSource.LocalPath);
+        using IRandomAccessStreamWithContentType iconStream = await iconFile.OpenReadAsync();
+        BitmapDecoder decoder = await Windows.Graphics.Imaging.BitmapDecoder.CreateAsync(iconStream);
         if (decoder.PixelWidth != 20 || decoder.PixelHeight != 20)
         {
             throw new InvalidOperationException("The external title bar icon file is not 20x20.");
         }
-        var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(5);
         while (image.PixelWidth == 0 && DateTimeOffset.UtcNow < deadline)
         {
             await Task.Delay(25);
@@ -148,7 +151,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         try
         {
             CharacterSoundVolumeSlider.Value = 37;
-            var deadline = DateTimeOffset.UtcNow.AddSeconds(2);
+            DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(2);
             while (ViewModel.CharacterSoundEffectsVolume != 37 && DateTimeOffset.UtcNow < deadline)
                 await Task.Delay(10);
             await ViewModel.FlushSoundSettingsAsync();
@@ -199,8 +202,8 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         var rendered = new RenderTargetBitmap();
         await rendered.RenderAsync(SoundSettingsCard);
         using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
-        var encoder = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId, stream);
-        var buffer = await rendered.GetPixelsAsync();
+        BitmapEncoder encoder = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId, stream);
+        IBuffer buffer = await rendered.GetPixelsAsync();
         byte[] pixels = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.ToArray(buffer);
         encoder.SetPixelData(Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8,
             Windows.Graphics.Imaging.BitmapAlphaMode.Premultiplied, (uint)rendered.PixelWidth, (uint)rendered.PixelHeight, 96, 96, pixels);
@@ -219,9 +222,9 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         ViewModel.Nickname = "draft";
         ViewModel.InviteCode = "ABCDEF";
         ViewModel.CreateRoomName = "room draft";
-        var characterItem = ViewModel.CharacterSelections[0];
-        var bubbleItem = ViewModel.BubbleSelections[0];
-        var productItem = ViewModel.StoreProducts[0];
+        CharacterSelectionItemViewModel characterItem = ViewModel.CharacterSelections[0];
+        CosmeticSelectionItemViewModel bubbleItem = ViewModel.BubbleSelections[0];
+        StoreProductPreviewViewModel productItem = ViewModel.StoreProducts[0];
         nint handle = WinRT.Interop.WindowNative.GetWindowHandle(this);
         var composer = new ComposerWindow(new ComposerViewModel());
         try
@@ -232,10 +235,10 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
             await Task.Delay(100);
             for (int repeat = 0; repeat < 2; repeat++)
             {
-                foreach (var (language, index) in new[] { ("en-US", 1), ("ja-JP", 2), ("ko-KR", 0) })
+                foreach ((string? language, int index) in new[] { ("en-US", 1), ("ja-JP", 2), ("ko-KR", 0) })
                 {
                     LanguageComboBox.SelectedIndex = index;
-                    var deadline = DateTimeOffset.UtcNow.AddSeconds(4);
+                    DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(4);
                     while ((I18n.Language != language || !ViewModel.IsLanguageSelectionEnabled)
                            && DateTimeOffset.UtcNow < deadline)
                         await Task.Delay(25);

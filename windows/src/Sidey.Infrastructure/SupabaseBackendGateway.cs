@@ -15,8 +15,8 @@ namespace Sidey.Infrastructure;
 
 public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
 {
-    private static readonly TimeSpan StructuralCoalescingWindow = TimeSpan.FromMilliseconds(150);
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly TimeSpan s_structuralCoalescingWindow = TimeSpan.FromMilliseconds(150);
+    private static readonly JsonSerializerOptions s_jsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly SupabaseRuntimeConfiguration _configuration;
     private readonly ICredentialStore _credentials;
@@ -43,51 +43,50 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
 
     public async Task<BackendSnapshot> FetchSnapshotAsync(CancellationToken cancellationToken = default)
     {
-        var session = await RequiredSessionAsync(cancellationToken).ConfigureAwait(false);
-        var profileTask = GetAsync<DatabaseProfile[]>(
+        StoredSupabaseSession session = await RequiredSessionAsync(cancellationToken).ConfigureAwait(false);
+        Task<DatabaseProfile[]> profileTask = GetAsync<DatabaseProfile[]>(
             $"/rest/v1/profiles?id=eq.{session.UserId:D}&select=*",
             cancellationToken);
-        var roomsTask = GetAsync<DatabaseRoom[]>(
+        Task<DatabaseRoom[]> roomsTask = GetAsync<DatabaseRoom[]>(
             "/rest/v1/rooms?select=*&order=created_at.asc",
             cancellationToken);
-        var membershipsTask = GetAsync<DatabaseMembership[]>(
+        Task<DatabaseMembership[]> membershipsTask = GetAsync<DatabaseMembership[]>(
             "/rest/v1/room_members?select=*&order=joined_at.asc",
             cancellationToken);
-        var profilesTask = GetAsync<DatabaseProfile[]>(
+        Task<DatabaseProfile[]> profilesTask = GetAsync<DatabaseProfile[]>(
             "/rest/v1/profiles?select=*",
             cancellationToken);
-        var entitlementsTask = LoadActiveEntitlementKeysIfAvailableAsync(cancellationToken);
+        Task<IReadOnlySet<string>?> entitlementsTask = LoadActiveEntitlementKeysIfAvailableAsync(cancellationToken);
 
         await Task.WhenAll(profileTask, roomsTask, membershipsTask, profilesTask, entitlementsTask)
             .ConfigureAwait(false);
-        var peers = (await profilesTask.ConfigureAwait(false)).ToDictionary(profile => profile.Id);
+        Dictionary<Guid, DatabaseProfile> peers = (await profilesTask.ConfigureAwait(false)).ToDictionary(profile => profile.Id);
         var memberships = (await membershipsTask.ConfigureAwait(false))
             .GroupBy(membership => membership.RoomId)
             .ToDictionary(group => group.Key, group => group.ToArray());
-        var rooms = (await roomsTask.ConfigureAwait(false)).Select(room => new Room(
+        Room[] rooms = [.. (await roomsTask.ConfigureAwait(false)).Select(room => new Room(
             room.Id,
             room.Name,
             room.OwnerId,
-            memberships.GetValueOrDefault(room.Id, [])
+            [.. memberships.GetValueOrDefault(room.Id, [])
                 .Select(membership =>
                 {
-                    peers.TryGetValue(membership.UserId, out var peer);
+                    peers.TryGetValue(membership.UserId, out DatabaseProfile? peer);
                     return new RoomMember(
                         membership.UserId,
                         peer?.Nickname ?? I18n.Get("common.friend"),
                         PixelCharacterCatalog.NormalizeId(peer?.CharacterId),
                         PresenceState.Offline,
                         CosmeticCatalog.NormalizeBubbleStyleId(peer?.EquippedBubbleStyleId));
-                })
-                .ToArray(),
+                })],
             room.InviteCodeHint,
             room.InviteCodeReady,
-            room.RealtimeEpoch)).ToArray();
-        foreach (var room in rooms.Where(room => !room.InviteCodeReady))
+            room.RealtimeEpoch))];
+        foreach (Room? room in rooms.Where(room => !room.InviteCodeReady))
         {
             await _credentials.DeleteInviteCodeAsync(room.Id, cancellationToken).ConfigureAwait(false);
         }
-        var profile = (await profileTask.ConfigureAwait(false)).FirstOrDefault();
+        DatabaseProfile? profile = (await profileTask.ConfigureAwait(false)).FirstOrDefault();
         IReadOnlySet<string> activeEntitlementKeys = PixelCharacterCatalog.ResolveActiveEntitlementKeys(
             await entitlementsTask.ConfigureAwait(false),
             profile?.CharacterId);
@@ -143,7 +142,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             HttpMethod.Post,
             "/rest/v1/rpc/get_store_state",
             cancellationToken).ConfigureAwait(false);
-        request.Content = JsonContent.Create(new { }, options: JsonOptions);
+        request.Content = JsonContent.Create(new { }, options: s_jsonOptions);
         using var response = await _httpClient.SendAsync(request, cancellationToken)
             .ConfigureAwait(false);
         DatabaseCommerceState[] rows = await ReadRequiredAsync<DatabaseCommerceState[]>(
@@ -196,7 +195,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             HttpMethod.Post,
             "/functions/v1/commerce-order",
             cancellationToken).ConfigureAwait(false);
-        request.Content = JsonContent.Create(new { product_id = productId }, options: JsonOptions);
+        request.Content = JsonContent.Create(new { product_id = productId }, options: s_jsonOptions);
         using var response = await _httpClient.SendAsync(request, cancellationToken)
             .ConfigureAwait(false);
         CommerceOrderResponse order = await ReadRequiredAsync<CommerceOrderResponse>(
@@ -222,7 +221,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             throw new ArgumentException(I18n.Get("validation.nicknameLength"), nameof(nickname));
         }
 
-        var row = await RpcSingleAsync<DatabaseProfile>(
+        DatabaseProfile row = await RpcSingleAsync<DatabaseProfile>(
             "upsert_profile",
             new
             {
@@ -253,7 +252,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             throw new ArgumentOutOfRangeException(nameof(catalogItemId));
         }
 
-        var row = await RpcSingleAsync<DatabaseProfile>(
+        DatabaseProfile row = await RpcSingleAsync<DatabaseProfile>(
             "set_equipped_cosmetic",
             new
             {
@@ -269,14 +268,14 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         ValidateRoomName(name);
-        var row = await RpcSingleAsync<CreateRoomRow>(
+        CreateRoomRow row = await RpcSingleAsync<CreateRoomRow>(
             "create_room",
             new { p_name = RoomNameValidator.Normalize(name) },
             cancellationToken).ConfigureAwait(false);
         await _credentials.WriteInviteCodeAsync(row.RoomId, row.InviteCode, cancellationToken)
             .ConfigureAwait(false);
-        var snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
-        var room = snapshot.Rooms.SingleOrDefault(room => room.Id == row.RoomId)
+        BackendSnapshot snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        Room room = snapshot.Rooms.SingleOrDefault(room => room.Id == row.RoomId)
             ?? throw new InvalidDataException(I18n.Get("backend.createdRoomMissing"));
         return new CreateRoomResult(room, row.InviteCode);
     }
@@ -285,13 +284,13 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         string inviteCode,
         CancellationToken cancellationToken = default)
     {
-        var normalized = inviteCode.Trim().ToUpperInvariant();
+        string normalized = inviteCode.Trim().ToUpperInvariant();
         if (normalized.Length == 0)
         {
             throw new ArgumentException(I18n.Get("onboarding.inviteRequired"), nameof(inviteCode));
         }
 
-        var row = await RpcSingleAsync<JoinRoomRow>(
+        JoinRoomRow row = await RpcSingleAsync<JoinRoomRow>(
             "join_room",
             new { p_invite_code = normalized },
             cancellationToken).ConfigureAwait(false);
@@ -307,7 +306,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
 
         await _credentials.WriteInviteCodeAsync(roomId, normalized, cancellationToken)
             .ConfigureAwait(false);
-        var snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        BackendSnapshot snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
         return snapshot.Rooms.SingleOrDefault(room => room.Id == roomId)
             ?? throw new InvalidDataException(I18n.Get("backend.joinedRoomMissing"));
     }
@@ -335,7 +334,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         Guid roomId,
         CancellationToken cancellationToken = default)
     {
-        var inviteCode = await RpcSingleAsync<string>(
+        string inviteCode = await RpcSingleAsync<string>(
             "rotate_invite_code",
             new { p_room_id = roomId },
             cancellationToken).ConfigureAwait(false);
@@ -369,12 +368,12 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         Guid roomId,
         CancellationToken cancellationToken = default)
     {
-        var page = await FetchMessagePageAsync(
+        MessageHistoryPage page = await FetchMessagePageAsync(
             roomId,
             before: null,
             limit: 50,
             cancellationToken).ConfigureAwait(false);
-        return page.Messages.Reverse().ToArray();
+        return [.. page.Messages.Reverse()];
     }
 
     public async Task<MessageHistoryPage> FetchMessagePageAsync(
@@ -383,24 +382,24 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         int limit = 50,
         CancellationToken cancellationToken = default)
     {
-        var boundedLimit = Math.Clamp(limit, 1, 50);
-        var cutoff = Uri.EscapeDataString(
+        int boundedLimit = Math.Clamp(limit, 1, 50);
+        string cutoff = Uri.EscapeDataString(
             (DateTimeOffset.UtcNow - MessageLedger.ConfirmedRetention)
             .UtcDateTime
             .ToString("O"));
-        var beforeFilter = string.Empty;
+        string beforeFilter = string.Empty;
         if (before is { } cursor)
         {
-            var timestamp = Uri.EscapeDataString(cursor.CreatedAt.UtcDateTime.ToString("O"));
+            string timestamp = Uri.EscapeDataString(cursor.CreatedAt.UtcDateTime.ToString("O"));
             beforeFilter =
                 $"&or=(created_at.lt.{timestamp},and(created_at.eq.{timestamp},id.lt.{cursor.Id:D}))";
         }
 
-        var rows = await GetAsync<DatabaseMessage[]>(
+        DatabaseMessage[] rows = await GetAsync<DatabaseMessage[]>(
             $"/rest/v1/messages?room_id=eq.{roomId:D}&created_at=gte.{cutoff}{beforeFilter}" +
             $"&select=*&order=created_at.desc,id.desc&limit={boundedLimit + 1}",
             cancellationToken).ConfigureAwait(false);
-        var messages = rows.Take(boundedLimit).Select(MapMessage).ToArray();
+        ChatMessage[] messages = [.. rows.Take(boundedLimit).Select(MapMessage)];
         MessageHistoryCursor? nextCursor = rows.Length > boundedLimit && messages.LastOrDefault() is { } last
             ? new MessageHistoryCursor(last.CreatedAt, last.Id)
             : null;
@@ -413,13 +412,13 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         string body,
         CancellationToken cancellationToken = default)
     {
-        var normalized = MessageValidator.Normalize(body);
+        string normalized = MessageValidator.Normalize(body);
         if (!MessageValidator.IsValid(normalized))
         {
             throw new ArgumentException(I18n.Get("validation.messageLength"), nameof(body));
         }
 
-        var row = await RpcSingleAsync<DatabaseMessage>(
+        DatabaseMessage row = await RpcSingleAsync<DatabaseMessage>(
             "send_message",
             new { p_id = id, p_room_id = roomId, p_body = normalized },
             cancellationToken).ConfigureAwait(false);
@@ -464,7 +463,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         Guid targetUserId,
         CancellationToken cancellationToken = default)
     {
-        if (!_roomEpochs.TryGetValue(roomId, out var realtimeEpoch))
+        if (!_roomEpochs.TryGetValue(roomId, out long realtimeEpoch))
         {
             throw new InvalidOperationException(I18n.Get("backend.realtimeEpochMissing"));
         }
@@ -509,10 +508,10 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             SingleWriter = false,
         });
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var pump = PumpEventsAsync(output.Writer, linked.Token);
+        Task pump = PumpEventsAsync(output.Writer, linked.Token);
         try
         {
-            await foreach (var backendEvent in output.Reader.ReadAllAsync(cancellationToken))
+            await foreach (BackendEvent backendEvent in output.Reader.ReadAllAsync(cancellationToken))
             {
                 yield return backendEvent;
             }
@@ -548,7 +547,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         RealtimeConnectionStatus connectionStatus = RealtimeConnectionStatus.Disconnected;
         try
         {
-            await foreach (var backendEvent in _realtime.ReadEventsAsync(cancellationToken))
+            await foreach (BackendEvent backendEvent in _realtime.ReadEventsAsync(cancellationToken))
             {
                 if (backendEvent is BackendEvent.MessageChanged change)
                 {
@@ -579,7 +578,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                 {
                     try
                     {
-                        var messages = await FetchRecentMessagesAsync(
+                        IReadOnlyList<ChatMessage> messages = await FetchRecentMessagesAsync(
                             invalidated.RoomId,
                             cancellationToken).ConfigureAwait(false);
                         await output.WriteAsync(
@@ -669,7 +668,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         ChannelWriter<BackendEvent> output,
         CancellationToken cancellationToken)
     {
-        for (var attempt = 0; ; attempt++)
+        for (int attempt = 0; ; attempt++)
         {
             try
             {
@@ -701,7 +700,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         ChannelWriter<BackendEvent> output,
         CancellationToken cancellationToken)
     {
-        var snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        BackendSnapshot snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
         await output.WriteAsync(
             new BackendEvent.SnapshotReceived(snapshot),
             cancellationToken).ConfigureAwait(false);
@@ -785,8 +784,8 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
     {
         try
         {
-            await Task.Delay(StructuralCoalescingWindow, cancellationToken).ConfigureAwait(false);
-            var snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            await Task.Delay(s_structuralCoalescingWindow, cancellationToken).ConfigureAwait(false);
+            BackendSnapshot snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
             await output.WriteAsync(new BackendEvent.SnapshotReceived(snapshot), cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -804,9 +803,9 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
 
     private async Task<T> GetAsync<T>(string relativePath, CancellationToken cancellationToken)
     {
-        using var request = await CreateRequestAsync(HttpMethod.Get, relativePath, cancellationToken)
+        using HttpRequestMessage request = await CreateRequestAsync(HttpMethod.Get, relativePath, cancellationToken)
             .ConfigureAwait(false);
-        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         return await ReadRequiredAsync<T>(response, cancellationToken).ConfigureAwait(false);
     }
 
@@ -840,21 +839,21 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         object body,
         CancellationToken cancellationToken)
     {
-        using var request = await CreateRequestAsync(
+        using HttpRequestMessage request = await CreateRequestAsync(
             HttpMethod.Post,
             $"/rest/v1/rpc/{function}",
             cancellationToken).ConfigureAwait(false);
         request.Headers.TryAddWithoutValidation("Prefer", "return=representation");
-        request.Content = JsonContent.Create(body, options: JsonOptions);
-        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        using var document = await ReadDocumentAsync(response, cancellationToken).ConfigureAwait(false);
-        var root = document.RootElement;
-        var element = root.ValueKind == JsonValueKind.Array
+        request.Content = JsonContent.Create(body, options: s_jsonOptions);
+        using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using JsonDocument document = await ReadDocumentAsync(response, cancellationToken).ConfigureAwait(false);
+        JsonElement root = document.RootElement;
+        JsonElement element = root.ValueKind == JsonValueKind.Array
             ? root.GetArrayLength() == 0
                 ? throw new InvalidDataException($"RPC {function} returned no rows.")
                 : root[0]
             : root;
-        return element.Deserialize<T>(JsonOptions)
+        return element.Deserialize<T>(s_jsonOptions)
             ?? throw new InvalidDataException($"RPC {function} returned an invalid row.");
     }
 
@@ -863,12 +862,12 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         object body,
         CancellationToken cancellationToken)
     {
-        using var request = await CreateRequestAsync(
+        using HttpRequestMessage request = await CreateRequestAsync(
             HttpMethod.Post,
             $"/rest/v1/rpc/{function}",
             cancellationToken).ConfigureAwait(false);
-        request.Content = JsonContent.Create(body, options: JsonOptions);
-        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        request.Content = JsonContent.Create(body, options: s_jsonOptions);
+        using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException(
@@ -884,7 +883,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         Guid? eventId,
         CancellationToken cancellationToken)
     {
-        if (!_roomEpochs.TryGetValue(roomId, out var realtimeEpoch))
+        if (!_roomEpochs.TryGetValue(roomId, out long realtimeEpoch))
         {
             throw new InvalidOperationException(I18n.Get("backend.realtimeEpochMissing"));
         }
@@ -906,7 +905,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         string relativePath,
         CancellationToken cancellationToken)
     {
-        var session = await RequiredSessionAsync(cancellationToken).ConfigureAwait(false);
+        StoredSupabaseSession session = await RequiredSessionAsync(cancellationToken).ConfigureAwait(false);
         var request = new HttpRequestMessage(method, new Uri(_configuration.Url, relativePath));
         request.Headers.Add("apikey", _configuration.PublishableKey);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
@@ -930,7 +929,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                 response.StatusCode);
         }
 
-        return await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken)
+        return await response.Content.ReadFromJsonAsync<T>(s_jsonOptions, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new InvalidDataException("Supabase REST response was empty.");
     }
@@ -947,7 +946,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                 response.StatusCode);
         }
 
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken)
+        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken)
             .ConfigureAwait(false);
         return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken)
             .ConfigureAwait(false);

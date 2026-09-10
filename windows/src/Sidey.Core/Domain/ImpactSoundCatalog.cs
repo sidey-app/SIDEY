@@ -2,11 +2,11 @@ namespace Sidey.Core.Domain;
 
 public static class ImpactSoundCatalog
 {
-    public static IReadOnlyList<string> Ids { get; } = Array.AsReadOnly(new[]
-    {
+    public static IReadOnlyList<string> Ids { get; } = Array.AsReadOnly(
+    [
         "patch_soft_ball", "mini_paprika", "banana", "dust_bath_pouch", "starlight_orb",
         "throwable_bouncy_heart", "throwable_squeaky_duck", "throwable_toy_cannon",
-    });
+    ]);
 
     public static string Resolve(string characterId, string? equippedId)
     {

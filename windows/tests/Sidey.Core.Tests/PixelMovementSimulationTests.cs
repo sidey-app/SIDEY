@@ -8,9 +8,9 @@ public sealed class PixelMovementSimulationTests
     [Fact]
     public void TwentyAgentsStayFiniteAndInsideEveryEdgeForThreeThousandTicks()
     {
-        foreach (var edge in Enum.GetValues<OverlayEdge>())
+        foreach (OverlayEdge edge in Enum.GetValues<OverlayEdge>())
         {
-            var bounds = edge is OverlayEdge.Bottom or OverlayEdge.Top
+            RectD bounds = edge is OverlayEdge.Bottom or OverlayEdge.Top
                 ? new RectD(0, 0, 1_200, 240)
                 : new RectD(0, 0, 240, 1_200);
             var geometry = new EdgeTrackGeometry(bounds, edge);
@@ -24,7 +24,7 @@ public sealed class PixelMovementSimulationTests
                 ? [new RectD(380, 0, 440, 76)]
                 : [];
 
-            for (var tick = 0; tick < 3_000; tick++)
+            for (int tick = 0; tick < 3_000; tick++)
             {
                 PixelMovementSimulation.Step(
                     agents,
@@ -34,7 +34,7 @@ public sealed class PixelMovementSimulationTests
                     new HashSet<Guid>());
             }
 
-            foreach (var agent in agents)
+            foreach (PixelMovementAgent? agent in agents)
             {
                 Assert.True(double.IsFinite(agent.TrackPosition));
                 Assert.True(double.IsFinite(agent.Velocity));
@@ -51,7 +51,7 @@ public sealed class PixelMovementSimulationTests
             .Select(_ => new PixelMovementAgent(Guid.NewGuid(), 24, 24))
             .ToList();
 
-        for (var tick = 0; tick < 300; tick++)
+        for (int tick = 0; tick < 300; tick++)
         {
             PixelMovementSimulation.Step(agents, 1d / 30d, geometry, [geometry.Bounds], new HashSet<Guid>());
         }
@@ -116,17 +116,17 @@ public sealed class PixelMovementSimulationTests
         var scratch = new PixelMovementScratch();
         var stopped = new HashSet<Guid>();
 
-        for (var index = 0; index < 100; index++)
+        for (int index = 0; index < 100; index++)
         {
             PixelMovementSimulation.Step(agents, 1d / 30d, geometry, [], stopped, scratch);
         }
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var index = 0; index < 1_000; index++)
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 1_000; index++)
         {
             PixelMovementSimulation.Step(agents, 1d / 30d, geometry, [], stopped, scratch);
         }
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         Assert.InRange(allocated, 0, 4_096);
     }

@@ -24,7 +24,7 @@ public sealed class ValidationMetricsCollectorTests
             Assert.Equal(outputPath, exportedPath);
             Assert.True(File.Exists(outputPath));
             Assert.False(File.Exists(outputPath + ".tmp"));
-            using JsonDocument report = JsonDocument.Parse(File.ReadAllText(outputPath));
+            using var report = JsonDocument.Parse(File.ReadAllText(outputPath));
             Assert.Equal(
                 "one-character-renderer-validation",
                 report.RootElement.GetProperty("mode").GetString());

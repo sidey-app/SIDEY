@@ -46,7 +46,7 @@ public sealed class MessageBubbleTailRasterizerTests
     {
         var renderBounds = new NativePixelRect(0, 0, 96, 96);
         var body = new RectD(24, 24, 48, 48);
-        var tail = CreateTail(OverlayEdge.Bottom, body, scale: 1d);
+        MessageBubbleTail tail = CreateTail(OverlayEdge.Bottom, body, scale: 1d);
         byte[] pixels = new byte[renderBounds.Width * renderBounds.Height * 4];
         MessageBubbleTailRasterizer.Composite(pixels, renderBounds, tail, body, 1d);
 

@@ -53,8 +53,8 @@ public sealed class WindowsShellSurfacePolicyTests
     [InlineData("CustomTrayMenu")]
     public void PopupToolWindowsCoverTheOverlayEvenWithApplicationSpecificClasses(string windowClass)
     {
-        var popupStyle = new IntPtr(unchecked((long)0x80000000));
-        var toolWindowStyle = new IntPtr(0x80);
+        nint popupStyle = new(unchecked((long)0x80000000));
+        nint toolWindowStyle = new(0x80);
 
         Assert.True(WindowsShellSurfacePolicy.IsTransientPopup(
             windowClass,
@@ -78,8 +78,8 @@ public sealed class WindowsShellSurfacePolicyTests
     [InlineData("WorkerW")]
     public void PersistentOverlayAndShellWindowsAreExcludedFromGenericPopupDetection(string windowClass)
     {
-        var popupStyle = new IntPtr(unchecked((long)0x80000000));
-        var toolWindowStyle = new IntPtr(0x80);
+        nint popupStyle = new(unchecked((long)0x80000000));
+        nint toolWindowStyle = new(0x80);
 
         Assert.False(WindowsShellSurfacePolicy.IsTransientPopup(
             windowClass,

@@ -16,14 +16,19 @@ namespace Sidey.Installer
             EnglishName = englishName;
             DisplayName = displayName;
         }
-        public override string ToString() { return DisplayName; }
+
+        public override string ToString()
+        {
+            return DisplayName;
+        }
     }
 
     public static class InstallerLanguages
     {
         public static InstallerLanguage[] All()
         {
-            return new[] {
+            return new[]
+            {
                 new InstallerLanguage(2052, "Chinese (Simplified)", "简体中文"),
                 new InstallerLanguage(1028, "Chinese (Traditional)", "繁體中文"),
                 new InstallerLanguage(1033, "English", "English"),
@@ -50,8 +55,10 @@ namespace Sidey.Installer
                     return 1058;
                 case 0x04:
                     // Taiwan, Hong Kong, Macau, or the neutral zh-Hant locale.
-                    return windowsLanguage == 0x0404 || windowsLanguage == 0x0c04 ||
-                        windowsLanguage == 0x1404 || windowsLanguage == 0x7c04 ? 1028 : 2052;
+                    return windowsLanguage == 0x0404 || windowsLanguage == 0x0c04
+                        || windowsLanguage == 0x1404 || windowsLanguage == 0x7c04
+                            ? 1028
+                            : 2052;
                 default:
                     return 0;
             }
@@ -60,14 +67,19 @@ namespace Sidey.Installer
         public static InstallerLanguage[] Ordered(int windowsLanguage)
         {
             int systemLanguage = MatchSystemLanguage(windowsLanguage);
-            return All().OrderBy(language => language.Id == systemLanguage ? 0 : 1)
-                .ThenBy(language => language.EnglishName, StringComparer.Ordinal).ToArray();
+            return All()
+                .OrderBy(language => language.Id == systemLanguage ? 0 : 1)
+                .ThenBy(language => language.EnglishName, StringComparer.Ordinal)
+                .ToArray();
         }
 
         public static int DefaultSelection(int windowsLanguage, int savedLanguage)
         {
             if (All().Any(language => language.Id == savedLanguage))
-            { return savedLanguage; }
+            {
+                return savedLanguage;
+            }
+
             int systemLanguage = MatchSystemLanguage(windowsLanguage);
             return systemLanguage == 0 ? 1033 : systemLanguage;
         }

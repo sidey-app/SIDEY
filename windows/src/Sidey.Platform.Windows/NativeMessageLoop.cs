@@ -17,7 +17,7 @@ public static class NativeMessageLoop
 
         while (true)
         {
-            var result = PInvoke.GetMessage(out var message, HWND.Null, 0, 0);
+            BOOL result = PInvoke.GetMessage(out MSG message, HWND.Null, 0, 0);
             if (result == 0)
             {
                 return;

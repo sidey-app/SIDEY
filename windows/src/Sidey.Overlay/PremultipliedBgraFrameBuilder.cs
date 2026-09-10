@@ -15,8 +15,8 @@ internal static class PremultipliedBgraFrameBuilder
         OverlayEdge edge)
     {
         ArgumentNullException.ThrowIfNull(definition);
-        var sheetWidth = checked(definition.FrameWidth * definition.FrameCount);
-        var expectedLength = checked(
+        int sheetWidth = checked(definition.FrameWidth * definition.FrameCount);
+        int expectedLength = checked(
             sheetWidth * definition.FrameHeight * BytesPerPixel);
         if (sheet.Length != expectedLength)
         {
@@ -40,16 +40,16 @@ internal static class PremultipliedBgraFrameBuilder
             throw new InvalidDataException("SIDEY rotation requires square character frames.");
         }
 
-        var authoredSize = definition.FrameWidth;
-        var outputSize = checked(authoredSize * scale);
-        var output = new byte[checked(outputSize * outputSize * BytesPerPixel)];
-        for (var outputY = 0; outputY < outputSize; outputY++)
+        int authoredSize = definition.FrameWidth;
+        int outputSize = checked(authoredSize * scale);
+        byte[] output = new byte[checked(outputSize * outputSize * BytesPerPixel)];
+        for (int outputY = 0; outputY < outputSize; outputY++)
         {
-            for (var outputX = 0; outputX < outputSize; outputX++)
+            for (int outputX = 0; outputX < outputSize; outputX++)
             {
-                var rotatedX = outputX / scale;
-                var rotatedY = outputY / scale;
-                var (localSourceX, sourceY) = InverseRotate(
+                int rotatedX = outputX / scale;
+                int rotatedY = outputY / scale;
+                (int localSourceX, int sourceY) = InverseRotate(
                     rotatedX,
                     rotatedY,
                     authoredSize,
@@ -59,10 +59,10 @@ internal static class PremultipliedBgraFrameBuilder
                     localSourceX = authoredSize - 1 - localSourceX;
                 }
 
-                var sourceX = (frame * authoredSize) + localSourceX;
-                var sourceIndex = ((sourceY * sheetWidth) + sourceX) * BytesPerPixel;
-                var outputIndex = ((outputY * outputSize) + outputX) * BytesPerPixel;
-                var alpha = sheet[sourceIndex + 3];
+                int sourceX = (frame * authoredSize) + localSourceX;
+                int sourceIndex = ((sourceY * sheetWidth) + sourceX) * BytesPerPixel;
+                int outputIndex = ((outputY * outputSize) + outputX) * BytesPerPixel;
+                byte alpha = sheet[sourceIndex + 3];
                 output[outputIndex] = Premultiply(sheet[sourceIndex], alpha);
                 output[outputIndex + 1] = Premultiply(sheet[sourceIndex + 1], alpha);
                 output[outputIndex + 2] = Premultiply(sheet[sourceIndex + 2], alpha);

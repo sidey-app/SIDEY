@@ -24,7 +24,7 @@ public sealed class I18nTests
         Assert.Equal("메시지는 서버에서 3일 후 자동 삭제됩니다.", I18n.Get("history.retentionNotice"));
         Assert.Equal("최근 3일 기록을 모두 봤어요", I18n.Get("history.exhausted"));
 
-        using JsonDocument english = JsonDocument.Parse(File.ReadAllText(
+        using var english = JsonDocument.Parse(File.ReadAllText(
             Path.Combine(AppContext.BaseDirectory, "Langs", "en-US.json")));
         JsonElement history = english.RootElement.GetProperty("history");
         Assert.Equal(

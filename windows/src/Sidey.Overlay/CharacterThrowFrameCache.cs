@@ -9,7 +9,7 @@ internal sealed class CharacterThrowFrameCache : IDisposable
     internal const int ObjectFrameCount = 12;
     internal const int EmitterFrameCount = 4;
 
-    private static readonly IReadOnlyDictionary<string, string> ActionHashes =
+    private static readonly IReadOnlyDictionary<string, string> s_actionHashes =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["pixel_hamster"] = "b9915afdbb5476b17ea7b7f0a06eea09cc20b96dd1995328bdae2f806c3285c8",
@@ -23,7 +23,7 @@ internal sealed class CharacterThrowFrameCache : IDisposable
             ["pixel_starlight_upalupa"] = "7a9bae8b1359f432857e026c972e3bc99777539ce7cfff89bc01e95d1938de75",
         };
 
-    private static readonly IReadOnlyDictionary<string, string> ObjectHashes =
+    private static readonly IReadOnlyDictionary<string, string> s_objectHashes =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["patch_soft_ball"] = "cdde7f417c5d8d82d0f4df6b03fa8e7d494d98a37d75aa66699505d7c87c53fe",
@@ -36,7 +36,7 @@ internal sealed class CharacterThrowFrameCache : IDisposable
             ["throwable_squeaky_duck"] = "3b6935398d41b6d1cd5efa922392dbf4864782deb9880c5d0f10885e00906e7a",
         };
 
-    private static readonly IReadOnlyDictionary<string, string> CharacterObjects =
+    private static readonly IReadOnlyDictionary<string, string> s_characterObjects =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["pixel_hamster"] = "patch_soft_ball",
@@ -50,7 +50,7 @@ internal sealed class CharacterThrowFrameCache : IDisposable
             ["pixel_starlight_upalupa"] = "starlight_orb",
         };
 
-    private static readonly IReadOnlyDictionary<string, string> BgraHashes =
+    private static readonly IReadOnlyDictionary<string, string> s_bgraHashes =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["Characters/pixel_hamster/throw_hit"] = "584b27d59d525c3d0e21d6ed9260a07cbba99f74069a4c95db601dd03cc3fb99",
@@ -86,24 +86,24 @@ internal sealed class CharacterThrowFrameCache : IDisposable
         int scale,
         OverlayEdge edge)
     {
-        foreach (var characterId in ActionHashes.Keys)
+        foreach (string characterId in s_actionHashes.Keys)
         {
-            var (normal, flipped) = LoadAction(
+            (byte[][]? normal, byte[][]? flipped) = LoadAction(
                 characterRoot,
                 characterId,
-                ActionHashes[characterId],
+                s_actionHashes[characterId],
                 scale,
                 edge);
             _actions.Add(characterId, normal);
             _flippedActions.Add(characterId, flipped);
         }
-        foreach (var objectId in ObjectHashes.Keys)
+        foreach (string objectId in s_objectHashes.Keys)
         {
             _objects.Add(objectId, LoadSheet(
                 Path.Combine(throwableRoot, objectId),
                 "sprite",
                 $"Throwables/{objectId}/sprite",
-                ObjectHashes[objectId],
+                s_objectHashes[objectId],
                 cellSize: 16,
                 frameCount: ObjectFrameCount,
                 scale: scale,
@@ -137,17 +137,17 @@ internal sealed class CharacterThrowFrameCache : IDisposable
     internal ReadOnlySpan<byte> ActionFrame(string? characterId, int frame, bool flipped)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var id = PixelCharacterCatalog.NormalizeId(characterId);
-        var frames = flipped ? _flippedActions[id] : _actions[id];
+        string id = PixelCharacterCatalog.NormalizeId(characterId);
+        byte[][] frames = flipped ? _flippedActions[id] : _actions[id];
         return frames[Math.Clamp(frame, 0, ActionFrameCount - 1)];
     }
 
     internal ReadOnlySpan<byte> ObjectFrame(string? sourceCharacterId, string? throwableId, int frame)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var objectId = CosmeticCatalog.NormalizeThrowableId(throwableId)
+        string objectId = CosmeticCatalog.NormalizeThrowableId(throwableId)
             ?? (sourceCharacterId is not null
-                && CharacterObjects.TryGetValue(sourceCharacterId, out var mapped)
+                && s_characterObjects.TryGetValue(sourceCharacterId, out string? mapped)
                     ? mapped
                     : "patch_soft_ball");
         return _objects[objectId][Math.Clamp(frame, 0, ObjectFrameCount - 1)];
@@ -159,7 +159,7 @@ internal sealed class CharacterThrowFrameCache : IDisposable
     internal ReadOnlySpan<byte> CannonEmitterFrame(int frame, bool flipped)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var frames = flipped ? _flippedCannonEmitters : _cannonEmitters;
+        byte[][] frames = flipped ? _flippedCannonEmitters : _cannonEmitters;
         return frames[Math.Clamp(frame, 0, EmitterFrameCount - 1)];
     }
 
@@ -170,7 +170,7 @@ internal sealed class CharacterThrowFrameCache : IDisposable
             return;
         }
         _disposed = true;
-        foreach (var frame in _actions.Values.SelectMany(value => value)
+        foreach (byte[]? frame in _actions.Values.SelectMany(value => value)
                      .Concat(_flippedActions.Values.SelectMany(value => value))
                      .Concat(_objects.Values.SelectMany(value => value))
                      .Concat(_cannonEmitters)
@@ -190,7 +190,7 @@ internal sealed class CharacterThrowFrameCache : IDisposable
         int scale,
         OverlayEdge edge)
     {
-        var normal = LoadSheet(
+        byte[][] normal = LoadSheet(
             Path.Combine(characterRoot, characterId),
             "throw_hit",
             $"Characters/{characterId}/throw_hit",
@@ -200,7 +200,7 @@ internal sealed class CharacterThrowFrameCache : IDisposable
             scale: scale,
             flip: false,
             edge);
-        var flipped = LoadSheet(
+        byte[][] flipped = LoadSheet(
             Path.Combine(characterRoot, characterId),
             "throw_hit",
             $"Characters/{characterId}/throw_hit",
@@ -224,7 +224,7 @@ internal sealed class CharacterThrowFrameCache : IDisposable
         bool flip,
         OverlayEdge edge)
     {
-        var png = File.ReadAllBytes(Path.Combine(directory, name + ".png"));
+        byte[] png = File.ReadAllBytes(Path.Combine(directory, name + ".png"));
         if (!StringComparer.Ordinal.Equals(
                 Convert.ToHexStringLower(SHA256.HashData(png)),
                 expectedPngHash))
@@ -232,13 +232,13 @@ internal sealed class CharacterThrowFrameCache : IDisposable
             throw new InvalidDataException($"{name} throw asset hash does not match the approved manifest.");
         }
 
-        var sheet = File.ReadAllBytes(Path.Combine(directory, name + ".bgra"));
-        var expectedLength = checked(cellSize * frameCount * cellSize * 4);
+        byte[] sheet = File.ReadAllBytes(Path.Combine(directory, name + ".bgra"));
+        int expectedLength = checked(cellSize * frameCount * cellSize * 4);
         if (sheet.Length != expectedLength)
         {
             throw new InvalidDataException($"{name} BGRA sheet has an invalid byte length.");
         }
-        if (!BgraHashes.TryGetValue(resourceId, out var expectedBgraHash)
+        if (!s_bgraHashes.TryGetValue(resourceId, out string? expectedBgraHash)
             || !StringComparer.Ordinal.Equals(
                 Convert.ToHexStringLower(SHA256.HashData(sheet)),
                 expectedBgraHash))
@@ -246,8 +246,8 @@ internal sealed class CharacterThrowFrameCache : IDisposable
             throw new InvalidDataException($"{name} BGRA sheet hash does not match the Windows cache manifest.");
         }
 
-        var frames = new byte[frameCount][];
-        for (var frame = 0; frame < frameCount; frame++)
+        byte[][] frames = new byte[frameCount][];
+        for (int frame = 0; frame < frameCount; frame++)
         {
             frames[frame] = BuildFrame(sheet, cellSize, frameCount, frame, scale, flip, edge);
         }
@@ -268,16 +268,16 @@ internal sealed class CharacterThrowFrameCache : IDisposable
         bool flip,
         OverlayEdge edge)
     {
-        var sheetWidth = cellSize * frameCount;
-        var outputSize = cellSize * scale;
-        var output = new byte[outputSize * outputSize * 4];
-        for (var y = 0; y < outputSize; y++)
+        int sheetWidth = cellSize * frameCount;
+        int outputSize = cellSize * scale;
+        byte[] output = new byte[outputSize * outputSize * 4];
+        for (int y = 0; y < outputSize; y++)
         {
-            for (var x = 0; x < outputSize; x++)
+            for (int x = 0; x < outputSize; x++)
             {
-                var rotatedX = x / scale;
-                var rotatedY = y / scale;
-                var (sourceX, sourceY) = InverseRotate(rotatedX, rotatedY, cellSize, edge);
+                int rotatedX = x / scale;
+                int rotatedY = y / scale;
+                (int sourceX, int sourceY) = InverseRotate(rotatedX, rotatedY, cellSize, edge);
                 if (flip)
                 {
                     sourceX = cellSize - 1 - sourceX;
@@ -285,9 +285,9 @@ internal sealed class CharacterThrowFrameCache : IDisposable
                 // Throw, hit, projectile, and emitter BGRA mirrors are stored bottom-up.
                 // Convert the authored top-down coordinate after edge rotation so action
                 // frames keep the same orientation as the base character frames.
-                var storedSourceY = cellSize - 1 - sourceY;
-                var input = ((storedSourceY * sheetWidth) + (frame * cellSize) + sourceX) * 4;
-                var destination = ((y * outputSize) + x) * 4;
+                int storedSourceY = cellSize - 1 - sourceY;
+                int input = ((storedSourceY * sheetWidth) + (frame * cellSize) + sourceX) * 4;
+                int destination = ((y * outputSize) + x) * 4;
                 sheet.Slice(input, 4).CopyTo(output.AsSpan(destination, 4));
             }
         }

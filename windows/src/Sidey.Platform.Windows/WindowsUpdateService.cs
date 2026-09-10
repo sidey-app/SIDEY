@@ -44,7 +44,7 @@ public sealed partial class WindowsUpdateService
     // recursively remove a directory that might contain unrelated files.
     public int CleanupInstalledUpdates()
     {
-        var deletedFiles = 0;
+        int deletedFiles = 0;
         try
         {
             if (!Directory.Exists(_updateCacheDirectory)
@@ -197,7 +197,7 @@ public sealed partial class WindowsUpdateService
             {
                 long? totalBytes = response.Content.Headers.ContentLength;
                 long downloadedBytes = 0;
-                var lastReportedPercentage = -1;
+                int lastReportedPercentage = -1;
                 byte[] buffer = new byte[81920];
 
                 if (totalBytes is > 0)
@@ -232,7 +232,7 @@ public sealed partial class WindowsUpdateService
             }
 
             string actualHash;
-            await using (var downloaded = File.OpenRead(partialPath))
+            await using (FileStream downloaded = File.OpenRead(partialPath))
             {
                 byte[] digest = await SHA256.HashDataAsync(downloaded, cancellationToken)
                     .ConfigureAwait(false);
@@ -290,15 +290,15 @@ public sealed partial class WindowsUpdateService
     {
         public static ParsedVersion Parse(string value)
         {
-            var match = VersionPattern().Match(value);
+            Match match = VersionPattern().Match(value);
             if (!match.Success)
             {
                 throw new InvalidDataException($"SIDEY Windows version is not valid SemVer: {value}");
             }
 
-            var prerelease = match.Groups["pre"].Success
+            string[] prerelease = match.Groups["pre"].Success
                 ? match.Groups["pre"].Value.Split('.', StringSplitOptions.RemoveEmptyEntries)
-                : Array.Empty<string>();
+                : [];
             return new ParsedVersion(
                 int.Parse(match.Groups["major"].Value, System.Globalization.CultureInfo.InvariantCulture),
                 int.Parse(match.Groups["minor"].Value, System.Globalization.CultureInfo.InvariantCulture),
@@ -313,7 +313,7 @@ public sealed partial class WindowsUpdateService
                 return 1;
             }
 
-            var core = Major.CompareTo(other.Major);
+            int core = Major.CompareTo(other.Major);
             if (core == 0)
                 core = Minor.CompareTo(other.Minor);
             if (core == 0)
@@ -330,18 +330,18 @@ public sealed partial class WindowsUpdateService
                     : Prerelease.Count == 0 ? 1 : -1;
             }
 
-            for (var index = 0; index < Math.Min(Prerelease.Count, other.Prerelease.Count); index++)
+            for (int index = 0; index < Math.Min(Prerelease.Count, other.Prerelease.Count); index++)
             {
-                var candidateNumeric = int.TryParse(
+                bool candidateNumeric = int.TryParse(
                     Prerelease[index],
                     System.Globalization.NumberStyles.None,
                     System.Globalization.CultureInfo.InvariantCulture,
-                    out var candidateNumber);
-                var currentNumeric = int.TryParse(
+                    out int candidateNumber);
+                bool currentNumeric = int.TryParse(
                     other.Prerelease[index],
                     System.Globalization.NumberStyles.None,
                     System.Globalization.CultureInfo.InvariantCulture,
-                    out var currentNumber);
+                    out int currentNumber);
                 int result;
                 if (candidateNumeric && currentNumeric)
                 {

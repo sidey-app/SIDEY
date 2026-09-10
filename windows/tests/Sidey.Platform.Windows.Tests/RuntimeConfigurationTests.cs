@@ -1,3 +1,4 @@
+using System.Reflection;
 using Sidey.Infrastructure;
 
 namespace Sidey.Platform.Windows.Tests;
@@ -56,9 +57,9 @@ public sealed class RuntimeConfigurationTests
     [Fact]
     public void CommerceNetworkSurfaceMatchesTheCompileTimeGate()
     {
-        var commerceStateMethod = typeof(SupabaseBackendGateway).GetMethod(
+        MethodInfo? commerceStateMethod = typeof(SupabaseBackendGateway).GetMethod(
             "GetWindowsCommerceStateAsync");
-        var identityLinkMethod = typeof(SupabaseAnonymousAuthService).GetMethod(
+        MethodInfo? identityLinkMethod = typeof(SupabaseAnonymousAuthService).GetMethod(
             "BeginGoogleIdentityLinkAsync");
 
 #if SIDEY_DEVELOPMENT_COMMERCE

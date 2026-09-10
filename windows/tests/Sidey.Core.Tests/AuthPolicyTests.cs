@@ -20,7 +20,7 @@ public sealed class AuthPolicyTests
     {
         var auth = new FakeAuthService { Restored = null };
 
-        var session = await AnonymousSessionBootstrapper.RestoreOrCreateAsync(
+        AuthSession session = await AnonymousSessionBootstrapper.RestoreOrCreateAsync(
             auth,
             hasStoredSession: false);
 

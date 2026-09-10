@@ -22,7 +22,7 @@ public sealed class PreloadedPixelAnimation : Grid
     internal void SetFrames(IEnumerable<ImageSource> frames)
     {
         ClearFrames();
-        foreach (var source in frames)
+        foreach (ImageSource source in frames)
         {
             var image = new Image { Source = source, Stretch = Stretch.None, Opacity = 0 };
             _frames.Add(image);
@@ -42,7 +42,7 @@ public sealed class PreloadedPixelAnimation : Grid
 
     internal void ClearFrames()
     {
-        foreach (var image in _frames)
+        foreach (Image image in _frames)
             image.Source = null;
         Children.Clear();
         _frames.Clear();

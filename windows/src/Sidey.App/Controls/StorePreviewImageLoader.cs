@@ -9,13 +9,13 @@ namespace Sidey.App.Controls;
 
 internal static class StorePreviewImageLoader
 {
-    private static readonly ConditionalWeakTable<ImageSource, SoftwareBitmap> BitmapLifetimes = new();
+    private static readonly ConditionalWeakTable<ImageSource, SoftwareBitmap> s_bitmapLifetimes = [];
 
     internal static void ReleaseFrame(ImageSource source)
     {
-        if (BitmapLifetimes.TryGetValue(source, out var bitmap))
+        if (s_bitmapLifetimes.TryGetValue(source, out SoftwareBitmap? bitmap))
         {
-            BitmapLifetimes.Remove(source);
+            s_bitmapLifetimes.Remove(source);
             bitmap.Dispose();
         }
         if (source is IDisposable disposable)
@@ -26,11 +26,11 @@ internal static class StorePreviewImageLoader
         string path, uint frameWidth, uint frameHeight, int frame,
         uint renderedWidth, uint renderedHeight, CancellationToken cancellationToken)
     {
-        var image = await LoadFrameAsync(path, frameWidth, frameHeight, frame,
+        ImageSource image = await LoadFrameAsync(path, frameWidth, frameHeight, frame,
             renderedWidth, renderedHeight, cancellationToken);
-        var bitmap = BitmapLifetimes.GetValue(image, _ => throw new InvalidOperationException("Missing decoded frame."));
+        SoftwareBitmap bitmap = s_bitmapLifetimes.GetValue(image, _ => throw new InvalidOperationException("Missing decoded frame."));
         using var stream = new InMemoryRandomAccessStream();
-        var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);
+        BitmapEncoder encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);
         encoder.SetSoftwareBitmap(bitmap);
         await encoder.FlushAsync();
         cancellationToken.ThrowIfCancellationRequested();
@@ -105,7 +105,7 @@ internal static class StorePreviewImageLoader
             var source = new SoftwareBitmapSource();
             await source.SetBitmapAsync(bitmap);
             cancellationToken.ThrowIfCancellationRequested();
-            BitmapLifetimes.Add(source, bitmap);
+            s_bitmapLifetimes.Add(source, bitmap);
             bitmap = null;
             return source;
         }
