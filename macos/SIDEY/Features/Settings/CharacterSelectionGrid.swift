@@ -73,6 +73,7 @@ private struct CharacterSelectionCard: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
+#if APP_STORE
             .background(
                 RoundedRectangle(cornerRadius: 13, style: .continuous)
                     .fill(isSelected ? Color(red: 0.45, green: 0.49, blue: 0.85).opacity(0.13) : .clear)
@@ -98,6 +99,12 @@ private struct CharacterSelectionCard: View {
                         .padding(8)
                 }
             }
+#else
+            .modifier(ProfileSelectionAppearance(
+                isSelected: isSelected,
+                isPending: isPending
+            ))
+#endif
             .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
         }
         .buttonStyle(.plain)
