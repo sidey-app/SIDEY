@@ -1,23 +1,26 @@
+#requires -Version 5.1
+
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [string]$PublishDir,
+    [string]$PublishDirectory,
 
     [int]$TimeoutSeconds = 30
 )
 
+Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
-$resolvedPublishDir = (Resolve-Path $PublishDir).Path
-$executable = Join-Path $resolvedPublishDir 'SIDEY.exe'
-$hostExecutable = Join-Path $resolvedPublishDir 'Runtime\SIDEY.Host.exe'
-if (Test-Path -LiteralPath (Join-Path $resolvedPublishDir 'Runtime/Assets')) {
+$publishDirectoryPath = (Resolve-Path -LiteralPath $PublishDirectory).Path
+$launcherExecutablePath = Join-Path $publishDirectoryPath 'SIDEY.exe'
+$hostExecutablePath = Join-Path $publishDirectoryPath 'Runtime\SIDEY.Host.exe'
+if (Test-Path -LiteralPath (Join-Path $publishDirectoryPath 'Runtime/Assets')) {
     throw 'Startup smoke must use external Assets without a private Runtime/Assets copy.'
 }
-if (-not (Test-Path $executable -PathType Leaf)) {
-    throw "SIDEY.exe was not found in the publish directory: $resolvedPublishDir"
+if (-not (Test-Path -LiteralPath $launcherExecutablePath -PathType Leaf)) {
+    throw "SIDEY.exe was not found in the publish directory: $publishDirectoryPath"
 }
-if (-not (Test-Path $hostExecutable -PathType Leaf)) {
-    throw "Runtime/SIDEY.Host.exe was not found in the publish directory: $resolvedPublishDir"
+if (-not (Test-Path -LiteralPath $hostExecutablePath -PathType Leaf)) {
+    throw "Runtime/SIDEY.Host.exe was not found in the publish directory: $publishDirectoryPath"
 }
 if ($TimeoutSeconds -lt 5 -or $TimeoutSeconds -gt 120) {
     throw "Startup smoke timeout must be between 5 and 120 seconds."
@@ -36,8 +39,8 @@ try {
     [Environment]::SetEnvironmentVariable($smokeEnvironmentVariable, '1', 'Process')
     [Environment]::SetEnvironmentVariable($smokeDataEnvironmentVariable, $smokeDataRoot, 'Process')
     $launcherProcess = Start-Process `
-        -FilePath $executable `
-        -WorkingDirectory $resolvedPublishDir `
+        -FilePath $launcherExecutablePath `
+        -WorkingDirectory $publishDirectoryPath `
         -WindowStyle Hidden `
         -PassThru
     if (-not $launcherProcess.WaitForExit(5000) -or $launcherProcess.ExitCode -ne 0) {
@@ -51,7 +54,7 @@ try {
                 Where-Object {
                     [string]::Equals(
                         $_.Path,
-                        $hostExecutable,
+                        $hostExecutablePath,
                         [StringComparison]::OrdinalIgnoreCase)
                 } |
                 Select-Object -First 1

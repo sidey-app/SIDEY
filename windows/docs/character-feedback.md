@@ -30,7 +30,7 @@ Stun stars have a seven-pixel silhouette with a contrasting outline and a wider 
 
 ## Validation
 
-Run Core, Presentation and Windows platform tests, build Debug and Release, publish to an isolated directory and run `scripts/windows/verify-framework-publish.ps1` against it. `verify-impact-audio.ps1` also accepts the source `Assets` directory.
+Run Core, Presentation and Windows platform tests, build Debug and Release, publish to an isolated directory and run `scripts/windows/Test-FrameworkDependentPublish.ps1` against it. `Test-ImpactAudioAssets.ps1` also accepts the source `Assets` directory.
 
 The existing startup smoke harness supports `SIDEY_STORE_PREVIEW_SMOKE=1` for real WinUI preview checks (including composed stun pixels and animation off/on), and `SIDEY_IMPACT_AUDIO_SMOKE=1` for eight native submissions and completed buffers, muted/zero-volume suppression, native volume readback and settings slider/toggle bindings. Use only with `SIDEY_STARTUP_SMOKE=1`; the harness supplies an isolated settings/log directory and exports synthetic stun preview PNGs there. Buffer completion does not measure acoustic latency or listen to speakers.
 

@@ -111,6 +111,6 @@
       Name="OrganizeStructuredPublish"
       AfterTargets="Publish"
       DependsOnTargets="CopyExternalCharacterAssetsAfterPublish;CopyExternalThrowableAssetsAfterPublish;CopyExternalBubbleAssetsAfterPublish;CopySideyAppIconsAfterPublish">
-    <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\..\scripts\windows\organize-publish.ps1&quot; -PublishDir &quot;$(PublishDir).&quot; -LauncherSource &quot;$(MSBuildProjectDirectory)\..\Sidey.Launcher\Program.cs&quot; -UninstallerSource &quot;$(MSBuildProjectDirectory)\..\Sidey.Uninstaller\Program.cs&quot; -Version &quot;$(Version)&quot; -FileVersion &quot;$(FileVersion)&quot;" />
+    <Exec Command="powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\..\..\scripts\windows\ConvertTo-PublishLayout.ps1&quot; -PublishDirectory &quot;$(PublishDir).&quot; -LauncherSourcePath &quot;$(MSBuildProjectDirectory)\..\Sidey.Launcher\Program.cs&quot; -UninstallerSourcePath &quot;$(MSBuildProjectDirectory)\..\Sidey.Uninstaller\Program.cs&quot; -Version &quot;$(Version)&quot; -FileVersion &quot;$(FileVersion)&quot;" />
   </Target>
 </Project>

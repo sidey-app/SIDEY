@@ -47,12 +47,12 @@ SIDEY/
 
 prerequisite가 준비되면 기존 NSIS/MSI 제거기를 실행하고 SIDEY 설치 폴더의 `Runtime` 잔여 파일을 정리한 뒤 새 payload를 설치합니다. 이 정리는 junction/symlink를 거부하며 시스템 공유 런타임과 사용자 데이터는 건드리지 않습니다. 일반 SIDEY 제거 역시 공유 .NET / Windows App Runtime을 제거하지 않습니다.
 
-`prerequisites.json`은 런타임 버전·공식 URL을 고정합니다. SDK 변경 시 함께 갱신해야 합니다. `scripts/windows/verify-framework-publish.ps1`은 복원한 SDK 메타데이터와 버전·패키지 identity를 대조하고, Microsoft framework MSIX에 들어 있는 모든 DLL과 .NET 런타임 본체·설치기가 publish에 없는지 검사합니다. SDK 2.4에서 별도 복사되는 ML native DLL은 앱 publish target에서 제외합니다.
+`prerequisites.json`은 런타임 버전·공식 URL을 고정합니다. SDK 변경 시 함께 갱신해야 합니다. `scripts/windows/Test-FrameworkDependentPublish.ps1`은 복원한 SDK 메타데이터와 버전·패키지 identity를 대조하고, Microsoft framework MSIX에 들어 있는 모든 DLL과 .NET 런타임 본체·설치기가 publish에 없는지 검사합니다. SDK 2.4에서 별도 복사되는 ML native DLL은 앱 publish target에서 제외합니다.
 
 설치 검증에는 런타임 없는 신규 설치, 기존 런타임으로 오프라인 설치, 다운로드/서명/설치 실패, 재시작 요구, self-contained NSIS/MSI 업그레이드, 동일 버전 복구, 일반 제거 후 공유 런타임 보존, 다른 관리자 계정으로 승격한 설치 후 원래 사용자 실행을 포함합니다. 자동 테스트는 prerequisite 상태 전환·정리 경계·NSIS 호출 순서와 publish/런처 스모크를 검증하며, 관리자 설치 UI 시나리오는 별도 실기 검증 대상입니다.
 
 설치기는 영어·한국어·일본어·중국어 간체/번체·러시아어·우크라이나어를 제공합니다. 환영 화면 전의 언어 선택창은 시스템 표시 언어를 맨 위에 두고 나머지를 영어 언어명 알파벳순으로 표시합니다. 저장된 선택은 업데이트의 기본 선택 및 제거 UI에서 재사용합니다. 미지원 시스템 언어에서는 전체 알파벳순 목록과 영어 기본 선택을 사용합니다. 언어 선택 도우미는 Windows 기본 .NET Framework로 빌드해 NSIS 임시 폴더에서만 실행하며 .NET 10 설치 전에도 동작합니다. NSIS 기본 화면 번역과 `installer/Sidey.Setup/Languages.nsh`의 SIDEY 문구를 사용하고, 약관 본문은 기존 한국어 원문을 유지합니다.
 
-언어 선택창은 확인 시 설치기 프로세스에 foreground 권한을 넘기며, 설치기는 GUI 초기화 시 창을 앞으로 표시합니다. `scripts/windows/test-installer-language-ui.ps1 -SelectorExecutable <빌드된 Sidey.SetupLanguage.exe>`는 대화형 데스크톱에서 실제 언어 선택과 환영 화면 전환을 검증합니다. 제품의 시작 함수를 사용하는 별도 NSIS 테스트 창에서 Enter 입력 후 표시·최소화·foreground 상태를 확인하며, 앱 설치·제거 및 관리자 권한 요청은 수행하지 않습니다.
+언어 선택창은 확인 시 설치기 프로세스에 foreground 권한을 넘기며, 설치기는 GUI 초기화 시 창을 앞으로 표시합니다. `scripts/windows/tests/Test-InstallerLanguageUi.ps1 -SelectorExecutablePath <빌드된 Sidey.SetupLanguage.exe>`는 대화형 데스크톱에서 실제 언어 선택과 환영 화면 전환을 검증합니다. 제품의 시작 함수를 사용하는 별도 NSIS 테스트 창에서 Enter 입력 후 표시·최소화·foreground 상태를 확인하며, 앱 설치·제거 및 관리자 권한 요청은 수행하지 않습니다.
 
 언어 선택창의 UI는 빌드에 사용하는 NSIS `LangDLL.dll`의 원본 대화상자 리소스를 재사용합니다. 기존 `Installer Language` 제목, 영어 안내·버튼, 왼쪽 앱 아이콘과 배치를 유지하고 목록에는 각 언어의 고유 이름만 표시합니다. 원본 리소스만 도우미에 포함하고 `CB_INSERTSTRING`으로 순서를 지정하므로, 별도의 WinForms UI나 런타임용 NSIS DLL 사본은 필요하지 않습니다.

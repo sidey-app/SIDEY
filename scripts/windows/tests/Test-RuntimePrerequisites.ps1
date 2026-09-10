@@ -1,7 +1,14 @@
+#requires -Version 5.1
+
+[CmdletBinding()]
+param()
+
+Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
-$setupRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../windows/installer/Sidey.Setup'))
-$configuration = Get-Content -LiteralPath (Join-Path $setupRoot 'prerequisites.json') -Raw | ConvertFrom-Json
-. (Join-Path $setupRoot 'Prerequisites.ps1')
+$repositoryRootPath = (Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path
+$installerSourceDirectory = Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup'
+$prerequisiteConfiguration = Get-Content -LiteralPath (Join-Path $installerSourceDirectory 'prerequisites.json') -Raw | ConvertFrom-Json
+. (Join-Path $installerSourceDirectory 'Prerequisites.ps1')
 $script:assertions = 0
 $testDownloadDirectory = Join-Path ([IO.Path]::GetTempPath()) "SIDEY-Mock-Downloads-$([guid]::NewGuid().ToString('N'))"
 function Assert-True($Condition, [string]$Message) {
@@ -18,33 +25,33 @@ Assert-True (Test-SideyDotNetVersion @('8.0.30', '10.0.11') '10.0.0') 'Accept .N
 foreach ($versions in @(@('8.0.30'), @('11.0.0'), @('10.0.0-preview.1'), @('10.1.0'), @())) {
     Assert-True (-not (Test-SideyDotNetVersion $versions '10.0.0')) 'Reject incompatible .NET runtimes.'
 }
-$packages = @($configuration.windowsAppRuntime.packages | ForEach-Object {
+$runtimePackages = @($prerequisiteConfiguration.windowsAppRuntime.packages | ForEach-Object {
     [pscustomobject]@{ PackageFamilyName = $_.family; Version = $_.minimumVersion; Architecture = 'X64'; Status = 'Ok' }
 })
-Assert-True (Test-SideyRuntimePackages $packages $configuration.windowsAppRuntime.packages) 'All required packages should qualify.'
-for ($index = 0; $index -lt $packages.Count; $index++) {
-    $withoutOne = @($packages | Where-Object { $_ -ne $packages[$index] })
-    Assert-True (-not (Test-SideyRuntimePackages $withoutOne $configuration.windowsAppRuntime.packages)) 'Partial runtime must not qualify.'
+Assert-True (Test-SideyRuntimePackages $runtimePackages $prerequisiteConfiguration.windowsAppRuntime.packages) 'All required packages should qualify.'
+for ($index = 0; $index -lt $runtimePackages.Count; $index++) {
+    $incompletePackages = @($runtimePackages | Where-Object { $_ -ne $runtimePackages[$index] })
+    Assert-True (-not (Test-SideyRuntimePackages $incompletePackages $prerequisiteConfiguration.windowsAppRuntime.packages)) 'Partial runtime must not qualify.'
 }
-foreach ($change in @(@('Architecture', 'X86'), @('Version', '1.0.0.0'), @('Status', 'Modified'), @('PackageFamilyName', 'Fake_8wekyb3d8bbwe'))) {
-    $original = $packages[0].($change[0])
-    $packages[0].($change[0]) = $change[1]
-    Assert-True (-not (Test-SideyRuntimePackages $packages $configuration.windowsAppRuntime.packages)) 'Wrong architecture/version/status/publisher must fail.'
-    $packages[0].($change[0]) = $original
+foreach ($propertyMutation in @(@('Architecture', 'X86'), @('Version', '1.0.0.0'), @('Status', 'Modified'), @('PackageFamilyName', 'Fake_8wekyb3d8bbwe'))) {
+    $originalValue = $runtimePackages[0].($propertyMutation[0])
+    $runtimePackages[0].($propertyMutation[0]) = $propertyMutation[1]
+    Assert-True (-not (Test-SideyRuntimePackages $runtimePackages $prerequisiteConfiguration.windowsAppRuntime.packages)) 'Wrong architecture/version/status/publisher must fail.'
+    $runtimePackages[0].($propertyMutation[0]) = $originalValue
 }
 foreach ($url in @('http://download.microsoft.com/runtime.exe', 'https://download.microsoft.com.evil.example/runtime.exe',
     'https://example.com/runtime.exe', 'https://aka.ms:444/runtime.exe', 'https://user@aka.ms/runtime.exe')) {
     Assert-Throws { Assert-SideyMicrosoftUri $url } 'Reject untrusted download/redirect.'
 }
-Assert-SideyMicrosoftUri $configuration.dotnet.url
-Assert-SideyMicrosoftUri $configuration.windowsAppRuntime.url
+Assert-SideyMicrosoftUri $prerequisiteConfiguration.dotnet.url
+Assert-SideyMicrosoftUri $prerequisiteConfiguration.windowsAppRuntime.url
 
 # Exercise the real orchestration with only OS/network boundaries replaced.
 # No Microsoft installs, app termination, or real SIDEY data mutations in tests.
 foreach ($scenario in @('present', 'missing', 'download-failure', 'signature-failure', 'install-failure',
     'cancel', 'restart', 'restart-initiated', 'postcheck-failure', 'winapp-failure', 'check-only', 'provision-failure')) {
     & {
-        . (Join-Path $setupRoot 'Prerequisites.ps1')
+        . (Join-Path $installerSourceDirectory 'Prerequisites.ps1')
         $script:events = [Collections.Generic.List[string]]::new()
         $script:netReady = $scenario -in @('present', 'winapp-failure')
         $script:appReady = $scenario -eq 'present'
@@ -78,7 +85,7 @@ foreach ($scenario in @('present', 'missing', 'download-failure', 'signature-fai
             $script:events.Add('provision')
             if ($scenario -eq 'provision-failure') { throw 'Provisioning denied' }
         }
-        $operation = { Install-SideyPrerequisites $configuration $testDownloadDirectory -CheckOnly:($scenario -eq 'check-only') -ProvisionAllUsers }
+        $operation = { Install-SideyPrerequisites $prerequisiteConfiguration $testDownloadDirectory -CheckOnly:($scenario -eq 'check-only') -ProvisionAllUsers }
         if ($scenario -in @('present', 'missing')) {
             Assert-True ((& $operation) -eq 0) "$scenario must succeed."
             $expected = if ($scenario -eq 'present') { 'provision' } else { 'download,signature,install,download,signature,install,provision' }

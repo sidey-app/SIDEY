@@ -1,16 +1,19 @@
+#requires -Version 5.1
+
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
     [string]$Version,
 
     [Parameter(Mandatory = $true)]
-    [string]$CandidateSetup
+    [string]$CandidateSetupPath
 )
 
+Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
-$candidate = (Resolve-Path -LiteralPath $CandidateSetup).Path
+$candidateSetupFilePath = (Resolve-Path -LiteralPath $CandidateSetupPath).Path
 $setupName = "SIDEY-Windows-x64-v${Version}-Setup.exe"
-if ([IO.Path]::GetFileName($candidate) -ne $setupName) {
+if ([IO.Path]::GetFileName($candidateSetupFilePath) -ne $setupName) {
     throw "후보 파일 이름이 공개 계약과 다름: $setupName"
 }
 
@@ -23,7 +26,7 @@ try {
     Invoke-WebRequest -Uri $releaseUrl -OutFile $downloadedSetup
 
     $downloadedHash = (Get-FileHash -LiteralPath $downloadedSetup -Algorithm SHA256).Hash.ToLowerInvariant()
-    $candidateHash = (Get-FileHash -LiteralPath $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
+    $candidateHash = (Get-FileHash -LiteralPath $candidateSetupFilePath -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($downloadedHash -ne $candidateHash) {
         throw 'Release Setup EXE가 CI에서 검증한 로컬 후보와 다름'
     }

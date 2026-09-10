@@ -1,36 +1,41 @@
+#requires -Version 5.1
+
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [string]$PublishDir,
+    [string]$PublishDirectory,
 
     [Parameter(Mandatory = $true)]
-    [string]$LauncherSource,
+    [string]$LauncherSourcePath,
 
     [Parameter(Mandatory = $true)]
-    [string]$UninstallerSource,
+    [string]$UninstallerSourcePath,
 
-    [string]$Version = '1.0.8',
+    [Parameter(Mandatory = $true)]
+    [string]$Version,
 
-    [string]$FileVersion = '1.0.8.0'
+    [Parameter(Mandatory = $true)]
+    [string]$FileVersion
 )
 
+Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
-$resolvedPublishDir = (Resolve-Path -LiteralPath $PublishDir).Path
-$resolvedLauncherSource = (Resolve-Path -LiteralPath $LauncherSource).Path
-$resolvedUninstallerSource = (Resolve-Path -LiteralPath $UninstallerSource).Path
-$runtimeDirectory = Join-Path $resolvedPublishDir 'Runtime'
-$assetsDirectory = Join-Path $resolvedPublishDir 'Assets'
-$languageDirectory = Join-Path $resolvedPublishDir 'Langs'
-$legacyLanguageDirectory = Join-Path $resolvedPublishDir 'Lang'
-$launcherPath = Join-Path $resolvedPublishDir 'SIDEY.exe'
-$uninstallerPath = Join-Path $resolvedPublishDir 'Uninstall.exe'
+$publishDirectoryPath = (Resolve-Path -LiteralPath $PublishDirectory).Path
+$launcherSourceFilePath = (Resolve-Path -LiteralPath $LauncherSourcePath).Path
+$uninstallerSourceFilePath = (Resolve-Path -LiteralPath $UninstallerSourcePath).Path
+$runtimeDirectory = Join-Path $publishDirectoryPath 'Runtime'
+$assetsDirectory = Join-Path $publishDirectoryPath 'Assets'
+$languageDirectory = Join-Path $publishDirectoryPath 'Langs'
+$legacyLanguageDirectory = Join-Path $publishDirectoryPath 'Lang'
+$launcherPath = Join-Path $publishDirectoryPath 'SIDEY.exe'
+$uninstallerPath = Join-Path $publishDirectoryPath 'Uninstall.exe'
 $hostPath = Join-Path $runtimeDirectory 'SIDEY.Host.exe'
 
 if (Test-Path -LiteralPath $runtimeDirectory) {
     $runtimeParent = [IO.Directory]::GetParent($runtimeDirectory).FullName
     if (-not [string]::Equals(
         $runtimeParent,
-        $resolvedPublishDir,
+        $publishDirectoryPath,
         [StringComparison]::OrdinalIgnoreCase)) {
         throw "Unsafe Runtime directory: $runtimeDirectory"
     }
@@ -63,7 +68,7 @@ foreach ($name in @(
     [void]$preservedNames.Add($name)
 }
 
-Get-ChildItem -LiteralPath $resolvedPublishDir -Force |
+Get-ChildItem -LiteralPath $publishDirectoryPath -Force |
     Where-Object { -not $preservedNames.Contains($_.Name) } |
     ForEach-Object {
         Move-Item -LiteralPath $_.FullName -Destination $runtimeDirectory -Force
@@ -89,7 +94,7 @@ if (-not (Test-Path -LiteralPath $assetsDirectory -PathType Container)) {
 # icon, are loaded explicitly from the deployment root; no private copy is needed.
 
 $assemblyVersion = [Version]$FileVersion
-function Build-SideyExecutable {
+function New-SideyExecutable {
     param(
         [Parameter(Mandatory = $true)]
         [string]$SourcePath,
@@ -141,13 +146,13 @@ using System.Reflection;
     }
 }
 
-Build-SideyExecutable `
-    -SourcePath $resolvedLauncherSource `
+New-SideyExecutable `
+    -SourcePath $launcherSourceFilePath `
     -OutputAssembly $launcherPath `
     -Title 'SIDEY Launcher' `
     -Description 'SIDEY desktop launcher'
-Build-SideyExecutable `
-    -SourcePath $resolvedUninstallerSource `
+New-SideyExecutable `
+    -SourcePath $uninstallerSourceFilePath `
     -OutputAssembly $uninstallerPath `
     -Title 'SIDEY Uninstaller' `
     -Description 'SIDEY uninstaller'

@@ -102,8 +102,8 @@ public sealed class MacParityUiSourceTests
         var guard = ReadRepositoryFile(
             "windows", "src", "Sidey.App", "SingleInstanceGuard.cs");
         var readme = ReadRepositoryFile("windows", "README.md");
-        var organizer = ReadRepositoryFile("scripts", "windows", "organize-publish.ps1");
-        var packager = ReadRepositoryFile("scripts", "windows", "package.ps1");
+        var organizer = ReadRepositoryFile("scripts", "windows", "ConvertTo-PublishLayout.ps1");
+        var packager = ReadRepositoryFile("scripts", "windows", "New-WindowsInstaller.ps1");
 
         Assert.DoesNotContain("--onboarding-preview", app, StringComparison.Ordinal);
         Assert.DoesNotContain("RequestOnboardingPreview", app, StringComparison.Ordinal);
@@ -795,7 +795,7 @@ public sealed class MacParityUiSourceTests
         var ciWorkflow = ReadRepositoryFile(".github", "workflows", "windows.yml");
         var releaseWorkflow = ReadRepositoryFile(".github", "workflows", "windows-release.yml");
         var metadata = ReadRepositoryFile("scripts", "verify_release_consistency.py");
-        var verifier = ReadRepositoryFile("scripts", "windows", "verify-release.ps1");
+        var verifier = ReadRepositoryFile("scripts", "windows", "Test-WindowsRelease.ps1");
 
         Assert.DoesNotContain("tags:", ciWorkflow, StringComparison.Ordinal);
         Assert.DoesNotContain("tags:", releaseWorkflow, StringComparison.Ordinal);
@@ -831,7 +831,7 @@ public sealed class MacParityUiSourceTests
         var adapter = ReadRepositoryFile(
             "windows", "src", "Sidey.App", "WindowsUpdateServiceAdapter.cs");
         var script = ReadRepositoryFile(
-            "scripts", "windows", "start-update-design-test.ps1");
+            "scripts", "windows", "Start-UpdateDesignTest.ps1");
 
         Assert.Contains(
             "typeof(App).Assembly.GetName().Version?.ToString(3)",

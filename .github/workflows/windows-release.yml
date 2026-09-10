@@ -74,7 +74,7 @@ jobs:
         run: dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build --logger trx --collect:"XPlat Code Coverage" --settings windows/coverlet.runsettings --results-directory artifacts/coverage
 
       - name: Test runtime prerequisites and migration cleanup
-        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./scripts/windows/test-prerequisites.ps1
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./scripts/windows/tests/Test-RuntimePrerequisites.ps1
 
       - name: Upload coverage
         if: always()
@@ -129,16 +129,16 @@ jobs:
             -p:WindowsAppSDKSelfContained=false `
             -p:PublishSingleFile=false `
             --output build/windows/publish
-          ./scripts/windows/verify-framework-publish.ps1 -PublishDir ./build/windows/publish
-          ./scripts/windows/test-framework-publish.ps1 -PublishDir ./build/windows/publish
+          ./scripts/windows/Test-FrameworkDependentPublish.ps1 -PublishDirectory ./build/windows/publish
+          ./scripts/windows/tests/Test-FrameworkPublishGuard.ps1 -PublishDirectory ./build/windows/publish
           powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
             -File ./windows/installer/Sidey.Setup/SetupRuntime.ps1 -ProvisionAllUsers
           if ($LASTEXITCODE -ne 0) { throw 'Runtime prerequisites are not ready for the startup smoke test.' }
-          ./scripts/windows/smoke-launch.ps1 `
-            -PublishDir ./build/windows/publish -TimeoutSeconds 60
-          ./scripts/windows/package.ps1 `
-            -PublishDir ./build/windows/publish `
-            -OutDir ./build/windows/artifacts `
+          ./scripts/windows/Test-PublishedApplication.ps1 `
+            -PublishDirectory ./build/windows/publish -TimeoutSeconds 60
+          ./scripts/windows/New-WindowsInstaller.ps1 `
+            -PublishDirectory ./build/windows/publish `
+            -OutputDirectory ./build/windows/artifacts `
             -Version '${{ needs.validate.outputs.version }}' `
             -MakensisPath '${{ steps.nsis.outputs.makensis_path }}'
 

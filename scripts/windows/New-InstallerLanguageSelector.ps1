@@ -1,20 +1,24 @@
+#requires -Version 5.1
+
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$OutputPath,
     [string]$NsisDirectory
 )
+Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
-$repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$output = [IO.Path]::GetFullPath($OutputPath)
-[IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($output)) | Out-Null
-$compiler = Join-Path ([Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()) 'csc.exe'
-if (-not (Test-Path -LiteralPath $compiler -PathType Leaf)) {
+Import-Module (Join-Path $PSScriptRoot 'Sidey.PowerShell.psm1') -Force
+$repositoryRootPath = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+$outputFilePath = [IO.Path]::GetFullPath($OutputPath)
+[IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($outputFilePath)) | Out-Null
+$compilerPath = Join-Path ([Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()) 'csc.exe'
+if (-not (Test-Path -LiteralPath $compilerPath -PathType Leaf)) {
     throw 'Build the language selector with Windows PowerShell / the OS .NET Framework compiler.'
 }
-$sourceRoot = Join-Path $repositoryRoot 'windows/installer/Sidey.Setup'
-$icon = Join-Path $repositoryRoot 'windows/src/Sidey.App/Assets/Icons/SideyAppIcon.ico'
+$installerSourceDirectory = Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup'
+$iconPath = Join-Path $repositoryRootPath 'windows/src/Sidey.App/Assets/Icons/SideyAppIcon.ico'
 if (-not $NsisDirectory) { $NsisDirectory = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'NSIS' }
-$langDll = (Resolve-Path -LiteralPath (Join-Path $NsisDirectory 'Plugins/x86-unicode/LangDLL.dll')).Path
+$languagePluginPath = (Resolve-Path -LiteralPath (Join-Path $NsisDirectory 'Plugins/x86-unicode/LangDLL.dll')).Path
 # Reuse the actual NSIS dialog template, including its icon, font and control
 # layout. Only this resource is embedded; no NSIS DLL is needed at runtime.
 Add-Type @'
@@ -45,12 +49,24 @@ public static class NsisLanguageDialogResource {
     }
 }
 '@
-$template = Join-Path ([IO.Path]::GetDirectoryName($output)) 'LanguageDialog.bin'
-[IO.File]::WriteAllBytes($template, [NsisLanguageDialogResource]::Read($langDll))
-& $compiler /nologo /target:winexe /optimize+ /utf8output /codepage:65001 `
-    /reference:System.dll /reference:System.Core.dll /reference:System.Drawing.dll `
-    "/resource:$template,Sidey.Installer.LanguageDialog" `
-    "/win32manifest:$(Join-Path $sourceRoot 'LanguageSelector.manifest')" `
-    "/win32icon:$icon" "/out:$output" `
-    (Join-Path $sourceRoot 'InstallerLanguages.cs') (Join-Path $sourceRoot 'LanguageSelector.cs')
-if ($LASTEXITCODE -ne 0) { throw 'Installer language selector compilation failed.' }
+$dialogResourcePath = Join-Path ([IO.Path]::GetDirectoryName($outputFilePath)) 'LanguageDialog.bin'
+[IO.File]::WriteAllBytes($dialogResourcePath, [NsisLanguageDialogResource]::Read($languagePluginPath))
+Invoke-SideyNativeCommand `
+    -FilePath $compilerPath `
+    -ArgumentList @(
+        '/nologo',
+        '/target:winexe',
+        '/optimize+',
+        '/utf8output',
+        '/codepage:65001',
+        '/reference:System.dll',
+        '/reference:System.Core.dll',
+        '/reference:System.Drawing.dll',
+        "/resource:$dialogResourcePath,Sidey.Installer.LanguageDialog",
+        "/win32manifest:$(Join-Path $installerSourceDirectory 'LanguageSelector.manifest')",
+        "/win32icon:$iconPath",
+        "/out:$outputFilePath",
+        (Join-Path $installerSourceDirectory 'InstallerLanguages.cs'),
+        (Join-Path $installerSourceDirectory 'LanguageSelector.cs')
+    ) `
+    -Description 'Installer language selector compilation'

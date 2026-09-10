@@ -1,26 +1,35 @@
-﻿[CmdletBinding()]
+#requires -Version 5.1
+
+[CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)][string]$SelectorExecutable,
-    [string]$SetupScript,
-    [string]$OutDir,
+    [Parameter(Mandatory = $true)][string]$SelectorExecutablePath,
+    [string]$SetupScriptPath,
+    [string]$OutputDirectory,
     [string]$MakensisPath = 'C:/Program Files (x86)/NSIS/makensis.exe'
 )
+Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
-if (-not $SetupScript) { $SetupScript = Join-Path $PSScriptRoot '../../windows/installer/Sidey.Setup/Sidey.Setup.nsi' }
-if (-not $OutDir) { $OutDir = Join-Path $PSScriptRoot '../../build/windows/installer-language-ui' }
-$selector = (Resolve-Path -LiteralPath $SelectorExecutable).Path
-[void][Reflection.Assembly]::LoadFile($selector)
-$output = [IO.Path]::GetFullPath($OutDir)
-[IO.Directory]::CreateDirectory($output) | Out-Null
-$source = Get-Content -LiteralPath $SetupScript -Raw -Encoding UTF8
-$selectionFunction = [regex]::Match($source, '(?ms)^Function SelectInstallerLanguage\r?\n.*?^FunctionEnd').Value
+Import-Module (Join-Path $PSScriptRoot '../Sidey.PowerShell.psm1') -Force
+$repositoryRootPath = (Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path
+if (-not $SetupScriptPath) {
+    $SetupScriptPath = Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup/Sidey.Setup.nsi'
+}
+if (-not $OutputDirectory) {
+    $OutputDirectory = Join-Path $repositoryRootPath 'build/windows/installer-language-ui'
+}
+$resolvedSelectorExecutablePath = (Resolve-Path -LiteralPath $SelectorExecutablePath).Path
+[void][Reflection.Assembly]::LoadFile($resolvedSelectorExecutablePath)
+$outputDirectoryPath = [IO.Path]::GetFullPath($OutputDirectory)
+[IO.Directory]::CreateDirectory($outputDirectoryPath) | Out-Null
+$setupSource = Get-Content -LiteralPath $SetupScriptPath -Raw -Encoding UTF8
+$selectionFunction = [regex]::Match($setupSource, '(?ms)^Function SelectInstallerLanguage\r?\n.*?^FunctionEnd').Value
 if (-not $selectionFunction) { throw 'Installer language selection function not found.' }
-$guiDefine = [regex]::Match($source, '(?m)^!define MUI_CUSTOMFUNCTION_GUIINIT (\w+)').Value
+$guiDefine = [regex]::Match($setupSource, '(?m)^!define MUI_CUSTOMFUNCTION_GUIINIT (\w+)').Value
 $guiName = [regex]::Match($guiDefine, 'GUIINIT (\w+)').Groups[1].Value
-$guiFunction = if ($guiName) { [regex]::Match($source, "(?ms)^Function $guiName\r?\n.*?^FunctionEnd").Value } else { '' }
+$guiFunction = if ($guiName) { [regex]::Match($setupSource, "(?ms)^Function $guiName\r?\n.*?^FunctionEnd").Value } else { '' }
 # Run the production startup functions with a welcome page only: no payload,
 # prerequisites, registry writes, elevation, or uninstall actions are included.
-$fixture = @'
+$fixtureSource = @'
 Unicode true
 RequestExecutionLevel user
 Name "SIDEY language transition test"
@@ -43,13 +52,15 @@ Section
   Abort
 SectionEnd
 '@
-$fixture = $fixture.Replace('@OUTPUT@', $output).Replace('@SELECTOR@', $selector).
+$fixtureSource = $fixtureSource.Replace('@OUTPUT@', $outputDirectoryPath).Replace('@SELECTOR@', $resolvedSelectorExecutablePath).
     Replace('@GUI_DEFINE@', $guiDefine).Replace('@GUI_FUNCTION@', $guiFunction).
     Replace('@SELECTION_FUNCTION@', $selectionFunction).Replace('@SELECTION_CALL@', 'Call SelectInstallerLanguage')
-$fixturePath = Join-Path $output 'LanguageTransition.nsi'
-[IO.File]::WriteAllText($fixturePath, $fixture, [Text.UTF8Encoding]::new($true))
-& $MakensisPath /V2 $fixturePath
-if ($LASTEXITCODE -ne 0) { throw 'Language transition fixture did not compile.' }
+$fixturePath = Join-Path $outputDirectoryPath 'LanguageTransition.nsi'
+[IO.File]::WriteAllText($fixturePath, $fixtureSource, [Text.UTF8Encoding]::new($true))
+Invoke-SideyNativeCommand `
+    -FilePath $MakensisPath `
+    -ArgumentList @('/V2', $fixturePath) `
+    -Description 'Language transition fixture compilation'
 Add-Type @'
 using System;
 using System.Text;
@@ -88,7 +99,7 @@ function Find-TestWindow([int]$ProcessId, [string]$Title) {
     return $script:foundWindow
 }
 # This test intentionally displays the two UI windows to verify foreground state.
-$process = Start-Process -FilePath (Join-Path $output 'LanguageTransition.exe') -PassThru
+$process = Start-Process -FilePath (Join-Path $outputDirectoryPath 'LanguageTransition.exe') -PassThru
 $helper = $null
 try {
     $deadline = [DateTime]::UtcNow.AddSeconds(15)

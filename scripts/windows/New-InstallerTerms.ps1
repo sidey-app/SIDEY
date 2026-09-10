@@ -1,16 +1,19 @@
+#requires -Version 5.1
+
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [string]$SourceMarkdown,
+    [string]$SourceMarkdownPath,
 
     [Parameter(Mandatory = $true)]
     [string]$OutputPath
 )
 
+Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
-$resolvedSourceMarkdown = (Resolve-Path -LiteralPath $SourceMarkdown).Path
-$resolvedOutputPath = [IO.Path]::GetFullPath($OutputPath)
-$markdown = Get-Content -LiteralPath $resolvedSourceMarkdown -Raw -Encoding UTF8
+$sourceMarkdownFilePath = (Resolve-Path -LiteralPath $SourceMarkdownPath).Path
+$outputFilePath = [IO.Path]::GetFullPath($OutputPath)
+$markdown = Get-Content -LiteralPath $sourceMarkdownFilePath -Raw -Encoding UTF8
 
 $markdown = [regex]::Replace(
     $markdown,
@@ -28,10 +31,10 @@ $lines = @($terms -split '\r?\n' |
     Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 $plainText = ($lines -join "`r`n`r`n") + "`r`n"
 
-[IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($resolvedOutputPath)) | Out-Null
+[IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($outputFilePath)) | Out-Null
 [IO.File]::WriteAllText(
-    $resolvedOutputPath,
+    $outputFilePath,
     $plainText,
     [Text.UTF8Encoding]::new($true))
 
-Write-Host "Created SIDEY installer terms: $resolvedOutputPath"
+Write-Host "Created SIDEY installer terms: $outputFilePath"

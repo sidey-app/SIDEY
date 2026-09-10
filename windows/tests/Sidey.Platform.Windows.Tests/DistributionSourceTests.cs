@@ -62,7 +62,7 @@ public sealed class DistributionSourceTests
             (string?)element.Attribute("Name") == "OrganizeStructuredPublish");
         Assert.Equal("Publish", (string?)organize.Attribute("AfterTargets"));
         Assert.Contains(
-            "organize-publish.ps1",
+            "ConvertTo-PublishLayout.ps1",
             organize.Descendants("Exec").Single().Attribute("Command")?.Value,
             StringComparison.Ordinal);
     }
@@ -144,9 +144,9 @@ public sealed class DistributionSourceTests
     {
         string setup = ReadSetupScript();
         string package = File.ReadAllText(RepositoryPath(
-            "scripts", "windows", "package.ps1"));
+            "scripts", "windows", "New-WindowsInstaller.ps1"));
         string generator = File.ReadAllText(RepositoryPath(
-            "scripts", "windows", "generate-installer-terms.ps1"));
+            "scripts", "windows", "New-InstallerTerms.ps1"));
 
         Assert.Contains("MUI_LICENSEPAGE_CHECKBOX", setup, StringComparison.Ordinal);
         Assert.Contains("MUI_LICENSEPAGE_CHECKBOX_TEXT \"$(AcceptTerms)\"", setup, StringComparison.Ordinal);
@@ -155,7 +155,7 @@ public sealed class DistributionSourceTests
         Assert.Contains("LangString AcceptTerms ${LANG_KOREAN}", setup, StringComparison.Ordinal);
         Assert.Contains("Function TermsPagePre", setup, StringComparison.Ordinal);
         Assert.Contains("$InstallState == \"repair\"", setup, StringComparison.Ordinal);
-        Assert.Contains("generate-installer-terms.ps1", package, StringComparison.Ordinal);
+        Assert.Contains("New-InstallerTerms.ps1", package, StringComparison.Ordinal);
         Assert.Contains("/DTERMS_LICENSE_FILE=", package, StringComparison.Ordinal);
         Assert.Contains("termsBytes[0] -ne 0xEF", package, StringComparison.Ordinal);
         Assert.Contains("[Text.UTF8Encoding]::new($true, $true)", package, StringComparison.Ordinal);
@@ -263,7 +263,7 @@ public sealed class DistributionSourceTests
         Assert.Contains("WriteUninstaller \"$INSTDIR\\Uninstall.exe\"", setup, StringComparison.Ordinal);
 
         string organizer = File.ReadAllText(RepositoryPath(
-            "scripts", "windows", "organize-publish.ps1"));
+            "scripts", "windows", "ConvertTo-PublishLayout.ps1"));
         Assert.Contains("Uninstall.exe", organizer, StringComparison.Ordinal);
         Assert.Contains("/win32icon", organizer, StringComparison.OrdinalIgnoreCase);
     }
@@ -272,7 +272,7 @@ public sealed class DistributionSourceTests
     public void DistributionPipelineBuildsOnlyThePublicSetupExeWithoutSelfSigning()
     {
         string package = File.ReadAllText(RepositoryPath(
-            "scripts", "windows", "package.ps1"));
+            "scripts", "windows", "New-WindowsInstaller.ps1"));
 
         Assert.Contains("$throwableDirectory.Name -eq 'throwable_toy_cannon'", package, StringComparison.Ordinal);
         Assert.Contains("@('emitter.bgra', 'emitter.png', 'preview.png')", package, StringComparison.Ordinal);
@@ -304,7 +304,7 @@ public sealed class DistributionSourceTests
             "windows", "installer", "Sidey.Msi", "Sidey.Msi.wixproj")));
 
         string organizer = File.ReadAllText(RepositoryPath(
-            "scripts", "windows", "organize-publish.ps1"));
+            "scripts", "windows", "ConvertTo-PublishLayout.ps1"));
         string launcher = File.ReadAllText(RepositoryPath(
             "windows", "src", "Sidey.Launcher", "Program.cs"));
         Assert.Contains("SIDEY.Host.exe", organizer, StringComparison.Ordinal);
@@ -360,10 +360,10 @@ public sealed class DistributionSourceTests
         Assert.Contains("--self-contained false", workflow, StringComparison.Ordinal);
         Assert.Contains("-p:WindowsAppSDKSelfContained=false", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("--self-contained true", workflow, StringComparison.Ordinal);
-        Assert.Contains("test-prerequisites.ps1", workflow, StringComparison.Ordinal);
-        int verification = workflow.IndexOf("verify-framework-publish.ps1", StringComparison.Ordinal);
+        Assert.Contains("Test-RuntimePrerequisites.ps1", workflow, StringComparison.Ordinal);
+        int verification = workflow.IndexOf("Test-FrameworkDependentPublish.ps1", StringComparison.Ordinal);
         int prerequisites = workflow.IndexOf("SetupRuntime.ps1", StringComparison.Ordinal);
-        int smoke = workflow.IndexOf("smoke-launch.ps1", StringComparison.Ordinal);
+        int smoke = workflow.IndexOf("Test-PublishedApplication.ps1", StringComparison.Ordinal);
         Assert.True(verification >= 0 && prerequisites > verification && smoke > prerequisites);
     }
 

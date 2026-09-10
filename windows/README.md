@@ -31,7 +31,7 @@ UI는 Supabase DTO, Credential Manager, HWND를 직접 소유하지 않습니다
 
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
-pwsh ./scripts/windows/test.ps1
+./scripts/windows/Test-WindowsBuild.ps1
 dotnet build ./windows/SIDEY.Windows.slnx -c Release
 ```
 
@@ -72,7 +72,7 @@ dotnet run --project ./windows/src/Sidey.App/Sidey.App.csproj --configuration De
 6. 화면 잠금·해제, 절전·복귀, 장시간 유휴 후에도 렌더러와 Presence가 복귀하는지 봅니다.
 7. JSON에 시간이 계속 늘어나는 sample이 남고, warm-up 후 working set 20MB 초과 증가·GDI/USER handle 지속 증가·100ms 이상 frame hang이 없는지 봅니다.
 
-문제 보고에는 `test.ps1` 전체 출력, OS build, DPI/모니터, 영역 프리셋, 계측 JSON, 화면 녹화를 포함합니다. 별도로 12명 2시간·20노드 30분 장시간 테스트와 macOS↔Windows 양방향 계약 검증도 사용자가 수행하고 결과를 제공해야 합니다.
+문제 보고에는 `Test-WindowsBuild.ps1` 전체 출력, OS build, DPI/모니터, 영역 프리셋, 계측 JSON, 화면 녹화를 포함합니다. 별도로 12명 2시간·20노드 30분 장시간 테스트와 macOS↔Windows 양방향 계약 검증도 사용자가 수행하고 결과를 제공해야 합니다.
 
 ## Setup EXE 생성과 정식 배포
 
@@ -88,9 +88,9 @@ dotnet publish ./windows/src/Sidey.App/Sidey.App.csproj `
   -p:WindowsAppSDKSelfContained=false -p:PublishSingleFile=false -p:Version=$sideyVersion `
   -o ./build/windows/publish
 
-pwsh ./scripts/windows/package.ps1 `
-  -PublishDir ./build/windows/publish `
-  -OutDir ./build/windows/artifacts `
+./scripts/windows/New-WindowsInstaller.ps1 `
+  -PublishDirectory ./build/windows/publish `
+  -OutputDirectory ./build/windows/artifacts `
   -Version $sideyVersion
 ```
 
@@ -105,9 +105,9 @@ Windows와 macOS는 같은 GitHub 저장소를 사용하지만 릴리스 주기�
 ```powershell
 $sideyVersion = [string](Get-Content ./release/windows.json -Raw | ConvertFrom-Json).version
 
-./scripts/windows/verify-release.ps1 `
+./scripts/windows/Test-WindowsRelease.ps1 `
   -Version $sideyVersion `
-  -CandidateSetup "./build/windows/artifacts/SIDEY-Windows-x64-v$sideyVersion-Setup.exe"
+  -CandidateSetupPath "./build/windows/artifacts/SIDEY-Windows-x64-v$sideyVersion-Setup.exe"
 ```
 
 이 명령은 실제 GitHub 정식 Release에서 다시 받은 Setup EXE의 hash를 로컬 후보와 비교합니다. 웹사이트 다운로드 버튼과 업데이트 manifest의 갱신은 정식 배포 후 Pages가 검증·생성한 산출물로 수행합니다.

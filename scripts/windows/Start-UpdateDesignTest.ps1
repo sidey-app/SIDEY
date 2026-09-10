@@ -1,14 +1,18 @@
+#requires -Version 5.1
+
 [CmdletBinding()]
 param(
-    [string]$TestVersion = '1.0.9',
+    [Parameter(Mandatory = $true)]
+    [string]$TestVersion,
 
     [switch]$BuildOnly
 )
 
+Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
-$PSNativeCommandUseErrorActionPreference = $true
-$repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$releaseManifestPath = Join-Path $repositoryRoot 'release/windows.json'
+Import-Module (Join-Path $PSScriptRoot 'Sidey.PowerShell.psm1') -Force
+$repositoryRootPath = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+$releaseManifestPath = Join-Path $repositoryRootPath 'release/windows.json'
 $releaseManifest = Get-Content -LiteralPath $releaseManifestPath -Raw | ConvertFrom-Json
 $publicVersion = [Version]$releaseManifest.version
 
@@ -19,10 +23,10 @@ if ([Version]$TestVersion -ge $publicVersion) {
     throw "테스트 버전은 공개 Windows 버전 $publicVersion 보다 낮아야 합니다."
 }
 
-$publishDirectory = Join-Path $repositoryRoot 'build/windows/update-design-test'
-$hostExecutable = Join-Path $publishDirectory 'Runtime/SIDEY.Host.exe'
-$hostAssembly = Join-Path $publishDirectory 'Runtime/SIDEY.Host.dll'
-$launcherExecutable = Join-Path $publishDirectory 'SIDEY.exe'
+$publishDirectory = Join-Path $repositoryRootPath 'build/windows/update-design-test'
+$hostExecutablePath = Join-Path $publishDirectory 'Runtime/SIDEY.Host.exe'
+$hostAssemblyPath = Join-Path $publishDirectory 'Runtime/SIDEY.Host.dll'
+$launcherExecutablePath = Join-Path $publishDirectory 'SIDEY.exe'
 $runningHosts = @(Get-Process -Name 'SIDEY.Host' -ErrorAction SilentlyContinue)
 if (-not $BuildOnly -and $runningHosts.Count -gt 0) {
     $runningPaths = $runningHosts |
@@ -32,18 +36,24 @@ if (-not $BuildOnly -and $runningHosts.Count -gt 0) {
     throw "실행 중인 SIDEY를 먼저 종료해 주세요: $($runningPaths -join ', ')"
 }
 
-dotnet publish (Join-Path $repositoryRoot 'windows/src/Sidey.App/Sidey.App.csproj') `
-    --configuration Release `
-    --runtime win-x64 `
-    --self-contained false `
-    -p:WindowsAppSDKSelfContained=false `
-    -p:PublishSingleFile=false `
-    "-p:Version=$TestVersion" `
-    "-p:FileVersion=$TestVersion.0" `
-    "-p:AssemblyVersion=$TestVersion.0" `
-    --output $publishDirectory
+Invoke-SideyNativeCommand `
+    -FilePath 'dotnet' `
+    -ArgumentList @(
+        'publish',
+        (Join-Path $repositoryRootPath 'windows/src/Sidey.App/Sidey.App.csproj'),
+        '--configuration', 'Release',
+        '--runtime', 'win-x64',
+        '--self-contained', 'false',
+        '-p:WindowsAppSDKSelfContained=false',
+        '-p:PublishSingleFile=false',
+        "-p:Version=$TestVersion",
+        "-p:FileVersion=$TestVersion.0",
+        "-p:AssemblyVersion=$TestVersion.0",
+        '--output', $publishDirectory
+    ) `
+    -Description 'Update design test publish'
 
-$publishedVersion = [Reflection.AssemblyName]::GetAssemblyName($hostAssembly).Version.ToString(3)
+$publishedVersion = [Reflection.AssemblyName]::GetAssemblyName($hostAssemblyPath).Version.ToString(3)
 if ($publishedVersion -ne $TestVersion) {
     throw "테스트 빌드 버전이 일치하지 않습니다: $publishedVersion / $TestVersion"
 }
@@ -55,12 +65,18 @@ if ($BuildOnly) {
     return
 }
 
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
-    -File (Join-Path $repositoryRoot 'windows/installer/Sidey.Setup/SetupRuntime.ps1')
-if ($LASTEXITCODE -ne 0) { throw 'Runtime prerequisites are not ready.' }
+Invoke-SideyNativeCommand `
+    -FilePath 'powershell.exe' `
+    -ArgumentList @(
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy', 'Bypass',
+        '-File', (Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup/SetupRuntime.ps1')
+    ) `
+    -Description 'Runtime prerequisite setup'
 
 $firstLaunch = Start-Process `
-    -FilePath $launcherExecutable `
+    -FilePath $launcherExecutablePath `
     -WorkingDirectory $publishDirectory `
     -PassThru
 $firstLaunch.WaitForExit()
@@ -75,7 +91,7 @@ while ($null -eq $hostProcess -and [DateTimeOffset]::UtcNow -lt $deadline) {
         Where-Object {
             [string]::Equals(
                 $_.Path,
-                $hostExecutable,
+                $hostExecutablePath,
                 [StringComparison]::OrdinalIgnoreCase)
         } |
         Select-Object -First 1
@@ -113,7 +129,7 @@ if (-not $startupComplete) {
 }
 
 $showSettings = Start-Process `
-    -FilePath $launcherExecutable `
+    -FilePath $launcherExecutablePath `
     -WorkingDirectory $publishDirectory `
     -PassThru
 $showSettings.WaitForExit()

@@ -1,28 +1,32 @@
+#requires -Version 5.1
+
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [string]$PublishDir,
+    [string]$PublishDirectory,
 
     [Parameter(Mandatory = $true)]
-    [string]$OutDir,
+    [string]$OutputDirectory,
 
-    [string]$Version = '1.0.8',
+    [Parameter(Mandatory = $true)]
+    [string]$Version,
 
     [string]$MakensisPath
 )
 
+Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
-$PSNativeCommandUseErrorActionPreference = $true
-$repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$resolvedPublishDir = (Resolve-Path -LiteralPath $PublishDir).Path
-$resolvedOutDir = [System.IO.Path]::GetFullPath($OutDir)
-$executable = Join-Path $resolvedPublishDir 'SIDEY.exe'
-$uninstaller = Join-Path $resolvedPublishDir 'Uninstall.exe'
-$runtimeDir = Join-Path $resolvedPublishDir 'Runtime'
-$hostExecutable = Join-Path $runtimeDir 'SIDEY.Host.exe'
-$legacyExecutable = Join-Path $resolvedPublishDir 'Sidey.App.exe'
-$setupScript = Join-Path $repositoryRoot 'windows/installer/Sidey.Setup/Sidey.Setup.nsi'
-& (Join-Path $PSScriptRoot 'verify-framework-publish.ps1') -PublishDir $resolvedPublishDir
+Import-Module (Join-Path $PSScriptRoot 'Sidey.PowerShell.psm1') -Force
+$repositoryRootPath = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+$publishDirectoryPath = (Resolve-Path -LiteralPath $PublishDirectory).Path
+$outputDirectoryPath = [System.IO.Path]::GetFullPath($OutputDirectory)
+$launcherExecutablePath = Join-Path $publishDirectoryPath 'SIDEY.exe'
+$uninstallerPath = Join-Path $publishDirectoryPath 'Uninstall.exe'
+$runtimeDirectory = Join-Path $publishDirectoryPath 'Runtime'
+$hostExecutablePath = Join-Path $runtimeDirectory 'SIDEY.Host.exe'
+$legacyExecutablePath = Join-Path $publishDirectoryPath 'Sidey.App.exe'
+$setupScriptPath = Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup/Sidey.Setup.nsi'
+& (Join-Path $PSScriptRoot 'Test-FrameworkDependentPublish.ps1') -PublishDirectory $publishDirectoryPath
 
 function Get-SideyRelativePath {
     param(
@@ -49,35 +53,35 @@ function Get-SideyRelativePath {
         [System.IO.Path]::DirectorySeparatorChar)
 }
 
-if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
-    throw "게시 폴더에 SIDEY.exe가 없음: $resolvedPublishDir"
+if (-not (Test-Path -LiteralPath $launcherExecutablePath -PathType Leaf)) {
+    throw "게시 폴더에 SIDEY.exe가 없음: $publishDirectoryPath"
 }
-if (-not (Test-Path -LiteralPath $uninstaller -PathType Leaf)) {
-    throw "Published Uninstall.exe is missing: $resolvedPublishDir"
+if (-not (Test-Path -LiteralPath $uninstallerPath -PathType Leaf)) {
+    throw "Published Uninstall.exe is missing: $publishDirectoryPath"
 }
-if (-not (Test-Path -LiteralPath $hostExecutable -PathType Leaf)) {
-    throw "게시 폴더에 Runtime/SIDEY.Host.exe가 없음: $resolvedPublishDir"
+if (-not (Test-Path -LiteralPath $hostExecutablePath -PathType Leaf)) {
+    throw "게시 폴더에 Runtime/SIDEY.Host.exe가 없음: $publishDirectoryPath"
 }
-if (Test-Path -LiteralPath $legacyExecutable -PathType Leaf) {
+if (Test-Path -LiteralPath $legacyExecutablePath -PathType Leaf) {
     throw '게시 진입점 이름이 아직 Sidey.App.exe임. SIDEY.exe 하나로 통일해야 함.'
 }
 
-$deployableFiles = @(Get-ChildItem -LiteralPath $resolvedPublishDir -Recurse -File |
+$deployableFiles = @(Get-ChildItem -LiteralPath $publishDirectoryPath -Recurse -File |
     Where-Object { $_.Extension -ne '.pdb' })
-$characterAssetRoot = Join-Path $resolvedPublishDir 'Assets/Characters'
-$throwableAssetRoot = Join-Path $resolvedPublishDir 'Assets/Throwables'
-$iconRoot = Join-Path $resolvedPublishDir 'Assets/Icons'
-$languageRoot = Join-Path $resolvedPublishDir 'Langs'
+$characterAssetDirectory = Join-Path $publishDirectoryPath 'Assets/Characters'
+$throwableAssetDirectory = Join-Path $publishDirectoryPath 'Assets/Throwables'
+$iconDirectory = Join-Path $publishDirectoryPath 'Assets/Icons'
+$languageDirectory = Join-Path $publishDirectoryPath 'Langs'
 $requiredSideyBinaries = @(
-    $executable,
-    $uninstaller,
-    $hostExecutable,
-    (Join-Path $runtimeDir 'SIDEY.Host.dll'),
-    (Join-Path $runtimeDir 'Sidey.Core.dll'),
-    (Join-Path $runtimeDir 'Sidey.Infrastructure.dll'),
-    (Join-Path $runtimeDir 'Sidey.Overlay.dll'),
-    (Join-Path $runtimeDir 'Sidey.Platform.Windows.dll'),
-    (Join-Path $runtimeDir 'Sidey.Presentation.dll')
+    $launcherExecutablePath,
+    $uninstallerPath,
+    $hostExecutablePath,
+    (Join-Path $runtimeDirectory 'SIDEY.Host.dll'),
+    (Join-Path $runtimeDirectory 'Sidey.Core.dll'),
+    (Join-Path $runtimeDirectory 'Sidey.Infrastructure.dll'),
+    (Join-Path $runtimeDirectory 'Sidey.Overlay.dll'),
+    (Join-Path $runtimeDirectory 'Sidey.Platform.Windows.dll'),
+    (Join-Path $runtimeDirectory 'Sidey.Presentation.dll')
 )
 $missingBinaries = @($requiredSideyBinaries | Where-Object {
     -not (Test-Path -LiteralPath $_ -PathType Leaf)
@@ -96,22 +100,22 @@ foreach ($name in @(
     'Runtime')) {
     [void]$allowedRootNames.Add($name)
 }
-$unexpectedRootItems = @(Get-ChildItem -LiteralPath $resolvedPublishDir -Force |
+$unexpectedRootItems = @(Get-ChildItem -LiteralPath $publishDirectoryPath -Force |
     Where-Object { -not $allowedRootNames.Contains($_.Name) })
 if ($unexpectedRootItems.Count -gt 0) {
     throw "Unexpected item at the publish root: $($unexpectedRootItems.Name -join ', ')"
 }
-foreach ($directory in @($characterAssetRoot, $throwableAssetRoot, $iconRoot, $languageRoot)) {
+foreach ($directory in @($characterAssetDirectory, $throwableAssetDirectory, $iconDirectory, $languageDirectory)) {
     if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
         throw "Required publish directory is missing: $directory"
     }
 }
 
-$sourceIconRoot = Join-Path $repositoryRoot 'windows/src/Sidey.App/Assets/Icons'
-$sourceIconNames = @(Get-ChildItem -LiteralPath $sourceIconRoot -File |
+$sourceIconDirectory = Join-Path $repositoryRootPath 'windows/src/Sidey.App/Assets/Icons'
+$sourceIconNames = @(Get-ChildItem -LiteralPath $sourceIconDirectory -File |
     Select-Object -ExpandProperty Name |
     Sort-Object)
-$publishedIconNames = @(Get-ChildItem -LiteralPath $iconRoot -File |
+$publishedIconNames = @(Get-ChildItem -LiteralPath $iconDirectory -File |
     Select-Object -ExpandProperty Name |
     Sort-Object)
 if ($sourceIconNames.Count -eq 0 -or
@@ -120,9 +124,9 @@ if ($sourceIconNames.Count -eq 0 -or
 }
 
 $legacyAssetDirectories = @(
-    (Join-Path $resolvedPublishDir 'Assets/Character'),
-    (Join-Path $resolvedPublishDir 'Assets/Throwable'),
-    (Join-Path $resolvedPublishDir 'Assets/CharacterThrow')
+    (Join-Path $publishDirectoryPath 'Assets/Character'),
+    (Join-Path $publishDirectoryPath 'Assets/Throwable'),
+    (Join-Path $publishDirectoryPath 'Assets/CharacterThrow')
 )
 $presentLegacyAssetDirectories = @($legacyAssetDirectories | Where-Object {
     Test-Path -LiteralPath $_ -PathType Container
@@ -131,14 +135,14 @@ if ($presentLegacyAssetDirectories.Count -gt 0) {
     throw "Legacy character asset directories remain in the publish output: $($presentLegacyAssetDirectories -join ', ')"
 }
 
-$characterAssetFiles = @(Get-ChildItem -LiteralPath $characterAssetRoot -Recurse -File)
+$characterAssetFiles = @(Get-ChildItem -LiteralPath $characterAssetDirectory -Recurse -File)
 $manifests = @($characterAssetFiles | Where-Object { $_.Name -eq 'manifest.json' })
-$sourceCharacterAssetRoot = Join-Path $repositoryRoot 'windows/src/Sidey.Overlay/Assets/Characters'
-$sourceManifestNames = @(Get-ChildItem -LiteralPath $sourceCharacterAssetRoot -Filter 'manifest.json' -Recurse -File |
-    ForEach-Object { Get-SideyRelativePath $sourceCharacterAssetRoot $_.FullName } |
+$sourceCharacterAssetDirectory = Join-Path $repositoryRootPath 'windows/src/Sidey.Overlay/Assets/Characters'
+$sourceManifestNames = @(Get-ChildItem -LiteralPath $sourceCharacterAssetDirectory -Filter 'manifest.json' -Recurse -File |
+    ForEach-Object { Get-SideyRelativePath $sourceCharacterAssetDirectory $_.FullName } |
     Sort-Object)
 $publishedManifestNames = @($manifests |
-    ForEach-Object { Get-SideyRelativePath $characterAssetRoot $_.FullName } |
+    ForEach-Object { Get-SideyRelativePath $characterAssetDirectory $_.FullName } |
     Sort-Object)
 if ($sourceManifestNames.Count -eq 0 -or
     @(Compare-Object $sourceManifestNames $publishedManifestNames).Count -gt 0) {
@@ -156,11 +160,11 @@ foreach ($manifest in $manifests) {
         throw "캐릭터 폴더 이름과 character_id가 일치하지 않음: $($manifest.FullName)"
     }
     foreach ($name in @('base.png', 'base.bgra', 'throw_hit.png', 'throw_hit.bgra', 'manifest.json')) {
-        $path = Join-Path $manifest.Directory.FullName $name
-        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        $requiredAssetPath = Join-Path $manifest.Directory.FullName $name
+        if (-not (Test-Path -LiteralPath $requiredAssetPath -PathType Leaf)) {
             throw "캐릭터 외부 에셋이 누락됨: $characterId/$name"
         }
-        [void]$expectedAssets.Add([System.IO.Path]::GetFullPath($path))
+        [void]$expectedAssets.Add([System.IO.Path]::GetFullPath($requiredAssetPath))
     }
 }
 $unexpectedCharacterAssets = @($characterAssetFiles | Where-Object {
@@ -171,18 +175,18 @@ if ($unexpectedCharacterAssets.Count -gt 0 -or
     throw '캐릭터 외부 에셋에는 base/throw_hit PNG·BGRA와 manifest 세트만 둘 수 있음'
 }
 
-$sourceThrowableAssetRoot = Join-Path $repositoryRoot 'windows/src/Sidey.Overlay/Assets/Throwables'
-$sourceThrowableFiles = @(Get-ChildItem -LiteralPath $sourceThrowableAssetRoot -Recurse -File |
-    ForEach-Object { Get-SideyRelativePath $sourceThrowableAssetRoot $_.FullName } |
+$sourceThrowableAssetDirectory = Join-Path $repositoryRootPath 'windows/src/Sidey.Overlay/Assets/Throwables'
+$sourceThrowableFiles = @(Get-ChildItem -LiteralPath $sourceThrowableAssetDirectory -Recurse -File |
+    ForEach-Object { Get-SideyRelativePath $sourceThrowableAssetDirectory $_.FullName } |
     Sort-Object)
-$publishedThrowableFiles = @(Get-ChildItem -LiteralPath $throwableAssetRoot -Recurse -File |
-    ForEach-Object { Get-SideyRelativePath $throwableAssetRoot $_.FullName } |
+$publishedThrowableFiles = @(Get-ChildItem -LiteralPath $throwableAssetDirectory -Recurse -File |
+    ForEach-Object { Get-SideyRelativePath $throwableAssetDirectory $_.FullName } |
     Sort-Object)
 if ($sourceThrowableFiles.Count -eq 0 -or
     @(Compare-Object $sourceThrowableFiles $publishedThrowableFiles).Count -gt 0) {
     throw '소스와 게시 폴더의 투척물 에셋 목록이 일치하지 않음'
 }
-foreach ($throwableDirectory in @(Get-ChildItem -LiteralPath $throwableAssetRoot -Directory)) {
+foreach ($throwableDirectory in @(Get-ChildItem -LiteralPath $throwableAssetDirectory -Directory)) {
     $fileNames = @(Get-ChildItem -LiteralPath $throwableDirectory.FullName -File |
         Select-Object -ExpandProperty Name |
         Sort-Object)
@@ -199,7 +203,7 @@ foreach ($throwableDirectory in @(Get-ChildItem -LiteralPath $throwableAssetRoot
 if ($Version -notmatch '^\d+\.\d+\.\d+$') {
     throw "Windows 정식 버전은 숫자 세 부분이어야 함: $Version"
 }
-$publishedVersionInfo = (Get-Item -LiteralPath $hostExecutable).VersionInfo
+$publishedVersionInfo = (Get-Item -LiteralPath $hostExecutablePath).VersionInfo
 if (-not $publishedVersionInfo.ProductVersion.StartsWith(
     $Version,
     [StringComparison]::OrdinalIgnoreCase)) {
@@ -211,18 +215,18 @@ if (-not $publishedVersionInfo.FileVersion.StartsWith(
     throw "Published SIDEY.Host.exe file version does not match: $($publishedVersionInfo.FileVersion) / $Version"
 }
 
-[IO.Directory]::CreateDirectory($resolvedOutDir) | Out-Null
-$internalDir = Join-Path $resolvedOutDir 'internal/setup-build'
-[IO.Directory]::CreateDirectory($internalDir) | Out-Null
-$languageSelector = Join-Path $internalDir 'language/Sidey.SetupLanguage.exe'
-$termsSource = Join-Path $repositoryRoot 'website/src/pages/ko/terms.md'
-$termsGenerator = Join-Path $repositoryRoot 'scripts/windows/generate-installer-terms.ps1'
-$termsLicenseFile = Join-Path $internalDir 'SideyTerms.txt'
-& $termsGenerator -SourceMarkdown $termsSource -OutputPath $termsLicenseFile
-if (-not (Test-Path -LiteralPath $termsLicenseFile -PathType Leaf)) {
+[IO.Directory]::CreateDirectory($outputDirectoryPath) | Out-Null
+$installerBuildDirectory = Join-Path $outputDirectoryPath 'internal/setup-build'
+[IO.Directory]::CreateDirectory($installerBuildDirectory) | Out-Null
+$languageSelectorPath = Join-Path $installerBuildDirectory 'language/Sidey.SetupLanguage.exe'
+$termsSourcePath = Join-Path $repositoryRootPath 'website/src/pages/ko/terms.md'
+$termsGeneratorPath = Join-Path $PSScriptRoot 'New-InstallerTerms.ps1'
+$termsLicenseFilePath = Join-Path $installerBuildDirectory 'SideyTerms.txt'
+& $termsGeneratorPath -SourceMarkdownPath $termsSourcePath -OutputPath $termsLicenseFilePath
+if (-not (Test-Path -LiteralPath $termsLicenseFilePath -PathType Leaf)) {
     throw 'SIDEY installer terms file was not generated.'
 }
-$termsBytes = [IO.File]::ReadAllBytes($termsLicenseFile)
+$termsBytes = [IO.File]::ReadAllBytes($termsLicenseFilePath)
 if ($termsBytes.Length -lt 3 -or
     $termsBytes[0] -ne 0xEF -or
     $termsBytes[1] -ne 0xBB -or
@@ -259,19 +263,29 @@ $resolvedMakensisPath = $makensisCandidates |
 if ([string]::IsNullOrWhiteSpace($resolvedMakensisPath)) {
     throw 'NSIS 3.12 or newer is required. Install NSIS.NSIS or pass -MakensisPath.'
 }
-$makensisVersionText = (& $resolvedMakensisPath /VERSION | Out-String).Trim()
-if ($LASTEXITCODE -ne 0 -or
-    $makensisVersionText -notmatch '^v?(?<version>\d+\.\d+(?:\.\d+)?)$') {
+$makensisVersionText = (Invoke-SideyNativeCommand `
+    -FilePath $resolvedMakensisPath `
+    -ArgumentList @('/VERSION') `
+    -Description 'NSIS compiler version check' | Out-String).Trim()
+if ($makensisVersionText -notmatch '^v?(?<version>\d+\.\d+(?:\.\d+)?)$') {
     throw "Unable to read the NSIS compiler version: $makensisVersionText"
 }
 $makensisVersion = [Version]::Parse($Matches.version)
 if ($makensisVersion -lt [Version]'3.12') {
     throw "NSIS 3.12 or newer is required. Found $makensisVersion."
 }
-powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass `
-    -File (Join-Path $PSScriptRoot 'build-installer-language.ps1') -OutputPath $languageSelector `
-    -NsisDirectory (Split-Path -Parent $resolvedMakensisPath)
-if ($LASTEXITCODE -ne 0) { throw 'Installer language selector build failed.' }
+Invoke-SideyNativeCommand `
+    -FilePath 'powershell.exe' `
+    -ArgumentList @(
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy', 'Bypass',
+        '-File', (Join-Path $PSScriptRoot 'New-InstallerLanguageSelector.ps1'),
+        '-OutputPath', $languageSelectorPath,
+        '-NsisDirectory', (Split-Path -Parent $resolvedMakensisPath)
+    ) `
+    -Description 'Installer language selector build'
 
 function ConvertTo-NsisLiteral {
     param([Parameter(Mandatory = $true)][string]$Value)
@@ -280,17 +294,17 @@ function ConvertTo-NsisLiteral {
 }
 
 $payloadFiles = @($deployableFiles | Where-Object {
-    $_.FullName -ne $uninstaller
+    $_.FullName -ne $uninstallerPath
 })
-$installInclude = Join-Path $internalDir 'SideyPayloadInstall.nsh'
-$uninstallInclude = Join-Path $internalDir 'SideyPayloadUninstall.nsh'
+$installInclude = Join-Path $installerBuildDirectory 'SideyPayloadInstall.nsh'
+$uninstallInclude = Join-Path $installerBuildDirectory 'SideyPayloadUninstall.nsh'
 $installLines = [Collections.Generic.List[string]]::new()
 $uninstallLines = [Collections.Generic.List[string]]::new()
 $payloadDirectories = [Collections.Generic.HashSet[string]]::new(
     [StringComparer]::OrdinalIgnoreCase)
 
 foreach ($file in $payloadFiles) {
-    $relativePath = Get-SideyRelativePath $resolvedPublishDir $file.FullName
+    $relativePath = Get-SideyRelativePath $publishDirectoryPath $file.FullName
     $relativeDirectory = Split-Path $relativePath -Parent
     $destination = '$INSTDIR'
     if (-not [string]::IsNullOrWhiteSpace($relativeDirectory)) {
@@ -316,36 +330,38 @@ if (@($installLines + $uninstallLines | Where-Object {
     throw 'Generated NSIS payload paths must expand $INSTDIR at runtime.'
 }
 
-$installLines | Set-Content -LiteralPath $installInclude -Encoding utf8
-$uninstallLines | Set-Content -LiteralPath $uninstallInclude -Encoding utf8
+$utf8WithoutBom = [Text.UTF8Encoding]::new($false)
+[IO.File]::WriteAllLines($installInclude, $installLines.ToArray(), $utf8WithoutBom)
+[IO.File]::WriteAllLines($uninstallInclude, $uninstallLines.ToArray(), $utf8WithoutBom)
 
-& $resolvedMakensisPath `
-    '/INPUTCHARSET' 'UTF8' `
-    "/DAPP_VERSION=$Version" `
-    "/DAPP_FILE_VERSION=$Version.0" `
-    "/DOUTPUT_DIR=$internalDir" `
-    "/DPUBLISH_DIR=$resolvedPublishDir" `
-    "/DPAYLOAD_INSTALL_INCLUDE=$installInclude" `
-    "/DPAYLOAD_UNINSTALL_INCLUDE=$uninstallInclude" `
-    "/DTERMS_LICENSE_FILE=$termsLicenseFile" `
-    "/DLANGUAGE_SELECTOR_EXE=$languageSelector" `
-    $setupScript
-if ($LASTEXITCODE -ne 0) {
-    throw 'SIDEY Setup EXE build failed.'
-}
+Invoke-SideyNativeCommand `
+    -FilePath $resolvedMakensisPath `
+    -ArgumentList @(
+        '/INPUTCHARSET', 'UTF8',
+        "/DAPP_VERSION=$Version",
+        "/DAPP_FILE_VERSION=$Version.0",
+        "/DOUTPUT_DIR=$installerBuildDirectory",
+        "/DPUBLISH_DIR=$publishDirectoryPath",
+        "/DPAYLOAD_INSTALL_INCLUDE=$installInclude",
+        "/DPAYLOAD_UNINSTALL_INCLUDE=$uninstallInclude",
+        "/DTERMS_LICENSE_FILE=$termsLicenseFilePath",
+        "/DLANGUAGE_SELECTOR_EXE=$languageSelectorPath",
+        $setupScriptPath
+    ) `
+    -Description 'SIDEY Setup EXE build'
 
-$builtSetupFiles = @(Get-ChildItem -LiteralPath $internalDir -Filter '*.exe' -File)
+$builtSetupFiles = @(Get-ChildItem -LiteralPath $installerBuildDirectory -Filter '*.exe' -File)
 if ($builtSetupFiles.Count -ne 1) {
     throw 'NSIS must produce exactly one Setup EXE.'
 }
 
 $setupName = "SIDEY-Windows-x64-v${Version}-Setup.exe"
-$setupPath = Join-Path $resolvedOutDir $setupName
-Copy-Item -LiteralPath $builtSetupFiles[0].FullName -Destination $setupPath -Force
-$hash = (Get-FileHash -LiteralPath $setupPath -Algorithm SHA256).Hash.ToLowerInvariant()
+$setupFilePath = Join-Path $outputDirectoryPath $setupName
+Copy-Item -LiteralPath $builtSetupFiles[0].FullName -Destination $setupFilePath -Force
+$hash = (Get-FileHash -LiteralPath $setupFilePath -Algorithm SHA256).Hash.ToLowerInvariant()
 $publishBytes = ($deployableFiles | Measure-Object -Property Length -Sum).Sum
 
 Write-Host "PublishLayout=structured framework-dependent; Files=$($deployableFiles.Count); Bytes=$publishBytes"
 Write-Host "NSIS=$makensisVersion"
-Write-Host "Created public Setup EXE $setupPath"
+Write-Host "Created public Setup EXE $setupFilePath"
 Write-Host "SHA256=$hash"
