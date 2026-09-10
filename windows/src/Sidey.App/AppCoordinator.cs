@@ -1663,7 +1663,14 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
     private async Task RefreshSnapshotAndSelectAsync(Guid roomId, CancellationToken cancellationToken)
     {
         await RefreshSnapshotAsync(cancellationToken);
-        await SwitchRoomAsync(roomId, cancellationToken);
+        // Selection completes the creation/join already in progress. Keep its
+        // mutation guard held; the public switch action correctly rejects it.
+        if (_roomSwitch is not null
+            && _state.ActiveRoomId != roomId
+            && _state.Rooms.Any(room => room.Id == roomId))
+        {
+            await _roomSwitch.RequestAsync(roomId, cancellationToken);
+        }
     }
 
     private void StartPreviewOverlay(AppPreferences preferences)

@@ -23,7 +23,9 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../../src/Sidey.App/AppCoordinator.cs" Link="AppCoordinator.cs" />
     <Compile Include="../../installer/Sidey.Setup/InstallerLanguages.cs" Link="InstallerLanguages.cs" />
+    <ProjectReference Include="../../src/Sidey.Presentation/Sidey.Presentation.csproj" />
     <ProjectReference Include="../../src/Sidey.Overlay/Sidey.Overlay.csproj" />
     <ProjectReference Include="../../src/Sidey.Infrastructure/Sidey.Infrastructure.csproj" />
     <ProjectReference Include="../../src/Sidey.Platform.Windows/Sidey.Platform.Windows.csproj" />
