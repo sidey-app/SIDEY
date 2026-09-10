@@ -167,9 +167,38 @@ private struct ActiveCharacterProjectile {
     let startPoint: CGPoint
     let inwardArcHeight: CGFloat
     var hasReleased = false
+    var playsSound = true
 }
 
 final class PixelWorldScene: SKScene {
+    private let clock: () -> TimeInterval
+    #if !APP_STORE
+    var onCharacterImpact: ((String, TimeInterval) -> Void)?
+    var onStopCharacterSounds: (() -> Void)?
+    private(set) var stunState = CharacterStunState()
+    private var stunRealtimeAvailable: Bool?
+
+    func useStunState(_ state: CharacterStunState, realtimeAvailable: Bool) {
+        stunState = state
+        if let previous = stunRealtimeAvailable, previous != realtimeAvailable {
+            resetStunState()
+            projectiles.forEach { $0.node.removeFromParent() }
+            projectiles.removeAll()
+            hitUntil.removeAll()
+        }
+        stunRealtimeAvailable = realtimeAvailable
+    }
+
+    func resetStunState() {
+        onStopCharacterSounds?()
+        stunState.reset()
+        for node in characterNodes.values { node.updateStun(startedAt: nil, time: clock()) }
+    }
+
+    func renderedStunStarCount(for id: UUID) -> Int {
+        characterNodes[id]?.stunStarCount ?? 0
+    }
+    #endif
     private let renderingConfiguration: PixelWorldRenderingConfiguration
     private var characterNodes: [UUID: PixelCharacterNode] = [:]
     private var agents: [UUID: PixelMovementAgent] = [:]
@@ -185,6 +214,10 @@ final class PixelWorldScene: SKScene {
     private var edge: OverlayEdge = .bottom
     private var activityFrame: CGRect?
     private var composerVisible = false
+    #if !APP_STORE
+    private var lifecycleObservers: [(NotificationCenter, NSObjectProtocol)] = []
+    private var suspendedReasons: Set<String> = []
+    #endif
     private var lastUpdateTime: TimeInterval?
     private var lastHotspotReportTime: TimeInterval = 0
     private var lastHotspotFrames: [UUID: CGRect] = [:]
@@ -195,14 +228,51 @@ final class PixelWorldScene: SKScene {
 
     init(
         size: CGSize,
-        renderingConfiguration: PixelWorldRenderingConfiguration = .live
+        renderingConfiguration: PixelWorldRenderingConfiguration = .live,
+        clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
     ) {
+        self.clock = clock
         self.renderingConfiguration = renderingConfiguration
         super.init(size: size)
         scaleMode = .resizeFill
         backgroundColor = .clear
         anchorPoint = .zero
+        #if !APP_STORE
+        let workspace = NSWorkspace.shared.notificationCenter
+        let distributed = DistributedNotificationCenter.default()
+        let events: [(NotificationCenter, Notification.Name, String, Bool)] = [
+            (workspace, NSWorkspace.willSleepNotification, "sleep", true),
+            (workspace, NSWorkspace.didWakeNotification, "sleep", false),
+            (workspace, NSWorkspace.screensDidSleepNotification, "display", true),
+            (workspace, NSWorkspace.screensDidWakeNotification, "display", false),
+            (workspace, NSWorkspace.sessionDidResignActiveNotification, "session", true),
+            (workspace, NSWorkspace.sessionDidBecomeActiveNotification, "session", false),
+            (distributed, Notification.Name("com.apple.screenIsLocked"), "lock", true),
+            (distributed, Notification.Name("com.apple.screenIsUnlocked"), "lock", false)
+        ]
+        for (center, name, reason, suspended) in events {
+            let token = center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.setSuspended(suspended, reason: reason) }
+            }
+            lifecycleObservers.append((center, token))
+        }
+        #endif
     }
+
+    #if !APP_STORE
+    isolated deinit {
+        for (center, token) in lifecycleObservers { center.removeObserver(token) }
+    }
+
+    func setSuspended(_ suspended: Bool, reason: String) {
+        if suspended { suspendedReasons.insert(reason) } else { suspendedReasons.remove(reason) }
+        resetStunState()
+        projectiles.forEach { $0.node.removeFromParent() }
+        projectiles.removeAll()
+        hitUntil.removeAll()
+        lastUpdateTime = nil
+    }
+    #endif
 
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
@@ -251,6 +321,9 @@ final class PixelWorldScene: SKScene {
         self.activityFrame = activityFrame
         self.composerVisible = composerVisible
         if roomChanged {
+            #if !APP_STORE
+            resetStunState()
+            #endif
             characterNodes.values.forEach { $0.removeFromParent() }
             characterNodes.removeAll()
             agents.removeAll()
@@ -267,6 +340,10 @@ final class PixelWorldScene: SKScene {
         for id in removedIDs {
             characterNodes.removeValue(forKey: id)?.removeFromParent()
             agents.removeValue(forKey: id)
+            hitUntil.removeValue(forKey: id)
+            #if !APP_STORE
+            stunState.remove(id)
+            #endif
         }
 
         members = requestedByID
@@ -335,9 +412,18 @@ final class PixelWorldScene: SKScene {
         let deltaTime = lastUpdateTime.map { currentTime - $0 } ?? (1.0 / 30.0)
         lastUpdateTime = currentTime
         hitUntil = hitUntil.filter { $0.value > currentTime }
-        let stoppedIDs = PixelMovementPolicy.stoppedMemberIDs(in: members.values)
+        #if !APP_STORE
+        stunState.advance(to: currentTime)
+        for (id, node) in characterNodes {
+            node.updateStun(startedAt: stunState.startedAt[id], time: currentTime)
+        }
+        #endif
+        var stoppedIDs = PixelMovementPolicy.stoppedMemberIDs(in: members.values)
             .union(renderingConfiguration.fixedTrackFractions.keys)
             .union(hitUntil.keys)
+        #if !APP_STORE
+        stoppedIDs.formUnion(stunState.startedAt.keys)
+        #endif
         let geometry = trackGeometry
         var orderedAgents = agents.values.sorted { $0.id.uuidString < $1.id.uuidString }
         PixelMovementSimulation.step(
@@ -483,6 +569,9 @@ final class PixelWorldScene: SKScene {
         memberID: UUID,
         at currentTime: TimeInterval = ProcessInfo.processInfo.systemUptime
     ) -> Bool {
+        #if !APP_STORE
+        guard !stunState.isStunned(memberID, at: currentTime) else { return false }
+        #endif
         guard renderingConfiguration.allowsLocalPreviewEvents,
               let node = characterNodes[memberID],
               currentTime - (lastLocalPulseTimes[memberID] ?? -.infinity) >= 1
@@ -512,13 +601,19 @@ final class PixelWorldScene: SKScene {
             })?.key
     }
 
-    func playLocalPreviewThrow(_ event: CharacterThrowEvent) {
+    func playLocalPreviewThrow(_ event: CharacterThrowEvent, playsSound: Bool = true) {
         guard renderingConfiguration.allowsLocalPreviewEvents else { return }
-        beginThrow(event)
+        #if !APP_STORE
+        guard !stunState.isStunned(event.actorUserID, at: clock()) else { return }
+        #endif
+        beginThrow(event, playsSound: playsSound)
     }
 
     func cancelLocalPreviewPlayback() {
         guard renderingConfiguration.allowsLocalPreviewEvents else { return }
+        #if !APP_STORE
+        resetStunState()
+        #endif
         projectiles.forEach { $0.node.removeFromParent() }
         projectiles.removeAll()
         hitUntil.removeAll()
@@ -632,7 +727,7 @@ final class PixelWorldScene: SKScene {
         onCurrentUserFrameChanged?(currentID.flatMap { frames[$0] })
     }
 
-    private func beginThrow(_ event: CharacterThrowEvent) {
+    private func beginThrow(_ event: CharacterThrowEvent, playsSound: Bool = true) {
         guard !recentThrowEventIDSet.contains(event.id),
               event.actorUserID != event.targetUserID,
               characterNodes[event.actorUserID] != nil,
@@ -643,6 +738,10 @@ final class PixelWorldScene: SKScene {
         if recentThrowEventIDs.count > 256 {
             recentThrowEventIDSet.remove(recentThrowEventIDs.removeFirst())
         }
+        #if !APP_STORE
+        // Consume events received while locked so a later view update cannot replay them.
+        guard suspendedReasons.isEmpty else { return }
+        #endif
         characterNodes[event.actorUserID]?.playThrow(sourceCharacterID: event.sourceCharacterID)
         recordPreviewEvent(.throwStarted(event.actorUserID))
         guard projectiles.count < PixelCharacterThrowStyle.maximumActiveProjectiles,
@@ -671,10 +770,11 @@ final class PixelWorldScene: SKScene {
         projectiles.append(ActiveCharacterProjectile(
             event: event,
             node: projectileNode,
-            startedAt: ProcessInfo.processInfo.systemUptime,
+            startedAt: clock(),
             flightDuration: PixelCharacterThrowStyle.flightDuration(for: distance),
             startPoint: start,
-            inwardArcHeight: PixelCharacterThrowStyle.arcHeight(for: distance)
+            inwardArcHeight: PixelCharacterThrowStyle.arcHeight(for: distance),
+            playsSound: playsSound
         ))
     }
 
@@ -727,6 +827,22 @@ final class PixelWorldScene: SKScene {
                     throwableID: projectile.event.throwableID
                 )
                 recordPreviewEvent(.impact(projectile.event.targetUserID))
+                #if !APP_STORE
+                if projectile.playsSound, elapsed <= PixelCharacterThrowStyle.releaseDelay + projectile.flightDuration + 0.5 {
+                    onCharacterImpact?(PixelCharacterThrowCatalog.resolvedObjectID(
+                        for: projectile.event.sourceCharacterID, equippedObjectID: projectile.event.throwableID), currentTime)
+                }
+                let targetID = projectile.event.targetUserID
+                stunState.recordHit(targetID, at: currentTime)
+                if stunState.isStunned(targetID, at: currentTime) {
+                    hitUntil.removeValue(forKey: targetID)
+                    targetNode.updateStun(startedAt: stunState.startedAt[targetID], time: currentTime)
+                    if let member = members[targetID] {
+                        targetNode.updateMotion(member: member, moving: false, velocity: 0, edge: edge)
+                    }
+                    continue
+                }
+                #endif
                 if let target = members[projectile.event.targetUserID] {
                     hitUntil[projectile.event.targetUserID] = currentTime + PixelCharacterThrowStyle.hitDuration
                     targetNode.playHit(sourceCharacterID: target.characterID)
@@ -832,6 +948,34 @@ private final class PixelCharacterNode: SKNode {
     private(set) var hitPlayCount = 0
     private(set) var lastPulsePeakScale: CGFloat?
     private var sparkleEffect: PixelSparkleEffect?
+    #if !APP_STORE
+    private let stunEffect = PixelCharacterStunEffect()
+    private var stunStartedAt: TimeInterval?
+    private var stunElapsed: TimeInterval = 0
+    var stunStarCount: Int { stunStartedAt == nil ? 0 : 3 }
+
+    func updateStun(startedAt: TimeInterval?, time: TimeInterval) {
+        let changed = stunStartedAt != startedAt
+        stunStartedAt = startedAt
+        stunEffect.isHidden = startedAt == nil
+        if changed {
+            currentMotion = nil
+            actionUntil = 0
+            sprite.removeAction(forKey: Self.animationKey)
+        }
+        guard let startedAt else { return }
+        stunElapsed = max(0, time - startedAt)
+        if changed {
+            spritePulseAnchor.removeAction(forKey: Self.pulseAnimationKey)
+            spritePulseAnchor.setScale(1)
+            pulseSparkleLayer.removeAllActions()
+            pulseSparkleLayer.removeAllChildren()
+            setDozeVisible(false)
+            stopAmbientSparkles()
+        }
+        stunEffect.update(elapsed: stunElapsed, reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+    }
+    #endif
 
     var bubbleBody: String? {
         orderedMessageIDs.last.flatMap { messageBubbleNodes[$0]?.body }
@@ -894,6 +1038,9 @@ private final class PixelCharacterNode: SKNode {
         spritePulseAnchor.position = CGPoint(x: 0, y: -EdgeTrackGeometry.footInset)
         sprite.position = CGPoint(x: 0, y: EdgeTrackGeometry.footInset)
         presentation.addChild(spritePulseAnchor)
+        #if !APP_STORE
+        presentation.addChild(stunEffect)
+        #endif
         spritePulseAnchor.addChild(sprite)
         ambientSparkleLayer.zPosition = 8
         pulseSparkleLayer.zPosition = 9
@@ -988,6 +1135,9 @@ private final class PixelCharacterNode: SKNode {
     }
 
     func playPulse(peakScale: CGFloat = PixelCharacterPulseStyle.peakScale) {
+        #if !APP_STORE
+        guard stunStartedAt == nil else { return }
+        #endif
         pulsePlayCount += 1
         lastPulsePeakScale = peakScale
         spritePulseAnchor.removeAction(forKey: Self.pulseAnimationKey)
@@ -1002,6 +1152,9 @@ private final class PixelCharacterNode: SKNode {
     }
 
     func playThrow(sourceCharacterID: String) {
+        #if !APP_STORE
+        guard stunStartedAt == nil else { return }
+        #endif
         throwPlayCount += 1
         playActionFrames(
             PixelCharacterThrowTextureStore.shared.textures(for: sourceCharacterID).throwFrames,
@@ -1010,6 +1163,9 @@ private final class PixelCharacterNode: SKNode {
     }
 
     func playHit(sourceCharacterID: String) {
+        #if !APP_STORE
+        guard stunStartedAt == nil else { return }
+        #endif
         hitPlayCount += 1
         playActionFrames(
             PixelCharacterThrowTextureStore.shared.textures(for: sourceCharacterID).hitFrames,
@@ -1061,7 +1217,7 @@ private final class PixelCharacterNode: SKNode {
         velocity: CGFloat,
         edge: OverlayEdge
     ) {
-        let requested: PixelCharacterMotion
+        var requested: PixelCharacterMotion
         switch member.presence {
         case .away:
             requested = .doze
@@ -1083,8 +1239,23 @@ private final class PixelCharacterNode: SKNode {
             edge: edge,
             previousScale: sprite.xScale
         )
+        #if !APP_STORE
+        if stunStartedAt != nil { requested = .offline }
+        setDozeVisible(stunStartedAt == nil && member.presence == .away)
+        setAmbientSparklesActive(stunStartedAt == nil && PixelSparkleVisibilityPolicy.showsAmbient(for: member.presence))
+        if stunStartedAt != nil {
+            // Use the approved two sleeping frames without changing Presence tint or labels.
+            sprite.removeAction(forKey: Self.animationKey)
+            currentMotion = .offline
+            let frames = PixelCharacterTextureStore.shared.textures(for: characterID).offline
+            let index = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 0 : Int(stunElapsed / 1.2) % frames.count
+            sprite.texture = frames[index]
+            return
+        }
+        #else
         setDozeVisible(member.presence == .away)
         setAmbientSparklesActive(PixelSparkleVisibilityPolicy.showsAmbient(for: member.presence))
+        #endif
 
         guard ProcessInfo.processInfo.systemUptime >= actionUntil else { return }
         guard requested != currentMotion else { return }

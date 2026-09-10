@@ -4,6 +4,9 @@ import QuartzCore
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: AppCoordinator?
+    #if DEBUG && !APP_STORE
+    private var feedbackRoom: CharacterFeedbackDebugRoom?
+    #endif
     private let launchProbe = LaunchPerformanceProbe()
 #if APP_STORE
     private lazy var updateController = NoUpdateController()
@@ -19,6 +22,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             || NSClassFromString("XCTest.XCTestCase") != nil {
             return
         }
+        #if DEBUG && !APP_STORE
+        if ProcessInfo.processInfo.arguments.contains(CharacterFeedbackDebugRoom.launchArgument) {
+            NSApplication.shared.setActivationPolicy(.regular)
+            let room = CharacterFeedbackDebugRoom()
+            feedbackRoom = room
+            room.showWindow(nil)
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            return
+        }
+        #endif
         let releaseChannel = AppReleaseChannel.resolve()
         let coordinator: AppCoordinator
         if let suiteName = environment["SIDEY_PREFERENCES_SUITE"],
@@ -57,6 +70,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        #if DEBUG && !APP_STORE
+        if feedbackRoom != nil {
+            if feedbackRoom?.window?.isVisible != true { feedbackRoom = CharacterFeedbackDebugRoom() }
+            feedbackRoom?.showWindow(nil)
+            return false
+        }
+        #endif
         coordinator?.handleManualReopen(
             originatesFromOverlayInteraction: OverlayWindowIdentifier.isInteractionSource(
                 sender.currentEvent?.window?.identifier

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIDEY — 효과음과 기절 1차 검토</title>
+<link rel="stylesheet" href="review.css">
+<script defer src="review-data.js"></script>
+<script defer src="review.js"></script>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">SIDEY <span>DESIGN REVIEW · 01</span></p>
+    <h1>소리는 말랑하게.<br>기절은 별이 빙글빙글.</h1>
+    <p class="intro">말랑공과 확대 소리의 기준 톤, 햄스터 기절 모션을 함께 확인해 주세요.<br>번호를 골라도 자동 승인되지 않아요. 피드백을 받은 뒤 다음 시안을 만듭니다.</p>
+    <div class="tags"><span>직배포판 전용</span><span>10초 내 10회 → 6초 기절</span><span>보호 시간 없음</span><span>앱 적용 전 시안</span></div>
+  </header>
+  <section aria-labelledby="sound-heading">
+    <div class="section-heading"><div><p class="eyebrow">01 / SOUND</p><h2 id="sound-heading">직접 들어보고 골라 주세요</h2></div><button id="stop-all" class="secondary">모든 소리 정지</button></div>
+    <p class="section-note">한 번 듣기와 0.5초 간격으로 세 번 듣기를 제공합니다. 다른 후보를 재생하면 이전 소리는 멈춥니다.</p>
+    <p id="playback-status" class="status" role="status">재생 버튼을 눌러 주세요.</p>
+    <fieldset><legend>말랑공 피격음</legend><div id="hit-candidates" class="sound-grid"></div></fieldset>
+    <fieldset><legend>공통 확대음</legend><div id="grow-candidates" class="sound-grid"></div></fieldset>
+    <noscript>JavaScript를 켜면 후보별 재생 버튼을 사용할 수 있습니다. audio 폴더의 WAV도 직접 열 수 있습니다.</noscript>
+  </section>
+  <section aria-labelledby="visual-heading">
+    <div class="section-heading"><div><p class="eyebrow">02 / MOTION</p><h2 id="visual-heading">웅크린 햄스터와 노란 별</h2></div><span class="badge">시각 후보 V1</span></div>
+    <p class="section-note">기존 수면 두 프레임을 그대로 사용했습니다. 별 3개가 1.2초에 한 바퀴 돌아요. 아래 GIF는 소리가 없습니다.</p>
+    <div class="motion-grid">
+      <article class="visual-card"><h3>별의 회전</h3><img class="motion dark" src="visual/hamster-stun-orbit-v1.gif" alt="잠든 햄스터 위에서 노란 별 세 개가 타원으로 회전하는 반복 시안" width="384" height="252"><p>별 모양·높이·회전 속도를 확인해 주세요.</p></article>
+      <article class="visual-card"><h3>기절 시작부터 회복까지</h3><img class="motion light" src="visual/hamster-stun-timeline-v1.gif" alt="평소 모습에서 6초 기절한 뒤 바로 회복하는 햄스터 시안" width="384" height="252"><p>평소 0.6초 → 기절 6초 → 회복 0.6초.<br>카운트 UI나 추가 충격 연출은 없는 포즈 시안입니다.</p></article>
+    </div>
+    <details open><summary>PNG 원본과 배경별 비교</summary>
+      <div class="png-grid"><div><img class="proof" src="visual/hamster-stun-review-v1.png" alt="위는 밝은 배경, 아래는 어두운 배경. 각 배경의 왼쪽은 수면 첫 프레임, 오른쪽은 둘째 프레임" width="768" height="504"><p>밝은 배경 / 어두운 배경 · 수면 8번 / 9번 프레임 · 6배 확대</p></div>
+      <div class="asset-detail"><h3>별 픽셀 에셋</h3><img class="star" src="visual/star-v1-16x.png" alt="노란 별 7×7 픽셀 원본의 16배 확대" width="112" height="112"><p>7×7px · 투명 배경 · 그림자 없음</p><a href="visual/star-v1.png" download>별 원본 PNG</a><a href="visual/hamster-stun-review-v1.png" download>합성 비교 PNG</a><a href="visual/hamster-stun-frame-8-v1.png" download>첫 수면 프레임 PNG</a><a href="visual/hamster-stun-frame-9-v1.png" download>둘째 수면 프레임 PNG</a><h3>실제 2배 표시 크기</h3><img class="actual-size" src="visual/hamster-stun-orbit-v1.gif" alt="캐릭터 시트가 화면에서 48픽셀 크기로 표시될 때의 기절 시안" width="128" height="84"></div></div>
+    </details>
+  </section>
+  <section class="feedback" aria-labelledby="feedback-heading"><p class="eyebrow">03 / FEEDBACK</p><h2 id="feedback-heading">소리와 기절 시안, 각각 의견을 주세요</h2>
+    <p>선택한 후보 번호와 함께 “별이 더 작았으면”, “소리가 조금 더 낮았으면”처럼 적어 주시면 됩니다. 이 페이지의 선택은 승인 기록으로 저장되지 않습니다.</p>
+    <label for="visual-feedback">기절 PNG·회전 피드백</label><textarea id="visual-feedback" rows="3" placeholder="예: 별을 조금 작게, 회전은 지금 속도 유지"></textarea>
+    <button id="prepare-feedback">선택과 피드백 정리</button><textarea id="feedback-result" rows="4" readonly aria-label="채팅에 전달할 피드백" placeholder="정리 버튼을 누른 뒤 내용을 복사해서 채팅으로 보내 주세요."></textarea>
+  </section>
+  <footer>SIDEY · 1차 검토 후보 · WAV와 PNG는 승인 전까지 앱에 포함하지 않습니다.</footer>
+</main>
+</body>
+</html>

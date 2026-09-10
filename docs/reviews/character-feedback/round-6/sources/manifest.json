@@ -1,0 +1,46 @@
+{
+  "sources": [
+    {
+      "id": "mouth-573153",
+      "title": "Mouth pop",
+      "author": "fleurescence",
+      "page_url": "https://freesound.org/people/fleurescence/sounds/573153/",
+      "download_url": "https://cdn.freesound.org/previews/573/573153_12947664-hq.mp3",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "original_file": "mouth-573153.mp3",
+      "original_sha256": "d69a1f2199e95a3a33db5ecc323007972eae4c052be50be190d7e2d3df4380b7",
+      "decoded_file": "mouth-573153.wav",
+      "decoded_sha256": "bfc6ccc9b619ca831e326671fcb54e05f05f791e7915e737f8bc1b6865af1dc4",
+      "conversion": "FFmpeg 7.1 / imageio-ffmpeg 0.6.0, 48000 Hz mono PCM16"
+    },
+    {
+      "id": "mouth-258269",
+      "title": "Mouth pop",
+      "author": "jcallison",
+      "page_url": "https://freesound.org/people/jcallison/sounds/258269/",
+      "download_url": "https://cdn.freesound.org/previews/258/258269_4824549-hq.mp3",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "original_file": "mouth-258269.mp3",
+      "original_sha256": "7d8a262c747a1733da0b6af232a6c3e2a00a63c353d81e6eca82eef398eaf737",
+      "decoded_file": "mouth-258269.wav",
+      "decoded_sha256": "0b8a21824adfa8f26eea4f5d2ba4673366eb8bd4947c32e2ff5339ee9d4c96b5",
+      "conversion": "FFmpeg 7.1 / imageio-ffmpeg 0.6.0, 48000 Hz mono PCM16"
+    },
+    {
+      "id": "mouth-691906",
+      "title": "Mouth pop 1",
+      "author": "hollandm",
+      "page_url": "https://freesound.org/people/hollandm/sounds/691906/",
+      "download_url": "https://cdn.freesound.org/previews/691/691906_5309408-hq.mp3",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "original_file": "mouth-691906.mp3",
+      "original_sha256": "8449dfc4f7e7b1c1bcb5eb32bcf4bba0c4e2fff588185a8fed520e0fc74a11a0",
+      "decoded_file": "mouth-691906.wav",
+      "decoded_sha256": "830e9c612014277c961276588a922e893acb30e7d538a627d9aec9a533a74559",
+      "conversion": "FFmpeg 7.1 / imageio-ffmpeg 0.6.0, 48000 Hz mono PCM16"
+    }
+  ]
+}

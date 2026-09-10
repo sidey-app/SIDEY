@@ -18,7 +18,12 @@ struct CodableRect: Codable, Equatable, Sendable {
 }
 
 struct AppPreferences: Codable, Equatable, Sendable {
+    #if APP_STORE
     static let currentSchemaVersion = 8
+    #else
+    static let currentSchemaVersion = 9
+    var characterSoundEffectsEnabled = true
+    #endif
 
     var schemaVersion = currentSchemaVersion
     var hasShownNativeLanding = false
@@ -43,6 +48,9 @@ struct AppPreferences: Codable, Equatable, Sendable {
     static let defaults = AppPreferences()
 
     enum CodingKeys: String, CodingKey {
+        #if !APP_STORE
+        case characterSoundEffectsEnabled
+        #endif
         case schemaVersion
         case hasShownNativeLanding
         case keychainTransitionComplete
@@ -69,6 +77,9 @@ struct AppPreferences: Codable, Equatable, Sendable {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         let decodedSchemaVersion = try values.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
         schemaVersion = Self.currentSchemaVersion
+        #if !APP_STORE
+        characterSoundEffectsEnabled = try values.decodeIfPresent(Bool.self, forKey: .characterSoundEffectsEnabled) ?? true
+        #endif
         hasShownNativeLanding = try values.decodeIfPresent(Bool.self, forKey: .hasShownNativeLanding) ?? false
         keychainTransitionComplete = try values.decodeIfPresent(
             Bool.self,

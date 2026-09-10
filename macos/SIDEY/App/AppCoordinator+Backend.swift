@@ -550,6 +550,9 @@ extension AppCoordinator {
     }
 
     func characterDoubleClicked() {
+        #if !APP_STORE
+        if let id = model.currentUserID, model.characterStunState.isStunned(id) { return }
+        #endif
         guard let room = model.activeRoom,
               let userID = model.currentUserID,
               room.members.contains(where: { $0.userID == userID }),
@@ -567,6 +570,9 @@ extension AppCoordinator {
     }
 
     func characterThrowRequested(targetUserID: UUID) {
+        #if !APP_STORE
+        if let id = model.currentUserID, model.characterStunState.isStunned(id) { return }
+        #endif
         guard model.activeRoomRealtimeAvailable,
               let room = model.activeRoom,
               let actorUserID = model.currentUserID,

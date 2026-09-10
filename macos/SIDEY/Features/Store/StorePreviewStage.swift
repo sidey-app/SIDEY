@@ -10,6 +10,8 @@ enum StorePreviewStageLayout {
 
 struct StorePreviewStage: View {
     let product: CommerceProduct
+    var onCharacterImpact: (String, TimeInterval) -> Void = { _, _ in }
+    var onStopCharacterSounds: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -22,7 +24,7 @@ struct StorePreviewStage: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color.primary.opacity(0.035))
             StorePreviewPlatform()
-            StorePreviewSceneView(scenario: scenario, isPlaying: !reduceMotion)
+            StorePreviewSceneView(scenario: scenario, isPlaying: !reduceMotion, onCharacterImpact: onCharacterImpact, onStopCharacterSounds: onStopCharacterSounds)
                 .accessibilityLabel("\(product.displayName) 미리보기")
                 .accessibilityHint(reduceMotion
                                    ? "동작 줄이기가 켜져 정지된 장면을 표시합니다."
@@ -81,6 +83,8 @@ private struct StorePreviewPlatform: View {
 private struct StorePreviewSceneView: NSViewRepresentable {
     let scenario: StorePreviewScenario
     let isPlaying: Bool
+    let onCharacterImpact: (String, TimeInterval) -> Void
+    let onStopCharacterSounds: () -> Void
 
     func makeCoordinator() -> StorePreviewPlaybackCoordinator {
         StorePreviewPlaybackCoordinator()
@@ -96,6 +100,10 @@ private struct StorePreviewSceneView: NSViewRepresentable {
                 fixedTrackFractions: scenario.fixedTrackFractions
             )
         )
+        #if !APP_STORE
+        scene.onCharacterImpact = onCharacterImpact
+        scene.onStopCharacterSounds = onStopCharacterSounds
+        #endif
         scene.scaleMode = .resizeFill
         view.presentScene(scene)
         context.coordinator.configure(
@@ -226,7 +234,7 @@ final class StorePreviewPlaybackCoordinator {
                     let deadline = startedAt + sequence.scheduledOffset(for: index)
                     let delay = max(0, deadline - ProcessInfo.processInfo.systemUptime)
                     try await Task.sleep(for: .seconds(delay))
-                    scene?.playLocalPreviewThrow(sequence.event(at: index))
+                    scene?.playLocalPreviewThrow(sequence.event(at: index), playsSound: false)
                     index += 1
                 }
             } catch is CancellationError {

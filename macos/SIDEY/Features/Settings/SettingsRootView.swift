@@ -28,6 +28,10 @@ struct SettingsActions {
     var onLeaveRoom: (UUID) -> Void
     var onDeleteRoom: (UUID) -> Void
 
+    var onCharacterSoundEffectsChanged: (Bool) -> Void = { _ in }
+    var onCharacterImpact: (String, TimeInterval) -> Void = { _, _ in }
+    var onStopCharacterSounds: () -> Void = {}
+
     static let empty = SettingsActions(
         onOverlayVisibilityChanged: { _ in },
         onOverlayRegionChanged: { _ in },

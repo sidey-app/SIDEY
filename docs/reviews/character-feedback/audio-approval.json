@@ -1,0 +1,69 @@
+{
+  "approval": "approved",
+  "evidence": "하트 B 선택, 채팅 말풍선 소리 폐기, 기절과 효과음을 연결하고 Xcode 테스트 방 요청",
+  "scope": "macOS direct only",
+  "excluded_sounds": [
+    "enlargement",
+    "chat_bubble",
+    "throw_launch",
+    "flight"
+  ],
+  "sounds": [
+    {
+      "object_id": "throwable_bouncy_heart",
+      "candidate_id": "throwable_bouncy_heart-b-v7",
+      "file": "round-7/audio/throwable_bouncy_heart-b-v7.wav",
+      "sha256": "8864e0f0e24be9508963577f02270a0807ae6a1aa0e251f8561fe06e5f268bd8",
+      "duration_seconds": 0.11579166666666667
+    },
+    {
+      "object_id": "throwable_squeaky_duck",
+      "candidate_id": "throwable_squeaky_duck-b-v5",
+      "file": "round-7/audio/throwable_squeaky_duck-b-v5.wav",
+      "sha256": "805048802a0494d51c453000c3bc624f8713c23f9c5c5530dafc68be683715af",
+      "duration_seconds": 0.309375
+    },
+    {
+      "object_id": "throwable_toy_cannon",
+      "candidate_id": "throwable_toy_cannon-c-v5",
+      "file": "round-7/audio/throwable_toy_cannon-c-v5.wav",
+      "sha256": "74fe1591e276233235b25a9ee7c1812a2de16b15cac883d881077e38067de8ec",
+      "duration_seconds": 0.4
+    },
+    {
+      "object_id": "patch_soft_ball",
+      "candidate_id": "patch_soft_ball-a-v4",
+      "file": "round-7/audio/patch_soft_ball-a-v4.wav",
+      "sha256": "938e06f2884fff79bc5d3bdac1cbb6f0c5d30c9754767294a544acd3d819d606",
+      "duration_seconds": 0.17
+    },
+    {
+      "object_id": "mini_paprika",
+      "candidate_id": "mini_paprika-c-v4",
+      "file": "round-7/audio/mini_paprika-c-v4.wav",
+      "sha256": "39bf14c9b9d928d28b848342d8067ef15413b892441102e90b17de14c9d2c6d1",
+      "duration_seconds": 0.16
+    },
+    {
+      "object_id": "banana",
+      "candidate_id": "banana-b-v4",
+      "file": "round-7/audio/banana-b-v4.wav",
+      "sha256": "7ba162183d5ec6f21e5f0764c4a4cb16a8422057e77a6689d9c1bc0eebd203e5",
+      "duration_seconds": 0.19
+    },
+    {
+      "object_id": "dust_bath_pouch",
+      "candidate_id": "dust_bath_pouch-c-v4",
+      "file": "round-7/audio/dust_bath_pouch-c-v4.wav",
+      "sha256": "dd68f8812fc06051c4a1e0814eafe833c12dc1605a284421e77f6ee655fc76c7",
+      "duration_seconds": 0.18
+    },
+    {
+      "object_id": "starlight_orb",
+      "candidate_id": "starlight_orb-b-v4",
+      "file": "round-7/audio/starlight_orb-b-v4.wav",
+      "sha256": "d12cd388c5de3787b5533e5a466d42b6e8fa7707246448a9d92a409e75c1df57",
+      "duration_seconds": 0.28
+    }
+  ]
+}
