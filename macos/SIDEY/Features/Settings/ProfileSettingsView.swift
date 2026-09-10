@@ -185,6 +185,7 @@ struct ProfileCosmeticTile: View {
             }
             .padding(9)
             .frame(maxWidth: .infinity, minHeight: 112)
+#if APP_STORE
             .background(
                 RoundedRectangle(cornerRadius: 13, style: .continuous)
                     .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.02))
@@ -211,6 +212,13 @@ struct ProfileCosmeticTile: View {
                         .accessibilityHidden(true)
                 }
             }
+#else
+            .modifier(ProfileSelectionAppearance(
+                isSelected: isSelected,
+                isPending: isPending,
+                isFocused: isFocused
+            ))
+#endif
             .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
         }
         .buttonStyle(.plain)
