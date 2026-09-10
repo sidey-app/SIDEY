@@ -481,6 +481,9 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             cancellationToken);
     }
 
+    public void RetryRealtimeConnection(bool userInitiated = false) => _realtime.RequestReconnect(userInitiated);
+    public bool IsRealtimeRecoveryPaused => _realtime.IsRecoveryPaused;
+
     public async Task SynchronizeRealtimeRoomsAsync(
         IReadOnlyDictionary<Guid, long> roomEpochs,
         Guid? activeRoomId,
@@ -617,8 +620,9 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                     await output.WriteAsync(
                         new BackendEvent.ConnectionChanged(connectionStatus),
                         cancellationToken).ConfigureAwait(false);
-                    await EmitReconciliationWithRetryAsync(output, cancellationToken)
-                        .ConfigureAwait(false);
+                    if (!await _realtime.RunWhileConnectedAsync(
+                        token => EmitReconciliationWithRetryAsync(output, token), cancellationToken).ConfigureAwait(false))
+                        continue;
                     connectionStatus = _realtime.ConnectionStatus.WithRecoveryReconciled(true);
                     await output.WriteAsync(
                         new BackendEvent.ConnectionChanged(connectionStatus),
@@ -634,8 +638,9 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                         cancellationToken).ConfigureAwait(false);
                     if (connectionStatus.TransportConnected)
                     {
-                        await EmitReconciliationWithRetryAsync(output, cancellationToken)
-                            .ConfigureAwait(false);
+                        if (!await _realtime.RunWhileConnectedAsync(
+                            token => EmitReconciliationWithRetryAsync(output, token), cancellationToken).ConfigureAwait(false))
+                            continue;
                         connectionStatus = _realtime.ConnectionStatus.WithRecoveryReconciled(true);
                         await output.WriteAsync(
                             new BackendEvent.ConnectionChanged(connectionStatus),

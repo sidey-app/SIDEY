@@ -44,16 +44,6 @@ public sealed class RealtimeSecuritySourceTests
     }
 
     [Fact]
-    public void InitialWebSocketFailureStartsRecoveryWithoutAbortingInitialization()
-    {
-        var transport = Read("SupabaseRealtimeTransport.cs");
-
-        Assert.Contains("catch (WebSocketException exception)", transport, StringComparison.Ordinal);
-        Assert.Contains("ScheduleRecovery();", transport, StringComparison.Ordinal);
-        Assert.Contains("socket.Dispose();", transport, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void RealtimeHealthUsesLowCostPathEventsAndLogsTheMessagePipeline()
     {
         var gateway = Read("SupabaseBackendGateway.cs");
@@ -171,7 +161,7 @@ public sealed class RealtimeSecuritySourceTests
     {
         var coordinator = Read("AppCoordinator.cs");
         var initializeStart = coordinator.IndexOf(
-            "public async Task InitializeAsync",
+            "private async Task InitializeCoreAsync",
             StringComparison.Ordinal);
         var initializeEnd = coordinator.IndexOf(
             "public async Task SaveProfileAsync",

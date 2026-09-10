@@ -42,6 +42,9 @@ public static class PresencePublicationPlan
 
 public static class LocalPresenceProjection
 {
+    public static PresenceState ForOverlay(PresenceState presence, bool activeRoomConnected) =>
+        activeRoomConnected ? presence : PresenceState.Reconnecting;
+
     public static PresenceState ForMember(
         Guid memberId,
         Guid currentUserId,
@@ -201,6 +204,27 @@ public static class RealtimeRecoveryPolicy
 {
     public static readonly TimeSpan WatchdogInterval = TimeSpan.FromSeconds(5);
     public static readonly TimeSpan PathRecoveryDebounce = TimeSpan.FromMilliseconds(350);
+
+    public static TimeSpan ConnectionDelayForAttempt(int attempt, double randomSample)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(randomSample);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(randomSample, 1);
+        if (!double.IsFinite(randomSample))
+            throw new ArgumentOutOfRangeException(nameof(randomSample));
+        if (attempt <= 1)
+            return PathRecoveryDebounce;
+        double seconds = attempt switch
+        {
+            2 => 8,
+            3 => 16,
+            4 => 30,
+            5 => 60,
+            6 => 120,
+            7 => 240,
+            _ => 300,
+        };
+        return TimeSpan.FromSeconds(Math.Min(300, seconds * (0.8 + 0.4 * randomSample)));
+    }
 
     public static TimeSpan DelayForAttempt(int attempt) => attempt switch
     {
