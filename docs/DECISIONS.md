@@ -18,7 +18,7 @@
 
 macOS 직배포판 프로필의 캐릭터·말풍선·투척물 선택 표시는 기존 캐릭터 기준인 보라색(RGB 0.45/0.49/0.85) 3pt 테두리·동일한 원형 체크·선택 배경으로 통일한다. 장착 요청 중 스피너와 확정 선택 구분, 키보드 focus는 유지한다. App Store·Windows 구현은 이번 수정 대상이 아니다.
 
-기절 선행 구현은 `macos/character-stun` 작업 브랜치에서 완료했고 직배포 빌드·자동 테스트를 통과했다. 아직 정식 배포된 기능으로 안내하지 않는다. 효과음과 소리 설정은 검토·보류 상태다.
+기절 선행 구현과 승인된 피격음 8종·소리 설정·선택 테두리 통일을 `macos/v1.1.0-release`에 통합했다. 하트는 7차 B의 단일 팝이며 채팅·확대음은 폐기했다. Debug 전용 `SIDEYFeedback` scheme은 로그인 없이 나와 콩이가 있는 로컬 검증 방을 연다. 이 방은 Release에 포함되지 않는다.
 
 2026-09-10 사용자가 “효과음 내일 이어서 … 우선 기절쪽만 구현”을 지시했다. 이를 현재 별·링 V2와 기존 수면 모션을 사용하는 기절 구현의 승인으로 기록한다. 기절을 효과음과 분리해 macOS 직배포판에 먼저 구현한다. 10초 내 10회·6초 기절·보호 시간 없음은 유지한다. 효과음·소리 설정·설정 schema 변경은 보류하며 기절 구현에 포함하지 않는다. 앞선 음원·시각 일괄 승인 후 구현 순서보다 이번 분리 지시가 우선한다.
 
@@ -160,7 +160,7 @@ Windows 오버레이와 상점 캐릭터 미리보기의 산책은 macOS와 같�
 | Homebrew 배포 | 공개 third-party tap `sidey-app/homebrew-tap`의 `sidey` Cask가 버전 고정 공증 DMG와 SHA-256을 사용. arm64·macOS 26+만 허용하고 `auto_updates true`, 안전한 앱 종료, `SIDEY.app` 설치를 선언하며 사용자 데이터 `zap`은 두지 않음 | `brew install --cask sidey-app/tap/sidey`를 재현 가능하게 제공하면서 uninstall이 계정·설정을 임의 삭제하지 않게 한다. 공식 `homebrew/cask` 등록은 별도 결정 전까지 범위 밖이다. |
 | macOS 로컬 개발 설치 | `Sidey-dev`는 bundle ID `app.sidey.desktop.dev`, dev login item·Keychain service·UserDefaults suite, callback `sidey-dev`를 사용하고 Sparkle을 비활성화한다. staging URL·publishable key가 없거나 운영 ref `whtejsviizgejauasqqt`면 설치 스크립트가 빌드를 거부한다. | production 세션·설정·운영 결제를 개발 테스트와 섞지 않는다. 이 결정은 과거 production 식별자 공유 결정을 폐기·대체한다. |
 | 업데이트 전환 | Sparkle이 없는 기존 alpha는 최신 공증 DMG로 한 번 수동 교체하고, Sparkle 내장 production 빌드부터 앱 내부 업데이트를 사용 | 기존 설치에 프레임워크를 원격으로 소급 탑재할 수 없고, ad-hoc development 자동 업데이트는 Gatekeeper·코드 서명 연속성을 깨뜨릴 수 있다. |
-| 배포 채널 | 현재 공개본은 버전 `1.0.10`, 빌드 `21`의 `v1.0.10` macOS GitHub 정식 stable release와 `windows-v1.1.1` Windows 정식 release다 | macOS v1.0.10은 프로필 자동 적용, 기본 꾸미기 장착 표시, 상점 정렬·필터, 그룹 나가기와 그룹별 Realtime 복구를 제공한다. Windows v1.1.1은 메시지 전송 후 입력창 자동 닫기 중 앱이 종료되는 문제를 수정한다. production 판매 잠금은 유지한다. |
+| 배포 채널 | 현재 공개본은 버전 `1.1.0`, 빌드 `24`의 `v1.1.0` macOS GitHub 정식 stable release와 `windows-v1.1.1` Windows 정식 release다 | macOS v1.1.0은 투척물별 피격음 8종·소리 설정·6초 기절과 꾸미기 선택 표시 통일을 제공한다. Windows v1.1.1은 메시지 전송 후 입력창 자동 닫기 중 앱이 종료되는 문제를 수정한다. production 판매 잠금은 유지한다. |
 | Windows 인증 | Supabase 익명 인증 + Windows Credential Manager, 개발 결제에서만 Google identity 연결 | 기존 익명 세션을 먼저 복구하고 신규 설치에서만 새 익명 계정을 만든다. access·refresh token과 평문 초대 코드는 일반 설정이 아닌 Credential Manager에 보관한다. 개발 빌드는 staging에서만 PKCE S256과 `sidey-dev://auth/google` callback으로 기존 UUID에 Google identity를 연결한다. 1.1.0 Release는 `sidey://auth/google` 등록 기반만 준비하고 결제·연결 UI를 컴파일 타임으로 잠근다. |
 | Windows 정식 배포 | 현재 정식 출시 버전 `1.1.1`과 태그 `windows-v1.1.1`은 NSIS `3.12`의 머신 단위 단일 `SIDEY-Windows-x64-v1.1.1-Setup.exe`를 제공한다. v1.0.5는 마지막 WiX MSI로 유지한다 | unpackaged·multi-file self-contained WinUI 3 앱을 루트 `SIDEY.exe` 런처와 `Runtime` 앱·런타임, `Assets`, `Langs`로 나눈다. Setup EXE는 전체 트리를 하나의 버전 단위로 기본 `C:\Program Files\SIDEY`에 설치하되 신규 설치에서 위치를 선택할 수 있다. Release에는 버전에 맞는 설치 파일 하나만 게시하고 ZIP·MSIX·별도 인증서·`.sha256` 파일은 게시하지 않는다. |
 | Windows 서명 | 공인 코드 서명 인증서를 도입하기 전에는 SIDEY 제작 실행 파일·DLL·Windows 설치 파일을 자체 서명하지 않고, Release에 자체 서명 인증서를 제공하거나 설치하도록 안내하지 않음 | 신뢰되지 않은 자체 서명 인증서 설치를 사용자에게 요구하지 않는다. 공인 인증서 도입은 별도 검증 후 결정한다. |
