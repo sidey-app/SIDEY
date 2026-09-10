@@ -115,14 +115,24 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     {
         Activate();
         var image = (BitmapImage)((ImageIconSource)AppTitleBar.IconSource).ImageSource;
+        var iconFile = await Windows.Storage.StorageFile.GetFileFromPathAsync(image.UriSource.LocalPath);
+        using var iconStream = await iconFile.OpenReadAsync();
+        var decoder = await Windows.Graphics.Imaging.BitmapDecoder.CreateAsync(iconStream);
+        if (decoder.PixelWidth != 20 || decoder.PixelHeight != 20)
+        {
+            throw new InvalidOperationException("The external title bar icon file is not 20x20.");
+        }
         var deadline = DateTimeOffset.UtcNow.AddSeconds(5);
         while (image.PixelWidth == 0 && DateTimeOffset.UtcNow < deadline)
         {
             await Task.Delay(25);
         }
-        if (image.PixelWidth != 20 || image.PixelHeight != 20)
+        // XAML may decode the displayed icon at its rendered size for the current DPI.
+        // Validate the source dimensions above and successful UI decoding separately.
+        StartupDiagnostics.Stage($"external-assets-smoke-decoded width={image.PixelWidth} height={image.PixelHeight}");
+        if (image.PixelWidth <= 0 || image.PixelHeight <= 0)
         {
-            throw new InvalidOperationException("The external title bar icon did not decode at its expected size.");
+            throw new InvalidOperationException("The external title bar icon did not decode for display.");
         }
         StartupDiagnostics.Stage("external-assets-smoke-complete titlebar-icon=20x20");
     }
