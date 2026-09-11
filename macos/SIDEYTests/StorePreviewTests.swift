@@ -362,7 +362,7 @@ final class StorePreviewTests: XCTestCase {
                     StorePreviewStageLayout.size.height,
                     product.id
                 )
-                XCTAssertEqual(fittingSize.height, 650, accuracy: 0.001, product.id)
+                XCTAssertLessThanOrEqual(fittingSize.height, 720, product.id)
             }
         }
     }

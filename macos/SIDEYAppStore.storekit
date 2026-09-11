@@ -326,7 +326,7 @@
       "displayPrice": "1100",
       "localizations": [
         {
-          "description": "작고 아삭한 파프리카를 던져요. 모든 캐릭터가 사용할 수 있어요.",
+          "description": "아껴 둔 간식이에요. 던진 뒤엔 3초 안에 주우면 괜찮겠죠?",
           "displayName": "기니피그의 미니 파프리카",
           "locale": "ko_KR"
         }
@@ -341,7 +341,7 @@
       "displayPrice": "1100",
       "localizations": [
         {
-          "description": "잘 익은 바나나가 빙글빙글 날아가요. 모든 캐릭터가 사용할 수 있어요.",
+          "description": "원숭이가 양보한 바나나예요. 양보한 게 맞는지는 아직 못 물어봤어요.",
           "displayName": "원숭이의 바나나",
           "locale": "ko_KR"
         }
@@ -356,7 +356,7 @@
       "displayPrice": "1100",
       "localizations": [
         {
-          "description": "보송한 모래주머니가 톡 터져요. 모든 캐릭터가 사용할 수 있어요.",
+          "description": "친칠라의 목욕 모래예요. 씻으라고 던지는 건… 아마 아닐 거예요.",
           "displayName": "친칠라의 모래주머니",
           "locale": "ko_KR"
         }
@@ -371,7 +371,7 @@
       "displayPrice": "1100",
       "localizations": [
         {
-          "description": "반짝이는 별빛 구슬을 던져요. 모든 캐릭터가 사용할 수 있어요.",
+          "description": "별빛을 꾹꾹 뭉쳤어요. 하늘에서 별 하나가 없어졌다는데요?",
           "displayName": "별빛 우파루파의 별빛 구슬",
           "locale": "ko_KR"
         }
@@ -386,7 +386,7 @@
       "displayPrice": "1100",
       "localizations": [
         {
-          "description": "달그락 소리가 나는 조개를 던져요. 모든 캐릭터가 사용할 수 있어요.",
+          "description": "수달이 품고 다니던 조개예요. 진주는 없고, 미련은 좀 있어요.",
           "displayName": "수달의 조개",
           "locale": "ko_KR"
         }
@@ -401,7 +401,7 @@
       "displayPrice": "1100",
       "localizations": [
         {
-          "description": "찰진 촵 소리와 함께 돼지고기를 던져요. 모든 캐릭터가 사용할 수 있어요.",
+          "description": "찰진 촵! 근데 옆집 꿀꿀이가 며칠 전부터 안 보이던데…?",
           "displayName": "아기 돼지의 돼지고기",
           "locale": "ko_KR"
         }
@@ -416,7 +416,7 @@
       "displayPrice": "1100",
       "localizations": [
         {
-          "description": "작은 나무 한 그루가 빙글빙글 날아가요. 모든 캐릭터가 사용할 수 있어요.",
+          "description": "나무가 작은 나무를 던져요. 일단 족보부터 확인해 볼까요?",
           "displayName": "나무의 작은 나무",
           "locale": "ko_KR"
         }

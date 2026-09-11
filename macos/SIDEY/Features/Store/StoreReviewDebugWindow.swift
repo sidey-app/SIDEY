@@ -15,7 +15,10 @@ final class StoreReviewDebugWindow: NSWindowController {
         window.title = "Sidey-dev · 상점 검토 · 실제 결제 없음"
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: .aqua)
-        window.contentView = NSHostingView(rootView: StoreReviewDebugView(review: review).preferredColorScheme(.light))
+        window.contentView = NSHostingView(rootView: StoreReviewDebugView(review: review) { [weak window] size in
+            guard let window, abs(window.contentLayoutRect.height - size.height) > 1 else { return }
+            window.setContentSize(size)
+        }.preferredColorScheme(.light))
         window.center()
         let args = ProcessInfo.processInfo.arguments
         if let i = args.firstIndex(of: "--store-review-output"), args.indices.contains(i + 1) {
@@ -89,6 +92,7 @@ private final class StoreReviewSelection: ObservableObject {
 
 private struct StoreReviewDebugView: View {
     @ObservedObject var review: StoreReviewSelection
+    let onContentSizeChanged: (CGSize) -> Void
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -110,8 +114,10 @@ private struct StoreReviewDebugView: View {
                     onClose: { NSApp.keyWindow?.close() })
                     .id(product.id)
             }
-            Spacer(minLength: 0)
         }
+        .frame(width: 620)
+        .fixedSize(horizontal: false, vertical: true)
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { onContentSizeChanged($0) }
     }
 }
 #endif

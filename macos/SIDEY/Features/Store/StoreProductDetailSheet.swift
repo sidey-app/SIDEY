@@ -8,6 +8,7 @@ struct StoreProductDetailSheet: View {
     var availability: StoreAvailability = .direct
     let onClose: () -> Void
     @State private var playsPreviewSound = true
+    @State private var contentHeight: CGFloat = 640
 
     var displaysCommerceAction: Bool { availability.unavailableDetailMessage == nil }
 
@@ -42,17 +43,21 @@ struct StoreProductDetailSheet: View {
                     }
                 HStack(alignment: .top, spacing: 12) {
                     StoreDetailPurchaseCard(state: productState, actions: actions,
-                        availability: availability, purchaseInProgress: isPurchaseInProgress,
-                        showsCharacterContents: relatedProductState != nil)
+                        availability: availability, purchaseInProgress: isPurchaseInProgress)
                     if let relatedProductState {
                         StoreDetailPurchaseCard(state: relatedProductState, actions: actions,
-                            availability: availability, purchaseInProgress: isPurchaseInProgress)
+                            availability: availability, purchaseInProgress: isPurchaseInProgress,
+                            showsDescription: true)
                     }
                 }
+                .fixedSize(horizontal: false, vertical: true)
             }
             .padding(.horizontal, 30).padding(.top, 30).padding(.bottom, 24)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                if height > 0 { contentHeight = height }
+            }
         }
-        .frame(width: 600, height: relatedProductState == nil ? 650 : 720)
+        .frame(width: 600, height: min(contentHeight, 720))
         .overlay(alignment: .topTrailing) {
             Button("닫기", systemImage: "xmark", action: onClose)
                 .labelStyle(.iconOnly).buttonStyle(.plain).padding(12)
@@ -67,7 +72,7 @@ private struct StoreDetailPurchaseCard: View {
     let actions: SettingsActions
     let availability: StoreAvailability
     let purchaseInProgress: Bool
-    var showsCharacterContents = false
+    var showsDescription = false
 
     private var kindLabel: String {
         state.product.isKeepsake ? "애착 물건" : state.product.kind.title
@@ -87,12 +92,16 @@ private struct StoreDetailPurchaseCard: View {
             StoreProductPreview(product: state.product, pointSize: 64).frame(height: 64)
             Text(state.product.displayName).font(.callout.weight(.semibold))
                 .lineLimit(2, reservesSpace: true).multilineTextAlignment(.center)
-            Text(state.product.isKeepsake ? "모든 캐릭터 사용 가능"
-                 : showsCharacterContents ? "기본 말랑공 사용 가능" : state.product.kind.title)
-                .font(.caption).foregroundStyle(.secondary)
+            if showsDescription {
+                Text(state.product.description)
+                    .font(.caption).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
             purchaseAction
         }
-        .padding(12).frame(maxWidth: .infinity)
+        .padding(12).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.primary.opacity(0.09)))
     }

@@ -77,7 +77,7 @@ final class KeepsakeStoreTests: XCTestCase {
                     relatedProductState: .init(product: item, purchaseState: ownsItem ? .owned : .available, isWorking: false),
                     actions: .empty, onClose: {}))
                 XCTAssertEqual(view.fittingSize.width,600,accuracy:0.01)
-                XCTAssertEqual(view.fittingSize.height,720,accuracy:0.01)
+                XCTAssertLessThan(view.fittingSize.height,720)
             }
         }
     }
