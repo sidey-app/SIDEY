@@ -7,7 +7,7 @@ insert into public.commerce_products (id, display_name, product_description, cha
   ('character_tree', '나무', '둥근 초록 잎과 보라 목도리의 작은 나무예요.', 'pixel_tree', 'character:pixel_tree', 'character', 'pixel_tree', 70, true),
   ('throwable_snowflake', '눈송이', '맞으면 작은 결정 조각으로 흩어지는 눈송이예요.', null, 'throwable:throwable_snowflake', 'throwable', 'throwable_snowflake', 240, true),
   ('throwable_baseball', '야구공', '붉은 실밥이 있는 공이 눌렸다 튕겨요.', null, 'throwable:throwable_baseball', 'throwable', 'throwable_baseball', 250, true),
-  ('throwable_wakkuball', '왁뿌볼', '얇은 껍질 속 분홍 내용물이 비치고, 맞으면 껍질이 와그작 흩어져요.', null, 'throwable:throwable_wakkuball', 'throwable', 'throwable_wakkuball', 260, true),
+  ('throwable_wakkuball', '왁뿌볼', '와그작! 왁뿌볼이 조각조각 부서지는 바삭한 소리를 느껴보세요.', null, 'throwable:throwable_wakkuball', 'throwable', 'throwable_wakkuball', 260, true),
   ('throwable_dujjonku', '두쫀쿠', '코코아 겉피와 초록색 속이 눌리며 바삭한 소리가 나요.', null, 'throwable:throwable_dujjonku', 'throwable', 'throwable_dujjonku', 270, true)
 on conflict (id) do update set display_name=excluded.display_name, product_description=excluded.product_description, updated_at=now();
 
