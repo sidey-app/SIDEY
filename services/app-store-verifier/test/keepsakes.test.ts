@@ -82,6 +82,8 @@ test('actual commerce SQL preserves legacy sources, restores old offers and isol
     await db.exec(await read('supabase/migrations/20260912020000_tree_app_store_offer.sql')); // safe replay
     await db.exec(await read('supabase/migrations/20260912030000_remaining_app_store_offers.sql'));
     await db.exec(await read('supabase/migrations/20260912030000_remaining_app_store_offers.sql')); // safe replay
+    await db.exec(await read('supabase/migrations/20260912040000_character_store_stories.sql'));
+    await db.exec(await read('supabase/migrations/20260912040000_character_store_stories.sql')); // safe replay
     const owned = async (key: string, uid = user) => (await db.query<any>(
       'select status from commerce_entitlements where user_id=$1 and entitlement_key=$2',[uid,key])).rows[0]?.status;
     assert.equal(await owned('throwable:throwable_banana'),'active');
