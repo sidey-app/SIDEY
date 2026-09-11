@@ -21,7 +21,23 @@ final class KeepsakeStoreTests: XCTestCase {
         }
         XCTAssertEqual(CommerceCatalog.product(appStoreID: "character_monkey_solo")?.id, CommerceProduct.monkey.id)
         XCTAssertEqual(CommerceCatalog.product(appStoreID: "character_monkey")?.id, CommerceProduct.monkey.id)
-        XCTAssertEqual(CommerceProduct.monkey.appStoreProductID, "character_monkey_solo")
+        XCTAssertEqual(CommerceProduct.monkey.appStoreProductID, "character_monkey_solo_2")
+        XCTAssertEqual(CommerceProduct.tree.appStoreProductID, "character_tree_2")
+        XCTAssertEqual(CommerceCatalog.product(appStoreID: "character_tree_2")?.id, CommerceProduct.tree.id)
+        XCTAssertEqual(CommerceCatalog.product(appStoreID: "character_tree")?.id, CommerceProduct.tree.id)
+        XCTAssertEqual(CommerceProduct.tree.entitlementKey, "character:pixel_tree")
+        for (id, current, legacy) in [
+            ("character_monkey", "character_monkey_solo_2", "character_monkey_solo"),
+            ("throwable_clam", "throwable_clam_2", "throwable_clam"),
+            ("throwable_pork", "throwable_pork_2", "throwable_pork")
+        ] {
+            let product = try XCTUnwrap(CommerceCatalog.product(id: id))
+            XCTAssertEqual(product.appStoreProductID, current)
+            XCTAssertEqual(CommerceCatalog.product(appStoreID: current)?.entitlementKey, product.entitlementKey)
+            XCTAssertEqual(CommerceCatalog.product(appStoreID: legacy)?.entitlementKey, product.entitlementKey)
+        }
+        XCTAssertEqual(CommerceProduct.pig.appStoreProductID, "character_pig")
+        XCTAssertNil(CommerceCatalog.product(appStoreID: "character_tree_3"))
         XCTAssertNil(CommerceCatalog.product(appStoreID: "haracter_pig"))
     }
     func testFriendClickThrowsKeepsakeWithSoundAndViewUpdatesDoNotThrowAgain() throws {
@@ -67,17 +83,34 @@ final class KeepsakeStoreTests: XCTestCase {
         XCTAssertEqual(scene.activeProjectileCount, 0)
         coordinator.stop(detachingScene: true)
     }
+    func testCharacterStoryUsesBundledCopyWithOlderServerMetadata() {
+        let catalog = CommerceProduct.pig
+        let remote = CommerceProduct(id: catalog.id, displayName: catalog.displayName,
+            description: "이전 서버 소개", characterID: catalog.characterID,
+            entitlementKey: catalog.entitlementKey, amountKRW: 1234,
+            currency: "KRW", taxInclusive: true)
+        XCTAssertEqual(remote.storeDescription, catalog.description)
+        XCTAssertEqual(remote.description, "이전 서버 소개")
+        XCTAssertEqual(remote.amountKRW, 1234)
+        XCTAssertEqual(CommerceProduct.snowflake.storeDescription, CommerceProduct.snowflake.description)
+    }
+
     func testPairSheetFitsBothPurchaseCardsForAllOwnershipStates() throws {
-        let product = CommerceProduct.pig
-        let item = try XCTUnwrap(CommerceCatalog.keepsake(for: product.id))
-        for ownsCharacter in [false,true] {
-            for ownsItem in [false,true] {
-                let view = NSHostingView(rootView: StoreProductDetailSheet(
-                    productState: .init(product: product, purchaseState: ownsCharacter ? .owned : .available, isWorking: false),
-                    relatedProductState: .init(product: item, purchaseState: ownsItem ? .owned : .available, isWorking: false),
-                    actions: .empty, onClose: {}))
-                XCTAssertEqual(view.fittingSize.width,600,accuracy:0.01)
-                XCTAssertLessThan(view.fittingSize.height,720)
+        for product in CommerceCatalog.characterProducts {
+            let item = try XCTUnwrap(CommerceCatalog.keepsake(for: product.id))
+            for availability in [StoreAvailability.direct, .appStore] {
+                for ownsCharacter in [false, true] {
+                    for ownsItem in [false, true] {
+                        let view = NSHostingView(rootView: StoreProductDetailSheet(
+                            productState: .init(product: product,
+                                purchaseState: ownsCharacter ? .owned : .available, isWorking: false),
+                            relatedProductState: .init(product: item,
+                                purchaseState: ownsItem ? .owned : .available, isWorking: false),
+                            actions: .empty, availability: availability, onClose: {}))
+                        XCTAssertEqual(view.fittingSize.width, 600, accuracy: 0.01, product.id)
+                        XCTAssertLessThan(view.fittingSize.height, 720, product.id)
+                    }
+                }
             }
         }
     }

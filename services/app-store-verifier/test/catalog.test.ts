@@ -3,10 +3,13 @@ import test from "node:test";
 import { entitlementByProduct, isSideyProductID, transactionStatus } from "../src/catalog.js";
 
 test("legacy and solo product IDs remain accepted while typos fail closed", () => {
-  assert.equal(Object.keys(entitlementByProduct).length, 28);
+  assert.equal(Object.keys(entitlementByProduct).length, 32);
   assert.equal(isSideyProductID("character_monkey_solo"), true);
   assert.equal(isSideyProductID("character_monkey"), true);
   assert.equal(isSideyProductID("throwable_clam"), true);
+  for (const id of ["character_monkey_solo_2", "throwable_clam_2", "throwable_pork_2"])
+    assert.equal(isSideyProductID(id), true);
+  assert.equal(isSideyProductID("character_monkey_solo_3"), false);
   assert.equal(isSideyProductID("haracter_pig"), false);
 });
 

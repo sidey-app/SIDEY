@@ -341,6 +341,12 @@ struct CommerceProduct: Equatable, Sendable {
     var appStoreProductID: String { CommerceCatalog.definition(id: id)?.appStoreProductID ?? id }
     var isKeepsake: Bool { relatedCharacterProductID != nil }
 
+    /// Character stories ship with the app so older server metadata cannot replace them.
+    var storeDescription: String {
+        guard kind == .character else { return description }
+        return CommerceCatalog.definition(id: id)?.description ?? description
+    }
+
     var formattedPrice: String {
         amountKRW.formatted(.number.grouping(.automatic)) + "원"
     }

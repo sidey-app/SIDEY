@@ -64,6 +64,21 @@
     },
     {
       "familyShareable": false,
+      "internalID": "247D22F9-6081-46DA-B7DA-35AFDDF7FFBF",
+      "type": "NonConsumable",
+      "productID": "character_monkey_solo_2",
+      "referenceName": "아기 원숭이",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "시안 목도리를 두른 아기 원숭이 캐릭터",
+          "displayName": "아기 원숭이",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
       "internalID": "02000000-0000-4000-8000-000000000004",
       "type": "NonConsumable",
       "productID": "character_monkey_solo",
@@ -245,6 +260,21 @@
     {
       "displayPrice": "2200",
       "familyShareable": false,
+      "internalID": "C4478E77-6BC7-4D27-861A-0D8819307D63",
+      "localizations": [
+        {
+          "description": "둥근 초록 잎과 보라 목도리의 작은 나무예요.",
+          "displayName": "나무",
+          "locale": "ko_KR"
+        }
+      ],
+      "productID": "character_tree_2",
+      "referenceName": "나무",
+      "type": "NonConsumable"
+    },
+    {
+      "displayPrice": "2200",
+      "familyShareable": false,
       "internalID": "01000000-0000-4000-8000-000000000013",
       "localizations": [
         {
@@ -379,6 +409,21 @@
     },
     {
       "familyShareable": false,
+      "internalID": "63FD054E-97FF-4F27-AFC0-5F74C7F5BF49",
+      "type": "NonConsumable",
+      "productID": "throwable_clam_2",
+      "referenceName": "수달의 조개",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "수달이 품고 다니던 조개예요. 진주는 없고, 미련은 좀 있어요.",
+          "displayName": "수달의 조개",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
       "internalID": "02000000-0000-4000-8000-000000000042",
       "type": "NonConsumable",
       "productID": "throwable_clam",
@@ -388,6 +433,21 @@
         {
           "description": "수달이 품고 다니던 조개예요. 진주는 없고, 미련은 좀 있어요.",
           "displayName": "수달의 조개",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
+      "internalID": "A7805F1F-1C1E-4C8D-92A8-1DB578E9B151",
+      "type": "NonConsumable",
+      "productID": "throwable_pork_2",
+      "referenceName": "아기 돼지의 돼지고기",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "찰진 촵! 근데 옆집 꿀꿀이가 며칠 전부터 안 보이던데…?",
+          "displayName": "아기 돼지의 돼지고기",
           "locale": "ko_KR"
         }
       ]

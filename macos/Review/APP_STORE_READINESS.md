@@ -85,3 +85,19 @@ Xcode 프로젝트: `_workspace/direct-name-release/macos/SIDEY.xcodeproj`
 - 최신 Archive: `/private/tmp/sidey-release28-appstore/SIDEYAppStore.xcarchive`. 기존 build 27 Archive와 구분한다.
 - 직배포 build 28은 Developer ID 서명·Apple 공증·staple를 통과했고 실행 표시 이름과 bundle name을 SIDEY-DIRECT로 확인했다.
 - 사용자가 보고한 build 27 업로드 이후 build 28의 Connect 업로드·심사 제출과 실제 신규 Sandbox 구매/복원은 이 검증에서 실행하지 않았다. 운영 App Store verifier 신규 allowlist 배포 완료도 아직 확인하지 않았다.
+
+## 2026-09-12 나무 대체 상품 조회 후보
+
+- 나무 현재 Apple 상품 ID를 `character_tree_2`로 변경하고 기존 `character_tree`는 복원 ID로 유지한다. 내부 상품·권리·가격(한국 2,200원)과 다른 상품은 그대로다.
+- Connect에 비소모품 `character_tree_2`를 등록하고 한국 가격·판매 지역·한국어 이름/설명을 설정한 뒤 실제 Apple 조회를 검증해야 한다. 로컬 StoreKit 파일은 원격 등록을 대신하지 않는다.
+- 서버에는 `20260912020000_tree_app_store_offer.sql` migration과 verifier allowlist 변경이 필요하다. 원격 적용·신규 상품 등록·실제 거래·업로드는 이 소스 변경에서 완료된 것으로 간주하지 않는다.
+- 기존 build 27/28은 새 ID를 요청하지 않는다. 이번 로컬 검증은 버전 번호를 소비하지 않으며 향후 업로드 전에 양쪽 배포의 최대 사용 build를 다시 확인해 새 번호를 배정한다.
+- 로컬 검증: verifier 테스트 7개 통과(실제 SQL migration 재적용, 구·신 나무 거래·환불·복원 포함), App Store Debug 컴파일 성공(`CODE_SIGNING_ALLOWED=NO`), Swift 상품/복원 매핑 XCTest 1개 통과. 빌드된 앱의 나무 ID가 `character_tree_2`이고 기존 ID가 복원 목록에 포함된 것을 검사했다. 실제 Apple 조회나 서명·업로드 검증을 대신하지 않는다.
+
+## 2026-09-12 원숭이·조개·돼지고기 재등록 후보
+
+- 사용자가 나무 `character_tree_2`의 한국 가격 2,200원 표시를 확인했다. 나무의 실구매·복원 성공을 뜻하지 않는다.
+- 새 판매 ID는 `character_monkey_solo_2`, `throwable_clam_2`, `throwable_pork_2`다. 돼지 캐릭터 `character_pig`는 그대로다. 24개 상품과 과거 ID를 포함한 32개 Apple ID를 매핑한다.
+- 원격 적용이 필요한 추가 migration은 `20260912030000_remaining_app_store_offers.sql`이며 나무의 `20260912020000_tree_app_store_offer.sql`도 선행해야 한다. verifier도 같은 커밋의 allowlist를 배포해야 한다.
+- 신규 상품 등록·가격·지역·현지화와 실제 조회/구매/복원은 별도 검증 대상이다. 등록 값은 [재등록 입력표](REPLACEMENT_APP_STORE_REGISTRATION.md)를 따른다.
+- 로컬 검증: verifier 테스트 7개, Swift 상품/복원 매핑 테스트 1개 통과. App Store Debug 빌드 성공. 빌드된 앱의 나무·원숭이·조개·돼지고기 현재 ID와 총 32개 StoreKit ID/가격 일치를 확인했다. 원격 DB·Cloud Run 반영과 Connect 업로드는 이번 변경에서 실행하지 않았다.
