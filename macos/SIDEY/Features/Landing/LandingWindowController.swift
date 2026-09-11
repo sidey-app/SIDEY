@@ -18,7 +18,7 @@ final class LandingWindowController: NSWindowController {
             defer: false
         )
         super.init(window: window)
-        window.title = "SIDEY"
+        window.title = AppPresentation.displayName
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true

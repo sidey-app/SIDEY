@@ -69,7 +69,7 @@ if [ "$SIDEY_REQUIRES_SIGNED_FEED" != true ] || [ "$SIDEY_VERIFIES_BEFORE_EXTRAC
 	echo "The release bundle must require signed feeds and pre-extraction verification" >&2
 	exit 65
 fi
-if [ "$SIDEY_RELEASE_CHANNEL" != production ] || [ "$SIDEY_DISPLAY_NAME" != SIDEY ]; then
+if [ "$SIDEY_RELEASE_CHANNEL" != production ] || [ "$SIDEY_DISPLAY_NAME" != SIDEY-DIRECT ]; then
 	echo "Refusing to publish a non-production SIDEY build" >&2
 	exit 65
 fi
