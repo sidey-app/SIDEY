@@ -184,7 +184,7 @@ public sealed unsafe class NativeLayeredBitmap : IDisposable
         }
     }
 
-    public void Present(int screenX, int screenY)
+    public void Present(int screenX, int screenY, byte opacity = byte.MaxValue)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         HDC screenDeviceContext = PInvoke.GetDC(HWND.Null);
@@ -202,7 +202,7 @@ public sealed unsafe class NativeLayeredBitmap : IDisposable
             {
                 BlendOp = SourceOver,
                 BlendFlags = 0,
-                SourceConstantAlpha = byte.MaxValue,
+                SourceConstantAlpha = opacity,
                 AlphaFormat = SourceAlpha,
             };
             if (!PInvoke.UpdateLayeredWindow(

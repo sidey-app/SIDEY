@@ -11,6 +11,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 {
     private const int FramesPerSecond = 30;
     private const double FixedDeltaTime = 1d / FramesPerSecond;
+    private const double EntranceFadeDurationSeconds = 0.24d;
     private const double EdgeInsetAnimationSpeedDipPerSecond = 72d;
     private const double DozeRestingOpacity = 0.55d;
     private const double DozeFloatingDistanceDip = 3d;
@@ -127,6 +128,7 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
     private double _performanceTotalMilliseconds;
     private double _performanceMaximumMilliseconds;
     private int _tickRunning;
+    private int _presentedFrameCount;
     private double _edgeInsetPixels;
     private int _targetEdgeInsetPixels;
     private bool _faulted;
@@ -596,7 +598,11 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
             DrawStun(destinationPixels, effect.X, effect.Y, effect.Elapsed);
         RenderProjectiles(destinationPixels);
 
-        _surface.Present(_renderBounds.X, _renderBounds.Y);
+        _surface.Present(
+            _renderBounds.X,
+            _renderBounds.Y,
+            EntranceOpacity(_presentedFrameCount, _animationsEnabled()));
+        _presentedFrameCount++;
         _hasPresentedFrame = true;
         ReportPresentedMessageBubbles();
         if (_hotspotTrackingElapsed >= HotspotTrackingPolicy.MinimumUpdateInterval.TotalSeconds)
@@ -1305,18 +1311,50 @@ internal sealed class LayeredPixelWorldRenderer : IDisposable
 
     private void AnimateEdgeInset()
     {
-        double distance = _targetEdgeInsetPixels - _edgeInsetPixels;
+        _edgeInsetPixels = NextEdgeInset(
+            _edgeInsetPixels,
+            _targetEdgeInsetPixels,
+            _integerScale,
+            _animationsEnabled());
+    }
+
+    internal static byte EntranceOpacity(int presentedFrameCount, bool animationsEnabled)
+    {
+        if (!animationsEnabled)
+        {
+            return byte.MaxValue;
+        }
+
+        double progress = Math.Clamp(
+            presentedFrameCount * FixedDeltaTime / EntranceFadeDurationSeconds,
+            0d,
+            1d);
+        double eased = 1d - Math.Pow(1d - progress, 3d);
+        return (byte)Math.Round(byte.MaxValue * eased, MidpointRounding.AwayFromZero);
+    }
+
+    internal static double NextEdgeInset(
+        double current,
+        int target,
+        int integerScale,
+        bool animationsEnabled)
+    {
+        if (!animationsEnabled)
+        {
+            return target;
+        }
+
+        double distance = target - current;
         double maximumStep = EdgeInsetAnimationSpeedDipPerSecond
-            * (_integerScale / 2d)
+            * (integerScale / 2d)
             * FixedDeltaTime;
         if (Math.Abs(distance) <= 1d)
         {
-            _edgeInsetPixels = _targetEdgeInsetPixels;
-            return;
+            return target;
         }
 
         double easedStep = Math.Clamp(Math.Abs(distance) * 0.24d, 1d, maximumStep);
-        _edgeInsetPixels += Math.CopySign(easedStep, distance);
+        return current + Math.CopySign(easedStep, distance);
     }
 
     private static (int X, int Y) DestinationForFoot(
