@@ -42,6 +42,15 @@
 - App Store에서 신규 말풍선·투척물을 구매하면 서버 승인 뒤 해당 종류에 즉시 장착한다. `Transaction.currentEntitlements`, 시작 재검증과 사용자가 요청한 복원은 소유권만 동기화하고 현재 장착을 덮지 않는다. Windows는 같은 신규 꾸미기를 렌더링·미리보기·보유 장착하지만 구매는 지원하지 않는다.
 - App Store판의 업데이트는 App Store가 담당한다. 로그인 시 실행은 sandboxed main app의 `SMAppService.mainApp`을 사용한다.
 
+#### 2.1.2 신규 상품 App Store 심사 준비
+
+- 상점 투척물 자동 미리보기는 실제 충돌 시 효과음을 재생하고 `캐릭터 효과음` 설정을 따른다. 상세 시트 종료·동작 줄이기·잠금 시 소리와 예약 동작을 취소한다. 나무의 우클릭 정지/걷기 안내는 한 번만 표시한다. 승인된 round-4 왁뿌볼은 속이 비치는 얇은 껍질과 분리된 파편을, 두쫀쿠는 둥근 외형과 눌리는 속을 사용하며 두 macOS 타깃에 같은 시트를 포함한다.
+
+- 신규 비소모성 IAP 7종은 `assets/v1/new-products.json`을 기준으로 한다. 수달·돼지·눈송이·야구공·두쫀쿠는 한국 App Store 1,100원, 나무·왁뿌볼은 2,200원이다. 기존 10종을 포함하면 총 17종이다. 고유 투척물은 캐릭터 소유권에 포함한다.
+- App Store Debug는 Sandbox 검증 서버 주소를 번들에 포함해 Xcode 밖에서 실행해도 검증 서버가 설정된다. Release는 Production 검증 서버를 포함한다. Apple 서명을 검증한 거래 환경으로 Server API를 선택하므로 심사·TestFlight의 Sandbox 거래도 Release 코드에서 처리한다. Xcode 로컬 StoreKit 거래를 운영 소유권으로 지급하지 않는다.
+- 신규 상품 등록, 사용 가능 국가·한국 가격 포인트, 계약 상태, 심사 정보, 서버 allowlist와 catalog migration을 맞춘 뒤 Sandbox 구매→재실행 복원→환불 회수를 실기에서 검증한다. health 응답과 로컬 `.storekit` 설정만으로 실제 결제 완료를 주장하지 않는다. 실과금 검증은 공개 App Store 배포 후에 가능하다.
+- 이번 작업은 로컬 후보 준비이며 심사 제출·공개 릴리스·direct 실판매 활성화는 포함하지 않는다.
+
 ### 2.2 Windows 구현 목표
 
 - Windows 11 25H2(build 26200) 이상 x64 네이티브 클라이언트를 C#/.NET 10 LTS·WinUI 3·Win32로 구현한다.

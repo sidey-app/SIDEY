@@ -210,8 +210,8 @@
     {"id": "timber", "display_name": "작은 나무", "supported_platforms": ["macos"], "sprite": {"path": "throwables/timber/sprite.png", "sha256": "21280bb2ac9f9df4332552281fcba6fc1efdaf27b933eb058bf625a30221b63b"}},
     {"id": "throwable_snowflake", "display_name": "눈송이", "supported_platforms": ["macos"], "sprite": {"path": "throwables/throwable_snowflake/sprite.png", "sha256": "35ede7107f668d193c272773441215427da267e1f27b2beaab47d8c88ae37cd2"}},
     {"id": "throwable_baseball", "display_name": "야구공", "supported_platforms": ["macos"], "sprite": {"path": "throwables/throwable_baseball/sprite.png", "sha256": "73f3dc8d86a9f8f76f07494df5ee48a8ff5380feec55a718eed8aad6940b94e5"}},
-    {"id": "throwable_wakkuball", "display_name": "왁뿌볼", "supported_platforms": ["macos"], "sprite": {"path": "throwables/throwable_wakkuball/sprite.png", "sha256": "3df6b26926872045730fc00cb486d23d83705f14835f8d1fdeb9040db6634f10"}},
-    {"id": "throwable_dujjonku", "display_name": "두쫀쿠", "supported_platforms": ["macos"], "sprite": {"path": "throwables/throwable_dujjonku/sprite.png", "sha256": "84b04966f86f9c33fde7b8f2baf94337d0d3c18cbae3b4ada7a83eda2236e459"}}
+    {"id": "throwable_wakkuball", "display_name": "왁뿌볼", "supported_platforms": ["macos"], "sprite": {"path": "throwables/throwable_wakkuball/sprite.png", "sha256": "4627c3538efcdaae3deda1ee390fbac92f96cf6e199dceb58a60f7917b7de295"}},
+    {"id": "throwable_dujjonku", "display_name": "두쫀쿠", "supported_platforms": ["macos"], "sprite": {"path": "throwables/throwable_dujjonku/sprite.png", "sha256": "bb2468a5a9f3a692c294c7546c2b20cd4bfdfc903e6779304b2bfeccaea50b32"}}
   ],
   "bubbles": [
     { "id": "bubble_bunny_pink", "display_name": "핑크 토끼 말풍선", "supported_platforms": ["macos", "windows", "checkout"], "background_color": "#F7A9B8", "text_color": "#1C1F29", "contrast_ratio": 8.86, "decoration": { "path": "bubbles/bubble_bunny_pink/decoration.png", "sha256": "3013d02224fe98befdc18f065f706c98cc412ab30c77a6a6c83723fc3366d117" }, "preview": { "path": "bubbles/bubble_bunny_pink/preview.png", "sha256": "6bc038ab0f234223164d22194db95a055a46bb9384e491a4e6930d7e66615c43" } },
