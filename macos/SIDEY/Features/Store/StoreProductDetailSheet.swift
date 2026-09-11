@@ -7,9 +7,6 @@ struct StoreProductDetailSheet: View {
     let actions: SettingsActions
     var availability: StoreAvailability = .direct
     let onClose: () -> Void
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var trialRequestID: UUID?
-    @State private var isTryingKeepsake = false
     @State private var playsPreviewSound = true
 
     var displaysCommerceAction: Bool { availability.unavailableDetailMessage == nil }
@@ -22,39 +19,27 @@ struct StoreProductDetailSheet: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                if productState.product.characterID == PixelCharacterCatalog.pixelTreeID {
+                    Text("나무를 우클릭하면 멈추고, 다시 우클릭하면 걸어요.")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
                 StorePreviewStage(product: productState.product,
-                    trialRequestID: trialRequestID,
-                    trialObjectID: relatedProductState?.product.renderAssetID,
                     onCharacterImpact: { object, time in
                         if playsPreviewSound { actions.onCharacterImpact(object, time) }
                     }, onStopCharacterSounds: actions.onStopCharacterSounds)
-                    .overlay(alignment: .top) {
-                        if isTryingKeepsake {
-                            Text("애착 물건 체험 중 · 별도 판매")
-                                .font(.caption.weight(.medium))
-                                .padding(.horizontal, 12).padding(.vertical, 6)
-                                .background(.regularMaterial, in: Capsule())
-                                .padding(.top, 12)
+                    .overlay(alignment: .topTrailing) {
+                        if productState.product.kind != .bubble {
+                            Button(playsPreviewSound ? "미리보기 소리 끄기" : "미리보기 소리 켜기",
+                                   systemImage: playsPreviewSound ? "speaker.wave.2.fill" : "speaker.slash.fill") {
+                                playsPreviewSound.toggle()
+                                if !playsPreviewSound { actions.onStopCharacterSounds() }
+                            }
+                            .labelStyle(.iconOnly)
+                            .buttonStyle(.bordered)
+                            .help(playsPreviewSound ? "미리보기 소리 끄기" : "미리보기 소리 켜기")
+                            .padding(12)
                         }
                     }
-                if relatedProductState != nil {
-                    HStack(spacing: 12) {
-                        Button("애착 물건 던져 보기", systemImage: "play.fill") {
-                            isTryingKeepsake = true
-                            trialRequestID = UUID()
-                        }
-                        .disabled(reduceMotion || isTryingKeepsake)
-                        Button(playsPreviewSound ? "미리보기 소리 끄기" : "미리보기 소리 켜기",
-                               systemImage: playsPreviewSound ? "speaker.wave.2.fill" : "speaker.slash.fill") {
-                            playsPreviewSound.toggle()
-                            if !playsPreviewSound { actions.onStopCharacterSounds() }
-                        }
-                        .labelStyle(.iconOnly)
-                    }
-                    .buttonStyle(.bordered)
-                    Text("캐릭터와 애착 물건은 각각 구매해요.")
-                        .font(.callout).foregroundStyle(.secondary)
-                }
                 HStack(alignment: .top, spacing: 12) {
                     StoreDetailPurchaseCard(state: productState, actions: actions,
                         availability: availability, purchaseInProgress: isPurchaseInProgress,
@@ -64,10 +49,6 @@ struct StoreProductDetailSheet: View {
                             availability: availability, purchaseInProgress: isPurchaseInProgress)
                     }
                 }
-                if productState.product.characterID == PixelCharacterCatalog.pixelTreeID {
-                    Text("나무를 우클릭하면 멈추거나 걸어요.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
             }
             .padding(.horizontal, 30).padding(.top, 30).padding(.bottom, 24)
         }
@@ -76,11 +57,6 @@ struct StoreProductDetailSheet: View {
             Button("닫기", systemImage: "xmark", action: onClose)
                 .labelStyle(.iconOnly).buttonStyle(.plain).padding(12)
                 .accessibilityLabel("상품 상세 닫기")
-        }
-        .task(id: trialRequestID) {
-            guard trialRequestID != nil else { return }
-            do { try await Task.sleep(for: .seconds(2)); isTryingKeepsake = false }
-            catch { return }
         }
         .onDisappear { actions.onStopCharacterSounds() }
     }

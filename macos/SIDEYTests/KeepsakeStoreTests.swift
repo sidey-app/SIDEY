@@ -24,37 +24,46 @@ final class KeepsakeStoreTests: XCTestCase {
         XCTAssertEqual(CommerceProduct.monkey.appStoreProductID, "character_monkey_solo")
         XCTAssertNil(CommerceCatalog.product(appStoreID: "haracter_pig"))
     }
-    func testTrialDoesNotRepeatOnViewUpdateAndStopsOnClose() throws {
+    func testFriendClickThrowsKeepsakeWithSoundAndViewUpdatesDoNotThrowAgain() throws {
+        var now: TimeInterval = 100
+        let scenario = StorePreviewScenario.make(product: .pig)
+        let scene = PixelWorldScene(size: StorePreviewStageLayout.size, renderingConfiguration: .storePreview(
+            initialTrackFractions: scenario.initialTrackFractions, fixedTrackFractions: scenario.fixedTrackFractions), clock: { now })
+        let view = StorePreviewSKView(frame: CGRect(origin: .zero, size: StorePreviewStageLayout.size))
+        view.presentScene(scene)
+        let coordinator = StorePreviewPlaybackCoordinator()
+        defer { coordinator.stop(detachingScene: true) }
+        var sounds: [String] = []
+        scene.onCharacterImpact = { object, _ in sounds.append(object) }
+        coordinator.configure(view: view, scene: scene, scenario: scenario, isPlaying: true)
+        XCTAssertEqual(scene.activeProjectileCount, 0)
+        XCTAssertEqual(view.characterThrowInteraction?.throwableID, "pork")
+        let target = try XCTUnwrap(scene.agentStates.first { $0.id == StorePreviewScenario.dubuID })
+        XCTAssertTrue(view.playCharacterThrow(at: scene.trackGeometry.point(for: target.trackPosition)))
+        XCTAssertEqual(scene.activeProjectileCount, 1)
+        coordinator.configure(view: view, scene: scene, scenario: scenario, isPlaying: true)
+        XCTAssertEqual(scene.activeProjectileCount, 1)
+        XCTAssertFalse(coordinator.hasActiveThrowTask)
+        now += 0.8
+        scene.update(now)
+        XCTAssertEqual(sounds, ["pork"])
+        // Gameplay still uses the free default; only this local preview selects the keepsake.
+        XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_pig"), "patch_soft_ball")
+        coordinator.stop(detachingScene: true)
+        XCTAssertEqual(scene.activeProjectileCount, 0)
+        XCTAssertNil(view.scene)
+    }
+    func testPausedPreviewIgnoresClicksAndDoesNotReplayThemOnResume() throws {
         let scenario = StorePreviewScenario.make(product: .pig)
         let scene = PixelWorldScene(size: StorePreviewStageLayout.size, renderingConfiguration: .storePreview(
             initialTrackFractions: scenario.initialTrackFractions, fixedTrackFractions: scenario.fixedTrackFractions))
         let view = StorePreviewSKView(frame: CGRect(origin: .zero, size: StorePreviewStageLayout.size))
         view.presentScene(scene)
         let coordinator = StorePreviewPlaybackCoordinator()
-        let request = UUID()
-        coordinator.configure(view: view, scene: scene, scenario: scenario, isPlaying: true,
-            trialRequestID: request, trialObjectID: "pork")
-        XCTAssertEqual(scene.activeProjectileCount, 1)
-        XCTAssertFalse(coordinator.hasActiveThrowTask)
-        XCTAssertEqual(view.characterThrowInteraction?.throwableID, "patch_soft_ball")
-        coordinator.configure(view: view, scene: scene, scenario: scenario, isPlaying: true,
-            trialRequestID: request, trialObjectID: "pork")
-        XCTAssertEqual(scene.activeProjectileCount, 1)
-        coordinator.stop(detachingScene: true)
-        XCTAssertEqual(scene.activeProjectileCount, 0)
-        XCTAssertNil(view.scene)
-    }
-    func testReducedMotionSuppressesTrialAndDoesNotReplayItOnResume() {
-        let scenario = StorePreviewScenario.make(product: .pig)
-        let scene = PixelWorldScene(size: StorePreviewStageLayout.size, renderingConfiguration: .storePreview(
-            initialTrackFractions: scenario.initialTrackFractions, fixedTrackFractions: scenario.fixedTrackFractions))
-        let view = StorePreviewSKView(frame: CGRect(origin: .zero, size: StorePreviewStageLayout.size))
-        let coordinator = StorePreviewPlaybackCoordinator()
-        let request = UUID()
-        coordinator.configure(view: view, scene: scene, scenario: scenario, isPlaying: false,
-            trialRequestID: request, trialObjectID: "pork")
-        coordinator.configure(view: view, scene: scene, scenario: scenario, isPlaying: true,
-            trialRequestID: request, trialObjectID: "pork")
+        coordinator.configure(view: view, scene: scene, scenario: scenario, isPlaying: false)
+        let target = try XCTUnwrap(scene.agentStates.first { $0.id == StorePreviewScenario.dubuID })
+        XCTAssertFalse(view.playCharacterThrow(at: scene.trackGeometry.point(for: target.trackPosition)))
+        coordinator.configure(view: view, scene: scene, scenario: scenario, isPlaying: true)
         XCTAssertEqual(scene.activeProjectileCount, 0)
         coordinator.stop(detachingScene: true)
     }

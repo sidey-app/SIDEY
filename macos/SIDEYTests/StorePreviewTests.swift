@@ -6,7 +6,7 @@ import XCTest
 
 @MainActor
 final class StorePreviewTests: XCTestCase {
-    func testCharacterScenariosAddAClickableFriendAndUseTheSignatureThrowable() throws {
+    func testCharacterScenariosThrowTheirKeepsakeWhenTheFriendIsClicked() throws {
         for product in CommerceCatalog.characterProducts {
             let scenario = StorePreviewScenario.make(product: product)
             let characterID = try XCTUnwrap(product.characterID)
@@ -30,7 +30,7 @@ final class StorePreviewTests: XCTestCase {
             XCTAssertEqual(event.sourceCharacterID, characterID)
             XCTAssertEqual(
                 event.throwableID,
-                PixelCharacterThrowCatalog.objectID(for: characterID)
+                CommerceCatalog.keepsake(for: product.id)?.renderAssetID
             )
 
             let scene = makeScene(for: product)
@@ -375,7 +375,7 @@ final class StorePreviewTests: XCTestCase {
             XCTAssertNotNil(PixelCharacterThrowCatalog.actionAssetURL(for: characterID), product.id)
             XCTAssertNotNil(
                 PixelCharacterThrowCatalog.objectAssetURL(
-                    for: PixelCharacterThrowCatalog.objectID(for: characterID)
+                    for: try XCTUnwrap(CommerceCatalog.keepsake(for: product.id)?.renderAssetID)
                 ),
                 product.id
             )

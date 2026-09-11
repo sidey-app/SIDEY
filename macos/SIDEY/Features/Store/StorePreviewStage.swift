@@ -10,8 +10,6 @@ enum StorePreviewStageLayout {
 
 struct StorePreviewStage: View {
     let product: CommerceProduct
-    var trialRequestID: UUID? = nil
-    var trialObjectID: String? = nil
     var onCharacterImpact: (String, TimeInterval) -> Void = { _, _ in }
     var onStopCharacterSounds: () -> Void = {}
 
@@ -26,7 +24,7 @@ struct StorePreviewStage: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color.primary.opacity(0.035))
             StorePreviewPlatform()
-            StorePreviewSceneView(scenario: scenario, trialRequestID: trialRequestID, trialObjectID: trialObjectID, isPlaying: !reduceMotion, onCharacterImpact: onCharacterImpact, onStopCharacterSounds: onStopCharacterSounds)
+            StorePreviewSceneView(scenario: scenario, isPlaying: !reduceMotion, onCharacterImpact: onCharacterImpact, onStopCharacterSounds: onStopCharacterSounds)
                 .accessibilityLabel("\(product.displayName) 미리보기")
                 .accessibilityHint(reduceMotion
                                    ? "동작 줄이기가 켜져 정지된 장면을 표시합니다."
@@ -42,7 +40,8 @@ struct StorePreviewStage: View {
 
     private var previewAccessibilityHint: String {
         if product.kind == .character {
-            return "친구 캐릭터를 클릭하면 기본 말랑공을 던지고, 캐릭터를 두 번 클릭하면 확대 반응을 볼 수 있습니다."
+            let objectName = CommerceCatalog.keepsake(for: product.id)?.displayName ?? "기본 말랑공"
+            return "상대 캐릭터를 클릭해 \(objectName) 던지기를 체험할 수 있습니다. 캐릭터를 두 번 클릭하면 확대 반응을 볼 수 있습니다."
         }
         return "캐릭터를 두 번 클릭하면 확대 반응을 볼 수 있습니다."
     }
@@ -84,8 +83,6 @@ private struct StorePreviewPlatform: View {
 
 private struct StorePreviewSceneView: NSViewRepresentable {
     let scenario: StorePreviewScenario
-    let trialRequestID: UUID?
-    let trialObjectID: String?
     let isPlaying: Bool
     let onCharacterImpact: (String, TimeInterval) -> Void
     let onStopCharacterSounds: () -> Void
@@ -112,9 +109,7 @@ private struct StorePreviewSceneView: NSViewRepresentable {
             view: view,
             scene: scene,
             scenario: scenario,
-            isPlaying: isPlaying,
-            trialRequestID: trialRequestID,
-            trialObjectID: trialObjectID
+            isPlaying: isPlaying
         )
         return view
     }
@@ -127,9 +122,7 @@ private struct StorePreviewSceneView: NSViewRepresentable {
             view: view,
             scene: scene,
             scenario: scenario,
-            isPlaying: isPlaying,
-            trialRequestID: trialRequestID,
-            trialObjectID: trialObjectID
+            isPlaying: isPlaying
         )
     }
 
@@ -192,7 +185,6 @@ final class StorePreviewPlaybackCoordinator {
     private weak var view: StorePreviewSKView?
     private weak var scene: PixelWorldScene?
     private var productID: String?
-    private var lastTrialRequestID: UUID?
     private(set) var throwTask: Task<Void, Never>?
     private(set) var bubbleTask: Task<Void, Never>?
 
@@ -203,9 +195,7 @@ final class StorePreviewPlaybackCoordinator {
         view: StorePreviewSKView,
         scene: PixelWorldScene,
         scenario: StorePreviewScenario,
-        isPlaying: Bool,
-        trialRequestID: UUID? = nil,
-        trialObjectID: String? = nil
+        isPlaying: Bool
     ) {
         let changedScene = self.scene !== scene || productID != scenario.productID
         if changedScene {
@@ -218,22 +208,10 @@ final class StorePreviewPlaybackCoordinator {
         view.characterThrowInteraction = scenario.characterThrowInteraction
         view.isPaused = !isPlaying
         guard isPlaying else {
-            lastTrialRequestID = trialRequestID
             cancelSequenceTasks()
             scene.cancelLocalPreviewPlayback()
             StorePreviewSceneConfiguration.apply(scenario, to: scene)
             return
-        }
-
-        if let trialRequestID, trialRequestID != lastTrialRequestID,
-           let objectID = trialObjectID, PixelCharacterThrowCatalog.supports(objectID: objectID),
-           let interaction = scenario.characterThrowInteraction {
-            lastTrialRequestID = trialRequestID
-            scene.playLocalPreviewThrow(CharacterThrowEvent(
-                id: trialRequestID, roomID: interaction.roomID,
-                actorUserID: interaction.actorMemberID, targetUserID: interaction.targetMemberID,
-                sourceCharacterID: interaction.sourceCharacterID, throwableID: objectID
-            ))
         }
 
         configureThrowSequence(scenario.throwSequence, scene: scene)
@@ -312,7 +290,6 @@ final class StorePreviewPlaybackCoordinator {
             view = nil
             scene = nil
             productID = nil
-            lastTrialRequestID = nil
         } else {
             view?.isPaused = true
         }
