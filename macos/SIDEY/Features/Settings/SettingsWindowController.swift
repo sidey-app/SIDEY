@@ -20,7 +20,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
             defer: false
         )
         super.init(window: window)
-        window.title = "SIDEY 설정"
+        window.title = "\(AppPresentation.displayName) 설정"
         window.titlebarAppearsTransparent = false
         window.titlebarSeparatorStyle = .automatic
         window.isReleasedWhenClosed = false

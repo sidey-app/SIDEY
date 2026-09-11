@@ -512,7 +512,7 @@ final class HistoryWindowController: NSWindowController, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "SIDEY 최근 기록"
+        window.title = "\(AppPresentation.displayName) 최근 기록"
         window.level = .normal
         window.collectionBehavior = [.managed]
         window.isReleasedWhenClosed = false

@@ -1,6 +1,7 @@
 # Mac App Store 후보 점검 — 2026-09-12
 
-후보 소스: `macos/tree-right-click-controls`, 마케팅 버전 1.2.0, 임시 build 27.
+현재 소스: `macos/direct-name-release`, 마케팅 버전 1.2.0, build 28.
+사용자가 build 27의 App Store Connect 업로드 완료를 확인해 새 배포 번호를 28로 배정했다.
 이 문서는 로컬 구현·검증 상태다. 원격 상품 등록·서버 배포·심사 제출 완료를 뜻하지 않는다.
 
 ## 구현 완료
@@ -11,7 +12,7 @@
 - 기본 투척물은 공통 말랑공이다. 캐릭터 미리보기에서 상대 캐릭터를 클릭하면 해당 애착 물건을 던진다. 별도 체험 버튼과 체험 배지는 제거했다. 서버 호출·장착 변경 없이 승인 효과음을 재생한다.
 - 상품 카탈로그 24종을 공통 JSON으로 정의하고 macOS 두 타깃에 같은 자원을 포함한다. 기존 캐릭터 4종은 `_solo` 신규 SKU를 조회하며 기존 SKU도 복원·검증한다. StoreKit 설정과 서버 allowlist는 총 28개다.
 - 기존 포함 물건은 부모 지급 출처에 연결한 별도 권리로 보전한다. 환불·회수·계정 연결 해제·지급 삭제는 해당 출처만 제거하고 독립 구매 권리는 유지한다. 전환 전 주문도 기존 구매 내용을 보존한다.
-- DB 카탈로그에 관련 캐릭터·렌더링 ID를 추가하고 StoreKit 판매 ID와 논리 상품 ID를 분리했다. 새 migration은 아직 원격에 적용하지 않았다.
+- DB 카탈로그에 관련 캐릭터·렌더링 ID를 추가하고 StoreKit 판매 ID와 논리 상품 ID를 분리했다. 원격 migration 적용 여부는 아래 시점별 기록과 별도로 확인한다.
 - 승인된 수달·돼지·나무, 두쫀쿠 늘어남·왁뿌볼 파편, 왁뿌볼 A·돼지고기 촵 등 기존 승인 이미지·음원을 유지한다.
 
 ## 로컬 검증
@@ -26,7 +27,7 @@
 
 ## 앱에서 확인
 
-Xcode 프로젝트: `_workspace/tree-right-click-controls/macos/SIDEY.xcodeproj`
+Xcode 프로젝트: `_workspace/direct-name-release/macos/SIDEY.xcodeproj`
 
 - `SIDEYStoreReview` scheme → 실행: 로그인 없이 실제 상세 화면의 상품·보유 상태·가격 표시를 검토한다. 실제 결제는 진행하지 않는다.
 - 설치된 `/Applications/Sidey-dev.app`도 `--store-review`로 실행 중이다.
@@ -42,7 +43,7 @@ Xcode 프로젝트: `_workspace/tree-right-click-controls/macos/SIDEY.xcodeproj`
 5. App Store의 실제 가격 조회와 심사 화면을 확인하고 업로드 이력에 맞는 build 번호를 확정한다. 최종 Apple Distribution export/validation을 수행한다. 현재 Archive는 Apple Development 서명이다.
 6. Windows와 공개 웹의 카탈로그·안내 업데이트는 플랫폼별 후속 작업이다. 이번 macOS 분리 판매 서버 계약의 운영 전환은 구버전·다른 플랫폼 호환 검증 후 진행한다.
 
-심사 제출·업로드·공개 릴리스·실결제·운영 DB 변경은 하지 않았다.
+이하 01:51까지의 기록은 당시 로컬 검증 상태다. 이후 사용자가 build 27 업로드를 완료했고, 직배포 이름 변경·main 병합·macOS 릴리스를 승인했다. 심사 승인과 실제 구매 검증 완료를 뜻하지 않는다.
 
 ## 로컬 파일
 
@@ -68,3 +69,9 @@ Xcode 프로젝트: `_workspace/tree-right-click-controls/macos/SIDEY.xcodeproj`
 - 실제 Apple 상품 조회는 24개 중 15개이며 미조회 9개는 character_chinchilla_solo, character_guinea_pig_solo, character_monkey_solo, character_starlight_upalupa_solo, character_tree, throwable_banana, throwable_clam, throwable_pork, throwable_snowflake다.
 - App Store 가격이 없을 때 서버의 직배포 가격을 대신 표시하던 목록을 수정했다. 조회 중·조회 불가·실패를 구분하고 상세의 가격 다시 확인과 상점 재진입/상태 갱신에서 Apple 가격을 다시 조회한다. 미조회 상품의 구매 차단과 보유 권리 유지 정책은 유지한다.
 - 가격 일부 누락·실패·재조회 복구·직배포 표시를 포함한 상점 관련 테스트 45개 통과. 수정된 App Store Debug 빌드를 실행해 실제 재조회 로그를 확인했다. Apple에서 아직 반환하지 않는 상품의 등록/가격/판매 지역/전파 상태 확인과 Sandbox 신규 구매·복원 실검증은 남아 있다.
+
+## 2026-09-12 배포 이름 및 build 28
+
+- 직배포 Release의 CFBundleDisplayName·CFBundleName과 실행 메뉴·창 제목은 `SIDEY-DIRECT`, App Store판은 `SIDEY`, 개발판은 `Sidey-dev`다.
+- 직배포 내부 `SIDEY.app`·실행 파일·bundle ID·로그인 helper ID·Keychain·설정·Sparkle feed는 유지해 기존 설치를 교체한다.
+- 사용자가 신규 18종의 제출 준비 중 화면과 build 27 업로드 완료를 확인했다. 새 build 28 Archive는 다시 업로드할 수 있는 별도 빌드이며 이 문서만으로 업로드·심사 제출 완료를 주장하지 않는다.

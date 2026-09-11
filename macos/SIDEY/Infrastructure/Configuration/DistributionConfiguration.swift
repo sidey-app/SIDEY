@@ -1,5 +1,9 @@
 import Foundation
 
+enum AppPresentation {
+    static let displayName = Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String ?? "SIDEY"
+}
+
 enum AppReleaseChannel: String, Equatable {
     case production
     case development

@@ -5,7 +5,7 @@ enum StatusItemIconProvider {
     static let unreadAssetName = "SideyMenuIconUnread"
 
     static func image(hasUnread: Bool) -> NSImage? {
-        let description = hasUnread ? "SIDEY, 읽지 않은 메시지 있음" : "SIDEY"
+        let description = hasUnread ? "\(AppPresentation.displayName), 읽지 않은 메시지 있음" : AppPresentation.displayName
         let assetName = hasUnread ? unreadAssetName : regularAssetName
         if let asset = NSImage(named: NSImage.Name(assetName))?.copy() as? NSImage {
             asset.isTemplate = true
@@ -74,7 +74,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     func install() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = StatusItemIconProvider.image(hasUnread: false)
-        item.button?.toolTip = "SIDEY"
+        item.button?.toolTip = AppPresentation.displayName
         item.menu = makeMenu()
         statusItem = item
     }
@@ -98,7 +98,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     func makeMenu() -> NSMenu {
-        let menu = NSMenu(title: "SIDEY")
+        let menu = NSMenu(title: AppPresentation.displayName)
         menu.delegate = self
         let overlay = NSMenuItem(
             title: overlayVisible ? "오버레이 숨기기" : "오버레이 보이기",
@@ -154,7 +154,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(settings)
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(title: "SIDEY 종료", action: #selector(quit), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "\(AppPresentation.displayName) 종료", action: #selector(quit), keyEquivalent: "q")
         quit.target = self
         menu.addItem(quit)
         return menu
@@ -191,7 +191,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private func updateStatusIcon() {
         let hasUnread = unreadCounts.values.contains(where: { $0 > 0 })
         statusItem?.button?.image = StatusItemIconProvider.image(hasUnread: hasUnread)
-        statusItem?.button?.toolTip = hasUnread ? "SIDEY · 읽지 않은 메시지 있음" : "SIDEY"
+        statusItem?.button?.toolTip = hasUnread ? "\(AppPresentation.displayName) · 읽지 않은 메시지 있음" : AppPresentation.displayName
     }
 
     @objc private func toggleOverlay() { onToggleOverlay() }
