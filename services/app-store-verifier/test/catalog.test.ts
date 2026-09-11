@@ -2,8 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { entitlementByProduct, isSideyProductID, transactionStatus } from "../src/catalog.js";
 
-test("catalog maps exactly the ten SIDEY App Store products", () => {
+test("catalog maps exactly the seventeen SIDEY App Store products", () => {
   assert.deepEqual(entitlementByProduct, {
+    character_otter: "character:pixel_otter",
+    character_pig: "character:pixel_pig",
+    character_tree: "character:pixel_tree",
+    throwable_snowflake: "throwable:throwable_snowflake",
+    throwable_baseball: "throwable:throwable_baseball",
+    throwable_wakkuball: "throwable:throwable_wakkuball",
+    throwable_dujjonku: "throwable:throwable_dujjonku",
     character_starlight_upalupa: "character:pixel_starlight_upalupa",
     character_guinea_pig: "character:pixel_guinea_pig",
     character_monkey: "character:pixel_monkey",

@@ -1,4 +1,12 @@
 export const SUPPORTED_PRODUCT_IDS = new Set([
+  "character_otter",
+  "character_pig",
+  "character_tree",
+  "throwable_snowflake",
+  "throwable_baseball",
+  "throwable_wakkuball",
+  "throwable_dujjonku",
+
   "character_starlight_upalupa",
   "character_guinea_pig",
   "character_monkey",
