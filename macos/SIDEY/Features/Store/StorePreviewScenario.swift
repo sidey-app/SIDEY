@@ -33,7 +33,8 @@ struct StorePreviewScenario: Equatable, Sendable {
                     actorMemberID: mokaID,
                     targetMemberID: dubuID,
                     sourceCharacterID: characterID,
-                    throwableID: PixelCharacterThrowCatalog.objectID(for: characterID)
+                    throwableID: CommerceCatalog.keepsake(for: product.id)?.renderAssetID
+                        ?? PixelCharacterThrowCatalog.fallbackObjectID
                 )
             )
         case .bubble:

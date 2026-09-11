@@ -39,13 +39,49 @@ private final class TaskComposerFocusLossScheduler: ComposerFocusLossScheduling 
     }
 }
 
+@MainActor
+final class CharacterRightClickCoordinator {
+    private let interval: TimeInterval
+    private let onSingle: () -> Void
+    private let onDouble: () -> Void
+    private var pending: Task<Void, Never>?
+
+    init(interval: TimeInterval = NSEvent.doubleClickInterval,
+         onSingle: @escaping () -> Void, onDouble: @escaping () -> Void) {
+        self.interval = interval
+        self.onSingle = onSingle
+        self.onDouble = onDouble
+    }
+
+    func handle(clickCount: Int) {
+        cancel()
+        if clickCount == 2 {
+            onDouble()
+        } else if clickCount == 1 {
+            pending = Task { @MainActor [weak self, interval] in
+                do { try await Task.sleep(for: .seconds(interval)) } catch { return }
+                guard let self else { return }
+                self.pending = nil
+                self.onSingle()
+            }
+        }
+    }
+
+    func cancel() {
+        pending?.cancel()
+        pending = nil
+    }
+
+    deinit { pending?.cancel() }
+}
+
 private final class CharacterHotspotView: NSView {
     let onClick: (Int) -> Void
-    let onRightClick: () -> Void
+    let rightClicks: CharacterRightClickCoordinator
 
-    init(onClick: @escaping (Int) -> Void, onRightClick: @escaping () -> Void) {
+    init(onClick: @escaping (Int) -> Void, onRightClick: @escaping () -> Void, onDoubleRightClick: @escaping () -> Void) {
         self.onClick = onClick
-        self.onRightClick = onRightClick
+        self.rightClicks = CharacterRightClickCoordinator(onSingle: onRightClick, onDouble: onDoubleRightClick)
         super.init(frame: .zero)
     }
 
@@ -53,7 +89,7 @@ private final class CharacterHotspotView: NSView {
     required init?(coder: NSCoder) { nil }
 
     override func mouseDown(with event: NSEvent) { onClick(event.clickCount) }
-    override func rightMouseDown(with event: NSEvent) { onRightClick() }
+    override func rightMouseDown(with event: NSEvent) { rightClicks.handle(clickCount: event.clickCount) }
 }
 
 enum OverlayWindowIdentifier {
@@ -399,7 +435,8 @@ final class CharacterHotspotWindowController {
 
     init(
         onClick: @escaping (Int) -> Void,
-        onRightClick: @escaping () -> Void = {}
+        onRightClick: @escaping () -> Void = {},
+        onDoubleRightClick: @escaping () -> Void = {}
     ) {
         panel = CharacterHotspotPanel(
             contentRect: CGRect(origin: .zero, size: Self.panelSize),
@@ -417,12 +454,13 @@ final class CharacterHotspotWindowController {
         panel.canHide = false
         panel.ignoresMouseEvents = false
         panel.isReleasedWhenClosed = false
-        panel.contentView = CharacterHotspotView(onClick: onClick, onRightClick: onRightClick)
+        panel.contentView = CharacterHotspotView(onClick: onClick, onRightClick: onRightClick, onDoubleRightClick: onDoubleRightClick)
     }
 
     func setFrame(_ frame: CGRect?) {
         guard let frame else {
             hasFrame = false
+            (panel.contentView as? CharacterHotspotView)?.rightClicks.cancel()
             panel.orderOut(nil)
             return
         }
@@ -433,6 +471,7 @@ final class CharacterHotspotWindowController {
 
     func setVisible(_ visible: Bool) {
         requestedVisible = visible
+        if !visible { (panel.contentView as? CharacterHotspotView)?.rightClicks.cancel() }
         if visible, hasFrame {
             panel.orderFrontRegardless()
         } else {

@@ -7,8 +7,8 @@ import Observation
 final class AppModel {
     #if !APP_STORE
     @ObservationIgnored let characterStunState = CharacterStunState()
-    @ObservationIgnored lazy var characterImpactAudio = CharacterImpactAudio()
     #endif
+    @ObservationIgnored lazy var characterImpactAudio = CharacterImpactAudio()
     var preferences: AppPreferences
     var overlayVisibility: OverlayVisibility
     var overlayVisible: Bool { overlayVisibility.isVisible }
@@ -342,9 +342,23 @@ final class AppModel {
         commerceProducts[index].purchaseState = state
     }
 
+    func beginCommercePriceLoading() {
+        for index in commerceProducts.indices {
+            commerceProducts[index].priceLoadState = .loading
+        }
+    }
+
+    func failCommercePriceLoading() {
+        for index in commerceProducts.indices {
+            commerceProducts[index].priceLoadState = .failed
+        }
+    }
+
     func setCommerceLocalizedPrices(_ prices: [String: String]) {
         for index in commerceProducts.indices {
             commerceProducts[index].localizedPrice = prices[commerceProducts[index].id]
+            commerceProducts[index].priceLoadState = commerceProducts[index].localizedPrice == nil
+                ? .unavailable : .available
         }
     }
 
@@ -489,12 +503,12 @@ final class AppModel {
     }
 
     func setActiveRoomRealtimeConnected(_ connected: Bool) {
-        #if !APP_STORE
         if activeRoomTransportConnected != connected {
+            #if !APP_STORE
             characterStunState.reset()
+            #endif
             characterImpactAudio.stopAll()
         }
-        #endif
         activeRoomTransportConnected = connected
         // Typing is a transient Broadcast lease. A disconnect can lose the
         // matching typing_stop event, so never carry typing across reconnect.

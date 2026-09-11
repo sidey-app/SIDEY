@@ -5,6 +5,42 @@ import XCTest
 
 @MainActor
 final class WindowPolicyTests: XCTestCase {
+    func testRightClickSingleWaitsForDoubleClickWindow() async {
+        let single = expectation(description: "single right click")
+        var doubles = 0
+        let clicks = CharacterRightClickCoordinator(interval: 0.02,
+            onSingle: { single.fulfill() }, onDouble: { doubles += 1 })
+        clicks.handle(clickCount: 1)
+        XCTAssertEqual(doubles, 0)
+        await fulfillment(of: [single], timeout: 1)
+        XCTAssertEqual(doubles, 0)
+    }
+
+    func testRightClickDoubleCancelsSingleAction() async throws {
+        var singles = 0
+        var doubles = 0
+        let clicks = CharacterRightClickCoordinator(interval: 0.02,
+            onSingle: { singles += 1 }, onDouble: { doubles += 1 })
+        clicks.handle(clickCount: 1)
+        clicks.handle(clickCount: 2)
+        XCTAssertEqual(doubles, 1)
+        try await Task.sleep(for: .milliseconds(60))
+        XCTAssertEqual(singles, 0)
+        XCTAssertEqual(doubles, 1)
+        clicks.handle(clickCount: 3)
+        XCTAssertEqual(doubles, 1)
+    }
+
+    func testRightClickCancellationPreventsHiddenHotspotAction() async throws {
+        var singles = 0
+        let clicks = CharacterRightClickCoordinator(interval: 0.02,
+            onSingle: { singles += 1 }, onDouble: {})
+        clicks.handle(clickCount: 1)
+        clicks.cancel()
+        try await Task.sleep(for: .milliseconds(60))
+        XCTAssertEqual(singles, 0)
+    }
+
     func testPixelWorldRendererUsesThirtyFPSNearestFriendlyContract() {
         let view = SKView()
         PixelWorldRendererPolicy.apply(to: view)

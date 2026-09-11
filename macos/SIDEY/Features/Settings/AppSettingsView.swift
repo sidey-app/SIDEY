@@ -68,8 +68,8 @@ struct AppSettingsView: View {
                 )
                 Divider()
                 SettingsToggleRow(
-                    title: "우클릭 후 던지기",
-                    description: "끄면 친구 캐릭터를 바로 클릭할 수 있고, 켜면 내 캐릭터를 우클릭한 뒤 10초 동안만 클릭할 수 있습니다.",
+                    title: "더블 우클릭 후 던지기",
+                    description: "끄면 친구 캐릭터를 바로 클릭할 수 있고, 켜면 내 캐릭터를 더블 우클릭한 뒤 10초 동안만 클릭할 수 있습니다.",
                     isOn: Binding(
                         get: { model.preferences.requiresRightClickToThrow },
                         set: { actions.onRequiresRightClickToThrowChanged($0) }
@@ -77,7 +77,6 @@ struct AppSettingsView: View {
                 )
             }
 
-            #if !APP_STORE
             SettingsSection(title: "소리", subtitle: "캐릭터 효과음 재생을 설정합니다.", systemImage: "speaker.wave.2") {
                 SettingsToggleRow(
                     title: "캐릭터 효과음",
@@ -86,7 +85,6 @@ struct AppSettingsView: View {
                                   set: { actions.onCharacterSoundEffectsChanged($0) })
                 )
             }
-            #endif
 
             if !storeAvailability.usesAppStore {
                 SettingsSection(

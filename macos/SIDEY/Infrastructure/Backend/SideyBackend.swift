@@ -279,7 +279,10 @@ actor SideyBackend {
                   state.characterID == registered.characterID,
                   state.entitlementKey == registered.entitlementKey,
                   state.sortOrder == registered.sortOrder
-            else { throw SideyBackendError.malformedResponse }
+            else {
+                recoveryLogger.error("Store catalog metadata mismatch: \(state.productID, privacy: .public)")
+                throw SideyBackendError.malformedResponse
+            }
             if let characterID = state.characterID,
                PixelCharacterCatalog.definition(for: characterID).id != characterID {
                 throw SideyBackendError.malformedResponse
@@ -287,6 +290,7 @@ actor SideyBackend {
             return state.domain
         }
         guard states.count == CommerceCatalog.products.count else {
+            recoveryLogger.error("Store catalog count mismatch: server \(states.count), app \(CommerceCatalog.products.count)")
             throw SideyBackendError.malformedResponse
         }
         return states.sorted { $0.product.sortOrder < $1.product.sortOrder }

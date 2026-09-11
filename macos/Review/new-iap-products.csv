@@ -1,0 +1,8 @@
+product_id,type,locale,display_name,description,KOR_price_KRW,status
+character_otter,NON_CONSUMABLE,ko-KR,아기 수달,아기 수달 캐릭터를 사용해요. 애착 물건은 별도 판매예요.,1100,draft_created_user_report
+character_pig,NON_CONSUMABLE,ko-KR,아기 돼지,아기 돼지 캐릭터를 사용해요. 애착 물건은 별도 판매예요.,1100,identifier_recreation_unconfirmed
+character_tree,NON_CONSUMABLE,ko-KR,나무,나무 캐릭터를 사용해요. 애착 물건은 별도 판매예요.,2200,draft_created_user_report
+throwable_snowflake,NON_CONSUMABLE,ko-KR,눈송이,맞으면 작은 결정 조각으로 흩어지는 눈송이예요.,1100,draft_created_user_report
+throwable_baseball,NON_CONSUMABLE,ko-KR,야구공,붉은 실밥이 있는 공이 눌렸다 튕겨요.,1100,draft_created_user_report
+throwable_wakkuball,NON_CONSUMABLE,ko-KR,왁뿌볼,와그작! 왁뿌볼이 조각조각 부서지는 바삭한 소리를 느껴보세요.,2200,draft_created_user_report
+throwable_dujjonku,NON_CONSUMABLE,ko-KR,두쫀쿠,코코아 겉피와 초록색 속이 눌리며 바삭한 소리가 나요.,2200,draft_created_user_report

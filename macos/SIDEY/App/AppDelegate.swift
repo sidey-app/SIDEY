@@ -7,6 +7,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     #if DEBUG && !APP_STORE
     private var feedbackRoom: CharacterFeedbackDebugRoom?
     #endif
+    #if DEBUG
+    private var storeReview: StoreReviewDebugWindow?
+    #endif
     private let launchProbe = LaunchPerformanceProbe()
 #if APP_STORE
     private lazy var updateController = NoUpdateController()
@@ -22,6 +25,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             || NSClassFromString("XCTest.XCTestCase") != nil {
             return
         }
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--store-review") {
+            NSApplication.shared.setActivationPolicy(.regular)
+            let window = StoreReviewDebugWindow()
+            storeReview = window
+            window.showWindow(nil)
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            return
+        }
+        #endif
         #if DEBUG && !APP_STORE
         if ProcessInfo.processInfo.arguments.contains(CharacterFeedbackDebugRoom.launchArgument) {
             NSApplication.shared.setActivationPolicy(.regular)

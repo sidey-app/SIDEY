@@ -73,38 +73,10 @@ private struct CharacterSelectionCard: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
-#if APP_STORE
-            .background(
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .fill(isSelected ? Color(red: 0.45, green: 0.49, blue: 0.85).opacity(0.13) : .clear)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .strokeBorder(
-                        isSelected ? Color(red: 0.45, green: 0.49, blue: 0.85) : Color.secondary.opacity(0.28),
-                        lineWidth: isSelected ? 3 : 1
-                    )
-            }
-            .overlay(alignment: .topTrailing) {
-                if isPending {
-                    ProgressView()
-                        .controlSize(.small)
-                        .padding(8)
-                        .accessibilityHidden(true)
-                } else if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(Color(red: 0.45, green: 0.49, blue: 0.85))
-                        .background(Circle().fill(.background).padding(2))
-                        .padding(8)
-                }
-            }
-#else
             .modifier(ProfileSelectionAppearance(
                 isSelected: isSelected,
                 isPending: isPending
             ))
-#endif
             .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
         }
         .buttonStyle(.plain)

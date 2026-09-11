@@ -1,0 +1,12 @@
+﻿reference_name,product_id,type,locale,display_name,description,KOR_price_KRW,direct_price_KRW,status
+별빛 우파루파 - 캐릭터 단품,character_starlight_upalupa_solo,NON_CONSUMABLE,ko-KR,별빛 우파루파,별빛 우파루파 캐릭터를 사용해요. 애착 물건은 별도 판매예요.,1900,1900,additional_registration_required
+아기 기니피그 - 캐릭터 단품,character_guinea_pig_solo,NON_CONSUMABLE,ko-KR,아기 기니피그,아기 기니피그 캐릭터를 사용해요. 애착 물건은 별도 판매예요.,1100,990,additional_registration_required
+아기 원숭이 - 캐릭터 단품,character_monkey_solo,NON_CONSUMABLE,ko-KR,아기 원숭이,아기 원숭이 캐릭터를 사용해요. 애착 물건은 별도 판매예요.,1100,990,additional_registration_required
+아기 친칠라 - 캐릭터 단품,character_chinchilla_solo,NON_CONSUMABLE,ko-KR,아기 친칠라,아기 친칠라 캐릭터를 사용해요. 애착 물건은 별도 판매예요.,1100,990,additional_registration_required
+기니피그의 미니 파프리카 - 애착 물건,throwable_mini_paprika,NON_CONSUMABLE,ko-KR,기니피그의 미니 파프리카,아껴 둔 간식이에요. 던진 뒤엔 3초 안에 주우면 괜찮겠죠?,1100,990,additional_registration_required
+원숭이의 바나나 - 애착 물건,throwable_banana,NON_CONSUMABLE,ko-KR,원숭이의 바나나,원숭이가 양보한 바나나예요. 양보한 게 맞는지는 아직 못 물어봤어요.,1100,990,additional_registration_required
+친칠라의 모래주머니 - 애착 물건,throwable_dust_bath_pouch,NON_CONSUMABLE,ko-KR,친칠라의 모래주머니,친칠라의 목욕 모래예요. 씻으라고 던지는 건… 아마 아닐 거예요.,1100,990,additional_registration_required
+별빛 우파루파의 별빛 구슬 - 애착 물건,throwable_starlight_orb,NON_CONSUMABLE,ko-KR,별빛 우파루파의 별빛 구슬,별빛을 꾹꾹 뭉쳤어요. 하늘에서 별 하나가 없어졌다는데요?,1100,990,additional_registration_required
+수달의 조개 - 애착 물건,throwable_clam,NON_CONSUMABLE,ko-KR,수달의 조개,"수달이 품고 다니던 조개예요. 진주는 없고, 미련은 좀 있어요.",1100,990,additional_registration_required
+아기 돼지의 돼지고기 - 애착 물건,throwable_pork,NON_CONSUMABLE,ko-KR,아기 돼지의 돼지고기,찰진 촵! 근데 옆집 꿀꿀이가 며칠 전부터 안 보이던데…?,1100,990,additional_registration_required
+나무의 작은 나무 - 애착 물건,throwable_timber,NON_CONSUMABLE,ko-KR,나무의 작은 나무,나무가 작은 나무를 던져요. 일단 족보부터 확인해 볼까요?,1100,990,additional_registration_required

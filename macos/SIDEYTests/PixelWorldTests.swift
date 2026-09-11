@@ -974,27 +974,11 @@ final class PixelWorldTests: XCTestCase {
 
     func testCharacterThrowCatalogMappingAndTimingContract() {
         XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_cat"), "patch_soft_ball")
-        XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_guinea_pig"), "mini_paprika")
-        XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_monkey"), "banana")
-        XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_chinchilla"), "dust_bath_pouch")
-        XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_starlight_upalupa"), "starlight_orb")
-        XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "unknown"), "patch_soft_ball")
-        XCTAssertEqual(
-            PixelCharacterThrowCatalog.interactionDescription(for: "pixel_guinea_pig"),
-            "친구를 클릭하면 아껴 둔 미니 파프리카를 던져요."
-        )
-        XCTAssertTrue(
-            PixelCharacterThrowCatalog.interactionDescription(for: "pixel_monkey")
-                .contains("바나나")
-        )
-        XCTAssertTrue(
-            PixelCharacterThrowCatalog.interactionDescription(for: "pixel_chinchilla")
-                .contains("먼지목욕 모래주머니")
-        )
-        XCTAssertTrue(
-            PixelCharacterThrowCatalog.interactionDescription(for: "pixel_starlight_upalupa")
-                .contains("별빛 구슬")
-        )
+        for characterID in ["pixel_guinea_pig", "pixel_monkey", "pixel_chinchilla", "pixel_starlight_upalupa", "unknown"] {
+            XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: characterID), "patch_soft_ball")
+            XCTAssertEqual(PixelCharacterThrowCatalog.interactionDescription(for: characterID),
+                           "친구를 클릭하면 기본 말랑공을 던져요.")
+        }
         XCTAssertEqual(
             PixelCharacterThrowCatalog.resolvedObjectID(
                 for: "pixel_cat",

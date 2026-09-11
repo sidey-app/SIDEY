@@ -13,11 +13,14 @@ final class PixelHamsterAssetTests: XCTestCase {
         "pixel_guinea_pig": "1a0bf85dae86f2e6bb460e8b0b852c2bd010d5ff6f7efd1477cbd6986da64f5b",
         "pixel_monkey": "515fe377f5344dd4cbaa2b0faf58de3ce72fdc62be5aff6a9d9de683983c783b",
         "pixel_chinchilla": "c0009e007a7a63029fb58ad6f94d2b9a8c9ae7a55f139dd4892050f11614c5d4",
-        "pixel_starlight_upalupa": "d180810a8796280077f3f70f6da681888c583c2f8d74776d0f5d300e943a079a"
+        "pixel_starlight_upalupa": "d180810a8796280077f3f70f6da681888c583c2f8d74776d0f5d300e943a079a",
+        "pixel_otter": "38ebed0f4588e4f776df44872c2e81e96d70056fb8c97b19c812433584e4b5db",
+        "pixel_pig": "b383c07699cc40fe21c05f18aaf21730888685f9b0874a16b95cd82bebcd6f98",
+        "pixel_tree": "ddf40aa115034c2c4fb3046673f6e20d2ca208d0b5a9ffa5737fb79c2e6cc97f"
     ]
 
     func testAllRuntimeSheetsAreTen24PixelFramesWithAlphaAndStableHashes() throws {
-        XCTAssertEqual(PixelCharacterCatalog.all.count, 9)
+        XCTAssertEqual(PixelCharacterCatalog.all.count, 12)
         for character in PixelCharacterCatalog.all {
             let url = try XCTUnwrap(character.assetURL(), character.id)
             let data = try Data(contentsOf: url)
@@ -128,7 +131,7 @@ final class PixelHamsterAssetTests: XCTestCase {
         XCTAssertEqual(PixelCharacterCatalog.all.map(\.id), [
             "pixel_hamster", "pixel_cat", "pixel_puppy", "pixel_rabbit", "pixel_penguin",
             "pixel_guinea_pig", "pixel_monkey", "pixel_chinchilla",
-            "pixel_starlight_upalupa"
+            "pixel_starlight_upalupa", "pixel_otter", "pixel_pig", "pixel_tree"
         ])
         XCTAssertEqual(PixelCharacterCatalog.free.count, 5)
         for character in PixelCharacterCatalog.all where character.entitlementKey != nil {

@@ -624,6 +624,9 @@ extension AppCoordinator {
                     commerceProductTasks[id] = nil
                 }
             }
+            if releaseChannel.storeAvailability.usesAppStore {
+                await refreshAppStorePrices()
+            }
             do {
                 let states = try await backend.storeState()
                 model.apply(commerceStates: states)
@@ -921,12 +924,18 @@ extension AppCoordinator {
         }
     }
 
-    private func configureAppStoreCommerce(backend: SideyBackend) async {
+    private func refreshAppStorePrices() async {
+        model.beginCommercePriceLoading()
         do {
             model.setCommerceLocalizedPrices(try await appStorePurchaseController.loadProducts())
         } catch {
+            model.failCommercePriceLoading()
             model.errorMessage = "App Store 상품 정보를 불러오지 못했습니다: \(error.localizedDescription)"
         }
+    }
+
+    private func configureAppStoreCommerce(backend: SideyBackend) async {
+        await refreshAppStorePrices()
         do {
             try await appStorePurchaseController.reconcileCurrentEntitlements(
                 accessToken: try await backend.currentAccessToken()

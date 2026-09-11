@@ -172,9 +172,9 @@ private struct ActiveCharacterProjectile {
 
 final class PixelWorldScene: SKScene {
     private let clock: () -> TimeInterval
-    #if !APP_STORE
     var onCharacterImpact: ((String, TimeInterval) -> Void)?
     var onStopCharacterSounds: (() -> Void)?
+    #if !APP_STORE
     private(set) var stunState = CharacterStunState()
     private var stunRealtimeAvailable: Bool?
 
@@ -184,6 +184,7 @@ final class PixelWorldScene: SKScene {
             resetStunState()
             projectiles.forEach { $0.node.removeFromParent() }
             projectiles.removeAll()
+            removeImpactEffects()
             hitUntil.removeAll()
         }
         stunRealtimeAvailable = realtimeAvailable
@@ -203,6 +204,7 @@ final class PixelWorldScene: SKScene {
     private var characterNodes: [UUID: PixelCharacterNode] = [:]
     private var agents: [UUID: PixelMovementAgent] = [:]
     private var members: [UUID: PixelWorldMember] = [:]
+    private var stationaryTreeIDs: Set<UUID> = []
     private var activeBubbles: [UUID: [ActiveBubble]] = [:]
     private var lastPulseEventIDs: [CharacterPulseKey: UUID] = [:]
     private var recentThrowEventIDs: [UUID] = []
@@ -214,10 +216,8 @@ final class PixelWorldScene: SKScene {
     private var edge: OverlayEdge = .bottom
     private var activityFrame: CGRect?
     private var composerVisible = false
-    #if !APP_STORE
     private var lifecycleObservers: [(NotificationCenter, NSObjectProtocol)] = []
     private var suspendedReasons: Set<String> = []
-    #endif
     private var lastUpdateTime: TimeInterval?
     private var lastHotspotReportTime: TimeInterval = 0
     private var lastHotspotFrames: [UUID: CGRect] = [:]
@@ -237,7 +237,6 @@ final class PixelWorldScene: SKScene {
         scaleMode = .resizeFill
         backgroundColor = .clear
         anchorPoint = .zero
-        #if !APP_STORE
         let workspace = NSWorkspace.shared.notificationCenter
         let distributed = DistributedNotificationCenter.default()
         let events: [(NotificationCenter, Notification.Name, String, Bool)] = [
@@ -256,23 +255,25 @@ final class PixelWorldScene: SKScene {
             }
             lifecycleObservers.append((center, token))
         }
-        #endif
     }
 
-    #if !APP_STORE
     isolated deinit {
         for (center, token) in lifecycleObservers { center.removeObserver(token) }
     }
 
     func setSuspended(_ suspended: Bool, reason: String) {
         if suspended { suspendedReasons.insert(reason) } else { suspendedReasons.remove(reason) }
+        #if !APP_STORE
         resetStunState()
+        #else
+        onStopCharacterSounds?()
+        #endif
         projectiles.forEach { $0.node.removeFromParent() }
         projectiles.removeAll()
+        removeImpactEffects()
         hitUntil.removeAll()
         lastUpdateTime = nil
     }
-    #endif
 
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
@@ -309,7 +310,8 @@ final class PixelWorldScene: SKScene {
         characterPulse: CharacterPulseEvent? = nil,
         characterThrow: CharacterThrowEvent? = nil,
         onCurrentUserFrameChanged: ((CGRect?) -> Void)? = nil,
-        onCharacterFramesChanged: (([UUID: CGRect]) -> Void)? = nil
+        onCharacterFramesChanged: (([UUID: CGRect]) -> Void)? = nil,
+        pausedTreeUserIDs: Set<UUID>? = nil
     ) {
         self.onCurrentUserFrameChanged = onCurrentUserFrameChanged
         self.onCharacterFramesChanged = onCharacterFramesChanged
@@ -321,8 +323,11 @@ final class PixelWorldScene: SKScene {
         self.activityFrame = activityFrame
         self.composerVisible = composerVisible
         if roomChanged {
+            stationaryTreeIDs.removeAll()
             #if !APP_STORE
             resetStunState()
+            #else
+            onStopCharacterSounds?()
             #endif
             characterNodes.values.forEach { $0.removeFromParent() }
             characterNodes.removeAll()
@@ -330,6 +335,7 @@ final class PixelWorldScene: SKScene {
             lastHotspotFrames.removeAll()
             projectiles.forEach { $0.node.removeFromParent() }
             projectiles.removeAll()
+            removeImpactEffects()
             hitUntil.removeAll()
             lastLocalPulseTimes.removeAll()
             previewRenderEvents.removeAll()
@@ -347,6 +353,7 @@ final class PixelWorldScene: SKScene {
         }
 
         members = requestedByID
+        stationaryTreeIDs = (pausedTreeUserIDs ?? stationaryTreeIDs).filter { members[$0]?.characterID == PixelCharacterCatalog.pixelTreeID }
         activeBubbles = Dictionary(grouping: bubbles, by: \.senderID).mapValues { senderBubbles in
             senderBubbles.sorted {
                 $0.expiresAt == $1.expiresAt
@@ -421,6 +428,7 @@ final class PixelWorldScene: SKScene {
         var stoppedIDs = PixelMovementPolicy.stoppedMemberIDs(in: members.values)
             .union(renderingConfiguration.fixedTrackFractions.keys)
             .union(hitUntil.keys)
+            .union(stationaryTreeIDs)
         #if !APP_STORE
         stoppedIDs.formUnion(stunState.startedAt.keys)
         #endif
@@ -466,6 +474,20 @@ final class PixelWorldScene: SKScene {
             reportCharacterFrames(force: false)
         }
     }
+
+    @discardableResult
+    func toggleTreeMovement(for userID: UUID) -> Bool {
+        guard members[userID]?.characterID == PixelCharacterCatalog.pixelTreeID else { return false }
+        if stationaryTreeIDs.remove(userID) == nil {
+            stationaryTreeIDs.insert(userID)
+            agents[userID]?.velocity = 0
+        } else {
+            agents[userID]?.idleRemaining = 0
+        }
+        return true
+    }
+
+    func isTreeMovementPaused(for userID: UUID) -> Bool { stationaryTreeIDs.contains(userID) }
 
     var nodeIDs: Set<UUID> { Set(characterNodes.keys) }
     var agentStates: [PixelMovementAgent] { agents.values.sorted { $0.id.uuidString < $1.id.uuidString } }
@@ -613,9 +635,12 @@ final class PixelWorldScene: SKScene {
         guard renderingConfiguration.allowsLocalPreviewEvents else { return }
         #if !APP_STORE
         resetStunState()
+        #else
+        onStopCharacterSounds?()
         #endif
         projectiles.forEach { $0.node.removeFromParent() }
         projectiles.removeAll()
+        removeImpactEffects()
         hitUntil.removeAll()
     }
 
@@ -827,11 +852,11 @@ final class PixelWorldScene: SKScene {
                     throwableID: projectile.event.throwableID
                 )
                 recordPreviewEvent(.impact(projectile.event.targetUserID))
-                #if !APP_STORE
                 if projectile.playsSound, elapsed <= PixelCharacterThrowStyle.releaseDelay + projectile.flightDuration + 0.5 {
                     onCharacterImpact?(PixelCharacterThrowCatalog.resolvedObjectID(
                         for: projectile.event.sourceCharacterID, equippedObjectID: projectile.event.throwableID), currentTime)
                 }
+                #if !APP_STORE
                 let targetID = projectile.event.targetUserID
                 stunState.recordHit(targetID, at: currentTime)
                 if stunState.isStunned(targetID, at: currentTime) {
@@ -853,11 +878,20 @@ final class PixelWorldScene: SKScene {
         projectiles = survivors
     }
 
+    private func removeImpactEffects() {
+        children.filter { $0.name == "throwable-impact" }.forEach {
+            $0.removeAllActions()
+            $0.removeFromParent()
+        }
+    }
+
     private func playImpact(at point: CGPoint, sourceCharacterID: String, throwableID: String?) {
-        let frames = PixelCharacterThrowTextureStore.shared.textures(
+        let textures = PixelCharacterThrowTextureStore.shared.textures(
             for: sourceCharacterID,
             throwableID: throwableID
-        ).impactFrames
+        )
+        let frames = textures.impactFrames
+        let durations = PixelCharacterThrowStyle.impactFrameDurations(for: textures.objectID)
         guard let first = frames.first else { return }
         let node = SKSpriteNode(
             texture: first,
@@ -867,12 +901,13 @@ final class PixelWorldScene: SKScene {
             )
         )
         node.position = point
+        node.name = "throwable-impact"
         node.zPosition = 101
         addChild(node)
-        node.run(.sequence([
-            .animate(with: frames, timePerFrame: PixelCharacterThrowStyle.impactDuration / Double(frames.count)),
-            .removeFromParent()
-        ]))
+        let poses = zip(frames, durations).map { texture, duration in
+            SKAction.animate(with: [texture], timePerFrame: duration)
+        }
+        node.run(.sequence(poses + [.removeFromParent()]), withKey: "impact-frames")
     }
 
     private func characterTorsoPoint(from center: CGPoint) -> CGPoint {

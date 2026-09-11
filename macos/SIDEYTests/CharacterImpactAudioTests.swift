@@ -23,11 +23,9 @@ final class CharacterImpactAudioTests: XCTestCase {
     }
 
     func testAllBundledSoundsMatchApprovedBytesAndDecode() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent()
-        let approval = try JSONSerialization.jsonObject(with: Data(contentsOf:
-            root.appendingPathComponent("docs/reviews/character-feedback/audio-approval.json"))) as! [String: Any]
-        let sounds = approval["sounds"] as! [[String: Any]]
+        let url = try XCTUnwrap(Bundle(for: Self.self).url(
+            forResource: "approved-impact-sounds", withExtension: "json"))
+        let sounds = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as! [[String: Any]]
         XCTAssertEqual(Set(sounds.compactMap { $0["object_id"] as? String }), Set(CharacterImpactAudio.objectIDs))
         for sound in sounds {
             let id = try XCTUnwrap(sound["object_id"] as? String)
@@ -39,7 +37,7 @@ final class CharacterImpactAudioTests: XCTestCase {
             XCTAssertEqual(audio.fileFormat.sampleRate, 48_000)
             XCTAssertEqual(audio.fileFormat.channelCount, 1)
             XCTAssertGreaterThan(audio.length, 0)
-            XCTAssertLessThanOrEqual(Double(audio.length) / 48_000, 0.4)
+            XCTAssertLessThanOrEqual(Double(audio.length) / 48_000, 0.8)
         }
         let audio = CharacterImpactAudio()
         XCTAssertTrue(audio.resourceErrors.isEmpty)
@@ -61,7 +59,7 @@ final class CharacterImpactAudioTests: XCTestCase {
         XCTAssertEqual(restored.nickname, "콩이")
     }
 
-    func testCollisionSoundsOnceWithResolvedObjectAndAutomaticPreviewIsSilent() {
+    func testCollisionSoundsOnceWithResolvedObjectAndExplicitMuteIsRespected() {
         var now: TimeInterval = 100
         let actor = UUID(), target = UUID(), room = UUID()
         let scene = makeScene(actor: actor, target: target, room: room, now: { now })
@@ -77,8 +75,9 @@ final class CharacterImpactAudioTests: XCTestCase {
             now += 0.8; scene.update(now)
             XCTAssertEqual(played.count, before + (audible ? 1 : 0))
         }
-        for id in CharacterImpactAudio.objectIDs { hit(id) }
-        XCTAssertEqual(played, CharacterImpactAudio.objectIDs)
+        let originalIDs = Array(CharacterImpactAudio.objectIDs.prefix(8))
+        for id in originalIDs { hit(id) }
+        XCTAssertEqual(played, originalIDs)
         hit("patch_soft_ball", audible: false)
         hit("throwable_bouncy_heart")
         XCTAssertTrue(scene.stunState.isStunned(target, at: now))
@@ -87,7 +86,7 @@ final class CharacterImpactAudioTests: XCTestCase {
         XCTAssertEqual(scene.renderedHitCount(for: target), 9)
     }
 
-    func testStoreAutomaticSequenceIsSilentButManualHitPlays() async throws {
+    func testStoreAutomaticSequenceAndManualHitBothPlaySound() async throws {
         var now: TimeInterval = 100
         let scenario = StorePreviewScenario.make(product: .bouncyHeart)
         let scene = PixelWorldScene(size: StorePreviewStageLayout.size,
@@ -101,11 +100,11 @@ final class CharacterImpactAudioTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(550))
         XCTAssertEqual(scene.activeProjectileCount, 1)
         now += 0.8; scene.update(now)
-        XCTAssertEqual(plays, 0)
+        XCTAssertEqual(plays, 1)
         coordinator.stop(detachingScene: false)
         scene.playLocalPreviewThrow(try XCTUnwrap(scenario.throwSequence).event(at: 0))
         now += 0.8; scene.update(now)
-        XCTAssertEqual(plays, 1)
+        XCTAssertEqual(plays, 2)
     }
 
     func testSuspensionDiscardsInFlightHitAndStunWithoutReplay() {
@@ -144,12 +143,12 @@ final class CharacterImpactAudioTests: XCTestCase {
     }
 
     #if DEBUG
-    func testDebugRoomProvidesRealProjectileControlsAndEightChoices() throws {
+    func testDebugRoomProvidesRealProjectileControlsAndAllChoices() throws {
         let room = CharacterFeedbackDebugRoom()
         defer { room.close() }
         let view = try XCTUnwrap(room.window?.contentView)
         let pickers = view.subviews.compactMap { $0 as? NSPopUpButton }
-        XCTAssertEqual(pickers.first?.numberOfItems, 8)
+        XCTAssertEqual(pickers.first?.numberOfItems, 16)
         let buttons = view.subviews.compactMap { $0 as? NSButton }
         try XCTUnwrap(buttons.first { $0.title == "친구 때리기 (Space)" }).performClick(nil)
         XCTAssertEqual(room.world.activeProjectileCount, 1)

@@ -287,7 +287,7 @@ final class SettingsInteractionTests: XCTestCase {
         }
     }
 
-    func testProductionStoreRendersFourLockedCardsWithoutRefreshingCommerce() throws {
+    func testProductionStoreRendersAllLockedCardsWithoutRefreshingCommerce() throws {
         var refreshCalls = 0
         var purchaseCalls = 0
         var actions = SettingsActions.empty
@@ -333,7 +333,7 @@ final class SettingsInteractionTests: XCTestCase {
             }
         }
 
-        XCTAssertEqual(CommerceCatalog.products.count, 10)
+        XCTAssertEqual(CommerceCatalog.products.count, 24)
         XCTAssertEqual(refreshCalls, 0)
         XCTAssertEqual(purchaseCalls, 0)
     }

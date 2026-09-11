@@ -63,24 +63,18 @@ final class AppCoordinator {
             onLeaveRoom: { [weak self] roomID in self?.leaveRoom(roomID) },
             onDeleteRoom: { [weak self] roomID in self?.deleteRoom(roomID) },
             onCharacterSoundEffectsChanged: { [weak self] enabled in
-                #if !APP_STORE
                 guard let self else { return }
                 self.model.preferences.characterSoundEffectsEnabled = enabled
                 self.model.characterImpactAudio.isEnabled = enabled
                 self.persistPreferences()
-                #endif
             },
             onCharacterImpact: { [weak self] id, time in
-                #if !APP_STORE
                 guard let self else { return }
                 self.model.characterImpactAudio.isEnabled = self.model.preferences.characterSoundEffectsEnabled
                 self.model.characterImpactAudio.play(objectID: id, at: time)
-                #endif
             },
             onStopCharacterSounds: { [weak self] in
-                #if !APP_STORE
                 self?.model.characterImpactAudio.stopAll()
-                #endif
             }
         ),
         onClose: { [weak self] in self?.settingsDidClose() }

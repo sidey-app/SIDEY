@@ -84,7 +84,7 @@ struct StoreView: View {
                                 selectedProductID = state.id
                             }
                         case .direct, .appStore:
-                            StoreProductCard(productState: state, actions: actions) {
+                            StoreProductCard(productState: state, actions: actions, availability: availability) {
                                 selectedProductID = state.id
                             }
                         }
@@ -109,6 +109,8 @@ struct StoreView: View {
                let state = model.commerceProduct(id: selectedProductID) {
                 StoreProductDetailSheet(
                     productState: state,
+                    relatedProductState: CommerceCatalog.keepsake(for: state.id).flatMap { model.commerceProduct(id: $0.id) },
+                    isPurchaseInProgress: model.commerceProducts.contains { $0.isWorking },
                     actions: actions,
                     availability: availability
                 ) {
@@ -169,6 +171,7 @@ struct StoreView: View {
 }
 
 struct StoreProductCard: View {
+    let availability: StoreAvailability
     let productState: CommerceProductState
     let actions: SettingsActions
     var onSelect: () -> Void
@@ -179,10 +182,12 @@ struct StoreProductCard: View {
     init(
         productState: CommerceProductState,
         actions: SettingsActions,
+        availability: StoreAvailability = AppReleaseChannel.resolve().storeAvailability,
         onSelect: @escaping () -> Void = {}
     ) {
         self.productState = productState
         self.actions = actions
+        self.availability = availability
         self.onSelect = onSelect
     }
 
@@ -207,7 +212,7 @@ struct StoreProductCard: View {
             .overlay {
                 RoundedRectangle(cornerRadius: StoreCardLayout.cornerRadius, style: .continuous)
                     .stroke(
-                        isHovered || isFocused ? Color.accentColor : Color.primary.opacity(0.08),
+                        isHovered || isFocused ? ProfileSelectionAppearance.selectionColor : Color.primary.opacity(0.08),
                         lineWidth: isHovered || isFocused ? 1.5 : 1
                     )
             }
@@ -235,11 +240,11 @@ struct StoreProductCard: View {
         if productState.isEquipped { return "사용 중" }
         if productState.purchaseState == .owned { return "보유 중" }
         if case .error = productState.purchaseState { return "오류" }
-        return productState.formattedPrice
+        return productState.priceLabel(for: availability)
     }
 
     private var statusColor: Color {
-        if productState.isEquipped { return .blue }
+        if productState.isEquipped { return ProfileSelectionAppearance.selectionColor }
         if productState.purchaseState == .owned { return .green }
         if case .error = productState.purchaseState { return .orange }
         return .secondary
@@ -305,7 +310,7 @@ struct StoreLockedProductCard: View {
             .clipShape(RoundedRectangle(cornerRadius: StoreCardLayout.cornerRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: StoreCardLayout.cornerRadius, style: .continuous)
-                    .stroke(isFocused ? Color.accentColor : .clear, lineWidth: 1.5)
+                    .stroke(isFocused ? ProfileSelectionAppearance.selectionColor : .clear, lineWidth: 1.5)
             }
         }
         .buttonStyle(.plain)
@@ -317,93 +322,6 @@ struct StoreLockedProductCard: View {
 
     func requestPreview() {
         onSelect()
-    }
-}
-
-struct StoreProductDetailSheet: View {
-    let productState: CommerceProductState
-    let actions: SettingsActions
-    let availability: StoreAvailability
-    let onClose: () -> Void
-
-    init(
-        productState: CommerceProductState,
-        actions: SettingsActions,
-        availability: StoreAvailability = .direct,
-        onClose: @escaping () -> Void
-    ) {
-        self.productState = productState
-        self.actions = actions
-        self.availability = availability
-        self.onClose = onClose
-    }
-
-    var displaysCommerceAction: Bool {
-        availability.unavailableDetailMessage == nil
-    }
-
-    var body: some View {
-        VStack(spacing: 10) {
-            StorePreviewStage(product: productState.product, onCharacterImpact: actions.onCharacterImpact, onStopCharacterSounds: actions.onStopCharacterSounds)
-            Text(productState.product.displayName).font(.title2.bold())
-            Text(detailDescription)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-            detailAction
-        }
-        .padding(.horizontal, 30)
-        .padding(.top, 30)
-        .padding(.bottom, 24)
-        .frame(width: 600)
-        .overlay(alignment: .topTrailing) {
-            Button("닫기", systemImage: "xmark", action: onClose)
-                .labelStyle(.iconOnly)
-                .buttonStyle(.plain)
-                .padding(10)
-                .accessibilityLabel("상품 상세 닫기")
-        }
-    }
-
-    @ViewBuilder private var detailAction: some View {
-        if !displaysCommerceAction,
-           let unavailableMessage = availability.unavailableDetailMessage {
-            Text(unavailableMessage)
-                .font(.callout.weight(.medium))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .accessibilityLabel(unavailableMessage)
-        } else if productState.isWorking {
-            Button(action: {}) { ProgressView().controlSize(.small) }
-                .buttonStyle(.borderedProminent)
-                .disabled(true)
-                .accessibilityLabel("처리 중")
-        } else if case .error = productState.purchaseState {
-            Button("상태 다시 확인") { actions.onRefreshCommerceState(productState.id) }
-                .buttonStyle(.borderedProminent)
-        } else {
-            Button(productState.purchaseState == .owned ? "보유 중" : purchaseLabel) {
-                actions.onPurchase(productState.id)
-            }
-                .buttonStyle(.borderedProminent)
-                .disabled(productState.purchaseState == .owned)
-                .accessibilityLabel(productState.purchaseState == .owned
-                                    ? "\(productState.product.displayName) 보유 중"
-                                    : "\(productState.product.displayName) \(purchaseLabel)")
-        }
-    }
-
-    private var purchaseLabel: String {
-        productState.purchaseState == .googleConnectionRequired
-            ? "Google 계정 연결"
-            : "\(productState.formattedPrice)에 구매"
-    }
-
-    private var detailDescription: String {
-        guard let characterID = productState.product.characterID else {
-            return productState.product.description
-        }
-        return "\(productState.product.description) \(PixelCharacterThrowCatalog.interactionDescription(for: characterID))"
     }
 }
 
@@ -428,7 +346,7 @@ struct StoreProductPreview: View {
                 StoreBubblePreview(styleID: product.catalogItemID)
                     .frame(width: pointSize, height: pointSize * 0.44)
             case .throwable:
-                StoreThrowablePreview(objectID: product.catalogItemID, pointSize: pointSize)
+                StoreThrowablePreview(objectID: product.renderAssetID, pointSize: pointSize)
             }
         }
         .accessibilityHidden(true)

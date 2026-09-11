@@ -40,7 +40,8 @@ struct StorePreviewStage: View {
 
     private var previewAccessibilityHint: String {
         if product.kind == .character {
-            return "친구 캐릭터를 클릭하면 시그니처 투척물을 던지고, 캐릭터를 두 번 클릭하면 확대 반응을 볼 수 있습니다."
+            let objectName = CommerceCatalog.keepsake(for: product.id)?.displayName ?? "기본 말랑공"
+            return "상대 캐릭터를 클릭해 \(objectName) 던지기를 체험할 수 있습니다. 캐릭터를 두 번 클릭하면 확대 반응을 볼 수 있습니다."
         }
         return "캐릭터를 두 번 클릭하면 확대 반응을 볼 수 있습니다."
     }
@@ -100,10 +101,8 @@ private struct StorePreviewSceneView: NSViewRepresentable {
                 fixedTrackFractions: scenario.fixedTrackFractions
             )
         )
-        #if !APP_STORE
         scene.onCharacterImpact = onCharacterImpact
         scene.onStopCharacterSounds = onStopCharacterSounds
-        #endif
         scene.scaleMode = .resizeFill
         view.presentScene(scene)
         context.coordinator.configure(
@@ -117,6 +116,8 @@ private struct StorePreviewSceneView: NSViewRepresentable {
 
     func updateNSView(_ view: StorePreviewSKView, context: Context) {
         guard let scene = view.scene as? PixelWorldScene else { return }
+        scene.onCharacterImpact = onCharacterImpact
+        scene.onStopCharacterSounds = onStopCharacterSounds
         context.coordinator.configure(
             view: view,
             scene: scene,
@@ -234,7 +235,7 @@ final class StorePreviewPlaybackCoordinator {
                     let deadline = startedAt + sequence.scheduledOffset(for: index)
                     let delay = max(0, deadline - ProcessInfo.processInfo.systemUptime)
                     try await Task.sleep(for: .seconds(delay))
-                    scene?.playLocalPreviewThrow(sequence.event(at: index), playsSound: false)
+                    scene?.playLocalPreviewThrow(sequence.event(at: index))
                     index += 1
                 }
             } catch is CancellationError {
@@ -327,6 +328,12 @@ final class StorePreviewSKView: SKView {
         else { return false }
         scene.playLocalPreviewThrow(event)
         return true
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+        guard event.clickCount == 1, !isPaused, let scene = scene as? PixelWorldScene else { return }
+        let point = scene.convertPoint(fromView: convert(event.locationInWindow, from: nil))
+        if let id = scene.memberID(at: point) { _ = scene.toggleTreeMovement(for: id) }
     }
 
     override func mouseDown(with event: NSEvent) {

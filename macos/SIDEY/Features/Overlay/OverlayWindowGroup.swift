@@ -177,7 +177,12 @@ final class OverlayWindowGroup {
     )
     private lazy var hotspotWindow = CharacterHotspotWindowController(
         onClick: { [weak self] clickCount in self?.handleCharacterClick(clickCount: clickCount) },
-        onRightClick: { [weak self] in self?.activateThrowTargeting() }
+        onRightClick: { [weak self] in
+            guard let self, self.model.selectedCharacterID == PixelCharacterCatalog.pixelTreeID else { return }
+            self.model.preferences.treeMovementPaused.toggle()
+            self.onRegionChanged()
+        },
+        onDoubleRightClick: { [weak self] in self?.activateThrowTargeting() }
     )
     private var targetHotspotWindows: [UUID: CharacterHotspotWindowController] = [:]
     private var screenObserver: ScreenObserverToken?
@@ -232,6 +237,7 @@ final class OverlayWindowGroup {
     }
 
     func setVisible(_ visible: Bool) {
+        if !visible { model.characterImpactAudio.stopAll() }
         overlayVisible = visible
         if visible {
             apply(preference: model.preferences.overlayRegion, persistFallback: true)
