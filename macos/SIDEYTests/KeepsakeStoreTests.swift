@@ -21,11 +21,22 @@ final class KeepsakeStoreTests: XCTestCase {
         }
         XCTAssertEqual(CommerceCatalog.product(appStoreID: "character_monkey_solo")?.id, CommerceProduct.monkey.id)
         XCTAssertEqual(CommerceCatalog.product(appStoreID: "character_monkey")?.id, CommerceProduct.monkey.id)
-        XCTAssertEqual(CommerceProduct.monkey.appStoreProductID, "character_monkey_solo")
+        XCTAssertEqual(CommerceProduct.monkey.appStoreProductID, "character_monkey_solo_2")
         XCTAssertEqual(CommerceProduct.tree.appStoreProductID, "character_tree_2")
         XCTAssertEqual(CommerceCatalog.product(appStoreID: "character_tree_2")?.id, CommerceProduct.tree.id)
         XCTAssertEqual(CommerceCatalog.product(appStoreID: "character_tree")?.id, CommerceProduct.tree.id)
         XCTAssertEqual(CommerceProduct.tree.entitlementKey, "character:pixel_tree")
+        for (id, current, legacy) in [
+            ("character_monkey", "character_monkey_solo_2", "character_monkey_solo"),
+            ("throwable_clam", "throwable_clam_2", "throwable_clam"),
+            ("throwable_pork", "throwable_pork_2", "throwable_pork")
+        ] {
+            let product = try XCTUnwrap(CommerceCatalog.product(id: id))
+            XCTAssertEqual(product.appStoreProductID, current)
+            XCTAssertEqual(CommerceCatalog.product(appStoreID: current)?.entitlementKey, product.entitlementKey)
+            XCTAssertEqual(CommerceCatalog.product(appStoreID: legacy)?.entitlementKey, product.entitlementKey)
+        }
+        XCTAssertEqual(CommerceProduct.pig.appStoreProductID, "character_pig")
         XCTAssertNil(CommerceCatalog.product(appStoreID: "character_tree_3"))
         XCTAssertNil(CommerceCatalog.product(appStoreID: "haracter_pig"))
     }
