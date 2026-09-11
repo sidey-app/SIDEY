@@ -55,6 +55,18 @@ test('actual commerce SQL preserves legacy sources, restores old offers and isol
     for (const name of ['private.commerce_grants', 'private.app_store_transactions']) await db.exec(table(foundation, name));
     await db.exec(fn(foundation,'private.refresh_commerce_entitlement'));
     await db.exec(fn(cosmetics,'public.set_equipped_cosmetic'));
+    await db.exec(fn(cosmetics,'private.owned_equipped_catalog_item'));
+    // Capture outbound events locally; run the real broadcast RPC and ownership resolver.
+    await db.exec(`create table rooms(id uuid primary key,realtime_epoch bigint);
+      create table room_members(room_id uuid,user_id uuid);
+      create function private.is_room_member(room uuid,usr uuid) returns boolean language sql as
+        $$select exists(select 1 from public.room_members where room_id=room and user_id=usr)$$;
+      create function private.room_topic(room uuid,epoch bigint,kind text) returns text language sql as
+        $$select room::text || ':' || epoch::text || ':' || kind$$;
+      create table private.realtime_event_attempts(user_id uuid,room_id uuid,event_name text,attempted_at timestamptz default now());
+      create schema realtime; create table realtime.captured(id serial,payload jsonb,event text,topic text,is_private boolean);
+      create function realtime.send(payload jsonb,event text,topic text,is_private boolean) returns void language sql as
+        $$insert into realtime.captured(payload,event,topic,is_private) values($1,$2,$3,$4)$$;`);
     await db.exec(fn(cosmetics,'private.reconcile_cosmetic_entitlement'));
     await db.exec(`create trigger reconcile after insert or update or delete on commerce_entitlements
       for each row execute function private.reconcile_cosmetic_entitlement();`);
@@ -136,6 +148,27 @@ test('actual commerce SQL preserves legacy sources, restores old offers and isol
     await db.exec(`select set_config('test.user','${other}',false)`);
     await db.query("select set_equipped_cosmetic('throwable','throwable_clam')");
     assert.equal(await owned('character:pixel_otter',other),undefined);
+    const room = '64000000-0000-0000-0000-000000000001';
+    await db.exec(`insert into rooms values('${room}',1);
+      insert into room_members values('${room}','${user}'),('${room}','${other}');`);
+    const broadcast = async (epoch=1, target=user) => db.query(
+      'select broadcast_character_throw($1,$2,gen_random_uuid(),$3)',[room,epoch,target]);
+    const lastEvent = async () => (await db.query<any>('select * from realtime.captured order by id desc limit 1')).rows[0];
+    await broadcast();
+    assert.equal((await lastEvent()).payload.throwable_id,'clam');
+    assert.equal((await lastEvent()).payload.source_character_id,'pixel_hamster');
+    assert.equal((await lastEvent()).is_private,true);
+    await db.query("select set_equipped_cosmetic('throwable',null)");
+    await broadcast();
+    assert.equal((await lastEvent()).payload.throwable_id,'patch_soft_ball');
+    // A stale or tampered equipment column never authorizes an unowned item.
+    await db.query("update profiles set equipped_throwable_id='throwable_pork' where id=$1",[other]);
+    await broadcast();
+    assert.equal((await lastEvent()).payload.throwable_id,'patch_soft_ball');
+    await assert.rejects(broadcast(0),/stale_realtime_epoch/);
+    await assert.rejects(broadcast(1,other),/self_target_forbidden/);
+    await db.query('delete from room_members where user_id=$1',[other]);
+    await assert.rejects(broadcast(),/membership_required/);
     await db.exec("select set_config('test.user','',false)");
     await assert.rejects(db.query('select * from get_store_state()'),/authentication_required/);
     assert.equal((await db.query<any>("select has_table_privilege('authenticated','private.app_store_product_offers','INSERT') as allowed")).rows[0].allowed,false);
