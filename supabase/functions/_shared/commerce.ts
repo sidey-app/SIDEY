@@ -6,6 +6,13 @@ export const SUPPORTED_PRODUCT_IDS = new Set([
   "throwable_baseball",
   "throwable_wakkuball",
   "throwable_dujjonku",
+  "throwable_mini_paprika",
+  "throwable_banana",
+  "throwable_dust_bath_pouch",
+  "throwable_starlight_orb",
+  "throwable_clam",
+  "throwable_pork",
+  "throwable_timber",
 
   "character_starlight_upalupa",
   "character_guinea_pig",
