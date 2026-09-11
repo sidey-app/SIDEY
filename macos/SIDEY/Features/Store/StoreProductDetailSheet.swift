@@ -16,18 +16,25 @@ struct StoreProductDetailSheet: View {
         ScrollView {
             VStack(spacing: 16) {
                 Text(productState.product.displayName).font(.title2.bold())
-                Text(productState.product.description)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                if productState.product.characterID == PixelCharacterCatalog.pixelTreeID {
-                    Text("나무를 우클릭하면 멈추고, 다시 우클릭하면 걸어요.")
-                        .font(.callout).foregroundStyle(.secondary)
+                if productState.product.kind != .character {
+                    Text(productState.product.description)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 StorePreviewStage(product: productState.product,
                     onCharacterImpact: { object, time in
                         if playsPreviewSound { actions.onCharacterImpact(object, time) }
                     }, onStopCharacterSounds: actions.onStopCharacterSounds)
+                    .overlay(alignment: .topLeading) {
+                        if productState.product.characterID == PixelCharacterCatalog.pixelTreeID {
+                            Text("나무를 우클릭하면 멈추고, 다시 우클릭하면 걸어요.")
+                                .font(.caption).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .padding(.trailing, 60).padding(12)
+                                .allowsHitTesting(false)
+                        }
+                    }
                     .overlay(alignment: .topTrailing) {
                         if productState.product.kind != .bubble {
                             Button(playsPreviewSound ? "미리보기 소리 끄기" : "미리보기 소리 켜기",
@@ -43,7 +50,8 @@ struct StoreProductDetailSheet: View {
                     }
                 HStack(alignment: .top, spacing: 12) {
                     StoreDetailPurchaseCard(state: productState, actions: actions,
-                        availability: availability, purchaseInProgress: isPurchaseInProgress)
+                        availability: availability, purchaseInProgress: isPurchaseInProgress,
+                        showsDescription: productState.product.kind == .character)
                     if let relatedProductState {
                         StoreDetailPurchaseCard(state: relatedProductState, actions: actions,
                             availability: availability, purchaseInProgress: isPurchaseInProgress,
@@ -93,7 +101,7 @@ private struct StoreDetailPurchaseCard: View {
             Text(state.product.displayName).font(.callout.weight(.semibold))
                 .lineLimit(2, reservesSpace: true).multilineTextAlignment(.center)
             if showsDescription {
-                Text(state.product.description)
+                Text(state.product.storeDescription)
                     .font(.caption).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
