@@ -8,6 +8,8 @@
 
 ## 확정된 결정
 
+2026-09-12 사용자는 캐릭터 소개 개선과 기존 Apple 상품 ID 변경의 커밋·푸시·main 병합 및 직배포 재릴리스를 승인했다. 공개 macOS 1.2.0 build 28 대비 직배포 앱 변경은 상점 소개·배치 개선이므로 PATCH인 1.2.1 build 29로 배포한다. 실제 Xcode 업로드 이력의 App Store 최신 성공 build는 27이며 통합 최대 사용 build 28 다음 번호를 사용한다. 두 macOS 타깃은 동일한 소스 버전을 사용하되 이번 배포는 Developer ID 직배포 DMG/ZIP·Sparkle·Homebrew이며 App Store 업로드, 서버 배포, 판매 잠금 해제는 포함하지 않는다.
+
 2026-09-12 macOS 직배포판과 App Store판의 상점 캐릭터 7종 소개를 짧고 귀여운 이야기로 통일한다. 캐릭터 상세 상단에는 제목만 두고 소개는 왼쪽 캐릭터 구매 카드의 이름 아래에 표시한다. 나무의 우클릭 정지·재개 안내는 미리보기 무대 안쪽 왼쪽 위로 옮겨 유지한다. 캐릭터 소개는 번들 카탈로그를 우선해 이전 서버 문구가 덮어쓰지 않게 하며 서버 카탈로그도 같은 문구로 맞춘다. 투척물 소개·상품 ID·가격·소유권·구매 동작은 유지한다.
 
 2026-09-12 나무 새 ID의 한국 가격 2,200원 조회를 사용자가 확인하고 나머지 미조회 3종의 재등록을 요청했다. 원숭이 단품은 `character_monkey_solo_2`, 조개는 `throwable_clam_2`, 돼지고기 투척물은 `throwable_pork_2`로 현재 Apple 판매 ID를 변경한다. 돼지 캐릭터는 대상이 아니다. 내부 상품·가격·권리는 유지하고 기존 Apple ID는 모두 복원·거래 검증 대상으로 보존한다. 특히 원숭이 과거 포함 상품과 기존 단품의 바나나 포함 여부를 바꾸지 않는다. 판매 상품 24종·Apple 검증 ID 32개다. 신규 3종의 Connect 등록 및 실제 가격·구매·복원 검증과 서버 배포 상태는 별도 확인하며 재등록 성공을 기존 ID 장애의 원인 확정으로 간주하지 않는다.
@@ -221,7 +223,7 @@ Windows 오버레이와 상점 캐릭터 미리보기의 산책은 macOS와 같�
 | Homebrew 배포 | 공개 third-party tap `sidey-app/homebrew-tap`의 `sidey` Cask가 버전 고정 공증 DMG와 SHA-256을 사용. arm64·macOS 26+만 허용하고 `auto_updates true`, 안전한 앱 종료, `SIDEY.app` 설치를 선언하며 사용자 데이터 `zap`은 두지 않음 | `brew install --cask sidey-app/tap/sidey`를 재현 가능하게 제공하면서 uninstall이 계정·설정을 임의 삭제하지 않게 한다. 공식 `homebrew/cask` 등록은 별도 결정 전까지 범위 밖이다. |
 | macOS 로컬 개발 설치 | `Sidey-dev`는 bundle ID `app.sidey.desktop.dev`, dev login item·Keychain service·UserDefaults suite, callback `sidey-dev`를 사용하고 Sparkle을 비활성화한다. staging URL·publishable key가 없거나 운영 ref `whtejsviizgejauasqqt`면 설치 스크립트가 빌드를 거부한다. | production 세션·설정·운영 결제를 개발 테스트와 섞지 않는다. 이 결정은 과거 production 식별자 공유 결정을 폐기·대체한다. |
 | 업데이트 전환 | Sparkle이 없는 기존 alpha는 최신 공증 DMG로 한 번 수동 교체하고, Sparkle 내장 production 빌드부터 앱 내부 업데이트를 사용 | 기존 설치에 프레임워크를 원격으로 소급 탑재할 수 없고, ad-hoc development 자동 업데이트는 Gatekeeper·코드 서명 연속성을 깨뜨릴 수 있다. |
-| 배포 채널 | 현재 공개본은 버전 `1.2.0`, 빌드 `28`의 `v1.2.0` macOS GitHub 정식 stable release와 `windows-v1.2.1` Windows 정식 release다 | macOS v1.2.0은 수달·돼지·나무와 승인 투척물, 애착 물건 분리 UI, 나무 정지·걷기 및 SIDEY-DIRECT 실행 표시를 제공한다. Windows v1.2.1은 앱·설치기의 7개 언어 지원, 설치 언어 연동, 오버레이 전환과 온보딩 그룹 전환 수정을 제공한다. production 판매 잠금은 유지한다. |
+| 배포 채널 | 현재 공개본은 버전 `1.2.1`, 빌드 `29`의 `v1.2.1` macOS GitHub 정식 stable release와 `windows-v1.2.1` Windows 정식 release다 | macOS v1.2.1은 상점 캐릭터 7종의 이야기 소개와 상세 카드 배치를 개선한다. Windows v1.2.1은 앱·설치기의 7개 언어 지원, 설치 언어 연동, 오버레이 전환과 온보딩 그룹 전환 수정을 제공한다. production 판매 잠금은 유지한다. |
 | Windows 인증 | Supabase 익명 인증 + Windows Credential Manager, 개발 결제에서만 Google identity 연결 | 기존 익명 세션을 먼저 복구하고 신규 설치에서만 새 익명 계정을 만든다. access·refresh token과 평문 초대 코드는 일반 설정이 아닌 Credential Manager에 보관한다. 개발 빌드는 staging에서만 PKCE S256과 `sidey-dev://auth/google` callback으로 기존 UUID에 Google identity를 연결한다. 1.1.0 Release는 `sidey://auth/google` 등록 기반만 준비하고 결제·연결 UI를 컴파일 타임으로 잠근다. |
 | Windows 정식 배포 | 현재 정식 출시 버전 `1.2.1`과 태그 `windows-v1.2.1`은 NSIS `3.12`의 머신 단위 단일 `SIDEY-Windows-x64-v1.2.1-Setup.exe`를 제공한다. v1.0.5는 마지막 WiX MSI로 유지한다 | unpackaged·multi-file framework-dependent WinUI 3 앱을 루트 `SIDEY.exe` 런처와 `Runtime` 앱, `Assets`, `Langs`로 나눈다. Setup EXE는 전체 트리를 하나의 버전 단위로 기본 `C:\Program Files\SIDEY`에 설치하되 신규 설치에서 위치를 선택할 수 있다. Release에는 버전에 맞는 설치 파일 하나만 게시하고 ZIP·MSIX·별도 인증서·`.sha256` 파일은 게시하지 않는다. |
 | Windows 서명 | 공인 코드 서명 인증서를 도입하기 전에는 SIDEY 제작 실행 파일·DLL·Windows 설치 파일을 자체 서명하지 않고, Release에 자체 서명 인증서를 제공하거나 설치하도록 안내하지 않음 | 신뢰되지 않은 자체 서명 인증서 설치를 사용자에게 요구하지 않는다. 공인 인증서 도입은 별도 검증 후 결정한다. |
