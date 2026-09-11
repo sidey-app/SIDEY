@@ -1,0 +1,46 @@
+{
+  "character_id": "pixel_kimchi",
+  "display_name": "김치",
+  "legacy_aliases": [],
+  "frame_pixel_size": [
+    24,
+    24
+  ],
+  "render_dip_size": [
+    48,
+    48
+  ],
+  "sheet_pixel_size": [
+    240,
+    24
+  ],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": {
+    "idle": [
+      0,
+      1
+    ],
+    "walk": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "doze": [
+      6,
+      7
+    ],
+    "offline": [
+      8,
+      9
+    ]
+  },
+  "sha256": "f32635953218c5dbb5e556743b6d5827a07a40d2e6aff3d094b3c0999be95af9",
+  "runtime_bgra": {
+    "byte_order": "BGRA",
+    "alpha": "straight",
+    "byte_length": 23040,
+    "sha256": "f8f1378220d9a7321b08549dd343c5c35249a95e8db9665f29eee56f728a9185"
+  }
+}

@@ -15,6 +15,8 @@ enum PixelCharacterThrowCatalog {
         "throwable_bouncy_heart", cannonObjectID, "throwable_squeaky_duck"
     ]
 
+    static let paidObjectID = "heart_cushion"
+
     static func objectID(for characterID: String) -> String {
         signature(for: characterID).objectID
     }
@@ -45,11 +47,23 @@ enum PixelCharacterThrowCatalog {
                 objectID: "starlight_orb",
                 interactionDescription: "친구를 클릭하면 반짝이는 별빛 구슬을 던져요."
             )
-        default:
+        case PixelCharacterCatalog.pixelJungjiyuID:
             SignatureThrow(
-                objectID: fallbackObjectID,
-                interactionDescription: "친구를 클릭하면 패치 말랑공을 던져요."
+                objectID: "ice_americano",
+                interactionDescription: "친구를 클릭하면 시원한 아이스 아메리카노를 던져요."
             )
+        default:
+            if PixelCharacterCatalog.definition(for: characterID).entitlementKey == nil {
+                SignatureThrow(
+                    objectID: fallbackObjectID,
+                    interactionDescription: "친구를 클릭하면 패치 말랑공을 던져요."
+                )
+            } else {
+                SignatureThrow(
+                    objectID: paidObjectID,
+                    interactionDescription: "친구를 클릭하면 폭신한 하트 쿠션을 던져요."
+                )
+            }
         }
     }
 
@@ -61,7 +75,7 @@ enum PixelCharacterThrowCatalog {
     static func supports(objectID: String?) -> Bool {
         guard let objectID else { return false }
         return purchasableObjectIDs.contains(objectID)
-            || [fallbackObjectID, "mini_paprika", "banana", "dust_bath_pouch", "starlight_orb"]
+            || [fallbackObjectID, paidObjectID, "ice_americano", "mini_paprika", "banana", "dust_bath_pouch", "starlight_orb"]
                 .contains(objectID)
     }
 

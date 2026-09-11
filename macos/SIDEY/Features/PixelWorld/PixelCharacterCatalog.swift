@@ -15,6 +15,23 @@ struct PixelCharacterFrameContract: Equatable, Sendable {
     )
 }
 
+/// How long the overlay holds each idle frame. `breathing` see-saws between the two idle
+/// frames at an even pace; `blinking` holds the open-eyed frame and flashes the closed-eyed
+/// one, which needs a sheet whose second idle frame closes the eyes.
+struct PixelCharacterIdleTiming: Equatable, Sendable {
+    let restDuration: TimeInterval
+    let accentDuration: TimeInterval
+
+    static let breathing = PixelCharacterIdleTiming(restDuration: 0.55, accentDuration: 0.55)
+    static let blinking = PixelCharacterIdleTiming(restDuration: 2.4, accentDuration: 0.3)
+
+    /// Per-frame hold times in sheet order: the first idle frame rests, the others accent.
+    func frameDurations(frameCount: Int) -> [TimeInterval] {
+        guard frameCount > 0 else { return [] }
+        return (0..<frameCount).map { $0 == 0 ? restDuration : accentDuration }
+    }
+}
+
 struct PixelCharacterDefinition: Equatable, Identifiable, Sendable {
     let id: String
     let displayName: String
@@ -26,6 +43,9 @@ struct PixelCharacterDefinition: Equatable, Identifiable, Sendable {
     let entitlementKey: String?
     let mirrorsToMovementDirection: Bool
     let sparkleEffect: PixelSparkleEffect?
+    /// Defaults to even breathing; characters whose second idle frame closes the eyes
+    /// pass `.blinking` so the overlay holds the open frame and flashes the blink.
+    var idleTiming: PixelCharacterIdleTiming = .breathing
 
     func assetURL(bundle: Bundle = .main) -> URL? {
         bundle.url(
@@ -115,10 +135,70 @@ enum PixelCharacterCatalog {
     static let pixelMonkeyID = "pixel_monkey"
     static let pixelChinchillaID = "pixel_chinchilla"
     static let pixelStarlightUpalupaID = "pixel_starlight_upalupa"
+    static let pixelPoopID = "pixel_poop"
+    static let pixelCapybaraID = "pixel_capybara"
+    static let pixelHedgehogID = "pixel_hedgehog"
+    static let pixelUnicornID = "pixel_unicorn"
+    static let pixelShibaID = "pixel_shiba"
+    static let pixelSalmonSushiID = "pixel_salmon_sushi"
+    static let pixelGrandpaID = "pixel_grandpa"
+    static let pixelSpiderHeroID = "pixel_spider_hero"
+    static let pixelCrowID = "pixel_crow"
+    static let pixelKimchiID = "pixel_kimchi"
+    static let pixelQuokkaID = "pixel_quokka"
+    static let pixelRedPandaID = "pixel_red_panda"
+    static let pixelOtterID = "pixel_otter"
+    static let pixelDuckID = "pixel_duck"
+    static let pixelPandaID = "pixel_panda"
+    static let pixelFrogID = "pixel_frog"
+    static let pixelOctopusID = "pixel_octopus"
+    static let pixelBungeoppangID = "pixel_bungeoppang"
+    static let pixelFriedEggID = "pixel_fried_egg"
+    static let pixelSamgakGimbapID = "pixel_samgak_gimbap"
+    static let pixelTteokbokkiID = "pixel_tteokbokki"
+    static let pixelAvocadoID = "pixel_avocado"
+    static let pixelSlimeID = "pixel_slime"
+    static let pixelCactusPotID = "pixel_cactus_pot"
+    static let pixelTofuID = "pixel_tofu"
+    static let pixelCupRamenID = "pixel_cup_ramen"
+    static let pixelGrandmaID = "pixel_grandma"
+    static let pixelBabyID = "pixel_baby"
+    static let pixelSantaID = "pixel_santa"
+    static let pixelJungjiyuID = "pixel_jungjiyu"
     static let starlightUpalupaEntitlementKey = "character:pixel_starlight_upalupa"
     static let guineaPigEntitlementKey = "character:pixel_guinea_pig"
     static let monkeyEntitlementKey = "character:pixel_monkey"
     static let chinchillaEntitlementKey = "character:pixel_chinchilla"
+    static let poopEntitlementKey = "character:pixel_poop"
+    static let capybaraEntitlementKey = "character:pixel_capybara"
+    static let hedgehogEntitlementKey = "character:pixel_hedgehog"
+    static let unicornEntitlementKey = "character:pixel_unicorn"
+    static let shibaEntitlementKey = "character:pixel_shiba"
+    static let salmonSushiEntitlementKey = "character:pixel_salmon_sushi"
+    static let grandpaEntitlementKey = "character:pixel_grandpa"
+    static let spiderHeroEntitlementKey = "character:pixel_spider_hero"
+    static let crowEntitlementKey = "character:pixel_crow"
+    static let kimchiEntitlementKey = "character:pixel_kimchi"
+    static let quokkaEntitlementKey = "character:pixel_quokka"
+    static let redPandaEntitlementKey = "character:pixel_red_panda"
+    static let otterEntitlementKey = "character:pixel_otter"
+    static let duckEntitlementKey = "character:pixel_duck"
+    static let pandaEntitlementKey = "character:pixel_panda"
+    static let frogEntitlementKey = "character:pixel_frog"
+    static let octopusEntitlementKey = "character:pixel_octopus"
+    static let bungeoppangEntitlementKey = "character:pixel_bungeoppang"
+    static let friedEggEntitlementKey = "character:pixel_fried_egg"
+    static let samgakGimbapEntitlementKey = "character:pixel_samgak_gimbap"
+    static let tteokbokkiEntitlementKey = "character:pixel_tteokbokki"
+    static let avocadoEntitlementKey = "character:pixel_avocado"
+    static let slimeEntitlementKey = "character:pixel_slime"
+    static let cactusPotEntitlementKey = "character:pixel_cactus_pot"
+    static let tofuEntitlementKey = "character:pixel_tofu"
+    static let cupRamenEntitlementKey = "character:pixel_cup_ramen"
+    static let grandmaEntitlementKey = "character:pixel_grandma"
+    static let babyEntitlementKey = "character:pixel_baby"
+    static let santaEntitlementKey = "character:pixel_santa"
+    static let jungjiyuEntitlementKey = "character:pixel_jungjiyu"
     static let legacyMintyPupID = "minty_pup"
     static let legacyPixelKoalaID = "pixel_koala"
 
@@ -230,6 +310,396 @@ enum PixelCharacterCatalog {
             entitlementKey: starlightUpalupaEntitlementKey,
             mirrorsToMovementDirection: true,
             sparkleEffect: .starlight
+        ),
+        PixelCharacterDefinition(
+            id: pixelPoopID,
+            displayName: "똥",
+            resourceName: "pixel_poop",
+            resourceDirectory: "Characters/PixelPoop",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "코코아 브라운 · 모카 · 코랄 볼",
+            entitlementKey: poopEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelCapybaraID,
+            displayName: "아기 카피바라",
+            resourceName: "pixel_capybara",
+            resourceDirectory: "Characters/PixelCapybara",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "탠 브라운 · 크림 · 세이지 그린",
+            entitlementKey: capybaraEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelHedgehogID,
+            displayName: "아기 고슴도치",
+            resourceName: "pixel_hedgehog",
+            resourceDirectory: "Characters/PixelHedgehog",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "체스트넛 · 크림 · 코랄",
+            entitlementKey: hedgehogEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelUnicornID,
+            displayName: "아기 유니콘",
+            resourceName: "pixel_unicorn",
+            resourceDirectory: "Characters/PixelUnicorn",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "펄 화이트 · 라벤더 · 핑크",
+            entitlementKey: unicornEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelShibaID,
+            displayName: "아기 시바견",
+            resourceName: "pixel_shiba",
+            resourceDirectory: "Characters/PixelShiba",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "세서미 오렌지 · 크림 · 레드",
+            entitlementKey: shibaEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelSalmonSushiID,
+            displayName: "연어초밥",
+            resourceName: "pixel_salmon_sushi",
+            resourceDirectory: "Characters/PixelSalmonSushi",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "밥알 화이트 · 연어 오렌지 · 김 그린",
+            entitlementKey: salmonSushiEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelGrandpaID,
+            displayName: "할아버지",
+            resourceName: "pixel_grandpa",
+            resourceDirectory: "Characters/PixelGrandpa",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "피치 스킨 · 실버 · 네이비 가디건",
+            entitlementKey: grandpaEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelSpiderHeroID,
+            displayName: "거미맨",
+            resourceName: "pixel_spider_hero",
+            resourceDirectory: "Characters/PixelSpiderHero",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "히어로 레드 · 화이트 · 로열 블루",
+            entitlementKey: spiderHeroEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelCrowID,
+            displayName: "아기 까마귀",
+            resourceName: "pixel_crow",
+            resourceDirectory: "Characters/PixelCrow",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "잉크 블랙 · 슬레이트 · 골든 옐로",
+            entitlementKey: crowEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelKimchiID,
+            displayName: "김치",
+            resourceName: "pixel_kimchi",
+            resourceDirectory: "Characters/PixelKimchi",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "고춧가루 레드 · 배추 아이보리 · 잎 그린",
+            entitlementKey: kimchiEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelQuokkaID,
+            displayName: "아기 쿼카",
+            resourceName: "pixel_quokka",
+            resourceDirectory: "Characters/PixelQuokka",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "모카 브라운 · 크림 · 스카이 블루",
+            entitlementKey: quokkaEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelRedPandaID,
+            displayName: "아기 레서판다",
+            resourceName: "pixel_red_panda",
+            resourceDirectory: "Characters/PixelRedPanda",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "러스트 오렌지 · 크림 · 스카이 블루",
+            entitlementKey: redPandaEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelOtterID,
+            displayName: "아기 수달",
+            resourceName: "pixel_otter",
+            resourceDirectory: "Characters/PixelOtter",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "월넛 브라운 · 크림 · 세이지 그린",
+            entitlementKey: otterEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelDuckID,
+            displayName: "아기 오리",
+            resourceName: "pixel_duck",
+            resourceDirectory: "Characters/PixelDuck",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "레몬 옐로 · 크림 · 스카이 블루",
+            entitlementKey: duckEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelPandaID,
+            displayName: "아기 판다",
+            resourceName: "pixel_panda",
+            resourceDirectory: "Characters/PixelPanda",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "화이트 · 차콜 · 뱀부 그린",
+            entitlementKey: pandaEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelFrogID,
+            displayName: "아기 개구리",
+            resourceName: "pixel_frog",
+            resourceDirectory: "Characters/PixelFrog",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "리프 그린 · 페일 옐로 · 골든",
+            entitlementKey: frogEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelOctopusID,
+            displayName: "아기 문어",
+            resourceName: "pixel_octopus",
+            resourceDirectory: "Characters/PixelOctopus",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "코랄 핑크 · 로즈 · 스카이 블루",
+            entitlementKey: octopusEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelBungeoppangID,
+            displayName: "붕어빵",
+            resourceName: "pixel_bungeoppang",
+            resourceDirectory: "Characters/PixelBungeoppang",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "골든 브라운 · 버터 크림 · 코랄 볼",
+            entitlementKey: bungeoppangEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelFriedEggID,
+            displayName: "계란후라이",
+            resourceName: "pixel_fried_egg",
+            resourceDirectory: "Characters/PixelFriedEgg",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "에그 화이트 · 요크 옐로 · 버터",
+            entitlementKey: friedEggEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelSamgakGimbapID,
+            displayName: "삼각김밥",
+            resourceName: "pixel_samgak_gimbap",
+            resourceDirectory: "Characters/PixelSamgakGimbap",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "김 그린 · 밥알 화이트 · 라벨 레드",
+            entitlementKey: samgakGimbapEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelTteokbokkiID,
+            displayName: "떡볶이",
+            resourceName: "pixel_tteokbokki",
+            resourceDirectory: "Characters/PixelTteokbokki",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "고추장 레드 · 떡 아이보리 · 파 그린",
+            entitlementKey: tteokbokkiEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelAvocadoID,
+            displayName: "아보카도",
+            resourceName: "pixel_avocado",
+            resourceDirectory: "Characters/PixelAvocado",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "아보카도 그린 · 페일 라임 · 씨앗 브라운",
+            entitlementKey: avocadoEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelSlimeID,
+            displayName: "슬라임",
+            resourceName: "pixel_slime",
+            resourceDirectory: "Characters/PixelSlime",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "민트 틸 · 아쿠아 · 골든",
+            entitlementKey: slimeEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelCactusPotID,
+            displayName: "화분",
+            resourceName: "pixel_cactus_pot",
+            resourceDirectory: "Characters/PixelCactusPot",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "선인장 그린 · 테라코타 · 핑크 꽃",
+            entitlementKey: cactusPotEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelTofuID,
+            displayName: "두부",
+            resourceName: "pixel_tofu",
+            resourceDirectory: "Characters/PixelTofu",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "두부 화이트 · 소프트 그레이 · 파 그린",
+            entitlementKey: tofuEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelCupRamenID,
+            displayName: "라면",
+            resourceName: "pixel_cup_ramen",
+            resourceDirectory: "Characters/PixelCupRamen",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "컵 화이트 · 국물 오렌지 · 레드 라벨",
+            entitlementKey: cupRamenEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelGrandmaID,
+            displayName: "할머니",
+            resourceName: "pixel_grandma",
+            resourceDirectory: "Characters/PixelGrandma",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "피치 스킨 · 실버 펌 · 핑크 가디건",
+            entitlementKey: grandmaEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelBabyID,
+            displayName: "아기",
+            resourceName: "pixel_baby",
+            resourceDirectory: "Characters/PixelBaby",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "피치 스킨 · 화이트 · 베이비 블루",
+            entitlementKey: babyEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelSantaID,
+            displayName: "산타",
+            resourceName: "pixel_santa",
+            resourceDirectory: "Characters/PixelSanta",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "산타 레드 · 스노 화이트 · 피치 스킨",
+            entitlementKey: santaEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
+        ),
+        PixelCharacterDefinition(
+            id: pixelJungjiyuID,
+            displayName: "정지유",
+            resourceName: "pixel_jungjiyu",
+            resourceDirectory: "Characters/PixelJungjiyu",
+            previewFrame: 0,
+            frames: .standard,
+            paletteDescription: "브라운 헤어 · 연핑크 가디건 · 연청 데님",
+            entitlementKey: jungjiyuEntitlementKey,
+            mirrorsToMovementDirection: false,
+            sparkleEffect: nil,
+            idleTiming: .blinking
         )
     ]
 

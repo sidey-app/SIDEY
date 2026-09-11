@@ -145,7 +145,37 @@ select '00000000-0000-0000-0000-000000000002'::uuid,
 from unnest(array[
   'character:pixel_guinea_pig',
   'character:pixel_monkey',
-  'character:pixel_chinchilla'
+  'character:pixel_chinchilla',
+  'character:pixel_poop',
+  'character:pixel_capybara',
+  'character:pixel_hedgehog',
+  'character:pixel_unicorn',
+  'character:pixel_shiba',
+  'character:pixel_salmon_sushi',
+  'character:pixel_grandpa',
+  'character:pixel_spider_hero',
+  'character:pixel_crow',
+  'character:pixel_kimchi',
+  'character:pixel_quokka',
+  'character:pixel_red_panda',
+  'character:pixel_otter',
+  'character:pixel_duck',
+  'character:pixel_panda',
+  'character:pixel_frog',
+  'character:pixel_octopus',
+  'character:pixel_bungeoppang',
+  'character:pixel_fried_egg',
+  'character:pixel_samgak_gimbap',
+  'character:pixel_tteokbokki',
+  'character:pixel_avocado',
+  'character:pixel_slime',
+  'character:pixel_cactus_pot',
+  'character:pixel_tofu',
+  'character:pixel_cup_ramen',
+  'character:pixel_grandma',
+  'character:pixel_baby',
+  'character:pixel_santa',
+  'character:pixel_jungjiyu'
 ]) entitlement_key;
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
@@ -164,13 +194,23 @@ select lives_ok(
     declare
       character_id text;
     begin
-      foreach character_id in array array['pixel_guinea_pig', 'pixel_monkey', 'pixel_chinchilla'] loop
+      foreach character_id in array array[
+        'pixel_guinea_pig', 'pixel_monkey', 'pixel_chinchilla',
+        'pixel_poop', 'pixel_capybara', 'pixel_hedgehog', 'pixel_unicorn', 'pixel_shiba',
+        'pixel_salmon_sushi', 'pixel_grandpa', 'pixel_spider_hero', 'pixel_crow', 'pixel_kimchi',
+        'pixel_quokka', 'pixel_red_panda', 'pixel_otter',
+        'pixel_duck', 'pixel_panda', 'pixel_frog', 'pixel_octopus',
+        'pixel_bungeoppang', 'pixel_fried_egg', 'pixel_samgak_gimbap', 'pixel_tteokbokki',
+        'pixel_avocado', 'pixel_slime', 'pixel_cactus_pot',
+        'pixel_tofu', 'pixel_cup_ramen', 'pixel_grandma', 'pixel_baby',
+        'pixel_santa', 'pixel_jungjiyu'
+      ] loop
         perform public.upsert_profile('무료친구', character_id);
       end loop;
     end;
     $body$
   $$,
-  'all three new paid character ids are selectable with complimentary entitlements'
+  'all thirty-three paid character ids are selectable with complimentary entitlements'
 );
 select is(
   (select character_id from public.upsert_profile('무료친구', 'pixel_koala')),

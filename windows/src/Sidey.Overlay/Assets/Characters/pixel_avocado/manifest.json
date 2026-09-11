@@ -1,0 +1,46 @@
+{
+  "character_id": "pixel_avocado",
+  "display_name": "아보카도",
+  "legacy_aliases": [],
+  "frame_pixel_size": [
+    24,
+    24
+  ],
+  "render_dip_size": [
+    48,
+    48
+  ],
+  "sheet_pixel_size": [
+    240,
+    24
+  ],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": {
+    "idle": [
+      0,
+      1
+    ],
+    "walk": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "doze": [
+      6,
+      7
+    ],
+    "offline": [
+      8,
+      9
+    ]
+  },
+  "sha256": "0dda7f52a818c154a6ec5e7e8dff0bc0f4353da52c39bf803a182dbb758823c5",
+  "runtime_bgra": {
+    "byte_order": "BGRA",
+    "alpha": "straight",
+    "byte_length": 23040,
+    "sha256": "9b4740f83ed3086066b76dc71d3b369196f6f81813262840e2d1830c412d4378"
+  }
+}

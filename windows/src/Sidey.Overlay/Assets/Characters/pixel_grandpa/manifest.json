@@ -1,0 +1,46 @@
+{
+  "character_id": "pixel_grandpa",
+  "display_name": "할아버지",
+  "legacy_aliases": [],
+  "frame_pixel_size": [
+    24,
+    24
+  ],
+  "render_dip_size": [
+    48,
+    48
+  ],
+  "sheet_pixel_size": [
+    240,
+    24
+  ],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": {
+    "idle": [
+      0,
+      1
+    ],
+    "walk": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "doze": [
+      6,
+      7
+    ],
+    "offline": [
+      8,
+      9
+    ]
+  },
+  "sha256": "49dbeec5c93856edc41f995e259db58837a0957cc445f28b380886fc2bfd11d9",
+  "runtime_bgra": {
+    "byte_order": "BGRA",
+    "alpha": "straight",
+    "byte_length": 23040,
+    "sha256": "553253ee3bdf0d98a6f9104b74de0b5ca9a94d781883f0de42db0813a96f8e16"
+  }
+}

@@ -333,7 +333,7 @@ final class SettingsInteractionTests: XCTestCase {
             }
         }
 
-        XCTAssertEqual(CommerceCatalog.products.count, 10)
+        XCTAssertEqual(CommerceCatalog.products.count, 40)
         XCTAssertEqual(refreshCalls, 0)
         XCTAssertEqual(purchaseCalls, 0)
     }

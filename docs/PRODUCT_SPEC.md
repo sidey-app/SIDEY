@@ -28,7 +28,7 @@
 - 실제 그룹은 최대 12명이다. 렌더러 안정성은 별도 20노드 합성 스트레스 테스트로 검증한다.
 - macOS 코드·인증·설정 schema는 Windows 개발을 위해 재작성하지 않는다.
 - 기존 설치의 인증 세션과 설정을 잃지 않도록 Swift 기반 legacy migration 호환만 유지한다.
-- macOS 설정과 메뉴바에서 유료 캐릭터 4종 상점을 제공하되 production은 출시 예정 잠금으로 배포한다. 격리된 Sidey-dev만 Google identity를 연결한 뒤 PortOne 테스트 결제를 시작한다.
+- macOS 설정과 메뉴바에서 유료 캐릭터 34종 상점을 제공하되 production은 출시 예정 잠금으로 배포한다. 격리된 Sidey-dev만 Google identity를 연결한 뒤 PortOne 테스트 결제를 시작한다.
 - direct판 카탈로그에는 승인된 말풍선 3종과 투척물 3종을 추가하되 production의 `.comingSoon`과 서버 `sales_enabled=false`는 유지한다. 결제·지급·자동 장착·해제·환불 회수는 Sidey-dev와 staging에서만 검증한다.
 - direct판과 App Store판의 `내 프로필`은 말풍선·투척물 선택 영역을 항상 표시하고, 보유 상품이 없어도 `기본 말풍선`과 `캐릭터 기본 투척물`을 각각 장착 상태로 보여준다. snapshot의 활성 entitlement로 확인한 상품만 종류별로 추가한다. 선택은 프로필 저장과 분리해 즉시 계정 전체 그룹에 적용하며 direct production의 상점 조회·구매 잠금과 관계없이 서버 장착 RPC를 사용할 수 있다.
 
@@ -203,7 +203,7 @@ SpriteKit 장면과 투명 월드 패널은 리액션 전용 `renderFrame`을 �
 | `pixel_rabbit` | 아기 토끼 | 아이보리·피치·라벤더 |
 | `pixel_penguin` | 아기 펭귄 | 네이비·크림·민트 |
 
-유료 catalog는 `pixel_starlight_upalupa` 별빛 우파루파(1,900원), `pixel_guinea_pig` 아기 기니피그(990원), `pixel_monkey` 아기 원숭이(990원), `pixel_chinchilla` 아기 친칠라(990원)다. macOS와 Windows 선택 목록에는 무료 5종과 현재 계정이 활성 소유권을 가진 유료 캐릭터만 표시한다. 환불 또는 소유권 만료 시 로컬 선택을 햄스터로 되돌리며, 다른 사용자의 유료 캐릭터를 렌더링할 때는 보는 사람의 소유권을 요구하지 않는다. 친칠라의 canonical ID는 `pixel_chinchilla`이고 과거 `pixel_koala`는 호환 alias로만 정규화한다.
+유료 catalog는 `pixel_starlight_upalupa` 별빛 우파루파(1,900원), `pixel_guinea_pig` 아기 기니피그, `pixel_monkey` 아기 원숭이, `pixel_chinchilla` 아기 친칠라와 신규 30종(똥·아기 카피바라·아기 고슴도치·아기 유니콘·아기 시바견·연어초밥·할아버지·거미맨·아기 까마귀·김치·아기 쿼카·아기 레서판다·아기 수달·아기 오리·아기 판다·아기 개구리·아기 문어·붕어빵·계란후라이·삼각김밥·떡볶이·아보카도·슬라임·화분·두부·라면·할머니·아기·산타·정지유)다. 별빛 우파루파 외 33종은 각 990원이다. macOS 선택 목록에는 무료 5종과 현재 계정이 활성 소유권을 가진 유료 캐릭터만 표시한다. 환불 또는 소유권 만료 시 로컬 선택을 햄스터로 되돌리며, 다른 사용자의 유료 캐릭터를 렌더링할 때는 보는 사람의 소유권을 요구하지 않는다. Windows의 신규 30종 catalog·렌더러 연결은 별도 `windows/*` 작업으로 남기고 이번 shared 에셋 변경에서는 통합 경로의 mirror만 제공한다. 친칠라의 canonical ID는 `pixel_chinchilla`이고 과거 `pixel_koala`는 호환 alias로만 정규화한다.
 
 결제 확인과 동시에 디지털 캐릭터 사용권 제공을 시작한다. 제공 시작 뒤 단순 변심에 따른 청약철회와 환불은 허용하지 않으며, 사용권 미제공·표시 또는 계약 내용 불일치·중복 결제·본인이 승인하지 않은 결제 등 관련 법령상 사유가 확인된 경우에만 전액 환불한다. 환불은 PortOne 취소 상태를 다시 확인한 뒤 구매 entitlement를 회수하며, 법이 보장하는 취소·피해구제 권리는 제한하지 않는다.
 
@@ -220,7 +220,7 @@ complimentary 지급은 구매·환불과 분리해 원장에 출처와 근거�
 
 `manifest.json`의 `licensing`에 등록된 유료 캐릭터·말풍선·투척물 및 그 macOS·checkout mirror에는 `SIDEY Paid Asset License 1.0`을 적용한다. 파일은 공개 저장소에서 열람할 수 있지만 오픈소스 에셋은 아니며, 공식 SIDEY의 계정·entitlement 규칙에 따른 표시와 SIDEY 개발·검토 목적의 로컬 확인만 허용한다. 다른 앱·게임·웹사이트·상품에서 복제·추출·수정·재배포·판매할 수 없다. 유료 에셋 기여는 PR 제출만으로 판매나 수익 배분이 확정되지 않으며, 판매·정산·환불·배포 권한을 정한 별도 서면 계약 뒤에만 병합한다.
 
-기본 시트는 240×24 RGBA이며 idle 2·walk 4·doze 2·offline 2프레임을 가진다. 물체 던지기 action 시트는 각 캐릭터마다 192×24 RGBA이며 24×24 셀의 throw 4프레임과 hit 4프레임을 가진다. 일반 물체 시트는 192×16 RGBA이며 16×16 셀의 회전 8프레임과 충돌 4프레임을 가진다. 무료 5종은 패치 말랑공을 공유하고, 기니피그는 미니 파프리카, 원숭이는 바나나, 친칠라는 먼지목욕 모래주머니, 별빛 우파루파는 별빛 구슬을 시그니처로 사용한다. 투명 배경, sRGB, 8-bit RGBA, hard alpha와 integer nearest-neighbor를 유지하고 안티앨리어싱과 실시간 그림자는 사용하지 않는다. 알 수 없는 캐릭터 ID는 햄스터 action과 패치 말랑공으로 fallback한다.
+기본 시트는 240×24 RGBA이며 idle 2·walk 4·doze 2·offline 2프레임을 가진다. 물체 던지기 action 시트는 39종 캐릭터마다 192×24 RGBA이며 24×24 셀의 throw 4프레임과 hit 4프레임을 가진다. 일반 물체 시트는 10종 각각 192×16 RGBA이며 16×16 셀의 회전 8프레임과 충돌 4프레임을 가진다. 무료 5종은 패치 말랑공을 공유하고, 기니피그는 미니 파프리카, 원숭이는 바나나, 친칠라는 먼지목욕 모래주머니, 별빛 우파루파는 별빛 구슬을 시그니처로 사용한다. 정지유는 아이스 아메리카노를 전용으로 쓰고 신규 유료 나머지 29종은 하트 쿠션을 공유한다. 신규 30종의 action 시트는 동일 캐릭터의 idle 드로잉을 기울이고 눌러 만든 여덟 프레임이며 모두 발 기준선 y=3을 유지한다. 투명 배경, sRGB, 8-bit RGBA, hard alpha와 integer nearest-neighbor를 유지하고 안티앨리어싱과 실시간 그림자는 사용하지 않는다. 알 수 없는 캐릭터 ID는 햄스터 action과 패치 말랑공으로 fallback한다.
 
 ### 4.4.1 직배포판 효과음·기절 — 승인 선행, 구현 예정
 
@@ -520,6 +520,8 @@ commerce는 다음 현행 계약을 유지한다. 적용된 migration과 과거 
 - 새 checkout은 현행 정책 버전과 제공 시작·환불 조건에 대한 동의를 기록하며 기존 주문에 저장된 결제 당시 동의 원문은 바꾸지 않는다.
 
 forward-only `20260903010000_character_throw.sql`은 `broadcast_character_throw(p_room_id, p_realtime_epoch, p_event_id, p_target_user_id)` 전용 RPC를 추가한다. 서버는 인증, 최신 room epoch, 송신자·대상 멤버십, 자기 자신 대상 금지와 필수 UUID를 검증하고 송신자 프로필에서 `source_character_id`를 읽는다. 송신자당 10초 20회 제한을 적용한 뒤 schema version, room/event/actor/target UUID와 source character ID만 현재 private ephemeral topic의 `character_throw`로 발행한다. 이벤트는 Postgres 메시지나 기록에 저장하지 않고 재접속 뒤 재생하지 않는다.
+
+forward-only `20260911000000_add_thirty_paid_characters.sql`은 최신 commerce catalog 스키마에 맞춰 신규 캐릭터 30종의 각 990원 상품과 활성 가격을 등록하고 `upsert_profile` 선택 가능 ID를 무료 5종·유료 34종으로 확장한다. cosmetic migration과 함께 활성 상품은 캐릭터 34종·말풍선 3종·투척물 3종, 총 40종이다.
 
 forward-only `20260904000000_app_store_foundation.sql`은 다음 계약을 추가한다.
 

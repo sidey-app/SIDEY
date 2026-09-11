@@ -1,0 +1,46 @@
+{
+  "character_id": "pixel_octopus",
+  "display_name": "아기 문어",
+  "legacy_aliases": [],
+  "frame_pixel_size": [
+    24,
+    24
+  ],
+  "render_dip_size": [
+    48,
+    48
+  ],
+  "sheet_pixel_size": [
+    240,
+    24
+  ],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": {
+    "idle": [
+      0,
+      1
+    ],
+    "walk": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "doze": [
+      6,
+      7
+    ],
+    "offline": [
+      8,
+      9
+    ]
+  },
+  "sha256": "525fdd8204da571d4d4c4bf9ce4171ee7ca49c9bcf8bde6d40f137f3b16c0f46",
+  "runtime_bgra": {
+    "byte_order": "BGRA",
+    "alpha": "straight",
+    "byte_length": 23040,
+    "sha256": "30d8d63533e4a010c56e4454a8103dd6721d35fa4d78971237044a2c40d8f265"
+  }
+}

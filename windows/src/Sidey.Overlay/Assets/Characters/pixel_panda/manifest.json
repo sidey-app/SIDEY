@@ -1,0 +1,46 @@
+{
+  "character_id": "pixel_panda",
+  "display_name": "아기 판다",
+  "legacy_aliases": [],
+  "frame_pixel_size": [
+    24,
+    24
+  ],
+  "render_dip_size": [
+    48,
+    48
+  ],
+  "sheet_pixel_size": [
+    240,
+    24
+  ],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": {
+    "idle": [
+      0,
+      1
+    ],
+    "walk": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "doze": [
+      6,
+      7
+    ],
+    "offline": [
+      8,
+      9
+    ]
+  },
+  "sha256": "7242d5d61e424382b8c8fe2f0c14fe5a96c06b55524025f2dfcf65a7c534286b",
+  "runtime_bgra": {
+    "byte_order": "BGRA",
+    "alpha": "straight",
+    "byte_length": 23040,
+    "sha256": "329584e4eb8f38ad2c33806fe373a3dea0c5b837a282f1bf08d5a088b765c782"
+  }
+}

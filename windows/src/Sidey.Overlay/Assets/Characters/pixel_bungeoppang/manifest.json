@@ -1,0 +1,46 @@
+{
+  "character_id": "pixel_bungeoppang",
+  "display_name": "붕어빵",
+  "legacy_aliases": [],
+  "frame_pixel_size": [
+    24,
+    24
+  ],
+  "render_dip_size": [
+    48,
+    48
+  ],
+  "sheet_pixel_size": [
+    240,
+    24
+  ],
+  "foot_baseline_pixel": 3,
+  "filtering": "nearest",
+  "animations": {
+    "idle": [
+      0,
+      1
+    ],
+    "walk": [
+      2,
+      3,
+      4,
+      5
+    ],
+    "doze": [
+      6,
+      7
+    ],
+    "offline": [
+      8,
+      9
+    ]
+  },
+  "sha256": "01c351f7da5ac6262a10785accf789afbe873e37e85d22ff537a2af8c0246175",
+  "runtime_bgra": {
+    "byte_order": "BGRA",
+    "alpha": "straight",
+    "byte_length": 23040,
+    "sha256": "9a82c9b108d322f4e5e831c1d8b488b52362814b488356fec0b9174e4c91fcdf"
+  }
+}
