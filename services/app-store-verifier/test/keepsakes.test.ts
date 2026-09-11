@@ -77,6 +77,7 @@ test('actual commerce SQL preserves legacy sources, restores old offers and isol
       insert into private.commerce_grants(user_id,entitlement_key,source_kind,source_reference,status)
       values('${user}','character:pixel_monkey','complimentary','existing-gift','active');`);
     await db.exec(await read('supabase/migrations/20260912000000_character_keepsakes.sql'));
+    await db.exec(await read('supabase/migrations/20260912010000_keepsake_descriptions.sql'));
     const owned = async (key: string, uid = user) => (await db.query<any>(
       'select status from commerce_entitlements where user_id=$1 and entitlement_key=$2',[uid,key])).rows[0]?.status;
     assert.equal(await owned('throwable:throwable_banana'),'active');
@@ -86,6 +87,7 @@ test('actual commerce SQL preserves legacy sources, restores old offers and isol
     const catalog = JSON.parse(await read('assets/v1/commerce-catalog.json'));
     for (const product of catalog) {
       const row = (await db.query<any>('select * from get_store_state() where product_id=$1',[product.id])).rows[0];
+      assert.equal(row.product_description,product.description);
       assert.equal(row.amount_krw,product.direct_price);
       assert.equal(row.app_store_product_id,product.app_store_product_id);
       assert.equal(row.render_asset_id,product.render_asset_id);
