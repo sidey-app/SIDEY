@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.8
 - 최종 갱신: 2026-09-12
-- 상태: macOS `v1.1.0`(build 24) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.2.1` 정식 출시
+- 상태: macOS `v1.2.0`(build 28) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.2.1` 정식 출시
 - 비공개 후보 기준: Mac App Store 타깃의 버전·build는 [Xcode 프로젝트 설정](../macos/SIDEY.xcodeproj/project.pbxproj)의 `MARKETING_VERSION`·`CURRENT_PROJECT_VERSION`을 참조한다; 공개 manifest와 다운로드 페이지는 실제 출시 전까지 기존 버전을 유지
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
@@ -715,3 +715,12 @@ Windows CI는 PR과 `main` 검증만 담당하며 태그 push로 배포하지 �
 2026-09-12: macOS App Store판에도 직배포판과 동일한 보라색 프로필 선택 테두리·체크·배경을 적용한다. 캐릭터·말풍선·투척물은 공통 선택 스타일을 사용하고 상점 카드의 hover·키보드 focus 및 사용 중 표시도 같은 보라색을 사용한다. 보유·오류 상태의 의미 색은 유지한다. 이전 직배포 전용 범위를 이번 사용자 요청으로 App Store판까지 확장한다.
 
 2026-09-12: App Store 상점은 Apple에서 조회한 가격만 표시한다. Apple 응답에 없는 상품에 직배포 DB 가격을 대신 표시하거나 조회가 끝난 뒤에도 로딩 중으로 안내하지 않는다. 실제 조회 중·조회 불가·조회 실패를 구분하고 상세의 가격 다시 확인 및 상점 상태 새로고침은 Apple 상품 조회도 재실행한다. Apple 상품을 받지 못한 항목의 구매는 계속 차단하며 이미 보유한 권리는 가격 조회 실패로 변경하지 않는다.
+
+
+### 2026-09-12 macOS 1.2.0 배포 이름 및 업데이트 연속성
+
+- 직배포 Release 실행 표시 이름(CFBundleDisplayName·CFBundleName), 상태 메뉴와 창 제목은 `SIDEY-DIRECT`, App Store판은 `SIDEY`, Debug는 `Sidey-dev`다.
+- 설치·Sparkle·Homebrew가 사용하는 `SIDEY.app`과 실행 파일명, bundle ID `app.sidey.desktop`, Keychain·설정·OAuth·로그인 helper 식별자는 유지한다. 표시 이름 변경으로 계정을 초기화하거나 별도 앱으로 설치하지 않는다.
+- 신규 캐릭터·투척물과 애착 물건 분리 UI를 포함해 1.1.0에서 1.2.0으로 올린다. 사용자 확인으로 App Store에 사용된 build 27 다음인 28을 배정한다.
+- main 통합과 Developer ID 서명·공증 DMG/ZIP 공개, 서명된 Sparkle feed와 Homebrew 갱신이 이번 배포 범위다. App Store build 28 Archive는 별도 제출용이며 공개 DMG 릴리스가 Apple 심사 완료를 뜻하지 않는다.
+- 직배포 production의 상점 판매 잠금과 기존 보유 상품 장착은 유지한다. 새 상품의 Apple Sandbox 실제 구매·복원 및 운영 verifier 반영 상태는 App Store 검토 문서에서 관리한다.

@@ -8,6 +8,9 @@
 
 ## 확정된 결정
 
+2026-09-12 사용자는 직배포판 실행 이름을 `SIDEY-DIRECT`로 변경하고 전체 macOS 변경의 main 병합·버전 문서 갱신·정식 릴리스를 승인했다. App Store판 표시 이름은 `SIDEY`, Debug는 `Sidey-dev`를 유지한다. CFBundleDisplayName·CFBundleName과 메뉴·창 제목으로 구분하고 기존 `SIDEY.app` 파일명·실행 파일·bundle ID·Keychain·설정·로그인 helper·Sparkle 경로는 유지해 재설치나 계정 이전을 요구하지 않는다. 신규 콘텐츠·분리 판매 UI는 하위 호환 기능 추가이므로 공개 macOS 1.1.0 대비 MINOR인 1.2.0으로 배포한다. 사용자가 App Store build 27 업로드 완료를 확인했으며 새 배포 build는 28이다. 이전 공개 릴리스 보류 결정을 대체한다. App Store 심사 승인·실제 구매 검증, 직배포 production 판매 잠금 해제는 별도로 구분한다. Windows 릴리스·구현은 변경하지 않는다.
+
+
 2026-09-12 상점 표현 수정: 상세창은 실제 내용 높이에 맞춰 하단 빈 공간을 줄이고 긴 내용만 스크롤한다. 애착 물건의 사용 범위 안내와 구매 카드의 부가 사용 안내는 빼고, 물건마다 짧은 농담이 담긴 소개를 사용한다. 돼지고기는 `찰진 촵! 근데 옆집 꿀꿀이가 며칠 전부터 안 보이던데…?`로 표시한다. 별도 판매 표시는 유지하며 사용 가능 캐릭터·소유권·가격은 변경하지 않는다.
 
 2026-09-12 미리보기 조작 수정: 캐릭터 상세의 상대 캐릭터를 클릭하면 해당 애착 물건을 로컬에서 던진다. 별도 체험 버튼·체험 배지와 공통 분리 구매 안내 문구는 제거하고 애착 물건 카드의 `별도 판매` 표시는 유지한다. 음소거 버튼은 캐릭터·투척물 미리보기 무대 안쪽 우상단에 둔다. 나무 상세에서는 `나무를 우클릭하면 멈추고, 다시 우클릭하면 걸어요.`를 무대 위에 상시 표시한다. 실제 장착·소유권·공통 기본 말랑공 정책은 변경하지 않는다.
@@ -210,7 +213,7 @@ Windows 오버레이와 상점 캐릭터 미리보기의 산책은 macOS와 같�
 | Homebrew 배포 | 공개 third-party tap `sidey-app/homebrew-tap`의 `sidey` Cask가 버전 고정 공증 DMG와 SHA-256을 사용. arm64·macOS 26+만 허용하고 `auto_updates true`, 안전한 앱 종료, `SIDEY.app` 설치를 선언하며 사용자 데이터 `zap`은 두지 않음 | `brew install --cask sidey-app/tap/sidey`를 재현 가능하게 제공하면서 uninstall이 계정·설정을 임의 삭제하지 않게 한다. 공식 `homebrew/cask` 등록은 별도 결정 전까지 범위 밖이다. |
 | macOS 로컬 개발 설치 | `Sidey-dev`는 bundle ID `app.sidey.desktop.dev`, dev login item·Keychain service·UserDefaults suite, callback `sidey-dev`를 사용하고 Sparkle을 비활성화한다. staging URL·publishable key가 없거나 운영 ref `whtejsviizgejauasqqt`면 설치 스크립트가 빌드를 거부한다. | production 세션·설정·운영 결제를 개발 테스트와 섞지 않는다. 이 결정은 과거 production 식별자 공유 결정을 폐기·대체한다. |
 | 업데이트 전환 | Sparkle이 없는 기존 alpha는 최신 공증 DMG로 한 번 수동 교체하고, Sparkle 내장 production 빌드부터 앱 내부 업데이트를 사용 | 기존 설치에 프레임워크를 원격으로 소급 탑재할 수 없고, ad-hoc development 자동 업데이트는 Gatekeeper·코드 서명 연속성을 깨뜨릴 수 있다. |
-| 배포 채널 | 현재 공개본은 버전 `1.1.0`, 빌드 `24`의 `v1.1.0` macOS GitHub 정식 stable release와 `windows-v1.2.1` Windows 정식 release다 | macOS v1.1.0은 투척물별 피격음 8종·소리 설정·6초 기절과 꾸미기 선택 표시 통일을 제공한다. Windows v1.2.1은 앱·설치기의 7개 언어 지원, 설치 언어 연동, 오버레이 전환과 온보딩 그룹 전환 수정을 제공한다. production 판매 잠금은 유지한다. |
+| 배포 채널 | 현재 공개본은 버전 `1.2.0`, 빌드 `28`의 `v1.2.0` macOS GitHub 정식 stable release와 `windows-v1.2.1` Windows 정식 release다 | macOS v1.2.0은 수달·돼지·나무와 승인 투척물, 애착 물건 분리 UI, 나무 정지·걷기 및 SIDEY-DIRECT 실행 표시를 제공한다. Windows v1.2.1은 앱·설치기의 7개 언어 지원, 설치 언어 연동, 오버레이 전환과 온보딩 그룹 전환 수정을 제공한다. production 판매 잠금은 유지한다. |
 | Windows 인증 | Supabase 익명 인증 + Windows Credential Manager, 개발 결제에서만 Google identity 연결 | 기존 익명 세션을 먼저 복구하고 신규 설치에서만 새 익명 계정을 만든다. access·refresh token과 평문 초대 코드는 일반 설정이 아닌 Credential Manager에 보관한다. 개발 빌드는 staging에서만 PKCE S256과 `sidey-dev://auth/google` callback으로 기존 UUID에 Google identity를 연결한다. 1.1.0 Release는 `sidey://auth/google` 등록 기반만 준비하고 결제·연결 UI를 컴파일 타임으로 잠근다. |
 | Windows 정식 배포 | 현재 정식 출시 버전 `1.2.1`과 태그 `windows-v1.2.1`은 NSIS `3.12`의 머신 단위 단일 `SIDEY-Windows-x64-v1.2.1-Setup.exe`를 제공한다. v1.0.5는 마지막 WiX MSI로 유지한다 | unpackaged·multi-file framework-dependent WinUI 3 앱을 루트 `SIDEY.exe` 런처와 `Runtime` 앱, `Assets`, `Langs`로 나눈다. Setup EXE는 전체 트리를 하나의 버전 단위로 기본 `C:\Program Files\SIDEY`에 설치하되 신규 설치에서 위치를 선택할 수 있다. Release에는 버전에 맞는 설치 파일 하나만 게시하고 ZIP·MSIX·별도 인증서·`.sha256` 파일은 게시하지 않는다. |
 | Windows 서명 | 공인 코드 서명 인증서를 도입하기 전에는 SIDEY 제작 실행 파일·DLL·Windows 설치 파일을 자체 서명하지 않고, Release에 자체 서명 인증서를 제공하거나 설치하도록 안내하지 않음 | 신뢰되지 않은 자체 서명 인증서 설치를 사용자에게 요구하지 않는다. 공인 인증서 도입은 별도 검증 후 결정한다. |
