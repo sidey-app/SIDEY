@@ -52,7 +52,7 @@ select * from public.join_room((select invite_code from cosmetics_room));
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '71000000-0000-0000-0000-000000000001', true);
-select is((select count(*)::integer from public.get_store_state()), 10, 'store state returns the whole catalog');
+select is((select count(*)::integer from public.get_store_state()), 24, 'store state returns the whole catalog');
 select is(
   (select count(*)::integer from public.get_store_state() where is_equipped is null),
   0,
@@ -164,7 +164,7 @@ select private.refresh_commerce_entitlement(
 select is(
   (select equipped_throwable_id from public.profiles
    where id = '71000000-0000-0000-0000-000000000001'),
-  null, 'revoked throwable immediately falls back to the character signature'
+  null, 'revoked throwable immediately falls back to the shared soft ball'
 );
 
 update private.commerce_runtime_settings set sales_enabled = true, payment_environment = 'test';

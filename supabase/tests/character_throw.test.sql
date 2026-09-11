@@ -134,9 +134,10 @@ select is(
     'event_id', '62000000-0000-0000-0000-000000000007'::uuid,
     'actor_user_id', '61000000-0000-0000-0000-000000000001'::uuid,
     'target_user_id', '61000000-0000-0000-0000-000000000002'::uuid,
-    'source_character_id', 'pixel_penguin'
+    'source_character_id', 'pixel_penguin',
+    'throwable_id', 'patch_soft_ball'
   ),
-  'Broadcast contains only the validated v1 identifiers and server profile character'
+  'Broadcast contains validated v1 identifiers, server character and the shared default ball'
 );
 select ok(
   (select not (payload ?| array['x', 'y', 'source_x', 'source_y', 'target_x', 'target_y'])

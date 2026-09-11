@@ -12,7 +12,7 @@ select has_table('public', 'commerce_orders', 'commerce orders exist');
 select has_table('public', 'commerce_entitlements', 'commerce entitlements exist');
 select has_column('public', 'commerce_entitlements', 'grant_kind', 'grant kind records provenance');
 select has_column('public', 'commerce_entitlements', 'grant_reference', 'grant reference records provenance');
-select is((select count(*)::integer from public.commerce_products where active), 10, 'ten catalog products are active');
+select is((select count(*)::integer from public.commerce_products where active), 24, 'twenty-four catalog products are active');
 select results_eq(
   $$select product_id, amount_krw from public.commerce_prices where active order by product_id$$,
   $$values
@@ -22,10 +22,24 @@ select results_eq(
       ('character_chinchilla'::text, 990),
       ('character_guinea_pig'::text, 990),
       ('character_monkey'::text, 990),
+      ('character_otter'::text, 990),
+      ('character_pig'::text, 990),
       ('character_starlight_upalupa'::text, 1900),
+      ('character_tree'::text, 1900),
+      ('throwable_banana'::text, 990),
+      ('throwable_baseball'::text, 990),
       ('throwable_bouncy_heart'::text, 990),
+      ('throwable_clam'::text, 990),
+      ('throwable_dujjonku'::text, 1900),
+      ('throwable_dust_bath_pouch'::text, 990),
+      ('throwable_mini_paprika'::text, 990),
+      ('throwable_pork'::text, 990),
+      ('throwable_snowflake'::text, 990),
       ('throwable_squeaky_duck'::text, 990),
-      ('throwable_toy_cannon'::text, 2900)$$,
+      ('throwable_starlight_orb'::text, 990),
+      ('throwable_timber'::text, 990),
+      ('throwable_toy_cannon'::text, 2900),
+      ('throwable_wakkuball'::text, 1900)$$,
   'active prices are server-owned'
 );
 select is(
