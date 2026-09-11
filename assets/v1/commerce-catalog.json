@@ -46,8 +46,9 @@
     "sort_order": 30,
     "direct_price": 990,
     "app_store_price": 1100,
-    "app_store_product_id": "character_monkey_solo",
+    "app_store_product_id": "character_monkey_solo_2",
     "legacy_app_store_product_ids": [
+      "character_monkey_solo",
       "character_monkey"
     ],
     "related_character_product_id": null,
@@ -356,8 +357,10 @@
     "sort_order": 340,
     "direct_price": 990,
     "app_store_price": 1100,
-    "app_store_product_id": "throwable_clam",
-    "legacy_app_store_product_ids": [],
+    "app_store_product_id": "throwable_clam_2",
+    "legacy_app_store_product_ids": [
+      "throwable_clam"
+    ],
     "related_character_product_id": "character_otter",
     "render_asset_id": "clam"
   },
@@ -372,8 +375,10 @@
     "sort_order": 350,
     "direct_price": 990,
     "app_store_price": 1100,
-    "app_store_product_id": "throwable_pork",
-    "legacy_app_store_product_ids": [],
+    "app_store_product_id": "throwable_pork_2",
+    "legacy_app_store_product_ids": [
+      "throwable_pork"
+    ],
     "related_character_product_id": "character_pig",
     "render_asset_id": "pork"
   },

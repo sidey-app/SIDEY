@@ -4,6 +4,7 @@ export const entitlementByProduct = Object.freeze({
   character_starlight_upalupa: "character:pixel_starlight_upalupa",
   character_guinea_pig_solo: "character:pixel_guinea_pig",
   character_guinea_pig: "character:pixel_guinea_pig",
+  character_monkey_solo_2: "character:pixel_monkey",
   character_monkey_solo: "character:pixel_monkey",
   character_monkey: "character:pixel_monkey",
   character_chinchilla_solo: "character:pixel_chinchilla",
@@ -26,7 +27,9 @@ export const entitlementByProduct = Object.freeze({
   throwable_banana: "throwable:throwable_banana",
   throwable_dust_bath_pouch: "throwable:throwable_dust_bath_pouch",
   throwable_starlight_orb: "throwable:throwable_starlight_orb",
+  throwable_clam_2: "throwable:throwable_clam",
   throwable_clam: "throwable:throwable_clam",
+  throwable_pork_2: "throwable:throwable_pork",
   throwable_pork: "throwable:throwable_pork",
   throwable_timber: "throwable:throwable_timber",
 } as const);
