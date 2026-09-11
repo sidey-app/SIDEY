@@ -726,3 +726,5 @@ Windows CI는 PR과 `main` 검증만 담당하며 태그 push로 배포하지 �
 - 신규 캐릭터·투척물과 애착 물건 분리 UI를 포함해 1.1.0에서 1.2.0으로 올린다. 사용자 확인으로 App Store에 사용된 build 27 다음인 28을 배정한다.
 - main 통합과 Developer ID 서명·공증 DMG/ZIP 공개, 서명된 Sparkle feed와 Homebrew 갱신이 이번 배포 범위다. App Store build 28 Archive는 별도 제출용이며 공개 DMG 릴리스가 Apple 심사 완료를 뜻하지 않는다.
 - 직배포 production의 상점 판매 잠금과 기존 보유 상품 장착은 유지한다. 새 상품의 Apple Sandbox 실제 구매·복원 및 운영 verifier 반영 상태는 App Store 검토 문서에서 관리한다.
+
+2026-09-12 나무 Apple 상품 재등록 비교: 사용자 요청으로 나무의 현재 App Store 상품 ID만 `character_tree_2`로 교체한다. 내부 상품 `character_tree`, 권리 `character:pixel_tree`, 한국 가격 2,200원과 별도 판매 애착 물건은 유지한다. 기존 Apple ID `character_tree`는 복원·거래 검증용으로 보존한다. 원숭이·조개·돼지고기는 변경하지 않는다. 판매 상품은 24종, Apple 검증 ID는 29개다. Connect 신규 상품 등록과 실제 조회·구매·복원 성공은 별도 검증이며 이번 로컬 변경만으로 완료 처리하지 않는다.

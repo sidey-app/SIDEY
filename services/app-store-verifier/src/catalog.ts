@@ -16,6 +16,7 @@ export const entitlementByProduct = Object.freeze({
   throwable_squeaky_duck: "throwable:throwable_squeaky_duck",
   character_otter: "character:pixel_otter",
   character_pig: "character:pixel_pig",
+  character_tree_2: "character:pixel_tree",
   character_tree: "character:pixel_tree",
   throwable_snowflake: "throwable:throwable_snowflake",
   throwable_baseball: "throwable:throwable_baseball",
