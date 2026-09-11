@@ -357,17 +357,16 @@ public sealed class DistributionSourceTests
     [Theory]
     [InlineData("windows.yml")]
     [InlineData("windows-release.yml")]
-    public void CiValidatesPublishedFilesAndInstallsRuntimesBeforeSmoke(string workflowName)
+    public void CiValidatesPublishedFilesWithoutLaunchingTheGui(string workflowName)
     {
         string workflow = File.ReadAllText(RepositoryPath(".github", "workflows", workflowName));
         Assert.Contains("--self-contained false", workflow, StringComparison.Ordinal);
         Assert.Contains("-p:WindowsAppSDKSelfContained=false", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("--self-contained true", workflow, StringComparison.Ordinal);
         Assert.Contains("Test-RuntimePrerequisites.ps1", workflow, StringComparison.Ordinal);
-        int verification = workflow.IndexOf("Test-FrameworkDependentPublish.ps1", StringComparison.Ordinal);
-        int prerequisites = workflow.IndexOf("SetupRuntime.ps1", StringComparison.Ordinal);
-        int smoke = workflow.IndexOf("Test-PublishedApplication.ps1", StringComparison.Ordinal);
-        Assert.True(verification >= 0 && prerequisites > verification && smoke > prerequisites);
+        Assert.Contains("Test-FrameworkDependentPublish.ps1", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("SetupRuntime.ps1", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Test-PublishedApplication.ps1", workflow, StringComparison.Ordinal);
     }
 
     private static string Value(XDocument document, string name) =>
