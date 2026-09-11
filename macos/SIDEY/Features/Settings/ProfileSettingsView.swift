@@ -251,7 +251,7 @@ struct ProfileCosmeticTile: View {
 
     private var label: String {
         if let product { return product.displayName }
-        return kind == .bubble ? "기본 말풍선" : "캐릭터 기본 투척물"
+        return kind == .bubble ? "기본 말풍선" : "기본 말랑공"
     }
 
     private var accessibilityValue: String {

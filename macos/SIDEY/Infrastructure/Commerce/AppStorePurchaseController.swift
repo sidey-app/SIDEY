@@ -14,9 +14,11 @@ final class AppStorePurchaseController {
     deinit { updatesTask?.cancel() }
 
     func loadProducts() async throws -> [String: String] {
-        let products = try await Product.products(for: CommerceCatalog.products.map(\.id))
-        productsByID = Dictionary(uniqueKeysWithValues: products.map { ($0.id, $0) })
-        return Dictionary(uniqueKeysWithValues: products.map { ($0.id, $0.displayPrice) })
+        let products = try await Product.products(for: CommerceCatalog.products.map(\.appStoreProductID))
+        productsByID = Dictionary(uniqueKeysWithValues: products.compactMap { product in
+            CommerceCatalog.product(appStoreID: product.id).map { ($0.id, product) }
+        })
+        return Dictionary(uniqueKeysWithValues: productsByID.map { ($0.key, $0.value.displayPrice) })
     }
 
     func purchase(productID: String, userID: UUID, accessToken: String) async throws -> Bool {
@@ -85,7 +87,7 @@ final class AppStorePurchaseController {
             throw AppStorePurchaseError.unverifiedTransaction
         }
         guard transaction.productID.isEmpty == false,
-              CommerceCatalog.product(id: transaction.productID) != nil
+              CommerceCatalog.product(appStoreID: transaction.productID) != nil
         else { throw AppStorePurchaseError.productUnavailable }
         guard let verifierURL else { throw AppStorePurchaseError.verifierNotConfigured }
 

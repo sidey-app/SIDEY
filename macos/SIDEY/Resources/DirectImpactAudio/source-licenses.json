@@ -1,0 +1,138 @@
+{
+  "date": "2026-09-11",
+  "sources": [
+    {
+      "id": "impactGlass_light_000",
+      "author": "Kenney",
+      "page_url": "https://kenney.nl/assets/impact-sounds",
+      "license": "CC0-1.0",
+      "file": "impactGlass_light_000.wav",
+      "sha256": "ab79a53a9d4aba018a92ddb6a78ba1eb09ce9bcecadff632b1c16aa5445c4280",
+      "repository_source_record": {
+        "id": "impactGlass_light_000",
+        "author": "Kenney",
+        "title": "Impact Sounds",
+        "page_url": "https://kenney.nl/assets/impact-sounds",
+        "download_url": "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip",
+        "archive_member": "Audio/impactGlass_light_000.ogg",
+        "license": "CC0-1.0",
+        "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "original_file": "impactGlass_light_000.ogg",
+        "original_sha256": "d750cf88097d0c3e69920e6e14496e1444e1a9da01aa4cca8f5ec8cb44c57b4f",
+        "decoded_file": "impactGlass_light_000.wav",
+        "decoded_sha256": "ab79a53a9d4aba018a92ddb6a78ba1eb09ce9bcecadff632b1c16aa5445c4280",
+        "conversion": "FFmpeg 7.1 (imageio-ffmpeg 0.6.0), 48000 Hz mono PCM16. Editing steps in ../generate_audio.py."
+      }
+    },
+    {
+      "id": "impactPunch_medium_001",
+      "author": "Kenney",
+      "page_url": "https://kenney.nl/assets/impact-sounds",
+      "license": "CC0-1.0",
+      "file": "impactPunch_medium_001.wav",
+      "sha256": "1163e449c372701987935e020047d9dc7452645fd8e4b8d00be2ed2e058babe7",
+      "repository_source_record": {
+        "id": "impactPunch_medium_001",
+        "author": "Kenney",
+        "title": "Impact Sounds",
+        "page_url": "https://kenney.nl/assets/impact-sounds",
+        "download_url": "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip",
+        "archive_member": "Audio/impactPunch_medium_001.ogg",
+        "license": "CC0-1.0",
+        "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "original_file": "impactPunch_medium_001.ogg",
+        "original_sha256": "e71d23abcc3f10d9d6bc9615b2a431fff70b12333a5fcdd9964457564ace4349",
+        "decoded_file": "impactPunch_medium_001.wav",
+        "decoded_sha256": "1163e449c372701987935e020047d9dc7452645fd8e4b8d00be2ed2e058babe7",
+        "conversion": "FFmpeg 7.1 (imageio-ffmpeg 0.6.0), 48000 Hz mono PCM16. Editing steps in ../generate_audio.py."
+      }
+    },
+    {
+      "id": "eggshells-433885",
+      "author": "jodybruchon",
+      "title": "Food - eggshells being rustled, scraped, and crushed.wav",
+      "page_url": "https://freesound.org/people/jodybruchon/sounds/433885/",
+      "download_url": "https://cdn.freesound.org/previews/433/433885_7872308-hq.mp3",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "retrieved_on": "2026-09-11",
+      "original_file": "eggshells-433885.mp3",
+      "original_sha256": "dbfec233e03e7b556b78490772ebcc79cdf8a85a25655d81f59e81cde04bb200",
+      "decoded_file": "eggshells-433885.wav",
+      "decoded_sha256": "8cb8d5500c630f441fa26c20191e9c84351759a3cce7eedf3a7f3a8dc51780d2",
+      "conversion": "Public high-quality MP3 preview decoded by FFmpeg to 48000 Hz mono PCM16; not the original 24-bit master."
+    },
+    {
+      "id": "impactWood_light_002",
+      "author": "Kenney",
+      "page_url": "https://kenney.nl/assets/impact-sounds",
+      "license": "CC0-1.0",
+      "file": "impactWood_light_002.wav",
+      "sha256": "b4d72dffdd122149ba3620546e9c9e9488cf50f1b4570ef6af7f75dd356914de",
+      "repository_source_record": {
+        "id": "impactWood_light_002",
+        "author": "Kenney",
+        "title": "Impact Sounds",
+        "page_url": "https://kenney.nl/assets/impact-sounds",
+        "download_url": "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip",
+        "archive_member": "Audio/impactWood_light_002.ogg",
+        "license": "CC0-1.0",
+        "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "original_file": "impactWood_light_002.ogg",
+        "original_sha256": "b183cf7a5bd783817e0e4b82af34ac6658fa1927049089dadc8b15c2ecc771dc",
+        "decoded_file": "impactWood_light_002.wav",
+        "decoded_sha256": "b4d72dffdd122149ba3620546e9c9e9488cf50f1b4570ef6af7f75dd356914de",
+        "conversion": "FFmpeg 7.1 (imageio-ffmpeg 0.6.0), 48000 Hz mono PCM16. Editing steps in ../generate_audio.py."
+      }
+    },
+    {
+      "id": "impactSoft_medium_002",
+      "author": "Kenney",
+      "page_url": "https://kenney.nl/assets/impact-sounds",
+      "license": "CC0-1.0",
+      "file": "impactSoft_medium_002.wav",
+      "sha256": "9d9eaa68ba8411f321fe74da3241989e67a6ba04ad199126ee3f36e38528993d",
+      "repository_source_record": {
+        "id": "impactSoft_medium_002",
+        "author": "Kenney",
+        "title": "Impact Sounds",
+        "page_url": "https://kenney.nl/assets/impact-sounds",
+        "download_url": "https://kenney.nl/media/pages/assets/impact-sounds/87b4ddecda-1677589768/kenney_impact-sounds.zip",
+        "archive_member": "Audio/impactSoft_medium_002.ogg",
+        "license": "CC0-1.0",
+        "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "original_file": "impactSoft_medium_002.ogg",
+        "original_sha256": "5069e3571a77d7f7aae9ef71d0364aa245fb7d64a7c8cc9956f221d03088c089",
+        "decoded_file": "impactSoft_medium_002.wav",
+        "decoded_sha256": "9d9eaa68ba8411f321fe74da3241989e67a6ba04ad199126ee3f36e38528993d",
+        "conversion": "FFmpeg 7.1 (imageio-ffmpeg 0.6.0), 48000 Hz mono PCM16. Editing steps in ../generate_audio.py."
+      }
+    },
+    {
+      "id": "waterslap-511645",
+      "author": "profquad",
+      "page_url": "https://freesound.org/people/profquad/sounds/511645/",
+      "download_url": "https://cdn.freesound.org/previews/511/511645_10041692-hq.mp3",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "original_file": "waterslap-511645.mp3",
+      "original_sha256": "efb8604b937a1bd30bf725ab98dd88cca6ab0bc0513355d61a88dc9b7ad5d600",
+      "decoded_file": "waterslap-511645.wav",
+      "decoded_sha256": "3ab072d9031643213761cc7963a633ab7e49e5b8d9dc367680a4f3fa4708bb98",
+      "conversion": "Public HQ MP3 preview decoded to mono PCM16 48kHz; not original master."
+    },
+    {
+      "id": "wet-slap-570787",
+      "author": "AfonsoSantos00",
+      "page_url": "https://freesound.org/people/AfonsoSantos00/sounds/570787/",
+      "download_url": "https://cdn.freesound.org/previews/570/570787_9111351-hq.mp3",
+      "license": "CC0-1.0",
+      "license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "original_file": "wet-slap-570787.mp3",
+      "original_sha256": "fa9b50b984506bdeb54012421070933bde8c96e2c9596ad48bbdc143274521e6",
+      "decoded_file": "wet-slap-570787.wav",
+      "decoded_sha256": "3e0fb9607eecb7c2f886fbe8b09ac1d53a89183e2259d01efd80e5dfa6aefa63",
+      "conversion": "Public HQ MP3 preview decoded to mono PCM16 48kHz; not original master."
+    }
+  ]
+}

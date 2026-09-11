@@ -11,12 +11,15 @@ final class CommerceModelTests: XCTestCase {
                 CommerceCatalog.guineaPigProductID,
                 CommerceCatalog.monkeyProductID,
                 CommerceCatalog.chinchillaProductID,
+                "character_otter", "character_pig", "character_tree",
                 "bubble_bunny_pink",
                 "bubble_butter_chick",
                 "bubble_starry_cat",
                 "throwable_bouncy_heart",
                 "throwable_toy_cannon",
                 "throwable_squeaky_duck",
+            "throwable_snowflake", "throwable_baseball", "throwable_wakkuball", "throwable_dujjonku",
+            "throwable_mini_paprika", "throwable_banana", "throwable_dust_bath_pouch", "throwable_starlight_orb", "throwable_clam", "throwable_pork", "throwable_timber",
             ]
         )
         for product in CommerceCatalog.characterProducts {
@@ -32,6 +35,8 @@ final class CommerceModelTests: XCTestCase {
     func testCosmeticCatalogKeepsApprovedKindsPricesAndOrdering() throws {
         XCTAssertEqual(CommerceCatalog.cosmeticProducts.map(\.kind), [
             .bubble, .bubble, .bubble, .throwable, .throwable, .throwable,
+            .throwable, .throwable, .throwable, .throwable,
+            .throwable, .throwable, .throwable, .throwable, .throwable, .throwable, .throwable,
         ])
         XCTAssertEqual(CommerceCatalog.cosmeticProducts.map(\.catalogItemID), [
             "bubble_bunny_pink",
@@ -40,6 +45,8 @@ final class CommerceModelTests: XCTestCase {
             "throwable_bouncy_heart",
             "throwable_toy_cannon",
             "throwable_squeaky_duck",
+            "throwable_snowflake", "throwable_baseball", "throwable_wakkuball", "throwable_dujjonku",
+            "throwable_mini_paprika", "throwable_banana", "throwable_dust_bath_pouch", "throwable_starlight_orb", "throwable_clam", "throwable_pork", "throwable_timber",
         ])
         XCTAssertEqual(CommerceProduct.bunnyPinkBubble.amountKRW, 1_900)
         XCTAssertEqual(CommerceProduct.butterChickBubble.amountKRW, 1_900)

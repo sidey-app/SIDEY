@@ -13,7 +13,10 @@ final class CharacterThrowAssetTests: XCTestCase {
         "pixel_guinea_pig": "384157773baa55bd4a5f8586d179ab7eb43f42fb4204c306490784551e38ae1d",
         "pixel_monkey": "059a288dde75695febec8a42303dc63f126636b094e3896b795b6a4ac1cce39a",
         "pixel_chinchilla": "a6dd2b4f1837812bc9fd0d979fe379c4362ed8018b9d5e6991e5c28d53265b02",
-        "pixel_starlight_upalupa": "7a9bae8b1359f432857e026c972e3bc99777539ce7cfff89bc01e95d1938de75"
+        "pixel_starlight_upalupa": "7a9bae8b1359f432857e026c972e3bc99777539ce7cfff89bc01e95d1938de75",
+        "pixel_otter": "ad7d076f4c63910c2c97f6e6ed03c27b47642a825d002d64b8c9dc86c11c2716",
+        "pixel_pig": "045344ec128ed34cfe2e6a641cf90c1a04b3ac639045dc200bc996c0089da85b",
+        "pixel_tree": "af22b750129b813d0affd8fa572604837f6bf67acfa14bda68074abf45a11f15"
     ]
     private let objectHashes = [
         "patch_soft_ball": "cdde7f417c5d8d82d0f4df6b03fa8e7d494d98a37d75aa66699505d7c87c53fe",
@@ -23,7 +26,14 @@ final class CharacterThrowAssetTests: XCTestCase {
         "starlight_orb": "08cf8ec8dc680ae07dcd83de9d56948873445470c6b15b5ad22e770f4277984c",
         "throwable_bouncy_heart": "8474458c5d810a598c16a7f74bbfecf65300d7fb2c55aaaf0cabfa0399945305",
         "throwable_toy_cannon": "c42c472f216ec4d291a41562dfaf6a28204625133961a5a225198daf87459bef",
-        "throwable_squeaky_duck": "3b6935398d41b6d1cd5efa922392dbf4864782deb9880c5d0f10885e00906e7a"
+        "throwable_squeaky_duck": "3b6935398d41b6d1cd5efa922392dbf4864782deb9880c5d0f10885e00906e7a",
+        "clam": "561832b15538e3f57b0b6381e967130f21ba1a0aaf74110019588ff90da874e0",
+        "pork": "0a7acc60184321e05f7e0e04aed8972651331e50960aa18243b4958d27fd4da6",
+        "timber": "21280bb2ac9f9df4332552281fcba6fc1efdaf27b933eb058bf625a30221b63b",
+        "throwable_snowflake": "35ede7107f668d193c272773441215427da267e1f27b2beaab47d8c88ae37cd2",
+        "throwable_baseball": "73f3dc8d86a9f8f76f07494df5ee48a8ff5380feec55a718eed8aad6940b94e5",
+        "throwable_wakkuball": "4627c3538efcdaae3deda1ee390fbac92f96cf6e199dceb58a60f7917b7de295",
+        "throwable_dujjonku": "bb2468a5a9f3a692c294c7546c2b20cd4bfdfc903e6779304b2bfeccaea50b32"
     ]
     private let bubbleDecorationHashes = [
         "bubble_bunny_pink": "3013d02224fe98befdc18f065f706c98cc412ab30c77a6a6c83723fc3366d117",

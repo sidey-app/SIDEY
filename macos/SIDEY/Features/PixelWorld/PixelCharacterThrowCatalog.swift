@@ -11,62 +11,28 @@ enum PixelCharacterThrowCatalog {
     static let rotationFrames = 0..<8
     static let impactFrames = 8..<12
     static let cannonObjectID = "throwable_toy_cannon"
-    static let purchasableObjectIDs: Set<String> = [
-        "throwable_bouncy_heart", cannonObjectID, "throwable_squeaky_duck"
-    ]
-
-    static func objectID(for characterID: String) -> String {
-        signature(for: characterID).objectID
+    static var purchasableObjectIDs: Set<String> {
+        Set(CommerceCatalog.products.filter { $0.kind == .throwable }.map(\.catalogItemID))
     }
+
+    static func objectID(for characterID: String) -> String { fallbackObjectID }
 
     static func interactionDescription(for characterID: String) -> String {
-        signature(for: characterID).interactionDescription
-    }
-
-    private static func signature(for characterID: String) -> SignatureThrow {
-        switch PixelCharacterCatalog.canonicalID(for: characterID) {
-        case PixelCharacterCatalog.pixelGuineaPigID:
-            SignatureThrow(
-                objectID: "mini_paprika",
-                interactionDescription: "친구를 클릭하면 아껴 둔 미니 파프리카를 던져요."
-            )
-        case PixelCharacterCatalog.pixelMonkeyID:
-            SignatureThrow(
-                objectID: "banana",
-                interactionDescription: "친구를 클릭하면 잘 익은 바나나를 던져요."
-            )
-        case PixelCharacterCatalog.pixelChinchillaID:
-            SignatureThrow(
-                objectID: "dust_bath_pouch",
-                interactionDescription: "친구를 클릭하면 보송한 먼지목욕 모래주머니를 던져요."
-            )
-        case PixelCharacterCatalog.pixelStarlightUpalupaID:
-            SignatureThrow(
-                objectID: "starlight_orb",
-                interactionDescription: "친구를 클릭하면 반짝이는 별빛 구슬을 던져요."
-            )
-        default:
-            SignatureThrow(
-                objectID: fallbackObjectID,
-                interactionDescription: "친구를 클릭하면 패치 말랑공을 던져요."
-            )
-        }
-    }
-
-    private struct SignatureThrow {
-        let objectID: String
-        let interactionDescription: String
+        characterID == PixelCharacterCatalog.pixelTreeID
+            ? "나무를 우클릭하면 멈추거나 걸어요."
+            : "친구를 클릭하면 기본 말랑공을 던져요."
     }
 
     static func supports(objectID: String?) -> Bool {
         guard let objectID else { return false }
-        return purchasableObjectIDs.contains(objectID)
-            || [fallbackObjectID, "mini_paprika", "banana", "dust_bath_pouch", "starlight_orb"]
-                .contains(objectID)
+        return objectID == fallbackObjectID || CommerceCatalog.products.contains {
+            $0.kind == .throwable && ($0.catalogItemID == objectID || $0.renderAssetID == objectID)
+        }
     }
 
     static func resolvedObjectID(for characterID: String, equippedObjectID: String?) -> String {
-        supports(objectID: equippedObjectID) ? equippedObjectID! : objectID(for: characterID)
+        guard let id = equippedObjectID, supports(objectID: id) else { return fallbackObjectID }
+        return CommerceCatalog.products.first { $0.kind == .throwable && $0.catalogItemID == id }?.renderAssetID ?? id
     }
 
     static func actionAssetURL(for characterID: String, bundle: Bundle = .main) -> URL? {
@@ -77,7 +43,8 @@ enum PixelCharacterThrowCatalog {
     }
 
     static func objectAssetURL(for objectID: String, bundle: Bundle = .main) -> URL? {
-        bundle.url(forResource: objectID, withExtension: "png", subdirectory: "CharacterThrow/ObjectSheets")
+        let objectID = resolvedObjectID(for: fallbackCharacterID, equippedObjectID: objectID)
+        return bundle.url(forResource: objectID, withExtension: "png", subdirectory: "CharacterThrow/ObjectSheets")
             ?? bundle.url(forResource: objectID, withExtension: "png")
     }
 
@@ -194,6 +161,13 @@ enum PixelCharacterThrowStyle {
     static let releaseDelay: TimeInterval = 0.2
     static let hitDuration: TimeInterval = 0.44
     static let impactDuration: TimeInterval = 0.24
+    static func impactFrameDurations(for objectID: String) -> [TimeInterval] {
+        // Let the filling stretch read as a distinct pose at the normal 30 FPS.
+        // The approved four-frame artwork stays unchanged.
+        objectID == "throwable_dujjonku"
+            ? [0.08, 0.10, 0.28, 0.12]
+            : Array(repeating: impactDuration / 4, count: 4)
+    }
     static let impactPointSize: CGFloat = 48
     static let impactTorsoOffset: CGFloat = 10
     static let cannonEmitterPointSize: CGFloat = 48

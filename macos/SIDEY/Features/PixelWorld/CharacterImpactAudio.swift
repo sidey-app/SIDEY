@@ -1,4 +1,3 @@
-#if !APP_STORE
 import AppKit
 import AVFoundation
 import CoreAudio
@@ -16,7 +15,8 @@ struct CharacterImpactAdmission {
 @MainActor
 final class CharacterImpactAudio {
     static let objectIDs = ["patch_soft_ball", "mini_paprika", "banana", "dust_bath_pouch",
-                            "starlight_orb", "throwable_bouncy_heart", "throwable_squeaky_duck", "throwable_toy_cannon"]
+                            "starlight_orb", "throwable_bouncy_heart", "throwable_squeaky_duck", "throwable_toy_cannon", "clam", "pork", "timber",
+                            "throwable_snowflake", "throwable_baseball", "throwable_wakkuball", "throwable_dujjonku"]
     var isEnabled = true { didSet { if !isEnabled { stopAll() } } }
     private var players: [String: [AVAudioPlayer]] = [:]
     private var admission = CharacterImpactAdmission()
@@ -90,4 +90,3 @@ final class CharacterImpactAudio {
         admission.reset()
     }
 }
-#endif

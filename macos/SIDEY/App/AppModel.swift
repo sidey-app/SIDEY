@@ -7,8 +7,8 @@ import Observation
 final class AppModel {
     #if !APP_STORE
     @ObservationIgnored let characterStunState = CharacterStunState()
-    @ObservationIgnored lazy var characterImpactAudio = CharacterImpactAudio()
     #endif
+    @ObservationIgnored lazy var characterImpactAudio = CharacterImpactAudio()
     var preferences: AppPreferences
     var overlayVisibility: OverlayVisibility
     var overlayVisible: Bool { overlayVisibility.isVisible }
@@ -489,12 +489,12 @@ final class AppModel {
     }
 
     func setActiveRoomRealtimeConnected(_ connected: Bool) {
-        #if !APP_STORE
         if activeRoomTransportConnected != connected {
+            #if !APP_STORE
             characterStunState.reset()
+            #endif
             characterImpactAudio.stopAll()
         }
-        #endif
         activeRoomTransportConnected = connected
         // Typing is a transient Broadcast lease. A disconnect can lose the
         // matching typing_stop event, so never carry typing across reconnect.

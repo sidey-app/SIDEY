@@ -235,27 +235,29 @@ enum CommerceCatalog {
     static let chinchillaProductID = "character_chinchilla"
     static let chinchillaEntitlementKey = "character:pixel_chinchilla"
 
-    static let characterProducts: [CommerceProduct] = [
-        .starlightUpalupa,
-        .guineaPig,
-        .monkey,
-        .chinchilla,
-    ]
+    static let products: [CommerceProduct] = definitions.map { $0.product }
+    static var characterProducts: [CommerceProduct] { products.filter { $0.kind == .character } }
+    static var cosmeticProducts: [CommerceProduct] { products.filter { $0.kind != .character } }
 
-    static let cosmeticProducts: [CommerceProduct] = [
-        .bunnyPinkBubble,
-        .butterChickBubble,
-        .starryCatBubble,
-        .bouncyHeart,
-        .toyCannon,
-        .squeakyDuck,
-    ]
-
-    static let products: [CommerceProduct] = characterProducts + cosmeticProducts
-
-    static func product(id: String) -> CommerceProduct? {
-        products.first { $0.id == id }
+    static func product(id: String) -> CommerceProduct? { products.first { $0.id == id } }
+    static func product(appStoreID: String) -> CommerceProduct? {
+        definitions.first { $0.appStoreProductID == appStoreID || $0.legacyAppStoreProductIDs.contains(appStoreID) }?.product
     }
+    static func keepsake(for characterProductID: String) -> CommerceProduct? {
+        products.first { $0.relatedCharacterProductID == characterProductID }
+    }
+    static func definition(id: String) -> CommerceProductDefinition? { definitions.first { $0.id == id } }
+    private static let definitions: [CommerceProductDefinition] = {
+        let url = Bundle.main.url(forResource: "commerce-catalog", withExtension: "json", subdirectory: "Commerce")
+            ?? Bundle.main.url(forResource: "commerce-catalog", withExtension: "json")
+        guard let url, let data = try? Data(contentsOf: url),
+              let values = try? JSONDecoder().decode([CommerceProductDefinition].self, from: data),
+              Set(values.map(\.id)).count == values.count else {
+            preconditionFailure("Bundled commerce catalog is invalid")
+        }
+        return values
+    }()
+
 }
 
 enum CommerceProductKind: String, Codable, CaseIterable, Sendable {
@@ -316,101 +318,28 @@ struct CommerceProduct: Equatable, Sendable {
         self.taxInclusive = taxInclusive
     }
 
-    static let starlightUpalupa = CommerceProduct(
-        id: CommerceCatalog.starlightUpalupaProductID,
-        displayName: "별빛 우파루파",
-        description: CommerceCatalog.starlightUpalupaDescription,
-        characterID: CommerceCatalog.starlightUpalupaCharacterID,
-        entitlementKey: CommerceCatalog.starlightUpalupaEntitlementKey,
-        sortOrder: 10,
-        amountKRW: 1_900,
-        currency: "KRW",
-        taxInclusive: true
-    )
+    static var starlightUpalupa: CommerceProduct { CommerceCatalog.product(id: "character_starlight_upalupa")! }
+    static var guineaPig: CommerceProduct { CommerceCatalog.product(id: "character_guinea_pig")! }
+    static var monkey: CommerceProduct { CommerceCatalog.product(id: "character_monkey")! }
+    static var chinchilla: CommerceProduct { CommerceCatalog.product(id: "character_chinchilla")! }
+    static var bunnyPinkBubble: CommerceProduct { CommerceCatalog.product(id: "bubble_bunny_pink")! }
+    static var butterChickBubble: CommerceProduct { CommerceCatalog.product(id: "bubble_butter_chick")! }
+    static var starryCatBubble: CommerceProduct { CommerceCatalog.product(id: "bubble_starry_cat")! }
+    static var bouncyHeart: CommerceProduct { CommerceCatalog.product(id: "throwable_bouncy_heart")! }
+    static var toyCannon: CommerceProduct { CommerceCatalog.product(id: "throwable_toy_cannon")! }
+    static var squeakyDuck: CommerceProduct { CommerceCatalog.product(id: "throwable_squeaky_duck")! }
+    static var otter: CommerceProduct { CommerceCatalog.product(id: "character_otter")! }
+    static var pig: CommerceProduct { CommerceCatalog.product(id: "character_pig")! }
+    static var tree: CommerceProduct { CommerceCatalog.product(id: "character_tree")! }
+    static var snowflake: CommerceProduct { CommerceCatalog.product(id: "throwable_snowflake")! }
+    static var baseball: CommerceProduct { CommerceCatalog.product(id: "throwable_baseball")! }
+    static var wakkuball: CommerceProduct { CommerceCatalog.product(id: "throwable_wakkuball")! }
+    static var dujjonku: CommerceProduct { CommerceCatalog.product(id: "throwable_dujjonku")! }
 
-    static let guineaPig = CommerceProduct(
-        id: CommerceCatalog.guineaPigProductID,
-        displayName: "아기 기니피그",
-        description: "낮고 동글동글한 몸에 비대칭 삼색 무늬가 매력인 작은 친구예요.",
-        characterID: PixelCharacterCatalog.pixelGuineaPigID,
-        entitlementKey: CommerceCatalog.guineaPigEntitlementKey,
-        sortOrder: 20,
-        amountKRW: 990,
-        currency: "KRW",
-        taxInclusive: true
-    )
-
-    static let monkey = CommerceProduct(
-        id: CommerceCatalog.monkeyProductID,
-        displayName: "아기 원숭이",
-        description: "세 갈래 머리털과 시안 목도리로 씩씩하게 산책하는 친구예요.",
-        characterID: PixelCharacterCatalog.pixelMonkeyID,
-        entitlementKey: CommerceCatalog.monkeyEntitlementKey,
-        sortOrder: 30,
-        amountKRW: 990,
-        currency: "KRW",
-        taxInclusive: true
-    )
-
-    static let chinchilla = CommerceProduct(
-        id: CommerceCatalog.chinchillaProductID,
-        displayName: "아기 친칠라",
-        description: "크고 둥근 귀와 포근한 회색 털, 파란 목도리를 가진 친구예요.",
-        characterID: PixelCharacterCatalog.pixelChinchillaID,
-        entitlementKey: CommerceCatalog.chinchillaEntitlementKey,
-        sortOrder: 40,
-        amountKRW: 990,
-        currency: "KRW",
-        taxInclusive: true
-    )
-
-    static let bunnyPinkBubble = CommerceProduct(
-        id: "bubble_bunny_pink", displayName: "핑크 토끼 말풍선",
-        description: "토끼 장식과 또렷한 진한 글자가 있는 분홍 말풍선이에요.",
-        kind: .bubble, catalogItemID: "bubble_bunny_pink", characterID: nil,
-        entitlementKey: "bubble:bubble_bunny_pink", sortOrder: 110,
-        amountKRW: 1_900, currency: "KRW", taxInclusive: true
-    )
-
-    static let butterChickBubble = CommerceProduct(
-        id: "bubble_butter_chick", displayName: "버터 병아리 말풍선",
-        description: "병아리 장식과 또렷한 진한 글자가 있는 버터색 말풍선이에요.",
-        kind: .bubble, catalogItemID: "bubble_butter_chick", characterID: nil,
-        entitlementKey: "bubble:bubble_butter_chick", sortOrder: 120,
-        amountKRW: 1_900, currency: "KRW", taxInclusive: true
-    )
-
-    static let starryCatBubble = CommerceProduct(
-        id: "bubble_starry_cat", displayName: "별밤 고양이 말풍선",
-        description: "별고양이 장식과 밝은 글자가 있는 남보라 말풍선이에요.",
-        kind: .bubble, catalogItemID: "bubble_starry_cat", characterID: nil,
-        entitlementKey: "bubble:bubble_starry_cat", sortOrder: 130,
-        amountKRW: 1_900, currency: "KRW", taxInclusive: true
-    )
-
-    static let bouncyHeart = CommerceProduct(
-        id: "throwable_bouncy_heart", displayName: "통통 하트",
-        description: "통통 튀며 날아가 마음을 전하는 하트예요.",
-        kind: .throwable, catalogItemID: "throwable_bouncy_heart", characterID: nil,
-        entitlementKey: "throwable:throwable_bouncy_heart", sortOrder: 210,
-        amountKRW: 990, currency: "KRW", taxInclusive: true
-    )
-
-    static let toyCannon = CommerceProduct(
-        id: "throwable_toy_cannon", displayName: "미니 대포",
-        description: "캐릭터 앞 몸통에 대포가 나타나 심지탄을 쏘고 상대 몸통에서 펑 터져요.",
-        kind: .throwable, catalogItemID: "throwable_toy_cannon", characterID: nil,
-        entitlementKey: "throwable:throwable_toy_cannon", sortOrder: 220,
-        amountKRW: 2_900, currency: "KRW", taxInclusive: true
-    )
-
-    static let squeakyDuck = CommerceProduct(
-        id: "throwable_squeaky_duck", displayName: "삑삑 오리",
-        description: "노란 오리가 빙글빙글 날아가는 장난스러운 투척물이에요.",
-        kind: .throwable, catalogItemID: "throwable_squeaky_duck", characterID: nil,
-        entitlementKey: "throwable:throwable_squeaky_duck", sortOrder: 230,
-        amountKRW: 990, currency: "KRW", taxInclusive: true
-    )
+    var relatedCharacterProductID: String? { CommerceCatalog.definition(id: id)?.relatedCharacterProductID }
+    var renderAssetID: String { CommerceCatalog.definition(id: id)?.renderAssetID ?? catalogItemID }
+    var appStoreProductID: String { CommerceCatalog.definition(id: id)?.appStoreProductID ?? id }
+    var isKeepsake: Bool { relatedCharacterProductID != nil }
 
     var formattedPrice: String {
         amountKRW.formatted(.number.grouping(.automatic)) + "원"
@@ -1264,7 +1193,7 @@ enum CosmeticEquipmentFeedback {
         if let product { return "\(product.displayName) 장착했습니다." }
         switch kind {
         case .bubble: return "기본 말풍선을 장착했습니다."
-        case .throwable: return "캐릭터 기본 투척물을 장착했습니다."
+        case .throwable: return "기본 말랑공을 장착했습니다."
         case .character: return "기본 캐릭터를 장착했습니다."
         }
     }

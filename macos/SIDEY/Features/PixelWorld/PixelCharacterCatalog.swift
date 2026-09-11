@@ -110,6 +110,9 @@ struct PixelSparklePulseWave: Equatable, Sendable {
 }
 
 enum PixelCharacterCatalog {
+    static let pixelOtterID = "pixel_otter"
+    static let pixelPigID = "pixel_pig"
+    static let pixelTreeID = "pixel_tree"
     static let pixelHamsterID = "pixel_hamster"
     static let pixelGuineaPigID = "pixel_guinea_pig"
     static let pixelMonkeyID = "pixel_monkey"
@@ -230,6 +233,24 @@ enum PixelCharacterCatalog {
             entitlementKey: starlightUpalupaEntitlementKey,
             mirrorsToMovementDirection: true,
             sparkleEffect: .starlight
+        ),
+        PixelCharacterDefinition(
+            id: "pixel_otter", displayName: "아기 수달",
+            resourceName: "pixel_otter", resourceDirectory: "Characters/PixelOtter",
+            previewFrame: 0, frames: .standard, paletteDescription: "브라운 · 크림 · 보라",
+            entitlementKey: "character:pixel_otter", mirrorsToMovementDirection: false, sparkleEffect: nil
+        ),
+        PixelCharacterDefinition(
+            id: "pixel_pig", displayName: "아기 돼지",
+            resourceName: "pixel_pig", resourceDirectory: "Characters/PixelPig",
+            previewFrame: 0, frames: .standard, paletteDescription: "핑크 · 크림 · 보라",
+            entitlementKey: "character:pixel_pig", mirrorsToMovementDirection: false, sparkleEffect: nil
+        ),
+        PixelCharacterDefinition(
+            id: "pixel_tree", displayName: "나무",
+            resourceName: "pixel_tree", resourceDirectory: "Characters/PixelTree",
+            previewFrame: 0, frames: .standard, paletteDescription: "초록 · 브라운 · 보라",
+            entitlementKey: "character:pixel_tree", mirrorsToMovementDirection: false, sparkleEffect: nil
         )
     ]
 

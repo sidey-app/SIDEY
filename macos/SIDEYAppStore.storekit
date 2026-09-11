@@ -1,174 +1,438 @@
 {
-  "identifier" : "A2C5D7E9-1B34-4F68-9A01-2C3D4E5F6071",
-  "nonRenewingSubscriptions" : [
-
-  ],
-  "products" : [
+  "identifier": "A2C5D7E9-1B34-4F68-9A01-2C3D4E5F6071",
+  "nonRenewingSubscriptions": [],
+  "products": [
     {
-      "displayPrice" : "1900",
-      "familyShareable" : false,
-      "internalID" : "01000000-0000-4000-8000-000000000001",
-      "localizations" : [
+      "familyShareable": false,
+      "internalID": "02000000-0000-4000-8000-000000000000",
+      "type": "NonConsumable",
+      "productID": "character_starlight_upalupa_solo",
+      "referenceName": "별빛 우파루파",
+      "displayPrice": "1900",
+      "localizations": [
         {
-          "description" : "진주빛 몸과 별빛 아가미를 가진 우파루파 캐릭터",
-          "displayName" : "별빛 우파루파",
-          "locale" : "ko_KR"
+          "description": "진주빛 몸과 별빛 아가미를 가진 우파루파 캐릭터",
+          "displayName": "별빛 우파루파",
+          "locale": "ko_KR"
         }
-      ],
-      "productID" : "character_starlight_upalupa",
-      "referenceName" : "별빛 우파루파",
-      "type" : "NonConsumable"
+      ]
     },
     {
-      "displayPrice" : "990",
-      "familyShareable" : false,
-      "internalID" : "01000000-0000-4000-8000-000000000002",
-      "localizations" : [
+      "displayPrice": "1900",
+      "familyShareable": false,
+      "internalID": "01000000-0000-4000-8000-000000000001",
+      "localizations": [
         {
-          "description" : "비대칭 삼색 무늬의 아기 기니피그 캐릭터",
-          "displayName" : "아기 기니피그",
-          "locale" : "ko_KR"
+          "description": "진주빛 몸과 별빛 아가미를 가진 우파루파 캐릭터",
+          "displayName": "별빛 우파루파",
+          "locale": "ko_KR"
         }
       ],
-      "productID" : "character_guinea_pig",
-      "referenceName" : "아기 기니피그",
-      "type" : "NonConsumable"
+      "productID": "character_starlight_upalupa",
+      "referenceName": "별빛 우파루파 - 기존 포함 상품",
+      "type": "NonConsumable"
     },
     {
-      "displayPrice" : "990",
-      "familyShareable" : false,
-      "internalID" : "01000000-0000-4000-8000-000000000003",
-      "localizations" : [
+      "familyShareable": false,
+      "internalID": "02000000-0000-4000-8000-000000000002",
+      "type": "NonConsumable",
+      "productID": "character_guinea_pig_solo",
+      "referenceName": "아기 기니피그",
+      "displayPrice": "1100",
+      "localizations": [
         {
-          "description" : "시안 목도리를 두른 아기 원숭이 캐릭터",
-          "displayName" : "아기 원숭이",
-          "locale" : "ko_KR"
+          "description": "비대칭 삼색 무늬의 아기 기니피그 캐릭터",
+          "displayName": "아기 기니피그",
+          "locale": "ko_KR"
         }
-      ],
-      "productID" : "character_monkey",
-      "referenceName" : "아기 원숭이",
-      "type" : "NonConsumable"
+      ]
     },
     {
-      "displayPrice" : "990",
-      "familyShareable" : false,
-      "internalID" : "01000000-0000-4000-8000-000000000004",
-      "localizations" : [
+      "displayPrice": "1100",
+      "familyShareable": false,
+      "internalID": "01000000-0000-4000-8000-000000000002",
+      "localizations": [
         {
-          "description" : "파란 목도리를 두른 아기 친칠라 캐릭터",
-          "displayName" : "아기 친칠라",
-          "locale" : "ko_KR"
+          "description": "비대칭 삼색 무늬의 아기 기니피그 캐릭터",
+          "displayName": "아기 기니피그",
+          "locale": "ko_KR"
         }
       ],
-      "productID" : "character_chinchilla",
-      "referenceName" : "아기 친칠라",
-      "type" : "NonConsumable"
+      "productID": "character_guinea_pig",
+      "referenceName": "아기 기니피그 - 기존 포함 상품",
+      "type": "NonConsumable"
     },
     {
-      "displayPrice" : "1900",
-      "familyShareable" : false,
-      "internalID" : "02000000-0000-4000-8000-000000000001",
-      "localizations" : [
+      "familyShareable": false,
+      "internalID": "02000000-0000-4000-8000-000000000004",
+      "type": "NonConsumable",
+      "productID": "character_monkey_solo",
+      "referenceName": "아기 원숭이",
+      "displayPrice": "1100",
+      "localizations": [
         {
-          "description" : "토끼 장식이 있는 분홍 말풍선",
-          "displayName" : "핑크 토끼 말풍선",
-          "locale" : "ko_KR"
+          "description": "시안 목도리를 두른 아기 원숭이 캐릭터",
+          "displayName": "아기 원숭이",
+          "locale": "ko_KR"
         }
-      ],
-      "productID" : "bubble_bunny_pink",
-      "referenceName" : "핑크 토끼 말풍선",
-      "type" : "NonConsumable"
+      ]
     },
     {
-      "displayPrice" : "1900",
-      "familyShareable" : false,
-      "internalID" : "02000000-0000-4000-8000-000000000002",
-      "localizations" : [
+      "displayPrice": "1100",
+      "familyShareable": false,
+      "internalID": "01000000-0000-4000-8000-000000000003",
+      "localizations": [
         {
-          "description" : "병아리 장식이 있는 버터색 말풍선",
-          "displayName" : "버터 병아리 말풍선",
-          "locale" : "ko_KR"
+          "description": "시안 목도리를 두른 아기 원숭이 캐릭터",
+          "displayName": "아기 원숭이",
+          "locale": "ko_KR"
         }
       ],
-      "productID" : "bubble_butter_chick",
-      "referenceName" : "버터 병아리 말풍선",
-      "type" : "NonConsumable"
+      "productID": "character_monkey",
+      "referenceName": "아기 원숭이 - 기존 포함 상품",
+      "type": "NonConsumable"
     },
     {
-      "displayPrice" : "1900",
-      "familyShareable" : false,
-      "internalID" : "02000000-0000-4000-8000-000000000003",
-      "localizations" : [
+      "familyShareable": false,
+      "internalID": "02000000-0000-4000-8000-000000000006",
+      "type": "NonConsumable",
+      "productID": "character_chinchilla_solo",
+      "referenceName": "아기 친칠라",
+      "displayPrice": "1100",
+      "localizations": [
         {
-          "description" : "별고양이 장식이 있는 남보라 말풍선",
-          "displayName" : "별밤 고양이 말풍선",
-          "locale" : "ko_KR"
+          "description": "파란 목도리를 두른 아기 친칠라 캐릭터",
+          "displayName": "아기 친칠라",
+          "locale": "ko_KR"
         }
-      ],
-      "productID" : "bubble_starry_cat",
-      "referenceName" : "별밤 고양이 말풍선",
-      "type" : "NonConsumable"
+      ]
     },
     {
-      "displayPrice" : "990",
-      "familyShareable" : false,
-      "internalID" : "03000000-0000-4000-8000-000000000001",
-      "localizations" : [
+      "displayPrice": "1100",
+      "familyShareable": false,
+      "internalID": "01000000-0000-4000-8000-000000000004",
+      "localizations": [
         {
-          "description" : "통통 튀며 날아가는 하트 투척물",
-          "displayName" : "통통 하트",
-          "locale" : "ko_KR"
+          "description": "파란 목도리를 두른 아기 친칠라 캐릭터",
+          "displayName": "아기 친칠라",
+          "locale": "ko_KR"
         }
       ],
-      "productID" : "throwable_bouncy_heart",
-      "referenceName" : "통통 하트",
-      "type" : "NonConsumable"
+      "productID": "character_chinchilla",
+      "referenceName": "아기 친칠라 - 기존 포함 상품",
+      "type": "NonConsumable"
     },
     {
-      "displayPrice" : "2900",
-      "familyShareable" : false,
-      "internalID" : "03000000-0000-4000-8000-000000000002",
-      "localizations" : [
+      "displayPrice": "2200",
+      "familyShareable": false,
+      "internalID": "02000000-0000-4000-8000-000000000001",
+      "localizations": [
         {
-          "description" : "심지탄을 쏘는 미니 대포 투척물",
-          "displayName" : "미니 대포",
-          "locale" : "ko_KR"
+          "description": "토끼 장식이 있는 분홍 말풍선",
+          "displayName": "핑크 토끼 말풍선",
+          "locale": "ko_KR"
         }
       ],
-      "productID" : "throwable_toy_cannon",
-      "referenceName" : "미니 대포",
-      "type" : "NonConsumable"
+      "productID": "bubble_bunny_pink",
+      "referenceName": "핑크 토끼 말풍선",
+      "type": "NonConsumable"
     },
     {
-      "displayPrice" : "990",
-      "familyShareable" : false,
-      "internalID" : "03000000-0000-4000-8000-000000000003",
-      "localizations" : [
+      "displayPrice": "2200",
+      "familyShareable": false,
+      "internalID": "02000000-0000-4000-8000-000000000002",
+      "localizations": [
         {
-          "description" : "노란 오리가 빙글빙글 날아가는 투척물",
-          "displayName" : "삑삑 오리",
-          "locale" : "ko_KR"
+          "description": "병아리 장식이 있는 버터색 말풍선",
+          "displayName": "버터 병아리 말풍선",
+          "locale": "ko_KR"
         }
       ],
-      "productID" : "throwable_squeaky_duck",
-      "referenceName" : "삑삑 오리",
-      "type" : "NonConsumable"
+      "productID": "bubble_butter_chick",
+      "referenceName": "버터 병아리 말풍선",
+      "type": "NonConsumable"
+    },
+    {
+      "displayPrice": "2200",
+      "familyShareable": false,
+      "internalID": "02000000-0000-4000-8000-000000000003",
+      "localizations": [
+        {
+          "description": "별고양이 장식이 있는 남보라 말풍선",
+          "displayName": "별밤 고양이 말풍선",
+          "locale": "ko_KR"
+        }
+      ],
+      "productID": "bubble_starry_cat",
+      "referenceName": "별밤 고양이 말풍선",
+      "type": "NonConsumable"
+    },
+    {
+      "displayPrice": "1100",
+      "familyShareable": false,
+      "internalID": "03000000-0000-4000-8000-000000000001",
+      "localizations": [
+        {
+          "description": "통통 튀며 날아가는 하트 투척물",
+          "displayName": "통통 하트",
+          "locale": "ko_KR"
+        }
+      ],
+      "productID": "throwable_bouncy_heart",
+      "referenceName": "통통 하트",
+      "type": "NonConsumable"
+    },
+    {
+      "displayPrice": "2900",
+      "familyShareable": false,
+      "internalID": "03000000-0000-4000-8000-000000000002",
+      "localizations": [
+        {
+          "description": "심지탄을 쏘는 미니 대포 투척물",
+          "displayName": "미니 대포",
+          "locale": "ko_KR"
+        }
+      ],
+      "productID": "throwable_toy_cannon",
+      "referenceName": "미니 대포",
+      "type": "NonConsumable"
+    },
+    {
+      "displayPrice": "1100",
+      "familyShareable": false,
+      "internalID": "03000000-0000-4000-8000-000000000003",
+      "localizations": [
+        {
+          "description": "노란 오리가 빙글빙글 날아가는 투척물",
+          "displayName": "삑삑 오리",
+          "locale": "ko_KR"
+        }
+      ],
+      "productID": "throwable_squeaky_duck",
+      "referenceName": "삑삑 오리",
+      "type": "NonConsumable"
+    },
+    {
+      "displayPrice": "1100",
+      "familyShareable": false,
+      "internalID": "01000000-0000-4000-8000-000000000011",
+      "localizations": [
+        {
+          "description": "크림색 배와 보라 목도리를 두른 수달이에요.",
+          "displayName": "아기 수달",
+          "locale": "ko_KR"
+        }
+      ],
+      "productID": "character_otter",
+      "referenceName": "아기 수달",
+      "type": "NonConsumable"
+    },
+    {
+      "displayPrice": "1100",
+      "familyShareable": false,
+      "internalID": "01000000-0000-4000-8000-000000000012",
+      "localizations": [
+        {
+          "description": "동그란 코와 보라 목도리의 돼지예요.",
+          "displayName": "아기 돼지",
+          "locale": "ko_KR"
+        }
+      ],
+      "productID": "character_pig",
+      "referenceName": "아기 돼지",
+      "type": "NonConsumable"
+    },
+    {
+      "displayPrice": "2200",
+      "familyShareable": false,
+      "internalID": "01000000-0000-4000-8000-000000000013",
+      "localizations": [
+        {
+          "description": "둥근 초록 잎과 보라 목도리의 작은 나무예요.",
+          "displayName": "나무",
+          "locale": "ko_KR"
+        }
+      ],
+      "productID": "character_tree",
+      "referenceName": "나무",
+      "type": "NonConsumable"
+    },
+    {
+      "displayPrice": "1100",
+      "familyShareable": false,
+      "internalID": "01000000-0000-4000-8000-000000000014",
+      "localizations": [
+        {
+          "description": "맞으면 작은 결정 조각으로 흩어지는 눈송이예요.",
+          "displayName": "눈송이",
+          "locale": "ko_KR"
+        }
+      ],
+      "productID": "throwable_snowflake",
+      "referenceName": "눈송이",
+      "type": "NonConsumable"
+    },
+    {
+      "displayPrice": "1100",
+      "familyShareable": false,
+      "internalID": "01000000-0000-4000-8000-000000000015",
+      "localizations": [
+        {
+          "description": "붉은 실밥이 있는 공이 눌렸다 튕겨요.",
+          "displayName": "야구공",
+          "locale": "ko_KR"
+        }
+      ],
+      "productID": "throwable_baseball",
+      "referenceName": "야구공",
+      "type": "NonConsumable"
+    },
+    {
+      "displayPrice": "2200",
+      "familyShareable": false,
+      "internalID": "01000000-0000-4000-8000-000000000016",
+      "localizations": [
+        {
+          "description": "와그작! 왁뿌볼이 조각조각 부서지는 바삭한 소리를 느껴보세요.",
+          "displayName": "왁뿌볼",
+          "locale": "ko_KR"
+        }
+      ],
+      "productID": "throwable_wakkuball",
+      "referenceName": "왁뿌볼",
+      "type": "NonConsumable"
+    },
+    {
+      "displayPrice": "2200",
+      "familyShareable": false,
+      "internalID": "01000000-0000-4000-8000-000000000017",
+      "localizations": [
+        {
+          "description": "코코아 겉피와 초록색 속이 눌리며 바삭한 소리가 나요.",
+          "displayName": "두쫀쿠",
+          "locale": "ko_KR"
+        }
+      ],
+      "productID": "throwable_dujjonku",
+      "referenceName": "두쫀쿠",
+      "type": "NonConsumable"
+    },
+    {
+      "familyShareable": false,
+      "internalID": "02000000-0000-4000-8000-000000000034",
+      "type": "NonConsumable",
+      "productID": "throwable_mini_paprika",
+      "referenceName": "기니피그의 미니 파프리카",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "작고 아삭한 파프리카를 던져요. 모든 캐릭터가 사용할 수 있어요.",
+          "displayName": "기니피그의 미니 파프리카",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
+      "internalID": "02000000-0000-4000-8000-000000000036",
+      "type": "NonConsumable",
+      "productID": "throwable_banana",
+      "referenceName": "원숭이의 바나나",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "잘 익은 바나나가 빙글빙글 날아가요. 모든 캐릭터가 사용할 수 있어요.",
+          "displayName": "원숭이의 바나나",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
+      "internalID": "02000000-0000-4000-8000-000000000038",
+      "type": "NonConsumable",
+      "productID": "throwable_dust_bath_pouch",
+      "referenceName": "친칠라의 모래주머니",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "보송한 모래주머니가 톡 터져요. 모든 캐릭터가 사용할 수 있어요.",
+          "displayName": "친칠라의 모래주머니",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
+      "internalID": "02000000-0000-4000-8000-000000000040",
+      "type": "NonConsumable",
+      "productID": "throwable_starlight_orb",
+      "referenceName": "별빛 우파루파의 별빛 구슬",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "반짝이는 별빛 구슬을 던져요. 모든 캐릭터가 사용할 수 있어요.",
+          "displayName": "별빛 우파루파의 별빛 구슬",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
+      "internalID": "02000000-0000-4000-8000-000000000042",
+      "type": "NonConsumable",
+      "productID": "throwable_clam",
+      "referenceName": "수달의 조개",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "달그락 소리가 나는 조개를 던져요. 모든 캐릭터가 사용할 수 있어요.",
+          "displayName": "수달의 조개",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
+      "internalID": "02000000-0000-4000-8000-000000000044",
+      "type": "NonConsumable",
+      "productID": "throwable_pork",
+      "referenceName": "아기 돼지의 돼지고기",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "찰진 촵 소리와 함께 돼지고기를 던져요. 모든 캐릭터가 사용할 수 있어요.",
+          "displayName": "아기 돼지의 돼지고기",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
+      "internalID": "02000000-0000-4000-8000-000000000046",
+      "type": "NonConsumable",
+      "productID": "throwable_timber",
+      "referenceName": "나무의 작은 나무",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "작은 나무 한 그루가 빙글빙글 날아가요. 모든 캐릭터가 사용할 수 있어요.",
+          "displayName": "나무의 작은 나무",
+          "locale": "ko_KR"
+        }
+      ]
     }
   ],
-  "settings" : {
-    "_failTransactionsEnabled" : false,
-    "_locale" : "ko_KR",
-    "_storefront" : "KOR",
-    "_storeKitErrors" : [
-
-    ],
-    "_timeRate" : 0
+  "settings": {
+    "_failTransactionsEnabled": false,
+    "_locale": "ko_KR",
+    "_storefront": "KOR",
+    "_storeKitErrors": [],
+    "_timeRate": 0
   },
-  "subscriptionGroups" : [
-
-  ],
-  "version" : {
-    "major" : 3,
-    "minor" : 0
+  "subscriptionGroups": [],
+  "version": {
+    "major": 3,
+    "minor": 0
   }
 }

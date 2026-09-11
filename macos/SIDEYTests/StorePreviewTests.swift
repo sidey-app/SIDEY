@@ -243,6 +243,28 @@ final class StorePreviewTests: XCTestCase {
         XCTAssertTrue(view.isPaused)
     }
 
+    func testDujjonkuImpactRetainsTheStretchPoseAndClearsOnPreviewClose() throws {
+        for product in [CommerceProduct.dujjonku, .wakkuball, .bouncyHeart] {
+            let scenario = StorePreviewScenario.make(product: product)
+            let scene = makeScene(for: product)
+            scene.playLocalPreviewThrow(try XCTUnwrap(scenario.throwSequence).event(at: 0))
+            scene.update(ProcessInfo.processInfo.systemUptime + 2)
+            let impact = try XCTUnwrap(scene.childNode(withName: "throwable-impact"))
+            let animation = try XCTUnwrap(impact.action(forKey: "impact-frames"))
+            if product.id == CommerceProduct.dujjonku.id {
+                XCTAssertEqual(animation.duration, 0.58, accuracy: 0.001)
+                XCTAssertGreaterThanOrEqual(
+                    PixelCharacterThrowStyle.impactFrameDurations(for: product.id)[2],
+                    8.0 / 30.0
+                )
+            } else {
+                XCTAssertEqual(animation.duration, 0.24, accuracy: 0.001)
+            }
+            scene.cancelLocalPreviewPlayback()
+            XCTAssertNil(scene.childNode(withName: "throwable-impact"))
+        }
+    }
+
     func testBubblePlaybackCoordinatorOwnsAndCancelsAlternationTask() {
         let scenario = StorePreviewScenario.make(product: .bunnyPinkBubble)
         let view = StorePreviewSKView(frame: CGRect(origin: .zero, size: StorePreviewStageLayout.size))
@@ -318,7 +340,7 @@ final class StorePreviewTests: XCTestCase {
         )
     }
 
-    func testDetailSheetFitsItsContentWithoutForcedVerticalSpace() {
+    func testDetailSheetUsesBoundedScrollableViewport() {
         for availability in [StoreAvailability.comingSoon, .direct, .appStore] {
             for product in CommerceCatalog.characterProducts + [.bunnyPinkBubble] {
                 let state = CommerceProductState(
@@ -340,7 +362,7 @@ final class StorePreviewTests: XCTestCase {
                     StorePreviewStageLayout.size.height,
                     product.id
                 )
-                XCTAssertLessThan(fittingSize.height, 540, product.id)
+                XCTAssertEqual(fittingSize.height, 650, accuracy: 0.001, product.id)
             }
         }
     }

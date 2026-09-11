@@ -51,13 +51,6 @@
             ReferencedContainer = "container:SIDEY.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
-      <EnvironmentVariables>
-         <EnvironmentVariable
-            key = "SIDEY_APP_STORE_VERIFIER_URL"
-            value = "https://sidey-app-store-verifier-sandbox-802687666602.asia-northeast3.run.app"
-            isEnabled = "YES">
-         </EnvironmentVariable>
-      </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
