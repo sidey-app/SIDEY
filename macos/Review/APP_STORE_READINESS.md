@@ -75,3 +75,13 @@ Xcode 프로젝트: `_workspace/direct-name-release/macos/SIDEY.xcodeproj`
 - 직배포 Release의 CFBundleDisplayName·CFBundleName과 실행 메뉴·창 제목은 `SIDEY-DIRECT`, App Store판은 `SIDEY`, 개발판은 `Sidey-dev`다.
 - 직배포 내부 `SIDEY.app`·실행 파일·bundle ID·로그인 helper ID·Keychain·설정·Sparkle feed는 유지해 기존 설치를 교체한다.
 - 사용자가 신규 18종의 제출 준비 중 화면과 build 27 업로드 완료를 확인했다. 새 build 28 Archive는 다시 업로드할 수 있는 별도 빌드이며 이 문서만으로 업로드·심사 제출 완료를 주장하지 않는다.
+
+## build 28 검증 결과
+
+- 전체 macOS 테스트 288개 실행: 287개 통과·외부 연동 1개 제외 후, 제외했던 실제 로컬 2클라이언트 통합 테스트도 별도로 통과했다.
+- 별도 로컬 Supabase의 전체 pgTAP 266개와 5개 방·12명·초대 제한 동시성 검증이 통과했다. 상품 verifier 테스트 7개, 웹사이트 47페이지 빌드도 통과했다.
+- 운영 Supabase migration 이력을 읽기 전용으로 조회해 신규 3개(20260911000000·20260912000000·20260912010000)의 적용을 확인했다.
+- App Store build 28 Archive 생성과 dSYM·서명·bundle ID·verifier URL·Sparkle 미포함 검증이 통과했다. CFBundleDisplayName과 CFBundleName은 모두 SIDEY다.
+- 최신 Archive: `/private/tmp/sidey-release28-appstore/SIDEYAppStore.xcarchive`. 기존 build 27 Archive와 구분한다.
+- 직배포 build 28은 Developer ID 서명·Apple 공증·staple를 통과했고 실행 표시 이름과 bundle name을 SIDEY-DIRECT로 확인했다.
+- 사용자가 보고한 build 27 업로드 이후 build 28의 Connect 업로드·심사 제출과 실제 신규 Sandbox 구매/복원은 이 검증에서 실행하지 않았다. 운영 App Store verifier 신규 allowlist 배포 완료도 아직 확인하지 않았다.
