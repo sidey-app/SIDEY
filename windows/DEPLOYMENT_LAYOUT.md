@@ -13,7 +13,12 @@ SIDEY/
 │  └─ Throwables/
 ├─ Langs/                            # SIDEY 자체 JSON 번역 리소스
 │  ├─ ko-KR.json                     # 기본·한국어 카탈로그
-│  └─ en-US.json                     # 영어 카탈로그
+│  ├─ en-US.json                     # 영어 카탈로그
+│  ├─ ja-JP.json                     # 일본어 카탈로그
+│  ├─ zh-CN.json                     # 중국어 간체 카탈로그
+│  ├─ zh-TW.json                     # 중국어 번체 카탈로그
+│  ├─ uk-UA.json                     # 우크라이나어 카탈로그
+│  └─ ru-RU.json                     # 러시아어 카탈로그
 └─ Runtime/
    ├─ SIDEY.Host.exe                 # 실제 WinUI 프로세스
    ├─ SIDEY.Host.dll                 # 애플리케이션 본체
@@ -35,7 +40,7 @@ SIDEY/
 - 실제 프로세스는 `SIDEY.Host.exe`이므로 런처와 작업 관리자에서 구분할 수 있습니다.
 - WinUI의 PRI 리소스는 호스트 파일 이름과 결합되므로 실제 앱은 빌드 단계부터 `SIDEY.Host`라는 어셈블리 이름을 사용합니다. 게시 후 EXE 이름만 바꾸면 안 됩니다.
 - `Assets`는 사용자가 교체하거나 확인할 수 있는 SIDEY 콘텐츠입니다. 제목 표시줄 아이콘도 설치 루트의 절대 파일 경로에서 읽으며 `Runtime/Assets`에는 복사하지 않습니다. 컴파일된 XAML/PRI만 호스트 옆에 유지합니다.
-- `Langs`에는 SIDEY가 직접 관리하는 `ko-KR.json`, `en-US.json`, `ja-JP.json` 번역 카탈로그를 둡니다. WinUI 자체 리소스는 공유 Windows App Runtime에서 제공합니다.
+- `Langs`에는 SIDEY가 직접 관리하는 `ko-KR.json`, `en-US.json`, `ja-JP.json`, `zh-CN.json`, `zh-TW.json`, `uk-UA.json`, `ru-RU.json` 번역 카탈로그를 둡니다. WinUI 자체 리소스는 공유 Windows App Runtime에서 제공합니다.
 - 번역 키는 `onboarding.tagline` 같은 점 구분 경로를 사용합니다. XAML은 `{i18n:I18n Key=...}`, C#은 `I18n.Get(...)` 또는 `I18n.Format(...)`으로 같은 카탈로그를 참조합니다.
 - Setup EXE는 게시 트리 전체를 설치하되 `*.pdb`와 Debug 온보딩 미리보기 명령은 제외합니다.
 - 현재 배포 파이프라인은 자체 서명 인증서를 만들거나 SIDEY 파일에 자체 서명을 추가하지 않습니다. 공급자 런타임 파일의 기존 서명은 유지합니다.

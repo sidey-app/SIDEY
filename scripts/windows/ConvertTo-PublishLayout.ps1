@@ -52,7 +52,14 @@ if (Test-Path -LiteralPath $legacyLanguageDirectory -PathType Container) {
     Remove-Item -LiteralPath $legacyLanguageDirectory -Force
 }
 
-foreach ($catalogName in @('ko-KR.json', 'en-US.json')) {
+foreach ($catalogName in @(
+    'ko-KR.json',
+    'en-US.json',
+    'ja-JP.json',
+    'zh-CN.json',
+    'zh-TW.json',
+    'uk-UA.json',
+    'ru-RU.json')) {
     $catalogPath = Join-Path $languageDirectory $catalogName
     if (-not (Test-Path -LiteralPath $catalogPath -PathType Leaf)) {
         throw "Published language catalog is missing: $catalogPath"
@@ -94,10 +101,12 @@ if (-not (Test-Path -LiteralPath $assetsDirectory -PathType Container)) {
 # icon, are loaded explicitly from the deployment root; no private copy is needed.
 
 $assemblyVersion = [Version]$FileVersion
+$installerLanguagesSourcePath = (Resolve-Path -LiteralPath (
+    Join-Path $PSScriptRoot '..\..\windows\installer\Sidey.Setup\InstallerLanguages.cs')).Path
 function New-SideyExecutable {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$SourcePath,
+        [string[]]$SourcePath,
 
         [Parameter(Mandatory = $true)]
         [string]$OutputAssembly,
@@ -136,9 +145,11 @@ using System.Reflection;
     $compilerParameters.GenerateExecutable = $true
     $compilerParameters.OutputAssembly = $OutputAssembly
     [void]$compilerParameters.ReferencedAssemblies.Add('System.dll')
+    [void]$compilerParameters.ReferencedAssemblies.Add('System.Core.dll')
+    $sourceFiles = @($SourcePath) + @($assemblyInfoPath)
     try {
         Add-Type `
-            -Path @($SourcePath, $assemblyInfoPath) `
+            -Path $sourceFiles `
             -CompilerParameters $compilerParameters
     }
     finally {
@@ -147,7 +158,7 @@ using System.Reflection;
 }
 
 New-SideyExecutable `
-    -SourcePath $launcherSourceFilePath `
+    -SourcePath @($launcherSourceFilePath, $installerLanguagesSourcePath) `
     -OutputAssembly $launcherPath `
     -Title 'SIDEY Launcher' `
     -Description 'SIDEY desktop launcher'

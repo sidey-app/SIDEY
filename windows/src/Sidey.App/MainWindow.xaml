@@ -872,6 +872,10 @@
                     <ComboBoxItem Content="한국어" />
                     <ComboBoxItem Content="English" />
                     <ComboBoxItem Content="日本語" />
+                    <ComboBoxItem Content="简体中文" />
+                    <ComboBoxItem Content="繁體中文" />
+                    <ComboBoxItem Content="Українська" />
+                    <ComboBoxItem Content="Русский" />
                   </ComboBox>
                 </Grid>
               </Border>

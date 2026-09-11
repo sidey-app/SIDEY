@@ -117,6 +117,21 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
+    public void PublicLauncherPassesTheInstallerLanguageToTheApp()
+    {
+        string launcher = File.ReadAllText(RepositoryPath(
+            "windows", "src", "Sidey.Launcher", "Program.cs"));
+        string organizer = File.ReadAllText(RepositoryPath(
+            "scripts", "windows", "ConvertTo-PublishLayout.ps1"));
+
+        Assert.Contains("RegistryHive.LocalMachine", launcher, StringComparison.Ordinal);
+        Assert.Contains("RegistryView.Registry64", launcher, StringComparison.Ordinal);
+        Assert.Contains("InstallerLanguages.AppLanguage", launcher, StringComparison.Ordinal);
+        Assert.Contains("start.EnvironmentVariables[LanguageEnvironmentVariable] = language", launcher, StringComparison.Ordinal);
+        Assert.Contains("InstallerLanguages.cs", organizer, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InstallerRegistersOnlyTheProductionGoogleCallbackScheme()
     {
         string setup = ReadSetupScript();
@@ -208,6 +223,21 @@ public sealed class DistributionSourceTests
         Assert.Contains("--cleanup-credentials", setup, StringComparison.Ordinal);
         Assert.Contains("$DeleteCredentials == ${BST_CHECKED}", setup, StringComparison.Ordinal);
         Assert.DoesNotContain("RMDir /r \"$LOCALAPPDATA", setup, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void UninstallAlwaysRemovesEveryInstallerOwnedRegistryEntry()
+    {
+        string setup = ReadSetupScript();
+        string uninstall = setup[setup.IndexOf("Section \"Uninstall\"", StringComparison.Ordinal)..];
+
+        Assert.Contains(
+            "DeleteRegValue HKCU \"Software\\Microsoft\\Windows\\CurrentVersion\\Run\" \"SIDEY\"",
+            uninstall,
+            StringComparison.Ordinal);
+        Assert.Contains("DeleteRegKey HKLM \"${PRODUCT_UNINSTALL_KEY}\"", uninstall, StringComparison.Ordinal);
+        Assert.Contains("DeleteRegKey HKLM \"${PRODUCT_PROTOCOL_KEY}\"", uninstall, StringComparison.Ordinal);
+        Assert.Contains("DeleteRegKey HKLM \"${PRODUCT_REGISTRY_KEY}\"", uninstall, StringComparison.Ordinal);
     }
 
     [Fact]

@@ -61,6 +61,20 @@ public sealed class InstallerLanguageTests
         Assert.Equal(1042, InstallerLanguages.DefaultSelection(1042, 1036));
     }
 
+    [Theory]
+    [InlineData(1033, "en-US")]
+    [InlineData(1041, "ja-JP")]
+    [InlineData(1042, "ko-KR")]
+    [InlineData(1049, "ru-RU")]
+    [InlineData(1058, "uk-UA")]
+    [InlineData(2052, "zh-CN")]
+    [InlineData(1028, "zh-TW")]
+    [InlineData(1036, "")]
+    public void InstallerChoiceMapsToTheAppCatalog(int installerLanguage, string expected)
+    {
+        Assert.Equal(expected, InstallerLanguages.AppLanguage(installerLanguage));
+    }
+
     [Fact]
     public void AllInstallerLanguagesHaveEveryCustomStringAndPreserveRuntimePlaceholders()
     {

@@ -129,6 +129,9 @@ public partial class App : Application
 
         StartupDiagnostics.Stage("cached-settings-loaded");
         I18n.SetLanguage(coordinator.State.Preferences.Language);
+        StartupDiagnostics.Stage(
+            $"language-initialized language={I18n.Language} "
+            + $"saved={(coordinator.State.Preferences.Language is not null).ToString().ToLowerInvariant()}");
         coordinator.ComposerRequested += RequestComposer;
         coordinator.PulseRequested += RequestPulse;
         coordinator.CharacterThrowRequested += RequestCharacterThrow;

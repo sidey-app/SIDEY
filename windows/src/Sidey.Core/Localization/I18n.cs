@@ -10,6 +10,9 @@ public static class I18n
 {
     public const string DefaultLanguage = "ko-KR";
 
+    public static IReadOnlyList<string> SupportedLanguages { get; } = Array.AsReadOnly(
+        [DefaultLanguage, "en-US", "ja-JP", "zh-CN", "zh-TW", "uk-UA", "ru-RU"]);
+
     private static readonly Lock s_syncRoot = new();
     private static IReadOnlyDictionary<string, string>? s_strings;
     private static string? s_languageOverride;
@@ -51,6 +54,53 @@ public static class I18n
         }
     }
 
+    public static bool IsSupportedLanguage(string? language)
+    {
+        return SupportedLanguages.Contains(language, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public static string NormalizeLanguage(string? requested)
+    {
+        if (string.IsNullOrWhiteSpace(requested))
+        {
+            return DefaultLanguage;
+        }
+
+        if (requested.StartsWith("ko", StringComparison.OrdinalIgnoreCase))
+        {
+            return DefaultLanguage;
+        }
+        if (requested.StartsWith("en", StringComparison.OrdinalIgnoreCase))
+        {
+            return "en-US";
+        }
+        if (requested.StartsWith("ja", StringComparison.OrdinalIgnoreCase))
+        {
+            return "ja-JP";
+        }
+        if (requested.StartsWith("zh-Hant", StringComparison.OrdinalIgnoreCase)
+            || requested.StartsWith("zh-TW", StringComparison.OrdinalIgnoreCase)
+            || requested.StartsWith("zh-HK", StringComparison.OrdinalIgnoreCase)
+            || requested.StartsWith("zh-MO", StringComparison.OrdinalIgnoreCase))
+        {
+            return "zh-TW";
+        }
+        if (requested.StartsWith("zh", StringComparison.OrdinalIgnoreCase))
+        {
+            return "zh-CN";
+        }
+        if (requested.StartsWith("uk", StringComparison.OrdinalIgnoreCase))
+        {
+            return "uk-UA";
+        }
+        if (requested.StartsWith("ru", StringComparison.OrdinalIgnoreCase))
+        {
+            return "ru-RU";
+        }
+
+        return DefaultLanguage;
+    }
+
     private static IReadOnlyDictionary<string, string> GetCatalog()
     {
         lock (s_syncRoot)
@@ -81,16 +131,7 @@ public static class I18n
             ?? Environment.GetEnvironmentVariable("SIDEY_LANGUAGE")
             ?? CultureInfo.CurrentUICulture.Name;
 
-        if (requested.StartsWith("en", StringComparison.OrdinalIgnoreCase))
-        {
-            return "en-US";
-        }
-        if (requested.StartsWith("ja", StringComparison.OrdinalIgnoreCase))
-        {
-            return "ja-JP";
-        }
-
-        return DefaultLanguage;
+        return NormalizeLanguage(requested);
     }
 
     private static string FindCatalogRoot()

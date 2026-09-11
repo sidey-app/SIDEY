@@ -83,5 +83,28 @@ namespace Sidey.Installer
             int systemLanguage = MatchSystemLanguage(windowsLanguage);
             return systemLanguage == 0 ? 1033 : systemLanguage;
         }
+
+        public static string AppLanguage(int installerLanguage)
+        {
+            switch (installerLanguage)
+            {
+                case 1033:
+                    return "en-US";
+                case 1041:
+                    return "ja-JP";
+                case 1042:
+                    return "ko-KR";
+                case 1049:
+                    return "ru-RU";
+                case 1058:
+                    return "uk-UA";
+                case 2052:
+                    return "zh-CN";
+                case 1028:
+                    return "zh-TW";
+                default:
+                    return string.Empty;
+            }
+        }
     }
 }

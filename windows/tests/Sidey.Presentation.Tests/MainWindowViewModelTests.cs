@@ -215,9 +215,16 @@ public sealed class MainWindowViewModelTests
     }
 
     [Theory]
-    [InlineData("en-US")]
-    [InlineData("ja-JP")]
-    public void NumericFormattingUsesSelectedLanguageWithoutChangingWindowsCulture(string language)
+    [InlineData("en-US", "3.50", "3,50")]
+    [InlineData("ja-JP", "3.50", "3,50")]
+    [InlineData("zh-CN", "3.50", "3,50")]
+    [InlineData("zh-TW", "3.50", "3,50")]
+    [InlineData("uk-UA", "3,50", "3.50")]
+    [InlineData("ru-RU", "3,50", "3.50")]
+    public void NumericFormattingUsesSelectedLanguageWithoutChangingWindowsCulture(
+        string language,
+        string expected,
+        string unexpected)
     {
         string previousLanguage = Sidey.Core.Localization.I18n.Language;
         CultureInfo previousCulture = System.Globalization.CultureInfo.CurrentCulture;
@@ -227,8 +234,8 @@ public sealed class MainWindowViewModelTests
             Sidey.Core.Localization.I18n.SetLanguage(language);
             Assert.Equal(language, Sidey.Core.Localization.I18n.Culture.Name);
             string text = Sidey.Core.Localization.I18n.Format("metrics.summary", 1, 2, 3.5, 4.5, 5.5, 6, 7);
-            Assert.Contains("3.50", text, StringComparison.Ordinal);
-            Assert.DoesNotContain("3,50", text, StringComparison.Ordinal);
+            Assert.Contains(expected, text, StringComparison.Ordinal);
+            Assert.DoesNotContain(unexpected, text, StringComparison.Ordinal);
             Assert.Equal("fr-FR", System.Globalization.CultureInfo.CurrentCulture.Name);
         }
         finally
@@ -265,7 +272,10 @@ public sealed class MainWindowViewModelTests
             var history = new HistoryWindowViewModel(coordinator);
             await history.ActivateAsync();
 
-            foreach (string language in new[] { "ko-KR", "en-US", "ja-JP", "ko-KR" })
+            foreach (string language in new[]
+            {
+                "ko-KR", "en-US", "ja-JP", "zh-CN", "zh-TW", "uk-UA", "ru-RU", "ko-KR",
+            })
             {
                 Sidey.Core.Localization.I18n.SetLanguage(language);
                 main.RefreshLocalizedText();
@@ -305,7 +315,10 @@ public sealed class MainWindowViewModelTests
         string previous = Sidey.Core.Localization.I18n.Language;
         try
         {
-            foreach (string language in new[] { "en-US", "ja-JP", "ko-KR" })
+            foreach (string language in new[]
+            {
+                "en-US", "ja-JP", "zh-CN", "zh-TW", "uk-UA", "ru-RU", "ko-KR",
+            })
             {
                 Sidey.Core.Localization.I18n.SetLanguage(language);
                 viewModel.RefreshLocalizedText();
@@ -328,6 +341,10 @@ public sealed class MainWindowViewModelTests
     [InlineData(0, "ko-KR")]
     [InlineData(1, "en-US")]
     [InlineData(2, "ja-JP")]
+    [InlineData(3, "zh-CN")]
+    [InlineData(4, "zh-TW")]
+    [InlineData(5, "uk-UA")]
+    [InlineData(6, "ru-RU")]
     public void LanguageSelectionIsRestoredWithoutSavingAndPersistsUserChoice(int index, string language)
     {
         (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
@@ -337,10 +354,12 @@ public sealed class MainWindowViewModelTests
         Assert.Equal(index, viewModel.SelectedLanguageIndex);
         Assert.Equal(0, coordinator.SetLanguageCallCount);
 
-        int next = (index + 1) % 3;
+        int next = (index + 1) % Sidey.Core.Localization.I18n.SupportedLanguages.Count;
         viewModel.SelectedLanguageIndex = next;
         Assert.Equal(1, coordinator.SetLanguageCallCount);
-        Assert.Equal(next switch { 1 => "en-US", 2 => "ja-JP", _ => "ko-KR" }, coordinator.State.Preferences.Language);
+        Assert.Equal(
+            Sidey.Core.Localization.I18n.SupportedLanguages[next],
+            coordinator.State.Preferences.Language);
         Assert.True(viewModel.IsLanguageSelectionEnabled);
         Assert.Equal(next, viewModel.SelectedLanguageIndex);
     }

@@ -8,6 +8,10 @@ public sealed class AppPreferencesTests
     [InlineData("ko-KR", "ko-KR")]
     [InlineData("en-US", "en-US")]
     [InlineData("ja-JP", "ja-JP")]
+    [InlineData("zh-CN", "zh-CN")]
+    [InlineData("zh-TW", "zh-TW")]
+    [InlineData("uk-UA", "uk-UA")]
+    [InlineData("ru-RU", "ru-RU")]
     [InlineData("invalid", null)]
     [InlineData(null, null)]
     public void LanguagePreferenceOnlyKeepsSupportedCatalogs(string? requested, string? expected)

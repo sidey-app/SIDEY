@@ -965,7 +965,7 @@ public sealed class AppCoordinator : ISideyCoordinator, IAsyncDisposable
 
     public async Task SetLanguageAsync(string language, CancellationToken cancellationToken = default)
     {
-        if (language is not ("ko-KR" or "en-US" or "ja-JP"))
+        if (!I18n.IsSupportedLanguage(language))
             throw new ArgumentOutOfRangeException(nameof(language));
 
         string? previousLanguage = _state.Preferences.Language;

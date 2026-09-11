@@ -5,9 +5,14 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.RegularExpressions;
+using Microsoft.Win32;
+using Sidey.Installer;
 
 public static class Program
 {
+    private const string LanguageEnvironmentVariable = "SIDEY_LANGUAGE";
+    private const string InstallerRegistryPath = @"Software\SIDEY\Installer";
+
     [STAThread]
     public static int Main(string[] arguments)
     {
@@ -25,6 +30,7 @@ public static class Program
 
         try
         {
+            string language = ResolveLanguage(ResolveRequestedLanguage());
             var start = new ProcessStartInfo
             {
                 FileName = hostPath,
@@ -34,6 +40,7 @@ public static class Program
                 UseShellExecute = false,
                 Arguments = JoinArguments(arguments),
             };
+            start.EnvironmentVariables[LanguageEnvironmentVariable] = language;
             Process.Start(start);
             return 0;
         }
@@ -53,11 +60,8 @@ public static class Program
     {
         try
         {
-            string requested = Environment.GetEnvironmentVariable("SIDEY_LANGUAGE")
-                ?? CultureInfo.CurrentUICulture.Name;
-            string language = requested.StartsWith("en", StringComparison.OrdinalIgnoreCase)
-                ? "en-US"
-                : requested.StartsWith("ja", StringComparison.OrdinalIgnoreCase) ? "ja-JP" : "ko-KR";
+            string requested = ResolveRequestedLanguage();
+            string language = ResolveLanguage(requested);
             string path = Path.Combine(deploymentRoot, "Langs", language + ".json");
             string json = File.ReadAllText(path, Encoding.UTF8);
             Match match = Regex.Match(
@@ -74,6 +78,66 @@ public static class Program
         }
 
         return fallback;
+    }
+
+    private static string ResolveRequestedLanguage()
+    {
+        string explicitLanguage = Environment.GetEnvironmentVariable(LanguageEnvironmentVariable);
+        if (!string.IsNullOrWhiteSpace(explicitLanguage))
+        {
+            return explicitLanguage;
+        }
+
+        try
+        {
+            using (RegistryKey machine = RegistryKey.OpenBaseKey(
+                RegistryHive.LocalMachine,
+                RegistryView.Registry64))
+            using (RegistryKey installer = machine.OpenSubKey(InstallerRegistryPath, writable: false))
+            {
+                object savedValue = installer == null ? null : installer.GetValue("Language");
+                int installerLanguage;
+                if (int.TryParse(
+                    Convert.ToString(savedValue, CultureInfo.InvariantCulture),
+                    NumberStyles.Integer,
+                    CultureInfo.InvariantCulture,
+                    out installerLanguage))
+                {
+                    string appLanguage = InstallerLanguages.AppLanguage(installerLanguage);
+                    if (!string.IsNullOrWhiteSpace(appLanguage))
+                    {
+                        return appLanguage;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // A damaged or inaccessible installer key must not prevent launch.
+        }
+
+        return CultureInfo.CurrentUICulture.Name;
+    }
+
+    private static string ResolveLanguage(string requested)
+    {
+        if (requested.StartsWith("en", StringComparison.OrdinalIgnoreCase))
+            return "en-US";
+        if (requested.StartsWith("ja", StringComparison.OrdinalIgnoreCase))
+            return "ja-JP";
+        if (requested.StartsWith("zh-Hant", StringComparison.OrdinalIgnoreCase)
+            || requested.StartsWith("zh-TW", StringComparison.OrdinalIgnoreCase)
+            || requested.StartsWith("zh-HK", StringComparison.OrdinalIgnoreCase)
+            || requested.StartsWith("zh-MO", StringComparison.OrdinalIgnoreCase))
+            return "zh-TW";
+        if (requested.StartsWith("zh", StringComparison.OrdinalIgnoreCase))
+            return "zh-CN";
+        if (requested.StartsWith("uk", StringComparison.OrdinalIgnoreCase))
+            return "uk-UA";
+        if (requested.StartsWith("ru", StringComparison.OrdinalIgnoreCase))
+            return "ru-RU";
+
+        return "ko-KR";
     }
 
     private static string JoinArguments(string[] arguments)

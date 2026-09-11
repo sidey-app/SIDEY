@@ -235,7 +235,11 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
             await Task.Delay(100);
             for (int repeat = 0; repeat < 2; repeat++)
             {
-                foreach ((string? language, int index) in new[] { ("en-US", 1), ("ja-JP", 2), ("ko-KR", 0) })
+                foreach ((string? language, int index) in new[]
+                {
+                    ("en-US", 1), ("ja-JP", 2), ("zh-CN", 3), ("zh-TW", 4),
+                    ("uk-UA", 5), ("ru-RU", 6), ("ko-KR", 0),
+                })
                 {
                     LanguageComboBox.SelectedIndex = index;
                     DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(4);

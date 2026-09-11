@@ -1,3 +1,5 @@
+using Sidey.Core.Localization;
+
 namespace Sidey.Core.Domain;
 
 public sealed record AppPreferences(
@@ -42,7 +44,7 @@ public sealed record AppPreferences(
         SchemaVersion = CurrentSchemaVersion,
         CharacterSoundEffectsVolume = Math.Clamp(CharacterSoundEffectsVolume, 0, 100),
         CharacterSoundEffectsEnabled = CharacterSoundEffectsEnabled && CharacterSoundEffectsVolume > 0,
-        Language = Language is "ko-KR" or "en-US" or "ja-JP" ? Language : null,
+        Language = I18n.IsSupportedLanguage(Language) ? Language : null,
         InstallationSeed = InstallationSeed == 0 ? Random.Shared.NextInt64() : InstallationSeed,
         CachedNickname = CachedNickname is not null && ProfileValidator.IsValidNickname(CachedNickname)
             ? ProfileValidator.NormalizeNickname(CachedNickname)

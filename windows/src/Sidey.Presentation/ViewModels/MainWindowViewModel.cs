@@ -11,6 +11,8 @@ namespace Sidey.Presentation.ViewModels;
 
 public sealed partial class MainWindowViewModel : ObservableObject
 {
+    private static readonly string[] s_supportedLanguages = [.. I18n.SupportedLanguages];
+
     private readonly IMainWindowCoordinator _coordinator;
     private readonly IMainWindowDialogService _dialogs;
     private readonly IUpdateService _updates;
@@ -450,12 +452,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
             ShowOfflineMembers = state.Preferences.ShowOfflineMembers;
             RequiresRightClickToThrow = state.Preferences.RequiresRightClickToThrow;
             StartAtLogin = state.Preferences.StartAtLogin;
-            SelectedLanguageIndex = (state.Preferences.Language ?? I18n.Language) switch
-            {
-                "en-US" => 1,
-                "ja-JP" => 2,
-                _ => 0,
-            };
+            string selectedLanguage = state.Preferences.Language ?? I18n.Language;
+            int selectedLanguageIndex = Array.FindIndex(
+                s_supportedLanguages,
+                language => string.Equals(language, selectedLanguage, StringComparison.OrdinalIgnoreCase));
+            SelectedLanguageIndex = Math.Max(0, selectedLanguageIndex);
             SelectedEdgeIndex = (int)state.Preferences.OverlayRegion.Edge;
             SelectedSpanIndex = (int)state.Preferences.OverlayRegion.Span;
             string? preferredMonitor = state.Preferences.OverlayRegion.MonitorIdentifier;
@@ -757,14 +758,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     partial void OnSelectedLanguageIndexChanged(int value)
     {
-        if (!_isApplyingState && IsLanguageSelectionEnabled && value is >= 0 and <= 2)
+        if (!_isApplyingState && IsLanguageSelectionEnabled && value >= 0 && value < s_supportedLanguages.Length)
             _ = SaveLanguageAsync(value);
     }
 
     private async Task SaveLanguageAsync(int index)
     {
         IsLanguageSelectionEnabled = false;
-        string language = index switch { 1 => "en-US", 2 => "ja-JP", _ => "ko-KR" };
+        string language = s_supportedLanguages[index];
         await RunCommandAsync(() => _coordinator.SetLanguageAsync(language), null);
         ApplyState(_coordinator.State);
         IsLanguageSelectionEnabled = true;

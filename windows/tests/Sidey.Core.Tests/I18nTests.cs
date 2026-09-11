@@ -8,7 +8,30 @@ public sealed class I18nTests
     [Fact]
     public void LoadsNestedKoreanCatalogByDottedKey()
     {
-        Assert.Equal("친구들이 화면 곁에 함께합니다.", I18n.Get("onboarding.tagline"));
+        Assert.Equal("친구들이 화면 곁에 도착했습니다.", I18n.Get("onboarding.tagline"));
+    }
+
+    [Theory]
+    [InlineData("ko", "ko-KR")]
+    [InlineData("en-GB", "en-US")]
+    [InlineData("ja", "ja-JP")]
+    [InlineData("zh-Hans-SG", "zh-CN")]
+    [InlineData("zh-HK", "zh-TW")]
+    [InlineData("zh-Hant", "zh-TW")]
+    [InlineData("uk", "uk-UA")]
+    [InlineData("ru-KZ", "ru-RU")]
+    [InlineData("fr-FR", "ko-KR")]
+    public void NormalizesSystemUiLanguageToASupportedCatalog(string requested, string expected)
+    {
+        Assert.Equal(expected, I18n.NormalizeLanguage(requested));
+    }
+
+    [Fact]
+    public void SupportedCatalogOrderMatchesTheLanguagePicker()
+    {
+        Assert.Equal(
+            ["ko-KR", "en-US", "ja-JP", "zh-CN", "zh-TW", "uk-UA", "ru-RU"],
+            I18n.SupportedLanguages);
     }
 
     [Fact]

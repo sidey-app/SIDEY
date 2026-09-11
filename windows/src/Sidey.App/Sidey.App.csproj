@@ -17,7 +17,7 @@
     <IncludeAllContentForSelfExtract>false</IncludeAllContentForSelfExtract>
     <PublishSingleFile>false</PublishSingleFile>
     <PublishTrimmed>false</PublishTrimmed>
-    <SatelliteResourceLanguages>en-US;ko-KR;ja-JP</SatelliteResourceLanguages>
+    <SatelliteResourceLanguages>en-US;ko-KR;ja-JP;zh-CN;zh-TW;uk-UA;ru-RU</SatelliteResourceLanguages>
     <AssemblyName>SIDEY.Host</AssemblyName>
     <AssemblyTitle>SIDEY</AssemblyTitle>
     <Product>SIDEY</Product>

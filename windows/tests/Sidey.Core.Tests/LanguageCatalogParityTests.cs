@@ -8,6 +8,10 @@ public sealed class LanguageCatalogParityTests
     [Theory]
     [InlineData("en-US")]
     [InlineData("ja-JP")]
+    [InlineData("zh-CN")]
+    [InlineData("zh-TW")]
+    [InlineData("uk-UA")]
+    [InlineData("ru-RU")]
     public void EveryLanguageHasAllKeysAndPreservesFormatArguments(string language)
     {
         Dictionary<string, string> korean = Read("ko-KR");
