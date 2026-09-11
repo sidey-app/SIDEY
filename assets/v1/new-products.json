@@ -26,7 +26,7 @@
   {
     "id": "character_tree",
     "name": "나무",
-    "description": "우클릭하면 멈추고 다시 우클릭하면 걸어요. 작은 나무를 던져요.",
+    "description": "둥근 초록 잎과 보라 목도리의 작은 나무예요.",
     "character_id": "pixel_tree",
     "item_id": "pixel_tree",
     "kind": "character",
@@ -62,7 +62,7 @@
   {
     "id": "throwable_wakkuball",
     "name": "왁뿌볼",
-    "description": "크림 껍질이 와그작 갈라지는 말랑한 볼이에요.",
+    "description": "얇은 껍질 속 분홍 내용물이 비치고, 맞으면 껍질이 와그작 흩어져요.",
     "character_id": null,
     "item_id": "throwable_wakkuball",
     "kind": "throwable",
