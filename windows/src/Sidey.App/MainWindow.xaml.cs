@@ -125,7 +125,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         {
             throw new InvalidOperationException("The external title bar icon file is not 20x20.");
         }
-        DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(5);
+        DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(15);
         while (image.PixelWidth == 0 && DateTimeOffset.UtcNow < deadline)
         {
             await Task.Delay(25);
