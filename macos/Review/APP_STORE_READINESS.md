@@ -52,3 +52,12 @@ Xcode 프로젝트: `_workspace/tree-right-click-controls/macos/SIDEY.xcodeproj`
 - 캡처와 등록 자료: `~/Downloads/SIDEY-store-refactor/`
 
 [Apple 입력 항목 안내](https://developer.apple.com/help/app-store-connect/reference/in-app-purchases-and-subscriptions/in-app-purchase-information) · [Sandbox 테스트 개요](https://developer.apple.com/help/app-store-connect/test-in-app-purchases/overview-of-testing-in-sandbox)
+
+## 2026-09-12 01:32 실환경 재확인
+
+- 직배포 전용 조건부 컴파일 때문에 App Store 프로필의 말풍선·투척물 선택이 파란색으로 남아 있었다. 양쪽 프로필이 공통 보라색 선택 스타일을 사용하고 상점 hover/focus·사용 중 표시도 같은 색을 사용하도록 수정했다.
+- 프로필·상점 관련 테스트 36개 통과. App Store Debug 빌드·코드 서명·app-sandbox/network.client/Apple 로그인 entitlement를 확인했다. SIDEYAppStore scheme은 StoreKit 로컬 설정 파일을 지정하지 않으며 Debug 앱은 sandbox verifier URL을 사용한다.
+- Debug·Release verifier의 /health는 모두 HTTP 200이다. 서버 생존 확인이며 새 상품 구매 검증 완료를 뜻하지 않는다.
+- 실제 실행 로그: `Store catalog count mismatch: server 10, app 24`. 새 서버 카탈로그 미반영으로 상점 상태 조회가 실패한다. 소유권 검증을 우회하거나 누락 상품을 구매 가능으로 표시하지 않았다.
+- 실제 StoreKit 조회는 24종 중 12종만 반환했다. 미조회 ID: character_chinchilla_solo, character_guinea_pig_solo, character_monkey_solo, character_starlight_upalupa_solo, character_tree, throwable_banana, throwable_clam, throwable_mini_paprika, throwable_pork, throwable_snowflake, throwable_starlight_orb, throwable_timber.
+- 상품 등록 정보 전파 및 App Store Connect 가격·지역·계약 확인, 서버 migration/verifier 반영, Sandbox 신규 구매·복원 검증이 필요하다. 이번 재확인에서 원격 배포·구매·심사 제출·업로드는 실행하지 않았다.

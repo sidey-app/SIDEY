@@ -1,12 +1,12 @@
 import SwiftUI
 
-#if !APP_STORE
 struct ProfileSelectionAppearance: ViewModifier {
     let isSelected: Bool
     let isPending: Bool
     var isFocused: Bool = false
 
-    private let selectionColor = Color(red: 0.45, green: 0.49, blue: 0.85)
+    static let selectionColor = Color(red: 0.45, green: 0.49, blue: 0.85)
+    private var selectionColor: Color { Self.selectionColor }
 
     func body(content: Content) -> some View {
         content
@@ -37,4 +37,3 @@ struct ProfileSelectionAppearance: ViewModifier {
             }
     }
 }
-#endif

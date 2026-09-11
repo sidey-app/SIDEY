@@ -1,8 +1,10 @@
 import Foundation
 import StoreKit
+import OSLog
 
 @MainActor
 final class AppStorePurchaseController {
+    private let logger = Logger(subsystem: "app.sidey.desktop", category: "AppStoreProducts")
     private let verifierURL: URL?
     private var productsByID: [String: Product] = [:]
     private var updatesTask: Task<Void, Never>?
@@ -15,6 +17,9 @@ final class AppStorePurchaseController {
 
     func loadProducts() async throws -> [String: String] {
         let products = try await Product.products(for: CommerceCatalog.products.map(\.appStoreProductID))
+        let missingIDs = Set(CommerceCatalog.products.map(\.appStoreProductID))
+            .subtracting(products.map(\.id)).sorted().joined(separator: ",")
+        logger.notice("StoreKit returned \(products.count) products; unavailable IDs: \(missingIDs, privacy: .public)")
         productsByID = Dictionary(uniqueKeysWithValues: products.compactMap { product in
             CommerceCatalog.product(appStoreID: product.id).map { ($0.id, product) }
         })

@@ -209,7 +209,7 @@ struct StoreProductCard: View {
             .overlay {
                 RoundedRectangle(cornerRadius: StoreCardLayout.cornerRadius, style: .continuous)
                     .stroke(
-                        isHovered || isFocused ? Color.accentColor : Color.primary.opacity(0.08),
+                        isHovered || isFocused ? ProfileSelectionAppearance.selectionColor : Color.primary.opacity(0.08),
                         lineWidth: isHovered || isFocused ? 1.5 : 1
                     )
             }
@@ -241,7 +241,7 @@ struct StoreProductCard: View {
     }
 
     private var statusColor: Color {
-        if productState.isEquipped { return .blue }
+        if productState.isEquipped { return ProfileSelectionAppearance.selectionColor }
         if productState.purchaseState == .owned { return .green }
         if case .error = productState.purchaseState { return .orange }
         return .secondary
@@ -307,7 +307,7 @@ struct StoreLockedProductCard: View {
             .clipShape(RoundedRectangle(cornerRadius: StoreCardLayout.cornerRadius, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: StoreCardLayout.cornerRadius, style: .continuous)
-                    .stroke(isFocused ? Color.accentColor : .clear, lineWidth: 1.5)
+                    .stroke(isFocused ? ProfileSelectionAppearance.selectionColor : .clear, lineWidth: 1.5)
             }
         }
         .buttonStyle(.plain)

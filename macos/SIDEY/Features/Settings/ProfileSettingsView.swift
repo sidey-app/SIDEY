@@ -185,40 +185,11 @@ struct ProfileCosmeticTile: View {
             }
             .padding(9)
             .frame(maxWidth: .infinity, minHeight: 112)
-#if APP_STORE
-            .background(
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.02))
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 13, style: .continuous)
-                    .strokeBorder(
-                        isSelected || isFocused ? Color.accentColor : Color.secondary.opacity(0.24),
-                        lineWidth: isSelected ? 3 : (isFocused ? 2 : 1)
-                    )
-            }
-            .overlay(alignment: .topTrailing) {
-                if isPending {
-                    ProgressView()
-                        .controlSize(.small)
-                        .padding(8)
-                        .accessibilityHidden(true)
-                } else if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(.tint)
-                        .background(Circle().fill(.background).padding(2))
-                        .padding(7)
-                        .accessibilityHidden(true)
-                }
-            }
-#else
             .modifier(ProfileSelectionAppearance(
                 isSelected: isSelected,
                 isPending: isPending,
                 isFocused: isFocused
             ))
-#endif
             .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
         }
         .buttonStyle(.plain)
