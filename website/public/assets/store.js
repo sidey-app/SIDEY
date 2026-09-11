@@ -22,10 +22,45 @@
   const title = dialog.querySelector("[data-store-preview-title]");
   const description = dialog.querySelector("[data-store-preview-description]");
   const closeButton = dialog.querySelector("[data-store-preview-close]");
+  const details = dialog.querySelector("[data-store-preview-details]");
+  const soundButton = dialog.querySelector("[data-store-preview-sound-toggle]");
   let closeTimer;
+  let impactTimer;
+  let impactAudio;
+  let soundEnabled = false;
+  const stopSound = () => {
+    window.clearTimeout(impactTimer);
+    impactAudio?.pause();
+  };
+  const updateSoundButton = () => {
+    soundButton?.setAttribute("aria-pressed", String(soundEnabled));
+    const icon = soundButton?.querySelector(".material-symbols-rounded");
+    if (icon) icon.textContent = soundEnabled ? "volume_up" : "volume_off";
+  };
+  const scheduleImpactSound = () => {
+    window.clearTimeout(impactTimer);
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    impactTimer = window.setTimeout(() => {
+      if (!soundEnabled || !impactAudio || !dialog.open || dialog.dataset.state === "closing" || document.hidden) return;
+      impactAudio.currentTime = 0;
+      impactAudio.play().catch(() => {
+        soundEnabled = false;
+        updateSoundButton();
+      });
+    }, 1000);
+  };
+  soundButton?.addEventListener("click", () => {
+    soundEnabled = !soundEnabled;
+    if (!soundEnabled) stopSound();
+    updateSoundButton();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stopSound();
+  });
 
   const closeDialog = () => {
     if (!dialog.open || dialog.dataset.state === "closing") return;
+    stopSound();
     dialog.dataset.state = "closing";
     closeTimer = window.setTimeout(() => dialog.close(), 160);
   };
@@ -88,47 +123,62 @@
     return scene;
   };
 
-  document.querySelectorAll("[data-store-preview]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const kind = button.dataset.previewKind ?? "character";
-      const mode = button.dataset.previewMode ?? "character";
-      const source = button.dataset.previewSrc;
-      if ((!source && kind !== "bubble") || !stage || !title || !description) {
-        return;
-      }
+  // Delegation also handles the keepsake card inside the character preview.
+  document.addEventListener("click", (event) => {
+    const button = event.target instanceof Element ? event.target.closest("[data-store-preview]") : null;
+    if (!button) return;
+    const kind = button.dataset.previewKind ?? "character";
+    const mode = button.dataset.previewMode ?? "character";
+    const source = button.dataset.previewSrc;
+    if ((!source && kind !== "bubble") || !stage || !title || !description) {
+      return;
+    }
 
-      const base = document.documentElement.dataset.baseUrl ?? "/SIDEY/";
-      const hamster = `${base}assets/characters/pixel_hamster.png`;
-      const rabbit = `${base}assets/characters/pixel_rabbit.png`;
-      const hamsterAction = `${base}assets/previewer/pixel_hamster_throw_hit.png`;
-      const rabbitAction = `${base}assets/previewer/pixel_rabbit_throw_hit.png`;
-      if (kind === "throwable") {
-        const children = [makeActor("source", hamsterAction, hamster)];
-        if (mode === "cannon" && button.dataset.previewEmitter) {
-          children.push(makeArt(button.dataset.previewEmitter, "emitter", "emitter"));
-        }
-        children.push(makeArt(source, "projectile", "projectile"));
-        children.push(makeArt(source, "impact", "impact"));
-        children.push(makeActor("target", rabbitAction, rabbit));
-        stage.replaceChildren(...children);
-      } else if (kind === "bubble") {
-        const decoration = button.dataset.previewDecoration;
-        const theme = button.dataset.previewTheme;
-        if (!theme) return;
-        stage.replaceChildren(makeBubble(theme, decoration, button.dataset.previewMessage ?? ""));
-      } else {
-        const character = makeArt(source, "character");
-        character.classList.toggle("store-dialog-art-mirrors", button.dataset.previewMirrors === "true");
-        stage.replaceChildren(character);
+    stopSound();
+    impactAudio = button.dataset.previewSound ? new Audio(button.dataset.previewSound) : undefined;
+    if (impactAudio) impactAudio.preload = "auto";
+    if (soundButton) soundButton.hidden = !impactAudio;
+    updateSoundButton();
+    const base = document.documentElement.dataset.baseUrl ?? "/SIDEY/";
+    const hamster = `${base}assets/characters/pixel_hamster.png`;
+    const rabbit = `${base}assets/characters/pixel_rabbit.png`;
+    const hamsterAction = `${base}assets/previewer/pixel_hamster_throw_hit.png`;
+    const rabbitAction = `${base}assets/previewer/pixel_rabbit_throw_hit.png`;
+    if (kind === "throwable") {
+      const children = [makeActor("source", hamsterAction, hamster)];
+      if (mode === "cannon" && button.dataset.previewEmitter) {
+        children.push(makeArt(button.dataset.previewEmitter, "emitter", "emitter"));
       }
-      stage.dataset.previewKind = kind;
-      stage.dataset.previewMode = mode;
-      title.textContent = button.dataset.previewTitle ?? "";
-      description.textContent = button.dataset.previewDescription ?? "";
-      dialog.showModal();
-      dialog.dataset.state = "open";
-      closeButton?.focus();
-    });
+      const projectile = makeArt(source, "projectile", "projectile");
+      for (const name of ["animationstart", "animationiteration"]) {
+        projectile.addEventListener(name, (event) => {
+          if (event.target === projectile && event.animationName === "preview-throw-arc") scheduleImpactSound();
+        });
+      }
+      children.push(projectile);
+      children.push(makeArt(source, "impact", "impact"));
+      children.push(makeActor("target", rabbitAction, rabbit));
+      stage.replaceChildren(...children);
+    } else if (kind === "bubble") {
+      const decoration = button.dataset.previewDecoration;
+      const theme = button.dataset.previewTheme;
+      if (!theme) return;
+      stage.replaceChildren(makeBubble(theme, decoration, button.dataset.previewMessage ?? ""));
+    } else {
+      const character = makeArt(source, "character");
+      character.classList.toggle("store-dialog-art-mirrors", button.dataset.previewMirrors === "true");
+      stage.replaceChildren(character);
+    }
+    stage.dataset.previewStretch = button.dataset.previewStretch ?? "false";
+    const template = document.getElementById(button.dataset.previewDetails ?? "");
+    details?.replaceChildren(...(template instanceof HTMLTemplateElement ? [template.content.cloneNode(true)] : []));
+    stage.dataset.previewKind = kind;
+    stage.dataset.previewMode = mode;
+    title.textContent = button.dataset.previewTitle ?? "";
+    description.textContent = button.dataset.previewDescription ?? "";
+    if (!dialog.open) dialog.showModal();
+    dialog.dataset.state = "open";
+    closeButton?.focus();
   });
 
   closeButton?.addEventListener("click", closeDialog);
@@ -137,9 +187,12 @@
     closeDialog();
   });
   dialog.addEventListener("close", () => {
+    stopSound();
+    impactAudio = undefined;
     window.clearTimeout(closeTimer);
     delete dialog.dataset.state;
     stage?.replaceChildren();
+    details?.replaceChildren();
   });
   dialog.addEventListener("click", (event) => {
     const bounds = dialog.getBoundingClientRect();

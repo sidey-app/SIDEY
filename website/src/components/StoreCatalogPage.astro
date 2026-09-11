@@ -1,13 +1,14 @@
 ---
 import StoreLayout from "../layouts/StoreLayout.astro";
 import PageTabs from "./PageTabs.astro";
-import type { StoreCategory } from "../data/store";
+import type { StoreCategory, StoreProduct } from "../data/store";
 import { getStoreCategories } from "../data/store";
 import type { Locale } from "../i18n/landing";
 
 interface Props { category: StoreCategory; locale?: Locale; canonicalPath?: string; }
 const { category, locale = "ko", canonicalPath } = Astro.props;
 const content = getStoreCategories(locale)[category];
+const detailProducts = [...content.products, ...content.products.flatMap((product) => product.keepsake ? [product.keepsake] : [])];
 const base = import.meta.env.BASE_URL;
 const localePrefix = `${locale}/`;
 const storeBase = `${base}${localePrefix}store/`;
@@ -21,9 +22,18 @@ const chromeByLocale: Record<Locale, {
   previewAction: string;
   closePreview: string;
   bubbleMessage: string;
+  keepsake: string;
+  separate: string;
+  priceBasis: string;
+  treeHint: string;
+  sound: string;
 }> = {
   en: {
     store: "SIDEY Store",
+    keepsake: "Keepsake", separate: "Sold separately",
+    priceBasis: "Prices shown are for the direct macOS edition, in KRW. Check App Store prices in the app.",
+    treeHint: "In the macOS app, right-click the tree to stop it. Right-click again to let it walk.",
+    sound: "Sound",
     categories: "Store categories",
     characters: "Characters",
     throwables: "Throwables",
@@ -35,6 +45,10 @@ const chromeByLocale: Record<Locale, {
   },
   ko: {
     store: "꾸미기·상점",
+    keepsake: "애착 물건", separate: "별도 판매",
+    priceBasis: "표시 가격은 macOS 직배포판 기준이에요. App Store 가격은 앱에서 확인해 주세요.",
+    treeHint: "macOS 앱에서 나무를 우클릭하면 멈추고, 다시 우클릭하면 걸어요.",
+    sound: "소리",
     categories: "상점 상품 종류",
     characters: "캐릭터",
     throwables: "투척물",
@@ -46,6 +60,10 @@ const chromeByLocale: Record<Locale, {
   },
   ja: {
     store: "SIDEY ストア",
+    keepsake: "お気に入りの品", separate: "別売り",
+    priceBasis: "表示価格はmacOS直接配布版の韓国ウォン価格です。App Storeの価格はアプリでご確認ください。",
+    treeHint: "macOSアプリで木を右クリックすると止まり、もう一度右クリックすると歩きます。",
+    sound: "サウンド",
     categories: "ストアカテゴリー",
     characters: "キャラクター",
     throwables: "投げアイテム",
@@ -57,6 +75,24 @@ const chromeByLocale: Record<Locale, {
   },
 };
 const chrome = chromeByLocale[locale];
+const previewAttributes = (product: StoreProduct) => ({
+  "data-store-preview": true,
+  "data-product-id": product.commerceID ?? product.id,
+  "data-preview-kind": product.mode === "character" ? "character" : product.mode === "bubble" ? "bubble" : "throwable",
+  "data-preview-mode": product.mode,
+  "data-preview-src": product.previewAsset || product.asset ? `${base}${product.previewAsset ?? product.asset}` : undefined,
+  "data-preview-emitter": product.emitterAsset ? `${base}${product.emitterAsset}` : undefined,
+  "data-preview-decoration": product.bubbleTheme && product.asset ? `${base}${product.asset}` : undefined,
+  "data-preview-theme": product.bubbleTheme,
+  "data-preview-mirrors": product.mirrorsMovement ? "true" : undefined,
+  "data-preview-title": product.name,
+  "data-preview-description": product.description + (product.isTree ? ` ${chrome.treeHint}` : ""),
+  "data-preview-message": chrome.bubbleMessage,
+  "data-preview-sound": product.sound ? `${base}${product.sound}` : undefined,
+  "data-preview-stretch": product.id === "throwable_dujjonku" ? "true" : undefined,
+  "data-preview-details": `details-${product.id}`,
+  "aria-label": `${product.name} ${chrome.preview}`,
+});
 const tabs = [
   { href: `${storeBase}characters/`, label: chrome.characters, active: category === "characters" },
   { href: `${storeBase}throwables/`, label: chrome.throwables, active: category === "throwables" },
@@ -69,10 +105,11 @@ const tabs = [
     <h1 id="store-title">{content.title}</h1>
     <p class="store-description">{content.description}</p>
     <PageTabs label={chrome.categories} items={tabs} />
+    <p class="store-price-basis">{chrome.priceBasis}</p>
 
     <div class="store-product-grid">
       {content.products.map((product) => (
-        <button class="store-product-card" type="button" data-store-preview data-preview-kind={category.slice(0, -1)} data-preview-mode={product.mode} data-preview-src={product.previewAsset || product.asset ? `${base}${product.previewAsset ?? product.asset}` : undefined} data-preview-emitter={product.emitterAsset ? `${base}${product.emitterAsset}` : undefined} data-preview-decoration={product.bubbleTheme && product.asset ? `${base}${product.asset}` : undefined} data-preview-theme={product.bubbleTheme} data-preview-mirrors={product.mirrorsMovement ? "true" : undefined} data-preview-title={product.name} data-preview-description={product.description} data-preview-message={chrome.bubbleMessage} aria-label={`${product.name} ${chrome.preview}`}>
+        <button class="store-product-card" type="button" {...previewAttributes(product)}>
           <span class={`store-product-media store-product-media-${product.mode}${product.bubbleTheme === "default" ? " is-loaded" : ""}`}>
             <span class="store-media-skeleton" aria-hidden="true"></span>
             {product.bubbleTheme ? (
@@ -89,16 +126,44 @@ const tabs = [
               product.asset && <span class="store-product-art"><img class="store-product-image" src={`${base}${product.asset}`} alt="" loading="lazy" decoding="async"></span>
             )}
           </span>
-          <span class="store-product-copy"><strong>{product.name}</strong><span>{product.description}</span></span>
+          <span class="store-product-copy"><strong>{product.name}</strong><span>{product.description}</span>
+            {product.isTree && <span>{chrome.treeHint}</span>}
+            {product.isKeepsake && <span class="store-keepsake-badge">{chrome.keepsake} · {chrome.separate}</span>}
+          </span>
           <span class="store-product-meta"><strong>{product.price}</strong><span>{chrome.previewAction}</span></span>
+          {product.keepsake && <span class="store-keepsake-summary">
+            <span class="store-keepsake-badge">{chrome.keepsake} · {chrome.separate}</span>
+            <span>{product.keepsake.name}</span><strong>{product.keepsake.price}</strong>
+          </span>}
         </button>
       ))}
     </div>
   </section>
 
+  {detailProducts.map((product) => <template id={`details-${product.id}`}>
+    <div class:list={["store-preview-products", { "has-keepsake": Boolean(product.keepsake) }]}>
+      <div class="store-preview-product">
+        <span class="store-detail-label">{product.mode === "character" ? chrome.characters : product.isKeepsake ? chrome.keepsake : content.eyebrow}</span>
+        <strong>{product.name}</strong><span>{product.price}</span>
+      </div>
+      {product.keepsake && <button type="button" class="store-preview-product store-preview-keepsake" {...previewAttributes(product.keepsake)}>
+        <span class="store-keepsake-badge">{chrome.keepsake} · {chrome.separate}</span>
+        <span class="store-keepsake-art"><img src={`${base}${product.keepsake.asset}`} alt="" loading="lazy" /></span>
+        <strong>{product.keepsake.name}</strong><span>{product.keepsake.price}</span>
+        <span class="store-detail-description">{product.keepsake.description}</span>
+      </button>}
+    </div>
+  </template>)}
+
   <dialog class="store-preview-dialog" id="store-preview-dialog" aria-labelledby="store-preview-title">
     <button class="store-preview-close" type="button" data-store-preview-close aria-label={chrome.closePreview}><span class="material-symbols-rounded" aria-hidden="true">close</span></button>
-    <div class="store-preview-stage" data-store-preview-stage aria-hidden="true"></div>
+    <div class="store-preview-stage-wrap">
+      <div class="store-preview-stage" data-store-preview-stage aria-hidden="true"></div>
+      <button class="store-preview-sound" type="button" data-store-preview-sound-toggle aria-pressed="false" hidden>
+        <span class="material-symbols-rounded" aria-hidden="true">volume_off</span><span>{chrome.sound}</span>
+      </button>
+    </div>
     <div class="store-preview-copy"><h2 id="store-preview-title" data-store-preview-title></h2><p data-store-preview-description></p></div>
+    <div data-store-preview-details></div>
   </dialog>
 </StoreLayout>

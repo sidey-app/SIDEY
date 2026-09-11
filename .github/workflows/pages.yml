@@ -58,11 +58,11 @@ jobs:
         working-directory: website
         run: pnpm install --frozen-lockfile
 
-      - name: Build website
+      - name: Build and test website
         working-directory: website
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: pnpm build
+        run: pnpm test
 
       - name: Validate central pixel assets and mirrors
         run: python3 ./scripts/validate_pixel_assets.py

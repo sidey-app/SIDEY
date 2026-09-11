@@ -1,3 +1,5 @@
+import commerceCatalog from "../../../assets/v1/commerce-catalog.json";
+import { paidTranslations } from "./store-translations";
 import type { Locale } from "../i18n/landing";
 
 export type StoreCategory = "characters" | "throwables" | "bubbles";
@@ -8,6 +10,11 @@ export interface StoreProduct {
   name: string;
   description: string;
   price: string;
+  commerceID?: string;
+  keepsake?: StoreProduct;
+  sound?: string;
+  isKeepsake?: boolean;
+  isTree?: boolean;
   asset?: string;
   mode: StoreAssetMode;
   previewAsset?: string;
@@ -37,8 +44,8 @@ const ko: StoreCatalog = {
       { id: "pixel_rabbit", name: "아기 토끼", description: "긴 귀와 보랏빛 목도리가 잘 어울리는 친구예요.", price: "기본 제공", asset: "assets/characters/pixel_rabbit.png", mode: "character" },
       { id: "pixel_penguin", name: "꼬마 펭귄", description: "남색 몸과 민트색 목도리로 종종 걸어요.", price: "기본 제공", asset: "assets/characters/pixel_penguin.png", mode: "character" },
       { id: "pixel_starlight_upalupa", name: "별빛 우파루파", description: "진주빛 몸과 별빛 아가미를 가진 작은 친구예요.", price: "1,900원", asset: "assets/characters/pixel_starlight_upalupa.png", mode: "character", mirrorsMovement: true },
-      { id: "pixel_guinea_pig", name: "아기 기니피그", description: "둥글고 포동포동한 갈색 무늬가 매력인 친구예요.", price: "990원", asset: "assets/characters/pixel_guinea_pig.png", mode: "character", mirrorsMovement: true },
-      { id: "pixel_monkey", name: "아기 원숭이", description: "밤갈색 머리털과 빨간 목도리로 씩씩하게 걸어요.", price: "990원", asset: "assets/characters/pixel_monkey.png", mode: "character" },
+      { id: "pixel_guinea_pig", name: "아기 기니피그", description: "둥글고 포동포동한 삼색 무늬가 매력인 친구예요.", price: "990원", asset: "assets/characters/pixel_guinea_pig.png", mode: "character", mirrorsMovement: true },
+      { id: "pixel_monkey", name: "아기 원숭이", description: "밤갈색 머리털과 시안 목도리로 씩씩하게 걸어요.", price: "990원", asset: "assets/characters/pixel_monkey.png", mode: "character" },
       { id: "pixel_chinchilla", name: "아기 친칠라", description: "크고 둥근 귀와 폭신한 회색 털을 가진 친구예요.", price: "990원", asset: "assets/characters/pixel_chinchilla.png", mode: "character" },
     ],
   },
@@ -78,8 +85,8 @@ const en: StoreCatalog = {
       { id: "pixel_rabbit", name: "Baby Rabbit", description: "Long ears and a violet scarf make this little friend easy to spot.", price: "Included", asset: "assets/characters/pixel_rabbit.png", mode: "character" },
       { id: "pixel_penguin", name: "Little Penguin", description: "A navy penguin who waddles along in a mint scarf.", price: "Included", asset: "assets/characters/pixel_penguin.png", mode: "character" },
       { id: "pixel_starlight_upalupa", name: "Starlight Axolotl", description: "A pearl-bright friend with shimmering, starry gills.", price: "₩1,900", asset: "assets/characters/pixel_starlight_upalupa.png", mode: "character", mirrorsMovement: true },
-      { id: "pixel_guinea_pig", name: "Baby Guinea Pig", description: "Round, cozy, and dressed in warm brown patches.", price: "₩990", asset: "assets/characters/pixel_guinea_pig.png", mode: "character", mirrorsMovement: true },
-      { id: "pixel_monkey", name: "Baby Monkey", description: "A bright little walker with chestnut fur and a red scarf.", price: "₩990", asset: "assets/characters/pixel_monkey.png", mode: "character" },
+      { id: "pixel_guinea_pig", name: "Baby Guinea Pig", description: "Round, cozy, and dressed in three-color patches.", price: "₩990", asset: "assets/characters/pixel_guinea_pig.png", mode: "character", mirrorsMovement: true },
+      { id: "pixel_monkey", name: "Baby Monkey", description: "A bright little walker with chestnut fur and a cyan scarf.", price: "₩990", asset: "assets/characters/pixel_monkey.png", mode: "character" },
       { id: "pixel_chinchilla", name: "Baby Chinchilla", description: "Big round ears and cloud-soft gray fur in one tiny companion.", price: "₩990", asset: "assets/characters/pixel_chinchilla.png", mode: "character" },
     ],
   },
@@ -119,8 +126,8 @@ const ja: StoreCatalog = {
       { id: "pixel_rabbit", name: "こうさぎ", description: "長い耳と紫色のマフラーがよく似合う、小さな友だちです。", price: "基本付属", asset: "assets/characters/pixel_rabbit.png", mode: "character" },
       { id: "pixel_penguin", name: "ちびペンギン", description: "紺色の体にミント色のマフラーを巻いて、ちょこちょこ歩きます。", price: "基本付属", asset: "assets/characters/pixel_penguin.png", mode: "character" },
       { id: "pixel_starlight_upalupa", name: "星明かりのウーパールーパー", description: "真珠のような体と、星明かりをまとったえらがきらめく友だちです。", price: "₩1,900", asset: "assets/characters/pixel_starlight_upalupa.png", mode: "character", mirrorsMovement: true },
-      { id: "pixel_guinea_pig", name: "こどもモルモット", description: "ころんとした体と、あたたかな茶色の模様が魅力です。", price: "₩990", asset: "assets/characters/pixel_guinea_pig.png", mode: "character", mirrorsMovement: true },
-      { id: "pixel_monkey", name: "こざる", description: "栗色の毛と赤いマフラーで、元気よく歩きます。", price: "₩990", asset: "assets/characters/pixel_monkey.png", mode: "character" },
+      { id: "pixel_guinea_pig", name: "こどもモルモット", description: "ころんとした体と、あたたかな三色の模様が魅力です。", price: "₩990", asset: "assets/characters/pixel_guinea_pig.png", mode: "character", mirrorsMovement: true },
+      { id: "pixel_monkey", name: "こざる", description: "栗色の毛とシアンのマフラーで、元気よく歩きます。", price: "₩990", asset: "assets/characters/pixel_monkey.png", mode: "character" },
       { id: "pixel_chinchilla", name: "こどもチンチラ", description: "大きく丸い耳と、雲のようにやわらかな灰色の毛が自慢です。", price: "₩990", asset: "assets/characters/pixel_chinchilla.png", mode: "character" },
     ],
   },
@@ -148,8 +155,46 @@ const ja: StoreCatalog = {
   },
 };
 
-export const storeCategoriesByLocale: Record<Locale, StoreCatalog> = { ko, en, ja };
-export const storeCategories = ko;
+// The same paid catalog drives the app, server, and public store. Never fall back
+// to a different locale for a newly added product: a missing translation fails the build.
+function completeCatalog(locale: Locale, catalog: StoreCatalog): StoreCatalog {
+  for (const category of ["characters", "throwables", "bubbles"] as const) {
+    const kind = category.slice(0, -1);
+    const previous = catalog[category].products;
+    const paid = commerceCatalog.filter((entry) => entry.kind === kind).sort((a, b) => a.sort_order - b.sort_order);
+    const included = previous.filter((product) => !paid.some((entry) => entry.item_id === product.id));
+    catalog[category].products = [...included, ...paid.map((entry): StoreProduct => {
+      const existing = previous.find((product) => product.id === entry.item_id);
+      const translated = locale === "ko" ? [entry.name, entry.description] : paidTranslations[locale][entry.id];
+      if (!translated && !existing) throw new Error(`Missing ${locale} store translation: ${entry.id}`);
+      const renderID = entry.render_asset_id ?? entry.item_id;
+      return {
+        ...existing,
+        id: entry.item_id,
+        commerceID: entry.id,
+        name: translated?.[0] ?? existing!.name,
+        description: translated?.[1] ?? existing!.description,
+        price: locale === "ko" ? `${entry.direct_price.toLocaleString("ko-KR")}원` : `₩${entry.direct_price.toLocaleString("en-US")}`,
+        mode: existing?.mode ?? (kind === "character" ? "character" : "throwable"),
+        asset: kind === "bubble" ? existing?.asset : `assets/store/${renderID}.png`,
+        mirrorsMovement: existing?.mirrorsMovement,
+        isTree: entry.item_id === "pixel_tree",
+        isKeepsake: Boolean(entry.related_character_product_id),
+        sound: ["clam", "pork", "timber", "throwable_snowflake", "throwable_baseball", "throwable_wakkuball", "throwable_dujjonku"].includes(renderID) ? `assets/store/impact-${renderID}.wav` : undefined,
+      };
+    })];
+  }
+  for (const character of catalog.characters.products) {
+    const paired = commerceCatalog.find((entry) => entry.related_character_product_id === character.commerceID);
+    character.keepsake = paired ? catalog.throwables.products.find((product) => product.commerceID === paired.id) : undefined;
+  }
+  return catalog;
+}
+
+export const storeCategoriesByLocale: Record<Locale, StoreCatalog> = {
+  ko: completeCatalog("ko", ko), en: completeCatalog("en", en), ja: completeCatalog("ja", ja),
+};
+export const storeCategories = storeCategoriesByLocale.ko;
 
 export function getStoreCategories(locale: Locale): StoreCatalog {
   return storeCategoriesByLocale[locale];

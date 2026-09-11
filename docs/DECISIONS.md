@@ -8,6 +8,8 @@
 
 ## 확정된 결정
 
+2026-09-12 공개 홈페이지 상점을 현재 공통 상품 목록으로 갱신하고 main 반영·GitHub Pages 배포를 승인했다. 한국어·영어·일본어 상점은 기본 제공 7종과 유료 24종(캐릭터 7·투척물 14·말풍선 3)을 표시한다. 상품 가격과 애착 물건 7종 연결은 `assets/v1/commerce-catalog.json`에서 읽는다. 캐릭터 카드·상세에는 애착 물건 이름·가격·별도 판매를 표시하며 승인된 새 그림과 충돌음을 재사용한다. 표시 가격은 macOS 직배포 기준으로 명시하고 App Store 가격은 앱에서 확인하도록 안내한다. 이번 홈페이지 갱신은 앱 구매 잠금 해제나 App Store 심사 승인, Windows 신규 콘텐츠 적용을 뜻하지 않는다. 기존 공개 신규 상품 미노출 결정은 이 상점 소개 범위에서 대체한다.
+
 2026-09-12 사용자는 직배포판 실행 이름을 `SIDEY-DIRECT`로 변경하고 전체 macOS 변경의 main 병합·버전 문서 갱신·정식 릴리스를 승인했다. App Store판 표시 이름은 `SIDEY`, Debug는 `Sidey-dev`를 유지한다. CFBundleDisplayName·CFBundleName과 메뉴·창 제목으로 구분하고 기존 `SIDEY.app` 파일명·실행 파일·bundle ID·Keychain·설정·로그인 helper·Sparkle 경로는 유지해 재설치나 계정 이전을 요구하지 않는다. 신규 콘텐츠·분리 판매 UI는 하위 호환 기능 추가이므로 공개 macOS 1.1.0 대비 MINOR인 1.2.0으로 배포한다. 사용자가 App Store build 27 업로드 완료를 확인했으며 새 배포 build는 28이다. 이전 공개 릴리스 보류 결정을 대체한다. App Store 심사 승인·실제 구매 검증, 직배포 production 판매 잠금 해제는 별도로 구분한다. Windows 릴리스·구현은 변경하지 않는다.
 
 
