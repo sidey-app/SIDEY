@@ -48,11 +48,11 @@ SIDEY/
 
 `Runtime`은 하나의 검증된 실행 단위입니다. 내부 DLL을 개별 교체하는 플러그인 ABI나 독립 업데이트 경계로 취급하지 않습니다.
 
-설치기는 Windows 기본 PowerShell 5.1로 prerequisite를 확인합니다. 누락된 런타임만 Microsoft HTTPS 경로에서 내려받아 Microsoft Corporation 서명을 검증하고 무인 설치합니다. .NET은 10.0 정식 x64 런타임을 요구하며, Windows App Runtime의 Framework·Main·Singleton·DDLM은 버전과 아키텍처를 모두 확인합니다. NSIS의 관리자 권한으로 Main·Singleton·DDLM의 모든 사용자 provisioning도 완료합니다. 실패·취소·재시작 필요 시 기존 SIDEY 종료나 제거를 시작하지 않습니다.
+설치기는 Windows 기본 PowerShell 5.1로 prerequisite를 확인합니다. 누락된 런타임만 Microsoft HTTPS 경로에서 내려받아 Microsoft Corporation 서명을 검증하고 무인 설치합니다. Microsoft가 안내한 레지스트리에서 Visual C++ v14 x64 Redistributable을 먼저 확인하고, .NET은 10.0 정식 x64 런타임을 요구하며, Windows App Runtime의 Framework·Main·Singleton·DDLM은 버전과 아키텍처를 모두 확인합니다. NSIS의 관리자 권한으로 Main·Singleton·DDLM의 모든 사용자 provisioning도 완료합니다. 실패·취소·재시작 필요 시 기존 SIDEY 종료나 제거를 시작하지 않습니다.
 
-prerequisite가 준비되면 기존 NSIS/MSI 제거기를 실행하고 SIDEY 설치 폴더의 `Runtime` 잔여 파일을 정리한 뒤 새 payload를 설치합니다. 이 정리는 junction/symlink를 거부하며 시스템 공유 런타임과 사용자 데이터는 건드리지 않습니다. 일반 SIDEY 제거 역시 공유 .NET / Windows App Runtime을 제거하지 않습니다.
+prerequisite가 준비되면 기존 NSIS/MSI 제거기를 실행하고 SIDEY 설치 폴더의 `Runtime` 잔여 파일을 정리한 뒤 새 payload를 설치합니다. 이 정리는 junction/symlink를 거부하며 시스템 공유 런타임과 사용자 데이터는 건드리지 않습니다. 일반 SIDEY 제거 역시 공유 Visual C++ / .NET / Windows App Runtime을 제거하지 않습니다.
 
-`prerequisites.json`은 런타임 버전·공식 URL을 고정합니다. SDK 변경 시 함께 갱신해야 합니다. `scripts/windows/Test-FrameworkDependentPublish.ps1`은 복원한 SDK 메타데이터와 버전·패키지 identity를 대조하고, Microsoft framework MSIX에 들어 있는 모든 DLL과 .NET 런타임 본체·설치기가 publish에 없는지 검사합니다. SDK 2.4에서 별도 복사되는 ML native DLL은 앱 publish target에서 제외합니다.
+`prerequisites.json`은 런타임 버전과 Microsoft 공식 permalink를 고정합니다. Visual C++는 Microsoft가 최신 지원 v14 x64 패키지용으로 제공하는 permalink를 사용하고, .NET 10과 Windows App Runtime 2.4는 각 제품의 공식 버전 경로를 사용합니다. SDK 변경 시 함께 갱신해야 합니다. `scripts/windows/Test-FrameworkDependentPublish.ps1`은 복원한 SDK 메타데이터와 버전·패키지 identity를 대조하고, Microsoft framework MSIX에 들어 있는 모든 DLL과 .NET 런타임 본체·설치기가 publish에 없는지 검사합니다. SDK 2.4에서 별도 복사되는 ML native DLL은 앱 publish target에서 제외합니다.
 
 설치 검증에는 런타임 없는 신규 설치, 기존 런타임으로 오프라인 설치, 다운로드/서명/설치 실패, 재시작 요구, self-contained NSIS/MSI 업그레이드, 동일 버전 복구, 일반 제거 후 공유 런타임 보존, 다른 관리자 계정으로 승격한 설치 후 원래 사용자 실행을 포함합니다. 자동 테스트는 prerequisite 상태 전환·정리 경계·NSIS 호출 순서와 publish/런처 스모크를 검증하며, 관리자 설치 UI 시나리오는 별도 실기 검증 대상입니다.
 

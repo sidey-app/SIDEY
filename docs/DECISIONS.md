@@ -1,6 +1,6 @@
 # SIDEY 결정 기록
 
-- 최종 갱신: 2026-09-10
+- 최종 갱신: 2026-09-11
 - 관련 문서: [제품 기획서](PRODUCT_SPEC.md)
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
 
@@ -54,7 +54,7 @@ Windows 앱·런처와 설치·복구·제거 UI는 영어·한국어·일본어
 
 Windows의 아이콘·캐릭터·말풍선·투척물 파일은 설치 루트의 `Assets` 한 곳에 둔다. XAML에서 사용하는 제목 표시줄 아이콘도 설치 루트에서 읽으며, `Runtime/Assets` 사본은 만들지 않는다. 컴파일된 XAML/PRI는 실제 호스트 옆에 유지한다.
 
-Windows의 다음 배포부터 unpackaged·multi-file framework-dependent 방식을 사용한다. .NET 10 x64 Runtime과 Windows App SDK / WinUI 공유 런타임은 SIDEY 설치 파일에 포함하지 않는다. 설치기는 필요한 런타임을 확인하고 누락 시 공식 Microsoft 배포 경로에서 받아 설치·검증한 뒤에만 기존 SIDEY를 종료·제거하고 새 앱을 설치한다. prerequisite 실패·취소·재시작 필요 시 기존 앱 제거를 시작하지 않는다. 기존 self-contained 설치의 앱 전용 Runtime 파일은 교체 시 정리하며, 시스템 공유 런타임은 SIDEY 제거 대상이 아니다. 기존 NSIS 설치 위치·복구·삭제 옵션·MSI 전환과 자동 업데이트 계약은 유지한다. 아래 현재 공개본의 self-contained 배포 기록은 이전 버전에 대한 설명이다.
+Windows의 다음 배포부터 unpackaged·multi-file framework-dependent 방식을 사용한다. Visual C++ v14 x64 Redistributable, .NET 10 x64 Runtime과 Windows App SDK / WinUI 공유 런타임은 SIDEY 설치 파일에 포함하지 않는다. 설치기는 Microsoft가 각 제품에 제공하는 공식 HTTPS permalink를 사용하고, 필요한 런타임을 확인해 누락 시 받아 설치·검증한 뒤에만 기존 SIDEY를 종료·제거하고 새 앱을 설치한다. Microsoft 공식 문서가 제공하는 `aka.ms` permalink는 허용하되 redirect 대상도 Microsoft host로 제한하고, 내려받은 실행 파일의 Microsoft Corporation Authenticode 서명을 실행 전에 검증한다. prerequisite 실패·취소·재시작 필요 시 기존 앱 제거를 시작하지 않는다. 기존 self-contained 설치의 앱 전용 Runtime 파일은 교체 시 정리하며, 시스템 공유 런타임은 SIDEY 제거 대상이 아니다. 기존 NSIS 설치 위치·복구·삭제 옵션·MSI 전환과 자동 업데이트 계약은 유지한다. 아래 현재 공개본의 self-contained 배포 기록은 이전 버전에 대한 설명이다.
 
 Windows의 영어·일본어·중국어 간체/번체·우크라이나어·러시아어 문구는 기능·제한의 뜻을 유지하면서 각 언어 문화권의 앱에서 자연스러운 표현, 동물 이름과 일상 대화 예시를 사용한다. 날짜·시간은 앱 언어와 무관하게 컴퓨터의 지역 형식과 시간대 설정을 따른다. 숫자 표시는 선택한 언어의 표기 관례를 따르며 원화 결제 금액은 바꾸지 않는다. 상점 미리보기의 투척물·발사대·충돌 효과는 프레임별 기본 이미지 컨트롤을 미리 준비해 표시하며, 실제 미리보기 대화상자에서 합성된 픽셀 유무를 내부 검증한다.
 

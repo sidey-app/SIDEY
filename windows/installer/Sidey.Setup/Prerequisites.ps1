@@ -12,6 +12,31 @@ function Test-SideyDotNetVersion {
     return $false
 }
 
+function Test-SideyVisualCppVersion {
+    param([string]$Candidate, [version]$MinimumVersion)
+    $parsed = $null
+    return -not [string]::IsNullOrWhiteSpace($Candidate) -and
+        [version]::TryParse($Candidate.Trim().TrimStart('v'), [ref]$parsed) -and
+        $parsed.Major -eq 14 -and $parsed -ge $MinimumVersion
+}
+
+function Test-SideyVisualCpp {
+    param($Requirement)
+    # Microsoft documents this key under Wow6432Node on x64 Windows. Opening the
+    # 32-bit registry view avoids depending on the setup process architecture.
+    $registry = [Microsoft.Win32.RegistryKey]::OpenBaseKey('LocalMachine', 'Registry32')
+    $key = $null
+    try {
+        $key = $registry.OpenSubKey('SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64')
+        if ($null -eq $key -or [int]$key.GetValue('Installed', 0) -ne 1) { return $false }
+        return Test-SideyVisualCppVersion ([string]$key.GetValue('Version')) ([version]$Requirement.minimumVersion)
+    }
+    finally {
+        if ($null -ne $key) { $key.Dispose() }
+        $registry.Dispose()
+    }
+}
+
 function Test-SideyDotNet {
     param($Requirement)
     # The x64 installation is registered in the 32-bit registry view on Windows.
@@ -95,12 +120,20 @@ function Save-SideyMicrosoftInstaller {
     throw 'Too many Microsoft download redirects.'
 }
 
+function Test-SideyMicrosoftSignerSubject {
+    param([string]$Subject)
+    # Microsoft uses product-specific common names for some signed binaries
+    # (for example, CN=.NET). The verified publisher organization is the
+    # stable identity; do not require a particular product/common name.
+    return -not [string]::IsNullOrWhiteSpace($Subject) -and
+        $Subject -match '(^|,\s*)O=Microsoft Corporation(,|$)'
+}
+
 function Assert-SideyMicrosoftSignature {
     param([string]$Path)
     $signature = Get-AuthenticodeSignature -LiteralPath $Path
     if ($signature.Status -ne 'Valid' -or $null -eq $signature.SignerCertificate -or
-        $signature.SignerCertificate.Subject -notmatch '(^|,\s*)CN=Microsoft Corporation(,|$)' -or
-        $signature.SignerCertificate.Subject -notmatch '(^|,\s*)O=Microsoft Corporation(,|$)') {
+        -not (Test-SideyMicrosoftSignerSubject $signature.SignerCertificate.Subject)) {
         throw 'Runtime installer does not have a valid Microsoft Corporation signature.'
     }
 }
@@ -140,6 +173,8 @@ function Enable-SideyRuntimeForAllUsers {
 function Install-SideyPrerequisites {
     param($Configuration, [string]$DownloadDirectory, [switch]$CheckOnly, [switch]$ProvisionAllUsers)
     $requirements = @(
+        @{ Name = 'Visual C++ v14 x64 Redistributable'; Config = $Configuration.visualCpp;
+            Test = 'Test-SideyVisualCpp'; File = 'vc_redist.x64.exe'; Arguments = '/install /quiet /norestart' },
         @{ Name = '.NET 10 x64 Runtime'; Config = $Configuration.dotnet;
             Test = 'Test-SideyDotNet'; File = 'dotnet-runtime-x64.exe'; Arguments = '/install /quiet /norestart' },
         @{ Name = 'Windows App Runtime x64'; Config = $Configuration.windowsAppRuntime;

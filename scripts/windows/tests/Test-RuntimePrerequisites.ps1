@@ -25,6 +25,10 @@ Assert-True (Test-SideyDotNetVersion @('8.0.30', '10.0.11') '10.0.0') 'Accept .N
 foreach ($versions in @(@('8.0.30'), @('11.0.0'), @('10.0.0-preview.1'), @('10.1.0'), @())) {
     Assert-True (-not (Test-SideyDotNetVersion $versions '10.0.0')) 'Reject incompatible .NET runtimes.'
 }
+Assert-True (Test-SideyVisualCppVersion 'v14.50.35719.0' '14.50.35719.0') 'Accept the required Visual C++ v14 runtime.'
+foreach ($version in @('', '14.44.35211.0', '13.50.35719.0', '15.0.0.0')) {
+    Assert-True (-not (Test-SideyVisualCppVersion $version '14.50.35719.0')) 'Reject missing, old, or incompatible Visual C++ runtimes.'
+}
 $runtimePackages = @($prerequisiteConfiguration.windowsAppRuntime.packages | ForEach-Object {
     [pscustomobject]@{ PackageFamilyName = $_.family; Version = $_.minimumVersion; Architecture = 'X64'; Status = 'Ok' }
 })
@@ -45,6 +49,13 @@ foreach ($url in @('http://download.microsoft.com/runtime.exe', 'https://downloa
 }
 Assert-SideyMicrosoftUri $prerequisiteConfiguration.dotnet.url
 Assert-SideyMicrosoftUri $prerequisiteConfiguration.windowsAppRuntime.url
+Assert-SideyMicrosoftUri $prerequisiteConfiguration.visualCpp.url
+Assert-True (Test-SideyMicrosoftSignerSubject 'CN=.NET, O=Microsoft Corporation, L=Redmond, S=Washington, C=US') 'Accept the current .NET product signer.'
+Assert-True (Test-SideyMicrosoftSignerSubject 'CN=Microsoft Corporation, O=Microsoft Corporation, L=Redmond, S=Washington, C=US') 'Accept a Microsoft corporate signer.'
+foreach ($subject in @('', 'CN=Microsoft Corporation', 'CN=.NET, O=Not Microsoft Corporation, C=US',
+    'CN=.NET, O=Microsoft Corporation Fake, C=US')) {
+    Assert-True (-not (Test-SideyMicrosoftSignerSubject $subject)) 'Reject a missing or non-Microsoft publisher organization.'
+}
 
 # Exercise the real orchestration with only OS/network boundaries replaced.
 # No Microsoft installs, app termination, or real SIDEY data mutations in tests.
@@ -53,8 +64,10 @@ foreach ($scenario in @('present', 'missing', 'download-failure', 'signature-fai
     & {
         . (Join-Path $installerSourceDirectory 'Prerequisites.ps1')
         $script:events = [Collections.Generic.List[string]]::new()
+        $script:visualCppReady = $scenario -in @('present', 'winapp-failure')
         $script:netReady = $scenario -in @('present', 'winapp-failure')
         $script:appReady = $scenario -eq 'present'
+        function Test-SideyVisualCpp { param($Requirement) return $script:visualCppReady }
         function Test-SideyDotNet { param($Requirement) return $script:netReady }
         function Test-SideyWindowsAppRuntime { param($Requirement) return $script:appReady }
         function Save-SideyMicrosoftInstaller {
@@ -75,7 +88,8 @@ foreach ($scenario in @('present', 'missing', 'download-failure', 'signature-fai
             if ($scenario -eq 'cancel') { return 1602 }
             if ($scenario -in @('install-failure', 'winapp-failure')) { return 1603 }
             if ($scenario -ne 'postcheck-failure') {
-                if ($Path.EndsWith('dotnet-runtime-x64.exe')) { $script:netReady = $true }
+                if ($Path.EndsWith('vc_redist.x64.exe')) { $script:visualCppReady = $true }
+                elseif ($Path.EndsWith('dotnet-runtime-x64.exe')) { $script:netReady = $true }
                 else { $script:appReady = $true }
             }
             return 0
@@ -88,7 +102,7 @@ foreach ($scenario in @('present', 'missing', 'download-failure', 'signature-fai
         $operation = { Install-SideyPrerequisites $prerequisiteConfiguration $testDownloadDirectory -CheckOnly:($scenario -eq 'check-only') -ProvisionAllUsers }
         if ($scenario -in @('present', 'missing')) {
             Assert-True ((& $operation) -eq 0) "$scenario must succeed."
-            $expected = if ($scenario -eq 'present') { 'provision' } else { 'download,signature,install,download,signature,install,provision' }
+            $expected = if ($scenario -eq 'present') { 'provision' } else { 'download,signature,install,download,signature,install,download,signature,install,provision' }
             Assert-True (($script:events -join ',') -ceq $expected) 'Verify signatures before executing; skip installed runtimes.'
         }
         elseif ($scenario -in @('restart', 'restart-initiated')) {

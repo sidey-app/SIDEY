@@ -1,4 +1,8 @@
 {
+  "visualCpp": {
+    "minimumVersion": "14.50.35719.0",
+    "url": "https://aka.ms/vc14/vc_redist.x64.exe"
+  },
   "dotnet": {
     "minimumVersion": "10.0.0",
     "url": "https://aka.ms/dotnet/10.0/dotnet-runtime-win-x64.exe"
