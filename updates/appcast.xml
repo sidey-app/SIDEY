@@ -9,6 +9,50 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <description>Signed macOS updates for SIDEY</description>
         <language>ko</language>
         <item>
+            <title>1.2.0</title>
+            <pubDate>Sat, 12 Sep 2026 02:15:50 +0900</pubDate>
+            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.2.0</link>
+            <sparkle:version>28</sparkle:version>
+            <sparkle:shortVersionString>1.2.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.2.0
+
+`1.2.0` build `28` · 2026년 9월 12일 · macOS 26+ · Apple Silicon(arm64)
+
+새 캐릭터와 투척물 미리보기를 추가하고, 캐릭터와 애착 물건을 함께 살펴볼 수 있도록 상점을 개편했습니다.
+
+## 변경 사항
+
+- 아기 수달·아기 돼지·나무 캐릭터를 추가했습니다.
+- 눈송이·야구공·왁뿌볼·두쫀쿠와 캐릭터별 애착 물건을 추가했습니다.
+- 왁뿌볼의 부서지는 파편과 두쫀쿠의 쭉 늘어나는 모습, 투척물별 효과음을 미리보기에서 확인할 수 있습니다.
+- 캐릭터와 별도 판매 애착 물건을 나란히 배치해 각각의 보유·구매 상태를 보여줍니다.
+- 미리보기에서 상대 캐릭터를 누르면 애착 물건을 던지며, 무대 오른쪽 위에서 소리를 켜고 끌 수 있습니다.
+- 기존 캐릭터 구매에 포함됐던 물건의 사용권은 유지됩니다.
+- 나무를 우클릭하면 멈추고 다시 우클릭하면 걸어요.
+- 설정에서 던지기 활성화를 켠 경우 더블 우클릭 후 친구를 눌러 던집니다.
+- 상점 상세창의 빈 공간을 줄이고 선택 표시를 정리했습니다.
+- 직배포판의 실행 표시 이름을 `SIDEY-DIRECT`로 변경했습니다.
+
+## 설치 및 업데이트
+
+- 새로 설치할 때는 `SIDEY-macOS-arm64-v1.2.0.dmg`에서 `SIDEY.app`을 Applications 폴더로 옮기세요.
+- 설치 파일명은 `SIDEY.app`이며 실행하면 `SIDEY-DIRECT`로 표시됩니다.
+- 기존 사용자는 앱의 `업데이트 확인` 또는 Homebrew로 업데이트할 수 있습니다.
+- 기존 로그인 상태와 그룹 설정을 유지하며 계정을 새로 만들 필요가 없습니다.
+
+## 현재 제한
+
+- 직배포판 상점의 실제 판매는 아직 열리지 않았습니다. 새 상품은 미리보기로 살펴볼 수 있습니다.
+- App Store판은 `SIDEY`로 표시되며 업데이트는 Apple의 심사·배포 절차를 별도로 따릅니다.
+- 이번 macOS 릴리스는 Windows 앱을 업데이트하지 않습니다.
+
+전체 변경 내역: https://github.com/sidey-app/SIDEY/compare/v1.1.0...v1.2.0
+]]></description>
+            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.2.0/SIDEY-macOS-arm64-v1.2.0.zip" length="6130528" type="application/octet-stream" sparkle:edSignature="thv/LtPM9259ByS3LLiCzGKxstc3s/llGz7RcTx2qnq+MjfriWSIENpqntv8ZpkoQk3mv49tp1SrrSNODbLxCA=="/>
+        </item>
+        <item>
             <title>1.1.0</title>
             <pubDate>Thu, 10 Sep 2026 13:11:33 +0900</pubDate>
             <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.1.0</link>
@@ -153,40 +197,9 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
 ]]></description>
             <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.8/SIDEY-macOS-arm64-v1.0.8.zip" length="5652563" type="application/octet-stream" sparkle:edSignature="TF5eD3w7y7bI4uv6li1/M+fs8u9EmkDdCYU5MQ1p1Sk9EIurFcJu2T2hozJLZJwK8l68KLtAemTKqfrjTWfrCQ=="/>
         </item>
-        <item>
-            <title>1.0.7</title>
-            <pubDate>Fri, 04 Sep 2026 14:30:02 +0900</pubDate>
-            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.7</link>
-            <sparkle:version>18</sparkle:version>
-            <sparkle:shortVersionString>1.0.7</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.7
-
-`1.0.7` build `18` · macOS 26+ · Apple Silicon(arm64)
-
-## 변경 사항
-
-- macOS 이모지·기호 선택기에서 고른 이모지가 메시지 입력창에 정상적으로 들어갑니다.
-- 친구마다 최근 메시지를 최대 두 개까지 함께 표시합니다. 이전 메시지는 위에, 최신 메시지는 캐릭터 가까이에 표시됩니다.
-
-## 설치 및 업데이트
-
-- 신규 설치는 `SIDEY-macOS-arm64-v1.0.7.dmg`를 사용하세요.
-- 기존 사용자는 앱의 `업데이트 확인…` 또는 Homebrew로 업데이트할 수 있습니다.
-- 업데이트해도 SIDEY 계정, 그룹, 닉네임과 로컬 설정은 유지됩니다.
-
-## 현재 제한
-
-- 정식판 상점의 실제 캐릭터 판매는 아직 시작하지 않습니다.
-- Windows v1.0.6 배포물과 Windows의 무료 캐릭터 정책은 이번 macOS 릴리스에서 변경되지 않습니다.
-- 보안 화면, DRM 앱, 권한이 더 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
-]]></description>
-            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.7/SIDEY-macOS-arm64-v1.0.7.zip" length="5505964" type="application/octet-stream" sparkle:edSignature="V3eFEWcyP49EH7J2yLegZlYbaC8lEcsSIv4fPcm7B8JOi0iFnRkI6tubb6QYBD39tIfCPmJJglag4FDPMAEKDg=="/>
-        </item>
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: mHT/ua9rT8cMZ2ypf9FnlyH0Qa+KQdrSC8R8mywR3j8vLhReQfLgrBChzGvahhbzvxkJKeU8Lhaji+oN22N1Cg==
-length: 11344
+edSignature: U2YWPMgkxN97EmGVgj4Q5PKaiDAMlqakFJ3b/poU99rIyqzEa6Q9jeIc5dqSJETMlF1JCskvCRYWXemyeb14CQ==
+length: 12450
 -->
