@@ -64,10 +64,25 @@
     },
     {
       "familyShareable": false,
+      "internalID": "0B7C067F-58C6-441F-9AA5-038F81946FD3",
+      "type": "NonConsumable",
+      "productID": "character_monkey_solo_3",
+      "referenceName": "아기 원숭이",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "바나나를 나눠 주러 왔어요. 오는 길에 한 입만 먹었다는데… 반쪽이네요?",
+          "displayName": "아기 원숭이",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
       "internalID": "247D22F9-6081-46DA-B7DA-35AFDDF7FFBF",
       "type": "NonConsumable",
       "productID": "character_monkey_solo_2",
-      "referenceName": "아기 원숭이",
+      "referenceName": "아기 원숭이 - 이전 단품 2",
       "displayPrice": "1100",
       "localizations": [
         {

@@ -101,3 +101,8 @@ Xcode 프로젝트: `_workspace/direct-name-release/macos/SIDEY.xcodeproj`
 - 원격 적용이 필요한 추가 migration은 `20260912030000_remaining_app_store_offers.sql`이며 나무의 `20260912020000_tree_app_store_offer.sql`도 선행해야 한다. verifier도 같은 커밋의 allowlist를 배포해야 한다.
 - 신규 상품 등록·가격·지역·현지화와 실제 조회/구매/복원은 별도 검증 대상이다. 등록 값은 [재등록 입력표](REPLACEMENT_APP_STORE_REGISTRATION.md)를 따른다.
 - 로컬 검증: verifier 테스트 7개, Swift 상품/복원 매핑 테스트 1개 통과. App Store Debug 빌드 성공. 빌드된 앱의 나무·원숭이·조개·돼지고기 현재 ID와 총 32개 StoreKit ID/가격 일치를 확인했다. 원격 DB·Cloud Run 반영과 Connect 업로드는 이번 변경에서 실행하지 않았다.
+
+## 2026-09-12 원숭이만 재등록 비교
+
+- 현재 원숭이 ID는 `character_monkey_solo_3`, 한국 가격은 1,100원이다. `_solo_2`·`_solo`·`character_monkey`는 거래 복원용으로 보존한다. 조개·돼지고기는 `_2`, 나무는 `character_tree_2`를 유지한다. 판매 상품 24종, Apple 검증 ID 33개다.
+- 이번 변경은 기존 `macos/tree-store-id`의 로컬 후보이며 Connect 신규 상품 생성·가격 조회 성공이나 서버 배포 완료를 뜻하지 않는다. 로컬 컴파일만으로 공개 버전/build를 올리지 않는다.
