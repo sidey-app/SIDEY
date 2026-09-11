@@ -2,7 +2,7 @@
 
 - 문서 버전: 0.8
 - 최종 갱신: 2026-09-12
-- 상태: macOS `v1.2.0`(build 28) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.2.1` 정식 출시
+- 상태: macOS `v1.2.1`(build 29) 정식 공개·production 상점 판매 잠금, Windows 네이티브 `v1.2.1` 정식 출시
 - 비공개 후보 기준: Mac App Store 타깃의 버전·build는 [Xcode 프로젝트 설정](../macos/SIDEY.xcodeproj/project.pbxproj)의 `MARKETING_VERSION`·`CURRENT_PROJECT_VERSION`을 참조한다; 공개 manifest와 다운로드 페이지는 실제 출시 전까지 기존 버전을 유지
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
