@@ -20,7 +20,7 @@ from (values
   ('throwable_snowflake', 990),
   ('throwable_baseball', 990),
   ('throwable_wakkuball', 1900),
-  ('throwable_dujjonku', 990)
+  ('throwable_dujjonku', 1900)
 ) as catalog(id, amount)
 where not exists (select 1 from public.commerce_prices price where price.product_id=catalog.id and price.active);
 
