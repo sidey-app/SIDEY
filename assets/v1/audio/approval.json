@@ -1,0 +1,133 @@
+{
+  "status": "approved",
+  "selected_wax": "wakkuball-a",
+  "pork_revision": 2,
+  "date": "2026-09-11",
+  "sounds": [
+    {
+      "object_id": "throwable_wakkuball",
+      "path": "audio/impact-throwable_wakkuball.wav",
+      "sha256": "d1c4af68054044c8608f451bfa5a9d26d728286a82f53b0b1a9c45a3cbc5fde6",
+      "seconds": 0.76,
+      "source": {
+        "source_id": "eggshells-433885",
+        "source_start_seconds": 108.84,
+        "duration": 0.76,
+        "playback_rate": 0.7,
+        "bandpass_hz": [
+          110,
+          6500
+        ],
+        "body_layer_weight": 0.36,
+        "body_rate": 0.476,
+        "secondary_layer": null,
+        "limiter": "tanh drive3",
+        "post_highpass_hz": 180,
+        "method": "CC0 recorded shell Foley with slower fracture texture and low-mid body; not a real wax recording."
+      }
+    },
+    {
+      "object_id": "throwable_dujjonku",
+      "path": "audio/impact-throwable_dujjonku.wav",
+      "sha256": "d285e5ad62fa580cd081a60247585d129bb3e90c1b6d7e99b9d4cd65f8a9d000",
+      "seconds": 0.58,
+      "source": {
+        "source_ids": [
+          "eggshells-433885"
+        ],
+        "source_start_seconds": 114.2,
+        "playback_rate": 0.88,
+        "bandpass_hz": [
+          800,
+          5200
+        ],
+        "impact_layer": false,
+        "method": "CC0 shell-crumble Foley only; punch/thud layer removed. Not real food chewing audio."
+      }
+    },
+    {
+      "object_id": "clam",
+      "path": "audio/impact-clam.wav",
+      "sha256": "a44d8a817666820dbde58c16450a498c0523db9e3e29eb465a6050b658cc4dc1",
+      "seconds": 0.32,
+      "source": {
+        "source_ids": [
+          "impactGlass_light_000"
+        ],
+        "source_start_seconds": 0,
+        "transient_drive": null,
+        "playback_rate": 1.12,
+        "bandpass_hz": [
+          700,
+          6400
+        ],
+        "echo_seconds": 0.09,
+        "echo_level": 0.35,
+        "method": "Edited CC0 Foley; shell/soft meat/wood impression, not recordings of these depicted objects."
+      }
+    },
+    {
+      "object_id": "pork",
+      "path": "audio/impact-pork.wav",
+      "sha256": "fad893141f5648315a6c9cfa72d618a238d1230ce6c87b7eb0733f634663949f",
+      "seconds": 0.24,
+      "source": {
+        "source_ids": [
+          "wet-slap-570787"
+        ],
+        "source_start_seconds": 0.56,
+        "transient_drive": 3.8,
+        "playback_rate": 0.82,
+        "bandpass_hz": [
+          140,
+          9000
+        ],
+        "echo_seconds": null,
+        "echo_level": 0,
+        "method": "Edited CC0 Foley; shell/soft meat/wood impression, not recordings of these depicted objects."
+      }
+    },
+    {
+      "object_id": "timber",
+      "path": "audio/impact-timber.wav",
+      "sha256": "150290d83c9b7ebdb907f5e4bb1cbefe3900bd0a478a45d6438774871a10d9e8",
+      "seconds": 0.44,
+      "source": {
+        "source_ids": [
+          "impactWood_light_002",
+          "eggshells-433885"
+        ],
+        "source_start_seconds": 0,
+        "transient_drive": null,
+        "playback_rate": 0.88,
+        "bandpass_hz": [
+          180,
+          5600
+        ],
+        "echo_seconds": null,
+        "echo_level": 0,
+        "method": "Edited CC0 Foley; shell/soft meat/wood impression, not recordings of these depicted objects."
+      }
+    },
+    {
+      "object_id": "throwable_snowflake",
+      "path": "audio/impact-throwable_snowflake.wav",
+      "sha256": "fa6fecad89f23f6c1932e4714aad1f32c374337a62ad04688e65ce4aa4b8acc2",
+      "seconds": 0.36,
+      "source": {
+        "source_id": "impactGlass_light_000",
+        "method": "CC0 glass tick sped up, high-passed and layered into diminishing fragments."
+      }
+    },
+    {
+      "object_id": "throwable_baseball",
+      "path": "audio/impact-throwable_baseball.wav",
+      "sha256": "f1d696062f945f5bd47e5c7d94f65ff7c46c26e69a2d14a6d76f7532b989f35c",
+      "seconds": 0.25,
+      "source": {
+        "source_id": "impactPunch_medium_001",
+        "method": "CC0 impact slowed slightly and low-passed; one contact, no bat or rebound beep."
+      }
+    }
+  ]
+}
