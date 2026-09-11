@@ -35,6 +35,9 @@ public sealed class AtomicPreferencesStoreTests
             Assert.Null(preferences.CachedNickname);
             Assert.Null(preferences.CachedCharacterId);
             Assert.False(preferences.RequiresRightClickToThrow);
+            Assert.Null(preferences.Language);
+            Assert.True(preferences.CharacterSoundEffectsEnabled);
+            Assert.Equal(100, preferences.CharacterSoundEffectsVolume);
         }
         finally
         {
@@ -47,15 +50,18 @@ public sealed class AtomicPreferencesStoreTests
     {
         string directory = Path.Combine(Path.GetTempPath(), $"sidey-preferences-{Guid.NewGuid():N}");
         string path = Path.Combine(directory, "preferences.json");
-        Guid activeRoomId = Guid.NewGuid();
-        var expected = AppPreferences.CreateDefault(1234) with
+        var activeRoomId = Guid.NewGuid();
+        AppPreferences expected = AppPreferences.CreateDefault(1234) with
         {
             OnboardingCompleted = true,
             OverlayVisible = false,
             QuietMode = true,
+            CharacterSoundEffectsEnabled = false,
+            CharacterSoundEffectsVolume = 0,
             ShowOfflineMembers = false,
             RequiresRightClickToThrow = true,
             StartAtLogin = true,
+            Language = "ja-JP",
             CachedNickname = "윈도우 테스트",
             CachedCharacterId = "pixel_penguin",
             ActiveRoomId = activeRoomId,

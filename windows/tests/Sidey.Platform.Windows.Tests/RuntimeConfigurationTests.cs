@@ -1,3 +1,4 @@
+using System.Reflection;
 using Sidey.Infrastructure;
 
 namespace Sidey.Platform.Windows.Tests;
@@ -29,5 +30,44 @@ public sealed class RuntimeConfigurationTests
     {
         Assert.Equal("whtejsviizgejauasqqt.supabase.co", SupabaseRuntimeConfiguration.ProductionHost);
         Assert.StartsWith("sb_publishable_", SupabaseRuntimeConfiguration.ProductionPublishableKey);
+    }
+
+    [Theory]
+    [InlineData("https://staging.example.com", "1", true, true)]
+    [InlineData("http://localhost:54321", "1", true, true)]
+    [InlineData("https://whtejsviizgejauasqqt.supabase.co", "1", true, false)]
+    [InlineData("https://staging.example.com", "true", true, false)]
+    [InlineData("https://staging.example.com", "1", false, false)]
+    [InlineData("http://staging.example.com", "1", true, false)]
+    public void DevelopmentCommerceRequiresCompileRuntimeAndNonProductionGates(
+        string backendUrl,
+        string? optIn,
+        bool compiledSupport,
+        bool expected)
+    {
+        var configuration = new SupabaseRuntimeConfiguration(
+            new Uri(backendUrl),
+            "sb_publishable_test");
+
+        Assert.Equal(
+            expected,
+            WindowsCommerceConfiguration.IsEnabled(configuration, optIn, compiledSupport));
+    }
+
+    [Fact]
+    public void CommerceNetworkSurfaceMatchesTheCompileTimeGate()
+    {
+        MethodInfo? commerceStateMethod = typeof(SupabaseBackendGateway).GetMethod(
+            "GetWindowsCommerceStateAsync");
+        MethodInfo? identityLinkMethod = typeof(SupabaseAnonymousAuthService).GetMethod(
+            "BeginGoogleIdentityLinkAsync");
+
+#if SIDEY_DEVELOPMENT_COMMERCE
+        Assert.NotNull(commerceStateMethod);
+        Assert.NotNull(identityLinkMethod);
+#else
+        Assert.Null(commerceStateMethod);
+        Assert.Null(identityLinkMethod);
+#endif
     }
 }

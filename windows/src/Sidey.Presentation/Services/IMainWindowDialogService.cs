@@ -2,13 +2,15 @@ namespace Sidey.Presentation.Services;
 
 public interface IMainWindowDialogService
 {
-    Task<bool> ConfirmInviteCodeRotationAsync();
+    public Task<bool> ConfirmInviteCodeRotationAsync();
 
-    Task<string?> PromptForRoomNameAsync(string currentName);
+    public Task<string?> PromptForRoomNameAsync(string currentName);
 
-    Task<bool> ConfirmMemberRemovalAsync(string nickname);
+    public Task<bool> ConfirmMemberRemovalAsync(string nickname);
 
-    Task<bool> ConfirmRoomDeletionAsync(string roomName);
+    public Task<bool> ConfirmRoomLeaveAsync(string roomName, bool isOwner);
 
-    Task<bool> ConfirmUpdateDownloadAsync(string version);
+    public Task<bool> ConfirmRoomDeletionAsync(string roomName);
+
+    public Task<bool> ConfirmUpdateDownloadAsync(string version);
 }

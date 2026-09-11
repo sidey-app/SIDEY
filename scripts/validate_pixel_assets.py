@@ -107,7 +107,12 @@ def paeth(left: int, up: int, upper_left: int) -> int:
     return upper_left
 
 
-def validate_entry(entry: dict, expected_size: tuple[int, int], frame_width: int, frame_count: int) -> None:
+def validate_entry(
+    entry: dict,
+    expected_size: tuple[int, int],
+    frame_width: int | None = None,
+    frame_count: int | None = None,
+) -> None:
     relative_path = Path(entry["path"])
     if relative_path.is_absolute() or ".." in relative_path.parts:
         fail(f"unsafe manifest path: {relative_path}")
@@ -122,7 +127,7 @@ def validate_entry(entry: dict, expected_size: tuple[int, int], frame_width: int
     width, height, rgba = parse_rgba_png(path)
     if (width, height) != expected_size:
         fail(f"{path}: expected {expected_size}, got {(width, height)}")
-    if width != frame_width * frame_count:
+    if frame_width is not None and frame_count is not None and width != frame_width * frame_count:
         fail(f"{path}: frame geometry mismatch")
 
     alpha = rgba[3::4]
@@ -178,6 +183,37 @@ def mirror_path(pattern: str, entry: dict) -> Path:
     return REPOSITORY_ROOT / pattern.format(**entry)
 
 
+def validate_supported_platforms(entry: dict) -> set[str]:
+    platforms = entry.get("supported_platforms")
+    if not isinstance(platforms, list) or not platforms:
+        fail(f"{entry.get('id', '<unknown>')}: supported_platforms must be a non-empty list")
+    platform_set = set(platforms)
+    if len(platform_set) != len(platforms) or not platform_set <= {"macos", "windows", "checkout"}:
+        fail(f"{entry['id']}: invalid or duplicate supported platform")
+    return platform_set
+
+
+def mirror_platform(pattern: str) -> str:
+    if pattern.startswith("macos/"):
+        return "macos"
+    if pattern.startswith("windows/"):
+        return "windows"
+    if pattern.startswith("website/"):
+        return "checkout"
+    fail(f"mirror path has no supported platform: {pattern}")
+
+
+def validate_declared_png_mirrors(
+    source: Path, patterns: list[str], entry: dict, *, canonical_only: bool
+) -> None:
+    platforms = validate_supported_platforms(entry)
+    if canonical_only:
+        return
+    for pattern in patterns:
+        if mirror_platform(pattern) in platforms:
+            validate_png_mirror(source, mirror_path(pattern, entry))
+
+
 def validate_png_mirror(source: Path, mirror: Path) -> None:
     if not mirror.is_file():
         fail(f"missing PNG mirror: {mirror.relative_to(REPOSITORY_ROOT)}")
@@ -197,13 +233,21 @@ def rgba_to_bgra(rgba: bytes) -> bytes:
     return bytes(bgra)
 
 
-def validate_bgra_mirror(rgba: bytes, mirror: Path, *, bottom_up: bool = False) -> None:
+def validate_bgra_mirror(
+    rgba: bytes,
+    mirror: Path,
+    *,
+    bottom_up: bool = False,
+    row_count: int | None = None,
+) -> None:
     if not mirror.is_file():
         fail(f"missing BGRA mirror: {mirror.relative_to(REPOSITORY_ROOT)}")
     data = mirror.read_bytes()
     expected = rgba_to_bgra(rgba)
     if bottom_up:
-        row_bytes = len(expected) // (24 if "action-sheets" in mirror.parts else 16)
+        if row_count is None:
+            fail(f"missing BGRA row count: {mirror.relative_to(REPOSITORY_ROOT)}")
+        row_bytes = len(expected) // row_count
         expected = b"".join(
             expected[offset : offset + row_bytes]
             for offset in range(len(expected) - row_bytes, -1, -row_bytes)
@@ -224,7 +268,7 @@ def validate_windows_character_manifest(entry: dict, rgba: bytes) -> None:
     data = json.loads(path.read_text(encoding="utf-8"))
     if data.get("character_id") != entry["id"] or data.get("sha256") != entry["base"]["sha256"]:
         fail(f"{path}: source ID or SHA-256 differs from central manifest")
-    bgra_path = path.with_name("frames.bgra")
+    bgra_path = path.with_name("base.bgra")
     runtime = data.get("runtime_bgra", {})
     if runtime.get("byte_length") != len(rgba):
         fail(f"{path}: runtime BGRA byte length is stale")
@@ -233,9 +277,13 @@ def validate_windows_character_manifest(entry: dict, rgba: bytes) -> None:
 
 
 def main() -> int:
+    canonical_only = "--canonical-only" in sys.argv[1:]
+    unknown_arguments = set(sys.argv[1:]) - {"--canonical-only"}
+    if unknown_arguments:
+        fail(f"unknown arguments: {sorted(unknown_arguments)}")
     manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-    if manifest["schema_version"] != 1 or manifest["approval"]["status"] != "approved":
-        fail("asset manifest is not the approved v1 contract")
+    if manifest["schema_version"] != 2 or manifest["approval"]["status"] != "approved":
+        fail("asset manifest is not the approved schema v2 contract")
     if manifest["format"] != {
         "color_space": "sRGB",
         "bit_depth": 8,
@@ -281,22 +329,28 @@ def main() -> int:
 
     characters = manifest["characters"]
     throwables = manifest["throwables"]
-    if len(characters) != 39 or len(throwables) != 7:
-        fail("manifest must contain thirty-nine characters and seven throwables")
-    if len({entry["id"] for entry in characters}) != 39:
+    bubbles = manifest["bubbles"]
+    if not characters or not throwables or not bubbles:
+        fail("manifest asset collections must not be empty")
+    if len({entry["id"] for entry in characters}) != len(characters):
         fail("duplicate character ID")
-    if len({entry["id"] for entry in throwables}) != 7:
+    if len({entry["id"] for entry in throwables}) != len(throwables):
         fail("duplicate throwable ID")
+    if len({entry["id"] for entry in bubbles}) != len(bubbles):
+        fail("duplicate bubble ID")
 
     mirrors = manifest["mirrors"]
     if mirrors["bgra_row_order"] != {
         "character_base": "top_down",
         "throw_hit": "bottom_up",
         "throwable": "bottom_up",
+        "bubble_decoration": "top_down",
+        "cannon_emitter": "bottom_up",
     }:
         fail("unsupported BGRA mirror row order")
     managed_pngs: set[Path] = set()
     for entry in characters:
+        validate_supported_platforms(entry)
         if entry["base"]["path"] != f"characters/{entry['id']}/base.png":
             fail(f"non-canonical base path for {entry['id']}")
         if entry["throw_hit"]["path"] != f"characters/{entry['id']}/throw_hit.png":
@@ -304,25 +358,106 @@ def main() -> int:
         base_path, base_rgba = validate_sheet(entry["base"], (240, 24), 24, 10, 3)
         action_path, action_rgba = validate_sheet(entry["throw_hit"], (192, 24), 24, 8, 3)
         managed_pngs.update((base_path, action_path))
-        for pattern in mirrors["character_base_png"]:
-            validate_png_mirror(base_path, mirror_path(pattern, entry))
-        for pattern in mirrors["character_base_bgra"]:
-            validate_bgra_mirror(base_rgba, mirror_path(pattern, entry))
-        for pattern in mirrors["throw_hit_png"]:
-            validate_png_mirror(action_path, mirror_path(pattern, entry))
-        for pattern in mirrors["throw_hit_bgra"]:
-            validate_bgra_mirror(action_rgba, mirror_path(pattern, entry), bottom_up=True)
-        validate_windows_character_manifest(entry, base_rgba)
+        validate_declared_png_mirrors(
+            base_path, mirrors["character_base_png"], entry, canonical_only=canonical_only
+        )
+        validate_declared_png_mirrors(
+            action_path, mirrors["throw_hit_png"], entry, canonical_only=canonical_only
+        )
+        if not canonical_only and "windows" in entry["supported_platforms"]:
+            for pattern in mirrors["character_base_bgra"]:
+                validate_bgra_mirror(base_rgba, mirror_path(pattern, entry))
+            for pattern in mirrors["throw_hit_bgra"]:
+                validate_bgra_mirror(
+                    action_rgba,
+                    mirror_path(pattern, entry),
+                    bottom_up=True,
+                    row_count=24,
+                )
+            validate_windows_character_manifest(entry, base_rgba)
 
     for entry in throwables:
+        validate_supported_platforms(entry)
         if entry["sprite"]["path"] != f"throwables/{entry['id']}/sprite.png":
             fail(f"non-canonical throwable path for {entry['id']}")
         sprite_path, sprite_rgba = validate_sheet(entry["sprite"], (192, 16), 16, 12)
         managed_pngs.add(sprite_path)
-        for pattern in mirrors["throwable_png"]:
-            validate_png_mirror(sprite_path, mirror_path(pattern, entry))
-        for pattern in mirrors["throwable_bgra"]:
-            validate_bgra_mirror(sprite_rgba, mirror_path(pattern, entry), bottom_up=True)
+        validate_declared_png_mirrors(
+            sprite_path, mirrors["throwable_png"], entry, canonical_only=canonical_only
+        )
+        if "checkout" in entry["supported_platforms"]:
+            checkout_source = ASSET_ROOT / entry.get("preview", entry["sprite"])["path"]
+            validate_declared_png_mirrors(
+                checkout_source,
+                mirrors["throwable_checkout_preview_png"],
+                entry,
+                canonical_only=canonical_only,
+            )
+        if not canonical_only and "windows" in entry["supported_platforms"]:
+            for pattern in mirrors["throwable_bgra"]:
+                validate_bgra_mirror(
+                    sprite_rgba,
+                    mirror_path(pattern, entry),
+                    bottom_up=True,
+                    row_count=16,
+                )
+        if "emitter" in entry:
+            emitter_path, emitter_rgba = validate_sheet(entry["emitter"], (96, 24), 24, 4)
+            managed_pngs.add(emitter_path)
+            validate_declared_png_mirrors(
+                emitter_path, mirrors["cannon_emitter_png"], entry, canonical_only=canonical_only
+            )
+            if not canonical_only and "windows" in entry["supported_platforms"]:
+                for pattern in mirrors["cannon_emitter_bgra"]:
+                    validate_bgra_mirror(
+                        emitter_rgba,
+                        mirror_path(pattern, entry),
+                        bottom_up=True,
+                        row_count=24,
+                    )
+        if "preview" in entry:
+            validate_entry(entry["preview"], (176, 56))
+            preview_path = ASSET_ROOT / entry["preview"]["path"]
+            managed_pngs.add(preview_path)
+            validate_declared_png_mirrors(
+                preview_path,
+                mirrors["cannon_preview_png"],
+                entry,
+                canonical_only=canonical_only,
+            )
+
+    for entry in bubbles:
+        validate_supported_platforms(entry)
+        if entry["decoration"]["path"] != f"bubbles/{entry['id']}/decoration.png":
+            fail(f"non-canonical bubble decoration path for {entry['id']}")
+        if entry["preview"]["path"] != f"bubbles/{entry['id']}/preview.png":
+            fail(f"non-canonical bubble preview path for {entry['id']}")
+        _, _, decoration_rgba = parse_rgba_png(ASSET_ROOT / entry["decoration"]["path"])
+        validate_entry(entry["decoration"], (16, 16))
+        validate_entry(entry["preview"], (128, 48))
+        if float(entry["contrast_ratio"]) < 7.0:
+            fail(f"{entry['id']}: text contrast must meet WCAG AAA for normal text")
+        decoration_path = ASSET_ROOT / entry["decoration"]["path"]
+        preview_path = ASSET_ROOT / entry["preview"]["path"]
+        managed_pngs.update((decoration_path, preview_path))
+        validate_declared_png_mirrors(
+            decoration_path,
+            mirrors["bubble_decoration_png"],
+            entry,
+            canonical_only=canonical_only,
+        )
+        if not canonical_only and "windows" in entry["supported_platforms"]:
+            for pattern in mirrors["bubble_decoration_bgra"]:
+                validate_bgra_mirror(
+                    decoration_rgba,
+                    mirror_path(pattern, entry),
+                )
+        validate_declared_png_mirrors(
+            preview_path,
+            mirrors["bubble_preview_png"],
+            entry,
+            canonical_only=canonical_only,
+        )
 
     character_ids = {entry["id"] for entry in characters}
     throwable_ids = {entry["id"] for entry in throwables}
@@ -339,20 +474,27 @@ def main() -> int:
 
     paid_character_list = licensing["paid_character_ids"]
     paid_throwable_list = licensing["paid_throwable_ids"]
-    if not isinstance(paid_character_list, list) or not isinstance(paid_throwable_list, list):
+    paid_bubble_list = licensing["paid_bubble_ids"]
+    if not all(isinstance(value, list) for value in (paid_character_list, paid_throwable_list, paid_bubble_list)):
         fail("paid asset ID schedules must be lists")
     paid_character_ids = set(paid_character_list)
     paid_throwable_ids = set(paid_throwable_list)
+    paid_bubble_ids = set(paid_bubble_list)
     if len(paid_character_ids) != len(paid_character_list):
         fail("duplicate paid character ID")
     if len(paid_throwable_ids) != len(paid_throwable_list):
         fail("duplicate paid throwable ID")
+    if len(paid_bubble_ids) != len(paid_bubble_list):
+        fail("duplicate paid bubble ID")
     if not paid_character_ids or not paid_character_ids <= character_ids:
         fail("paid character schedule is empty or references an unknown character")
     if not paid_throwable_ids or not paid_throwable_ids <= throwable_ids:
         fail("paid throwable schedule is empty or references an unknown throwable")
-    if {mapping[character_id] for character_id in paid_character_ids} != paid_throwable_ids:
-        fail("paid characters and their licensed throwables differ")
+    bubble_ids = {entry["id"] for entry in bubbles}
+    if not paid_bubble_ids or not paid_bubble_ids <= bubble_ids:
+        fail("paid bubble schedule is empty or references an unknown bubble")
+    if not {mapping[character_id] for character_id in paid_character_ids} <= paid_throwable_ids:
+        fail("a paid character references an unlicensed throwable")
     free_character_ids = character_ids - paid_character_ids
     if {mapping[character_id] for character_id in free_character_ids} & paid_throwable_ids:
         fail("a free character references a paid throwable")
@@ -378,8 +520,10 @@ def main() -> int:
     if not reference.is_file() or hashlib.sha256(reference.read_bytes()).hexdigest() != manifest["reference"]["sha256"]:
         fail("official reference image SHA-256 mismatch")
 
-    actual_pngs = set((ASSET_ROOT / "characters").glob("*/*.png")) | set(
-        (ASSET_ROOT / "throwables").glob("*/*.png")
+    actual_pngs = (
+        set((ASSET_ROOT / "characters").glob("*/*.png"))
+        | set((ASSET_ROOT / "throwables").glob("*/*.png"))
+        | set((ASSET_ROOT / "bubbles").glob("*/*.png"))
     )
     if actual_pngs != managed_pngs:
         paths = sorted(str(path.relative_to(ASSET_ROOT)) for path in actual_pngs ^ managed_pngs)
@@ -387,8 +531,9 @@ def main() -> int:
 
     print(
         f"Validated {len(characters)} base sheets, {len(characters)} throw/hit sheets, "
-        f"{len(throwables)} throwables, all mirrors, baselines, mappings, paid asset "
-        "licensing, formats, and SHA-256 values."
+        f"{len(throwables)} throwables, {len(bubbles)} bubbles, "
+        f"{'canonical assets only' if canonical_only else 'all declared mirrors'}, "
+        "baselines, mappings, paid asset licensing, formats, and SHA-256 values."
     )
     return 0
 

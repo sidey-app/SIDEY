@@ -46,9 +46,10 @@ final class MessageLedgerTests: XCTestCase {
             createdAt: "2026-08-31T01:02:04.456789+00:00"
         ).domain
         var ledger = MessageLedger()
+        let now = newer.createdAt.addingTimeInterval(60)
 
-        ledger.confirm(newer)
-        ledger.confirm(older)
+        ledger.confirm(newer, now: now)
+        ledger.confirm(older, now: now)
 
         XCTAssertNotEqual(older.createdAt, newer.createdAt)
         XCTAssertEqual(
@@ -56,7 +57,8 @@ final class MessageLedgerTests: XCTestCase {
                 pagedMessages: [],
                 ledger: ledger,
                 outbox: MessageOutbox(),
-                roomID: roomID
+                roomID: roomID,
+                now: now
             ).map(\.body),
             ["최신", "이전"]
         )
@@ -86,6 +88,22 @@ final class MessageLedgerTests: XCTestCase {
         XCTAssertEqual(ledger.entries.first?.state, .confirmed)
     }
 
+    func testConfirmedMessageKeepsServerSnapshotBubbleStyleAcrossDuplicateDelivery() {
+        let message = ChatMessage(
+            id: UUID(),
+            roomID: UUID(),
+            senderID: UUID(),
+            body: "처음 색을 기억해",
+            createdAt: .now,
+            bubbleStyleID: "bubble_bunny_pink"
+        )
+        var ledger = MessageLedger()
+
+        XCTAssertTrue(ledger.confirm(message))
+        XCTAssertFalse(ledger.confirm(message))
+        XCTAssertEqual(ledger.entries.first?.bubbleStyleID, "bubble_bunny_pink")
+    }
+
     @MainActor
     func testHistoryOrdersNewestMessageFirstWithoutLegacyTwentyRowCap() {
         let roomID = UUID()
@@ -112,41 +130,47 @@ final class MessageLedgerTests: XCTestCase {
         XCTAssertEqual(entries.last?.body, "메시지 0")
     }
 
-    func testActiveBubblesReplacePerSenderEvictOldestAndExpireIndependently() {
+    func testActiveBubblesKeepTwoPerSenderWithoutGlobalEvictionAndExpireIndependently() {
         var bubbles = ActiveBubbleLedger()
         let start = Date(timeIntervalSince1970: 1_000)
-        let senders = (0..<5).map { _ in UUID() }
+        let senders = (0..<12).map { _ in UUID() }
+        var messageIDs: [[UUID]] = []
 
-        for index in 0..<4 {
-            bubbles.show(
-                senderID: senders[index],
-                messageID: UUID(),
-                body: "메시지 \(index)",
-                expiresAt: start.addingTimeInterval(TimeInterval(index + 1))
-            )
+        for (senderIndex, senderID) in senders.enumerated() {
+            let ids = [UUID(), UUID()]
+            messageIDs.append(ids)
+            for messageIndex in 0..<2 {
+                bubbles.show(
+                    senderID: senderID,
+                    messageID: ids[messageIndex],
+                    body: "\(senderIndex)-\(messageIndex)",
+                    expiresAt: start.addingTimeInterval(TimeInterval(10 + messageIndex))
+                )
+            }
         }
-        let replacementID = UUID()
+
+        XCTAssertEqual(bubbles.bubbles.count, 24)
+        XCTAssertEqual(Set(bubbles.bubbles.map(\.senderID)), Set(senders))
+
+        let thirdID = UUID()
         bubbles.show(
             senderID: senders[0],
-            messageID: replacementID,
-            body: "교체",
-            expiresAt: start.addingTimeInterval(20)
+            messageID: thirdID,
+            body: "세 번째",
+            expiresAt: start.addingTimeInterval(12)
         )
-        XCTAssertEqual(bubbles.bubbles.count, 4)
-        XCTAssertEqual(bubbles.bubbles.first(where: { $0.senderID == senders[0] })?.messageID, replacementID)
+        XCTAssertEqual(bubbles.bubbles.count, 24)
+        XCTAssertFalse(bubbles.bubbles.contains { $0.messageID == messageIDs[0][0] })
+        XCTAssertTrue(bubbles.bubbles.contains { $0.messageID == messageIDs[0][1] })
+        XCTAssertTrue(bubbles.bubbles.contains { $0.messageID == thirdID })
 
-        bubbles.show(
-            senderID: senders[4],
-            messageID: UUID(),
-            body: "다섯 번째 발신자",
-            expiresAt: start.addingTimeInterval(21)
-        )
-        XCTAssertEqual(bubbles.bubbles.count, 4)
-        XCTAssertFalse(bubbles.bubbles.contains(where: { $0.senderID == senders[1] }))
+        bubbles.remove(messageID: thirdID)
+        XCTAssertFalse(bubbles.bubbles.contains { $0.messageID == thirdID })
+        XCTAssertEqual(bubbles.bubbles.filter { $0.senderID == senders[0] }.count, 1)
 
-        bubbles.prune(at: start.addingTimeInterval(20.5))
-        XCTAssertEqual(bubbles.bubbles.count, 1)
-        XCTAssertEqual(bubbles.bubbles.first?.senderID, senders[4])
+        bubbles.prune(at: start.addingTimeInterval(10.5))
+        XCTAssertEqual(bubbles.bubbles.count, 12)
+        XCTAssertTrue(bubbles.bubbles.allSatisfy { $0.expiresAt > start.addingTimeInterval(10.5) })
     }
 
     @MainActor
@@ -255,16 +279,24 @@ final class MessageLedgerTests: XCTestCase {
         XCTAssertEqual(model.messageOutbox.entries.first?.state, .failed)
     }
 
-    func testConfirmedLedgerAppliesSevenDayCutoffAndFiftyPerRoomLimit() {
+    func testConfirmedLedgerAppliesThreeDayCutoffAndFiftyPerRoomLimit() {
         let roomID = UUID()
+        let boundaryRoomID = UUID()
         let now = Date(timeIntervalSince1970: 1_000_000)
         var ledger = MessageLedger()
         _ = ledger.confirm(ChatMessage(
             id: UUID(),
-            roomID: roomID,
+            roomID: boundaryRoomID,
             senderID: UUID(),
             body: "만료",
             createdAt: now.addingTimeInterval(-MessageLedger.retentionInterval - 1)
+        ), now: now)
+        _ = ledger.confirm(ChatMessage(
+            id: UUID(),
+            roomID: boundaryRoomID,
+            senderID: UUID(),
+            body: "경계",
+            createdAt: now.addingTimeInterval(-MessageLedger.retentionInterval)
         ), now: now)
         for index in 0..<60 {
             _ = ledger.confirm(ChatMessage(
@@ -276,9 +308,10 @@ final class MessageLedgerTests: XCTestCase {
             ), now: now)
         }
 
-        XCTAssertEqual(ledger.entries.count, 50)
+        XCTAssertEqual(ledger.entries.count, 51)
         XCTAssertFalse(ledger.entries.contains(where: { $0.body == "만료" }))
-        XCTAssertEqual(ledger.entries.first?.body, "최근 10")
+        XCTAssertTrue(ledger.entries.contains(where: { $0.body == "경계" }))
+        XCTAssertEqual(ledger.entries.first?.body, "경계")
     }
 
     private static func room(id: UUID, name: String) -> Room {

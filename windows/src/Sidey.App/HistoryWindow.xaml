@@ -2,6 +2,7 @@
     x:Class="Sidey.App.HistoryWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Sidey.App.Controls"
     xmlns:i18n="using:Sidey.App.Localization">
     <Grid x:Name="HistoryRoot" Padding="20" RowSpacing="14" Background="Transparent">
       <Grid.RowDefinitions>
@@ -12,7 +13,7 @@
       <StackPanel Spacing="3">
         <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="{Binding Title}" />
         <TextBlock
-            Text="{i18n:I18n Key=history.retentionNotice}"
+            Text="{Binding Value, Source={i18n:I18n Key=history.retentionNotice}, Mode=OneWay}"
             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
             TextWrapping="Wrap" />
       </StackPanel>
@@ -38,17 +39,9 @@
                   <ColumnDefinition Width="40" />
                   <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
-                <Border Width="40" Height="40" Background="{ThemeResource AccentFillColorSecondaryBrush}" CornerRadius="10">
+                <Border Width="40" Height="40" Background="{ThemeResource SideyAccentBackground10Brush}" CornerRadius="12">
                   <Border Width="24" Height="24">
-                    <Border.Clip>
-                      <RectangleGeometry Rect="0,0,24,24" />
-                    </Border.Clip>
-                    <Image
-                        Width="240"
-                        Height="24"
-                        HorizontalAlignment="Left"
-                        Source="{Binding CharacterId, Converter={StaticResource CharacterImageConverter}}"
-                        Stretch="Fill" />
+                    <controls:PixelCharacterPreview CharacterId="{Binding CharacterId}" />
                   </Border>
                 </Border>
                 <StackPanel Grid.Column="1" Spacing="5">
@@ -62,11 +55,11 @@
                     <TextBlock FontWeight="SemiBold" Text="{Binding SenderName}" />
                     <Border
                         Grid.Column="1"
-                        Padding="6,1"
-                        Background="{ThemeResource AccentFillColorSecondaryBrush}"
+                        Padding="6,2"
+                        Background="{ThemeResource SideyAccentBackground12Brush}"
                         CornerRadius="8"
                         Visibility="{Binding IsCurrentUser, Converter={StaticResource BooleanToVisibilityConverter}}">
-                      <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Text="{i18n:I18n Key=common.me}" />
+                      <TextBlock FontSize="11" FontWeight="Bold" Foreground="{ThemeResource SideyAccentForegroundBrush}" Text="{Binding Value, Source={i18n:I18n Key=common.me}, Mode=OneWay}" />
                     </Border>
                     <TextBlock
                         Grid.Column="3"
@@ -76,11 +69,11 @@
                   <TextBlock IsTextSelectionEnabled="True" Text="{Binding Body}" TextWrapping="Wrap" />
                   <TextBlock
                       Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                      Text="{i18n:I18n Key=history.sending}"
+                      Text="{Binding Value, Source={i18n:I18n Key=history.sending}, Mode=OneWay}"
                       Visibility="{Binding IsPending, Converter={StaticResource BooleanToVisibilityConverter}}" />
                   <TextBlock
                       Foreground="{ThemeResource SystemFillColorCriticalBrush}"
-                      Text="{i18n:I18n Key=history.failed}"
+                      Text="{Binding Value, Source={i18n:I18n Key=history.failed}, Mode=OneWay}"
                       Visibility="{Binding IsFailed, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </StackPanel>
               </Grid>
@@ -95,21 +88,21 @@
                 Spacing="8"
                 Visibility="{Binding IsLoadingMore, Converter={StaticResource BooleanToVisibilityConverter}}">
               <ProgressRing Width="18" Height="18" IsActive="True" />
-              <TextBlock VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=history.loadingMore}" />
+              <TextBlock VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=history.loadingMore}, Mode=OneWay}" />
             </StackPanel>
             <StackPanel
                 HorizontalAlignment="Center"
                 Spacing="5"
                 Visibility="{Binding IsLoadMoreFailureVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
-              <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Text="{i18n:I18n Key=history.loadMoreFailed}" />
+              <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=history.loadMoreFailed}, Mode=OneWay}" />
               <TextBlock HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding LoadMoreErrorMessage}" TextWrapping="Wrap" />
-              <Button HorizontalAlignment="Center" Command="{Binding RetryLoadMoreCommand}" Content="{i18n:I18n Key=history.retry}" />
+              <Button HorizontalAlignment="Center" Command="{Binding RetryLoadMoreCommand}" Content="{Binding Value, Source={i18n:I18n Key=history.retry}, Mode=OneWay}" />
             </StackPanel>
             <TextBlock
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 Foreground="{ThemeResource TextFillColorTertiaryBrush}"
-                Text="{i18n:I18n Key=history.exhausted}"
+                Text="{Binding Value, Source={i18n:I18n Key=history.exhausted}, Mode=OneWay}"
                 Visibility="{Binding IsExhaustedVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
           </Grid>
         </ListView.Footer>
@@ -121,7 +114,7 @@
           Spacing="8"
           Visibility="{Binding IsInitialLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
         <ProgressRing Width="28" Height="28" IsActive="True" />
-        <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{i18n:I18n Key=history.loading}" />
+        <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=history.loading}, Mode=OneWay}" />
       </StackPanel>
       <StackPanel
           HorizontalAlignment="Center"
@@ -129,9 +122,9 @@
           Spacing="8"
           Visibility="{Binding IsInitialFailureVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
         <FontIcon HorizontalAlignment="Center" FontSize="34" Glyph="&#xE814;" />
-        <TextBlock HorizontalAlignment="Center" Style="{ThemeResource SubtitleTextBlockStyle}" Text="{i18n:I18n Key=history.initialFailed}" />
+        <TextBlock HorizontalAlignment="Center" Style="{ThemeResource SubtitleTextBlockStyle}" Text="{Binding Value, Source={i18n:I18n Key=history.initialFailed}, Mode=OneWay}" />
         <TextBlock HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding InitialErrorMessage}" TextAlignment="Center" TextWrapping="Wrap" />
-        <Button HorizontalAlignment="Center" Command="{Binding RetryInitialCommand}" Content="{i18n:I18n Key=history.retry}" />
+        <Button HorizontalAlignment="Center" Command="{Binding RetryInitialCommand}" Content="{Binding Value, Source={i18n:I18n Key=history.retry}, Mode=OneWay}" />
       </StackPanel>
       <StackPanel
           HorizontalAlignment="Center"

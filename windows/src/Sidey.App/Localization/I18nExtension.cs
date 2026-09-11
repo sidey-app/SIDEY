@@ -1,9 +1,11 @@
+using System.ComponentModel;
+using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Markup;
 using Sidey.Core.Localization;
 
 namespace Sidey.App.Localization;
 
-[MarkupExtensionReturnType(ReturnType = typeof(string))]
+[MarkupExtensionReturnType(ReturnType = typeof(LocalizedText))]
 public sealed class I18nExtension : MarkupExtension
 {
     public I18nExtension()
@@ -19,6 +21,34 @@ public sealed class I18nExtension : MarkupExtension
 
     protected override object ProvideValue()
     {
-        return I18n.Get(Key);
+        return new LocalizedText(Key);
+    }
+}
+
+[Microsoft.UI.Xaml.Data.Bindable]
+public sealed class LocalizedText : INotifyPropertyChanged
+{
+    // Bindings own their text sources. This registry must not keep closed windows alive.
+    private static readonly List<WeakReference<LocalizedText>> s_sources = [];
+    private readonly string _key;
+
+    public LocalizedText(string key)
+    {
+        _key = key;
+        if (s_sources.Count % 64 == 0)
+            s_sources.RemoveAll(source => !source.TryGetTarget(out _));
+        s_sources.Add(new WeakReference<LocalizedText>(this));
+    }
+
+    public string Value => I18n.Get(_key);
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    // Called on the XAML dispatcher after the catalog has changed.
+    public static void RefreshAll()
+    {
+        foreach (WeakReference<LocalizedText> source in s_sources.ToArray())
+            if (source.TryGetTarget(out LocalizedText? text))
+                text.PropertyChanged?.Invoke(text, new PropertyChangedEventArgs(nameof(Value)));
+        s_sources.RemoveAll(source => !source.TryGetTarget(out _));
     }
 }

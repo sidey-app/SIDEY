@@ -12,6 +12,7 @@ namespace Sidey.App;
 public sealed partial class HistoryWindow : Window
 {
     private readonly CoordinatorState _initialState;
+    private bool _isClosed;
 
     public HistoryWindow(HistoryWindowViewModel viewModel)
     {
@@ -23,15 +24,27 @@ public sealed partial class HistoryWindow : Window
         SideyWindowIcon.Apply(AppWindow);
         ApplyResponsiveSize();
         ApplyBackdrop();
+        AppWindow.Closing += OnAppWindowClosing;
         Closed += OnWindowClosed;
     }
 
     public HistoryWindowViewModel ViewModel { get; }
 
-    public void ApplyState(CoordinatorState state) => ViewModel.ApplyState(state);
+    public void ApplyState(CoordinatorState state)
+    {
+        if (!_isClosed)
+        {
+            ViewModel.ApplyState(state);
+        }
+    }
 
     public void ShowAndActivate()
     {
+        if (_isClosed)
+        {
+            return;
+        }
+
         AppWindow.Show();
         Activate();
         SideyWindowActivation.BringToForeground(this);
@@ -72,10 +85,32 @@ public sealed partial class HistoryWindow : Window
         }
     }
 
+    private void OnAppWindowClosing(
+        Microsoft.UI.Windowing.AppWindow sender,
+        Microsoft.UI.Windowing.AppWindowClosingEventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        PrepareForClose();
+    }
+
+    private void PrepareForClose()
+    {
+        if (_isClosed)
+        {
+            return;
+        }
+
+        _isClosed = true;
+        HistoryRoot.DataContext = null;
+        ViewModel.Dispose();
+    }
+
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
         _ = sender;
         _ = args;
-        ViewModel.Dispose();
+        PrepareForClose();
+        AppWindow.Closing -= OnAppWindowClosing;
     }
 }

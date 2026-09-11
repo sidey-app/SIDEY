@@ -615,6 +615,155 @@ final class PixelWorldTests: XCTestCase {
         }
     }
 
+    func testTwoMaximumLengthBubblesStackInsideCanvasOnAllEdges() {
+        let senderID = UUID()
+        let bubbles = [
+            ActiveBubble(
+                senderID: senderID,
+                messageID: UUID(),
+                body: String(repeating: "가", count: 200),
+                expiresAt: Date(timeIntervalSince1970: 10)
+            ),
+            ActiveBubble(
+                senderID: senderID,
+                messageID: UUID(),
+                body: String(repeating: "나", count: 200),
+                expiresAt: Date(timeIntervalSince1970: 11)
+            )
+        ]
+
+        for edge in OverlayEdge.allCases {
+            let bounds = edge.isHorizontal
+                ? CGRect(x: 0, y: 0, width: 720, height: 360)
+                : CGRect(x: 0, y: 0, width: 360, height: 720)
+            let geometry = EdgeTrackGeometry(bounds: bounds, edge: edge)
+            for tangent in [geometry.trackRange.lowerBound, geometry.trackRange.upperBound] {
+                let entries = PixelBubbleStackLayout.make(
+                    bubbles: bubbles,
+                    tangentPosition: tangent,
+                    tangentLength: geometry.tangentLength,
+                    edge: edge
+                )
+
+                XCTAssertEqual(entries.map(\.bubble.body), bubbles.map(\.body))
+                XCTAssertEqual(entries.map(\.includesTail), [false, true])
+                XCTAssertEqual(
+                    entries[0].layout.bodyFrame.minY - entries[1].layout.bodyFrame.maxY,
+                    PixelBubbleStackLayout.bodySpacing,
+                    accuracy: 0.001
+                )
+                for entry in entries {
+                    let worldFrame = geometry.worldFrame(for: entry.layout.totalFrame, at: tangent)
+                    XCTAssertTrue(
+                        bounds.insetBy(dx: -0.5, dy: -0.5).contains(worldFrame),
+                        "\(edge) \(tangent): \(worldFrame)"
+                    )
+                }
+            }
+        }
+    }
+
+    func testSceneRendersOlderBubbleAboveNewestWithOnlyNewestTailAndUnionCollisionRange() {
+        let roomID = UUID()
+        let member = makeMember()
+        let bubbles = [
+            ActiveBubble(
+                senderID: member.id,
+                messageID: UUID(),
+                body: "이전 " + String(repeating: "긴메시지", count: 20),
+                expiresAt: Date(timeIntervalSince1970: 10)
+            ),
+            ActiveBubble(
+                senderID: member.id,
+                messageID: UUID(),
+                body: "최신",
+                expiresAt: Date(timeIntervalSince1970: 11)
+            )
+        ]
+        let scene = PixelWorldScene(size: CGSize(width: 720, height: 360))
+        scene.apply(
+            roomID: roomID,
+            members: [member],
+            bubbles: bubbles,
+            edge: .bottom,
+            installationSeed: 9
+        )
+
+        XCTAssertEqual(scene.renderedBubbleBodies(for: member.id), bubbles.map(\.body))
+        XCTAssertEqual(scene.renderedBubbleTailFlags(for: member.id), [false, true])
+        let frames = scene.renderedBubbleBodyFrames(for: member.id)
+        XCTAssertEqual(frames.count, 2)
+        XCTAssertEqual(
+            frames[0].minY - frames[1].maxY,
+            PixelBubbleStackLayout.bodySpacing,
+            accuracy: 0.001
+        )
+
+        let range = scene.messageBubbleTangentRanges[member.id]
+        let geometry = scene.trackGeometry
+        let tangent = try! XCTUnwrap(scene.agentStates.first?.trackPosition)
+        let expectedEntries = PixelBubbleStackLayout.make(
+            bubbles: bubbles,
+            tangentPosition: tangent,
+            tangentLength: geometry.tangentLength,
+            edge: .bottom
+        )
+        XCTAssertEqual(
+            range,
+            PixelBubbleStackLayout.bodyTangentRange(
+                for: expectedEntries,
+                at: tangent,
+                edge: .bottom
+            )
+        )
+    }
+
+    func testSceneKeepsTwoBubblesForAllTwelveMembers() {
+        let roomID = UUID()
+        let members = (0..<12).map { index in
+            PixelWorldMember(
+                id: UUID(),
+                nickname: "친구\(index)",
+                characterID: "pixel_hamster",
+                presence: .online,
+                isTyping: true,
+                isCurrentUser: index == 0
+            )
+        }
+        let bubbles = members.flatMap { member in
+            [
+                ActiveBubble(
+                    senderID: member.id,
+                    messageID: UUID(),
+                    body: "이전",
+                    expiresAt: Date(timeIntervalSince1970: 10)
+                ),
+                ActiveBubble(
+                    senderID: member.id,
+                    messageID: UUID(),
+                    body: "최신",
+                    expiresAt: Date(timeIntervalSince1970: 11)
+                )
+            ]
+        }
+        let scene = PixelWorldScene(size: CGSize(width: 1_200, height: 360))
+
+        scene.apply(
+            roomID: roomID,
+            members: members,
+            bubbles: bubbles,
+            edge: .bottom,
+            installationSeed: 10
+        )
+
+        XCTAssertEqual(scene.messageBubbleTangentRanges.count, 12)
+        for member in members {
+            XCTAssertEqual(scene.renderedBubbleBodies(for: member.id), ["이전", "최신"])
+            XCTAssertEqual(scene.renderedBubbleTailFlags(for: member.id), [false, true])
+            XCTAssertFalse(scene.renderedBubbleIsTyping(for: member.id))
+        }
+    }
+
     func testBubbleUsesExplicitDarkInkOnLightBackground() throws {
         let text = PixelBubbleStyle.textColor.usingColorSpace(.sRGB) ?? PixelBubbleStyle.textColor
         let background = PixelBubbleStyle.backgroundColor.usingColorSpace(.sRGB)
@@ -638,6 +787,58 @@ final class PixelWorldTests: XCTestCase {
         XCTAssertEqual(label.fontColor, PixelBubbleStyle.textColor)
     }
 
+    func testApprovedBubbleThemesApplyIndependentReadableTextColorsToMessagesAndTyping() throws {
+        let cases: [(String, NSColor, NSColor)] = [
+            (
+                "bubble_bunny_pink",
+                NSColor(srgbRed: 0xF7 / 255, green: 0xA9 / 255, blue: 0xB8 / 255, alpha: 0.96),
+                NSColor(srgbRed: 0x1C / 255, green: 0x1F / 255, blue: 0x29 / 255, alpha: 1)
+            ),
+            (
+                "bubble_butter_chick",
+                NSColor(srgbRed: 0xFF / 255, green: 0xE3 / 255, blue: 0x8A / 255, alpha: 0.96),
+                NSColor(srgbRed: 0x1C / 255, green: 0x1F / 255, blue: 0x29 / 255, alpha: 1)
+            ),
+            (
+                "bubble_starry_cat",
+                NSColor(srgbRed: 0x40 / 255, green: 0x3A / 255, blue: 0x78 / 255, alpha: 0.96),
+                NSColor(srgbRed: 0xFF / 255, green: 0xF7 / 255, blue: 0xE8 / 255, alpha: 1)
+            ),
+        ]
+        let layout = PixelBubbleLayout.make(
+            text: "오늘도 같이 있자!",
+            isTyping: false,
+            tangentPosition: 200,
+            tangentLength: 720,
+            edge: .bottom
+        )
+
+        for (styleID, background, text) in cases {
+            let message = PixelBubbleNode(
+                body: "오늘도 같이 있자!",
+                isTyping: false,
+                layout: layout,
+                bubbleStyleID: styleID
+            )
+            let messageLabel = try XCTUnwrap(message.children.compactMap { $0 as? SKLabelNode }.first)
+            XCTAssertEqual(message.theme.id, styleID)
+            XCTAssertEqual(message.theme.backgroundColor, background)
+            XCTAssertEqual(messageLabel.fontColor, text)
+            XCTAssertEqual(message.theme.decorationAssetName, styleID)
+
+            let typing = TypingIndicatorNode(layout: layout, bubbleStyleID: styleID)
+            let typingLabel = try XCTUnwrap(typing.children.compactMap { $0 as? SKLabelNode }.first)
+            XCTAssertEqual(typing.theme.id, styleID)
+            XCTAssertEqual(typingLabel.fontColor, text)
+        }
+
+        XCTAssertNil(PixelBubbleTheme.resolve("future_unknown_style").id)
+        XCTAssertEqual(
+            PixelBubbleTheme.resolve("future_unknown_style").backgroundColor,
+            PixelBubbleStyle.backgroundColor
+        )
+    }
+
     func testTypingDotsMessagePriorityAndTypingReturn() {
         XCTAssertEqual(TypingIndicatorNode.sequenceFrames, [".", "..", "..."])
         XCTAssertEqual(TypingIndicatorNode.frameInterval, 0.35, accuracy: 0.001)
@@ -658,9 +859,32 @@ final class PixelWorldTests: XCTestCase {
             body: "도착",
             expiresAt: .now.addingTimeInterval(10)
         )
-        scene.apply(roomID: roomID, members: [member], bubbles: [message], edge: .bottom, installationSeed: 1)
+        let newerMessage = ActiveBubble(
+            senderID: member.id,
+            messageID: UUID(),
+            body: "또 도착",
+            expiresAt: .now.addingTimeInterval(11)
+        )
+        scene.apply(
+            roomID: roomID,
+            members: [member],
+            bubbles: [message, newerMessage],
+            edge: .bottom,
+            installationSeed: 1
+        )
         XCTAssertFalse(scene.renderedBubbleIsTyping(for: member.id))
-        XCTAssertEqual(scene.renderedBubbleBody(for: member.id), "도착")
+        XCTAssertEqual(scene.renderedBubbleBodies(for: member.id), ["도착", "또 도착"])
+        XCTAssertEqual(scene.renderedBubbleBody(for: member.id), "또 도착")
+
+        scene.apply(
+            roomID: roomID,
+            members: [member],
+            bubbles: [newerMessage],
+            edge: .bottom,
+            installationSeed: 1
+        )
+        XCTAssertFalse(scene.renderedBubbleIsTyping(for: member.id))
+        XCTAssertEqual(scene.renderedBubbleBodies(for: member.id), ["또 도착"])
 
         scene.apply(roomID: roomID, members: [member], bubbles: [], edge: .bottom, installationSeed: 1)
         XCTAssertTrue(scene.renderedBubbleIsTyping(for: member.id))
@@ -755,12 +979,101 @@ final class PixelWorldTests: XCTestCase {
         XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_chinchilla"), "dust_bath_pouch")
         XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "pixel_starlight_upalupa"), "starlight_orb")
         XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: "unknown"), "patch_soft_ball")
+        XCTAssertEqual(
+            PixelCharacterThrowCatalog.interactionDescription(for: "pixel_guinea_pig"),
+            "친구를 클릭하면 아껴 둔 미니 파프리카를 던져요."
+        )
+        XCTAssertTrue(
+            PixelCharacterThrowCatalog.interactionDescription(for: "pixel_monkey")
+                .contains("바나나")
+        )
+        XCTAssertTrue(
+            PixelCharacterThrowCatalog.interactionDescription(for: "pixel_chinchilla")
+                .contains("먼지목욕 모래주머니")
+        )
+        XCTAssertTrue(
+            PixelCharacterThrowCatalog.interactionDescription(for: "pixel_starlight_upalupa")
+                .contains("별빛 구슬")
+        )
+        XCTAssertEqual(
+            PixelCharacterThrowCatalog.resolvedObjectID(
+                for: "pixel_cat",
+                equippedObjectID: "throwable_toy_cannon"
+            ),
+            "throwable_toy_cannon"
+        )
+        XCTAssertEqual(
+            PixelCharacterThrowCatalog.resolvedObjectID(
+                for: "pixel_cat",
+                equippedObjectID: "future_unknown_throwable"
+            ),
+            "patch_soft_ball"
+        )
         XCTAssertEqual(PixelCharacterThrowStyle.arcHeight(for: 10), 24)
         XCTAssertEqual(PixelCharacterThrowStyle.arcHeight(for: 1_000), 96)
         XCTAssertEqual(PixelCharacterThrowStyle.flightDuration(for: 0), 0.35, accuracy: 0.001)
         XCTAssertEqual(PixelCharacterThrowStyle.flightDuration(for: 2_000), 0.95, accuracy: 0.001)
         XCTAssertEqual(PixelCharacterThrowStyle.impactPointSize, 48)
+        XCTAssertEqual(PixelCharacterThrowStyle.impactTorsoOffset, 10)
+        XCTAssertEqual(PixelCharacterThrowStyle.cannonEmitterPointSize, 48)
+        XCTAssertGreaterThan(PixelCharacterThrowStyle.cannonEmitterZPosition, 0)
+        XCTAssertEqual(PixelCharacterThrowStyle.cannonEmitterTangentOffset, 6)
         XCTAssertEqual(PixelCharacterThrowStyle.maximumActiveProjectiles, 32)
+    }
+
+    func testTopEdgeKeepsNicknameAndBubbleTextUpright() throws {
+        let member = makeMember()
+        let bubble = ActiveBubble(
+            senderID: member.id,
+            messageID: UUID(),
+            body: "똑바로 보여요",
+            expiresAt: .distantFuture
+        )
+        let scene = PixelWorldScene(size: CGSize(width: 720, height: 360))
+
+        for edge in OverlayEdge.allCases {
+            scene.apply(
+                roomID: UUID(),
+                members: [member],
+                bubbles: [bubble],
+                edge: edge,
+                installationSeed: 1
+            )
+            let expectedRotation = edge.presentationRotation + edge.readableContentCounterRotation
+            XCTAssertEqual(
+                try XCTUnwrap(scene.renderedNicknameWorldRotation(for: member.id)),
+                expectedRotation,
+                accuracy: 0.001,
+                "\(edge)"
+            )
+            XCTAssertEqual(
+                try XCTUnwrap(scene.renderedBubbleTextWorldRotations(for: member.id).first),
+                expectedRotation,
+                accuracy: 0.001,
+                "\(edge)"
+            )
+        }
+
+        let typingMember = PixelWorldMember(
+            id: member.id,
+            nickname: member.nickname,
+            characterID: member.characterID,
+            presence: .typing,
+            isTyping: true,
+            isCurrentUser: false
+        )
+        scene.apply(
+            roomID: UUID(),
+            members: [typingMember],
+            bubbles: [],
+            edge: .top,
+            installationSeed: 1
+        )
+        XCTAssertEqual(
+            try XCTUnwrap(scene.renderedBubbleTextWorldRotations(for: member.id).first),
+            0,
+            accuracy: 0.001
+        )
     }
 
     func testCharacterFramesCallbackReportsEveryMemberAs52Points() {

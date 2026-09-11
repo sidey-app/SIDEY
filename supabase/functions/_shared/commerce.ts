@@ -33,6 +33,12 @@ export const SUPPORTED_PRODUCT_IDS = new Set([
   "character_baby",
   "character_santa",
   "character_jungjiyu",
+  "bubble_bunny_pink",
+  "bubble_butter_chick",
+  "bubble_starry_cat",
+  "throwable_bouncy_heart",
+  "throwable_toy_cannon",
+  "throwable_squeaky_duck",
 ]);
 export const PORTONE_API_BASE = "https://api.portone.io";
 
@@ -60,6 +66,8 @@ export type CommerceOrder = {
   product_id: string;
   display_name: string;
   character_id?: string;
+  product_kind?: "character" | "bubble" | "throwable";
+  catalog_item_id?: string;
   amount_krw: number;
   currency: string;
   customer_name?: string;
@@ -115,14 +123,14 @@ function publicFunctionBaseURL(): string {
 }
 
 export function checkoutPageURL(token: string): string {
-  const url = websitePageURL("checkout.html");
+  const url = websitePageURL("checkout/");
   url.searchParams.set("api", publicFunctionBaseURL());
   url.hash = new URLSearchParams({ token }).toString();
   return url.toString();
 }
 
 export function checkoutResultURL(result: string, productID?: string): string {
-  const url = websitePageURL("checkout-result.html");
+  const url = websitePageURL("checkout-result/");
   url.searchParams.set("result", result);
   if (productID && SUPPORTED_PRODUCT_IDS.has(productID)) url.searchParams.set("product", productID);
   return url.toString();

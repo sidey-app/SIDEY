@@ -6,6 +6,10 @@
     <RootNamespace>Sidey.Core.Tests</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="coverlet.collector">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">
@@ -27,12 +31,6 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="../../src/Sidey.Overlay/Assets/Characters/**/*.json" Link="TestAssets/%(RecursiveDir)%(Filename)%(Extension)">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="../../src/Sidey.Overlay/LayeredPixelWorldRenderer.cs" Link="TestAssets/LayeredPixelWorldRenderer.cs">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="../../src/Sidey.Overlay/PixelCharacterFrameCache.cs" Link="TestAssets/PixelCharacterFrameCache.cs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

@@ -7,16 +7,16 @@ public sealed class CharacterAssetPathResolverTests
     [Fact]
     public void SingleFilePublishUsesAssetsBesideTheExecutable()
     {
-        var root = CreateTemporaryDirectory();
+        string root = CreateTemporaryDirectory();
         try
         {
-            var executableDirectory = Path.Combine(root, "install");
-            var executableAssetRoot = Path.Combine(executableDirectory, "Assets", "Characters");
-            var extractionDirectory = Path.Combine(root, "extraction");
+            string executableDirectory = Path.Combine(root, "install");
+            string executableAssetRoot = Path.Combine(executableDirectory, "Assets", "Characters");
+            string extractionDirectory = Path.Combine(root, "extraction");
             Directory.CreateDirectory(executableAssetRoot);
             Directory.CreateDirectory(extractionDirectory);
 
-            var resolved = CharacterAssetPathResolver.Resolve(
+            string resolved = CharacterAssetPathResolver.Resolve(
                 Path.Combine(executableDirectory, "SIDEY.exe"),
                 extractionDirectory);
 
@@ -31,16 +31,16 @@ public sealed class CharacterAssetPathResolverTests
     [Fact]
     public void DevelopmentBuildFallsBackToAppBaseAssets()
     {
-        var root = CreateTemporaryDirectory();
+        string root = CreateTemporaryDirectory();
         try
         {
-            var executableDirectory = Path.Combine(root, "host");
-            var appBaseDirectory = Path.Combine(root, "app");
-            var appBaseAssetRoot = Path.Combine(appBaseDirectory, "Assets", "Characters");
+            string executableDirectory = Path.Combine(root, "host");
+            string appBaseDirectory = Path.Combine(root, "app");
+            string appBaseAssetRoot = Path.Combine(appBaseDirectory, "Assets", "Characters");
             Directory.CreateDirectory(executableDirectory);
             Directory.CreateDirectory(appBaseAssetRoot);
 
-            var resolved = CharacterAssetPathResolver.Resolve(
+            string resolved = CharacterAssetPathResolver.Resolve(
                 Path.Combine(executableDirectory, "testhost.exe"),
                 appBaseDirectory);
 
@@ -55,16 +55,16 @@ public sealed class CharacterAssetPathResolverTests
     [Fact]
     public void StructuredPublishUsesAssetsAboveTheRuntimeDirectory()
     {
-        var root = CreateTemporaryDirectory();
+        string root = CreateTemporaryDirectory();
         try
         {
-            var deploymentRoot = Path.Combine(root, "live");
-            var runtimeDirectory = Path.Combine(deploymentRoot, "Runtime");
-            var assetRoot = Path.Combine(deploymentRoot, "Assets", "Characters");
+            string deploymentRoot = Path.Combine(root, "live");
+            string runtimeDirectory = Path.Combine(deploymentRoot, "Runtime");
+            string assetRoot = Path.Combine(deploymentRoot, "Assets", "Characters");
             Directory.CreateDirectory(runtimeDirectory);
             Directory.CreateDirectory(assetRoot);
 
-            var resolved = CharacterAssetPathResolver.Resolve(
+            string resolved = CharacterAssetPathResolver.Resolve(
                 Path.Combine(runtimeDirectory, "SIDEY.Host.exe"),
                 runtimeDirectory);
 
@@ -78,7 +78,7 @@ public sealed class CharacterAssetPathResolverTests
 
     private static string CreateTemporaryDirectory()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"sidey-assets-{Guid.NewGuid():N}");
+        string path = Path.Combine(Path.GetTempPath(), $"sidey-assets-{Guid.NewGuid():N}");
         Directory.CreateDirectory(path);
         return path;
     }

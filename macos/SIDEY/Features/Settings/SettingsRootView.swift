@@ -12,7 +12,12 @@ struct SettingsActions {
     var canCheckForUpdates: () -> Bool
     var onPurchase: (String) -> Void
     var onRefreshCommerceState: (String?) -> Void
+    var onSetEquippedCosmetic: (CommerceProductKind, String?) -> Void
+    var onRestorePurchases: () -> Void
+    var onSignInWithApple: (AppleAuthorizationPayload) -> Void
+    var onDeleteAccount: (AppleAuthorizationPayload) -> Void
     var onSaveProfile: @MainActor @Sendable () -> Void
+    var onSetCharacter: (String) -> Void
     var onCreateRoom: () -> Void
     var onJoinRoom: () -> Void
     var onSelectRoom: (UUID) -> Void
@@ -20,7 +25,12 @@ struct SettingsActions {
     var onRotateInviteCode: (UUID) -> Void
     var onRenameRoom: (UUID, String) -> Void
     var onRemoveRoomMember: (UUID, UUID) -> Void
+    var onLeaveRoom: (UUID) -> Void
     var onDeleteRoom: (UUID) -> Void
+
+    var onCharacterSoundEffectsChanged: (Bool) -> Void = { _ in }
+    var onCharacterImpact: (String, TimeInterval) -> Void = { _, _ in }
+    var onStopCharacterSounds: () -> Void = {}
 
     static let empty = SettingsActions(
         onOverlayVisibilityChanged: { _ in },
@@ -33,7 +43,12 @@ struct SettingsActions {
         canCheckForUpdates: { false },
         onPurchase: { _ in },
         onRefreshCommerceState: { _ in },
+        onSetEquippedCosmetic: { _, _ in },
+        onRestorePurchases: {},
+        onSignInWithApple: { _ in },
+        onDeleteAccount: { _ in },
         onSaveProfile: {},
+        onSetCharacter: { _ in },
         onCreateRoom: {},
         onJoinRoom: {},
         onSelectRoom: { _ in },
@@ -41,6 +56,7 @@ struct SettingsActions {
         onRotateInviteCode: { _ in },
         onRenameRoom: { _, _ in },
         onRemoveRoomMember: { _, _ in },
+        onLeaveRoom: { _ in },
         onDeleteRoom: { _ in }
     )
 }
@@ -62,13 +78,14 @@ struct SettingsRootView: View {
 
     var body: some View {
         Group {
-            if model.preferences.onboardingComplete {
+            if model.authenticationRequired {
+                AppleSignInView(model: model, onSignIn: actions.onSignInWithApple)
+            } else if model.preferences.onboardingComplete {
                 settingsNavigation
             } else {
                 OnboardingView(model: model, actions: actions)
             }
         }
-        .animation(.snappy, value: model.preferences.onboardingComplete)
     }
 
     private var settingsNavigation: some View {
@@ -90,7 +107,11 @@ struct SettingsRootView: View {
                 Group {
                     switch model.activeSettingsPage {
                     case .profile:
-                        ProfileSettingsView(model: model, onSave: actions.onSaveProfile)
+                        ProfileSettingsView(
+                            model: model,
+                            actions: actions,
+                            storeAvailability: storeAvailability
+                        )
                     case .groups:
                         GroupsSettingsView(model: model, actions: actions)
                     case .store:
@@ -100,7 +121,11 @@ struct SettingsRootView: View {
                             availability: storeAvailability
                         )
                     case .app:
-                        AppSettingsView(model: model, actions: actions)
+                        AppSettingsView(
+                            model: model,
+                            actions: actions,
+                            storeAvailability: storeAvailability
+                        )
                     }
                 }
                 .frame(maxWidth: 760, alignment: .topLeading)
@@ -114,10 +139,20 @@ struct SettingsRootView: View {
                         .padding(20)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 } else if let success = model.successMessage {
-                    SuccessBanner(message: success) { model.successMessage = nil }
+                    SuccessBanner(message: success) { model.dismissSuccess() }
                         .padding(20)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
+            }
+            .task(id: model.successMessageGeneration) {
+                let generation = model.successMessageGeneration
+                guard model.successMessage != nil else { return }
+                do {
+                    try await Task.sleep(for: SuccessFeedbackState.displayDuration)
+                } catch {
+                    return
+                }
+                model.dismissSuccess(generation: generation)
             }
         }
         .navigationSplitViewStyle(.balanced)

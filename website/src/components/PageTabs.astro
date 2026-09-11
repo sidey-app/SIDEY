@@ -1,0 +1,20 @@
+---
+interface TabItem {
+  href: string;
+  label: string;
+  active: boolean;
+}
+
+interface Props {
+  label: string;
+  items: TabItem[];
+}
+
+const { label, items } = Astro.props;
+---
+
+<nav class="page-tabs" aria-label={label}>
+  {items.map((item) => (
+    <a href={item.href} aria-current={item.active ? "page" : undefined}>{item.label}</a>
+  ))}
+</nav>

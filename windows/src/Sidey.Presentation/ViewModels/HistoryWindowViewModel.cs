@@ -9,22 +9,11 @@ using Sidey.Presentation.Services;
 
 namespace Sidey.Presentation.ViewModels;
 
-public sealed record HistoryEntryViewModel(
-    Guid Id,
-    string SenderName,
-    string Body,
-    string LocalTimeText,
-    string CharacterId,
-    bool IsCurrentUser,
-    bool IsPending,
-    bool IsFailed,
-    DateTimeOffset CreatedAt);
-
 public sealed partial class HistoryWindowViewModel : ObservableObject, IDisposable
 {
     private const int PageSize = 50;
 
-    private readonly ISideyCoordinator _coordinator;
+    private readonly IHistoryCoordinator _coordinator;
     private readonly Dictionary<Guid, ChatMessage> _pagedMessages = [];
     private CoordinatorState _state;
     private Guid? _loadedRoomId;
@@ -67,7 +56,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject, IDisposab
     [ObservableProperty]
     public partial bool IsExhaustedVisible { get; set; }
 
-    public HistoryWindowViewModel(ISideyCoordinator coordinator)
+    public HistoryWindowViewModel(IHistoryCoordinator coordinator)
     {
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         _state = coordinator.State;
@@ -98,6 +87,15 @@ public sealed partial class HistoryWindowViewModel : ObservableObject, IDisposab
         {
             RebuildEntries();
         }
+    }
+
+    public void RefreshLocalizedText()
+    {
+        Title = ActiveRoom() is { } room
+            ? I18n.Format("history.roomTitle", room.Name)
+            : I18n.Get("history.recentTitle");
+        RebuildEntries();
+        UpdateEmptyState();
     }
 
     public async Task ActivateAsync()
@@ -295,7 +293,7 @@ public sealed partial class HistoryWindowViewModel : ObservableObject, IDisposab
             return;
         }
 
-        var cutoff = DateTimeOffset.UtcNow - MessageLedger.ConfirmedRetention;
+        DateTimeOffset cutoff = DateTimeOffset.UtcNow - MessageLedger.ConfirmedRetention;
         var entriesById = _pagedMessages.Values
             .Where(message => message.RoomId == roomId && message.CreatedAt >= cutoff)
             .ToDictionary(
@@ -313,11 +311,10 @@ public sealed partial class HistoryWindowViewModel : ObservableObject, IDisposab
             entriesById[entry.Id] = entry;
         }
 
-        HistoryEntryViewModel[] desired = entriesById.Values
+        HistoryEntryViewModel[] desired = [.. entriesById.Values
             .OrderByDescending(entry => entry.CreatedAt)
             .ThenByDescending(entry => entry.Id.ToString("D"), StringComparer.Ordinal)
-            .Select(ToViewModel)
-            .ToArray();
+            .Select(ToViewModel)];
         ReplaceItems(desired);
         UpdateEmptyState();
     }

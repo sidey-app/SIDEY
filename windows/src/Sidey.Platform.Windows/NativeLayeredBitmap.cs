@@ -27,7 +27,7 @@ public sealed unsafe class NativeLayeredBitmap : IDisposable
     private bool _disposed;
 
     public NativeLayeredBitmap(nint windowHandle, int width, int height)
-        : this(windowHandle, width, height, ReadOnlySpan<byte>.Empty)
+        : this(windowHandle, width, height, [])
     {
     }
 
@@ -57,7 +57,7 @@ public sealed unsafe class NativeLayeredBitmap : IDisposable
             throw new ArgumentOutOfRangeException(nameof(height));
         }
 
-        var expectedByteCount = checked(width * height * 4);
+        int expectedByteCount = checked(width * height * 4);
         if (!premultipliedBgra.IsEmpty && premultipliedBgra.Length != expectedByteCount)
         {
             throw new ArgumentException(
@@ -69,7 +69,7 @@ public sealed unsafe class NativeLayeredBitmap : IDisposable
         Width = width;
         Height = height;
 
-        var screenDeviceContext = PInvoke.GetDC(HWND.Null);
+        HDC screenDeviceContext = PInvoke.GetDC(HWND.Null);
         if (screenDeviceContext.IsNull)
         {
             throw LastWin32Exception("GetDC failed while preparing a layered bitmap.");
@@ -184,10 +184,10 @@ public sealed unsafe class NativeLayeredBitmap : IDisposable
         }
     }
 
-    public void Present(int screenX, int screenY)
+    public void Present(int screenX, int screenY, byte opacity = byte.MaxValue)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        var screenDeviceContext = PInvoke.GetDC(HWND.Null);
+        HDC screenDeviceContext = PInvoke.GetDC(HWND.Null);
         if (screenDeviceContext.IsNull)
         {
             throw LastWin32Exception("GetDC failed while presenting a layered bitmap.");
@@ -197,12 +197,12 @@ public sealed unsafe class NativeLayeredBitmap : IDisposable
         {
             var destination = new Point(screenX, screenY);
             var size = new SIZE(Width, Height);
-            var source = Point.Empty;
+            Point source = Point.Empty;
             var blend = new BLENDFUNCTION
             {
                 BlendOp = SourceOver,
                 BlendFlags = 0,
-                SourceConstantAlpha = byte.MaxValue,
+                SourceConstantAlpha = opacity,
                 AlphaFormat = SourceAlpha,
             };
             if (!PInvoke.UpdateLayeredWindow(

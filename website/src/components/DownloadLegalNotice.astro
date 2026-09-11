@@ -1,0 +1,19 @@
+---
+import type { Locale } from "../i18n/landing";
+
+interface Props {
+  id: string;
+  locale: Locale;
+}
+
+const { id, locale } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const termsHref = `${base}${locale}/terms/`;
+const privacyHref = `${base}${locale}/privacy/`;
+---
+
+<span class="download-license-tooltip" id={id} role="note">
+  {locale === "ko" && <>프로그램을 내려받아 설치하면 <a href={termsHref}>이용약관</a> 및 <a href={privacyHref}>개인정보 처리방침</a>에 동의하게 됩니다.</>}
+  {locale === "en" && <>By downloading and installing SIDEY, you agree to the <a href={termsHref}>Terms of Use</a> and <a href={privacyHref}>Privacy Policy</a>.</>}
+  {locale === "ja" && <>SIDEYをダウンロードしてインストールすると、<a href={termsHref}>利用規約</a>および<a href={privacyHref}>プライバシーポリシー</a>に同意したものとみなされます。</>}
+</span>

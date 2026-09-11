@@ -1,0 +1,8 @@
+---
+import WhatsNewPage from "../../../../components/WhatsNewPage.astro";
+import { isLocale } from "../../../../i18n/landing";
+
+const locale = isLocale(Astro.currentLocale) ? Astro.currentLocale : "ko";
+---
+
+<WhatsNewPage locale={locale} platform="windows" />

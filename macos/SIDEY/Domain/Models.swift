@@ -71,6 +71,12 @@ enum OverlayEdge: String, Codable, CaseIterable, Identifiable, Sendable {
         case .top: .pi
         }
     }
+
+    /// The top-edge world rotates characters by 180 degrees so their feet
+    /// meet the screen edge. Counter-rotate readable UI at its own anchor.
+    var readableContentCounterRotation: CGFloat {
+        self == .top ? -presentationRotation : 0
+    }
 }
 
 enum OverlaySpan: String, Codable, CaseIterable, Identifiable, Sendable {
@@ -289,9 +295,7 @@ enum CommerceCatalog {
     static let jungjiyuProductID = "character_jungjiyu"
     static let jungjiyuEntitlementKey = "character:pixel_jungjiyu"
 
-    /// Product order is a presentation contract. Registering a future product
-    /// here is enough for the existing store grid to render it.
-    static let products: [CommerceProduct] = [
+    static let characterProducts: [CommerceProduct] = [
         .starlightUpalupa,
         .guineaPig,
         .monkey,
@@ -328,20 +332,79 @@ enum CommerceCatalog {
         .jungjiyu,
     ]
 
+    static let cosmeticProducts: [CommerceProduct] = [
+        .bunnyPinkBubble,
+        .butterChickBubble,
+        .starryCatBubble,
+        .bouncyHeart,
+        .toyCannon,
+        .squeakyDuck,
+    ]
+
+    static let products: [CommerceProduct] = characterProducts + cosmeticProducts
+
     static func product(id: String) -> CommerceProduct? {
         products.first { $0.id == id }
     }
+}
+
+enum CommerceProductKind: String, Codable, CaseIterable, Sendable {
+    case character
+    case bubble
+    case throwable
+
+    var title: String {
+        switch self {
+        case .character: "캐릭터"
+        case .bubble: "말풍선"
+        case .throwable: "투척물"
+        }
+    }
+}
+
+struct CosmeticEquipmentRequest: Equatable, Sendable {
+    let kind: CommerceProductKind
+    let catalogItemID: String?
 }
 
 struct CommerceProduct: Equatable, Sendable {
     let id: String
     let displayName: String
     let description: String
-    let characterID: String
+    let kind: CommerceProductKind
+    let catalogItemID: String
+    let characterID: String?
     let entitlementKey: String
+    let sortOrder: Int
     let amountKRW: Int
     let currency: String
     let taxInclusive: Bool
+
+    init(
+        id: String,
+        displayName: String,
+        description: String,
+        kind: CommerceProductKind = .character,
+        catalogItemID: String? = nil,
+        characterID: String?,
+        entitlementKey: String,
+        sortOrder: Int = 0,
+        amountKRW: Int,
+        currency: String,
+        taxInclusive: Bool
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.description = description
+        self.kind = kind
+        self.catalogItemID = catalogItemID ?? characterID ?? id
+        self.characterID = characterID
+        self.entitlementKey = entitlementKey
+        self.sortOrder = sortOrder
+        self.amountKRW = amountKRW
+        self.currency = currency
+        self.taxInclusive = taxInclusive
+    }
 
     static let starlightUpalupa = CommerceProduct(
         id: CommerceCatalog.starlightUpalupaProductID,
@@ -349,6 +412,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: CommerceCatalog.starlightUpalupaDescription,
         characterID: CommerceCatalog.starlightUpalupaCharacterID,
         entitlementKey: CommerceCatalog.starlightUpalupaEntitlementKey,
+        sortOrder: 10,
         amountKRW: 1_900,
         currency: "KRW",
         taxInclusive: true
@@ -360,6 +424,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "낮고 동글동글한 몸에 비대칭 삼색 무늬가 매력인 작은 친구예요.",
         characterID: PixelCharacterCatalog.pixelGuineaPigID,
         entitlementKey: CommerceCatalog.guineaPigEntitlementKey,
+        sortOrder: 20,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -371,6 +436,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "세 갈래 머리털과 시안 목도리로 씩씩하게 산책하는 친구예요.",
         characterID: PixelCharacterCatalog.pixelMonkeyID,
         entitlementKey: CommerceCatalog.monkeyEntitlementKey,
+        sortOrder: 30,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -382,11 +448,11 @@ struct CommerceProduct: Equatable, Sendable {
         description: "크고 둥근 귀와 포근한 회색 털, 파란 목도리를 가진 친구예요.",
         characterID: PixelCharacterCatalog.pixelChinchillaID,
         entitlementKey: CommerceCatalog.chinchillaEntitlementKey,
+        sortOrder: 40,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
     )
-
 
     static let poop = CommerceProduct(
         id: CommerceCatalog.poopProductID,
@@ -394,6 +460,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "부드러운 코코아색 소용돌이에 반짝이는 눈이 달린 장난꾸러기 친구예요.",
         characterID: PixelCharacterCatalog.pixelPoopID,
         entitlementKey: CommerceCatalog.poopEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -405,6 +472,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "머리에 귤 하나를 얹고 느긋하게 산책하는 세상 편한 친구예요.",
         characterID: PixelCharacterCatalog.pixelCapybaraID,
         entitlementKey: CommerceCatalog.capybaraEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -416,6 +484,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "뾰족한 가시 아래 크림색 얼굴이 숨어 있는 수줍은 친구예요.",
         characterID: PixelCharacterCatalog.pixelHedgehogID,
         entitlementKey: CommerceCatalog.hedgehogEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -427,6 +496,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "금빛 뿔과 세 가지 색 갈기를 가진 반짝이는 친구예요.",
         characterID: PixelCharacterCatalog.pixelUnicornID,
         entitlementKey: CommerceCatalog.unicornEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -438,6 +508,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "동그란 눈썹 무늬와 말린 꼬리로 씩씩하게 걷는 친구예요.",
         characterID: PixelCharacterCatalog.pixelShibaID,
         entitlementKey: CommerceCatalog.shibaEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -449,6 +520,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "밥 위에 연어 한 점을 얹고 김 띠를 두른 든든한 친구예요.",
         characterID: PixelCharacterCatalog.pixelSalmonSushiID,
         entitlementKey: CommerceCatalog.salmonSushiEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -460,6 +532,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "흰 수염과 동그란 안경, 파란 가디건이 포근한 친구예요.",
         characterID: PixelCharacterCatalog.pixelGrandpaID,
         entitlementKey: CommerceCatalog.grandpaEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -471,6 +544,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "빨간 마스크와 큰 흰 눈, 파란 슈트로 화면 가장자리를 지키는 친구예요.",
         characterID: PixelCharacterCatalog.pixelSpiderHeroID,
         entitlementKey: CommerceCatalog.spiderHeroEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -482,6 +556,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "까만 깃털에 노란 부리, 머리 위 작은 깃 두 개가 귀여운 친구예요.",
         characterID: PixelCharacterCatalog.pixelCrowID,
         entitlementKey: CommerceCatalog.crowEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -493,6 +568,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "새빨간 양념 옷을 입고 초록 배춧잎을 머리에 얹은 매콤한 친구예요.",
         characterID: PixelCharacterCatalog.pixelKimchiID,
         entitlementKey: CommerceCatalog.kimchiEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -504,6 +580,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "세상에서 가장 행복한 미소로 화면 가장자리를 밝히는 친구예요.",
         characterID: PixelCharacterCatalog.pixelQuokkaID,
         entitlementKey: CommerceCatalog.quokkaEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -515,6 +592,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "주황 털에 흰 눈썹 무늬, 줄무늬 꼬리를 살랑이는 친구예요.",
         characterID: PixelCharacterCatalog.pixelRedPandaID,
         entitlementKey: CommerceCatalog.redPandaEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -526,6 +604,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "두 손으로 노란 조개를 꼭 안고 다니는 친구예요.",
         characterID: PixelCharacterCatalog.pixelOtterID,
         entitlementKey: CommerceCatalog.otterEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -537,6 +616,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "노란 솜털에 주황 부리, 머리 위 작은 깃이 귀여운 친구예요.",
         characterID: PixelCharacterCatalog.pixelDuckID,
         entitlementKey: CommerceCatalog.duckEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -548,6 +628,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "까만 귀와 눈 무늬, 대나무색 목도리를 두른 친구예요.",
         characterID: PixelCharacterCatalog.pixelPandaID,
         entitlementKey: CommerceCatalog.pandaEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -559,6 +640,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "머리 위로 볼록 솟은 눈과 넓은 미소가 사랑스러운 친구예요.",
         characterID: PixelCharacterCatalog.pixelFrogID,
         entitlementKey: CommerceCatalog.frogEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -570,6 +652,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "동글동글한 머리 아래 여덟 다리를 꼬물거리는 친구예요.",
         characterID: PixelCharacterCatalog.pixelOctopusID,
         entitlementKey: CommerceCatalog.octopusEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -581,6 +664,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "노릇한 격자 무늬와 양쪽 지느러미가 살아 있는 겨울 간식 친구예요.",
         characterID: PixelCharacterCatalog.pixelBungeoppangID,
         entitlementKey: CommerceCatalog.bungeoppangEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -592,6 +676,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "하얀 흰자 위에 노른자 얼굴이 톡 올라간 아침 친구예요.",
         characterID: PixelCharacterCatalog.pixelFriedEggID,
         entitlementKey: CommerceCatalog.friedEggEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -603,6 +688,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "까만 김에 하얀 밥과 빨간 라벨을 두른 삼각형 친구예요.",
         characterID: PixelCharacterCatalog.pixelSamgakGimbapID,
         entitlementKey: CommerceCatalog.samgakGimbapEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -614,6 +700,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "빨간 양념 위로 떡 세 개가 봉긋 올라온 컵 친구예요.",
         characterID: PixelCharacterCatalog.pixelTteokbokkiID,
         entitlementKey: CommerceCatalog.tteokbokkiEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -625,6 +712,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "연둣빛 과육 가운데 갈색 씨앗 얼굴이 웃고 있는 친구예요.",
         characterID: PixelCharacterCatalog.pixelAvocadoID,
         entitlementKey: CommerceCatalog.avocadoEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -636,6 +724,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "반짝이는 물방울 하이라이트를 품은 말랑한 민트 친구예요.",
         characterID: PixelCharacterCatalog.pixelSlimeID,
         entitlementKey: CommerceCatalog.slimeEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -647,6 +736,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "테라코타 화분 위에서 두 팔 벌린 선인장 친구예요.",
         characterID: PixelCharacterCatalog.pixelCactusPotID,
         entitlementKey: CommerceCatalog.cactusPotEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -658,6 +748,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "파 조각을 얹은 새하얀 네모 두부 친구예요.",
         characterID: PixelCharacterCatalog.pixelTofuID,
         entitlementKey: CommerceCatalog.tofuEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -669,6 +760,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "김이 모락모락 나는 국물 위에 면과 파를 얹은 야근 친구예요.",
         characterID: PixelCharacterCatalog.pixelCupRamenID,
         entitlementKey: CommerceCatalog.cupRamenEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -680,6 +772,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "뽀글 파마와 분홍 가디건, 다정한 미소의 친구예요.",
         characterID: PixelCharacterCatalog.pixelGrandmaID,
         entitlementKey: CommerceCatalog.grandmaEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -691,6 +784,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "머리에 곱슬 한 가닥, 쪽쪽이를 문 파란 턱받이 친구예요.",
         characterID: PixelCharacterCatalog.pixelBabyID,
         entitlementKey: CommerceCatalog.babyEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -702,6 +796,7 @@ struct CommerceProduct: Equatable, Sendable {
         description: "빨간 모자와 하얀 수염, 검은 벨트를 맨 선물 배달 친구예요.",
         characterID: PixelCharacterCatalog.pixelSantaID,
         entitlementKey: CommerceCatalog.santaEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
@@ -713,13 +808,70 @@ struct CommerceProduct: Equatable, Sendable {
         description: "앞머리를 내린 긴 갈색 생머리에 흰 이너와 연핑크 가디건, 청바지를 입은 친구예요.",
         characterID: PixelCharacterCatalog.pixelJungjiyuID,
         entitlementKey: CommerceCatalog.jungjiyuEntitlementKey,
+        sortOrder: 90,
         amountKRW: 990,
         currency: "KRW",
         taxInclusive: true
     )
 
+    static let bunnyPinkBubble = CommerceProduct(
+        id: "bubble_bunny_pink", displayName: "핑크 토끼 말풍선",
+        description: "토끼 장식과 또렷한 진한 글자가 있는 분홍 말풍선이에요.",
+        kind: .bubble, catalogItemID: "bubble_bunny_pink", characterID: nil,
+        entitlementKey: "bubble:bubble_bunny_pink", sortOrder: 110,
+        amountKRW: 1_900, currency: "KRW", taxInclusive: true
+    )
+
+    static let butterChickBubble = CommerceProduct(
+        id: "bubble_butter_chick", displayName: "버터 병아리 말풍선",
+        description: "병아리 장식과 또렷한 진한 글자가 있는 버터색 말풍선이에요.",
+        kind: .bubble, catalogItemID: "bubble_butter_chick", characterID: nil,
+        entitlementKey: "bubble:bubble_butter_chick", sortOrder: 120,
+        amountKRW: 1_900, currency: "KRW", taxInclusive: true
+    )
+
+    static let starryCatBubble = CommerceProduct(
+        id: "bubble_starry_cat", displayName: "별밤 고양이 말풍선",
+        description: "별고양이 장식과 밝은 글자가 있는 남보라 말풍선이에요.",
+        kind: .bubble, catalogItemID: "bubble_starry_cat", characterID: nil,
+        entitlementKey: "bubble:bubble_starry_cat", sortOrder: 130,
+        amountKRW: 1_900, currency: "KRW", taxInclusive: true
+    )
+
+    static let bouncyHeart = CommerceProduct(
+        id: "throwable_bouncy_heart", displayName: "통통 하트",
+        description: "통통 튀며 날아가 마음을 전하는 하트예요.",
+        kind: .throwable, catalogItemID: "throwable_bouncy_heart", characterID: nil,
+        entitlementKey: "throwable:throwable_bouncy_heart", sortOrder: 210,
+        amountKRW: 990, currency: "KRW", taxInclusive: true
+    )
+
+    static let toyCannon = CommerceProduct(
+        id: "throwable_toy_cannon", displayName: "미니 대포",
+        description: "캐릭터 앞 몸통에 대포가 나타나 심지탄을 쏘고 상대 몸통에서 펑 터져요.",
+        kind: .throwable, catalogItemID: "throwable_toy_cannon", characterID: nil,
+        entitlementKey: "throwable:throwable_toy_cannon", sortOrder: 220,
+        amountKRW: 2_900, currency: "KRW", taxInclusive: true
+    )
+
+    static let squeakyDuck = CommerceProduct(
+        id: "throwable_squeaky_duck", displayName: "삑삑 오리",
+        description: "노란 오리가 빙글빙글 날아가는 장난스러운 투척물이에요.",
+        kind: .throwable, catalogItemID: "throwable_squeaky_duck", characterID: nil,
+        entitlementKey: "throwable:throwable_squeaky_duck", sortOrder: 230,
+        amountKRW: 990, currency: "KRW", taxInclusive: true
+    )
+
     var formattedPrice: String {
         amountKRW.formatted(.number.grouping(.automatic)) + "원"
+    }
+
+    /// A newly completed cosmetic purchase should be immediately visible to
+    /// the buyer. Restore and launch reconciliation intentionally never use
+    /// this policy, so they cannot overwrite an existing selection.
+    var automaticEquipmentAfterFreshPurchase: CosmeticEquipmentRequest? {
+        guard kind != .character else { return nil }
+        return CosmeticEquipmentRequest(kind: kind, catalogItemID: catalogItemID)
     }
 }
 
@@ -727,8 +879,25 @@ struct CommerceProductState: Equatable, Identifiable, Sendable {
     var product: CommerceProduct
     var purchaseState: CommercePurchaseState
     var isWorking: Bool
+    var localizedPrice: String?
+    var isEquipped: Bool
+
+    init(
+        product: CommerceProduct,
+        purchaseState: CommercePurchaseState,
+        isWorking: Bool,
+        localizedPrice: String? = nil,
+        isEquipped: Bool = false
+    ) {
+        self.product = product
+        self.purchaseState = purchaseState
+        self.isWorking = isWorking
+        self.localizedPrice = localizedPrice
+        self.isEquipped = isEquipped
+    }
 
     var id: String { product.id }
+    var formattedPrice: String { localizedPrice ?? product.formattedPrice }
 }
 
 enum CommercePurchaseState: Equatable, Sendable {
@@ -758,6 +927,21 @@ struct CommerceState: Equatable, Sendable {
     let googleConnected: Bool
     let entitlementStatus: String?
     let latestOrderStatus: String?
+    let isEquipped: Bool
+
+    init(
+        product: CommerceProduct,
+        googleConnected: Bool,
+        entitlementStatus: String?,
+        latestOrderStatus: String?,
+        isEquipped: Bool = false
+    ) {
+        self.product = product
+        self.googleConnected = googleConnected
+        self.entitlementStatus = entitlementStatus
+        self.latestOrderStatus = latestOrderStatus
+        self.isEquipped = isEquipped
+    }
 
     var purchaseState: CommercePurchaseState {
         if entitlementStatus == "active" { return .owned }
@@ -775,6 +959,22 @@ struct Profile: Codable, Equatable, Sendable {
     let id: UUID
     var nickname: String
     var characterID: String
+    var equippedBubbleStyleID: String?
+    var equippedThrowableID: String?
+
+    init(
+        id: UUID,
+        nickname: String,
+        characterID: String,
+        equippedBubbleStyleID: String? = nil,
+        equippedThrowableID: String? = nil
+    ) {
+        self.id = id
+        self.nickname = nickname
+        self.characterID = characterID
+        self.equippedBubbleStyleID = equippedBubbleStyleID
+        self.equippedThrowableID = equippedThrowableID
+    }
 }
 
 struct Room: Codable, Equatable, Identifiable, Sendable {
@@ -794,6 +994,7 @@ struct RoomMember: Codable, Equatable, Identifiable, Sendable {
     var nickname: String
     var characterID: String
     var presence: PresenceState
+    var equippedBubbleStyleID: String? = nil
 }
 
 struct ChatMessage: Codable, Equatable, Identifiable, Sendable {
@@ -802,6 +1003,23 @@ struct ChatMessage: Codable, Equatable, Identifiable, Sendable {
     let senderID: UUID
     let body: String
     let createdAt: Date
+    let bubbleStyleID: String?
+
+    init(
+        id: UUID,
+        roomID: UUID,
+        senderID: UUID,
+        body: String,
+        createdAt: Date,
+        bubbleStyleID: String? = nil
+    ) {
+        self.id = id
+        self.roomID = roomID
+        self.senderID = senderID
+        self.body = body
+        self.createdAt = createdAt
+        self.bubbleStyleID = bubbleStyleID
+    }
 }
 
 enum MessageDeliveryState: Equatable, Sendable {
@@ -817,6 +1035,7 @@ struct MessageLedgerEntry: Equatable, Identifiable, Sendable {
     var body: String
     var createdAt: Date
     var state: MessageDeliveryState
+    var bubbleStyleID: String? = nil
 }
 
 struct MessageLedger: Equatable, Sendable {
@@ -831,6 +1050,7 @@ struct MessageLedger: Equatable, Sendable {
         if let index = entries.firstIndex(where: { $0.id == message.id }) {
             entries[index].body = message.body
             entries[index].createdAt = message.createdAt
+            entries[index].bubbleStyleID = message.bubbleStyleID
         } else {
             entries.append(MessageLedgerEntry(
                 id: message.id,
@@ -838,7 +1058,8 @@ struct MessageLedger: Equatable, Sendable {
                 senderID: message.senderID,
                 body: message.body,
                 createdAt: message.createdAt,
-                state: .confirmed
+                state: .confirmed,
+                bubbleStyleID: message.bubbleStyleID
             ))
         }
         sortAndPrune(now: now)
@@ -964,10 +1185,25 @@ struct ActiveBubble: Equatable, Identifiable, Sendable {
     let messageID: UUID
     let body: String
     let expiresAt: Date
+    let bubbleStyleID: String?
+
+    init(
+        senderID: UUID,
+        messageID: UUID,
+        body: String,
+        expiresAt: Date,
+        bubbleStyleID: String? = nil
+    ) {
+        self.senderID = senderID
+        self.messageID = messageID
+        self.body = body
+        self.expiresAt = expiresAt
+        self.bubbleStyleID = bubbleStyleID
+    }
 }
 
 struct ActiveBubbleLedger: Equatable, Sendable {
-    static let maximumVisible = 4
+    static let maximumVisiblePerSender = 2
     static let defaultLifetime: TimeInterval = 10
 
     private(set) var bubbles: [ActiveBubble] = []
@@ -976,22 +1212,30 @@ struct ActiveBubbleLedger: Equatable, Sendable {
         senderID: UUID,
         messageID: UUID,
         body: String,
+        bubbleStyleID: String? = nil,
         expiresAt: Date = .now.addingTimeInterval(Self.defaultLifetime)
     ) {
-        bubbles.removeAll { $0.senderID == senderID || $0.messageID == messageID }
+        bubbles.removeAll { $0.messageID == messageID }
         bubbles.append(ActiveBubble(
             senderID: senderID,
             messageID: messageID,
             body: body,
-            expiresAt: expiresAt
+            expiresAt: expiresAt,
+            bubbleStyleID: bubbleStyleID
         ))
         bubbles.sort { lhs, rhs in
             lhs.expiresAt == rhs.expiresAt
                 ? lhs.messageID.uuidString < rhs.messageID.uuidString
                 : lhs.expiresAt < rhs.expiresAt
         }
-        if bubbles.count > Self.maximumVisible {
-            bubbles.removeFirst(bubbles.count - Self.maximumVisible)
+        let senderBubbles = bubbles.filter { $0.senderID == senderID }
+        if senderBubbles.count > Self.maximumVisiblePerSender {
+            let removedIDs = Set(
+                senderBubbles
+                    .prefix(senderBubbles.count - Self.maximumVisiblePerSender)
+                    .map(\.messageID)
+            )
+            bubbles.removeAll { removedIDs.contains($0.messageID) }
         }
     }
 
@@ -1015,6 +1259,25 @@ struct PixelWorldMember: Equatable, Identifiable, Sendable {
     let presence: PresenceState
     let isTyping: Bool
     let isCurrentUser: Bool
+    let equippedBubbleStyleID: String?
+
+    init(
+        id: UUID,
+        nickname: String,
+        characterID: String,
+        presence: PresenceState,
+        isTyping: Bool,
+        isCurrentUser: Bool,
+        equippedBubbleStyleID: String? = nil
+    ) {
+        self.id = id
+        self.nickname = nickname
+        self.characterID = characterID
+        self.presence = presence
+        self.isTyping = isTyping
+        self.isCurrentUser = isCurrentUser
+        self.equippedBubbleStyleID = equippedBubbleStyleID
+    }
 }
 
 struct RealtimeRoomPlan: Equatable, Sendable {
@@ -1078,8 +1341,62 @@ struct RealtimeTopology: Equatable, Sendable {
     }
 }
 
+struct RealtimeTopologyUpdatePlan: Equatable, Sendable {
+    let additions: Set<UUID>
+    let removals: Set<UUID>
+
+    static func make(live: RealtimeTopology, requestedRooms: [Room]) -> Self {
+        let desired = RealtimeTopology(rooms: requestedRooms)
+        let additions = Set(desired.roomEpochs.compactMap { roomID, desiredEpoch in
+            live.roomEpochs[roomID] == desiredEpoch ? nil : roomID
+        })
+        let removals = Set(live.roomEpochs.compactMap { roomID, liveEpoch in
+            desired.roomEpochs[roomID] == liveEpoch ? nil : roomID
+        })
+        return Self(additions: additions, removals: removals)
+    }
+}
+
+struct RealtimeDesiredTopology: Equatable, Sendable {
+    private(set) var roomEpochs: [UUID: Int] = [:]
+
+    mutating func replace(rooms: some Sequence<Room>) {
+        roomEpochs = Dictionary(uniqueKeysWithValues: rooms.prefix(5).map {
+            ($0.id, $0.realtimeEpoch)
+        })
+    }
+
+    var roomIDs: Set<UUID> {
+        Set(roomEpochs.keys)
+    }
+
+    func epoch(for roomID: UUID) -> Int? {
+        roomEpochs[roomID]
+    }
+}
+
+enum RealtimeChannelPairPolicy {
+    static func isSubscribed(database: Bool, ephemeral: Bool) -> Bool {
+        database && ephemeral
+    }
+}
+
+enum RealtimeChannelGenerationPolicy {
+    static func accepts(
+        candidateGeneration: Int,
+        currentGeneration: Int,
+        desiredEpoch: Int?,
+        channelEpoch: Int?
+    ) -> Bool {
+        candidateGeneration == currentGeneration
+            && desiredEpoch != nil
+            && desiredEpoch == channelEpoch
+    }
+}
+
 enum RealtimeRecoveryPolicy {
     static let watchdogInterval: TimeInterval = 5
+    static let pathRecoveryDebounce: TimeInterval = 0.35
     static let maximumDelay: TimeInterval = 30
 
     static func delay(forAttempt attempt: Int) -> TimeInterval {
@@ -1140,6 +1457,23 @@ struct CharacterThrowEvent: Equatable, Identifiable, Sendable {
     let actorUserID: UUID
     let targetUserID: UUID
     let sourceCharacterID: String
+    let throwableID: String?
+
+    init(
+        id: UUID,
+        roomID: UUID,
+        actorUserID: UUID,
+        targetUserID: UUID,
+        sourceCharacterID: String,
+        throwableID: String? = nil
+    ) {
+        self.id = id
+        self.roomID = roomID
+        self.actorUserID = actorUserID
+        self.targetUserID = targetUserID
+        self.sourceCharacterID = sourceCharacterID
+        self.throwableID = throwableID
+    }
 }
 
 enum CharacterThrowTargetPolicy {
@@ -1269,6 +1603,120 @@ enum RoomManagementPolicy {
     ) -> Bool {
         canManage(room, currentUserID: currentUserID)
             && member.userID != currentUserID
+    }
+}
+
+enum RoomLeaveConfirmation: Equatable, Sendable {
+    case member
+    case ownerWithRemainingMembers
+    case lastOwner
+
+    static func resolve(room: Room, currentUserID: UUID?) -> Self {
+        guard room.ownerID == currentUserID else { return .member }
+        return room.members.contains(where: { $0.userID != currentUserID })
+            ? .ownerWithRemainingMembers
+            : .lastOwner
+    }
+
+    var message: String {
+        switch self {
+        case .member:
+            "그룹과 기존 메시지에 더 이상 접근할 수 없습니다."
+        case .ownerWithRemainingMembers:
+            "가장 먼저 참여한 남은 멤버에게 방장이 이전되며, 그룹과 기존 메시지에 더 이상 접근할 수 없습니다."
+        case .lastOwner:
+            "마지막 멤버이므로 그룹과 모든 메시지가 영구 삭제되며 복구할 수 없습니다."
+        }
+    }
+}
+
+struct SuccessFeedbackState: Equatable, Sendable {
+    static let displayDuration: Duration = .seconds(3)
+
+    private(set) var message: String?
+    private(set) var generation = 0
+
+    @discardableResult
+    mutating func present(_ message: String) -> Int {
+        generation += 1
+        self.message = message
+        return generation
+    }
+
+    mutating func dismiss(generation expectedGeneration: Int? = nil) {
+        guard expectedGeneration == nil || expectedGeneration == generation else { return }
+        generation += 1
+        message = nil
+    }
+}
+
+enum StoreSortOrder: String, CaseIterable, Identifiable, Sendable {
+    case catalog
+    case priceAscending
+    case priceDescending
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .catalog: "기본순"
+        case .priceAscending: "가격 낮은순"
+        case .priceDescending: "가격 높은순"
+        }
+    }
+}
+
+enum StoreProductFilter {
+    static func apply(
+        _ states: [CommerceProductState],
+        kind: CommerceProductKind,
+        sortOrder: StoreSortOrder,
+        hidesOwned: Bool,
+        activeEntitlementKeys: Set<String>
+    ) -> [CommerceProductState] {
+        states
+            .filter { state in
+                guard state.product.kind == kind else { return false }
+                let isOwned = activeEntitlementKeys.contains(state.product.entitlementKey)
+                    || state.isEquipped
+                return !hidesOwned || !isOwned
+            }
+            .sorted { lhs, rhs in
+                let result: ComparisonResult
+                switch sortOrder {
+                case .catalog:
+                    result = compare(lhs.product.sortOrder, rhs.product.sortOrder)
+                case .priceAscending:
+                    result = compare(lhs.product.amountKRW, rhs.product.amountKRW)
+                case .priceDescending:
+                    result = compare(rhs.product.amountKRW, lhs.product.amountKRW)
+                }
+                if result != .orderedSame { return result == .orderedAscending }
+                if lhs.product.sortOrder != rhs.product.sortOrder {
+                    return lhs.product.sortOrder < rhs.product.sortOrder
+                }
+                return lhs.product.id < rhs.product.id
+            }
+    }
+
+    private static func compare(_ lhs: Int, _ rhs: Int) -> ComparisonResult {
+        if lhs < rhs { return .orderedAscending }
+        if lhs > rhs { return .orderedDescending }
+        return .orderedSame
+    }
+}
+
+enum CosmeticEquipmentFeedback {
+    static func successMessage(
+        kind: CommerceProductKind,
+        product: CommerceProduct?
+    ) -> String {
+        if let product { return "\(product.displayName) 장착했습니다." }
+        switch kind {
+        case .bubble: return "기본 말풍선을 장착했습니다."
+        case .throwable: return "캐릭터 기본 투척물을 장착했습니다."
+        case .character: return "기본 캐릭터를 장착했습니다."
+        }
     }
 }
 

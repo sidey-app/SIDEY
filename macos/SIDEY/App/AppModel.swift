@@ -5,13 +5,23 @@ import Observation
 @MainActor
 @Observable
 final class AppModel {
+    #if !APP_STORE
+    @ObservationIgnored let characterStunState = CharacterStunState()
+    @ObservationIgnored lazy var characterImpactAudio = CharacterImpactAudio()
+    #endif
     var preferences: AppPreferences
     var overlayVisibility: OverlayVisibility
     var overlayVisible: Bool { overlayVisibility.isVisible }
     var presence: PresenceState = .online
     var nickname: String
+    private(set) var confirmedNickname: String?
     var selectedCharacterID: String
+    private(set) var pendingCharacterID: String?
+    private(set) var equippedBubbleStyleID: String?
+    private(set) var equippedThrowableID: String?
     private(set) var activeEntitlementKeys: Set<String> = []
+    private(set) var snapshotActiveEntitlementKeys: Set<String> = []
+    private(set) var cosmeticEquipmentRequests: [CommerceProductKind: CosmeticEquipmentRequest] = [:]
     private(set) var commerceProducts: [CommerceProductState]
     var draft = ""
     private(set) var messageLedger = MessageLedger()
@@ -20,12 +30,16 @@ final class AppModel {
     var availableScreens: [OverlayScreenOption] = []
     var activeSettingsPage: SettingsPage = .profile
     var connectionState: BackendConnectionState = .idle
+    var authenticationRequired = false
+    var accountOperationInProgress = false
     private(set) var activeRoomTransportConnected = false
     var rooms: [Room] = []
     var hasProfile = false
     var currentUserID: UUID?
     var errorMessage: String?
-    var successMessage: String?
+    private var successFeedback = SuccessFeedbackState()
+    var successMessage: String? { successFeedback.message }
+    var successMessageGeneration: Int { successFeedback.generation }
     var isWorking = false
     var groupOperation: GroupOperation = .idle
     var newRoomName = ""
@@ -43,7 +57,13 @@ final class AppModel {
         self.preferences = preferences
         self.overlayVisibility = OverlayVisibility(isVisible: preferences.overlayVisible)
         self.nickname = preferences.nickname
+        self.confirmedNickname = preferences.onboardingComplete
+            ? ProfileValidator.normalizedNickname(preferences.nickname)
+            : nil
         self.selectedCharacterID = PixelCharacterCatalog.canonicalID(for: preferences.selectedCharacterID)
+        self.pendingCharacterID = nil
+        self.equippedBubbleStyleID = nil
+        self.equippedThrowableID = nil
         self.launchAtLogin = preferences.launchAtLogin
         self.commerceProducts = commerceProducts.map {
             CommerceProductState(
@@ -91,9 +111,32 @@ final class AppModel {
         isWorking || groupOperation.blocksMutations
     }
 
+    var normalizedNicknameDraft: String {
+        ProfileValidator.normalizedNickname(nickname)
+    }
+
+    var nicknameDraftIsValid: Bool {
+        ProfileValidator.isValidNickname(nickname)
+    }
+
+    var hasNicknameChanges: Bool {
+        guard let confirmedNickname else { return false }
+        return normalizedNicknameDraft != confirmedNickname
+    }
+
+    func presentSuccess(_ message: String) {
+        successFeedback.present(message)
+    }
+
+    func dismissSuccess(generation: Int? = nil) {
+        successFeedback.dismiss(generation: generation)
+    }
+
     func apply(snapshot: BackendSnapshot, currentUserID: UUID?) {
         self.currentUserID = currentUserID
+        authenticationRequired = false
         activeEntitlementKeys = snapshot.activeEntitlementKeys
+        snapshotActiveEntitlementKeys = snapshot.activeEntitlementKeys
         hasProfile = snapshot.profile != nil
         var updatedRooms = snapshot.rooms
         let previousBasePresence = basePresence
@@ -129,12 +172,23 @@ final class AppModel {
         })
         typingMembers = previousTypingMembers.intersection(validKeys)
         if let profile = snapshot.profile {
-            nickname = profile.nickname
+            let shouldAdoptNickname = confirmedNickname.map {
+                normalizedNicknameDraft == $0
+            } ?? true
+            confirmedNickname = ProfileValidator.normalizedNickname(profile.nickname)
+            if shouldAdoptNickname { nickname = profile.nickname }
             preferences.nickname = profile.nickname
             selectedCharacterID = PixelCharacterCatalog.canonicalID(for: profile.characterID)
             preferences.selectedCharacterID = selectedCharacterID
+            equippedBubbleStyleID = profile.equippedBubbleStyleID
+            equippedThrowableID = profile.equippedThrowableID
+        } else {
+            confirmedNickname = nil
+            equippedBubbleStyleID = nil
+            equippedThrowableID = nil
         }
         enforceSelectableCurrentCharacter()
+        enforceOwnedCosmetics()
         preferences.activeRoomID = resolvedActiveRoomID(in: rooms)
         preferences.onboardingComplete = snapshot.profile != nil && !rooms.isEmpty
     }
@@ -142,18 +196,26 @@ final class AppModel {
     func apply(profile: Profile) {
         guard currentUserID == profile.id else { return }
         hasProfile = true
-        nickname = profile.nickname
+        let shouldAdoptNickname = confirmedNickname.map {
+            normalizedNicknameDraft == $0
+        } ?? true
+        confirmedNickname = ProfileValidator.normalizedNickname(profile.nickname)
+        if shouldAdoptNickname { nickname = profile.nickname }
         preferences.nickname = profile.nickname
         selectedCharacterID = PixelCharacterCatalog.canonicalID(for: profile.characterID)
         preferences.selectedCharacterID = selectedCharacterID
+        equippedBubbleStyleID = profile.equippedBubbleStyleID
+        equippedThrowableID = profile.equippedThrowableID
         for roomIndex in rooms.indices {
             guard let memberIndex = rooms[roomIndex].members.firstIndex(where: {
                 $0.userID == profile.id
             }) else { continue }
             rooms[roomIndex].members[memberIndex].nickname = profile.nickname
             rooms[roomIndex].members[memberIndex].characterID = selectedCharacterID
+            rooms[roomIndex].members[memberIndex].equippedBubbleStyleID = equippedBubbleStyleID
         }
         enforceSelectableCurrentCharacter()
+        enforceOwnedCosmetics()
     }
 
     var selectableCharacters: [PixelCharacterDefinition] {
@@ -170,16 +232,104 @@ final class AppModel {
         }) else { return }
         commerceProducts[index].product = commerceState.product
         commerceProducts[index].purchaseState = commerceState.purchaseState
+        commerceProducts[index].isEquipped = commerceState.isEquipped
         if commerceState.entitlementStatus == "active" {
             activeEntitlementKeys.insert(commerceState.product.entitlementKey)
+            if commerceState.isEquipped {
+                switch commerceState.product.kind {
+                case .bubble:
+                    equippedBubbleStyleID = commerceState.product.catalogItemID
+                case .throwable:
+                    equippedThrowableID = commerceState.product.catalogItemID
+                case .character:
+                    break
+                }
+            }
         } else {
             activeEntitlementKeys.remove(commerceState.product.entitlementKey)
             enforceSelectableCurrentCharacter()
+            enforceOwnedCosmetics()
         }
+    }
+
+    func apply(commerceStates: [CommerceState]) {
+        for state in commerceStates { apply(commerceState: state) }
+        if commerceStates.contains(where: { $0.product.kind == .bubble }) {
+            equippedBubbleStyleID = commerceStates.first(where: {
+                $0.product.kind == .bubble
+                    && $0.entitlementStatus == "active"
+                    && $0.isEquipped
+            })?.product.catalogItemID
+        }
+        if commerceStates.contains(where: { $0.product.kind == .throwable }) {
+            equippedThrowableID = commerceStates.first(where: {
+                $0.product.kind == .throwable
+                    && $0.entitlementStatus == "active"
+                    && $0.isEquipped
+            })?.product.catalogItemID
+        }
+        enforceOwnedCosmetics()
     }
 
     func commerceProduct(id: String) -> CommerceProductState? {
         commerceProducts.first { $0.id == id }
+    }
+
+    func ownedProfileCosmeticProducts(for kind: CommerceProductKind) -> [CommerceProduct] {
+        guard kind == .bubble || kind == .throwable else { return [] }
+        return CommerceCatalog.cosmeticProducts
+            .filter {
+                $0.kind == kind && snapshotActiveEntitlementKeys.contains($0.entitlementKey)
+            }
+            .sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    func equippedCosmeticID(for kind: CommerceProductKind) -> String? {
+        switch kind {
+        case .bubble: equippedBubbleStyleID
+        case .throwable: equippedThrowableID
+        case .character: nil
+        }
+    }
+
+    @discardableResult
+    func beginCosmeticEquipmentRequest(
+        kind: CommerceProductKind,
+        catalogItemID: String?
+    ) -> Bool {
+        guard kind != .character, cosmeticEquipmentRequests[kind] == nil else { return false }
+        cosmeticEquipmentRequests[kind] = CosmeticEquipmentRequest(
+            kind: kind,
+            catalogItemID: catalogItemID
+        )
+        return true
+    }
+
+    func endCosmeticEquipmentRequest(kind: CommerceProductKind) {
+        cosmeticEquipmentRequests.removeValue(forKey: kind)
+    }
+
+    func cosmeticEquipmentRequest(for kind: CommerceProductKind) -> CosmeticEquipmentRequest? {
+        cosmeticEquipmentRequests[kind]
+    }
+
+    @discardableResult
+    func beginCharacterEquipmentRequest(characterID: String) -> Bool {
+        let canonicalID = PixelCharacterCatalog.canonicalID(for: characterID)
+        guard pendingCharacterID == nil,
+              selectedCharacterID != canonicalID,
+              isCharacterSelectable(canonicalID)
+        else { return false }
+        pendingCharacterID = canonicalID
+        return true
+    }
+
+    func endCharacterEquipmentRequest() {
+        pendingCharacterID = nil
+    }
+
+    var snapshotActiveEntitlements: Set<String> {
+        snapshotActiveEntitlementKeys
     }
 
     func setCommerceWorking(_ isWorking: Bool, productID: String) {
@@ -192,6 +342,12 @@ final class AppModel {
         commerceProducts[index].purchaseState = state
     }
 
+    func setCommerceLocalizedPrices(_ prices: [String: String]) {
+        for index in commerceProducts.indices {
+            commerceProducts[index].localizedPrice = prices[commerceProducts[index].id]
+        }
+    }
+
     private func enforceSelectableCurrentCharacter() {
         guard !isCharacterSelectable(selectedCharacterID) else { return }
         selectedCharacterID = PixelCharacterCatalog.pixelHamsterID
@@ -202,6 +358,40 @@ final class AppModel {
                 $0.userID == currentUserID
             }) else { continue }
             rooms[roomIndex].members[memberIndex].characterID = PixelCharacterCatalog.pixelHamsterID
+        }
+    }
+
+    private func enforceOwnedCosmetics() {
+        if let equippedBubbleStyleID,
+           !CommerceCatalog.products.contains(where: {
+               $0.kind == .bubble
+                   && $0.catalogItemID == equippedBubbleStyleID
+                   && activeEntitlementKeys.contains($0.entitlementKey)
+           }) {
+            self.equippedBubbleStyleID = nil
+        }
+        if let equippedThrowableID,
+           !CommerceCatalog.products.contains(where: {
+               $0.kind == .throwable
+                   && $0.catalogItemID == equippedThrowableID
+                   && activeEntitlementKeys.contains($0.entitlementKey)
+           }) {
+            self.equippedThrowableID = nil
+        }
+        guard let currentUserID else { return }
+        for roomIndex in rooms.indices {
+            guard let memberIndex = rooms[roomIndex].members.firstIndex(where: {
+                $0.userID == currentUserID
+            }) else { continue }
+            rooms[roomIndex].members[memberIndex].equippedBubbleStyleID = equippedBubbleStyleID
+        }
+        for index in commerceProducts.indices {
+            let product = commerceProducts[index].product
+            commerceProducts[index].isEquipped = switch product.kind {
+            case .character: product.characterID == selectedCharacterID
+            case .bubble: product.catalogItemID == equippedBubbleStyleID
+            case .throwable: product.catalogItemID == equippedThrowableID
+            }
         }
     }
 
@@ -241,7 +431,8 @@ final class AppModel {
                 characterID: PixelCharacterCatalog.canonicalID(for: member.characterID),
                 presence: baseState,
                 isTyping: isTyping,
-                isCurrentUser: isCurrentUser
+                isCurrentUser: isCurrentUser,
+                equippedBubbleStyleID: member.equippedBubbleStyleID
             )
         }
     }
@@ -298,26 +489,34 @@ final class AppModel {
     }
 
     func setActiveRoomRealtimeConnected(_ connected: Bool) {
+        #if !APP_STORE
+        if activeRoomTransportConnected != connected {
+            characterStunState.reset()
+            characterImpactAudio.stopAll()
+        }
+        #endif
         activeRoomTransportConnected = connected
         // Typing is a transient Broadcast lease. A disconnect can lose the
         // matching typing_stop event, so never carry typing across reconnect.
-        if !connected { typingMembers.removeAll() }
-        for roomIndex in rooms.indices {
-            for memberIndex in rooms[roomIndex].members.indices {
-                let member = rooms[roomIndex].members[memberIndex]
-                let key = MemberPresenceKey(roomID: rooms[roomIndex].id, userID: member.userID)
-                if connected {
-                    rooms[roomIndex].members[memberIndex].presence = typingMembers.contains(key)
-                        ? .typing
-                        : (basePresence[key] ?? .offline)
-                } else if member.presence != .offline {
-                    rooms[roomIndex].members[memberIndex].presence = .reconnecting
-                    if member.userID != currentUserID {
-                        // Presence state is a lease on a specific socket. Never
-                        // resurrect a remote user's old online/away state after
-                        // reconnect; wait for a fresh join/sync instead.
-                        basePresence[key] = .offline
-                    }
+        guard let activeRoomID = activeRoom?.id,
+              let roomIndex = rooms.firstIndex(where: { $0.id == activeRoomID })
+        else { return }
+        if !connected {
+            typingMembers = typingMembers.filter { $0.roomID != activeRoomID }
+        }
+        for memberIndex in rooms[roomIndex].members.indices {
+            let member = rooms[roomIndex].members[memberIndex]
+            let key = MemberPresenceKey(roomID: activeRoomID, userID: member.userID)
+            if connected {
+                rooms[roomIndex].members[memberIndex].presence = typingMembers.contains(key)
+                    ? .typing
+                    : (basePresence[key] ?? .offline)
+            } else if member.presence != .offline {
+                rooms[roomIndex].members[memberIndex].presence = .reconnecting
+                if member.userID != currentUserID {
+                    // Presence state is a lease on this active room's channel.
+                    // Do not invalidate unrelated rooms during a selective swap.
+                    basePresence[key] = .offline
                 }
             }
         }
@@ -337,6 +536,7 @@ final class AppModel {
                 senderID: senderID,
                 messageID: id,
                 body: body,
+                bubbleStyleID: equippedBubbleStyleID,
                 expiresAt: now.addingTimeInterval(ActiveBubbleLedger.defaultLifetime)
             )
         }
@@ -347,11 +547,12 @@ final class AppModel {
         let wasOutgoing = messageOutbox.confirm(id: message.id, roomID: message.roomID)
         let wasNewToLedger = messageLedger.confirm(message)
         let isNew = wasNewToLedger && !wasOutgoing
-        if isNew, revealBubble, message.roomID == activeRoom?.id {
+        if (isNew || wasOutgoing), revealBubble, message.roomID == activeRoom?.id {
             bubbleLedger.show(
                 senderID: message.senderID,
                 messageID: message.id,
                 body: message.body,
+                bubbleStyleID: message.bubbleStyleID,
                 expiresAt: message.createdAt.addingTimeInterval(ActiveBubbleLedger.defaultLifetime)
             )
             bubbleLedger.prune()

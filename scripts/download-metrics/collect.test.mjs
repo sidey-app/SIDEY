@@ -30,7 +30,7 @@ test("keeps pre-split DMG counters historically unclassified", () => {
   ]);
 });
 
-test("separates direct, Homebrew, and MSI assets after the split", () => {
+test("separates direct, Homebrew, and Windows installer assets after the split", () => {
   const result = classifyReleaseAssets([
     {
       tag_name: "v1.0.5",
@@ -47,6 +47,12 @@ test("separates direct, Homebrew, and MSI assets after the split", () => {
       prerelease: false,
       assets: [asset(12, "SIDEY-Windows-x64-v1.0.3.msi", 11)],
     },
+    {
+      tag_name: "windows-v1.0.6",
+      draft: false,
+      prerelease: false,
+      assets: [asset(13, "SIDEY-Windows-x64-v1.0.6-Setup.exe", 17)],
+    },
   ]);
 
   assert.deepEqual(
@@ -55,6 +61,7 @@ test("separates direct, Homebrew, and MSI assets after the split", () => {
       ["direct_dmg", 7],
       ["homebrew_dmg", 9],
       ["windows_msi", 11],
+      ["windows_msi", 17],
     ],
   );
 });

@@ -34,11 +34,15 @@ public sealed class ValidationMetricsCollector(
 {
     private const uint GdiObjects = 0;
     private const uint UserObjects = 1;
-    private readonly object _gate = new();
+    private static readonly JsonSerializerOptions s_serializerOptions = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true,
+    };
+    private readonly Lock _gate = new();
     private readonly Stopwatch _uptime = Stopwatch.StartNew();
     private readonly DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
     private readonly List<ValidationMetricSample> _samples = [];
-    private readonly IReadOnlyList<string> _characterIds = characterIds.ToArray();
+    private readonly IReadOnlyList<string> _characterIds = [.. characterIds];
     private readonly string _outputPath = outputPath ?? DefaultOutputPath();
     private double _lastSampleSecond = -1d;
     private double _intervalMaximumFrameMilliseconds;
@@ -47,7 +51,7 @@ public sealed class ValidationMetricsCollector(
 
     internal void RecordFrame(TimeSpan duration)
     {
-        var elapsed = _uptime.Elapsed.TotalSeconds;
+        double elapsed = _uptime.Elapsed.TotalSeconds;
         lock (_gate)
         {
             _intervalMaximumFrameMilliseconds = Math.Max(
@@ -74,7 +78,7 @@ public sealed class ValidationMetricsCollector(
     {
         lock (_gate)
         {
-            var last = _samples.LastOrDefault();
+            ValidationMetricSample? last = _samples.LastOrDefault();
             return new ValidationMetricsSummary(
                 _uptime.Elapsed.TotalSeconds,
                 _samples.Count,
@@ -90,22 +94,8 @@ public sealed class ValidationMetricsCollector(
 
     public async Task<string> ExportAsync(CancellationToken cancellationToken = default)
     {
-        ValidationMetricSample[] samples;
-        lock (_gate)
-        {
-            samples = _samples.ToArray();
-        }
-
-        var report = new ValidationMetricsReport(
-            _startedAt,
-            DateTimeOffset.UtcNow,
-            "one-character-renderer-validation",
-            _characterIds,
-            samples);
-        var directory = Path.GetDirectoryName(_outputPath)
-            ?? throw new InvalidOperationException("Validation output directory is invalid.");
-        Directory.CreateDirectory(directory);
-        var temporary = _outputPath + ".tmp";
+        ValidationMetricsReport report = CaptureReport();
+        string temporary = PrepareExport();
         await using (var stream = new FileStream(
             temporary,
             FileMode.Create,
@@ -117,13 +107,57 @@ public sealed class ValidationMetricsCollector(
             await JsonSerializer.SerializeAsync(
                 stream,
                 report,
-                new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true },
+                s_serializerOptions,
                 cancellationToken).ConfigureAwait(false);
             await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
         }
 
         File.Move(temporary, _outputPath, overwrite: true);
         return _outputPath;
+    }
+
+    public string Export()
+    {
+        ValidationMetricsReport report = CaptureReport();
+        string temporary = PrepareExport();
+        using (var stream = new FileStream(
+            temporary,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            4096,
+            FileOptions.WriteThrough))
+        {
+            JsonSerializer.Serialize(stream, report, s_serializerOptions);
+            stream.Flush(flushToDisk: true);
+        }
+
+        File.Move(temporary, _outputPath, overwrite: true);
+        return _outputPath;
+    }
+
+    private ValidationMetricsReport CaptureReport()
+    {
+        ValidationMetricSample[] samples;
+        lock (_gate)
+        {
+            samples = [.. _samples];
+        }
+
+        return new ValidationMetricsReport(
+            _startedAt,
+            DateTimeOffset.UtcNow,
+            "one-character-renderer-validation",
+            _characterIds,
+            samples);
+    }
+
+    private string PrepareExport()
+    {
+        string directory = Path.GetDirectoryName(_outputPath)
+            ?? throw new InvalidOperationException("Validation output directory is invalid.");
+        Directory.CreateDirectory(directory);
+        return _outputPath + ".tmp";
     }
 
     private static string DefaultOutputPath() => Path.Combine(

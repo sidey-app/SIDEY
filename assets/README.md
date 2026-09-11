@@ -2,7 +2,8 @@
 
 이 폴더는 SIDEY에서 사용하는 승인된 픽셀 에셋의 원본입니다. 공개 규격은
 [`v1/manifest.json`](v1/manifest.json)과 캐릭터별 `base.png`, `throw_hit.png`,
-투척물별 `sprite.png`입니다.
+말풍선별 `decoration.png`·`preview.png`, 투척물별 `sprite.png` 및 필요한
+별도 emitter·preview입니다.
 
 앱과 웹 폴더에 있는 같은 PNG 및 Windows BGRA 파일은 배포용 복사본입니다.
 해당 파일은 직접 편집하지 않고 이 폴더의 원본에서 갱신합니다.
@@ -16,7 +17,7 @@ SIDEY 웹 클라이언트가 아니라, 에셋을 제출하기 전에 실제 동
 
 ## 라이선스
 
-`v1/manifest.json`의 `licensing`에 등록된 유료 캐릭터와 전용 투척물은
+`v1/manifest.json`의 `licensing`에 등록된 유료 캐릭터·말풍선·투척물은
 [SIDEY Paid Asset License 1.0](PAID_ASSET_LICENSE.md)이 적용되는 독점 에셋입니다.
 소스가 공개되어 있어 열람할 수 있지만 오픈소스 에셋은 아닙니다.
 
@@ -50,6 +51,18 @@ SIDEY 웹 클라이언트가 아니라, 에셋을 제출하기 전에 실제 동
 - 0–7: 프레임 사이에서 중심이 움직이지 않는 회전
 - 8–11: 접촉 → 눌림 → 튕김 → 복귀
 
+### 말풍선
+
+- `decoration.png`: `16×16` px RGBA 좌상단 장식
+- `preview.png`: `128×48` px, 실제 글꼴·글자색을 포함한 전체 말풍선
+- 핑크 토끼·버터 병아리의 글자는 `#1C1F29`, 별밤 고양이는 `#FFF7E8`
+
+### 미니 대포
+
+- `emitter.png`: `96×24` px, `24×24` px 셀 4개(등장·준비·발사·반동)
+- `sprite.png`: `192×16` px, 심지탄 비행 8프레임과 폭발 4프레임
+- emitter는 캐릭터 앞 몸통에 겹치고 폭발은 피격자 몸통 높이에 표시
+
 ## 공통 제작 규칙
 
 - sRGB, 8-bit RGBA, hard alpha(`0` 또는 `255`), 투명 배경
@@ -66,10 +79,10 @@ particle burst 효과를 제안할 수 있습니다. 이러한 효과는 PNG 프
 
 ## 신규 제출 절차
 
-1. `assets/v1/characters/<character_id>/`에 `base.png`와 `throw_hit.png`를 추가합니다.
-2. 고유 투척물이 필요하면 `assets/v1/throwables/<object_id>/sprite.png`를 추가합니다.
-3. `manifest.json`의 캐릭터→투척물 매핑, fallback, 상대 경로, SHA-256을 갱신합니다.
-4. `python3 scripts/validate_pixel_assets.py`로 중앙 원본을 검사합니다.
+1. 종류에 맞는 `assets/v1/characters`, `bubbles`, `throwables` 하위 경로에 원본을 추가합니다.
+2. `manifest.json`에 상대 경로, SHA-256과 `supported_platforms`를 등록합니다.
+3. 캐릭터는 시그니처 투척물 매핑과 fallback도 갱신합니다.
+4. 공용 브랜치에서는 `python3 scripts/validate_pixel_assets.py --canonical-only`, 플랫폼 mirror가 합쳐진 브랜치에서는 옵션 없이 전체 검사를 실행합니다.
 5. PR 유형에서 `캐릭터 에셋`을 선택하고
    [캐릭터 에셋 전용 PR 양식](../.github/PULL_REQUEST_TEMPLATE/character_asset.md)에
    원본 전체본과 프리뷰어 검사 결과를 첨부합니다.

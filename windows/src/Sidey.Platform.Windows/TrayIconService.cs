@@ -7,6 +7,7 @@ namespace Sidey.Platform.Windows;
 
 public enum TrayCommand
 {
+    Open = 1000,
     ToggleOverlay = 1001,
     Compose = 1002,
     ToggleQuietMode = 1003,
@@ -34,15 +35,20 @@ public sealed class TrayIconService : IDisposable
     private const string WindowClassName = "SIDEY.TrayIconWindow";
     private const uint TrayMessage = 0x8000 + 51;
     private const uint RefreshMessage = 0x8000 + 52;
+    private const uint NotificationMessage = 0x8000 + 53;
+    private const nuint UpdateNotification = 1;
     private const uint IconId = 1;
     private const uint NotifyIconMessage = 0x1;
     private const uint NotifyIconIcon = 0x2;
     private const uint NotifyIconTip = 0x4;
+    private const uint NotifyIconInfo = 0x10;
     private const uint NotifyIconShowTip = 0x80;
-    private static readonly object RegistrationGate = new();
-    private static readonly ConcurrentDictionary<nint, TrayIconService> Instances = new();
-    private static readonly NativeMethods.WindowProcedure WindowProcedure = WndProc;
-    private static bool _registered;
+    private const uint NotifyInfoInfo = 0x1;
+    private const uint NotifyInfoWarning = 0x2;
+    private static readonly Lock s_registrationGate = new();
+    private static readonly ConcurrentDictionary<nint, TrayIconService> s_instances = new();
+    private static readonly NativeMethods.WindowProcedure s_windowProcedure = WndProc;
+    private static bool s_registered;
 
     private readonly ManualResetEventSlim _started = new(false);
     private readonly Thread _thread;
@@ -52,6 +58,7 @@ public sealed class TrayIconService : IDisposable
     private nint _unreadIcon;
     private bool _ownsBaseIcon;
     private bool _ownsUnreadIcon;
+    private string _availableUpdateVersion = string.Empty;
     private Exception? _startupError;
     private TrayMenuState _state = new(true, false, false, 0, [], null);
     private bool _disposed;
@@ -68,6 +75,7 @@ public sealed class TrayIconService : IDisposable
 
     public event Action<TrayCommand>? CommandInvoked;
     public event Action<Guid>? RoomSelected;
+    public event Action? DisplayTopologyChanged;
 
     public static TrayIconService Start()
     {
@@ -95,6 +103,28 @@ public sealed class TrayIconService : IDisposable
         if (_window != nint.Zero)
         {
             NativeMethods.PostMessage(_window, RefreshMessage, nint.Zero, nint.Zero);
+        }
+    }
+
+    public void NotifyConnectionFailure()
+    {
+        if (_window != nint.Zero)
+        {
+            NativeMethods.PostMessage(_window, NotificationMessage, nint.Zero, nint.Zero);
+        }
+    }
+
+    public void NotifyUpdateAvailable(string version)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(version);
+        _availableUpdateVersion = version;
+        if (_window != nint.Zero)
+        {
+            NativeMethods.PostMessage(
+                _window,
+                NotificationMessage,
+                (nint)UpdateNotification,
+                nint.Zero);
         }
     }
 
@@ -138,14 +168,14 @@ public sealed class TrayIconService : IDisposable
             {
                 throw new Win32Exception(Marshal.GetLastPInvokeError(), "Tray window creation failed.");
             }
-            Instances[_window] = this;
+            s_instances[_window] = this;
             _baseIcon = LoadSideyIcon();
             _unreadIcon = CreateUnreadIcon(_baseIcon);
             _ownsUnreadIcon = _unreadIcon != nint.Zero;
             _icon = _baseIcon;
             AddIcon();
             _started.Set();
-            while (NativeMethods.GetMessage(out var message, nint.Zero, 0, 0) > 0)
+            while (NativeMethods.GetMessage(out NativeMessage message, nint.Zero, 0, 0) > 0)
             {
                 NativeMethods.TranslateMessage(ref message);
                 NativeMethods.DispatchMessage(ref message);
@@ -161,7 +191,7 @@ public sealed class TrayIconService : IDisposable
             if (_window != nint.Zero)
             {
                 RemoveIcon();
-                Instances.TryRemove(_window, out _);
+                s_instances.TryRemove(_window, out _);
                 _window = nint.Zero;
             }
             if (_ownsUnreadIcon && _unreadIcon != nint.Zero)
@@ -182,7 +212,7 @@ public sealed class TrayIconService : IDisposable
 
     private void AddIcon()
     {
-        var data = CreateIconData();
+        NotifyIconData data = CreateIconData();
         if (!NativeMethods.ShellNotifyIcon(0, ref data))
         {
             throw new Win32Exception(Marshal.GetLastPInvokeError(), "Adding the SIDEY tray icon failed.");
@@ -193,7 +223,7 @@ public sealed class TrayIconService : IDisposable
 
     private void RemoveIcon()
     {
-        var data = CreateIconData();
+        NotifyIconData data = CreateIconData();
         NativeMethods.ShellNotifyIcon(2, ref data);
     }
 
@@ -214,12 +244,12 @@ public sealed class TrayIconService : IDisposable
 
     private nint LoadSideyIcon()
     {
-        var path = Path.Combine(
+        string path = Path.Combine(
             SideyDeploymentPaths.DeploymentRoot(),
             "Assets",
             "Icons",
             "SideyAppIcon.ico");
-        var icon = File.Exists(path)
+        nint icon = File.Exists(path)
             ? NativeMethods.LoadImage(
                 nint.Zero,
                 path,
@@ -240,7 +270,7 @@ public sealed class TrayIconService : IDisposable
     internal static nint CreateUnreadIcon(nint sourceIcon)
     {
         if (sourceIcon == nint.Zero
-            || !NativeMethods.GetIconInfo(sourceIcon, out var iconInformation)
+            || !NativeMethods.GetIconInfo(sourceIcon, out IconInfo iconInformation)
             || iconInformation.ColorBitmap == nint.Zero)
         {
             return nint.Zero;
@@ -254,7 +284,7 @@ public sealed class TrayIconService : IDisposable
             if (NativeMethods.GetObject(
                     iconInformation.ColorBitmap,
                     Marshal.SizeOf<NativeBitmap>(),
-                    out var bitmap) == 0
+                    out NativeBitmap bitmap) == 0
                 || bitmap.Width <= 0
                 || bitmap.Height == 0)
             {
@@ -263,7 +293,7 @@ public sealed class TrayIconService : IDisposable
 
             int width = bitmap.Width;
             int height = Math.Abs(bitmap.Height);
-            var pixels = new byte[checked(width * height * 4)];
+            byte[] pixels = new byte[checked(width * height * 4)];
             var bitmapInfo = new BitmapInfo
             {
                 Header = new BitmapInfoHeader
@@ -376,7 +406,7 @@ public sealed class TrayIconService : IDisposable
 
     private void ShowMenu()
     {
-        var menu = NativeMethods.CreatePopupMenu();
+        nint menu = NativeMethods.CreatePopupMenu();
         if (menu == nint.Zero)
         {
             return;
@@ -384,13 +414,19 @@ public sealed class TrayIconService : IDisposable
         try
         {
             var roomCommands = new Dictionary<uint, Guid>();
-            Append(menu, TrayCommand.ToggleOverlay, _state.OverlayVisible
-                ? I18n.Get("tray.hideOverlay")
-                : I18n.Get("tray.showOverlay"));
-            Append(menu, TrayCommand.Compose, I18n.Get("tray.compose"), isEnabled: _state.Rooms.Count > 0);
+            AppendToggle(
+                menu,
+                TrayCommand.ToggleOverlay,
+                I18n.Get("tray.hideOverlay"),
+                isChecked: OverlayHiddenCheckState(_state.OverlayVisible));
+            Append(
+                menu,
+                TrayCommand.Compose,
+                I18n.Get("tray.compose"),
+                isEnabled: _state.Rooms.Count > 0);
             NativeMethods.AppendMenu(menu, 0x800, 0, null);
 
-            var roomsMenu = NativeMethods.CreatePopupMenu();
+            nint roomsMenu = NativeMethods.CreatePopupMenu();
             if (roomsMenu != nint.Zero)
             {
                 if (_state.Rooms.Count == 0)
@@ -399,38 +435,52 @@ public sealed class TrayIconService : IDisposable
                 }
                 else
                 {
-                    for (var index = 0; index < _state.Rooms.Count; index++)
+                    for (int index = 0; index < _state.Rooms.Count; index++)
                     {
-                        var room = _state.Rooms[index];
-                        var command = (uint)(2000 + index);
+                        TrayRoomMenuItem room = _state.Rooms[index];
+                        uint command = (uint)(2000 + index);
                         roomCommands[command] = room.Id;
-                        var label = room.UnreadCount > 0
+                        string label = room.UnreadCount > 0
                             ? $"{room.Name} ({room.UnreadCount})"
                             : room.Name;
                         NativeMethods.AppendMenu(
                             roomsMenu,
-                            room.Id == _state.ActiveRoomId ? 0x0008u : 0u,
+                            NativeMenuFlags(
+                                isChecked: room.Id == _state.ActiveRoomId,
+                                isEnabled: true),
                             command,
                             label);
                     }
                 }
-                var roomsFlags = 0x0010u | (_state.Rooms.Count == 0 ? 0x0001u : 0u);
+                uint roomsFlags = 0x0010u | (_state.Rooms.Count == 0 ? 0x0001u : 0u);
                 NativeMethods.AppendMenu(menu, roomsFlags, (nuint)roomsMenu, I18n.Get("tray.activeGroup"));
             }
-            Append(menu, TrayCommand.ToggleQuietMode, I18n.Get("tray.quietMode"), _state.QuietMode);
-            Append(menu, TrayCommand.History, I18n.Get("tray.history"), isEnabled: _state.Rooms.Count > 0);
+            AppendToggle(
+                menu,
+                TrayCommand.ToggleQuietMode,
+                I18n.Get("tray.quietMode"),
+                isChecked: _state.QuietMode);
+            Append(
+                menu,
+                TrayCommand.History,
+                I18n.Get("tray.history"),
+                isEnabled: _state.Rooms.Count > 0);
             Append(menu, TrayCommand.Store, I18n.Get("tray.store"));
             Append(menu, TrayCommand.Groups, I18n.Get("tray.groups"));
-            Append(menu, TrayCommand.ToggleStartAtLogin, I18n.Get("tray.startup"), _state.StartAtLogin);
+            AppendToggle(
+                menu,
+                TrayCommand.ToggleStartAtLogin,
+                I18n.Get("tray.startup"),
+                isChecked: _state.StartAtLogin);
             NativeMethods.AppendMenu(menu, 0x800, 0, null);
             Append(menu, TrayCommand.CheckUpdates, I18n.Get("tray.checkUpdates"));
             Append(menu, TrayCommand.Settings, I18n.Get("tray.settings"));
             NativeMethods.AppendMenu(menu, 0x800, 0, null);
             Append(menu, TrayCommand.Exit, I18n.Get("tray.exit"));
 
-            NativeMethods.GetCursorPos(out var point);
+            NativeMethods.GetCursorPos(out NativePoint point);
             NativeMethods.SetForegroundWindow(_window);
-            var selected = NativeMethods.TrackPopupMenu(
+            uint selected = NativeMethods.TrackPopupMenu(
                 menu,
                 0x0100 | 0x0002,
                 point.X,
@@ -438,7 +488,7 @@ public sealed class TrayIconService : IDisposable
                 0,
                 _window,
                 nint.Zero);
-            if (roomCommands.TryGetValue(selected, out var roomId))
+            if (roomCommands.TryGetValue(selected, out Guid roomId))
             {
                 RoomSelected?.Invoke(roomId);
             }
@@ -457,29 +507,50 @@ public sealed class TrayIconService : IDisposable
         nint menu,
         TrayCommand command,
         string label,
-        bool isChecked = false,
         bool isEnabled = true)
     {
-        var flags = (isChecked ? 0x0008u : 0u) | (isEnabled ? 0u : 0x0001u);
-        NativeMethods.AppendMenu(menu, flags, (nuint)command, label);
+        NativeMethods.AppendMenu(
+            menu,
+            NativeMenuFlags(isChecked: false, isEnabled: isEnabled),
+            (nuint)command,
+            label);
     }
+
+    private static void AppendToggle(
+        nint menu,
+        TrayCommand command,
+        string label,
+        bool isChecked,
+        bool isEnabled = true)
+    {
+        NativeMethods.AppendMenu(
+            menu,
+            NativeMenuFlags(isChecked, isEnabled),
+            (nuint)command,
+            label);
+    }
+
+    internal static uint NativeMenuFlags(bool isChecked, bool isEnabled) =>
+        (isChecked ? 0x0008u : 0u) | (isEnabled ? 0u : 0x0001u);
+
+    internal static bool OverlayHiddenCheckState(bool overlayVisible) => !overlayVisible;
 
     private static nint WndProc(nint window, uint message, nint wParam, nint lParam)
     {
         _ = wParam;
-        if (Instances.TryGetValue(window, out var service))
+        if (s_instances.TryGetValue(window, out TrayIconService? service))
         {
             if (message == TrayMessage)
             {
-                var mouseMessage = unchecked((uint)(long)lParam) & 0xffff;
+                uint mouseMessage = unchecked((uint)(long)lParam) & 0xffff;
                 if (mouseMessage is 0x0205 or 0x007B)
                 {
                     service.ShowMenu();
                     return nint.Zero;
                 }
-                if (mouseMessage is 0x0202 or 0x0203)
+                if (mouseMessage is 0x0202 or 0x0203 or 0x0405)
                 {
-                    service.CommandInvoked?.Invoke(TrayCommand.Settings);
+                    service.CommandInvoked?.Invoke(TrayCommand.Open);
                     return nint.Zero;
                 }
             }
@@ -489,8 +560,34 @@ public sealed class TrayIconService : IDisposable
                     && service._unreadIcon != nint.Zero
                     ? service._unreadIcon
                     : service._baseIcon;
-                var data = service.CreateIconData();
+                NotifyIconData data = service.CreateIconData();
                 NativeMethods.ShellNotifyIcon(1, ref data);
+                return nint.Zero;
+            }
+            if (message == NotificationMessage)
+            {
+                NotifyIconData data = service.CreateIconData();
+                data.Flags |= NotifyIconInfo;
+                if ((nuint)wParam == UpdateNotification)
+                {
+                    data.InfoTitle = I18n.Get("dialogs.updateTitle");
+                    data.Info = I18n.Format(
+                        "update.available",
+                        service._availableUpdateVersion);
+                    data.InfoFlags = NotifyInfoInfo;
+                }
+                else
+                {
+                    data.InfoTitle = I18n.Get("tray.connectionFailedTitle");
+                    data.Info = I18n.Get("tray.connectionFailedBody");
+                    data.InfoFlags = NotifyInfoWarning;
+                }
+                NativeMethods.ShellNotifyIcon(1, ref data);
+                return nint.Zero;
+            }
+            if (message == 0x007E) // WM_DISPLAYCHANGE
+            {
+                service.DisplayTopologyChanged?.Invoke();
                 return nint.Zero;
             }
             if (message == 0x0010)
@@ -501,7 +598,7 @@ public sealed class TrayIconService : IDisposable
             }
             if (message == 0x0002)
             {
-                Instances.TryRemove(window, out _);
+                s_instances.TryRemove(window, out _);
                 NativeMethods.PostQuitMessage(0);
                 return nint.Zero;
             }
@@ -511,16 +608,16 @@ public sealed class TrayIconService : IDisposable
 
     private static void EnsureClass()
     {
-        lock (RegistrationGate)
+        lock (s_registrationGate)
         {
-            if (_registered)
+            if (s_registered)
             {
                 return;
             }
             var windowClass = new WindowClass
             {
                 Size = Marshal.SizeOf<WindowClass>(),
-                WindowProcedure = Marshal.GetFunctionPointerForDelegate(WindowProcedure),
+                WindowProcedure = Marshal.GetFunctionPointerForDelegate(s_windowProcedure),
                 Instance = NativeMethods.GetModuleHandle(null),
                 ClassName = WindowClassName,
             };
@@ -528,7 +625,7 @@ public sealed class TrayIconService : IDisposable
             {
                 throw new Win32Exception(Marshal.GetLastPInvokeError(), "Tray window class registration failed.");
             }
-            _registered = true;
+            s_registered = true;
         }
     }
 

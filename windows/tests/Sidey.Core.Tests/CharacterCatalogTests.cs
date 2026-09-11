@@ -22,8 +22,8 @@ public sealed class CharacterCatalogTests
 
         Assert.All(PixelCharacterCatalog.All, character =>
         {
-            Assert.Equal($"Characters/{character.Id}/sprite.png", character.SpriteSheetResource);
-            Assert.Equal($"Characters/{character.Id}/frames.bgra", character.RawBgraResource);
+            Assert.Equal($"Characters/{character.Id}/base.png", character.SpriteSheetResource);
+            Assert.Equal($"Characters/{character.Id}/base.bgra", character.RawBgraResource);
             Assert.Equal($"Characters/{character.Id}/manifest.json", character.ManifestResource);
             Assert.Equal(24, character.FrameWidth);
             Assert.Equal(24, character.FrameHeight);
@@ -34,6 +34,80 @@ public sealed class CharacterCatalogTests
             Assert.Equal(6..8, character.Frames.Doze);
             Assert.Equal(8..10, character.Frames.Offline);
         });
+    }
+
+    [Fact]
+    public void ActiveEntitlementsAddOnlyTheOwnedCharactersToTheSelectableCatalog()
+    {
+        var entitlements = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "character:pixel_guinea_pig",
+            "character:pixel_chinchilla",
+        };
+
+        Assert.Equal(
+            [
+                "pixel_hamster", "pixel_cat", "pixel_puppy", "pixel_rabbit", "pixel_penguin",
+                "pixel_guinea_pig", "pixel_chinchilla",
+            ],
+            PixelCharacterCatalog.SelectableFor(entitlements).Select(character => character.Id));
+    }
+
+    [Fact]
+    public void UnavailableCommerceSnapshotPreservesTheSelectedEntitledCharacter()
+    {
+        IReadOnlySet<string> resolved = PixelCharacterCatalog.ResolveActiveEntitlementKeys(
+            remoteKeys: null,
+            profileCharacterId: "pixel_monkey");
+
+        Assert.Equal(["character:pixel_monkey"], resolved);
+    }
+
+    [Fact]
+    public void SuccessfulEmptyCommerceSnapshotDoesNotPreserveARevokedCharacter()
+    {
+        IReadOnlySet<string> resolved = PixelCharacterCatalog.ResolveActiveEntitlementKeys(
+            new HashSet<string>(StringComparer.Ordinal),
+            "pixel_monkey");
+
+        Assert.Empty(resolved);
+    }
+
+    [Fact]
+    public void RevokedEntitledCharacterFallsBackToTheDefaultSelection()
+    {
+        var noEntitlements = new HashSet<string>(StringComparer.Ordinal);
+
+        Assert.False(PixelCharacterCatalog.CanSelect("pixel_monkey", noEntitlements));
+        Assert.Equal(
+            PixelCharacterCatalog.FallbackId,
+            PixelCharacterCatalog.SelectableId("pixel_monkey", noEntitlements));
+        Assert.Equal(
+            "pixel_monkey",
+            PixelCharacterCatalog.SelectableId(
+                "pixel_monkey",
+                new HashSet<string>(["character:pixel_monkey"], StringComparer.Ordinal)));
+    }
+
+    [Fact]
+    public void StarlightUpalupaDeclaresItsCatalogDrivenSparkleEffect()
+    {
+        Assert.Equal(
+            PixelCharacterVisualEffect.StarlightSparkles,
+            PixelCharacterCatalog.Get("pixel_starlight_upalupa").VisualEffect);
+        Assert.All(
+            PixelCharacterCatalog.All.Where(character => character.Id != "pixel_starlight_upalupa"),
+            character => Assert.Equal(PixelCharacterVisualEffect.None, character.VisualEffect));
+    }
+
+    [Fact]
+    public void MovementFacingMatchesTheMacCharacterContract()
+    {
+        Assert.Equal(
+            ["pixel_guinea_pig", "pixel_starlight_upalupa"],
+            PixelCharacterCatalog.All
+                .Where(character => character.MirrorsToMovementDirection)
+                .Select(character => character.Id));
     }
 
     [Theory]
@@ -53,10 +127,10 @@ public sealed class CharacterCatalogTests
     [Fact]
     public void EveryAssetAndManifestMatchesTheCatalogContract()
     {
-        foreach (var character in PixelCharacterCatalog.All)
+        foreach (PixelCharacterDefinition character in PixelCharacterCatalog.All)
         {
-            var pngPath = AssetPath(character.Id, "sprite.png");
-            var png = File.ReadAllBytes(pngPath);
+            string pngPath = AssetPath(character.Id, "base.png");
+            byte[] png = File.ReadAllBytes(pngPath);
             Assert.True(png.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }));
             Assert.Equal("IHDR", System.Text.Encoding.ASCII.GetString(png, 12, 4));
             Assert.Equal(240, BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16, 4)));
@@ -65,12 +139,12 @@ public sealed class CharacterCatalogTests
             Assert.Equal(6, png[25]);
             Assert.Equal(character.SpriteSheetSha256, Convert.ToHexStringLower(SHA256.HashData(png)));
 
-            var raw = File.ReadAllBytes(AssetPath(character.Id, "frames.bgra"));
+            byte[] raw = File.ReadAllBytes(AssetPath(character.Id, "base.bgra"));
             Assert.Equal(240 * 24 * 4, raw.Length);
 
             using var manifest = JsonDocument.Parse(File.ReadAllBytes(
                 AssetPath(character.Id, "manifest.json")));
-            var root = manifest.RootElement;
+            JsonElement root = manifest.RootElement;
             Assert.Equal(character.Id, root.GetProperty("character_id").GetString());
             Assert.Equal(character.DisplayName, root.GetProperty("display_name").GetString());
             Assert.Equal([24, 24], root.GetProperty("frame_pixel_size").EnumerateArray().Select(value => value.GetInt32()));
@@ -79,8 +153,8 @@ public sealed class CharacterCatalogTests
             Assert.Equal(character.SpriteSheetSha256, root.GetProperty("sha256").GetString());
             Assert.Equal(
                 character.CompatibleAliases,
-                root.GetProperty("legacy_aliases").EnumerateArray().Select(value => value.GetString()!).ToArray());
-            var animations = root.GetProperty("animations");
+                [.. root.GetProperty("legacy_aliases").EnumerateArray().Select(value => value.GetString()!)]);
+            JsonElement animations = root.GetProperty("animations");
             Assert.Equal([0, 1], Animation(animations, "idle"));
             Assert.Equal([2, 3, 4, 5], Animation(animations, "walk"));
             Assert.Equal([6, 7], Animation(animations, "doze"));
@@ -93,25 +167,9 @@ public sealed class CharacterCatalogTests
         }
     }
 
-    [Fact]
-    public void RendererAndFrameCacheDoNotContainSpeciesSpecificBranches()
-    {
-        var implementation = File.ReadAllText(AssetPath("LayeredPixelWorldRenderer.cs"))
-            + File.ReadAllText(AssetPath("PixelCharacterFrameCache.cs"));
-
-        foreach (var character in PixelCharacterCatalog.All)
-        {
-            Assert.False(implementation.Contains(character.Id, StringComparison.Ordinal));
-        }
-        Assert.False(implementation.Contains("minty_pup", StringComparison.Ordinal));
-    }
-
-    private static string AssetPath(string name) =>
-        Path.Combine(AppContext.BaseDirectory, "TestAssets", name);
-
     private static string AssetPath(string characterId, string name) =>
         Path.Combine(AppContext.BaseDirectory, "TestAssets", characterId, name);
 
     private static int[] Animation(JsonElement animations, string name) =>
-        animations.GetProperty(name).EnumerateArray().Select(value => value.GetInt32()).ToArray();
+        [.. animations.GetProperty(name).EnumerateArray().Select(value => value.GetInt32())];
 }

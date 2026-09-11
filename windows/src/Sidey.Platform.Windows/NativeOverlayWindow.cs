@@ -23,17 +23,17 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
 {
     private const string WindowClassName = "SIDEY.NativeOverlayWindow";
     private const byte AlmostTransparent = 1;
-    private static readonly object RegistrationLock = new();
-    private static readonly ConcurrentDictionary<nint, NativeOverlayWindowRole> Roles = new();
-    private static readonly ConcurrentDictionary<nint, Action> Activations = new();
-    private static readonly ConcurrentDictionary<nint, Action> DoubleClickActivations = new();
-    private static readonly ConcurrentDictionary<nint, Action> RightClickActivations = new();
-    private static readonly ConcurrentDictionary<nint, uint> OwnerThreads = new();
-    private static readonly ConcurrentDictionary<uint, int> ThreadWindowCounts = new();
-    private static readonly WNDPROC WindowProcedureCallback = WindowProcedure;
-    private static readonly HWND TopmostWindow = new((void*)(-1));
-    private static readonly HWND NotTopmostWindow = new((void*)(-2));
-    private static bool _classRegistered;
+    private static readonly Lock s_registrationLock = new();
+    private static readonly ConcurrentDictionary<nint, NativeOverlayWindowRole> s_roles = new();
+    private static readonly ConcurrentDictionary<nint, Action> s_activations = new();
+    private static readonly ConcurrentDictionary<nint, Action> s_doubleClickActivations = new();
+    private static readonly ConcurrentDictionary<nint, Action> s_rightClickActivations = new();
+    private static readonly ConcurrentDictionary<nint, uint> s_ownerThreads = new();
+    private static readonly ConcurrentDictionary<uint, int> s_threadWindowCounts = new();
+    private static readonly WNDPROC s_windowProcedureCallback = WindowProcedure;
+    private static readonly HWND s_topmostWindow = new((void*)(-1));
+    private static readonly HWND s_notTopmostWindow = new((void*)(-2));
+    private static bool s_classRegistered;
 
     private HWND _handle;
     private readonly uint _ownerThreadId;
@@ -50,24 +50,24 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
     {
         _handle = handle;
         Role = role;
-        var handleValue = (nint)handle.Value;
-        var ownerThread = PInvoke.GetCurrentThreadId();
+        nint handleValue = (nint)handle.Value;
+        uint ownerThread = PInvoke.GetCurrentThreadId();
         _ownerThreadId = ownerThread;
-        Roles[handleValue] = role;
+        s_roles[handleValue] = role;
         if (activated is not null)
         {
-            Activations[handleValue] = activated;
+            s_activations[handleValue] = activated;
         }
         if (doubleClicked is not null)
         {
-            DoubleClickActivations[handleValue] = doubleClicked;
+            s_doubleClickActivations[handleValue] = doubleClicked;
         }
         if (rightClicked is not null)
         {
-            RightClickActivations[handleValue] = rightClicked;
+            s_rightClickActivations[handleValue] = rightClicked;
         }
-        OwnerThreads[handleValue] = ownerThread;
-        ThreadWindowCounts.AddOrUpdate(ownerThread, 1, static (_, count) => count + 1);
+        s_ownerThreads[handleValue] = ownerThread;
+        s_threadWindowCounts.AddOrUpdate(ownerThread, 1, static (_, count) => count + 1);
     }
 
     public NativeOverlayWindowRole Role { get; }
@@ -95,9 +95,9 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
         }
 
         EnsureWindowClass();
-        var module = PInvoke.GetModuleHandle((string?)null);
-        var extendedStyle = WindowStyles.ExtendedStyle(role);
-        var handle = PInvoke.CreateWindowEx(
+        FreeLibrarySafeHandle module = PInvoke.GetModuleHandle((string?)null);
+        WINDOW_EX_STYLE extendedStyle = WindowStyles.ExtendedStyle(role);
+        HWND handle = PInvoke.CreateWindowEx(
             extendedStyle,
             WindowClassName,
             "SIDEY Overlay",
@@ -140,7 +140,7 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
             throw new ArgumentOutOfRangeException(nameof(bounds));
         }
 
-        var flags = SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER;
+        SET_WINDOW_POS_FLAGS flags = SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER;
         flags |= visible ? SET_WINDOW_POS_FLAGS.SWP_SHOWWINDOW : SET_WINDOW_POS_FLAGS.SWP_HIDEWINDOW;
         if (!PInvoke.SetWindowPos(
                 _handle,
@@ -185,7 +185,7 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
 
     private void ApplyZOrder(SET_WINDOW_POS_FLAGS additionalFlags)
     {
-        var flags = SET_WINDOW_POS_FLAGS.SWP_NOMOVE
+        SET_WINDOW_POS_FLAGS flags = SET_WINDOW_POS_FLAGS.SWP_NOMOVE
             | SET_WINDOW_POS_FLAGS.SWP_NOSIZE
             | SET_WINDOW_POS_FLAGS.SWP_NOACTIVATE
             | SET_WINDOW_POS_FLAGS.SWP_NOOWNERZORDER
@@ -200,13 +200,13 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
     {
         if (_isTopmost)
         {
-            return TopmostWindow;
+            return s_topmostWindow;
         }
 
         var yieldWindow = new HWND((void*)_yieldBehindWindow);
         return yieldWindow != HWND.Null && NativeMethods.IsWindow(_yieldBehindWindow)
             ? yieldWindow
-            : NotTopmostWindow;
+            : s_notTopmostWindow;
     }
 
     private static class NativeMethods
@@ -224,14 +224,14 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
         }
 
         _disposed = true;
-        var handle = _handle;
+        HWND handle = _handle;
         _handle = HWND.Null;
         if (handle != HWND.Null)
         {
-            Roles.TryRemove((nint)handle.Value, out _);
-            Activations.TryRemove((nint)handle.Value, out _);
-            DoubleClickActivations.TryRemove((nint)handle.Value, out _);
-            RightClickActivations.TryRemove((nint)handle.Value, out _);
+            s_roles.TryRemove((nint)handle.Value, out _);
+            s_activations.TryRemove((nint)handle.Value, out _);
+            s_doubleClickActivations.TryRemove((nint)handle.Value, out _);
+            s_rightClickActivations.TryRemove((nint)handle.Value, out _);
             if (PInvoke.GetCurrentThreadId() == _ownerThreadId)
             {
                 PInvoke.DestroyWindow(handle);
@@ -245,20 +245,20 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
 
     private static unsafe void EnsureWindowClass()
     {
-        lock (RegistrationLock)
+        lock (s_registrationLock)
         {
-            if (_classRegistered)
+            if (s_classRegistered)
             {
                 return;
             }
 
-            var module = PInvoke.GetModuleHandle((string?)null);
+            FreeLibrarySafeHandle module = PInvoke.GetModuleHandle((string?)null);
             fixed (char* className = WindowClassName)
             {
                 var windowClass = new WNDCLASSW
                 {
                     style = (WNDCLASS_STYLES)0x0008, // CS_DBLCLKS
-                    lpfnWndProc = WindowProcedureCallback,
+                    lpfnWndProc = s_windowProcedureCallback,
                     hInstance = new HINSTANCE(module.DangerousGetHandle()),
                     hCursor = PInvoke.LoadCursor(HINSTANCE.Null, PInvoke.IDC_ARROW),
                     lpszClassName = new PCWSTR(className),
@@ -270,14 +270,14 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
                 }
             }
 
-            _classRegistered = true;
+            s_classRegistered = true;
         }
     }
 
     private static LRESULT WindowProcedure(HWND window, uint message, WPARAM wParam, LPARAM lParam)
     {
         if (message == PInvoke.WM_NCHITTEST
-            && Roles.TryGetValue((nint)window.Value, out var role)
+            && s_roles.TryGetValue((nint)window.Value, out NativeOverlayWindowRole role)
             && role == NativeOverlayWindowRole.World)
         {
             return new LRESULT(-1); // HTTRANSPARENT is defense-in-depth; WS_EX_LAYERED | WS_EX_TRANSPARENT owns cross-process pass-through.
@@ -289,7 +289,7 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
         }
 
         if (message == PInvoke.WM_LBUTTONUP
-            && Activations.TryGetValue((nint)window.Value, out var activated))
+            && s_activations.TryGetValue((nint)window.Value, out Action? activated))
         {
             try
             {
@@ -304,7 +304,7 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
         }
 
         if (message == 0x0203 // WM_LBUTTONDBLCLK
-            && DoubleClickActivations.TryGetValue((nint)window.Value, out var doubleClicked))
+            && s_doubleClickActivations.TryGetValue((nint)window.Value, out Action? doubleClicked))
         {
             try
             {
@@ -319,7 +319,7 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
         }
 
         if (message == PInvoke.WM_RBUTTONUP
-            && RightClickActivations.TryGetValue((nint)window.Value, out var rightClicked))
+            && s_rightClickActivations.TryGetValue((nint)window.Value, out Action? rightClicked))
         {
             try
             {
@@ -341,20 +341,20 @@ public sealed unsafe class NativeOverlayWindow : IDisposable
 
         if (message == PInvoke.WM_DESTROY)
         {
-            var handle = (nint)window.Value;
-            Roles.TryRemove(handle, out _);
-            Activations.TryRemove(handle, out _);
-            DoubleClickActivations.TryRemove(handle, out _);
-            RightClickActivations.TryRemove(handle, out _);
-            if (OwnerThreads.TryRemove(handle, out var ownerThread))
+            nint handle = (nint)window.Value;
+            s_roles.TryRemove(handle, out _);
+            s_activations.TryRemove(handle, out _);
+            s_doubleClickActivations.TryRemove(handle, out _);
+            s_rightClickActivations.TryRemove(handle, out _);
+            if (s_ownerThreads.TryRemove(handle, out uint ownerThread))
             {
-                var remaining = ThreadWindowCounts.AddOrUpdate(
+                int remaining = s_threadWindowCounts.AddOrUpdate(
                     ownerThread,
                     0,
                     static (_, count) => Math.Max(0, count - 1));
                 if (remaining == 0)
                 {
-                    ThreadWindowCounts.TryRemove(ownerThread, out _);
+                    s_threadWindowCounts.TryRemove(ownerThread, out _);
                     PInvoke.PostQuitMessage(0);
                 }
             }
@@ -369,7 +369,7 @@ internal static class WindowStyles
 {
     internal static WINDOW_EX_STYLE ExtendedStyle(NativeOverlayWindowRole role)
     {
-        var style = WINDOW_EX_STYLE.WS_EX_TOPMOST
+        WINDOW_EX_STYLE style = WINDOW_EX_STYLE.WS_EX_TOPMOST
             | WINDOW_EX_STYLE.WS_EX_TOOLWINDOW
             | WINDOW_EX_STYLE.WS_EX_NOACTIVATE
             | WINDOW_EX_STYLE.WS_EX_LAYERED;

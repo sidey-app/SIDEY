@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sidey.Core.Domain;
@@ -7,282 +9,157 @@ using Sidey.Presentation.Services;
 
 namespace Sidey.Presentation.ViewModels;
 
-public enum NoticeKind
-{
-    Informational,
-    Success,
-    Warning,
-    Error,
-}
-
-public sealed record NoticeMessage(string Message, NoticeKind Kind);
-
-public sealed partial class CharacterSelectionItemViewModel : ObservableObject
-{
-    public CharacterSelectionItemViewModel(string id, string displayName, string characterId)
-    {
-        Id = id;
-        DisplayName = displayName;
-        CharacterId = characterId;
-    }
-
-    public string Id { get; }
-
-    public string DisplayName { get; }
-
-    public string CharacterId { get; }
-
-    [ObservableProperty]
-    public partial bool IsSelected { get; set; }
-}
-
-public sealed record RoomMemberCardViewModel(
-    Guid RoomId,
-    Guid UserId,
-    string Nickname,
-    string CharacterId,
-    bool IsOwner,
-    bool IsCurrentUser,
-    bool CanRemove,
-    IAsyncRelayCommand RemoveCommand);
-
-public sealed class RoomCardViewModel : ObservableObject
-{
-    private Room _room;
-    private string _name = string.Empty;
-    private string _details = string.Empty;
-    private bool _isActive;
-    private bool _canJoin;
-    private bool _isOwner;
-    private bool _isExpanded;
-    private string _expansionGlyph = string.Empty;
-    private string _expansionActionText = string.Empty;
-    private string _inviteActionText = string.Empty;
-    private bool _isInviteActionEnabled;
-    private string _joinActionText = string.Empty;
-    private bool _isJoinEnabled;
-    private bool _isSwitching;
-    private bool _areOwnerActionsEnabled;
-
-    public RoomCardViewModel(
-        Room room,
-        IAsyncRelayCommand joinCommand,
-        IRelayCommand toggleCommand,
-        IAsyncRelayCommand inviteCommand,
-        IAsyncRelayCommand renameCommand,
-        IAsyncRelayCommand deleteCommand)
-    {
-        _room = room;
-        JoinCommand = joinCommand;
-        ToggleCommand = toggleCommand;
-        InviteCommand = inviteCommand;
-        RenameCommand = renameCommand;
-        DeleteCommand = deleteCommand;
-    }
-
-    public Room Room => _room;
-
-    public string Name
-    {
-        get => _name;
-        private set => SetProperty(ref _name, value);
-    }
-
-    public string Details
-    {
-        get => _details;
-        private set => SetProperty(ref _details, value);
-    }
-
-    public bool IsActive
-    {
-        get => _isActive;
-        private set => SetProperty(ref _isActive, value);
-    }
-
-    public bool CanJoin
-    {
-        get => _canJoin;
-        private set => SetProperty(ref _canJoin, value);
-    }
-
-    public bool IsOwner
-    {
-        get => _isOwner;
-        private set => SetProperty(ref _isOwner, value);
-    }
-
-    public bool IsExpanded
-    {
-        get => _isExpanded;
-        private set => SetProperty(ref _isExpanded, value);
-    }
-
-    public string ExpansionGlyph
-    {
-        get => _expansionGlyph;
-        private set => SetProperty(ref _expansionGlyph, value);
-    }
-
-    public string ExpansionActionText
-    {
-        get => _expansionActionText;
-        private set => SetProperty(ref _expansionActionText, value);
-    }
-
-    public string InviteActionText
-    {
-        get => _inviteActionText;
-        private set => SetProperty(ref _inviteActionText, value);
-    }
-
-    public bool IsInviteActionEnabled
-    {
-        get => _isInviteActionEnabled;
-        private set => SetProperty(ref _isInviteActionEnabled, value);
-    }
-
-    public string JoinActionText
-    {
-        get => _joinActionText;
-        private set => SetProperty(ref _joinActionText, value);
-    }
-
-    public bool IsJoinEnabled
-    {
-        get => _isJoinEnabled;
-        private set => SetProperty(ref _isJoinEnabled, value);
-    }
-
-    public bool IsSwitching
-    {
-        get => _isSwitching;
-        private set => SetProperty(ref _isSwitching, value);
-    }
-
-    public bool AreOwnerActionsEnabled
-    {
-        get => _areOwnerActionsEnabled;
-        private set => SetProperty(ref _areOwnerActionsEnabled, value);
-    }
-
-    public ObservableCollection<RoomMemberCardViewModel> Members { get; } = [];
-
-    public IAsyncRelayCommand JoinCommand { get; }
-
-    public IRelayCommand ToggleCommand { get; }
-
-    public IAsyncRelayCommand InviteCommand { get; }
-
-    public IAsyncRelayCommand RenameCommand { get; }
-
-    public IAsyncRelayCommand DeleteCommand { get; }
-
-    internal void Update(
-        Room room,
-        string details,
-        bool isActive,
-        bool isOwner,
-        bool isExpanded,
-        string joinActionText,
-        bool isJoinEnabled,
-        bool isSwitching,
-        string inviteActionText,
-        bool isInviteActionEnabled,
-        bool areOwnerActionsEnabled,
-        IReadOnlyList<RoomMemberCardViewModel> members)
-    {
-        _room = room;
-        Name = room.Name;
-        Details = details;
-        IsActive = isActive;
-        CanJoin = !isActive;
-        IsOwner = isOwner;
-        IsExpanded = isExpanded;
-        JoinActionText = joinActionText;
-        IsJoinEnabled = isJoinEnabled;
-        IsSwitching = isSwitching;
-        ExpansionGlyph = isExpanded ? "\uE70D" : "\uE76C";
-        ExpansionActionText = isExpanded
-            ? I18n.Get("groups.collapse")
-            : I18n.Get("groups.expand");
-        InviteActionText = inviteActionText;
-        IsInviteActionEnabled = isInviteActionEnabled;
-        AreOwnerActionsEnabled = areOwnerActionsEnabled;
-        UpdateMembers(members);
-    }
-
-    private void UpdateMembers(IReadOnlyList<RoomMemberCardViewModel> desiredMembers)
-    {
-        HashSet<Guid> desiredIds = desiredMembers.Select(member => member.UserId).ToHashSet();
-        for (int index = Members.Count - 1; index >= 0; index--)
-        {
-            if (!desiredIds.Contains(Members[index].UserId))
-            {
-                Members.RemoveAt(index);
-            }
-        }
-
-        for (int index = 0; index < desiredMembers.Count; index++)
-        {
-            RoomMemberCardViewModel desired = desiredMembers[index];
-            int existingIndex = IndexOfMember(desired.UserId);
-            if (existingIndex < 0)
-            {
-                Members.Insert(index, desired);
-                continue;
-            }
-
-            if (existingIndex != index)
-            {
-                Members.Move(existingIndex, index);
-            }
-
-            if (!MemberPresentation(Members[index]).Equals(MemberPresentation(desired)))
-            {
-                Members[index] = desired;
-            }
-        }
-    }
-
-    private int IndexOfMember(Guid userId)
-    {
-        for (int index = 0; index < Members.Count; index++)
-        {
-            if (Members[index].UserId == userId)
-            {
-                return index;
-            }
-        }
-
-        return -1;
-    }
-
-    private static (
-        Guid RoomId,
-        Guid UserId,
-        string Nickname,
-        string CharacterId,
-        bool IsOwner,
-        bool IsCurrentUser,
-        bool CanRemove) MemberPresentation(RoomMemberCardViewModel member) =>
-    (
-        member.RoomId,
-        member.UserId,
-        member.Nickname,
-        member.CharacterId,
-        member.IsOwner,
-        member.IsCurrentUser,
-        member.CanRemove
-    );
-}
-
 public sealed partial class MainWindowViewModel : ObservableObject
 {
-    private readonly ISideyCoordinator _coordinator;
+    private static readonly string[] s_supportedLanguages = [.. I18n.SupportedLanguages];
+
+    private readonly IMainWindowCoordinator _coordinator;
     private readonly IMainWindowDialogService _dialogs;
     private readonly IUpdateService _updates;
     private readonly HashSet<Guid> _expandedRoomIds = [];
+    private readonly HashSet<CommerceProductKind> _pendingCosmeticKinds = [];
+    private readonly Dictionary<CommerceProductKind, string?> _pendingCosmeticIds = [];
+    private string? _pendingCharacterId;
+    private long _selectionGeneration;
+    private Guid? _selectionUserId;
+    private (bool Enabled, int Volume)? _pendingSoundSettings;
+    private bool _savingSoundSettings;
+    private int _lastNonzeroSoundVolume = 100;
+    private CancellationTokenSource? _soundSaveDelay;
+    private Task _saveSoundSettingsTask = Task.CompletedTask;
+    private readonly Guid _soundFeedbackScope = Guid.NewGuid();
+    private bool _soundFeedbackPending;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SoundMuteActionText))]
+    public partial bool CharacterSoundEffectsEnabled { get; set; } = true;
+    public string SoundMuteActionText => I18n.Get(CharacterSoundEffectsEnabled ? "settings.muteSound" : "settings.unmuteSound");
+
+    [RelayCommand]
+    private void ToggleCharacterSoundMute() => CharacterSoundEffectsEnabled = !CharacterSoundEffectsEnabled;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CharacterSoundVolumeLabel))]
+    public partial double CharacterSoundEffectsVolume { get; set; } = 100;
+    public string CharacterSoundVolumeLabel => $"{CharacterSoundEffectsVolume:0}%";
+
+    partial void OnCharacterSoundEffectsVolumeChanged(double value)
+    {
+        if (_isApplyingState)
+            return;
+        int volume = double.IsFinite(value) ? (int)Math.Clamp(Math.Round(value), 0, 100) : 100;
+        if (volume > 0)
+            _lastNonzeroSoundVolume = volume;
+        _isApplyingState = true;
+        try
+        { CharacterSoundEffectsEnabled = volume > 0; }
+        finally { _isApplyingState = false; }
+        QueueSoundSettings(volume > 0, volume);
+        if (volume == 0)
+            StopSoundVolumeFeedback();
+        else
+            _soundFeedbackPending = true;
+    }
+
+    partial void OnCharacterSoundEffectsEnabledChanged(bool value)
+    {
+        if (_isApplyingState)
+            return;
+        StopSoundVolumeFeedback();
+        int volume = (int)CharacterSoundEffectsVolume;
+        if (value && volume == 0)
+        {
+            volume = _lastNonzeroSoundVolume;
+            _isApplyingState = true;
+            try
+            { CharacterSoundEffectsVolume = volume; }
+            finally { _isApplyingState = false; }
+        }
+        QueueSoundSettings(value, volume);
+    }
+
+    private void QueueSoundSettings(bool enabled, int volume)
+    {
+        _coordinator.ApplyCharacterSoundEffects(enabled, volume);
+        _pendingSoundSettings = (enabled, volume);
+        if (!_savingSoundSettings)
+            _saveSoundSettingsTask = SaveSoundSettingsAsync();
+    }
+
+    public void CompleteSoundVolumeAdjustment()
+    {
+        if (!_soundFeedbackPending)
+            return;
+        _soundFeedbackPending = false;
+        if (!CharacterSoundEffectsEnabled || CharacterSoundEffectsVolume <= 0)
+            return;
+        long now = System.Diagnostics.Stopwatch.GetTimestamp();
+        _coordinator.StopImpactSounds(_soundFeedbackScope);
+        _coordinator.PlayImpactSound("patch_soft_ball", _soundFeedbackScope, now);
+    }
+
+    public void StopSoundVolumeFeedback()
+    {
+        _soundFeedbackPending = false;
+        _coordinator.StopImpactSounds(_soundFeedbackScope);
+    }
+
+    public Task FlushSoundSettingsAsync()
+    {
+        _soundSaveDelay?.Cancel();
+        return _saveSoundSettingsTask;
+    }
+
+    private async Task SaveSoundSettingsAsync()
+    {
+        _savingSoundSettings = true;
+        try
+        {
+            while (_pendingSoundSettings is { } settings)
+            {
+                using var delay = new CancellationTokenSource();
+                _soundSaveDelay = delay;
+                try
+                { await Task.Delay(200, delay.Token); }
+                catch (OperationCanceledException) when (delay.IsCancellationRequested) { }
+                finally { _soundSaveDelay = null; }
+                if (_pendingSoundSettings != settings && !delay.IsCancellationRequested)
+                    continue;
+                settings = _pendingSoundSettings ?? settings;
+                _pendingSoundSettings = null;
+                bool saved = await RunCommandAsync(
+                    () => _coordinator.SaveCharacterSoundEffectsAsync(settings.Enabled, settings.Volume), null,
+                    () => _pendingSoundSettings is null);
+                if (!saved && _pendingSoundSettings is null)
+                {
+                    StopSoundVolumeFeedback();
+                    AppPreferences previous = _coordinator.State.Preferences;
+                    _isApplyingState = true;
+                    try
+                    {
+                        CharacterSoundEffectsEnabled = previous.CharacterSoundEffectsEnabled;
+                        CharacterSoundEffectsVolume = previous.CharacterSoundEffectsVolume;
+                    }
+                    finally { _isApplyingState = false; }
+                    _coordinator.ApplyCharacterSoundEffects(previous.CharacterSoundEffectsEnabled, previous.CharacterSoundEffectsVolume);
+                }
+            }
+        }
+        finally { _savingSoundSettings = false; }
+    }
+
+    public void RefreshFeedbackPresentation()
+    {
+        foreach (CharacterSelectionItemViewModel item in CharacterSelections)
+        {
+            item.AnimationsEnabled = _coordinator.AnimationsEnabled;
+            item.RefreshSelectionStatus();
+        }
+        foreach (CosmeticSelectionItemViewModel? item in BubbleSelections.Concat(ThrowableSelections))
+        {
+            item.AnimationsEnabled = _coordinator.AnimationsEnabled;
+            item.RefreshSelectionStatus();
+        }
+    }
     private CoordinatorState _state = CoordinatorState.Initial;
     private CoordinatorState _previousState = CoordinatorState.Initial;
     private bool _isApplyingState;
@@ -290,6 +167,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private bool _roomExpansionInitialized;
     private string _syncedProfileNickname = string.Empty;
     private string _syncedProfileCharacterId = PixelCharacterCatalog.FallbackId;
+    private AvailableUpdate? _lastAvailableUpdate;
+    private string? _updateActivityKey;
+    private object?[] _updateActivityArguments = [];
 
     [ObservableProperty]
     public partial string Nickname { get; set; } = string.Empty;
@@ -313,7 +193,43 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial bool AreGroupMutationsEnabled { get; set; } = true;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveProfileCommand))]
+    public partial bool IsSavingProfile { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveProfileCommand))]
+    public partial bool IsSavingCharacter { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveProfileCommand))]
+    public partial bool HasNicknameChanges { get; set; }
+
+    [ObservableProperty]
+    public partial int SelectedStoreKindIndex { get; set; }
+
+    [ObservableProperty]
+    public partial int SelectedStoreSortIndex { get; set; }
+
+    [ObservableProperty]
+    public partial bool HidesOwnedStoreProducts { get; set; }
+
+    [ObservableProperty]
+    public partial string StoreSearchText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool HasVisibleStoreProducts { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(RetryConnectionCommand))]
     public partial bool IsConnected { get; set; }
+
+    private bool CanRetryConnection() => !IsConnected;
+
+    [RelayCommand(CanExecute = nameof(CanRetryConnection))]
+    private async Task RetryConnectionAsync()
+    {
+        await RunCommandAsync(() => _coordinator.RetryConnectionAsync(), successMessage: null);
+    }
 
     [ObservableProperty]
     public partial string ConnectionText { get; set; } = I18n.Get("connection.reconnecting");
@@ -337,6 +253,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial bool StartAtLogin { get; set; }
 
     [ObservableProperty]
+    public partial int SelectedLanguageIndex { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsLanguageSelectionEnabled { get; set; } = true;
+
+    [ObservableProperty]
     public partial int SelectedEdgeIndex { get; set; }
 
     [ObservableProperty]
@@ -350,39 +272,98 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial bool IsCheckingForUpdates { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasUpdateActivity))]
+    public partial string UpdateActivityText { get; set; } = string.Empty;
+
+    public bool HasUpdateActivity => !string.IsNullOrWhiteSpace(UpdateActivityText);
+
+    [ObservableProperty]
+    public partial string CurrentVersionText { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string LastUpdateCheckText { get; set; } = string.Empty;
+
+    [ObservableProperty]
     public partial string ValidationPathText { get; set; } = I18n.Get("metrics.rendererNotStarted");
 
     [ObservableProperty]
     public partial string ValidationMetricsText { get; set; } = I18n.Get("metrics.noSamples");
 
     public MainWindowViewModel(
-        ISideyCoordinator coordinator,
+        IMainWindowCoordinator coordinator,
         IMainWindowDialogService dialogs,
         IUpdateService updates)
     {
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _updates = updates ?? throw new ArgumentNullException(nameof(updates));
-        CharacterSelections = PixelCharacterCatalog.Selectable
-            .Select(character => new CharacterSelectionItemViewModel(
-                character.Id,
-                character.DisplayName,
-                character.Id))
-            .ToArray();
-        Monitors = _coordinator.GetMonitors();
+        StoreProducts = [.. WindowsCommerceCatalog.Products.Select(CreateStorePreview)];
+        RefreshVisibleStoreProducts();
+        RefreshMonitors();
         ApplyState(coordinator.State);
         UpdateCharacterSelectionState();
+        RefreshUpdateInformation();
     }
 
     public event Action<NoticeMessage>? NoticeRaised;
+    public event Action<StoreProductPreviewViewModel>? StorePreviewRequested;
 
-    public IReadOnlyList<CharacterSelectionItemViewModel> CharacterSelections { get; }
+    public ObservableCollection<CharacterSelectionItemViewModel> CharacterSelections { get; } = [];
 
-    public IReadOnlyList<MonitorOption> Monitors { get; }
+    public ObservableCollection<CosmeticSelectionItemViewModel> BubbleSelections { get; } = [];
+
+    public ObservableCollection<CosmeticSelectionItemViewModel> ThrowableSelections { get; } = [];
+
+    public IReadOnlyList<StoreProductPreviewViewModel> StoreProducts { get; }
+
+    public ObservableCollection<StoreProductPreviewViewModel> VisibleStoreProducts { get; } = [];
+
+    public ObservableCollection<MonitorOption> Monitors { get; } = [];
 
     public ObservableCollection<RoomCardViewModel> Rooms { get; } = [];
 
     public bool IsValidationMode => _coordinator.IsValidationMode;
+
+    private StoreProductPreviewViewModel CreateStorePreview(CommerceProduct product)
+    {
+        PixelCharacterDefinition character = PixelCharacterCatalog.Get(product.CharacterId);
+        string descriptionKey = product.Id switch
+        {
+            "character_starlight_upalupa" => "store.starlightUpalupaDescription",
+            "character_guinea_pig" => "store.guineaPigDescription",
+            "character_monkey" => "store.monkeyDescription",
+            "character_chinchilla" => "store.chinchillaDescription",
+            "bubble_bunny_pink" => "store.bunnyPinkBubbleDescription",
+            "bubble_butter_chick" => "store.butterChickBubbleDescription",
+            "bubble_starry_cat" => "store.starryCatBubbleDescription",
+            "throwable_bouncy_heart" => "store.bouncyHeartDescription",
+            "throwable_toy_cannon" => "store.toyCannonDescription",
+            "throwable_squeaky_duck" => "store.squeakyDuckDescription",
+            _ => throw new InvalidOperationException("Unknown Windows commerce product."),
+        };
+        string displayName = product.Kind == CommerceProductKind.Character
+            ? character.DisplayName
+            : I18n.Get($"store.product.{product.Id}");
+        string description = I18n.Get(descriptionKey);
+        if (product.Kind == CommerceProductKind.Character)
+        {
+            description = $"{description} {I18n.Get($"store.interaction.{character.Id}")}";
+        }
+        return new StoreProductPreviewViewModel(
+            product,
+            displayName,
+            description,
+            product.AmountKrw switch
+            {
+                1_900 => I18n.Get("store.price1900"),
+                2_900 => I18n.Get("store.price2900"),
+                990 => I18n.Get("store.price990"),
+                _ => throw new InvalidOperationException("Unknown Windows commerce price."),
+            },
+            () => ActivateStoreProductAsync(product.Id),
+            () => StorePreviewRequested?.Invoke(StoreProducts.FirstOrDefault(candidate =>
+                StringComparer.Ordinal.Equals(candidate.ProductId, product.Id))!));
+    }
 
     public void PrepareGroupsForPresentation()
     {
@@ -402,7 +383,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public void ApplyState(CoordinatorState state)
     {
-        bool shouldApplyProfileDraft = ProfileDraftMatchesSyncedState();
+        if (_selectionUserId != state.Profile?.Id)
+        {
+            _selectionUserId = state.Profile?.Id;
+            _selectionGeneration++;
+            _pendingCharacterId = null;
+            _pendingCosmeticIds.Clear();
+            _pendingCosmeticKinds.Clear();
+            IsSavingCharacter = false;
+        }
+        bool shouldApplyProfileDraft = NicknameDraftMatchesSyncedState();
         (string syncedNickname, string syncedCharacterId) = GetSyncedProfileDraft(state);
         _syncedProfileNickname = syncedNickname;
         _syncedProfileCharacterId = syncedCharacterId;
@@ -423,11 +413,19 @@ public sealed partial class MainWindowViewModel : ObservableObject
             }
 
             _state = state;
+            RefreshCharacterSelections(state.ActiveEntitlementKeys);
+            RefreshStoreProducts(state);
             if (shouldApplyProfileDraft)
             {
                 Nickname = syncedNickname;
                 SelectedCharacterId = syncedCharacterId;
             }
+            RefreshCosmeticSelections(state);
+            UpdateCosmeticSelectionAvailability(CommerceProductKind.Bubble, !_pendingCosmeticKinds.Contains(CommerceProductKind.Bubble));
+            UpdateCosmeticSelectionAvailability(CommerceProductKind.Throwable, !_pendingCosmeticKinds.Contains(CommerceProductKind.Throwable));
+            UpdateCharacterSelectionState();
+            RefreshFeedbackPresentation();
+            RefreshNicknameChangeState();
 
             RefreshRoomCards();
             HasRooms = state.Rooms.Count > 0;
@@ -441,16 +439,32 @@ public sealed partial class MainWindowViewModel : ObservableObject
             IsConnected = state.Connected;
             ConnectionText = state.Connected
                 ? I18n.Get("connection.connected")
-                : I18n.Get("connection.reconnecting");
+                : I18n.Get("connection.disconnected");
             IsOverlayVisible = state.Preferences.OverlayVisible;
             IsQuietMode = state.Preferences.QuietMode;
+            if (!_savingSoundSettings)
+            {
+                CharacterSoundEffectsEnabled = state.Preferences.CharacterSoundEffectsEnabled;
+                CharacterSoundEffectsVolume = state.Preferences.CharacterSoundEffectsVolume;
+                if (CharacterSoundEffectsVolume > 0)
+                    _lastNonzeroSoundVolume = (int)CharacterSoundEffectsVolume;
+            }
             ShowOfflineMembers = state.Preferences.ShowOfflineMembers;
             RequiresRightClickToThrow = state.Preferences.RequiresRightClickToThrow;
             StartAtLogin = state.Preferences.StartAtLogin;
+            string selectedLanguage = state.Preferences.Language ?? I18n.Language;
+            int selectedLanguageIndex = Array.FindIndex(
+                s_supportedLanguages,
+                language => string.Equals(language, selectedLanguage, StringComparison.OrdinalIgnoreCase));
+            SelectedLanguageIndex = Math.Max(0, selectedLanguageIndex);
             SelectedEdgeIndex = (int)state.Preferences.OverlayRegion.Edge;
             SelectedSpanIndex = (int)state.Preferences.OverlayRegion.Span;
-            SelectedMonitorIdentifier = state.Preferences.OverlayRegion.MonitorIdentifier
-                ?? Monitors.FirstOrDefault(monitor => monitor.IsPrimary)?.Identifier;
+            string? preferredMonitor = state.Preferences.OverlayRegion.MonitorIdentifier;
+            SelectedMonitorIdentifier = Monitors.Any(monitor =>
+                    StringComparer.Ordinal.Equals(monitor.Identifier, preferredMonitor))
+                ? preferredMonitor
+                : Monitors.FirstOrDefault(monitor => monitor.IsPrimary)?.Identifier
+                    ?? Monitors.FirstOrDefault()?.Identifier;
             RefreshValidationMetrics();
             RaiseConnectionNotice(state);
             _previousState = state;
@@ -462,98 +476,221 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
+    public void RefreshLocalizedText()
+    {
+        OnPropertyChanged(nameof(SoundMuteActionText));
+        RefreshFeedbackPresentation();
+        // Keep the existing items, selection, drafts and in-flight commands alive.
+        foreach (CharacterSelectionItemViewModel character in CharacterSelections)
+            character.DisplayName = PixelCharacterCatalog.Get(character.Id).DisplayName;
+        foreach (CosmeticSelectionItemViewModel? cosmetic in BubbleSelections.Concat(ThrowableSelections))
+            cosmetic.DisplayName = I18n.Get(cosmetic.CatalogItemId is { } id
+                ? $"store.product.{id}"
+                : cosmetic.Kind == CommerceProductKind.Bubble ? "profile.defaultBubble" : "profile.defaultThrowable");
+        foreach (StoreProductPreviewViewModel product in StoreProducts)
+        {
+            StoreProductPreviewViewModel localized = CreateStorePreview(WindowsCommerceCatalog.Products.First(item => item.Id == product.ProductId));
+            product.DisplayName = localized.DisplayName;
+            product.Description = localized.Description;
+            product.FormattedPrice = localized.FormattedPrice;
+        }
+        ApplyState(_coordinator.State);
+        RefreshUpdateInformation();
+        SetUpdateActivity(_updateActivityKey, _updateActivityArguments);
+    }
+
+    private void SetUpdateActivity(string? key, params object?[] arguments)
+    {
+        _updateActivityKey = key;
+        _updateActivityArguments = arguments;
+        UpdateActivityText = key is null ? string.Empty : I18n.Format(key, arguments);
+    }
+
     public void ReportError(Exception exception) =>
         RaiseNotice(exception.Message, NoticeKind.Error);
 
+    public void ReportSuccess(string message) => RaiseNotice(message, NoticeKind.Success);
+
     public void RefreshDiagnostics() => RefreshValidationMetrics();
 
-    [RelayCommand]
-    private async Task SaveProfileAsync() => await RunCommandAsync(
-        () => _coordinator.SaveProfileAsync(Nickname, SelectedCharacterId),
-        I18n.Get("profile.saved"));
-
-    [RelayCommand]
-    private async Task CreateRoomAsync() => await RunCommandAsync(
-        () => _coordinator.CreateRoomAsync(CreateRoomName),
-        I18n.Get("groups.createdSimple"));
-
-    [RelayCommand]
-    private async Task JoinRoomAsync() => await RunCommandAsync(
-        () => _coordinator.JoinRoomAsync(InviteCode),
-        I18n.Get("groups.joinedSimple"));
-
-    [RelayCommand]
-    private void Compose() => _coordinator.RequestComposer();
-
-    [RelayCommand]
-    private async Task LeaveActiveRoomAsync()
+    [RelayCommand(CanExecute = nameof(CanSaveProfile))]
+    private async Task SaveProfileAsync()
     {
-        if (ActiveRoom() is not { } room)
+        if (IsSavingProfile)
         {
             return;
         }
 
-        await RunCommandAsync(
-            () => _coordinator.LeaveRoomAsync(room.Id),
-            I18n.Get("groups.left"));
+        IsSavingProfile = true;
+        try
+        {
+            await RunCommandAsync(
+                () => _coordinator.SaveProfileAsync(Nickname, SelectedCharacterId),
+                I18n.Get("profile.saved"));
+        }
+        finally
+        {
+            IsSavingProfile = false;
+        }
     }
+
+    private bool CanSaveProfile() =>
+        HasNicknameChanges
+        && !IsSavingProfile
+        && !IsSavingCharacter
+        && ProfileValidator.IsValidNickname(Nickname);
+
+    [RelayCommand]
+    private async Task CreateRoomAsync()
+    {
+        string submittedName = CreateRoomName;
+        if (await RunCommandAsync(
+            () => _coordinator.CreateRoomAsync(submittedName),
+            I18n.Get("groups.createdSimple"))
+            && StringComparer.Ordinal.Equals(CreateRoomName, submittedName))
+        {
+            CreateRoomName = string.Empty;
+        }
+    }
+
+    [RelayCommand]
+    private async Task JoinRoomAsync()
+    {
+        string submittedCode = InviteCode;
+        if (await RunCommandAsync(
+            () => _coordinator.JoinRoomAsync(submittedCode),
+            I18n.Get("groups.joinedSimple"))
+            && StringComparer.Ordinal.Equals(InviteCode, submittedCode))
+        {
+            InviteCode = string.Empty;
+        }
+    }
+
+    [RelayCommand]
+    private void Compose() => _coordinator.RequestComposer();
 
     [RelayCommand(CanExecute = nameof(CanCheckForUpdates))]
     private async Task CheckForUpdatesAsync()
     {
         IsCheckingForUpdates = true;
+        SetUpdateActivity("update.checking");
         try
         {
             AvailableUpdate? update = await _updates.CheckAsync();
+            _lastAvailableUpdate = update;
             if (update is null)
             {
                 RaiseNotice(I18n.Get("update.latest"), NoticeKind.Success);
                 return;
             }
 
+            SetUpdateActivity(null);
             if (!await _dialogs.ConfirmUpdateDownloadAsync(update.Version))
             {
                 return;
             }
 
-            RaiseNotice(I18n.Get("update.downloading"), NoticeKind.Informational);
-            await _updates.DownloadAndLaunchInstallerAsync(update);
+            SetUpdateActivity("update.downloading");
+            var downloadProgress = new Progress<int>(percentage =>
+            {
+                SetUpdateActivity(
+                    "update.downloadingProgress",
+                    percentage);
+            });
+            await _updates.DownloadAndLaunchInstallerAsync(
+                update,
+                progress: downloadProgress);
             RaiseNotice(
                 I18n.Get("update.installerLaunched"),
                 NoticeKind.Success);
         }
-        catch (Exception exception)
+        catch (Win32Exception exception) when (exception.NativeErrorCode == 1223)
         {
-            RaiseNotice(I18n.Format("update.failed", exception.Message), NoticeKind.Error);
+            RaiseNotice(I18n.Get("update.installCancelled"), NoticeKind.Informational);
+        }
+        catch (Win32Exception)
+        {
+            RaiseNotice(I18n.Get("update.installerLaunchFailed"), NoticeKind.Error);
+        }
+        catch (Exception)
+        {
+            RaiseNotice(I18n.Get("update.failed"), NoticeKind.Error);
         }
         finally
         {
+            RefreshUpdateInformation();
+            SetUpdateActivity(null);
             IsCheckingForUpdates = false;
         }
     }
 
-    public async Task CheckForUpdatesOnStartupAsync()
+    public async Task<AvailableUpdate?> CheckForUpdatesOnStartupAsync()
     {
         if (IsCheckingForUpdates)
         {
-            return;
+            return null;
         }
 
         IsCheckingForUpdates = true;
+        SetUpdateActivity("update.checking");
         try
         {
             AvailableUpdate? update = await _updates.CheckAsync();
+            _lastAvailableUpdate = update;
             if (update is not null)
             {
                 RaiseNotice(
                     I18n.Format("update.startupAvailable", update.Version),
                     NoticeKind.Informational);
             }
+            return update;
         }
         finally
         {
+            RefreshUpdateInformation();
+            SetUpdateActivity(null);
             IsCheckingForUpdates = false;
         }
+    }
+
+    [RelayCommand]
+    private async Task OpenReleaseNotesAsync()
+    {
+        try
+        {
+            Uri releaseNotesUri = _lastAvailableUpdate?.ReleaseNotesUri
+                ?? _updates.CurrentReleaseNotesUri;
+            await _updates.OpenReleaseNotesAsync(releaseNotesUri);
+        }
+        catch (Exception exception)
+        {
+            RaiseNotice(
+                I18n.Format("update.releaseNotesFailed", exception.Message),
+                NoticeKind.Error);
+        }
+    }
+
+    private void RefreshUpdateInformation()
+    {
+        CurrentVersionText = $"v{_updates.CurrentVersion}";
+        if (_updates.LastCheckedAt is not { } checkedAt)
+        {
+            LastUpdateCheckText = I18n.Get("settings.updateNeverChecked");
+            return;
+        }
+
+        DateTimeOffset local = checkedAt.ToLocalTime();
+        DateTime today = DateTime.Today;
+        string display = local.Date == today
+            ? I18n.Format(
+                "settings.updateCheckedToday",
+                local.ToString("t", CultureInfo.CurrentCulture))
+            : local.Date == today.AddDays(-1)
+                ? I18n.Format(
+                    "settings.updateCheckedYesterday",
+                    local.ToString("t", CultureInfo.CurrentCulture))
+                : local.ToString("g", CultureInfo.CurrentCulture);
+        LastUpdateCheckText = I18n.Format("settings.updateLastChecked", display);
     }
 
     [RelayCommand]
@@ -619,7 +756,60 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    partial void OnSelectedCharacterIdChanged(string value) => UpdateCharacterSelectionState();
+    partial void OnSelectedLanguageIndexChanged(int value)
+    {
+        if (!_isApplyingState && IsLanguageSelectionEnabled && value >= 0 && value < s_supportedLanguages.Length)
+            _ = SaveLanguageAsync(value);
+    }
+
+    private async Task SaveLanguageAsync(int index)
+    {
+        IsLanguageSelectionEnabled = false;
+        string language = s_supportedLanguages[index];
+        await RunCommandAsync(() => _coordinator.SetLanguageAsync(language), null);
+        ApplyState(_coordinator.State);
+        IsLanguageSelectionEnabled = true;
+    }
+
+    partial void OnNicknameChanged(string value)
+    {
+        _ = value;
+        RefreshNicknameChangeState();
+    }
+
+    partial void OnSelectedCharacterIdChanged(string value)
+    {
+        UpdateCharacterSelectionState();
+        if (!_isApplyingState
+            && !StringComparer.Ordinal.Equals(value, _syncedProfileCharacterId))
+        {
+            _ = SaveCharacterSelectionAsync(value);
+        }
+    }
+
+    partial void OnSelectedStoreKindIndexChanged(int value)
+    {
+        _ = value;
+        RefreshVisibleStoreProducts();
+    }
+
+    partial void OnSelectedStoreSortIndexChanged(int value)
+    {
+        _ = value;
+        RefreshVisibleStoreProducts();
+    }
+
+    partial void OnHidesOwnedStoreProductsChanged(bool value)
+    {
+        _ = value;
+        RefreshVisibleStoreProducts();
+    }
+
+    partial void OnStoreSearchTextChanged(string value)
+    {
+        _ = value;
+        RefreshVisibleStoreProducts();
+    }
 
     partial void OnSelectedEdgeIndexChanged(int value) => ApplyRegionPreference();
 
@@ -629,17 +819,313 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private bool CanCheckForUpdates() => !IsCheckingForUpdates;
 
+    private async Task ActivateStoreProductAsync(string productId)
+    {
+        CommerceProductState? state = _coordinator.State.CommerceProducts.FirstOrDefault(product =>
+            StringComparer.Ordinal.Equals(product.Product.Id, productId));
+        string successMessage = state?.GoogleConnected == true
+            ? I18n.Get("store.purchaseCompleted")
+            : I18n.Get("store.googleConnectionOpened");
+        await RunCommandAsync(
+            () => _coordinator.ActivateStoreProductAsync(productId),
+            successMessage);
+    }
+
+    private async Task SaveCharacterSelectionAsync(string characterId)
+    {
+        if (IsSavingCharacter)
+        {
+            return;
+        }
+
+        IsSavingCharacter = true;
+        long generation = _selectionGeneration;
+        _pendingCharacterId = characterId;
+        UpdateCharacterSelectionState();
+        bool succeeded = await RunCommandAsync(
+            () => _coordinator.SaveProfileAsync(_syncedProfileNickname, characterId),
+            I18n.Get("profile.characterSaved"), () => generation == _selectionGeneration);
+        if (generation != _selectionGeneration)
+            return;
+        _pendingCharacterId = null;
+        IsSavingCharacter = false;
+        if (succeeded)
+            _syncedProfileCharacterId = PixelCharacterCatalog.NormalizeId(characterId);
+        UpdateCharacterSelectionState();
+        if (succeeded)
+        {
+            return;
+        }
+
+        _isApplyingState = true;
+        try
+        {
+            SelectedCharacterId = _syncedProfileCharacterId;
+        }
+        finally
+        {
+            _isApplyingState = false;
+        }
+    }
+
+    private void RefreshStoreProducts(CoordinatorState state)
+    {
+        var states = state.CommerceProducts
+            .ToDictionary(item => item.Product.Id, StringComparer.Ordinal);
+        foreach (StoreProductPreviewViewModel product in StoreProducts)
+        {
+            CommerceProductState productState = states.GetValueOrDefault(product.ProductId)
+                ?? new CommerceProductState(
+                    WindowsCommerceCatalog.Find(product.ProductId)!,
+                    GoogleConnected: false,
+                    CommercePurchaseState.Unavailable);
+            product.Apply(
+                productState,
+                state.DevelopmentCommerceEnabled,
+                state.ActiveEntitlementKeys.Contains(productState.Product.EntitlementKey)
+                    || productState.PurchaseState == CommercePurchaseState.Owned);
+        }
+        RefreshVisibleStoreProducts();
+    }
+
+    private void RefreshVisibleStoreProducts()
+    {
+        if (StoreProducts is null)
+        {
+            return;
+        }
+
+        var kind = (CommerceProductKind)Math.Clamp(SelectedStoreKindIndex, 0, 2);
+        IEnumerable<StoreProductPreviewViewModel> products = StoreProducts
+            .Where(product => product.Kind == kind)
+            .Where(product => !HidesOwnedStoreProducts || !product.IsOwned);
+        string searchText = StoreSearchText.Trim();
+        if (searchText.Length > 0)
+        {
+            products = products.Where(product =>
+                product.DisplayName.Contains(searchText, StringComparison.CurrentCultureIgnoreCase)
+                || product.Description.Contains(searchText, StringComparison.CurrentCultureIgnoreCase));
+        }
+        products = SelectedStoreSortIndex switch
+        {
+            1 => products.OrderBy(product => product.AmountKrw)
+                .ThenBy(product => product.SortOrder)
+                .ThenBy(product => product.ProductId, StringComparer.Ordinal),
+            2 => products.OrderByDescending(product => product.AmountKrw)
+                .ThenBy(product => product.SortOrder)
+                .ThenBy(product => product.ProductId, StringComparer.Ordinal),
+            _ => products.OrderBy(product => product.SortOrder)
+                .ThenBy(product => product.ProductId, StringComparer.Ordinal),
+        };
+
+        StoreProductPreviewViewModel[] desiredProducts = [.. products];
+        for (int index = VisibleStoreProducts.Count - 1; index >= 0; index--)
+        {
+            if (!desiredProducts.Contains(VisibleStoreProducts[index]))
+            {
+                VisibleStoreProducts.RemoveAt(index);
+            }
+        }
+        for (int index = 0; index < desiredProducts.Length; index++)
+        {
+            StoreProductPreviewViewModel product = desiredProducts[index];
+            if (index < VisibleStoreProducts.Count
+                && ReferenceEquals(VisibleStoreProducts[index], product))
+            {
+                continue;
+            }
+
+            int existingIndex = VisibleStoreProducts.IndexOf(product);
+            if (existingIndex >= 0)
+            {
+                VisibleStoreProducts.Move(existingIndex, index);
+            }
+            else
+            {
+                VisibleStoreProducts.Insert(index, product);
+            }
+        }
+        HasVisibleStoreProducts = VisibleStoreProducts.Count > 0;
+    }
+
+    private void RefreshNicknameChangeState()
+    {
+        HasNicknameChanges = !StringComparer.Ordinal.Equals(
+            ProfileValidator.NormalizeNickname(Nickname),
+            ProfileValidator.NormalizeNickname(_syncedProfileNickname));
+        SaveProfileCommand.NotifyCanExecuteChanged();
+    }
+
     private void UpdateCharacterSelectionState()
     {
         foreach (CharacterSelectionItemViewModel character in CharacterSelections)
         {
-            character.IsSelected = StringComparer.Ordinal.Equals(character.Id, SelectedCharacterId);
+            character.IsSelected = StringComparer.Ordinal.Equals(character.Id, _syncedProfileCharacterId);
+            character.IsPending = StringComparer.Ordinal.Equals(character.Id, _pendingCharacterId);
+            character.IsEnabled = !IsSavingCharacter;
+            character.AnimationsEnabled = _coordinator.AnimationsEnabled;
         }
     }
 
-    private bool ProfileDraftMatchesSyncedState() =>
-        StringComparer.Ordinal.Equals(Nickname, _syncedProfileNickname)
-        && StringComparer.Ordinal.Equals(SelectedCharacterId, _syncedProfileCharacterId);
+    private void RefreshCharacterSelections(IReadOnlySet<string> activeEntitlementKeys)
+    {
+        IReadOnlyList<PixelCharacterDefinition> desired =
+            PixelCharacterCatalog.SelectableFor(activeEntitlementKeys);
+        if (CharacterSelections.Select(character => character.Id)
+            .SequenceEqual(desired.Select(character => character.Id), StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        CharacterSelections.Clear();
+        foreach (PixelCharacterDefinition character in desired)
+        {
+            CharacterSelections.Add(new CharacterSelectionItemViewModel(
+                character.Id,
+                character.DisplayName,
+                character.Id));
+        }
+    }
+
+    private void RefreshCosmeticSelections(CoordinatorState state)
+    {
+        RefreshCosmeticSelection(
+            BubbleSelections,
+            CommerceProductKind.Bubble,
+            state.Profile?.EquippedBubbleStyleId,
+            state.ActiveEntitlementKeys);
+        RefreshCosmeticSelection(
+            ThrowableSelections,
+            CommerceProductKind.Throwable,
+            state.Profile?.EquippedThrowableId,
+            state.ActiveEntitlementKeys);
+    }
+
+    private void RefreshCosmeticSelection(
+        ObservableCollection<CosmeticSelectionItemViewModel> destination,
+        CommerceProductKind kind,
+        string? selectedId,
+        IReadOnlySet<string> activeEntitlementKeys)
+    {
+        CommerceProduct[] entitledProducts = [.. WindowsCommerceCatalog.Products.Where(product =>
+                product.Kind == kind && activeEntitlementKeys.Contains(product.EntitlementKey))];
+        string?[] desiredIds = [null, .. entitledProducts.Select(product => product.EffectiveCatalogItemId)];
+        bool canReuseItems = destination.Count == desiredIds.Length
+            && destination.Select(item => item.CatalogItemId).SequenceEqual(
+                desiredIds,
+                StringComparer.Ordinal);
+
+        if (!canReuseItems)
+        {
+            destination.Clear();
+            destination.Add(new CosmeticSelectionItemViewModel(
+                kind,
+                null,
+                I18n.Get(kind == CommerceProductKind.Bubble
+                    ? "profile.defaultBubble"
+                    : "profile.defaultThrowable"),
+                SelectedCharacterId,
+                selectedId is null,
+                !_pendingCosmeticKinds.Contains(kind),
+                () => SetEquippedCosmeticAsync(kind, null)));
+            foreach (CommerceProduct product in entitledProducts)
+            {
+                string id = product.EffectiveCatalogItemId;
+                destination.Add(new CosmeticSelectionItemViewModel(
+                    kind,
+                    id,
+                    I18n.Get($"store.product.{product.Id}"),
+                    SelectedCharacterId,
+                    StringComparer.Ordinal.Equals(id, selectedId),
+                    !_pendingCosmeticKinds.Contains(kind),
+                    () => SetEquippedCosmeticAsync(kind, id)));
+            }
+            return;
+        }
+
+        bool isEnabled = !_pendingCosmeticKinds.Contains(kind);
+        foreach (CosmeticSelectionItemViewModel item in destination)
+        {
+            item.CharacterId = SelectedCharacterId;
+            item.IsSelected = StringComparer.Ordinal.Equals(item.CatalogItemId, selectedId);
+            item.IsEnabled = isEnabled;
+        }
+    }
+
+    private async Task SetEquippedCosmeticAsync(CommerceProductKind kind, string? catalogItemId)
+    {
+        if (!_pendingCosmeticKinds.Add(kind))
+        {
+            return;
+        }
+
+        long generation = _selectionGeneration;
+        _pendingCosmeticIds[kind] = catalogItemId;
+        UpdateCosmeticSelectionAvailability(kind, false);
+        try
+        {
+            await RunCommandAsync(
+                () => _coordinator.SetEquippedCosmeticAsync(kind, catalogItemId),
+                I18n.Get("profile.cosmeticSaved"), () => generation == _selectionGeneration);
+        }
+        finally
+        {
+            if (generation == _selectionGeneration)
+            {
+                _pendingCosmeticKinds.Remove(kind);
+                _pendingCosmeticIds.Remove(kind);
+                UpdateCosmeticSelectionAvailability(kind, true);
+            }
+        }
+    }
+
+    private void UpdateCosmeticSelectionAvailability(CommerceProductKind kind, bool isEnabled)
+    {
+        ObservableCollection<CosmeticSelectionItemViewModel> selections =
+            kind == CommerceProductKind.Bubble ? BubbleSelections : ThrowableSelections;
+        foreach (CosmeticSelectionItemViewModel selection in selections)
+        {
+            selection.IsEnabled = isEnabled;
+            selection.IsPending = _pendingCosmeticIds.TryGetValue(kind, out string? pendingId)
+                && StringComparer.Ordinal.Equals(pendingId, selection.CatalogItemId);
+            selection.AnimationsEnabled = _coordinator.AnimationsEnabled;
+        }
+    }
+
+    public void RefreshMonitors()
+    {
+        IReadOnlyList<MonitorOption> desired = _coordinator.GetMonitors();
+        if (Monitors.SequenceEqual(desired))
+        {
+            return;
+        }
+
+        Monitors.Clear();
+        foreach (MonitorOption monitor in desired)
+        {
+            Monitors.Add(monitor);
+        }
+
+        _isApplyingState = true;
+        try
+        {
+            string? preferredMonitor = _state.Preferences.OverlayRegion.MonitorIdentifier;
+            SelectedMonitorIdentifier = Monitors.Any(monitor =>
+                    StringComparer.Ordinal.Equals(monitor.Identifier, preferredMonitor))
+                ? preferredMonitor
+                : Monitors.FirstOrDefault(monitor => monitor.IsPrimary)?.Identifier
+                    ?? Monitors.FirstOrDefault()?.Identifier;
+        }
+        finally
+        {
+            _isApplyingState = false;
+        }
+    }
+
+    private bool NicknameDraftMatchesSyncedState() =>
+        StringComparer.Ordinal.Equals(
+            ProfileValidator.NormalizeNickname(Nickname),
+            ProfileValidator.NormalizeNickname(_syncedProfileNickname));
 
     private static (string Nickname, string CharacterId) GetSyncedProfileDraft(
         CoordinatorState state) =>
@@ -676,6 +1162,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             new AsyncRelayCommand(() => SwitchRoomAsync(room.Id)),
             new RelayCommand(() => ToggleRoom(room.Id)),
             new AsyncRelayCommand(() => UseInviteCodeAsync(room.Id)),
+            new AsyncRelayCommand(() => LeaveRoomAsync(room.Id)),
             new AsyncRelayCommand(() => RenameRoomAsync(room.Id)),
             new AsyncRelayCommand(() => DeleteRoomAsync(room.Id)));
         UpdateRoomCard(card, room);
@@ -690,7 +1177,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         bool mutationsEnabled = _state.GroupOperation == GroupOperation.Idle;
         bool isSwitching = _state.GroupOperation == GroupOperation.Switching
             && _state.SwitchingRoomId == room.Id;
-        RoomMemberCardViewModel[] members = room.Members.Select(member =>
+        RoomMemberCardViewModel[] members = [.. room.Members.Select(member =>
             new RoomMemberCardViewModel(
                 room.Id,
                 member.UserId,
@@ -699,8 +1186,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 member.UserId == room.OwnerId,
                 member.UserId == _state.Profile?.Id,
                 mutationsEnabled && isOwner && member.UserId != room.OwnerId,
-                new AsyncRelayCommand(() => RemoveMemberAsync(room.Id, member.UserId))))
-            .ToArray();
+                new AsyncRelayCommand(() => RemoveMemberAsync(room.Id, member.UserId))))];
         card.Update(
             room,
             room.InviteCodeReady
@@ -718,6 +1204,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 ? I18n.Get("groups.copyInvite")
                 : I18n.Get("groups.rotateInvite"),
             mutationsEnabled && (room.InviteCodeReady || isOwner),
+            mutationsEnabled,
             mutationsEnabled && isOwner,
             members);
     }
@@ -770,7 +1257,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
             {
                 throw new InvalidOperationException(I18n.Get("groups.inviteMissing"));
             }
-        }, I18n.Get("groups.inviteCopied"));
+            Rooms.FirstOrDefault(card => card.Room.Id == room.Id)
+                ?.ShowInviteCopyConfirmation();
+        }, null);
     }
 
     private async Task RenameRoomAsync(Guid roomId)
@@ -805,6 +1294,24 @@ public sealed partial class MainWindowViewModel : ObservableObject
             I18n.Get("groups.memberRemoved"));
     }
 
+    private async Task LeaveRoomAsync(Guid roomId)
+    {
+        if (RoomById(roomId) is not { } room)
+        {
+            return;
+        }
+
+        bool isOwner = room.OwnerId == _state.Profile?.Id;
+        if (!await _dialogs.ConfirmRoomLeaveAsync(room.Name, isOwner))
+        {
+            return;
+        }
+
+        await RunCommandAsync(
+            () => _coordinator.LeaveRoomAsync(room.Id),
+            I18n.Get("groups.left"));
+    }
+
     private async Task DeleteRoomAsync(Guid roomId)
     {
         if (RoomById(roomId) is not { } room)
@@ -822,19 +1329,25 @@ public sealed partial class MainWindowViewModel : ObservableObject
             I18n.Get("groups.deleted"));
     }
 
-    private async Task RunCommandAsync(Func<Task> action, string? successMessage)
+    private async Task<bool> RunCommandAsync(Func<Task> action, string? successMessage, Func<bool>? isCurrent = null)
     {
         try
         {
             await action();
+            if (isCurrent?.Invoke() == false)
+                return false;
             if (!string.IsNullOrWhiteSpace(successMessage))
             {
                 RaiseNotice(successMessage, NoticeKind.Success);
             }
+            return true;
         }
         catch (Exception exception)
         {
+            if (isCurrent?.Invoke() == false)
+                return false;
             RaiseNotice(exception.Message, NoticeKind.Error);
+            return false;
         }
     }
 
@@ -865,11 +1378,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private void RefreshRoomCards()
     {
-        HashSet<Guid> desiredIds = _state.Rooms.Select(room => room.Id).ToHashSet();
+        var desiredIds = _state.Rooms.Select(room => room.Id).ToHashSet();
         for (int index = Rooms.Count - 1; index >= 0; index--)
         {
             if (!desiredIds.Contains(Rooms[index].Room.Id))
             {
+                Rooms[index].Dispose();
                 Rooms.RemoveAt(index);
             }
         }

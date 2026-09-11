@@ -5,8 +5,8 @@ namespace Sidey.Platform.Windows;
 public sealed class NativeOverlayWindowThread : IDisposable
 {
     public const int MaximumTargetHotspots = 11;
-    private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan ShutdownTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan s_startupTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan s_shutdownTimeout = TimeSpan.FromSeconds(5);
 
     private readonly NativePixelRect _initialWorldBounds;
     private readonly NativePixelRect _initialHotspotBounds;
@@ -77,7 +77,7 @@ public sealed class NativeOverlayWindowThread : IDisposable
             hotspotRightClicked,
             targetHotspotActivated);
         owner._thread.Start();
-        if (!owner._started.Wait(StartupTimeout))
+        if (!owner._started.Wait(s_startupTimeout))
         {
             throw new TimeoutException("Timed out while creating SIDEY overlay windows.");
         }
@@ -110,7 +110,7 @@ public sealed class NativeOverlayWindowThread : IDisposable
 
     public void HideTargetHotspots()
     {
-        for (var index = 0; index < MaximumTargetHotspots; index++)
+        for (int index = 0; index < MaximumTargetHotspots; index++)
         {
             _targetHotspotVisible[index] = false;
             RequiredTargetHotspot(index).SetVisible(false);
@@ -122,7 +122,7 @@ public sealed class NativeOverlayWindowThread : IDisposable
         _windowsVisible = visible;
         RequiredWorldWindow.SetVisible(visible);
         RequiredHotspotWindow.SetVisible(visible);
-        for (var index = 0; index < MaximumTargetHotspots; index++)
+        for (int index = 0; index < MaximumTargetHotspots; index++)
         {
             RequiredTargetHotspot(index).SetVisible(visible && _targetHotspotVisible[index]);
         }
@@ -132,7 +132,7 @@ public sealed class NativeOverlayWindowThread : IDisposable
     {
         RequiredWorldWindow.EnsureTopmost();
         RequiredHotspotWindow.EnsureTopmost();
-        foreach (var hotspot in _targetHotspotWindows)
+        foreach (NativeOverlayWindow? hotspot in _targetHotspotWindows)
         {
             hotspot?.EnsureTopmost();
         }
@@ -142,7 +142,7 @@ public sealed class NativeOverlayWindowThread : IDisposable
     {
         RequiredWorldWindow.YieldBehind(window);
         RequiredHotspotWindow.YieldBehind(window);
-        foreach (var hotspot in _targetHotspotWindows)
+        foreach (NativeOverlayWindow? hotspot in _targetHotspotWindows)
         {
             hotspot?.YieldBehind(window);
         }
@@ -167,11 +167,11 @@ public sealed class NativeOverlayWindowThread : IDisposable
 
         _worldWindow?.Dispose();
         _hotspotWindow?.Dispose();
-        foreach (var hotspot in _targetHotspotWindows)
+        foreach (NativeOverlayWindow? hotspot in _targetHotspotWindows)
         {
             hotspot?.Dispose();
         }
-        if (_thread.IsAlive && !_thread.Join(ShutdownTimeout))
+        if (_thread.IsAlive && !_thread.Join(s_shutdownTimeout))
         {
             throw new TimeoutException("SIDEY overlay thread did not shut down within five seconds.");
         }
@@ -201,9 +201,9 @@ public sealed class NativeOverlayWindowThread : IDisposable
                 _hotspotActivated,
                 _hotspotDoubleClicked,
                 _hotspotRightClicked);
-            for (var index = 0; index < MaximumTargetHotspots; index++)
+            for (int index = 0; index < MaximumTargetHotspots; index++)
             {
-                var capturedIndex = index;
+                int capturedIndex = index;
                 _targetHotspotWindows[index] = NativeOverlayWindow.Create(
                     NativeOverlayWindowRole.Hotspot,
                     _initialHotspotBounds,
@@ -232,7 +232,7 @@ public sealed class NativeOverlayWindowThread : IDisposable
 
             _worldWindow?.Dispose();
             _hotspotWindow?.Dispose();
-            foreach (var hotspot in _targetHotspotWindows)
+            foreach (NativeOverlayWindow? hotspot in _targetHotspotWindows)
             {
                 hotspot?.Dispose();
             }

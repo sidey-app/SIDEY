@@ -15,7 +15,7 @@ public sealed class WindowsStartupService
             return false;
         }
 
-        using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: false);
+        using RegistryKey? key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: false);
         return key?.GetValue(ValueName) is string value
             && (StringComparer.OrdinalIgnoreCase.Equals(value, StartupCommand())
                 || StringComparer.OrdinalIgnoreCase.Equals(value, QuotedExecutablePath()));
@@ -28,7 +28,7 @@ public sealed class WindowsStartupService
             throw new PlatformNotSupportedException("Windows startup registration is required.");
         }
 
-        using var key = Registry.CurrentUser.CreateSubKey(RunKeyPath, writable: true);
+        using RegistryKey key = Registry.CurrentUser.CreateSubKey(RunKeyPath, writable: true);
         if (enabled)
         {
             key.SetValue(ValueName, StartupCommand(), RegistryValueKind.String);
@@ -46,7 +46,7 @@ public sealed class WindowsStartupService
             return;
         }
 
-        using var key = Registry.CurrentUser.CreateSubKey(RunKeyPath, writable: true);
+        using RegistryKey key = Registry.CurrentUser.CreateSubKey(RunKeyPath, writable: true);
         if (key.GetValue(ValueName) is string value
             && StringComparer.OrdinalIgnoreCase.Equals(value, QuotedExecutablePath()))
         {

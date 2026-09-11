@@ -1,15 +1,23 @@
+using System.Diagnostics;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Sidey.Core.Localization;
 using Sidey.Platform.Windows;
 using Sidey.Presentation.Services;
 using Sidey.Presentation.ViewModels;
+using Windows.Foundation;
 
 namespace Sidey.App;
 
 public partial class App : Application
 {
+    private static readonly TimeSpan s_connectionFailureNotificationDelay = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan s_connectionFailureNotificationCooldown = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan s_displayTopologyRefreshDelay = TimeSpan.FromMilliseconds(500);
+
     private readonly DispatcherQueue _dispatcherQueue;
+    private readonly WindowsUpdateServiceAdapter _updateService;
     private Window? _window;
     private MainWindow? _mainWindow;
     private OnboardingWindow? _onboardingWindow;
@@ -18,14 +26,23 @@ public partial class App : Application
     private AppCoordinator? _coordinator;
     private SingleInstanceGuard? _singleInstance;
     private TrayIconService? _tray;
+#if DEBUG
     private DevelopmentUpdateService? _developmentUpdate;
-    private bool _closeAppWhenOnboardingCloses = true;
+#endif
     private bool _startupUpdateCheckStarted;
+    private bool _monitorConnectionFailures;
+    private bool _connectionFailureNotificationArmed = true;
+    private DateTimeOffset? _lastConnectionFailureNotificationAt;
+    private DispatcherQueueTimer? _connectionFailureNotificationTimer;
+    private DispatcherQueueTimer? _displayTopologyRefreshTimer;
+    private string? _pendingUpdateNotificationVersion;
+    private Timer? _uiResponsivenessTimer;
     private bool _shuttingDown;
 
     public App()
     {
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+        _updateService = new WindowsUpdateServiceAdapter();
         StartupDiagnostics.BeginSession();
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
@@ -47,6 +64,9 @@ public partial class App : Application
         try
         {
             await LaunchAsync(args);
+        }
+        catch (Exception) when (_shuttingDown)
+        {
         }
         catch (Exception exception)
         {
@@ -71,21 +91,18 @@ public partial class App : Application
             Environment.GetCommandLineArgs());
         bool backgroundLaunch = WindowsStartupService.IsBackgroundLaunch(args.Arguments)
             || WindowsStartupService.IsBackgroundLaunch(processArguments);
-        bool onboardingPreview = IsOnboardingPreviewRequested(args.Arguments)
-            || IsOnboardingPreviewRequested(processArguments);
         StartupDiagnostics.Stage("launch-entered");
-        StartupDiagnostics.Stage(
-            $"launch-mode background={backgroundLaunch} onboarding-preview={onboardingPreview}");
-        _singleInstance = SingleInstanceGuard.Acquire();
+        StartupDiagnostics.Stage($"launch-mode background={backgroundLaunch}");
+        _singleInstance = SingleInstanceGuard.Acquire(
+            Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1"
+                ? Environment.GetEnvironmentVariable("SIDEY_STARTUP_SMOKE_DATA_ROOT") : null);
         if (!_singleInstance.IsPrimary)
         {
-            SingleInstanceRequest request = onboardingPreview
-                ? SingleInstanceRequest.OnboardingPreview
-                : SingleInstanceRequest.Activate;
-            _singleInstance.Signal(request);
-            StartupDiagnostics.Stage($"secondary-instance-request request={request}");
+            _singleInstance.Signal(processArguments);
+            StartupDiagnostics.Stage("secondary-instance-request request=activate");
             _singleInstance.Dispose();
             _singleInstance = null;
+            StartupDiagnostics.CompleteSession();
             Exit();
             return;
         }
@@ -98,29 +115,35 @@ public partial class App : Application
             _window.Activate();
             StartupDiagnostics.Stage("unsupported-window-activated");
             StartupDiagnostics.MarkRunning();
+            StartUiResponsivenessMonitor();
             return;
         }
 
-        _coordinator = new AppCoordinator();
-        await _coordinator.LoadCachedStateAsync();
-        StartupDiagnostics.Stage("cached-settings-loaded");
-        _coordinator.ComposerRequested += RequestComposer;
-        _coordinator.PulseRequested += RequestPulse;
-        _coordinator.CharacterThrowRequested += RequestCharacterThrow;
-        _coordinator.SendFailed += RestoreFailedDraft;
-        _coordinator.RenderingFailed += OnRenderingFailed;
-        _coordinator.GroupSetupRequested += OnGroupSetupRequested;
-        _coordinator.StateChanged += OnCoordinatorStateChanged;
-        if (!_coordinator.State.Preferences.OnboardingCompleted)
+        var coordinator = new AppCoordinator();
+        _coordinator = coordinator;
+        await coordinator.LoadCachedStateAsync();
+        if (_shuttingDown || !ReferenceEquals(_coordinator, coordinator))
         {
-            CreateOnboardingWindow(_coordinator, onboardingPreview);
-            _window = _onboardingWindow;
-            _onboardingWindow!.Activate();
-            StartupDiagnostics.Stage("onboarding-window-activated");
+            return;
         }
-        else if (onboardingPreview)
+
+        StartupDiagnostics.Stage("cached-settings-loaded");
+        I18n.SetLanguage(coordinator.State.Preferences.Language);
+        StartupDiagnostics.Stage(
+            $"language-initialized language={I18n.Language} "
+            + $"saved={(coordinator.State.Preferences.Language is not null).ToString().ToLowerInvariant()}");
+        coordinator.ComposerRequested += RequestComposer;
+        coordinator.PulseRequested += RequestPulse;
+        coordinator.CharacterThrowRequested += RequestCharacterThrow;
+        coordinator.SendFailed += RestoreFailedDraft;
+        coordinator.RenderingFailed += OnRenderingFailed;
+        coordinator.GroupSetupRequested += OnGroupSetupRequested;
+        coordinator.StateChanged += OnCoordinatorStateChanged;
+        coordinator.LanguageChanged += OnLanguageChanged;
+        coordinator.ShowStartupOverlay();
+        if (!coordinator.State.Preferences.OnboardingCompleted)
         {
-            CreateOnboardingWindow(_coordinator, isPreviewMode: true);
+            CreateOnboardingWindow(coordinator);
             _window = _onboardingWindow;
             _onboardingWindow!.Activate();
             StartupDiagnostics.Stage("onboarding-window-activated");
@@ -131,16 +154,42 @@ public partial class App : Application
             _window = _mainWindow;
             StartupDiagnostics.Stage("completed-launch-window-hidden");
         }
-        _singleInstance!.StartListening(
-            RequestPrimaryActivation,
-            RequestOnboardingPreview);
+        if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1")
+        {
+            _startupUpdateCheckStarted = true;
+            await EnsureMainWindow().VerifyExternalAssetsSmokeAsync();
+        }
+        await RunStorePreviewStartupSmokeIfRequestedAsync();
+        if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1"
+            && Environment.GetEnvironmentVariable("SIDEY_OVERLAY_STARTUP_SMOKE") == "1")
+            await coordinator.VerifyStartupOverlaySmokeAsync();
+        if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1"
+            && Environment.GetEnvironmentVariable("SIDEY_IMPACT_AUDIO_SMOKE") == "1")
+        {
+            await coordinator.VerifyImpactAudioSmokeAsync();
+            await EnsureMainWindow().VerifySoundControlsSmokeAsync();
+        }
+        if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1"
+            && Environment.GetEnvironmentVariable("SIDEY_LANGUAGE_SMOKE") == "1")
+        {
+            // Exercise local settings and bindings without starting an update request.
+            _startupUpdateCheckStarted = true;
+            await EnsureMainWindow().VerifyLiveLanguageSmokeAsync();
+        }
+        await RunComposerStartupSmokeIfRequestedAsync();
+        _singleInstance!.StartListening(RequestPrimaryActivation);
         try
         {
             _tray = TrayIconService.Start();
             _tray.CommandInvoked += OnTrayCommandInvoked;
             _tray.RoomSelected += OnTrayRoomSelected;
+            _tray.DisplayTopologyChanged += OnDisplayTopologyChanged;
             _mainWindow?.SetTrayAvailable(true);
             StartupDiagnostics.Stage("tray-started");
+            if (_pendingUpdateNotificationVersion is { } pendingVersion)
+            {
+                PostUpdateNotification(pendingVersion);
+            }
         }
         catch (Exception exception)
         {
@@ -149,37 +198,80 @@ public partial class App : Application
                 I18n.Get("error.trayStart"),
                 exception));
         }
+#if DEBUG
         _developmentUpdate = DevelopmentUpdateService.Start(OnDevelopmentUpdateAccepted);
+#endif
         try
         {
-            await _coordinator.InitializeAsync();
+            await coordinator.InitializeAsync();
+            if (_shuttingDown || !ReferenceEquals(_coordinator, coordinator))
+            {
+                return;
+            }
+
             StartupDiagnostics.Stage("coordinator-initialized");
+#if SIDEY_DEVELOPMENT_COMMERCE
+            if (coordinator.State.DevelopmentCommerceEnabled
+                && Environment.ProcessPath is { } executablePath)
+            {
+                WindowsProtocolRegistration.EnsureCurrentUserDevelopmentCallback(executablePath);
+            }
+#endif
+            await TryHandleActivationRequestAsync(processArguments);
         }
         catch (Exception exception)
         {
             StartupDiagnostics.NonFatal("coordinator-initialize", exception);
+            if (_shuttingDown || !ReferenceEquals(_coordinator, coordinator))
+            {
+                return;
+            }
+
             EnsureMainWindow().ShowFatalError(exception);
             _onboardingWindow?.ShowError(exception);
         }
 
+        if (_shuttingDown || !ReferenceEquals(_coordinator, coordinator))
+        {
+            return;
+        }
+
+        _monitorConnectionFailures = true;
+        UpdateConnectionFailureNotification(coordinator.State.Connected);
+
         StartupDiagnostics.MarkRunning();
+        StartUiResponsivenessMonitor();
+        _ = _updateService.CleanupInstalledUpdatesAsync();
     }
 
-    private static bool IsOnboardingPreviewRequested(string? arguments)
+    private void StartUiResponsivenessMonitor()
     {
-#if DEBUG
-        return StringComparer.OrdinalIgnoreCase.Equals(
-            arguments?.Trim(),
-            "--onboarding-preview");
-#else
-        _ = arguments;
-        return false;
-#endif
+        _uiResponsivenessTimer ??= new Timer(
+            static state => ((App)state!).ProbeUiResponsiveness(),
+            this,
+            TimeSpan.FromMinutes(1),
+            TimeSpan.FromMinutes(1));
+    }
+
+    private void ProbeUiResponsiveness()
+    {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
+        long started = Stopwatch.GetTimestamp();
+        if (!_dispatcherQueue.TryEnqueue(() =>
+            StartupDiagnostics.Stage(
+                $"ui-heartbeat delay-ms={(long)Stopwatch.GetElapsedTime(started).TotalMilliseconds}")))
+        {
+            StartupDiagnostics.Stage("ui-heartbeat dispatch=failed");
+        }
     }
 
     private void StartStartupUpdateCheck()
     {
-        if (_startupUpdateCheckStarted || _mainWindow is null)
+        if (_shuttingDown || _startupUpdateCheckStarted || _mainWindow is null)
         {
             return;
         }
@@ -200,19 +292,27 @@ public partial class App : Application
             throw new InvalidOperationException("The settings window requires an initialized coordinator.");
         }
 
-        _mainWindow = new MainWindow(_coordinator);
+        _mainWindow = new MainWindow(_coordinator, _updateService);
+        StartupDiagnostics.Stage("settings-window-created result=success");
         _mainWindow.Closed += OnMainWindowClosed;
         _mainWindow.SetTrayAvailable(_tray is not null);
         StartStartupUpdateCheck();
         return _mainWindow;
     }
 
-    private static async Task CheckForUpdatesOnStartupAsync(MainWindow mainWindow)
+    private async Task CheckForUpdatesOnStartupAsync(MainWindow mainWindow)
     {
         try
         {
-            await mainWindow.ViewModel.CheckForUpdatesOnStartupAsync();
+            StartupDiagnostics.Stage("startup-update-check-started");
+            AvailableUpdate? update = await mainWindow.ViewModel.CheckForUpdatesOnStartupAsync();
             StartupDiagnostics.Stage("startup-update-checked");
+            if (!_shuttingDown
+                && ReferenceEquals(_mainWindow, mainWindow)
+                && update is not null)
+            {
+                PostUpdateNotification(update.Version);
+            }
         }
         catch (Exception exception)
         {
@@ -220,10 +320,30 @@ public partial class App : Application
         }
     }
 
+    private void PostUpdateNotification(string version)
+    {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
+        if (_tray is null)
+        {
+            _pendingUpdateNotificationVersion = version;
+            return;
+        }
+
+        _pendingUpdateNotificationVersion = null;
+        _tray.NotifyUpdateAvailable(version);
+        StartupDiagnostics.Stage("update-available-notification-posted");
+    }
+
     private async Task DisposeAfterFailedLaunchAsync()
     {
+#if DEBUG
         _developmentUpdate?.Dispose();
         _developmentUpdate = null;
+#endif
         try
         {
             _tray?.Dispose();
@@ -264,7 +384,7 @@ public partial class App : Application
         System.UnhandledExceptionEventArgs args)
     {
         _ = sender;
-        var exception = args.ExceptionObject as Exception
+        Exception exception = args.ExceptionObject as Exception
             ?? new InvalidOperationException("A non-Exception object reached the unhandled exception boundary.");
         StartupDiagnostics.Fatal("app-domain-unhandled", exception, showDialog: true);
     }
@@ -278,12 +398,23 @@ public partial class App : Application
 
     private void RequestComposer()
     {
-        _dispatcherQueue.TryEnqueue(ShowComposer);
+        if (_shuttingDown)
+        {
+            return;
+        }
+
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            if (!_shuttingDown)
+            {
+                ShowComposer();
+            }
+        });
     }
 
     private void ShowComposer()
     {
-        if (_coordinator is null)
+        if (_shuttingDown || _coordinator is null)
         {
             return;
         }
@@ -293,11 +424,157 @@ public partial class App : Application
             var viewModel = new ComposerViewModel();
             viewModel.SendRequested += OnSendRequested;
             viewModel.TypingChanged += OnTypingChanged;
-            _composer = new ComposerWindow(viewModel);
+            try
+            {
+                StartupDiagnostics.Stage("composer-window-create-started");
+                _composer = new ComposerWindow(viewModel);
+                StartupDiagnostics.Stage("composer-window-created");
+            }
+            catch (Exception exception)
+            {
+                viewModel.SendRequested -= OnSendRequested;
+                viewModel.TypingChanged -= OnTypingChanged;
+                viewModel.Dispose();
+                StartupDiagnostics.NonFatal("composer-window-create", exception);
+                return;
+            }
         }
 
         _composer.ShowAndFocus(
             _coordinator.State.Preferences.OverlayRegion.MonitorIdentifier);
+    }
+
+    private async Task RunStorePreviewStartupSmokeIfRequestedAsync()
+    {
+        if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) != "1"
+            || Environment.GetEnvironmentVariable("SIDEY_STORE_PREVIEW_SMOKE") != "1")
+            return;
+        var window = new Window { Title = "SIDEY Store Preview Smoke" };
+        try
+        {
+            var host = new Microsoft.UI.Xaml.Controls.Grid();
+            window.Content = host;
+            window.Activate();
+            await Task.Delay(80);
+            async Task VerifyDialogAsync(Controls.StorePreviewStage stage)
+            {
+                stage.CharacterImpact += _coordinator!.PlayImpactSound;
+                stage.StopSounds += scope => _coordinator.StopImpactSounds(scope);
+                var content = new Microsoft.UI.Xaml.Controls.StackPanel { Spacing = 12 };
+                content.Children.Add(stage);
+                content.Children.Add(new Microsoft.UI.Xaml.Controls.TextBlock { Text = "SIDEY preview" });
+                var dialog = new Microsoft.UI.Xaml.Controls.ContentDialog
+                {
+                    XamlRoot = host.XamlRoot,
+                    Content = content,
+                    CloseButtonText = I18n.Get("common.close"),
+                };
+                stage.BeginPresentation();
+                IAsyncOperation<ContentDialogResult> showing = dialog.ShowAsync();
+                try
+                { await stage.VerifyInteractionSmokeAsync(); }
+                finally
+                {
+                    stage.EndPresentation();
+                    dialog.Hide();
+                    await showing;
+                    dialog.Content = null;
+                }
+            }
+            foreach (string? character in Sidey.Core.Domain.PixelCharacterCatalog.All.Select(definition => definition.Id))
+            {
+                var stage = new Controls.StorePreviewStage(Sidey.Core.Domain.CommerceProductKind.Character, character, character);
+                await VerifyDialogAsync(stage);
+            }
+            var cannonStage = new Controls.StorePreviewStage(
+                Sidey.Core.Domain.CommerceProductKind.Throwable, "throwable_toy_cannon", "pixel_hamster");
+            await VerifyDialogAsync(cannonStage);
+            await VerifyDialogAsync(new Controls.StorePreviewStage(
+                Sidey.Core.Domain.CommerceProductKind.Bubble, "bubble_bunny_pink", "pixel_hamster"));
+        }
+        finally { window.Close(); }
+    }
+
+    private static async Task RunComposerStartupSmokeIfRequestedAsync()
+    {
+        if (!string.Equals(
+                Environment.GetEnvironmentVariable(
+                    WindowsVersionGuard.StartupSmokeEnvironmentVariable),
+                "1",
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        for (int windowIndex = 0; windowIndex < 5; windowIndex++)
+        {
+            var viewModel = new ComposerViewModel();
+            var composer = new ComposerWindow(viewModel);
+            var input = (Microsoft.UI.Xaml.Controls.TextBox)
+                ((FrameworkElement)composer.Content).FindName("MessageInput");
+            viewModel.Draft = "한글 입력 테스트 ABC";
+            for (int cycle = 0; cycle < 10; cycle++)
+            {
+                composer.ShowAndFocus(monitorIdentifier: null);
+                await Task.Delay(150);
+                if (composer.AppWindow.ClientSize.Width != composer.AppWindow.Size.Width
+                    || composer.AppWindow.ClientSize.Height != composer.AppWindow.Size.Height
+                    || input.FocusState == FocusState.Unfocused
+                    || input.Text != viewModel.Draft)
+                {
+                    StartupDiagnostics.Stage(
+                        $"composer-smoke-check window={composer.AppWindow.Size.Width}x{composer.AppWindow.Size.Height} " +
+                        $"client={composer.AppWindow.ClientSize.Width}x{composer.AppWindow.ClientSize.Height} " +
+                        $"focus={input.FocusState} draft-match={input.Text == viewModel.Draft}");
+                    throw new InvalidOperationException(
+                        "The startup composer probe lost its borderless layout, focus, or draft.");
+                }
+
+                // Exercise explicit hiding and the same command used by X/Escape.
+                if (cycle % 2 == 0)
+                {
+                    composer.HideComposer();
+                }
+                else
+                {
+                    viewModel.CloseCommand.Execute(null);
+                }
+                await Task.Delay(70);
+                if (composer.AppWindow.IsVisible)
+                {
+                    throw new InvalidOperationException("The startup composer probe did not hide.");
+                }
+            }
+
+            if (windowIndex == 0)
+            {
+                composer.ShowAndFocus(monitorIdentifier: null);
+                await Task.Delay(150);
+                viewModel.Draft = "자동 닫기 테스트";
+                // No SendRequested subscriber: exercise the real five-second UI path offline.
+                viewModel.SendCommand.Execute(null);
+                await Task.Delay(TimeSpan.FromSeconds(5.5));
+                if (composer.AppWindow.IsVisible)
+                {
+                    throw new InvalidOperationException("The composer did not auto-hide after sending.");
+                }
+
+                composer.ShowAndFocus(monitorIdentifier: null);
+                viewModel.Draft = "다음 메시지";
+                await Task.Delay(150);
+                if (input.Text != viewModel.Draft || input.FocusState == FocusState.Unfocused)
+                {
+                    throw new InvalidOperationException("The composer could not be reused after auto-hiding.");
+                }
+                composer.HideComposer();
+                StartupDiagnostics.Stage("composer-auto-close-smoke-complete");
+            }
+
+            composer.CloseForExit();
+            await Task.Delay(70);
+        }
+
+        StartupDiagnostics.Stage("composer-smoke-complete");
     }
 
     private void OnSendRequested(string body) => _ = SendAsync(body);
@@ -329,9 +606,14 @@ public partial class App : Application
 
     private void RequestPulse()
     {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
         _dispatcherQueue.TryEnqueue(async () =>
         {
-            if (_coordinator is null)
+            if (_shuttingDown || _coordinator is null)
             {
                 return;
             }
@@ -342,16 +624,24 @@ public partial class App : Application
             }
             catch (Exception exception)
             {
-                EnsureMainWindow().ShowFatalError(exception);
+                if (!_shuttingDown)
+                {
+                    EnsureMainWindow().ShowFatalError(exception);
+                }
             }
         });
     }
 
     private void RequestCharacterThrow(Guid targetUserId)
     {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
         _dispatcherQueue.TryEnqueue(async () =>
         {
-            if (_coordinator is null)
+            if (_shuttingDown || _coordinator is null)
             {
                 return;
             }
@@ -367,9 +657,20 @@ public partial class App : Application
         });
     }
 
-    private void RestoreFailedDraft(string body, Exception exception) =>
+    private void RestoreFailedDraft(string body, Exception exception)
+    {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
         _dispatcherQueue.TryEnqueue(() =>
         {
+            if (_shuttingDown)
+            {
+                return;
+            }
+
             ShowComposer();
             _composer?.RestoreDraftAndFocus(body);
             MainWindow mainWindow = EnsureMainWindow();
@@ -378,20 +679,40 @@ public partial class App : Application
                 exception));
             ShowPrimaryWindow();
         });
+    }
 
     private void OnRenderingFailed(Exception exception)
     {
-        _dispatcherQueue.TryEnqueue(() => EnsureMainWindow().ShowFatalError(exception));
+        StartupDiagnostics.NonFatal("overlay-render", exception);
+        if (!_shuttingDown)
+        {
+            _dispatcherQueue.TryEnqueue(() =>
+            {
+                if (!_shuttingDown)
+                {
+                    EnsureMainWindow().ShowFatalError(exception);
+                }
+            });
+        }
     }
 
     private void OnGroupSetupRequested()
     {
-        _dispatcherQueue.TryEnqueue(() => EnsureMainWindow().ShowPage("groups"));
+        if (!_shuttingDown)
+        {
+            _dispatcherQueue.TryEnqueue(() =>
+            {
+                if (!_shuttingDown)
+                {
+                    EnsureMainWindow().ShowPage("groups");
+                }
+            });
+        }
     }
 
     private void OnOnboardingCompleted()
     {
-        if (_onboardingWindow is null)
+        if (_shuttingDown || _onboardingWindow is null)
         {
             return;
         }
@@ -399,7 +720,6 @@ public partial class App : Application
         MainWindow mainWindow = EnsureMainWindow();
         OnboardingWindow onboarding = _onboardingWindow;
         _onboardingWindow = null;
-        _closeAppWhenOnboardingCloses = false;
         onboarding.Completed -= OnOnboardingCompleted;
         onboarding.Closed -= OnOnboardingClosed;
         _window = mainWindow;
@@ -409,13 +729,9 @@ public partial class App : Application
         StartupDiagnostics.Stage("onboarding-completed");
     }
 
-    private void CreateOnboardingWindow(
-        AppCoordinator coordinator,
-        bool isPreviewMode = false,
-        bool closeAppWhenClosed = true)
+    private void CreateOnboardingWindow(AppCoordinator coordinator)
     {
-        _closeAppWhenOnboardingCloses = closeAppWhenClosed;
-        _onboardingWindow = new OnboardingWindow(coordinator, isPreviewMode);
+        _onboardingWindow = new OnboardingWindow(coordinator);
         _onboardingWindow.Completed += OnOnboardingCompleted;
         _onboardingWindow.Closed += OnOnboardingClosed;
     }
@@ -431,20 +747,32 @@ public partial class App : Application
         _onboardingWindow!.Completed -= OnOnboardingCompleted;
         _onboardingWindow.Closed -= OnOnboardingClosed;
         _onboardingWindow = null;
-        if (_closeAppWhenOnboardingCloses)
+        BeginShutdown();
+    }
+
+    private void RequestPrimaryActivation(string? activationArgument)
+    {
+        if (_shuttingDown)
         {
-            BeginShutdown();
             return;
         }
 
-        _window = _mainWindow;
-        ShowPrimaryWindow();
-    }
-
-    private void RequestPrimaryActivation()
-    {
-        _dispatcherQueue.TryEnqueue(() =>
+        _dispatcherQueue.TryEnqueue(async () =>
         {
+            if (_shuttingDown)
+            {
+                return;
+            }
+
+            if (await TryHandleActivationRequestAsync(activationArgument))
+            {
+                return;
+            }
+            if (_shuttingDown)
+            {
+                return;
+            }
+
             if (_onboardingWindow is null
                 && _coordinator is not null
                 && !_coordinator.State.Preferences.OnboardingCompleted)
@@ -456,33 +784,58 @@ public partial class App : Application
             if (_onboardingWindow is not null)
             {
                 _onboardingWindow.ShowAndActivate();
+                return;
             }
+
+            ShowPrimaryWindow();
         });
     }
 
-    private void RequestOnboardingPreview()
+    private async Task<bool> TryHandleActivationRequestAsync(string? activationArgument)
     {
-#if DEBUG
-        _dispatcherQueue.TryEnqueue(() =>
+        if (_shuttingDown || _coordinator is null)
         {
-            if (_onboardingWindow is null && _coordinator is not null)
-            {
-                CreateOnboardingWindow(
-                    _coordinator,
-                    isPreviewMode: true,
-                    closeAppWhenClosed: false);
-                _window = _onboardingWindow;
-            }
+            return false;
+        }
+        string expectedScheme = _coordinator.State.DevelopmentCommerceEnabled
+            ? WindowsAuthCallback.DevelopmentScheme
+            : WindowsAuthCallback.ProductionScheme;
+        if (!WindowsAuthCallback.TryGetCode(
+            activationArgument,
+            expectedScheme,
+            out Uri? callbackUri,
+            out _))
+        {
+            return false;
+        }
 
-            _onboardingWindow?.ShowAndActivate();
-        });
-#else
-        RequestPrimaryActivation();
-#endif
+        MainWindow mainWindow = EnsureMainWindow();
+        mainWindow.ShowPage("store");
+        try
+        {
+            await _coordinator.CompleteGoogleIdentityLinkAsync(callbackUri!);
+            if (!_shuttingDown && ReferenceEquals(_mainWindow, mainWindow))
+            {
+                mainWindow.ViewModel.ReportSuccess(I18n.Get("store.googleConnected"));
+            }
+        }
+        catch (Exception exception)
+        {
+            if (!_shuttingDown && ReferenceEquals(_mainWindow, mainWindow))
+            {
+                mainWindow.ViewModel.ReportError(exception);
+            }
+        }
+        return true;
     }
 
     private void ShowPrimaryWindow()
     {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
         MainWindow mainWindow = EnsureMainWindow();
         _window = mainWindow;
         mainWindow.AppWindow.Show();
@@ -492,9 +845,20 @@ public partial class App : Application
 
     private void OnCoordinatorStateChanged(CoordinatorState state)
     {
-        var coordinator = _coordinator;
+        if (_shuttingDown)
+        {
+            return;
+        }
+
+        AppCoordinator? coordinator = _coordinator;
         _dispatcherQueue.TryEnqueue(() =>
         {
+            if (_shuttingDown)
+            {
+                return;
+            }
+
+            UpdateConnectionFailureNotification(state.Connected);
             _mainWindow?.ApplyState(state);
             _onboardingWindow?.ApplyState(state);
             _historyWindow?.ApplyState(state);
@@ -503,22 +867,57 @@ public partial class App : Application
                 state.Preferences.QuietMode,
                 state.Preferences.StartAtLogin,
                 coordinator?.TotalUnreadCount ?? 0,
-                state.Rooms.Select(room => new TrayRoomMenuItem(
+                [.. state.Rooms.Select(room => new TrayRoomMenuItem(
                     room.Id,
                     room.Name,
-                    coordinator?.UnreadCount(room.Id) ?? 0)).ToArray(),
+                    coordinator?.UnreadCount(room.Id) ?? 0))],
                 state.ActiveRoomId));
         });
     }
 
-    private void OnTrayCommandInvoked(TrayCommand command) =>
-        _dispatcherQueue.TryEnqueue(() => HandleTrayCommand(command));
+    private void OnLanguageChanged(string language)
+    {
+        _dispatcherQueue.TryEnqueue(() =>
+        {
+            if (_shuttingDown || language == I18n.Language)
+                return;
+            I18n.SetLanguage(language);
+            Localization.LocalizedText.RefreshAll();
+            _mainWindow?.ViewModel.RefreshLocalizedText();
+            _composer?.Title = I18n.Get("window.composerTitle");
+            if (_historyWindow is not null)
+            {
+                _historyWindow.Title = I18n.Get("window.historyTitle");
+                _historyWindow.ViewModel.RefreshLocalizedText();
+            }
+            StartupDiagnostics.Stage($"language-applied language={language}");
+        });
+    }
+
+    private void OnTrayCommandInvoked(TrayCommand command)
+    {
+        if (!_shuttingDown)
+        {
+            _dispatcherQueue.TryEnqueue(() =>
+            {
+                if (!_shuttingDown)
+                {
+                    HandleTrayCommand(command);
+                }
+            });
+        }
+    }
 
     private void OnTrayRoomSelected(Guid roomId)
     {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
         _dispatcherQueue.TryEnqueue(async () =>
         {
-            if (_coordinator is null)
+            if (_shuttingDown || _coordinator is null)
             {
                 return;
             }
@@ -529,9 +928,83 @@ public partial class App : Application
             }
             catch (Exception exception)
             {
-                EnsureMainWindow().ShowFatalError(exception);
+                if (!_shuttingDown)
+                {
+                    EnsureMainWindow().ShowFatalError(exception);
+                }
             }
         });
+    }
+
+    private void OnDisplayTopologyChanged()
+    {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
+        _dispatcherQueue.TryEnqueue(ScheduleDisplayTopologyRefresh);
+    }
+
+    private void ScheduleDisplayTopologyRefresh()
+    {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
+        if (_displayTopologyRefreshTimer is { } pending)
+        {
+            pending.Stop();
+            pending.Start();
+            return;
+        }
+
+        DispatcherQueueTimer timer = _dispatcherQueue.CreateTimer();
+        timer.Interval = s_displayTopologyRefreshDelay;
+        timer.IsRepeating = false;
+        timer.Tick += OnDisplayTopologyRefreshElapsed;
+        _displayTopologyRefreshTimer = timer;
+        timer.Start();
+    }
+
+    private void OnDisplayTopologyRefreshElapsed(DispatcherQueueTimer sender, object args)
+    {
+        _ = args;
+        sender.Tick -= OnDisplayTopologyRefreshElapsed;
+        sender.Stop();
+        if (ReferenceEquals(_displayTopologyRefreshTimer, sender))
+        {
+            _displayTopologyRefreshTimer = null;
+        }
+
+        if (_shuttingDown || _coordinator is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _coordinator.RefreshDisplayTopology();
+            _mainWindow?.RefreshMonitors();
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal("display-topology-refresh", exception);
+            _mainWindow?.ShowFatalError(exception);
+        }
+    }
+
+    private void CancelDisplayTopologyRefresh()
+    {
+        if (_displayTopologyRefreshTimer is not { } timer)
+        {
+            return;
+        }
+
+        timer.Tick -= OnDisplayTopologyRefreshElapsed;
+        timer.Stop();
+        _displayTopologyRefreshTimer = null;
     }
 
     private void HandleTrayCommand(TrayCommand command)
@@ -554,6 +1027,9 @@ public partial class App : Application
         }
         switch (command)
         {
+            case TrayCommand.Open:
+                ShowPrimaryWindow();
+                break;
             case TrayCommand.ToggleOverlay:
                 _ = RunCoordinatorCommandAsync(
                     () => _coordinator.SetOverlayVisibleAsync(
@@ -594,9 +1070,96 @@ public partial class App : Application
         }
     }
 
+    private void UpdateConnectionFailureNotification(bool connected)
+    {
+        if (connected)
+        {
+            _connectionFailureNotificationArmed = true;
+            CancelConnectionFailureNotification();
+            return;
+        }
+
+        if (_shuttingDown
+            || !_monitorConnectionFailures
+            || !_connectionFailureNotificationArmed)
+        {
+            return;
+        }
+
+        ScheduleConnectionFailureNotification();
+    }
+
+    private void ScheduleConnectionFailureNotification()
+    {
+        if (_connectionFailureNotificationTimer is not null)
+        {
+            return;
+        }
+
+        DispatcherQueueTimer timer = _dispatcherQueue.CreateTimer();
+        timer.Interval = s_connectionFailureNotificationDelay;
+        timer.IsRepeating = false;
+        timer.Tick += OnConnectionFailureNotificationElapsed;
+        _connectionFailureNotificationTimer = timer;
+        timer.Start();
+        StartupDiagnostics.Stage(
+            $"connection-failure-notification-deferred delay-ms={(long)s_connectionFailureNotificationDelay.TotalMilliseconds}");
+    }
+
+    private void OnConnectionFailureNotificationElapsed(
+        DispatcherQueueTimer sender,
+        object args)
+    {
+        _ = args;
+        sender.Tick -= OnConnectionFailureNotificationElapsed;
+        sender.Stop();
+        if (ReferenceEquals(_connectionFailureNotificationTimer, sender))
+        {
+            _connectionFailureNotificationTimer = null;
+        }
+
+        if (!_shuttingDown && _coordinator?.State.Connected == false)
+        {
+            PostConnectionFailureNotification();
+        }
+    }
+
+    private void CancelConnectionFailureNotification()
+    {
+        if (_connectionFailureNotificationTimer is not { } timer)
+        {
+            return;
+        }
+
+        timer.Tick -= OnConnectionFailureNotificationElapsed;
+        timer.Stop();
+        _connectionFailureNotificationTimer = null;
+        StartupDiagnostics.Stage("connection-failure-notification-deferred result=cancelled");
+    }
+
+    private void PostConnectionFailureNotification()
+    {
+        if (_tray is null)
+        {
+            return;
+        }
+
+        _connectionFailureNotificationArmed = false;
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        if (_lastConnectionFailureNotificationAt is { } previous
+            && now - previous < s_connectionFailureNotificationCooldown)
+        {
+            return;
+        }
+
+        _lastConnectionFailureNotificationAt = now;
+        _tray.NotifyConnectionFailure();
+        StartupDiagnostics.Stage("connection-failure-notification-posted");
+    }
+
     private void ShowHistory()
     {
-        if (_coordinator is null)
+        if (_shuttingDown || _coordinator is null)
         {
             return;
         }
@@ -619,8 +1182,16 @@ public partial class App : Application
         }
         catch (Exception exception)
         {
-            _dispatcherQueue.TryEnqueue(
-                () => EnsureMainWindow().ShowFatalError(exception));
+            if (!_shuttingDown)
+            {
+                _dispatcherQueue.TryEnqueue(() =>
+                {
+                    if (!_shuttingDown)
+                    {
+                        EnsureMainWindow().ShowFatalError(exception);
+                    }
+                });
+            }
         }
     }
 
@@ -640,6 +1211,7 @@ public partial class App : Application
         }
 
         bool shouldExit = mainWindow.ShouldExitOnClose;
+        _pendingSettingsSave = mainWindow.ViewModel.FlushSoundSettingsAsync();
         mainWindow.Closed -= OnMainWindowClosed;
         _mainWindow = null;
         if (ReferenceEquals(_window, mainWindow))
@@ -653,6 +1225,8 @@ public partial class App : Application
         }
     }
 
+    private Task _pendingSettingsSave = Task.CompletedTask;
+
     private async void BeginShutdown()
     {
         if (_shuttingDown)
@@ -661,19 +1235,28 @@ public partial class App : Application
         }
 
         _shuttingDown = true;
+        _monitorConnectionFailures = false;
+        CancelConnectionFailureNotification();
+        CancelDisplayTopologyRefresh();
+        _uiResponsivenessTimer?.Dispose();
+        _uiResponsivenessTimer = null;
         if (_mainWindow is not null)
         {
             MainWindow mainWindow = _mainWindow;
+            _pendingSettingsSave = mainWindow.ViewModel.FlushSoundSettingsAsync();
             _mainWindow = null;
             mainWindow.Closed -= OnMainWindowClosed;
             mainWindow.CloseForExit();
         }
+#if DEBUG
         _developmentUpdate?.Dispose();
         _developmentUpdate = null;
+#endif
         if (_tray is not null)
         {
             _tray.CommandInvoked -= OnTrayCommandInvoked;
             _tray.RoomSelected -= OnTrayRoomSelected;
+            _tray.DisplayTopologyChanged -= OnDisplayTopologyChanged;
             try
             {
                 _tray.Dispose();
@@ -688,14 +1271,12 @@ public partial class App : Application
         {
             _composer.ViewModel.SendRequested -= OnSendRequested;
             _composer.ViewModel.TypingChanged -= OnTypingChanged;
-            _composer.Close();
+            _composer.CloseForExit();
             _composer = null;
         }
-        if (_historyWindow is not null)
-        {
-            _historyWindow.Close();
-            _historyWindow = null;
-        }
+
+        _historyWindow?.Close();
+        _historyWindow = null;
         if (_onboardingWindow is not null)
         {
             _onboardingWindow.Completed -= OnOnboardingCompleted;
@@ -705,6 +1286,9 @@ public partial class App : Application
         }
         if (_coordinator is not null)
         {
+            try
+            { await _pendingSettingsSave; }
+            catch (Exception exception) { StartupDiagnostics.NonFatal("shutdown-settings-save", exception); }
             _coordinator.ComposerRequested -= RequestComposer;
             _coordinator.PulseRequested -= RequestPulse;
             _coordinator.CharacterThrowRequested -= RequestCharacterThrow;
@@ -724,10 +1308,11 @@ public partial class App : Application
         }
         _singleInstance?.Dispose();
         _singleInstance = null;
-        StartupDiagnostics.Stage("shutdown-complete");
+        StartupDiagnostics.CompleteSession();
         Exit();
     }
 
+#if DEBUG
     private void OnDevelopmentUpdateAccepted(DevelopmentUpdateRequest request)
     {
         if (_shuttingDown || _developmentUpdate is null)
@@ -740,6 +1325,8 @@ public partial class App : Application
             {
                 // This callback runs on the watcher thread so it remains
                 // independent from UI and network initialization stalls.
+                StartupDiagnostics.Stage("update-handoff-complete");
+                StartupDiagnostics.CompleteSession();
                 Environment.Exit(0);
             }
         }
@@ -748,4 +1335,5 @@ public partial class App : Application
             StartupDiagnostics.NonFatal("development-update-start", exception);
         }
     }
+#endif
 }

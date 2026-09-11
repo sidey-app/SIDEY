@@ -16,8 +16,8 @@ public static class ProfileValidator
     public static bool IsValidNickname(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        var normalized = NormalizeNickname(value);
-        var length = TextElementCount(normalized);
+        string normalized = NormalizeNickname(value);
+        int length = TextElementCount(normalized);
         return length is >= MinimumNicknameCharacters and <= MaximumNicknameCharacters
             && !value.Any(IsNewline)
             && !value.Contains('\t');
@@ -26,7 +26,7 @@ public static class ProfileValidator
     public static string LimitNicknameDraft(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        var singleLine = new string(value.Where(character => character != '\t' && !IsNewline(character)).ToArray());
+        string singleLine = new([.. value.Where(character => character != '\t' && !IsNewline(character))]);
         return PrefixTextElements(singleLine, MaximumNicknameCharacters);
     }
 
@@ -38,7 +38,7 @@ public static class ProfileValidator
 
     internal static string PrefixTextElements(string value, int maximum)
     {
-        var indexes = StringInfo.ParseCombiningCharacters(value);
+        int[] indexes = StringInfo.ParseCombiningCharacters(value);
         return indexes.Length <= maximum ? value : value[..indexes[maximum]];
     }
 
@@ -71,7 +71,7 @@ public static class MessageValidator
     public static bool IsValidDraft(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        var normalizedNewlines = value
+        string normalizedNewlines = value
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n');
         return ProfileValidator.TextElementCount(value) <= MaximumCharacters
@@ -95,8 +95,8 @@ public static class RoomNameValidator
     public static bool IsValid(string value)
     {
         ArgumentNullException.ThrowIfNull(value);
-        var normalized = Normalize(value);
-        var count = ProfileValidator.TextElementCount(normalized);
+        string normalized = Normalize(value);
+        int count = ProfileValidator.TextElementCount(normalized);
         return count is >= MinimumCharacters and <= MaximumCharacters
             && !normalized.Any(character => character is '\r' or '\n' or '\t');
     }
@@ -113,7 +113,7 @@ public static class PostgresTimestampParser
                 value,
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
-                out var parsed))
+                out DateTimeOffset parsed))
         {
             return parsed;
         }

@@ -1,6 +1,8 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Security.Authentication;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
@@ -13,8 +15,8 @@ namespace Sidey.Infrastructure;
 
 public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
 {
-    private static readonly TimeSpan StructuralCoalescingWindow = TimeSpan.FromMilliseconds(150);
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly TimeSpan s_structuralCoalescingWindow = TimeSpan.FromMilliseconds(150);
+    private static readonly JsonSerializerOptions s_jsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly SupabaseRuntimeConfiguration _configuration;
     private readonly ICredentialStore _credentials;
@@ -41,59 +43,173 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
 
     public async Task<BackendSnapshot> FetchSnapshotAsync(CancellationToken cancellationToken = default)
     {
-        var session = await RequiredSessionAsync(cancellationToken).ConfigureAwait(false);
-        var profileTask = GetAsync<DatabaseProfile[]>(
+        StoredSupabaseSession session = await RequiredSessionAsync(cancellationToken).ConfigureAwait(false);
+        Task<DatabaseProfile[]> profileTask = GetAsync<DatabaseProfile[]>(
             $"/rest/v1/profiles?id=eq.{session.UserId:D}&select=*",
             cancellationToken);
-        var roomsTask = GetAsync<DatabaseRoom[]>(
+        Task<DatabaseRoom[]> roomsTask = GetAsync<DatabaseRoom[]>(
             "/rest/v1/rooms?select=*&order=created_at.asc",
             cancellationToken);
-        var membershipsTask = GetAsync<DatabaseMembership[]>(
+        Task<DatabaseMembership[]> membershipsTask = GetAsync<DatabaseMembership[]>(
             "/rest/v1/room_members?select=*&order=joined_at.asc",
             cancellationToken);
-        var profilesTask = GetAsync<DatabaseProfile[]>(
+        Task<DatabaseProfile[]> profilesTask = GetAsync<DatabaseProfile[]>(
             "/rest/v1/profiles?select=*",
             cancellationToken);
+        Task<IReadOnlySet<string>?> entitlementsTask = LoadActiveEntitlementKeysIfAvailableAsync(cancellationToken);
 
-        await Task.WhenAll(profileTask, roomsTask, membershipsTask, profilesTask)
+        await Task.WhenAll(profileTask, roomsTask, membershipsTask, profilesTask, entitlementsTask)
             .ConfigureAwait(false);
-        var peers = (await profilesTask.ConfigureAwait(false)).ToDictionary(profile => profile.Id);
+        Dictionary<Guid, DatabaseProfile> peers = (await profilesTask.ConfigureAwait(false)).ToDictionary(profile => profile.Id);
         var memberships = (await membershipsTask.ConfigureAwait(false))
             .GroupBy(membership => membership.RoomId)
             .ToDictionary(group => group.Key, group => group.ToArray());
-        var rooms = (await roomsTask.ConfigureAwait(false)).Select(room => new Room(
+        Room[] rooms = [.. (await roomsTask.ConfigureAwait(false)).Select(room => new Room(
             room.Id,
             room.Name,
             room.OwnerId,
-            memberships.GetValueOrDefault(room.Id, [])
+            [.. memberships.GetValueOrDefault(room.Id, [])
                 .Select(membership =>
                 {
-                    peers.TryGetValue(membership.UserId, out var peer);
+                    peers.TryGetValue(membership.UserId, out DatabaseProfile? peer);
                     return new RoomMember(
                         membership.UserId,
                         peer?.Nickname ?? I18n.Get("common.friend"),
                         PixelCharacterCatalog.NormalizeId(peer?.CharacterId),
-                        PresenceState.Offline);
-                })
-                .ToArray(),
+                        PresenceState.Offline,
+                        CosmeticCatalog.NormalizeBubbleStyleId(peer?.EquippedBubbleStyleId));
+                })],
             room.InviteCodeHint,
             room.InviteCodeReady,
-            room.RealtimeEpoch)).ToArray();
-        foreach (var room in rooms.Where(room => !room.InviteCodeReady))
+            room.RealtimeEpoch))];
+        foreach (Room? room in rooms.Where(room => !room.InviteCodeReady))
         {
             await _credentials.DeleteInviteCodeAsync(room.Id, cancellationToken).ConfigureAwait(false);
         }
-        var profile = (await profileTask.ConfigureAwait(false)).FirstOrDefault();
+        DatabaseProfile? profile = (await profileTask.ConfigureAwait(false)).FirstOrDefault();
+        IReadOnlySet<string> activeEntitlementKeys = PixelCharacterCatalog.ResolveActiveEntitlementKeys(
+            await entitlementsTask.ConfigureAwait(false),
+            profile?.CharacterId);
         return new BackendSnapshot(
             profile is null
                 ? null
                 : new Profile(
                     profile.Id,
                     profile.Nickname,
-                    PixelCharacterCatalog.NormalizeId(profile.CharacterId)),
+                    PixelCharacterCatalog.NormalizeId(profile.CharacterId),
+                    OwnedCosmeticOrNull(
+                        profile.EquippedBubbleStyleId,
+                        CommerceProductKind.Bubble,
+                        activeEntitlementKeys),
+                    OwnedCosmeticOrNull(
+                        profile.EquippedThrowableId,
+                        CommerceProductKind.Throwable,
+                        activeEntitlementKeys)),
             rooms,
-            session.UserId);
+            session.UserId,
+            activeEntitlementKeys);
     }
+
+    /// <summary>
+    /// Commerce is optional. A missing or temporarily unavailable commerce
+    /// schema must not turn the core messenger snapshot into a connection failure.
+    /// </summary>
+    private async Task<IReadOnlySet<string>?> LoadActiveEntitlementKeysIfAvailableAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            DatabaseCommerceEntitlement[] rows = await GetAsync<DatabaseCommerceEntitlement[]>(
+                "/rest/v1/commerce_entitlements?status=eq.active&select=entitlement_key,status",
+                cancellationToken).ConfigureAwait(false);
+            return rows.Select(row => row.EntitlementKey).ToHashSet(StringComparer.Ordinal);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+#if SIDEY_DEVELOPMENT_COMMERCE
+    public async Task<IReadOnlyList<CommerceProductState>> GetWindowsCommerceStateAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using var request = await CreateRequestAsync(
+            HttpMethod.Post,
+            "/rest/v1/rpc/get_store_state",
+            cancellationToken).ConfigureAwait(false);
+        request.Content = JsonContent.Create(new { }, options: s_jsonOptions);
+        using var response = await _httpClient.SendAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+        DatabaseCommerceState[] rows = await ReadRequiredAsync<DatabaseCommerceState[]>(
+            response,
+            cancellationToken).ConfigureAwait(false);
+
+        var states = new List<CommerceProductState>();
+        foreach (CommerceProduct product in WindowsCommerceCatalog.Products)
+        {
+            DatabaseCommerceState row = rows.SingleOrDefault(candidate =>
+                    StringComparer.Ordinal.Equals(candidate.ProductId, product.Id))
+                ?? throw new InvalidDataException("Windows commerce product is missing.");
+            string expectedKind = product.Kind.ToString().ToLowerInvariant();
+            string? expectedCharacterId = product.Kind == CommerceProductKind.Character
+                ? product.CharacterId
+                : null;
+            if (!StringComparer.Ordinal.Equals(row.ProductKind, expectedKind)
+                || !StringComparer.Ordinal.Equals(row.CatalogItemId, product.EffectiveCatalogItemId)
+                || !StringComparer.Ordinal.Equals(row.CharacterId, expectedCharacterId)
+                || !StringComparer.Ordinal.Equals(row.EntitlementKey, product.EntitlementKey)
+                || row.SortOrder != product.SortOrder
+                || row.AmountKrw != product.AmountKrw
+                || !StringComparer.Ordinal.Equals(row.Currency, "KRW"))
+            {
+                throw new InvalidDataException("Windows commerce catalog does not match the server.");
+            }
+
+            CommercePurchaseState purchaseState = row.EntitlementStatus == "active"
+                ? CommercePurchaseState.Owned
+                : row.LatestOrderStatus == "refunded"
+                    ? CommercePurchaseState.Refunded
+                    : row.GoogleConnected
+                        ? CommercePurchaseState.Available
+                        : CommercePurchaseState.GoogleConnectionRequired;
+            states.Add(new CommerceProductState(product, row.GoogleConnected, purchaseState));
+        }
+        return states;
+    }
+
+    public async Task<CommerceCheckout> CreateWindowsCommerceOrderAsync(
+        string productId,
+        CancellationToken cancellationToken = default)
+    {
+        if (WindowsCommerceCatalog.Find(productId) is null)
+        {
+            throw new ArgumentOutOfRangeException(nameof(productId));
+        }
+
+        using var request = await CreateRequestAsync(
+            HttpMethod.Post,
+            "/functions/v1/commerce-order",
+            cancellationToken).ConfigureAwait(false);
+        request.Content = JsonContent.Create(new { product_id = productId }, options: s_jsonOptions);
+        using var response = await _httpClient.SendAsync(request, cancellationToken)
+            .ConfigureAwait(false);
+        CommerceOrderResponse order = await ReadRequiredAsync<CommerceOrderResponse>(
+            response,
+            cancellationToken).ConfigureAwait(false);
+        if (order.OrderId == Guid.Empty
+            || !Uri.TryCreate(order.CheckoutUrl, UriKind.Absolute, out Uri? checkoutUri)
+            || checkoutUri.Scheme != Uri.UriSchemeHttps)
+        {
+            throw new InvalidDataException("Commerce checkout URL is invalid.");
+        }
+        return new CommerceCheckout(order.OrderId, checkoutUri);
+    }
+#endif
 
     public async Task<Profile> SaveProfileAsync(
         string nickname,
@@ -105,7 +221,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             throw new ArgumentException(I18n.Get("validation.nicknameLength"), nameof(nickname));
         }
 
-        var row = await RpcSingleAsync<DatabaseProfile>(
+        DatabaseProfile row = await RpcSingleAsync<DatabaseProfile>(
             "upsert_profile",
             new
             {
@@ -113,7 +229,38 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                 p_character_id = PixelCharacterCatalog.NormalizeId(characterId),
             },
             cancellationToken).ConfigureAwait(false);
-        return new Profile(row.Id, row.Nickname, PixelCharacterCatalog.NormalizeId(row.CharacterId));
+        return MapProfile(row);
+    }
+
+    public async Task<Profile> SetEquippedCosmeticAsync(
+        CommerceProductKind kind,
+        string? catalogItemId,
+        CancellationToken cancellationToken = default)
+    {
+        if (kind == CommerceProductKind.Character)
+        {
+            throw new ArgumentOutOfRangeException(nameof(kind));
+        }
+        string? normalized = kind switch
+        {
+            CommerceProductKind.Bubble => CosmeticCatalog.NormalizeBubbleStyleId(catalogItemId),
+            CommerceProductKind.Throwable => CosmeticCatalog.NormalizeThrowableId(catalogItemId),
+            _ => null,
+        };
+        if (catalogItemId is not null && normalized is null)
+        {
+            throw new ArgumentOutOfRangeException(nameof(catalogItemId));
+        }
+
+        DatabaseProfile row = await RpcSingleAsync<DatabaseProfile>(
+            "set_equipped_cosmetic",
+            new
+            {
+                p_product_kind = kind.ToString().ToLowerInvariant(),
+                p_catalog_item_id = normalized,
+            },
+            cancellationToken).ConfigureAwait(false);
+        return MapProfile(row);
     }
 
     public async Task<CreateRoomResult> CreateRoomAsync(
@@ -121,14 +268,14 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         ValidateRoomName(name);
-        var row = await RpcSingleAsync<CreateRoomRow>(
+        CreateRoomRow row = await RpcSingleAsync<CreateRoomRow>(
             "create_room",
             new { p_name = RoomNameValidator.Normalize(name) },
             cancellationToken).ConfigureAwait(false);
         await _credentials.WriteInviteCodeAsync(row.RoomId, row.InviteCode, cancellationToken)
             .ConfigureAwait(false);
-        var snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
-        var room = snapshot.Rooms.SingleOrDefault(room => room.Id == row.RoomId)
+        BackendSnapshot snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        Room room = snapshot.Rooms.SingleOrDefault(room => room.Id == row.RoomId)
             ?? throw new InvalidDataException(I18n.Get("backend.createdRoomMissing"));
         return new CreateRoomResult(room, row.InviteCode);
     }
@@ -137,13 +284,13 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         string inviteCode,
         CancellationToken cancellationToken = default)
     {
-        var normalized = inviteCode.Trim().ToUpperInvariant();
+        string normalized = inviteCode.Trim().ToUpperInvariant();
         if (normalized.Length == 0)
         {
             throw new ArgumentException(I18n.Get("onboarding.inviteRequired"), nameof(inviteCode));
         }
 
-        var row = await RpcSingleAsync<JoinRoomRow>(
+        JoinRoomRow row = await RpcSingleAsync<JoinRoomRow>(
             "join_room",
             new { p_invite_code = normalized },
             cancellationToken).ConfigureAwait(false);
@@ -159,7 +306,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
 
         await _credentials.WriteInviteCodeAsync(roomId, normalized, cancellationToken)
             .ConfigureAwait(false);
-        var snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        BackendSnapshot snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
         return snapshot.Rooms.SingleOrDefault(room => room.Id == roomId)
             ?? throw new InvalidDataException(I18n.Get("backend.joinedRoomMissing"));
     }
@@ -187,7 +334,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         Guid roomId,
         CancellationToken cancellationToken = default)
     {
-        var inviteCode = await RpcSingleAsync<string>(
+        string inviteCode = await RpcSingleAsync<string>(
             "rotate_invite_code",
             new { p_room_id = roomId },
             cancellationToken).ConfigureAwait(false);
@@ -221,12 +368,12 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         Guid roomId,
         CancellationToken cancellationToken = default)
     {
-        var page = await FetchMessagePageAsync(
+        MessageHistoryPage page = await FetchMessagePageAsync(
             roomId,
             before: null,
             limit: 50,
             cancellationToken).ConfigureAwait(false);
-        return page.Messages.Reverse().ToArray();
+        return [.. page.Messages.Reverse()];
     }
 
     public async Task<MessageHistoryPage> FetchMessagePageAsync(
@@ -235,24 +382,24 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         int limit = 50,
         CancellationToken cancellationToken = default)
     {
-        var boundedLimit = Math.Clamp(limit, 1, 50);
-        var cutoff = Uri.EscapeDataString(
+        int boundedLimit = Math.Clamp(limit, 1, 50);
+        string cutoff = Uri.EscapeDataString(
             (DateTimeOffset.UtcNow - MessageLedger.ConfirmedRetention)
             .UtcDateTime
             .ToString("O"));
-        var beforeFilter = string.Empty;
+        string beforeFilter = string.Empty;
         if (before is { } cursor)
         {
-            var timestamp = Uri.EscapeDataString(cursor.CreatedAt.UtcDateTime.ToString("O"));
+            string timestamp = Uri.EscapeDataString(cursor.CreatedAt.UtcDateTime.ToString("O"));
             beforeFilter =
                 $"&or=(created_at.lt.{timestamp},and(created_at.eq.{timestamp},id.lt.{cursor.Id:D}))";
         }
 
-        var rows = await GetAsync<DatabaseMessage[]>(
+        DatabaseMessage[] rows = await GetAsync<DatabaseMessage[]>(
             $"/rest/v1/messages?room_id=eq.{roomId:D}&created_at=gte.{cutoff}{beforeFilter}" +
             $"&select=*&order=created_at.desc,id.desc&limit={boundedLimit + 1}",
             cancellationToken).ConfigureAwait(false);
-        var messages = rows.Take(boundedLimit).Select(MapMessage).ToArray();
+        ChatMessage[] messages = [.. rows.Take(boundedLimit).Select(MapMessage)];
         MessageHistoryCursor? nextCursor = rows.Length > boundedLimit && messages.LastOrDefault() is { } last
             ? new MessageHistoryCursor(last.CreatedAt, last.Id)
             : null;
@@ -265,13 +412,13 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         string body,
         CancellationToken cancellationToken = default)
     {
-        var normalized = MessageValidator.Normalize(body);
+        string normalized = MessageValidator.Normalize(body);
         if (!MessageValidator.IsValid(normalized))
         {
             throw new ArgumentException(I18n.Get("validation.messageLength"), nameof(body));
         }
 
-        var row = await RpcSingleAsync<DatabaseMessage>(
+        DatabaseMessage row = await RpcSingleAsync<DatabaseMessage>(
             "send_message",
             new { p_id = id, p_room_id = roomId, p_body = normalized },
             cancellationToken).ConfigureAwait(false);
@@ -316,7 +463,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         Guid targetUserId,
         CancellationToken cancellationToken = default)
     {
-        if (!_roomEpochs.TryGetValue(roomId, out var realtimeEpoch))
+        if (!_roomEpochs.TryGetValue(roomId, out long realtimeEpoch))
         {
             throw new InvalidOperationException(I18n.Get("backend.realtimeEpochMissing"));
         }
@@ -332,6 +479,9 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             },
             cancellationToken);
     }
+
+    public void RetryRealtimeConnection(bool userInitiated = false) => _realtime.RequestReconnect(userInitiated);
+    public bool IsRealtimeRecoveryPaused => _realtime.IsRecoveryPaused;
 
     public async Task SynchronizeRealtimeRoomsAsync(
         IReadOnlyDictionary<Guid, long> roomEpochs,
@@ -358,10 +508,10 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             SingleWriter = false,
         });
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var pump = PumpEventsAsync(output.Writer, linked.Token);
+        Task pump = PumpEventsAsync(output.Writer, linked.Token);
         try
         {
-            await foreach (var backendEvent in output.Reader.ReadAllAsync(cancellationToken))
+            await foreach (BackendEvent backendEvent in output.Reader.ReadAllAsync(cancellationToken))
             {
                 yield return backendEvent;
             }
@@ -393,19 +543,29 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         CancellationToken cancellationToken)
     {
         CancellationTokenSource? structuralDelay = null;
+        Task structuralRefresh = Task.CompletedTask;
+        RealtimeConnectionStatus connectionStatus = RealtimeConnectionStatus.Disconnected;
         try
         {
-            await foreach (var backendEvent in _realtime.ReadEventsAsync(cancellationToken))
+            await foreach (BackendEvent backendEvent in _realtime.ReadEventsAsync(cancellationToken))
             {
                 if (backendEvent is BackendEvent.MessageChanged change)
                 {
                     try
                     {
+                        await output.WriteAsync(
+                            new BackendEvent.Diagnostic(
+                                $"realtime-message-change-received operation={change.Operation.ToLowerInvariant()}"),
+                            cancellationToken).ConfigureAwait(false);
                         await HandleMessageChangeAsync(change, output, cancellationToken)
                             .ConfigureAwait(false);
                     }
                     catch (Exception exception) when (exception is not OperationCanceledException)
                     {
+                        await output.WriteAsync(
+                            new BackendEvent.Diagnostic(
+                                $"message-recheck-error {FailureDiagnostic(exception)}"),
+                            cancellationToken).ConfigureAwait(false);
                         await output.WriteAsync(
                             new BackendEvent.TechnicalError(
                                 I18n.Format("backend.messageRecheckFailed", exception.Message)),
@@ -418,7 +578,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                 {
                     try
                     {
-                        var messages = await FetchRecentMessagesAsync(
+                        IReadOnlyList<ChatMessage> messages = await FetchRecentMessagesAsync(
                             invalidated.RoomId,
                             cancellationToken).ConfigureAwait(false);
                         await output.WriteAsync(
@@ -427,6 +587,10 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                     }
                     catch (Exception exception) when (exception is not OperationCanceledException)
                     {
+                        await output.WriteAsync(
+                            new BackendEvent.Diagnostic(
+                                $"expired-messages-error {FailureDiagnostic(exception)}"),
+                            cancellationToken).ConfigureAwait(false);
                         await output.WriteAsync(
                             new BackendEvent.TechnicalError(
                                 I18n.Format("backend.expiredMessagesFailed", exception.Message)),
@@ -437,24 +601,51 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
 
                 if (backendEvent is BackendEvent.RoomStructureChanged)
                 {
-                    structuralDelay?.Cancel();
-                    structuralDelay?.Dispose();
+                    if (structuralDelay is not null)
+                    {
+                        structuralDelay.Cancel();
+                        await structuralRefresh.ConfigureAwait(false);
+                        structuralDelay.Dispose();
+                    }
+
                     structuralDelay = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    _ = EmitCoalescedSnapshotAsync(output, structuralDelay.Token);
+                    structuralRefresh = EmitCoalescedSnapshotAsync(output, structuralDelay.Token);
                     continue;
                 }
 
                 if (backendEvent is BackendEvent.ReconciliationRequired)
                 {
-                    await EmitReconciliationWithRetryAsync(output, cancellationToken)
-                        .ConfigureAwait(false);
+                    connectionStatus = connectionStatus.WithRecoveryReconciled(false);
+                    await output.WriteAsync(
+                        new BackendEvent.ConnectionChanged(connectionStatus),
+                        cancellationToken).ConfigureAwait(false);
+                    if (!await _realtime.RunWhileConnectedAsync(
+                        token => EmitReconciliationWithRetryAsync(output, token), cancellationToken).ConfigureAwait(false))
+                        continue;
+                    connectionStatus = _realtime.ConnectionStatus.WithRecoveryReconciled(true);
+                    await output.WriteAsync(
+                        new BackendEvent.ConnectionChanged(connectionStatus),
+                        cancellationToken).ConfigureAwait(false);
                     continue;
                 }
 
-                if (backendEvent is BackendEvent.ConnectionChanged { Connected: true })
+                if (backendEvent is BackendEvent.ConnectionChanged connection)
                 {
-                    await EmitReconciliationWithRetryAsync(output, cancellationToken)
-                        .ConfigureAwait(false);
+                    connectionStatus = connection.Status;
+                    await output.WriteAsync(
+                        new BackendEvent.ConnectionChanged(connectionStatus),
+                        cancellationToken).ConfigureAwait(false);
+                    if (connectionStatus.TransportConnected)
+                    {
+                        if (!await _realtime.RunWhileConnectedAsync(
+                            token => EmitReconciliationWithRetryAsync(output, token), cancellationToken).ConfigureAwait(false))
+                            continue;
+                        connectionStatus = _realtime.ConnectionStatus.WithRecoveryReconciled(true);
+                        await output.WriteAsync(
+                            new BackendEvent.ConnectionChanged(connectionStatus),
+                            cancellationToken).ConfigureAwait(false);
+                    }
+                    continue;
                 }
 
                 await output.WriteAsync(backendEvent, cancellationToken).ConfigureAwait(false);
@@ -462,8 +653,13 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         }
         finally
         {
-            structuralDelay?.Cancel();
-            structuralDelay?.Dispose();
+            if (structuralDelay is not null)
+            {
+                structuralDelay.Cancel();
+                await structuralRefresh.ConfigureAwait(false);
+                structuralDelay.Dispose();
+            }
+
             output.TryComplete();
         }
     }
@@ -472,7 +668,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         ChannelWriter<BackendEvent> output,
         CancellationToken cancellationToken)
     {
-        for (var attempt = 0; ; attempt++)
+        for (int attempt = 0; ; attempt++)
         {
             try
             {
@@ -486,11 +682,12 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             catch (Exception exception)
             {
                 await output.WriteAsync(
-                    new BackendEvent.TechnicalError(
-                        I18n.Format("backend.realtimeResyncFailed", exception.Message)),
+                    new BackendEvent.Diagnostic(
+                        $"realtime-reconciliation-error {FailureDiagnostic(exception)}"),
                     cancellationToken).ConfigureAwait(false);
                 await output.WriteAsync(
-                    new BackendEvent.ConnectionChanged(false),
+                    new BackendEvent.TechnicalError(
+                        I18n.Format("backend.realtimeResyncFailed", exception.Message)),
                     cancellationToken).ConfigureAwait(false);
                 await Task.Delay(
                     RealtimeRecoveryPolicy.DelayForAttempt(attempt + 1),
@@ -503,7 +700,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         ChannelWriter<BackendEvent> output,
         CancellationToken cancellationToken)
     {
-        var snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
+        BackendSnapshot snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
         await output.WriteAsync(
             new BackendEvent.SnapshotReceived(snapshot),
             cancellationToken).ConfigureAwait(false);
@@ -527,6 +724,9 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         if (change.Operation == "DELETE")
         {
             await output.WriteAsync(
+                new BackendEvent.Diagnostic("message-delete-forwarded"),
+                cancellationToken).ConfigureAwait(false);
+            await output.WriteAsync(
                 new BackendEvent.MessageDeleted(change.RoomId, change.MessageId),
                 cancellationToken).ConfigureAwait(false);
             return;
@@ -537,17 +737,41 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             return;
         }
 
-        var rows = await GetAsync<DatabaseMessage[]>(
-            $"/rest/v1/messages?room_id=eq.{change.RoomId:D}&id=eq.{change.MessageId:D}&select=*&limit=1",
+        await output.WriteAsync(
+            new BackendEvent.Diagnostic("message-recheck-started"),
             cancellationToken).ConfigureAwait(false);
+        DatabaseMessage[] rows;
+        try
+        {
+            rows = await GetAsync<DatabaseMessage[]>(
+                $"/rest/v1/messages?room_id=eq.{change.RoomId:D}&id=eq.{change.MessageId:D}&select=*&limit=1",
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            await output.WriteAsync(
+                new BackendEvent.Diagnostic("message-recheck-completed result=failed"),
+                cancellationToken).ConfigureAwait(false);
+            throw;
+        }
         if (rows.FirstOrDefault() is { } row)
         {
+            await output.WriteAsync(
+                new BackendEvent.Diagnostic("message-recheck-completed result=found"),
+                cancellationToken).ConfigureAwait(false);
             await output.WriteAsync(
                 new BackendEvent.MessageReceived(MapMessage(row)),
                 cancellationToken).ConfigureAwait(false);
         }
         else
         {
+            await output.WriteAsync(
+                new BackendEvent.Diagnostic("message-recheck-completed result=missing"),
+                cancellationToken).ConfigureAwait(false);
             await output.WriteAsync(
                 new BackendEvent.MessageDeleted(change.RoomId, change.MessageId),
                 cancellationToken).ConfigureAwait(false);
@@ -560,8 +784,8 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
     {
         try
         {
-            await Task.Delay(StructuralCoalescingWindow, cancellationToken).ConfigureAwait(false);
-            var snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            await Task.Delay(s_structuralCoalescingWindow, cancellationToken).ConfigureAwait(false);
+            BackendSnapshot snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
             await output.WriteAsync(new BackendEvent.SnapshotReceived(snapshot), cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -570,6 +794,8 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         }
         catch (Exception exception)
         {
+            output.TryWrite(new BackendEvent.Diagnostic(
+                $"room-snapshot-error {FailureDiagnostic(exception)}"));
             output.TryWrite(new BackendEvent.TechnicalError(
                 I18n.Format("backend.roomSnapshotFailed", exception.Message)));
         }
@@ -577,10 +803,35 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
 
     private async Task<T> GetAsync<T>(string relativePath, CancellationToken cancellationToken)
     {
-        using var request = await CreateRequestAsync(HttpMethod.Get, relativePath, cancellationToken)
+        using HttpRequestMessage request = await CreateRequestAsync(HttpMethod.Get, relativePath, cancellationToken)
             .ConfigureAwait(false);
-        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         return await ReadRequiredAsync<T>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string FailureDiagnostic(Exception exception)
+    {
+        Exception current = exception;
+        while (current.InnerException is { } inner)
+        {
+            current = inner;
+        }
+
+        string category = current switch
+        {
+            SocketException socket when socket.SocketErrorCode is
+                SocketError.HostNotFound or SocketError.NoData or SocketError.TryAgain => "dns",
+            SocketException => "socket",
+            AuthenticationException => "tls",
+            TimeoutException => "timeout",
+            TaskCanceledException => "timeout",
+            HttpRequestException => "http",
+            _ => "unknown",
+        };
+        string status = current is HttpRequestException { StatusCode: { } statusCode }
+            ? $" status={(int)statusCode}"
+            : string.Empty;
+        return $"category={category} type={current.GetType().Name} hresult=0x{current.HResult:X8}{status}";
     }
 
     private async Task<T> RpcSingleAsync<T>(
@@ -588,21 +839,21 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         object body,
         CancellationToken cancellationToken)
     {
-        using var request = await CreateRequestAsync(
+        using HttpRequestMessage request = await CreateRequestAsync(
             HttpMethod.Post,
             $"/rest/v1/rpc/{function}",
             cancellationToken).ConfigureAwait(false);
         request.Headers.TryAddWithoutValidation("Prefer", "return=representation");
-        request.Content = JsonContent.Create(body, options: JsonOptions);
-        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
-        using var document = await ReadDocumentAsync(response, cancellationToken).ConfigureAwait(false);
-        var root = document.RootElement;
-        var element = root.ValueKind == JsonValueKind.Array
+        request.Content = JsonContent.Create(body, options: s_jsonOptions);
+        using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using JsonDocument document = await ReadDocumentAsync(response, cancellationToken).ConfigureAwait(false);
+        JsonElement root = document.RootElement;
+        JsonElement element = root.ValueKind == JsonValueKind.Array
             ? root.GetArrayLength() == 0
                 ? throw new InvalidDataException($"RPC {function} returned no rows.")
                 : root[0]
             : root;
-        return element.Deserialize<T>(JsonOptions)
+        return element.Deserialize<T>(s_jsonOptions)
             ?? throw new InvalidDataException($"RPC {function} returned an invalid row.");
     }
 
@@ -611,15 +862,18 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         object body,
         CancellationToken cancellationToken)
     {
-        using var request = await CreateRequestAsync(
+        using HttpRequestMessage request = await CreateRequestAsync(
             HttpMethod.Post,
             $"/rest/v1/rpc/{function}",
             cancellationToken).ConfigureAwait(false);
-        request.Content = JsonContent.Create(body, options: JsonOptions);
-        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        request.Content = JsonContent.Create(body, options: s_jsonOptions);
+        using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
-            throw new HttpRequestException($"Supabase RPC {function} failed with HTTP {(int)response.StatusCode}.");
+            throw new HttpRequestException(
+                $"Supabase RPC {function} failed with HTTP {(int)response.StatusCode}.",
+                inner: null,
+                response.StatusCode);
         }
     }
 
@@ -629,7 +883,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         Guid? eventId,
         CancellationToken cancellationToken)
     {
-        if (!_roomEpochs.TryGetValue(roomId, out var realtimeEpoch))
+        if (!_roomEpochs.TryGetValue(roomId, out long realtimeEpoch))
         {
             throw new InvalidOperationException(I18n.Get("backend.realtimeEpochMissing"));
         }
@@ -651,7 +905,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         string relativePath,
         CancellationToken cancellationToken)
     {
-        var session = await RequiredSessionAsync(cancellationToken).ConfigureAwait(false);
+        StoredSupabaseSession session = await RequiredSessionAsync(cancellationToken).ConfigureAwait(false);
         var request = new HttpRequestMessage(method, new Uri(_configuration.Url, relativePath));
         request.Headers.Add("apikey", _configuration.PublishableKey);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", session.AccessToken);
@@ -669,10 +923,13 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
     {
         if (!response.IsSuccessStatusCode)
         {
-            throw new HttpRequestException($"Supabase REST request failed with HTTP {(int)response.StatusCode}.");
+            throw new HttpRequestException(
+                $"Supabase REST request failed with HTTP {(int)response.StatusCode}.",
+                inner: null,
+                response.StatusCode);
         }
 
-        return await response.Content.ReadFromJsonAsync<T>(JsonOptions, cancellationToken)
+        return await response.Content.ReadFromJsonAsync<T>(s_jsonOptions, cancellationToken)
             .ConfigureAwait(false)
             ?? throw new InvalidDataException("Supabase REST response was empty.");
     }
@@ -683,10 +940,13 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
     {
         if (!response.IsSuccessStatusCode)
         {
-            throw new HttpRequestException($"Supabase RPC failed with HTTP {(int)response.StatusCode}.");
+            throw new HttpRequestException(
+                $"Supabase RPC failed with HTTP {(int)response.StatusCode}.",
+                inner: null,
+                response.StatusCode);
         }
 
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken)
+        await using Stream stream = await response.Content.ReadAsStreamAsync(cancellationToken)
             .ConfigureAwait(false);
         return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
@@ -697,7 +957,35 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         row.RoomId,
         row.SenderId,
         row.Body,
-        PostgresTimestampParser.Parse(row.CreatedAt));
+        PostgresTimestampParser.Parse(row.CreatedAt),
+        CosmeticCatalog.NormalizeBubbleStyleId(row.BubbleStyleId));
+
+    private static Profile MapProfile(DatabaseProfile row) => new(
+        row.Id,
+        row.Nickname,
+        PixelCharacterCatalog.NormalizeId(row.CharacterId),
+        CosmeticCatalog.NormalizeBubbleStyleId(row.EquippedBubbleStyleId),
+        CosmeticCatalog.NormalizeThrowableId(row.EquippedThrowableId));
+
+    private static string? OwnedCosmeticOrNull(
+        string? catalogItemId,
+        CommerceProductKind kind,
+        IReadOnlySet<string> activeEntitlementKeys)
+    {
+        string? normalized = kind == CommerceProductKind.Bubble
+            ? CosmeticCatalog.NormalizeBubbleStyleId(catalogItemId)
+            : CosmeticCatalog.NormalizeThrowableId(catalogItemId);
+        if (normalized is null)
+        {
+            return null;
+        }
+        CommerceProduct? product = WindowsCommerceCatalog.Products.FirstOrDefault(candidate =>
+            candidate.Kind == kind
+            && StringComparer.Ordinal.Equals(candidate.EffectiveCatalogItemId, normalized));
+        return product is not null && activeEntitlementKeys.Contains(product.EntitlementKey)
+            ? normalized
+            : null;
+    }
 
     private static void ValidateRoomName(string name)
     {
@@ -710,7 +998,32 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
     private sealed record DatabaseProfile(
         Guid Id,
         string Nickname,
-        [property: JsonPropertyName("character_id")] string CharacterId);
+        [property: JsonPropertyName("character_id")] string CharacterId,
+        [property: JsonPropertyName("equipped_bubble_style_id")] string? EquippedBubbleStyleId,
+        [property: JsonPropertyName("equipped_throwable_id")] string? EquippedThrowableId);
+
+    private sealed record DatabaseCommerceEntitlement(
+        [property: JsonPropertyName("entitlement_key")] string EntitlementKey,
+        string Status);
+
+#if SIDEY_DEVELOPMENT_COMMERCE
+    private sealed record DatabaseCommerceState(
+        [property: JsonPropertyName("product_id")] string ProductId,
+        [property: JsonPropertyName("product_kind")] string ProductKind,
+        [property: JsonPropertyName("catalog_item_id")] string CatalogItemId,
+        [property: JsonPropertyName("character_id")] string? CharacterId,
+        [property: JsonPropertyName("entitlement_key")] string EntitlementKey,
+        [property: JsonPropertyName("sort_order")] int SortOrder,
+        [property: JsonPropertyName("amount_krw")] int AmountKrw,
+        string Currency,
+        [property: JsonPropertyName("google_connected")] bool GoogleConnected,
+        [property: JsonPropertyName("entitlement_status")] string? EntitlementStatus,
+        [property: JsonPropertyName("latest_order_status")] string? LatestOrderStatus);
+
+    private sealed record CommerceOrderResponse(
+        [property: JsonPropertyName("order_id")] Guid OrderId,
+        [property: JsonPropertyName("checkout_url")] string CheckoutUrl);
+#endif
 
     private sealed record DatabaseRoom(
         Guid Id,
@@ -729,7 +1042,8 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         [property: JsonPropertyName("room_id")] Guid RoomId,
         [property: JsonPropertyName("sender_id")] Guid SenderId,
         string Body,
-        [property: JsonPropertyName("created_at")] string CreatedAt);
+        [property: JsonPropertyName("created_at")] string CreatedAt,
+        [property: JsonPropertyName("bubble_style_id")] string? BubbleStyleId);
 
     private sealed record CreateRoomRow(
         [property: JsonPropertyName("room_id")] Guid RoomId,

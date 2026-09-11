@@ -1,0 +1,20 @@
+{
+  "visualCpp": {
+    "minimumVersion": "14.50.35719.0",
+    "url": "https://aka.ms/vc14/vc_redist.x64.exe"
+  },
+  "dotnet": {
+    "minimumVersion": "10.0.0",
+    "url": "https://aka.ms/dotnet/10.0/dotnet-runtime-win-x64.exe"
+  },
+  "windowsAppRuntime": {
+    "sdkVersion": "2.4.0",
+    "url": "https://aka.ms/windowsappsdk/2.4/2.4.0/windowsappruntimeinstall-x64.exe",
+    "packages": [
+      { "family": "Microsoft.WindowsAppRuntime.2_8wekyb3d8bbwe", "minimumVersion": "2.4.0.0" },
+      { "family": "MicrosoftCorporationII.WinAppRuntime.Main.2_8wekyb3d8bbwe", "minimumVersion": "2.4.0.0" },
+      { "family": "MicrosoftCorporationII.WinAppRuntime.Singleton_8wekyb3d8bbwe", "minimumVersion": "8002.4.0.0" },
+      { "family": "Microsoft.WinAppRuntime.DDLM.2.4.0.0-x6_8wekyb3d8bbwe", "minimumVersion": "2.4.0.0" }
+    ]
+  }
+}

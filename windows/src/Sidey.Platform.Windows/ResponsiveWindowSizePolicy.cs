@@ -16,8 +16,8 @@ public static class ResponsiveWindowSizePolicy
         SideyWindowKind kind)
     {
         ArgumentNullException.ThrowIfNull(monitor);
-        var scale = Math.Max(1d, monitor.Dpi / 96d);
-        var specification = Specification(kind);
+        double scale = Math.Max(1d, monitor.Dpi / 96d);
+        WindowSizeSpecification specification = Specification(kind);
         return new ResponsiveWindowSize(
             Math.Min(
                 Math.Max(1, (int)Math.Floor(monitor.WorkAreaPixels.Width * 0.94)),
@@ -32,8 +32,8 @@ public static class ResponsiveWindowSizePolicy
         SideyWindowKind kind)
     {
         ArgumentNullException.ThrowIfNull(monitor);
-        var scale = Math.Max(1d, monitor.Dpi / 96d);
-        var specification = Specification(kind);
+        double scale = Math.Max(1d, monitor.Dpi / 96d);
+        WindowSizeSpecification specification = Specification(kind);
 
         return new ResponsiveWindowSize(
             CalculateDimension(
@@ -57,14 +57,14 @@ public static class ResponsiveWindowSizePolicy
         int maximumDips,
         double scale)
     {
-        var workAreaMaximum = Math.Max(1, (int)Math.Floor(availablePixels * 0.94));
-        var maximum = Math.Min(
+        int workAreaMaximum = Math.Max(1, (int)Math.Floor(availablePixels * 0.94));
+        int maximum = Math.Min(
             workAreaMaximum,
             (int)Math.Round(maximumDips * scale, MidpointRounding.AwayFromZero));
-        var minimum = Math.Min(
+        int minimum = Math.Min(
             maximum,
             (int)Math.Round(minimumDips * scale, MidpointRounding.AwayFromZero));
-        var desired = (int)Math.Round(availablePixels * fraction, MidpointRounding.AwayFromZero);
+        int desired = (int)Math.Round(availablePixels * fraction, MidpointRounding.AwayFromZero);
         return Math.Clamp(desired, minimum, maximum);
     }
 
@@ -73,8 +73,8 @@ public static class ResponsiveWindowSizePolicy
         SideyWindowKind.Settings => new WindowSizeSpecification(
             WidthFraction: 0.50,
             HeightFraction: 0.60,
-            MinimumWidthDips: 640,
-            MinimumHeightDips: 560,
+            MinimumWidthDips: 860,
+            MinimumHeightDips: 640,
             MaximumWidthDips: 1120,
             MaximumHeightDips: 900),
         SideyWindowKind.History => new WindowSizeSpecification(

@@ -169,7 +169,7 @@ select throws_ok(
   $$select public.broadcast_room_event(
       (select room_id from hardening_room), 999999, 'typing_start', null
     )$$,
-  '40001',
+  'PT409',
   'stale_realtime_epoch',
   'stale epoch cannot publish transient events'
 );

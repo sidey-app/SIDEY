@@ -16,7 +16,7 @@ public sealed class MessageBubbleCollisionTests
             new(rightId, 240, 40, idleRemaining: 10),
         };
 
-        var affected = MessageBubbleCollisionResolver.Apply(
+        IReadOnlySet<Guid> affected = MessageBubbleCollisionResolver.Apply(
             agents,
             [
                 new MessageBubbleTrackBounds(leftId, 180, 260),
@@ -56,19 +56,19 @@ public sealed class MessageBubbleCollisionTests
         };
         var scratch = new MessageBubbleCollisionScratch();
 
-        for (var index = 0; index < 100; index++)
+        for (int index = 0; index < 100; index++)
         {
             MessageBubbleCollisionResolver.Apply(
                 agents, bubbles, 1d / 30d, geometry, scratch);
         }
 
-        var before = GC.GetAllocatedBytesForCurrentThread();
-        for (var index = 0; index < 1_000; index++)
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int index = 0; index < 1_000; index++)
         {
             MessageBubbleCollisionResolver.Apply(
                 agents, bubbles, 1d / 30d, geometry, scratch);
         }
-        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
         Assert.InRange(allocated, 0, 4_096);
     }

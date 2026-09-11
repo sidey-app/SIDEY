@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Sidey.Core.Abstractions;
@@ -9,7 +10,7 @@ namespace Sidey.Infrastructure;
 
 internal interface IAuthSessionAccessor
 {
-    ValueTask<StoredSupabaseSession?> GetStoredSessionAsync(CancellationToken cancellationToken = default);
+    public ValueTask<StoredSupabaseSession?> GetStoredSessionAsync(CancellationToken cancellationToken = default);
 }
 
 internal sealed record StoredSupabaseSession(
@@ -20,13 +21,16 @@ internal sealed record StoredSupabaseSession(
 
 public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAccessor, IDisposable
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions s_serializerOptions = new(JsonSerializerDefaults.Web);
 
     private readonly SupabaseRuntimeConfiguration _configuration;
     private readonly ICredentialStore _credentials;
     private readonly HttpClient _httpClient;
     private readonly bool _ownsHttpClient;
     private readonly SemaphoreSlim _gate = new(1, 1);
+#if SIDEY_DEVELOPMENT_COMMERCE
+    private PendingIdentityLink? _pendingIdentityLink;
+#endif
 
     public SupabaseAnonymousAuthService(
         SupabaseRuntimeConfiguration configuration,
@@ -44,7 +48,7 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var stored = await RestoreStoredSessionWithinGateAsync(cancellationToken)
+            StoredSupabaseSession? stored = await RestoreStoredSessionWithinGateAsync(cancellationToken)
                 .ConfigureAwait(false);
             return stored is null ? null : DomainSession(stored);
         }
@@ -66,7 +70,7 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
                     I18n.Get("auth.cannotReplaceStoredSession"));
             }
 
-            var created = await RequestSessionAsync(
+            StoredSupabaseSession created = await RequestSessionAsync(
                 HttpMethod.Post,
                 "/auth/v1/signup",
                 new { data = new { } },
@@ -85,11 +89,11 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var stored = await ReadStoredSessionAsync(cancellationToken).ConfigureAwait(false);
+            StoredSupabaseSession? stored = await ReadStoredSessionAsync(cancellationToken).ConfigureAwait(false);
             if (stored is not null)
             {
-                using var request = CreateRequest(HttpMethod.Post, "/auth/v1/logout", stored.AccessToken);
-                using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+                using HttpRequestMessage request = CreateRequest(HttpMethod.Post, "/auth/v1/logout", stored.AccessToken);
+                using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
                 _ = response.IsSuccessStatusCode;
             }
 
@@ -101,6 +105,100 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
             _gate.Release();
         }
     }
+
+#if SIDEY_DEVELOPMENT_COMMERCE
+    public async Task<Uri> BeginGoogleIdentityLinkAsync(
+        Uri redirectUri,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(redirectUri);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            StoredSupabaseSession session =
+                await RestoreStoredSessionWithinGateAsync(cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidOperationException(I18n.Get("auth.sessionMissing"));
+            string verifier = Base64Url(RandomNumberGenerator.GetBytes(64));
+            string challenge = Base64Url(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(verifier)));
+            string query = string.Join('&',
+                "provider=google",
+                $"redirect_to={Uri.EscapeDataString(redirectUri.AbsoluteUri)}",
+                $"code_challenge={Uri.EscapeDataString(challenge)}",
+                "code_challenge_method=s256",
+                "skip_http_redirect=true");
+            using var request = CreateRequest(
+                HttpMethod.Get,
+                $"/auth/v1/user/identities/authorize?{query}",
+                session.AccessToken);
+            using var response = await _httpClient.SendAsync(request, cancellationToken)
+                .ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            IdentityLinkEnvelope envelope =
+                await response.Content.ReadFromJsonAsync<IdentityLinkEnvelope>(
+                    s_serializerOptions,
+                    cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidDataException(I18n.Get("auth.emptyResponse"));
+            if (!Uri.TryCreate(envelope.Url, UriKind.Absolute, out Uri? authorizationUri)
+                || authorizationUri.Scheme != Uri.UriSchemeHttps)
+            {
+                throw new InvalidDataException(I18n.Get("auth.emptyResponse"));
+            }
+
+            _pendingIdentityLink = new PendingIdentityLink(
+                session.UserId,
+                verifier,
+                DateTimeOffset.UtcNow.AddMinutes(10));
+            return authorizationUri;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task CompleteGoogleIdentityLinkAsync(
+        string authCode,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(authCode))
+        {
+            throw new ArgumentException("OAuth code is required.", nameof(authCode));
+        }
+
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            PendingIdentityLink pending = _pendingIdentityLink
+                ?? throw new InvalidOperationException(I18n.Get("auth.identityLinkExpired"));
+            _pendingIdentityLink = null;
+            if (pending.ExpiresAt <= DateTimeOffset.UtcNow)
+            {
+                throw new InvalidOperationException(I18n.Get("auth.identityLinkExpired"));
+            }
+
+            StoredSupabaseSession linked = await RequestSessionAsync(
+                HttpMethod.Post,
+                "/auth/v1/token?grant_type=pkce",
+                new { auth_code = authCode, code_verifier = pending.CodeVerifier },
+                cancellationToken).ConfigureAwait(false);
+            if (linked.UserId != pending.UserId)
+            {
+                throw new InvalidOperationException(I18n.Get("auth.identityChanged"));
+            }
+
+            await StoreAsync(linked, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private static string Base64Url(byte[] bytes) => Convert.ToBase64String(bytes)
+        .TrimEnd('=')
+        .Replace('+', '-')
+        .Replace('/', '_');
+#endif
 
     async ValueTask<StoredSupabaseSession?> IAuthSessionAccessor.GetStoredSessionAsync(
         CancellationToken cancellationToken)
@@ -132,17 +230,19 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
         object body,
         CancellationToken cancellationToken)
     {
-        using var request = CreateRequest(method, relativePath);
-        request.Content = JsonContent.Create(body, options: SerializerOptions);
-        using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        using HttpRequestMessage request = CreateRequest(method, relativePath);
+        request.Content = JsonContent.Create(body, options: s_serializerOptions);
+        using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
             throw new HttpRequestException(
-                I18n.Format("auth.requestFailed", (int)response.StatusCode));
+                I18n.Format("auth.requestFailed", (int)response.StatusCode),
+                inner: null,
+                response.StatusCode);
         }
 
-        var envelope = await response.Content.ReadFromJsonAsync<AuthEnvelope>(
-            SerializerOptions,
+        AuthEnvelope envelope = await response.Content.ReadFromJsonAsync<AuthEnvelope>(
+            s_serializerOptions,
             cancellationToken).ConfigureAwait(false)
             ?? throw new InvalidDataException(I18n.Get("auth.emptyResponse"));
         if (string.IsNullOrWhiteSpace(envelope.AccessToken)
@@ -177,7 +277,7 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
     private async ValueTask<StoredSupabaseSession?> ReadStoredSessionAsync(
         CancellationToken cancellationToken)
     {
-        var value = await _credentials.ReadAsync(CredentialKey.SupabaseSession, cancellationToken)
+        string? value = await _credentials.ReadAsync(CredentialKey.SupabaseSession, cancellationToken)
             .ConfigureAwait(false);
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -186,7 +286,7 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
 
         try
         {
-            return JsonSerializer.Deserialize<StoredSupabaseSession>(value, SerializerOptions)
+            return JsonSerializer.Deserialize<StoredSupabaseSession>(value, s_serializerOptions)
                 ?? throw new JsonException("Session payload was null.");
         }
         catch (JsonException exception)
@@ -198,13 +298,13 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
     private async Task<StoredSupabaseSession?> RestoreStoredSessionWithinGateAsync(
         CancellationToken cancellationToken)
     {
-        var stored = await ReadStoredSessionAsync(cancellationToken).ConfigureAwait(false);
+        StoredSupabaseSession? stored = await ReadStoredSessionAsync(cancellationToken).ConfigureAwait(false);
         if (stored is null || stored.ExpiresAt > DateTimeOffset.UtcNow.AddMinutes(1))
         {
             return stored;
         }
 
-        var refreshed = await RequestSessionAsync(
+        StoredSupabaseSession refreshed = await RequestSessionAsync(
             HttpMethod.Post,
             "/auth/v1/token?grant_type=refresh_token",
             new { refresh_token = stored.RefreshToken },
@@ -217,7 +317,7 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
         StoredSupabaseSession session,
         CancellationToken cancellationToken)
     {
-        var value = JsonSerializer.Serialize(session, SerializerOptions);
+        string value = JsonSerializer.Serialize(session, s_serializerOptions);
         await _credentials.WriteAsync(CredentialKey.SupabaseSession, value, cancellationToken)
             .ConfigureAwait(false);
     }
@@ -232,4 +332,12 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
         [property: JsonPropertyName("user")] AuthUser? User);
 
     private sealed record AuthUser([property: JsonPropertyName("id")] Guid Id);
+
+#if SIDEY_DEVELOPMENT_COMMERCE
+    private sealed record IdentityLinkEnvelope(string? Url);
+    private sealed record PendingIdentityLink(
+        Guid UserId,
+        string CodeVerifier,
+        DateTimeOffset ExpiresAt);
+#endif
 }

@@ -1,0 +1,18 @@
+<meta name="theme-color" content="#f7f7ff" data-site-theme-color>
+<script is:inline>
+  (() => {
+    let savedTheme = null;
+    try {
+      savedTheme = localStorage.getItem("sidey-theme");
+    } catch {}
+
+    if (savedTheme === "light" || savedTheme === "dark") {
+      document.documentElement.dataset.theme = savedTheme;
+    }
+
+    const resolvedTheme = savedTheme === "light" || savedTheme === "dark"
+      ? savedTheme
+      : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    document.querySelector("[data-site-theme-color]")?.setAttribute("content", resolvedTheme === "dark" ? "#12121a" : "#f7f7ff");
+  })();
+</script>

@@ -1,0 +1,66 @@
+---
+import InfoLayout from "../layouts/InfoLayout.astro";
+import PageTabs from "./PageTabs.astro";
+import { getTranslations, type Locale } from "../i18n/landing";
+import { getGitHubReleases, type ReleasePlatform } from "../data/github-releases";
+
+interface Props {
+  locale: Locale;
+  platform?: ReleasePlatform;
+  canonicalPath?: string;
+}
+
+const { locale, platform = "macos", canonicalPath } = Astro.props;
+const copy = getTranslations(locale).whatsNew;
+const base = import.meta.env.BASE_URL;
+const localePrefix = `${locale}/`;
+const platformLabel = copy.tabs[platform];
+const tabs = [
+  { href: `${base}${localePrefix}whats-new/macos/`, label: copy.tabs.macos, active: platform === "macos" },
+  { href: `${base}${localePrefix}whats-new/windows/`, label: copy.tabs.windows, active: platform === "windows" },
+];
+const resolvedCanonicalPath = canonicalPath ?? `${localePrefix}whats-new/${platform}/`;
+const platformReleases = await getGitHubReleases(platform);
+const dateLocales: Record<Locale, string> = { ko: "ko-KR", en: "en-US", ja: "ja-JP" };
+const dateFormatter = new Intl.DateTimeFormat(dateLocales[locale], {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
+const initialReleaseCount = 3;
+---
+
+<InfoLayout locale={locale} title={`${platformLabel} ${copy.title} · SIDEY`} description={copy.intro} canonicalPath={resolvedCanonicalPath}>
+  <section class="section whats-new-hero" aria-labelledby="whats-new-title">
+    <h1 id="whats-new-title">{copy.title}</h1>
+    <p>{copy.intro}</p>
+    <PageTabs label={copy.tabs.label} items={tabs} />
+  </section>
+  <section class="section update-list" aria-label={`${platformLabel} ${copy.title}`}>
+    {platformReleases.map((release, index) => (
+      <details class:list={["update-card", { "is-expanded": index === 0 }]} open={index === 0} data-release-item hidden={index >= initialReleaseCount}>
+        <summary>
+          <div class="update-version">
+            <span>{platformLabel}</span><h2>v{release.version}</h2>
+            {release.publishedAt && <time datetime={release.publishedAt}>{dateFormatter.format(new Date(release.publishedAt))}</time>}
+          </div>
+          <span class="update-toggle-label"><span class="when-closed">{copy.openDetails}</span><span class="when-open">{copy.closeDetails}</span><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></span>
+        </summary>
+        <div class="update-answer"><div class="update-copy" lang="ko">
+          {release.introduction.map((paragraph) => <p>{paragraph}</p>)}
+          {release.sections.map((section) => (
+            <section class="release-section">
+              {section.heading && <h3>{section.heading}</h3>}
+              {section.paragraphs.map((paragraph) => <p>{paragraph}</p>)}
+              {section.items.length > 0 && <ul>{section.items.map((point) => <li>{point}</li>)}</ul>}
+            </section>
+          ))}
+          <a class="release-link" href={release.url}>{copy.viewRelease}<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
+        </div></div>
+      </details>
+    ))}
+    {platformReleases.length > initialReleaseCount && <div class="release-scroll-sentinel" data-release-sentinel aria-hidden="true"><span></span></div>}
+    <p class="visually-hidden" data-release-status role="status" aria-live="polite" data-loaded-label={copy.loadedMore}></p>
+  </section>
+  <script src={`${base}assets/releases.js`} defer is:inline></script>
+</InfoLayout>

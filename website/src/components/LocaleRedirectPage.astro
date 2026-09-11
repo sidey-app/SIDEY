@@ -1,0 +1,59 @@
+---
+import { getRelativeLocaleUrl } from "astro:i18n";
+
+interface Props {
+  path?: string;
+  title?: string;
+}
+
+const { path = "", title = "SIDEY" } = Astro.props;
+const normalizedPath = path.replace(/^\/+|\/+$/g, "");
+const routeSuffix = normalizedPath ? `${normalizedPath}/` : "";
+const baseUrl = import.meta.env.BASE_URL.endsWith("/")
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+const koreanTarget = `${getRelativeLocaleUrl("ko")}${routeSuffix}`;
+const englishTarget = `${getRelativeLocaleUrl("en")}${routeSuffix}`;
+const japaneseTarget = `${getRelativeLocaleUrl("ja")}${routeSuffix}`;
+const gatewayTarget = `${baseUrl}${routeSuffix}`;
+---
+
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{title}</title>
+    <meta name="description" content="SIDEY language selection">
+    <link rel="alternate" hreflang="ko" href={new URL(koreanTarget, Astro.site)}>
+    <link rel="alternate" hreflang="en" href={new URL(englishTarget, Astro.site)}>
+    <link rel="alternate" hreflang="ja" href={new URL(japaneseTarget, Astro.site)}>
+    <link rel="alternate" hreflang="x-default" href={new URL(gatewayTarget, Astro.site)}>
+    <script is:inline define:vars={{ koreanTarget, englishTarget, japaneseTarget }}>
+      (() => {
+        const preferredLanguage = navigator.languages?.[0] ?? navigator.language ?? "";
+        const language = preferredLanguage.toLowerCase();
+        const destination = language.startsWith("ko")
+          ? koreanTarget
+          : language.startsWith("ja")
+            ? japaneseTarget
+            : englishTarget;
+        const target = new URL(destination, window.location.origin);
+        target.search = window.location.search;
+        target.hash = window.location.hash;
+        window.location.replace(target.href);
+      })();
+    </script>
+  </head>
+  <body>
+    <main>
+      <p>
+        <a href={koreanTarget} lang="ko" hreflang="ko">한국어</a>
+        ·
+        <a href={englishTarget} lang="en" hreflang="en">English</a>
+        ·
+        <a href={japaneseTarget} lang="ja" hreflang="ja">日本語</a>
+      </p>
+    </main>
+  </body>
+</html>

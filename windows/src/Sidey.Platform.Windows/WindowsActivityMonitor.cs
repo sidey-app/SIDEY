@@ -15,7 +15,7 @@ public sealed class WindowsActivityMonitor(
     TimeSpan? sampleInterval = null) : IActivityMonitor
 {
     private readonly TimeSpan _awayThreshold = awayThreshold ?? TimeSpan.FromMinutes(5);
-    private readonly TimeSpan _sampleInterval = sampleInterval ?? TimeSpan.FromSeconds(5);
+    private readonly TimeSpan _sampleInterval = sampleInterval ?? TimeSpan.FromSeconds(1);
     private readonly CancellationTokenSource _shutdown = new();
 
     public async IAsyncEnumerable<PresenceState> ObserveAsync(
@@ -28,7 +28,7 @@ public sealed class WindowsActivityMonitor(
         PresenceState? previous = null;
         do
         {
-            var state = CurrentState();
+            PresenceState state = CurrentState();
             if (state != previous)
             {
                 previous = state;
@@ -58,15 +58,15 @@ public sealed class WindowsActivityMonitor(
             return PresenceState.Away;
         }
 
-        var elapsedMilliseconds = unchecked((uint)Environment.TickCount64 - input.Time);
+        uint elapsedMilliseconds = unchecked((uint)Environment.TickCount64 - input.Time);
         return IsScreenLocked() || elapsedMilliseconds >= _awayThreshold.TotalMilliseconds
             ? PresenceState.Away
             : PresenceState.Online;
     }
 
-    private static bool IsScreenLocked()
+    public static bool IsScreenLocked()
     {
-        var desktop = NativeMethods.OpenInputDesktop(0, false, 0x0001);
+        nint desktop = NativeMethods.OpenInputDesktop(0, false, 0x0001);
         if (desktop == nint.Zero)
         {
             return true;

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIDEY — 하트 한 번·채팅음 3안</title>
+<link rel="stylesheet" href="review.css">
+<script defer src="review-data.js"></script>
+<script defer src="review.js"></script>
+<body>
+<main>
+  <header>
+    <p class="eyebrow">SIDEY <span>DESIGN REVIEW · 07</span></p>
+    <h1>하트는 한 번 뾲.<br>채팅에는 작은 알림.</h1>
+    <p class="intro">하트는 팝 한 번으로 수정했습니다. 기존 첫 팝의 음색과 음량은 그대로입니다.<br>새 채팅 말풍선이 나타날 때 소리도 서로 다른 세 방향으로 준비했습니다.</p>
+    <div class="tags"><span>하트 · 팝 한 번</span><span>채팅음 3안</span><span>7종 선택 완료</span><span>확대음 폐기 유지</span><span>직배포판 전용 시안</span></div>
+  </header>
+  <nav id="group-nav" class="group-nav" aria-label="소리 종류 바로가기"></nav>
+  <div class="playback-toolbar"><span id="event-cue" aria-hidden="true">대기</span><p id="playback-status" class="status" role="status">재생할 후보를 골라 주세요.</p><button id="stop-all" class="secondary">모든 소리 정지</button></div>
+  <p class="section-note">종류별 비교 버튼은 A → B → C 순서로 한 번씩 재생합니다. 반복 듣기는 하트·오리·기존 피격음 0.5초, 대포·채팅음 1초 간격이며 다른 재생을 누르면 이전 소리는 멈춥니다.</p>
+  <p class="section-note">피격음은 맞는 순간, 채팅음은 말풍선이 나타나는 순간의 소리입니다. 하트는 한 번 맞으면 팝 한 번입니다. ‘한 번 듣기’는 이벤트 1회, ‘피격 3회 듣기’와 ‘채팅 3개 듣기’는 각각 별도 이벤트 3회를 비교합니다.</p>
+  <div id="sound-groups"></div>
+  <noscript>JavaScript를 켜면 종류별 재생 버튼이 표시됩니다. audio 폴더의 WAV도 직접 열 수 있습니다.</noscript>
+  <section aria-labelledby="visual-heading">
+    <div class="section-heading"><div><p class="eyebrow">VISUAL / V2</p><h2 id="visual-heading">기절 · 승인된 별과 링</h2></div><a href="../round-2/index.html#visual-heading">PNG·원본 보기</a></div>
+    <p class="section-note">별 회전과 얇은 링은 2차 시안 그대로 유지했습니다. 기절은 6초, 회복 후 보호 시간은 없습니다. 이 시안으로 기절 선행 구현을 마쳤습니다.</p>
+    <img class="motion preserved-motion" src="../round-2/visual/hamster-stun-orbit-v2.gif" alt="기존 별 회전과 금색 링을 유지한 햄스터 기절 시안" width="384" height="252">
+  </section>
+  <section class="feedback" aria-labelledby="feedback-heading">
+    <p class="eyebrow">FEEDBACK</p><h2 id="feedback-heading">종류별로 고르고, 한 번에 보내 주세요</h2>
+    <p>하트와 채팅음은 각각 A/B/C 중에서 골라 주세요. 나머지 일곱 소리는 선택한 파일·음량 그대로 유지했습니다. 후보 선택이 서버로 전송되거나 자동 승인되지는 않습니다.</p>
+    <label for="feedback-notes">다듬고 싶은 부분</label><textarea id="feedback-notes" rows="3" placeholder="예: 하트 A, 채팅 C를 조금 더 짧게"></textarea>
+    <button id="prepare-feedback">선택과 피드백 정리</button><textarea id="feedback-result" rows="12" readonly aria-label="채팅으로 전달할 후보 선택과 피드백" placeholder="선택을 정리한 뒤 복사해서 채팅으로 보내 주세요."></textarea>
+  </section>
+  <p class="section-note"><a href="../round-2/index.html">기절 2차 시안과 비교</a> · <a href="../round-4/index.html">4차 원본</a> · <a href="audio-manifest.json">음원 목록·파일 해시</a></p>
+  <p class="section-note">하트 음원 바탕: <a href="https://freesound.org/people/fleurescence/sounds/573153/">fleurescence · Mouth pop</a>, <a href="https://freesound.org/people/jcallison/sounds/258269/">jcallison · Mouth pop</a>, <a href="https://freesound.org/people/hollandm/sounds/691906/">hollandm · Mouth pop 1</a>. CC0로 공개된 샘플을 편집했습니다. 채팅 A·C는 직접 합성했고, B는 기존 Kenney 나무 타격 샘플을 편집했습니다. <a href="../round-6/sources/manifest.json">입술 팝 소스·라이선스·해시</a> · <a href="../round-4/sources/manifest.json">기존 음원 소스</a></p>
+  <footer>SIDEY · 7차 검토 후보 · 승인받은 에셋만 직배포판에 적용합니다.</footer>
+</main>
+</body>
+</html>

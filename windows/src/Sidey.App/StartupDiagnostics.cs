@@ -1,6 +1,12 @@
 using System.ComponentModel;
+using System.Diagnostics;
+using System.Net.Http;
+using System.Net.Sockets;
+using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Authentication;
 using System.Text;
+using System.Text.RegularExpressions;
 using Sidey.Core.Localization;
 
 namespace Sidey.App;
@@ -10,33 +16,48 @@ internal static class StartupDiagnostics
     private const long MaximumLogFileBytes = 4L * 1024 * 1024;
     private const long MaximumLogDirectoryBytes = 32L * 1024 * 1024;
     private const int MaximumLogFileCount = 100;
-    private static readonly TimeSpan LogRetention = TimeSpan.FromDays(30);
-    private static readonly TimeSpan CleanupInterval = TimeSpan.FromHours(6);
-    private static readonly object Gate = new();
-    private static readonly string LogDirectory = Path.Combine(
+    private static readonly TimeSpan s_logRetention = TimeSpan.FromDays(30);
+    private static readonly TimeSpan s_cleanupInterval = TimeSpan.FromHours(6);
+    private static readonly TimeSpan s_runtimeHealthInterval = TimeSpan.FromMinutes(1);
+    private static readonly Lock s_gate = new();
+    private static readonly Dictionary<string, int> s_errorRepeatCounts = new(StringComparer.Ordinal);
+    private static readonly string s_logDirectory = Path.Combine(
         Sidey.Core.Storage.SideyStoragePaths.LocalApplicationDataRoot(),
         "SIDEY",
         "Logs");
-    private static string _logKind = "startup";
-    private static string _logPath = CreateLogPath(_logKind);
-    private static DateTime _lastLogTimestamp = DateTime.MinValue;
-    private static Timer? _cleanupTimer;
-    private static int _fatalDialogShown;
+    private static string s_logPath = string.Empty;
+    private static DateTimeOffset s_lastLogTimestamp = DateTimeOffset.MinValue;
+    private static Timer? s_cleanupTimer;
+    private static Timer? s_runtimeHealthTimer;
+    private static int s_fatalDialogShown;
+    private static bool s_logCapacityReached;
 
     public static void BeginSession()
     {
-        lock (Gate)
+        lock (s_gate)
         {
             try
             {
-                Directory.CreateDirectory(LogDirectory);
+                Directory.CreateDirectory(s_logDirectory);
+                string? previousLogPath = FindPreviousSessionLog();
+                s_logPath = CreateLogPath();
                 CleanupLogs();
-                _cleanupTimer ??= new Timer(
+                s_cleanupTimer ??= new Timer(
                     CleanupOnTimer,
                     null,
-                    CleanupInterval,
-                    CleanupInterval);
-                AppendLine($"session-start version={AppVersion()} os={Environment.OSVersion.Version}");
+                    s_cleanupInterval,
+                    s_cleanupInterval);
+                AppendLine(
+                    $"session-start version={AppVersion()} build={BuildVersion()} "
+                    + $"os={Environment.OSVersion.Version} "
+                    + $"os-arch={RuntimeInformation.OSArchitecture.ToString().ToLowerInvariant()} "
+                    + $"process-arch={RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant()} "
+                    + $"runtime={RuntimeInformation.FrameworkDescription.Replace(' ', '_')} "
+                    + $"processors={Environment.ProcessorCount} time-zone=UTC offset=+00:00");
+                if (previousLogPath is not null && !EndedNormally(previousLogPath))
+                {
+                    AppendLine("previous-session-end result=unclean");
+                }
             }
             catch
             {
@@ -47,18 +68,43 @@ internal static class StartupDiagnostics
 
     public static void MarkRunning()
     {
-        lock (Gate)
+        lock (s_gate)
         {
             try
             {
                 AppendLine("startup-complete");
-                _logKind = "running";
-                _logPath = CreateLogPath(_logKind);
                 AppendLine("runtime-start");
+                s_runtimeHealthTimer ??= new Timer(
+                    RecordRuntimeHealth,
+                    null,
+                    s_runtimeHealthInterval,
+                    s_runtimeHealthInterval);
             }
             catch
             {
                 // Diagnostics must never become another startup failure.
+            }
+        }
+    }
+
+    public static void CompleteSession()
+    {
+        lock (s_gate)
+        {
+            try
+            {
+                AppendLine("shutdown-complete result=normal");
+            }
+            catch
+            {
+                // Diagnostics must never prevent shutdown.
+            }
+            finally
+            {
+                s_runtimeHealthTimer?.Dispose();
+                s_runtimeHealthTimer = null;
+                s_cleanupTimer?.Dispose();
+                s_cleanupTimer = null;
             }
         }
     }
@@ -79,11 +125,11 @@ internal static class StartupDiagnostics
 
     private static void Write(string value)
     {
-        lock (Gate)
+        lock (s_gate)
         {
             try
             {
-                Directory.CreateDirectory(LogDirectory);
+                Directory.CreateDirectory(s_logDirectory);
                 AppendLine(value);
             }
             catch
@@ -97,8 +143,8 @@ internal static class StartupDiagnostics
     {
         ArgumentNullException.ThrowIfNull(exception);
         var builder = new StringBuilder();
-        var current = exception;
-        for (var depth = 0; current is not null && depth < 8; depth++)
+        Exception? current = exception;
+        for (int depth = 0; current is not null && depth < 8; depth++)
         {
             if (depth > 0)
             {
@@ -111,11 +157,19 @@ internal static class StartupDiagnostics
             if (!string.IsNullOrWhiteSpace(current.StackTrace))
             {
                 builder.Append(" stack=");
-                builder.Append(current.StackTrace.ReplaceLineEndings(" <- "));
+                builder.Append(SanitizeStackTrace(current.StackTrace));
             }
             current = current.InnerException;
         }
-        Write($"{severity} stage={stage} exception={builder}");
+
+        string repeatKey = $"{severity}:{stage}:{exception.GetType().FullName}:{exception.HResult:X8}";
+        int repeat;
+        lock (s_gate)
+        {
+            repeat = s_errorRepeatCounts.GetValueOrDefault(repeatKey) + 1;
+            s_errorRepeatCounts[repeatKey] = repeat;
+        }
+        Write($"{severity} stage={stage} repeat={repeat} exception={builder}");
     }
 
     private static void AppendSafeDetails(StringBuilder builder, Exception exception)
@@ -142,6 +196,31 @@ internal static class StartupDiagnostics
                 builder.Append(" type=");
                 builder.Append(typeName);
                 break;
+            case HttpRequestException http:
+                builder.Append(" category=http");
+                if (http.StatusCode is { } statusCode)
+                {
+                    builder.Append(" status=");
+                    builder.Append((int)statusCode);
+                }
+                break;
+            case SocketException socket:
+                builder.Append(" category=");
+                builder.Append(IsDnsError(socket.SocketErrorCode) ? "dns" : "socket");
+                builder.Append(" socket=");
+                builder.Append(socket.SocketErrorCode);
+                builder.Append(" native-error=");
+                builder.Append(socket.NativeErrorCode);
+                break;
+            case AuthenticationException:
+                builder.Append(" category=tls");
+                break;
+            case TimeoutException:
+                builder.Append(" category=timeout");
+                break;
+            case TaskCanceledException:
+                builder.Append(" category=timeout");
+                break;
             case Win32Exception win32:
                 builder.Append(" native-error=");
                 builder.Append(win32.NativeErrorCode);
@@ -149,36 +228,115 @@ internal static class StartupDiagnostics
         }
     }
 
+    private static bool IsDnsError(SocketError error) => error is
+        SocketError.HostNotFound or SocketError.NoData or SocketError.TryAgain;
+
+    private static string SanitizeStackTrace(string stackTrace) => Regex.Replace(
+        stackTrace,
+        @" in .*?:line \d+",
+        " source-location-redacted",
+        RegexOptions.CultureInvariant).ReplaceLineEndings(" <- ");
+
     private static void AppendLine(string value)
     {
+        if (string.IsNullOrEmpty(s_logPath) || s_logCapacityReached)
+        {
+            return;
+        }
+
         string line = $"{DateTimeOffset.UtcNow:O} pid={Environment.ProcessId} {value}{Environment.NewLine}";
         int lineBytes = Encoding.UTF8.GetByteCount(line);
-        if (File.Exists(_logPath)
-            && new FileInfo(_logPath).Length + lineBytes > MaximumLogFileBytes)
+        if (File.Exists(s_logPath)
+            && new FileInfo(s_logPath).Length + lineBytes > MaximumLogFileBytes)
         {
-            _logPath = CreateLogPath(_logKind);
-            CleanupLogs();
+            const string CapacityLine = "log-capacity-reached further-events=discarded";
+            string marker = $"{DateTimeOffset.UtcNow:O} pid={Environment.ProcessId} {CapacityLine}{Environment.NewLine}";
+            File.AppendAllText(s_logPath, marker, Encoding.UTF8);
+            s_logCapacityReached = true;
+            return;
         }
 
-        File.AppendAllText(_logPath, line, Encoding.UTF8);
+        File.AppendAllText(s_logPath, line, Encoding.UTF8);
     }
 
-    private static string CreateLogPath(string kind)
+    private static string CreateLogPath()
     {
-        DateTime timestamp = DateTime.Now;
-        if (timestamp <= _lastLogTimestamp)
+        DateTimeOffset timestamp = DateTimeOffset.UtcNow;
+        if (timestamp <= s_lastLogTimestamp)
         {
-            timestamp = _lastLogTimestamp.AddMilliseconds(1);
+            timestamp = s_lastLogTimestamp.AddSeconds(1);
         }
 
-        _lastLogTimestamp = timestamp;
-        return Path.Combine(LogDirectory, $"{timestamp:yyyyMMdd-HHmmssfff}-{kind}.log");
+        string path;
+        do
+        {
+            path = Path.Combine(
+                s_logDirectory,
+                $"SIDEY.{VersionToken()}.{timestamp:yyyyMMdd}.{timestamp:HHmmss}.log");
+            timestamp = timestamp.AddSeconds(1);
+        }
+        while (File.Exists(path));
+
+        s_lastLogTimestamp = timestamp.AddSeconds(-1);
+        return path;
+    }
+
+    private static string? FindPreviousSessionLog() => Directory
+        .EnumerateFiles(s_logDirectory, "SIDEY.*.log", SearchOption.TopDirectoryOnly)
+        .OrderByDescending(File.GetLastWriteTimeUtc)
+        .FirstOrDefault();
+
+    private static bool EndedNormally(string path)
+    {
+        try
+        {
+            return File.ReadLines(path)
+                .TakeLast(32)
+                .Any(line => line.Contains(
+                    "shutdown-complete result=normal",
+                    StringComparison.Ordinal));
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static void RecordRuntimeHealth(object? state)
+    {
+        _ = state;
+        lock (s_gate)
+        {
+            try
+            {
+                using var process = Process.GetCurrentProcess();
+                uint gdiObjects = OperatingSystem.IsWindows()
+                    ? NativeMethods.GetGuiResources(process.Handle, 0)
+                    : 0;
+                uint userObjects = OperatingSystem.IsWindows()
+                    ? NativeMethods.GetGuiResources(process.Handle, 1)
+                    : 0;
+                AppendLine(
+                    $"runtime-health working-set-bytes={process.WorkingSet64} "
+                    + $"private-bytes={process.PrivateMemorySize64} "
+                    + $"managed-bytes={GC.GetTotalMemory(forceFullCollection: false)} "
+                    + $"handles={process.HandleCount} gdi-objects={gdiObjects} user-objects={userObjects}");
+            }
+            catch
+            {
+                // Health diagnostics must remain best effort.
+            }
+        }
     }
 
     private static void CleanupOnTimer(object? state)
     {
         _ = state;
-        lock (Gate)
+        lock (s_gate)
         {
             try
             {
@@ -193,21 +351,19 @@ internal static class StartupDiagnostics
 
     private static void CleanupLogs()
     {
-        if (!Directory.Exists(LogDirectory))
+        if (!Directory.Exists(s_logDirectory))
         {
             return;
         }
 
-        DateTime retentionThreshold = DateTime.UtcNow - LogRetention;
+        DateTime retentionThreshold = DateTime.UtcNow - s_logRetention;
         foreach (FileInfo expired in LogFiles()
                      .Where(file => file.LastWriteTimeUtc < retentionThreshold))
         {
             DeleteLog(expired);
         }
 
-        FileInfo[] retained = LogFiles()
-            .OrderBy(file => file.LastWriteTimeUtc)
-            .ToArray();
+        FileInfo[] retained = [.. LogFiles().OrderBy(file => file.LastWriteTimeUtc)];
         long totalBytes = retained.Sum(file => file.Length);
         int fileCount = retained.Length;
         foreach (FileInfo candidate in retained)
@@ -217,7 +373,7 @@ internal static class StartupDiagnostics
                 break;
             }
 
-            if (StringComparer.OrdinalIgnoreCase.Equals(candidate.FullName, _logPath))
+            if (StringComparer.OrdinalIgnoreCase.Equals(candidate.FullName, s_logPath))
             {
                 continue;
             }
@@ -232,11 +388,11 @@ internal static class StartupDiagnostics
     }
 
     private static IEnumerable<FileInfo> LogFiles() =>
-        new DirectoryInfo(LogDirectory).EnumerateFiles("*.log", SearchOption.TopDirectoryOnly);
+        new DirectoryInfo(s_logDirectory).EnumerateFiles("*.log", SearchOption.TopDirectoryOnly);
 
     private static bool DeleteLog(FileInfo file)
     {
-        if (StringComparer.OrdinalIgnoreCase.Equals(file.FullName, _logPath))
+        if (StringComparer.OrdinalIgnoreCase.Equals(file.FullName, s_logPath))
         {
             return false;
         }
@@ -257,19 +413,25 @@ internal static class StartupDiagnostics
     }
 
     private static string AppVersion() =>
-        typeof(App).Assembly.GetName().Version?.ToString() ?? "unknown";
+        typeof(App).Assembly.GetName().Version?.ToString(3) ?? "unknown";
+
+    private static string BuildVersion() =>
+        typeof(App).Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version
+        ?? "unknown";
+
+    private static string VersionToken() => AppVersion().Replace('.', '_');
 
     private static void ShowFatalDialog()
     {
         if (!OperatingSystem.IsWindows()
-            || Interlocked.Exchange(ref _fatalDialogShown, 1) != 0)
+            || Interlocked.Exchange(ref s_fatalDialogShown, 1) != 0)
         {
             return;
         }
 
         _ = NativeMethods.MessageBox(
             nint.Zero,
-            I18n.Format("error.startupWithLog", _logPath),
+            I18n.Format("error.startupWithLog", s_logPath),
             I18n.Get("error.fatalTitle"),
             0x00000010u | 0x00000000u);
     }
@@ -278,5 +440,8 @@ internal static class StartupDiagnostics
     {
         [DllImport("user32.dll", EntryPoint = "MessageBoxW", CharSet = CharSet.Unicode)]
         public static extern int MessageBox(nint window, string text, string caption, uint type);
+
+        [DllImport("user32.dll")]
+        public static extern uint GetGuiResources(nint process, uint flags);
     }
 }

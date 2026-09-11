@@ -14,8 +14,18 @@ fi
 
 SIDEY_BASE_VERSION=$(printf '%s\n' "$SIDEY_RELEASE_TAG" | sed -E 's/^v//; s/-.*$//')
 SIDEY_PROJECT_FILE="$SIDEY_REPO_ROOT/macos/SIDEY.xcodeproj/project.pbxproj"
-SIDEY_CONFIGURED_VERSION=$(sed -n 's/^[[:space:]]*MARKETING_VERSION = \([^;]*\);$/\1/p' "$SIDEY_PROJECT_FILE" | sort -u)
-SIDEY_BUILD_NUMBER=$(sed -n 's/^[[:space:]]*CURRENT_PROJECT_VERSION = \([^;]*\);$/\1/p' "$SIDEY_PROJECT_FILE" | sort -u)
+SIDEY_DIRECT_METADATA=$(python3 - "$SIDEY_PROJECT_FILE" "$SIDEY_REPO_ROOT/scripts" <<'PYTHON'
+from pathlib import Path
+import sys
+sys.path.insert(0, sys.argv[2])
+from verify_release_consistency import project_value_for_bundle_identifier
+project = Path(sys.argv[1]).read_text(encoding="utf-8")
+for setting in ("MARKETING_VERSION", "CURRENT_PROJECT_VERSION"):
+    print(project_value_for_bundle_identifier(project, "$(SIDEY_APP_BUNDLE_IDENTIFIER)", setting))
+PYTHON
+)
+SIDEY_CONFIGURED_VERSION=$(printf '%s\n' "$SIDEY_DIRECT_METADATA" | sed -n '1p')
+SIDEY_BUILD_NUMBER=$(printf '%s\n' "$SIDEY_DIRECT_METADATA" | sed -n '2p')
 
 if [ "$SIDEY_BASE_VERSION" != "$SIDEY_CONFIGURED_VERSION" ]; then
 	echo "Release tag base version $SIDEY_BASE_VERSION does not match app version $SIDEY_CONFIGURED_VERSION" >&2

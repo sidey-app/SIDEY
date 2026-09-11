@@ -367,6 +367,161 @@ final class PresenceAndRealtimeTests: XCTestCase {
         XCTAssertTrue(status.activeRoomTransportConnected)
     }
 
+    func testInactiveRoomChannelSwapKeepsActiveRoomTransportConnected() {
+        let status = RealtimeConnectionStatusPolicy.resolve(
+            pathAvailable: true,
+            socketAvailable: true,
+            recoveryTaskRunning: false,
+            rebuildingChannels: true,
+            allRoomsSubscribed: false,
+            recoveryReconciled: false,
+            hasActiveRoom: true,
+            activeRoomSubscribed: true
+        )
+
+        XCTAssertFalse(status.transportConnected)
+        XCTAssertFalse(status.isReady)
+        XCTAssertTrue(status.activeRoomTransportConnected)
+    }
+
+    func testActiveRoomChannelSwapTemporarilyDisconnectsOnlyActiveRoom() {
+        let status = RealtimeConnectionStatusPolicy.resolve(
+            pathAvailable: true,
+            socketAvailable: true,
+            recoveryTaskRunning: false,
+            rebuildingChannels: true,
+            allRoomsSubscribed: false,
+            recoveryReconciled: false,
+            hasActiveRoom: true,
+            activeRoomSubscribed: false
+        )
+
+        XCTAssertFalse(status.activeRoomTransportConnected)
+    }
+
+    func testActiveRoomReconnectDoesNotResetInactiveRoomPresence() {
+        let userID = UUID()
+        let activeRoomID = UUID()
+        let inactiveRoomID = UUID()
+        let inactiveFriendID = UUID()
+        var preferences = AppPreferences.defaults
+        preferences.activeRoomID = activeRoomID
+        let model = AppModel(preferences: preferences)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(id: userID, nickname: "나", characterID: "pixel_hamster"),
+                rooms: [
+                    Room(
+                        id: activeRoomID,
+                        name: "활성",
+                        ownerID: userID,
+                        members: [RoomMember(
+                            userID: userID,
+                            nickname: "나",
+                            characterID: "pixel_hamster",
+                            presence: .online
+                        )],
+                        inviteCodeHint: "AB••••"
+                    ),
+                    Room(
+                        id: inactiveRoomID,
+                        name: "비활성",
+                        ownerID: inactiveFriendID,
+                        members: [RoomMember(
+                            userID: inactiveFriendID,
+                            nickname: "친구",
+                            characterID: "pixel_cat",
+                            presence: .online
+                        )],
+                        inviteCodeHint: "CD••••"
+                    ),
+                ]
+            ),
+            currentUserID: userID
+        )
+
+        model.setActiveRoomRealtimeConnected(false)
+
+        XCTAssertEqual(model.rooms[0].members[0].presence, .reconnecting)
+        XCTAssertEqual(model.rooms[1].members[0].presence, .online)
+    }
+
+    func testProfileDraftSurvivesCharacterResponseAndUnrelatedSnapshot() {
+        let userID = UUID()
+        let model = AppModel(preferences: .defaults)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(id: userID, nickname: "확정닉", characterID: "pixel_hamster"),
+                rooms: []
+            ),
+            currentUserID: userID
+        )
+        model.nickname = "편집중"
+
+        model.apply(profile: Profile(
+            id: userID,
+            nickname: "확정닉",
+            characterID: "pixel_cat"
+        ))
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(id: userID, nickname: "확정닉", characterID: "pixel_cat"),
+                rooms: []
+            ),
+            currentUserID: userID
+        )
+
+        XCTAssertEqual(model.nickname, "편집중")
+        XCTAssertEqual(model.confirmedNickname, "확정닉")
+        XCTAssertEqual(model.selectedCharacterID, "pixel_cat")
+        XCTAssertTrue(model.hasNicknameChanges)
+    }
+
+    func testNicknameDirtyStateUsesNormalizedDraftAndValidation() {
+        let userID = UUID()
+        let model = AppModel(preferences: .defaults)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(id: userID, nickname: "사이디", characterID: "pixel_hamster"),
+                rooms: []
+            ),
+            currentUserID: userID
+        )
+
+        model.nickname = "  사이디  "
+        XCTAssertFalse(model.hasNicknameChanges)
+        XCTAssertTrue(model.nicknameDraftIsValid)
+        model.nickname = "한"
+        XCTAssertTrue(model.hasNicknameChanges)
+        XCTAssertFalse(model.nicknameDraftIsValid)
+    }
+
+    func testCharacterRequestKeepsConfirmedSelectionUntilSuccessAndBlocksDuplicates() {
+        let userID = UUID()
+        let model = AppModel(preferences: .defaults)
+        model.apply(
+            snapshot: BackendSnapshot(
+                profile: Profile(id: userID, nickname: "사이디", characterID: "pixel_hamster"),
+                rooms: []
+            ),
+            currentUserID: userID
+        )
+
+        XCTAssertTrue(model.beginCharacterEquipmentRequest(characterID: "pixel_cat"))
+        XCTAssertEqual(model.selectedCharacterID, "pixel_hamster")
+        XCTAssertEqual(model.pendingCharacterID, "pixel_cat")
+        XCTAssertFalse(model.beginCharacterEquipmentRequest(characterID: "pixel_penguin"))
+
+        model.endCharacterEquipmentRequest()
+        XCTAssertEqual(model.selectedCharacterID, "pixel_hamster")
+        model.apply(profile: Profile(
+            id: userID,
+            nickname: "사이디",
+            characterID: "pixel_cat"
+        ))
+        XCTAssertEqual(model.selectedCharacterID, "pixel_cat")
+    }
+
     func testProfileApplyChangesIdentityWithoutDiscardingFriendPresence() {
         let roomID = UUID()
         let userID = UUID()
@@ -453,8 +608,177 @@ final class PresenceAndRealtimeTests: XCTestCase {
         )
     }
 
+    func testDesiredRealtimeTopologyKeepsEpochWithoutLiveChannels() {
+        let roomID = UUID()
+        let room = Room(
+            id: roomID,
+            name: "복구 대상",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "AB••••",
+            realtimeEpoch: 7
+        )
+        var desired = RealtimeDesiredTopology()
+
+        desired.replace(rooms: [room])
+
+        XCTAssertEqual(desired.roomIDs, [roomID])
+        XCTAssertEqual(desired.epoch(for: roomID), 7)
+        XCTAssertEqual(RealtimeTopology(channelEpochs: [:]).roomEpochs, [:])
+        XCTAssertEqual(desired.epoch(for: roomID), 7)
+    }
+
+    func testRealtimeTopologyUpdateAddsRoomWithoutReplacingStableChannels() {
+        let stableRoom = Room(
+            id: UUID(),
+            name: "기존 방",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "AB••••",
+            realtimeEpoch: 3
+        )
+        let addedRoom = Room(
+            id: UUID(),
+            name: "추가 방",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "CD••••",
+            realtimeEpoch: 1
+        )
+        let plan = RealtimeTopologyUpdatePlan.make(
+            live: RealtimeTopology(rooms: [stableRoom]),
+            requestedRooms: [stableRoom, addedRoom]
+        )
+
+        XCTAssertEqual(plan.additions, [addedRoom.id])
+        XCTAssertTrue(plan.removals.isEmpty)
+    }
+
+    func testRealtimeTopologyUpdateRemovesOnlyDepartedRoom() {
+        let stableRoom = Room(
+            id: UUID(),
+            name: "유지 방",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "AB••••",
+            realtimeEpoch: 3
+        )
+        let departedRoom = Room(
+            id: UUID(),
+            name: "나간 방",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "CD••••",
+            realtimeEpoch: 1
+        )
+        let plan = RealtimeTopologyUpdatePlan.make(
+            live: RealtimeTopology(rooms: [stableRoom, departedRoom]),
+            requestedRooms: [stableRoom]
+        )
+
+        XCTAssertTrue(plan.additions.isEmpty)
+        XCTAssertEqual(plan.removals, [departedRoom.id])
+    }
+
+    func testRealtimeTopologyUpdateReplacesOnlyChangedEpoch() {
+        let stableRoom = Room(
+            id: UUID(),
+            name: "유지 방",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "AB••••",
+            realtimeEpoch: 3
+        )
+        let changedRoomID = UUID()
+        let liveChangedRoom = Room(
+            id: changedRoomID,
+            name: "변경 방",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "CD••••",
+            realtimeEpoch: 1
+        )
+        var requestedChangedRoom = liveChangedRoom
+        requestedChangedRoom.realtimeEpoch = 2
+        let plan = RealtimeTopologyUpdatePlan.make(
+            live: RealtimeTopology(rooms: [stableRoom, liveChangedRoom]),
+            requestedRooms: [stableRoom, requestedChangedRoom]
+        )
+
+        XCTAssertEqual(plan.additions, [changedRoomID])
+        XCTAssertEqual(plan.removals, [changedRoomID])
+    }
+
+    func testRealtimeTopologyUpdateIgnoresMetadataOnlyChanges() {
+        let liveRoom = Room(
+            id: UUID(),
+            name: "이전 이름",
+            ownerID: UUID(),
+            members: [],
+            inviteCodeHint: "AB••••",
+            realtimeEpoch: 3
+        )
+        var requestedRoom = liveRoom
+        requestedRoom.name = "새 이름"
+        requestedRoom.members = [RoomMember(
+            userID: UUID(),
+            nickname: "친구",
+            characterID: "pixel_penguin",
+            presence: .offline
+        )]
+        let plan = RealtimeTopologyUpdatePlan.make(
+            live: RealtimeTopology(rooms: [liveRoom]),
+            requestedRooms: [requestedRoom]
+        )
+
+        XCTAssertTrue(plan.additions.isEmpty)
+        XCTAssertTrue(plan.removals.isEmpty)
+    }
+
+    func testRealtimeGenerationRejectsStaleCallbacksAndEpochs() {
+        XCTAssertTrue(RealtimeChannelGenerationPolicy.accepts(
+            candidateGeneration: 4,
+            currentGeneration: 4,
+            desiredEpoch: 9,
+            channelEpoch: 9
+        ))
+        XCTAssertFalse(RealtimeChannelGenerationPolicy.accepts(
+            candidateGeneration: 3,
+            currentGeneration: 4,
+            desiredEpoch: 9,
+            channelEpoch: 9
+        ))
+        XCTAssertFalse(RealtimeChannelGenerationPolicy.accepts(
+            candidateGeneration: 4,
+            currentGeneration: 4,
+            desiredEpoch: 10,
+            channelEpoch: 9
+        ))
+    }
+
+    func testRealtimeChannelPairRequiresBothSubscriptions() {
+        XCTAssertFalse(RealtimeChannelPairPolicy.isSubscribed(database: true, ephemeral: false))
+        XCTAssertFalse(RealtimeChannelPairPolicy.isSubscribed(database: false, ephemeral: true))
+        XCTAssertTrue(RealtimeChannelPairPolicy.isSubscribed(database: true, ephemeral: true))
+    }
+
+    func testNetworkAvailabilityTransitionsCoalesceDuplicateUpdates() {
+        var state = NetworkAvailabilityState()
+
+        XCTAssertEqual(state.update(.available), .initialAvailable)
+        XCTAssertEqual(state.update(.available), .unchanged)
+        XCTAssertEqual(state.update(.unavailable), .becameUnavailable)
+        XCTAssertEqual(state.update(.unavailable), .unchanged)
+        XCTAssertEqual(state.update(.available), .becameAvailable)
+
+        var initiallyOfflineState = NetworkAvailabilityState()
+        XCTAssertEqual(initiallyOfflineState.update(.unavailable), .becameUnavailable)
+        XCTAssertEqual(initiallyOfflineState.update(.available), .becameAvailable)
+    }
+
     func testRealtimeRecoveryBackoffStartsAtEightSecondsAndCapsAtThirty() {
         XCTAssertEqual(RealtimeRecoveryPolicy.watchdogInterval, 5)
+        XCTAssertEqual(RealtimeRecoveryPolicy.pathRecoveryDebounce, 0.35)
         XCTAssertEqual(RealtimeRecoveryPolicy.delay(forAttempt: 1), 8)
         XCTAssertEqual(RealtimeRecoveryPolicy.delay(forAttempt: 2), 16)
         XCTAssertEqual(RealtimeRecoveryPolicy.delay(forAttempt: 3), 30)

@@ -4,6 +4,21 @@ namespace Sidey.Core.Tests;
 
 public sealed class AppPreferencesTests
 {
+    [Theory]
+    [InlineData("ko-KR", "ko-KR")]
+    [InlineData("en-US", "en-US")]
+    [InlineData("ja-JP", "ja-JP")]
+    [InlineData("zh-CN", "zh-CN")]
+    [InlineData("zh-TW", "zh-TW")]
+    [InlineData("uk-UA", "uk-UA")]
+    [InlineData("ru-RU", "ru-RU")]
+    [InlineData("invalid", null)]
+    [InlineData(null, null)]
+    public void LanguagePreferenceOnlyKeepsSupportedCatalogs(string? requested, string? expected)
+    {
+        Assert.Equal(expected, (AppPreferences.Default with { Language = requested }).Normalize().Language);
+    }
+
     [Fact]
     public void DefaultContainsEveryPersistedWindowsSettingAndStartupStaysOff()
     {
@@ -17,6 +32,7 @@ public sealed class AppPreferencesTests
         Assert.True(preferences.ShowOfflineMembers);
         Assert.False(preferences.RequiresRightClickToThrow);
         Assert.False(preferences.StartAtLogin);
+        Assert.Null(preferences.Language);
         Assert.Null(preferences.CachedNickname);
         Assert.Null(preferences.CachedCharacterId);
         Assert.Null(preferences.ActiveRoomId);

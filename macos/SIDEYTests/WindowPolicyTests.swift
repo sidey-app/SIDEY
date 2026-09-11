@@ -182,6 +182,14 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertEqual(OverlayEdge.left.presentationRotation, -.pi / 2, accuracy: 0.001)
         XCTAssertEqual(OverlayEdge.right.presentationRotation, .pi / 2, accuracy: 0.001)
         XCTAssertEqual(abs(OverlayEdge.top.presentationRotation), .pi, accuracy: 0.001)
+        XCTAssertEqual(OverlayEdge.bottom.readableContentCounterRotation, 0, accuracy: 0.001)
+        XCTAssertEqual(OverlayEdge.left.readableContentCounterRotation, 0, accuracy: 0.001)
+        XCTAssertEqual(OverlayEdge.right.readableContentCounterRotation, 0, accuracy: 0.001)
+        XCTAssertEqual(
+            OverlayEdge.top.presentationRotation + OverlayEdge.top.readableContentCounterRotation,
+            0,
+            accuracy: 0.001
+        )
     }
 
     func testOnboardingWindowTransitionsToFullSettingsOnGroupPage() {
@@ -213,6 +221,15 @@ final class WindowPolicyTests: XCTestCase {
                 XCTAssertEqual(actualContentSize, requestedContentSize)
             }
         }
+
+        model.preferences.onboardingComplete = false
+        settings.transitionFromSettingsToOnboarding()
+
+        let onboardingSize = settings.contentSize
+        XCTAssertLessThanOrEqual(onboardingSize.width, SettingsWindowController.onboardingContentSize.width)
+        XCTAssertLessThanOrEqual(onboardingSize.height, SettingsWindowController.onboardingContentSize.height)
+        XCTAssertGreaterThanOrEqual(onboardingSize.width, 860)
+        XCTAssertGreaterThanOrEqual(onboardingSize.height, 640)
     }
 
     func testWindowLevelsClickPolicyAndFixedComposerSize() {
@@ -325,12 +342,15 @@ final class WindowPolicyTests: XCTestCase {
     func testComposerRequestsDismissWhenAnotherWindowBecomesKey() async {
         let model = AppModel(preferences: .defaults)
         var dismissRequests = 0
+        let scheduler = TestComposerFocusLossScheduler()
         let controller = OverlayInteractionWindowController(
             model: model,
             onSend: { _ in },
             onInputActivity: {},
             onTypingChanged: { _ in },
-            onCancel: { dismissRequests += 1 }
+            onCancel: { dismissRequests += 1 },
+            focusLossScheduler: scheduler,
+            isApplicationActive: { false }
         )
         let otherWindow = NSWindow(
             contentRect: CGRect(x: 0, y: 0, width: 100, height: 100),
@@ -351,7 +371,110 @@ final class WindowPolicyTests: XCTestCase {
         otherWindow.makeKeyAndOrderFront(nil)
         for _ in 0..<3 { await Task.yield() }
 
+        XCTAssertEqual(dismissRequests, 0)
+        XCTAssertEqual(scheduler.latestDelay, .milliseconds(250))
+        XCTAssertTrue(controller.hasPendingFocusLossDismiss)
+        scheduler.fireLatest()
         XCTAssertEqual(dismissRequests, 1)
+    }
+
+    func testEmojiInsertionCancelsPendingFocusLossDismissAndRestoresComposerFocus() async throws {
+        let model = AppModel(preferences: .defaults)
+        var dismissRequests = 0
+        let scheduler = TestComposerFocusLossScheduler()
+        let controller = OverlayInteractionWindowController(
+            model: model,
+            onSend: { _ in },
+            onInputActivity: {},
+            onTypingChanged: { _ in },
+            onCancel: { dismissRequests += 1 },
+            focusLossScheduler: scheduler,
+            isApplicationActive: { true }
+        )
+        let otherWindow = NSWindow(
+            contentRect: CGRect(x: 0, y: 0, width: 100, height: 100),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        defer {
+            controller.setVisible(false)
+            otherWindow.orderOut(nil)
+        }
+
+        controller.setVisible(true)
+        controller.focusMessageField()
+        for _ in 0..<3 { await Task.yield() }
+        let textView = try XCTUnwrap(controller.messageTextView)
+
+        otherWindow.makeKeyAndOrderFront(nil)
+        for _ in 0..<3 { await Task.yield() }
+        XCTAssertTrue(controller.hasPendingFocusLossDismiss)
+
+        // Selecting from the character palette can take arbitrarily longer than
+        // the initial grace period. SIDEY remains active while its palette owns key.
+        scheduler.fireLatest()
+        XCTAssertEqual(dismissRequests, 0)
+        XCTAssertTrue(controller.hasPendingFocusLossDismiss)
+        XCTAssertEqual(scheduler.scheduleCount, 1)
+
+        textView.insertText("👨‍👩‍👧‍👦", replacementRange: textView.selectedRange())
+        for _ in 0..<3 { await Task.yield() }
+        scheduler.fireLatest()
+
+        XCTAssertEqual(model.draft, "👨‍👩‍👧‍👦")
+        XCTAssertEqual(dismissRequests, 0)
+        XCTAssertFalse(controller.hasPendingFocusLossDismiss)
+        XCTAssertTrue(controller.isVisible)
+        XCTAssertTrue(controller.isKeyWindow)
+        XCTAssertTrue(controller.messageFieldIsFirstResponder)
+    }
+
+    func testComposerDismissesWhenAppDeactivatesAfterCharacterPaletteGrace() async {
+        let model = AppModel(preferences: .defaults)
+        var dismissRequests = 0
+        let applicationActivity = TestApplicationActivityState()
+        let scheduler = TestComposerFocusLossScheduler()
+        let controller = OverlayInteractionWindowController(
+            model: model,
+            onSend: { _ in },
+            onInputActivity: {},
+            onTypingChanged: { _ in },
+            onCancel: { dismissRequests += 1 },
+            focusLossScheduler: scheduler,
+            isApplicationActive: { applicationActivity.isActive }
+        )
+        let otherWindow = NSWindow(
+            contentRect: CGRect(x: 0, y: 0, width: 100, height: 100),
+            styleMask: [.titled],
+            backing: .buffered,
+            defer: false
+        )
+        defer {
+            controller.setVisible(false)
+            otherWindow.orderOut(nil)
+        }
+
+        controller.setVisible(true)
+        controller.focusMessageField()
+        for _ in 0..<3 { await Task.yield() }
+        otherWindow.makeKeyAndOrderFront(nil)
+        for _ in 0..<3 { await Task.yield() }
+
+        scheduler.fireLatest()
+        XCTAssertEqual(dismissRequests, 0)
+        XCTAssertTrue(controller.hasPendingFocusLossDismiss)
+
+        applicationActivity.isActive = false
+        NotificationCenter.default.post(
+            name: NSApplication.didResignActiveNotification,
+            object: NSApplication.shared
+        )
+        XCTAssertEqual(scheduler.scheduleCount, 2)
+        scheduler.fireLatest()
+
+        XCTAssertEqual(dismissRequests, 1)
+        XCTAssertFalse(controller.hasPendingFocusLossDismiss)
     }
 
     func testAppDelegatePreventsDefaultSettingsSceneRestorationOnReopen() {
@@ -559,6 +682,36 @@ final class WindowPolicyTests: XCTestCase {
         XCTAssertEqual(regular.size, CGSize(width: 18, height: 18))
         XCTAssertEqual(unread.size, CGSize(width: 18, height: 18))
         XCTAssertNotEqual(regular.tiffRepresentation, unread.tiffRepresentation)
+    }
+}
+
+@MainActor
+private final class TestApplicationActivityState {
+    var isActive = true
+}
+
+@MainActor
+private final class TestComposerFocusLossScheduler: ComposerFocusLossScheduling {
+    private var action: (@MainActor () -> Void)?
+    private(set) var latestDelay: Duration?
+    private(set) var cancelCount = 0
+    private(set) var scheduleCount = 0
+
+    func schedule(after delay: Duration, action: @escaping @MainActor () -> Void) {
+        scheduleCount += 1
+        latestDelay = delay
+        self.action = action
+    }
+
+    func cancel() {
+        cancelCount += 1
+        action = nil
+    }
+
+    func fireLatest() {
+        let pending = action
+        action = nil
+        pending?()
     }
 }
 

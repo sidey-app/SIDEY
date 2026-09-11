@@ -3,14 +3,22 @@ import ServiceManagement
 
 @MainActor
 struct LaunchAtLoginController {
-    let helperIdentifier: String
+    enum Mode: Equatable {
+        case helper(identifier: String)
+        case mainApp
+    }
 
-    init(helperIdentifier: String = AppReleaseChannel.resolve().loginItemIdentifier) {
-        self.helperIdentifier = helperIdentifier
+    let mode: Mode
+
+    init(mode: Mode = AppReleaseChannel.resolve().loginItemMode) {
+        self.mode = mode
     }
 
     private var service: SMAppService {
-        SMAppService.loginItem(identifier: helperIdentifier)
+        switch mode {
+        case .helper(let identifier): SMAppService.loginItem(identifier: identifier)
+        case .mainApp: SMAppService.mainApp
+        }
     }
 
     var isEnabled: Bool {

@@ -7,8 +7,9 @@ license and does not grant permission merely because a file is publicly visible.
 
 ## 1. Scope
 
-This license applies only to the character and throwable IDs listed under
-`licensing.paid_character_ids` and `licensing.paid_throwable_ids` in
+This license applies only to the character, bubble, and throwable IDs listed under
+`licensing.paid_character_ids`, `licensing.paid_bubble_ids`, and
+`licensing.paid_throwable_ids` in
 [`v1/manifest.json`](v1/manifest.json), collectively the **Paid Assets**.
 
 It also applies to every copy, encoding, crop, preview, animation, or other

@@ -4,7 +4,7 @@ set local role postgres;
 create extension if not exists pgtap with schema extensions;
 set search_path = public, extensions;
 
-select plan(40);
+select plan(41);
 
 select has_table('public', 'commerce_products', 'commerce products exist');
 select has_table('public', 'commerce_prices', 'commerce prices exist');
@@ -12,10 +12,13 @@ select has_table('public', 'commerce_orders', 'commerce orders exist');
 select has_table('public', 'commerce_entitlements', 'commerce entitlements exist');
 select has_column('public', 'commerce_entitlements', 'grant_kind', 'grant kind records provenance');
 select has_column('public', 'commerce_entitlements', 'grant_reference', 'grant reference records provenance');
-select is((select count(*)::integer from public.commerce_products where active), 34, 'thirty-four products are active');
+select is((select count(*)::integer from public.commerce_products where active), 40, 'forty catalog products are active');
 select results_eq(
   $$select product_id, amount_krw from public.commerce_prices where active order by product_id$$,
   $$values
+      ('bubble_bunny_pink'::text, 1900),
+      ('bubble_butter_chick'::text, 1900),
+      ('bubble_starry_cat'::text, 1900),
       ('character_avocado'::text, 990),
       ('character_baby'::text, 990),
       ('character_bungeoppang'::text, 990),
@@ -49,7 +52,10 @@ select results_eq(
       ('character_starlight_upalupa'::text, 1900),
       ('character_tofu'::text, 990),
       ('character_tteokbokki'::text, 990),
-      ('character_unicorn'::text, 990)$$,
+      ('character_unicorn'::text, 990),
+      ('throwable_bouncy_heart'::text, 990),
+      ('throwable_squeaky_duck'::text, 990),
+      ('throwable_toy_cannon'::text, 2900)$$,
   'active prices are server-owned'
 );
 select is(
@@ -57,6 +63,12 @@ select is(
    where product_id = 'character_starlight_upalupa' and not active and amount_krw = 990),
   1,
   'historical 990 KRW starlight price is retained and retired'
+);
+select is(
+  (select count(*)::integer from public.commerce_prices
+   where product_id = 'throwable_toy_cannon' and not active and amount_krw = 3900),
+  1,
+  'historical 3,900 KRW cannon price is retained and retired'
 );
 select is((select sales_enabled from private.commerce_runtime_settings), false, 'migration fails closed');
 select ok((select relrowsecurity from pg_class where oid = 'public.commerce_orders'::regclass), 'orders use RLS');
@@ -112,7 +124,10 @@ select is(
   'valid staging checkout token can be prepared'
 );
 select lives_ok(
-  $$select * from public.commerce_record_policy_consent(repeat('a', 64), '2026-09-03-portone-v2')$$,
+  $$select * from public.commerce_record_policy_consent(
+      repeat('a', 64),
+      (select policy_version from private.commerce_runtime_settings)
+    )$$,
   'canonical purchase policy consent is recorded'
 );
 select ok(
@@ -204,11 +219,11 @@ insert into public.commerce_entitlements (
 );
 select lives_ok($$select public.upsert_profile('무료친구', 'pixel_guinea_pig')$$, 'complimentary grant permits selection');
 select results_eq(
-  $$select grant_kind, source_order_id is null from public.commerce_entitlements
+  $$select status, grant_kind is null from public.commerce_entitlements
     where user_id = '20000000-0000-0000-0000-000000000002'
       and entitlement_key = 'character:pixel_guinea_pig'$$,
-  $$values ('complimentary'::text, true)$$,
-  'complimentary provenance has no order'
+  $$values ('active'::text, true)$$,
+  'public entitlement is a source-agnostic active projection'
 );
 select throws_ok(
   $$select * from public.create_commerce_order('character_guinea_pig', repeat('e', 64))$$,

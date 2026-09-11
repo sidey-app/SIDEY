@@ -1,7 +1,8 @@
 const ASSET_PATTERNS = {
   direct_dmg: /^SIDEY-macOS-arm64-v([0-9]+\.[0-9]+\.[0-9]+)\.dmg$/,
   homebrew_dmg: /^SIDEY-macOS-arm64-v([0-9]+\.[0-9]+\.[0-9]+)-homebrew\.dmg$/,
-  windows_msi: /^SIDEY-Windows-x64-v([0-9]+\.[0-9]+\.[0-9]+)\.msi$/,
+  windows_installer:
+    /^SIDEY-Windows-x64-v([0-9]+\.[0-9]+\.[0-9]+)(?:\.msi|-Setup\.exe)$/,
 };
 
 export function classifyReleaseAssets(releases) {
@@ -20,7 +21,7 @@ export function classifyReleaseAssets(releases) {
 
       const homebrewMatch = asset.name.match(ASSET_PATTERNS.homebrew_dmg);
       const directMatch = asset.name.match(ASSET_PATTERNS.direct_dmg);
-      const windowsMatch = asset.name.match(ASSET_PATTERNS.windows_msi);
+      const windowsMatch = asset.name.match(ASSET_PATTERNS.windows_installer);
 
       if (homebrewMatch) {
         channel = "homebrew_dmg";

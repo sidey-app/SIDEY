@@ -1,0 +1,15 @@
+$content-width: 73.75rem;
+$breakpoint-tablet: 58.75rem;
+$breakpoint-mobile: 43.75rem;
+$breakpoint-compact: 26.875rem;
+$secondary-page-top: clamp(8.5rem, 10vw, 10rem);
+$secondary-page-top-mobile: 8rem;
+
+@mixin glass($blur, $saturation) {
+  -webkit-backdrop-filter: blur($blur) saturate($saturation);
+  backdrop-filter: blur($blur) saturate($saturation);
+}
+
+@mixin pixel-art {
+  image-rendering: pixelated;
+}

@@ -11,7 +11,7 @@ internal sealed record DevelopmentUpdateRequest(
 internal sealed class DevelopmentUpdateService : IDisposable
 {
     public const string RequestFileName = ".sidey-dev-update-request.json";
-    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan s_pollInterval = TimeSpan.FromSeconds(1);
     private readonly string _liveDirectory;
     private readonly string _requestPath;
     private readonly Action<DevelopmentUpdateRequest> _accepted;
@@ -29,8 +29,8 @@ internal sealed class DevelopmentUpdateService : IDisposable
         _timer = new Timer(
             static state => ((DevelopmentUpdateService)state!).Poll(),
             this,
-            PollInterval,
-            PollInterval);
+            s_pollInterval,
+            s_pollInterval);
     }
 
     public static DevelopmentUpdateService? Start(Action<DevelopmentUpdateRequest> accepted)
@@ -38,7 +38,7 @@ internal sealed class DevelopmentUpdateService : IDisposable
         ArgumentNullException.ThrowIfNull(accepted);
         // The WinUI host runs under Runtime, while staged update requests live
         // beside the public launcher at the deployment root.
-        var liveDirectory = Sidey.Platform.Windows.SideyDeploymentPaths.DeploymentRoot()
+        string liveDirectory = Sidey.Platform.Windows.SideyDeploymentPaths.DeploymentRoot()
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         return string.Equals(
             Path.GetFileName(liveDirectory),
@@ -50,17 +50,17 @@ internal sealed class DevelopmentUpdateService : IDisposable
 
     public bool LaunchUpdater(DevelopmentUpdateRequest request)
     {
-        if (!TryValidate(request, out var sourceDirectory, out var expectedHash))
+        if (!TryValidate(request, out string? sourceDirectory, out string? expectedHash))
         {
             return false;
         }
 
-        var updaterDirectory = Path.Combine(
+        string updaterDirectory = Path.Combine(
             Sidey.Core.Storage.SideyStoragePaths.LocalApplicationDataRoot(),
             "SIDEY",
             "Updater");
         Directory.CreateDirectory(updaterDirectory);
-        var scriptPath = Path.Combine(updaterDirectory, "apply-development-update.ps1");
+        string scriptPath = Path.Combine(updaterDirectory, "apply-development-update.ps1");
         File.WriteAllText(scriptPath, UpdaterScript);
 
         var start = new ProcessStartInfo
@@ -112,7 +112,7 @@ internal sealed class DevelopmentUpdateService : IDisposable
 
         try
         {
-            var request = JsonSerializer.Deserialize<DevelopmentUpdateRequest>(
+            DevelopmentUpdateRequest? request = JsonSerializer.Deserialize<DevelopmentUpdateRequest>(
                 File.ReadAllText(_requestPath));
             if (request is null || !TryValidate(request, out _, out _))
             {
@@ -145,8 +145,8 @@ internal sealed class DevelopmentUpdateService : IDisposable
 
         sourceDirectory = Path.GetFullPath(request.SourceDirectory)
             .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var liveParent = Directory.GetParent(_liveDirectory)?.FullName;
-        var sourceParent = Directory.GetParent(sourceDirectory)?.FullName;
+        string? liveParent = Directory.GetParent(_liveDirectory)?.FullName;
+        string? sourceParent = Directory.GetParent(sourceDirectory)?.FullName;
         if (liveParent is null
             || sourceParent is null
             || !string.Equals(liveParent, sourceParent, StringComparison.OrdinalIgnoreCase)
@@ -158,7 +158,7 @@ internal sealed class DevelopmentUpdateService : IDisposable
             return false;
         }
 
-        var sourceExecutable = Path.Combine(sourceDirectory, "SIDEY.exe");
+        string sourceExecutable = Path.Combine(sourceDirectory, "SIDEY.exe");
         return File.Exists(sourceExecutable)
             && string.Equals(
                 FileSha256(sourceExecutable),
@@ -168,7 +168,7 @@ internal sealed class DevelopmentUpdateService : IDisposable
 
     private static string FileSha256(string path)
     {
-        using var stream = File.OpenRead(path);
+        using FileStream stream = File.OpenRead(path);
         return Convert.ToHexString(SHA256.HashData(stream));
     }
 

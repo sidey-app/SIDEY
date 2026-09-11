@@ -50,7 +50,7 @@ public static class OverlayRegionLayout
 
         if (preference.MonitorIdentifier is { } identifier)
         {
-            var selected = monitors.FirstOrDefault(monitor => monitor.Identifier == identifier);
+            MonitorGeometry? selected = monitors.FirstOrDefault(monitor => monitor.Identifier == identifier);
             if (selected is not null)
             {
                 return selected;
@@ -65,19 +65,19 @@ public static class OverlayRegionLayout
 
     public static OverlayRegionFrames Frames(OverlayRegionPreference preference, RectD workArea)
     {
-        var depth = Math.Min(PreferredDepth, workArea.Height / 3d);
+        double depth = Math.Min(PreferredDepth, workArea.Height / 3d);
         if (preference.Edge is OverlayEdge.Bottom or OverlayEdge.Top)
         {
-            var length = workArea.Width * preference.Span.Fraction();
+            double length = workArea.Width * preference.Span.Fraction();
             var activity = new RectD(
                 workArea.MidX - (length / 2d),
                 preference.Edge == OverlayEdge.Bottom ? workArea.MinY : workArea.MaxY - depth,
                 length,
                 depth);
-            var padding = Math.Min(
+            double padding = Math.Min(
                 MaximumTangentRenderPadding,
                 Math.Min(activity.MinX - workArea.MinX, workArea.MaxX - activity.MaxX));
-            var renderDepth = Math.Min(MaximumRenderDepth, workArea.Height);
+            double renderDepth = Math.Min(MaximumRenderDepth, workArea.Height);
             var render = new RectD(
                 activity.X - padding,
                 preference.Edge == OverlayEdge.Bottom ? workArea.MinY : workArea.MaxY - renderDepth,
@@ -86,16 +86,16 @@ public static class OverlayRegionLayout
             return new OverlayRegionFrames(activity, render);
         }
 
-        var verticalLength = workArea.Height * preference.Span.Fraction();
+        double verticalLength = workArea.Height * preference.Span.Fraction();
         var verticalActivity = new RectD(
             preference.Edge == OverlayEdge.Left ? workArea.MinX : workArea.MaxX - depth,
             workArea.MidY - (verticalLength / 2d),
             depth,
             verticalLength);
-        var verticalPadding = Math.Min(
+        double verticalPadding = Math.Min(
             MaximumTangentRenderPadding,
             Math.Min(verticalActivity.MinY - workArea.MinY, workArea.MaxY - verticalActivity.MaxY));
-        var horizontalRenderDepth = Math.Min(MaximumRenderDepth, workArea.Width);
+        double horizontalRenderDepth = Math.Min(MaximumRenderDepth, workArea.Width);
         var verticalRender = new RectD(
             preference.Edge == OverlayEdge.Left ? workArea.MinX : workArea.MaxX - horizontalRenderDepth,
             verticalActivity.Y - verticalPadding,
@@ -146,13 +146,13 @@ public sealed class EdgeTrackGeometry
 
     public double Clamp(double tangent)
     {
-        var finite = double.IsFinite(tangent) ? tangent : TrackLowerBound;
+        double finite = double.IsFinite(tangent) ? tangent : TrackLowerBound;
         return Math.Clamp(finite, TrackLowerBound, TrackUpperBound);
     }
 
     public PointD PointFor(double tangent)
     {
-        var value = Clamp(tangent);
+        double value = Clamp(tangent);
         return Edge switch
         {
             OverlayEdge.Bottom => new PointD(Bounds.MinX + value, Bounds.MinY + FootInset),
@@ -165,7 +165,7 @@ public sealed class EdgeTrackGeometry
 
     public PointD FootPointFor(double tangent)
     {
-        var anchor = PointFor(tangent);
+        PointD anchor = PointFor(tangent);
         return Edge switch
         {
             OverlayEdge.Bottom => new PointD(anchor.X, anchor.Y - FootInset),

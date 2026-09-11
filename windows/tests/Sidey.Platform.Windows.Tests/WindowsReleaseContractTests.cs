@@ -1,0 +1,71 @@
+using System.Text.Json;
+using Sidey.Platform.Windows;
+
+namespace Sidey.Platform.Windows.Tests;
+
+public sealed class WindowsReleaseContractTests
+{
+    [Fact]
+    public void CheckedInManifestDefinesTheWindowsProductionRelease()
+    {
+        using var document = JsonDocument.Parse(
+            File.ReadAllBytes(RepositoryPath("release", "windows.json")));
+        JsonElement manifest = document.RootElement;
+
+        Assert.Equal(1, manifest.GetProperty("schema").GetInt32());
+        Assert.Equal("windows", manifest.GetProperty("platform").GetString());
+        Assert.Equal("production", manifest.GetProperty("channel").GetString());
+        var publicVersion = Version.Parse(manifest.GetProperty("version").GetString()!);
+        var sourceVersion = Version.Parse(WindowsUpdateService.CurrentVersion);
+        Assert.True(publicVersion <= sourceVersion);
+        Assert.False(File.Exists(RepositoryPath("website", "windows-latest.json")));
+        Assert.False(File.Exists(RepositoryPath("website", "windows", "update.json")));
+    }
+
+    [Fact]
+    public void ReleaseAutomationUsesAPlatformScopedTag()
+    {
+        string ciWorkflow = Read(".github", "workflows", "windows.yml");
+        string releaseWorkflow = Read(".github", "workflows", "windows-release.yml");
+        string metadataVerifier = Read("scripts", "verify_release_consistency.py");
+        string releaseVerifier = Read("scripts", "windows", "Test-WindowsRelease.ps1");
+
+        Assert.DoesNotContain("tags:", ciWorkflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("tags:", releaseWorkflow, StringComparison.Ordinal);
+        Assert.Contains("tag = f\"windows-v{version}\"", metadataVerifier, StringComparison.Ordinal);
+        Assert.Contains("$tag = \"windows-v$Version\"", releaseVerifier, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReleaseWorkflowRequiresManualValidationBeforePublishing()
+    {
+        string ciWorkflow = Read(".github", "workflows", "windows.yml");
+        string releaseWorkflow = Read(".github", "workflows", "windows-release.yml");
+
+        Assert.DoesNotContain("workflow_dispatch:", ciWorkflow, StringComparison.Ordinal);
+        Assert.Contains("workflow_dispatch:", releaseWorkflow, StringComparison.Ordinal);
+        Assert.Contains("confirm_version:", releaseWorkflow, StringComparison.Ordinal);
+        Assert.Contains("validate:", releaseWorkflow, StringComparison.Ordinal);
+        Assert.Contains("--draft", releaseWorkflow, StringComparison.Ordinal);
+        Assert.Contains("Get-FileHash", releaseWorkflow, StringComparison.Ordinal);
+        Assert.Contains("gh release edit $tag --draft=false", releaseWorkflow, StringComparison.Ordinal);
+        Assert.Contains("uses: ./.github/workflows/pages.yml", releaseWorkflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("--prerelease", releaseWorkflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("SelfSigned", releaseWorkflow, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string Read(params string[] pathSegments) =>
+        File.ReadAllText(RepositoryPath(pathSegments));
+
+    private static string RepositoryPath(params string[] pathSegments)
+    {
+        DirectoryInfo? root = new(AppContext.BaseDirectory);
+        while (root is not null && !Directory.Exists(Path.Combine(root.FullName, "windows", "src")))
+        {
+            root = root.Parent;
+        }
+
+        Assert.NotNull(root);
+        return Path.Combine([root!.FullName, .. pathSegments]);
+    }
+}

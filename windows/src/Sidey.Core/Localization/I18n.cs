@@ -10,12 +10,16 @@ public static class I18n
 {
     public const string DefaultLanguage = "ko-KR";
 
-    private static readonly object SyncRoot = new();
-    private static IReadOnlyDictionary<string, string>? strings;
-    private static string? languageOverride;
-    private static string? catalogRootOverride;
+    public static IReadOnlyList<string> SupportedLanguages { get; } = Array.AsReadOnly(
+        [DefaultLanguage, "en-US", "ja-JP", "zh-CN", "zh-TW", "uk-UA", "ru-RU"]);
+
+    private static readonly Lock s_syncRoot = new();
+    private static IReadOnlyDictionary<string, string>? s_strings;
+    private static string? s_languageOverride;
+    private static string? s_catalogRootOverride;
 
     public static string Language => ResolveLanguage();
+    public static CultureInfo Culture => CultureInfo.GetCultureInfo(Language);
 
     public static string Get(string key)
     {
@@ -27,41 +31,88 @@ public static class I18n
 
     public static string Format(string key, params object?[] args)
     {
-        return string.Format(CultureInfo.CurrentCulture, Get(key), args);
+        return string.Format(Culture, Get(key), args);
     }
 
     public static void SetLanguage(string? language)
     {
-        lock (SyncRoot)
+        lock (s_syncRoot)
         {
-            languageOverride = string.IsNullOrWhiteSpace(language) ? null : language;
-            strings = null;
+            s_languageOverride = string.IsNullOrWhiteSpace(language) ? null : language;
+            s_strings = null;
         }
     }
 
     public static void SetCatalogRoot(string? catalogRoot)
     {
-        lock (SyncRoot)
+        lock (s_syncRoot)
         {
-            catalogRootOverride = string.IsNullOrWhiteSpace(catalogRoot)
+            s_catalogRootOverride = string.IsNullOrWhiteSpace(catalogRoot)
                 ? null
                 : Path.GetFullPath(catalogRoot);
-            strings = null;
+            s_strings = null;
         }
+    }
+
+    public static bool IsSupportedLanguage(string? language)
+    {
+        return SupportedLanguages.Contains(language, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public static string NormalizeLanguage(string? requested)
+    {
+        if (string.IsNullOrWhiteSpace(requested))
+        {
+            return DefaultLanguage;
+        }
+
+        if (requested.StartsWith("ko", StringComparison.OrdinalIgnoreCase))
+        {
+            return DefaultLanguage;
+        }
+        if (requested.StartsWith("en", StringComparison.OrdinalIgnoreCase))
+        {
+            return "en-US";
+        }
+        if (requested.StartsWith("ja", StringComparison.OrdinalIgnoreCase))
+        {
+            return "ja-JP";
+        }
+        if (requested.StartsWith("zh-Hant", StringComparison.OrdinalIgnoreCase)
+            || requested.StartsWith("zh-TW", StringComparison.OrdinalIgnoreCase)
+            || requested.StartsWith("zh-HK", StringComparison.OrdinalIgnoreCase)
+            || requested.StartsWith("zh-MO", StringComparison.OrdinalIgnoreCase))
+        {
+            return "zh-TW";
+        }
+        if (requested.StartsWith("zh", StringComparison.OrdinalIgnoreCase))
+        {
+            return "zh-CN";
+        }
+        if (requested.StartsWith("uk", StringComparison.OrdinalIgnoreCase))
+        {
+            return "uk-UA";
+        }
+        if (requested.StartsWith("ru", StringComparison.OrdinalIgnoreCase))
+        {
+            return "ru-RU";
+        }
+
+        return DefaultLanguage;
     }
 
     private static IReadOnlyDictionary<string, string> GetCatalog()
     {
-        lock (SyncRoot)
+        lock (s_syncRoot)
         {
-            return strings ??= LoadCatalog();
+            return s_strings ??= LoadCatalog();
         }
     }
 
     private static IReadOnlyDictionary<string, string> LoadCatalog()
     {
         var catalog = new Dictionary<string, string>(StringComparer.Ordinal);
-        string root = catalogRootOverride ?? FindCatalogRoot();
+        string root = s_catalogRootOverride ?? FindCatalogRoot();
 
         LoadFile(Path.Combine(root, $"{DefaultLanguage}.json"), catalog);
 
@@ -76,16 +127,11 @@ public static class I18n
 
     private static string ResolveLanguage()
     {
-        string requested = languageOverride
+        string requested = s_languageOverride
             ?? Environment.GetEnvironmentVariable("SIDEY_LANGUAGE")
             ?? CultureInfo.CurrentUICulture.Name;
 
-        if (requested.StartsWith("en", StringComparison.OrdinalIgnoreCase))
-        {
-            return "en-US";
-        }
-
-        return DefaultLanguage;
+        return NormalizeLanguage(requested);
     }
 
     private static string FindCatalogRoot()
@@ -117,7 +163,7 @@ public static class I18n
             return;
         }
 
-        using JsonDocument document = JsonDocument.Parse(
+        using var document = JsonDocument.Parse(
             File.ReadAllText(path),
             new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
         Flatten(document.RootElement, null, target);

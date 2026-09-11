@@ -1,0 +1,27 @@
+{
+  "date": "2026-09-10",
+  "approval": "approved_for_stun_implementation",
+  "evidence": "효과음 내일 이어서 다시할테니까 우선 기절쪽만 구현 ㄱㄱ",
+  "scope": "macOS direct distribution only; audio and sound settings deferred",
+  "window_seconds": 10,
+  "hit_threshold": 10,
+  "stun_seconds": 6,
+  "protection_seconds": 0,
+  "orbit_seconds": 1.2,
+  "star_count": 3,
+  "source_frames": [
+    8,
+    9
+  ],
+  "body_frame_seconds": 1.2,
+  "assets": [
+    {
+      "file": "round-2/visual/star-v1.png",
+      "sha256": "bf198e4045480e79843feabe8e6a2f1f0359e4fb0a49773544c650807bd02f53"
+    },
+    {
+      "file": "round-2/visual/ring-v2.png",
+      "sha256": "bda0da61f9e80a38c975865cccb6fbfa84153bf96ee026d1834cd8d81b4ae503"
+    }
+  ]
+}

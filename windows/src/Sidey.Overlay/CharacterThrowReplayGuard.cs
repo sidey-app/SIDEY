@@ -8,11 +8,11 @@ internal sealed class CharacterThrowReplayGuard(int capacity = 256)
         ? capacity
         : throw new ArgumentOutOfRangeException(nameof(capacity));
     private readonly Queue<Guid> _order = new(capacity);
-    private readonly HashSet<Guid> _ids = new();
+    private readonly HashSet<Guid> _ids = [];
 
     internal void SeedExisting(IEnumerable<CharacterThrowEvent> events)
     {
-        foreach (var characterThrow in events)
+        foreach (CharacterThrowEvent characterThrow in events)
         {
             Remember(characterThrow.Id);
         }

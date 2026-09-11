@@ -12,9 +12,9 @@ public sealed class WindowsUpdateServiceTests
     {
         using var client = new HttpClient(new StubHandler(
             new HttpResponseMessage(HttpStatusCode.NotFound)));
-        var service = new WindowsUpdateService(client);
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
 
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+        InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.CheckAsync());
 
         Assert.Equal("Windows 업데이트 정보가 아직 게시되지 않았습니다.", exception.Message);
@@ -23,19 +23,19 @@ public sealed class WindowsUpdateServiceTests
     [Fact]
     public async Task CurrentWindowsManifestDoesNotOfferAnUpdate()
     {
-        const string manifest = """
+        const string Manifest = """
             {
               "channel": "production",
-              "version": "1.0.5",
-              "tag": "windows-v1.0.5"
+              "version": "1.0.6",
+              "tag": "windows-v1.0.6"
             }
             """;
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
+            Content = new StringContent(Manifest, Encoding.UTF8, "application/json"),
         };
         using var client = new HttpClient(new StubHandler(response));
-        var service = new WindowsUpdateService(client);
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
 
         WindowsUpdateManifest? update = await service.CheckAsync();
 
@@ -48,7 +48,7 @@ public sealed class WindowsUpdateServiceTests
         byte[] installerBytes = Encoding.UTF8.GetBytes("SIDEY update regression fixture");
         string sha256 = Convert.ToHexStringLower(SHA256.HashData(installerBytes));
         string version = $"1.0.6-file-handle-{Guid.NewGuid():N}";
-        string installerName = $"SIDEY-Windows-x64-v{version}.msi";
+        string installerName = $"SIDEY-Windows-x64-v{version}-Setup.exe";
         string updateDirectory = Path.Combine(
             Path.GetTempPath(),
             "SIDEY",
@@ -60,21 +60,26 @@ public sealed class WindowsUpdateServiceTests
             Content = new ByteArrayContent(installerBytes),
         };
         using var client = new HttpClient(new StubHandler(response));
-        var service = new WindowsUpdateService(client);
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
         var manifest = new WindowsUpdateManifest(
             "production",
             version,
             $"windows-v{version}",
             new Uri($"https://example.invalid/{installerName}"),
             sha256);
+        var reportedPercentages = new List<int>();
 
         try
         {
-            string actualPath = await service.DownloadInstallerAsync(manifest);
+            string actualPath = await service.DownloadInstallerAsync(
+                manifest,
+                progress: new InlineProgress<int>(reportedPercentages.Add));
 
             Assert.Equal(expectedPath, actualPath);
             Assert.Equal(installerBytes, await File.ReadAllBytesAsync(actualPath));
             Assert.False(File.Exists($"{expectedPath}.download"));
+            Assert.Equal(0, reportedPercentages.First());
+            Assert.Equal(100, reportedPercentages.Last());
         }
         finally
         {
@@ -88,29 +93,29 @@ public sealed class WindowsUpdateServiceTests
     [Fact]
     public async Task NewerManifestRequiresTheVersionedInstallerAndSha256()
     {
-        const string manifest = """
+        const string Manifest = """
             {
               "channel": "production",
-              "version": "1.0.6",
-              "tag": "windows-v1.0.6",
-              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.6/SIDEY-Windows-x64-v1.0.6.msi",
+              "version": "1.0.11",
+              "tag": "windows-v1.0.11",
+              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.11/SIDEY-Windows-x64-v1.0.11-Setup.exe",
               "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             }
             """;
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
+            Content = new StringContent(Manifest, Encoding.UTF8, "application/json"),
         };
         using var client = new HttpClient(new StubHandler(response));
-        var service = new WindowsUpdateService(client);
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
 
         WindowsUpdateManifest? update = await service.CheckAsync();
 
         Assert.NotNull(update);
-        Assert.Equal("1.0.6", update.Version);
+        Assert.Equal("1.0.11", update.Version);
         Assert.Equal(
-            "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.6/" +
-            "SIDEY-Windows-x64-v1.0.6.msi",
+            "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.11/" +
+            "SIDEY-Windows-x64-v1.0.11-Setup.exe",
             update.InstallerUri.AbsoluteUri);
         Assert.Equal(
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -118,43 +123,69 @@ public sealed class WindowsUpdateServiceTests
     }
 
     [Fact]
-    public async Task NewerManifestWithoutInstallerMetadataIsRejected()
+    public async Task InjectedArtifactVersionCanExerciseAnAlreadyPublishedUpdate()
     {
-        const string manifest = """
+        const string Manifest = """
             {
               "channel": "production",
-              "version": "1.0.6",
-              "tag": "windows-v1.0.6"
-            }
-            """;
-        using var response = new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
-        };
-        using var client = new HttpClient(new StubHandler(response));
-        var service = new WindowsUpdateService(client);
-
-        await Assert.ThrowsAsync<InvalidDataException>(() => service.CheckAsync());
-    }
-
-    [Fact]
-    public async Task NewerManifestRejectsTheFormerSetupExecutableContract()
-    {
-        const string manifest = """
-            {
-              "channel": "production",
-              "version": "1.0.6",
-              "tag": "windows-v1.0.6",
-              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.6/SIDEY-Windows-x64-v1.0.6-Setup.exe",
+              "version": "1.0.10",
+              "tag": "windows-v1.0.10",
+              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.10/SIDEY-Windows-x64-v1.0.10-Setup.exe",
               "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
             }
             """;
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new StringContent(manifest, Encoding.UTF8, "application/json"),
+            Content = new StringContent(Manifest, Encoding.UTF8, "application/json"),
         };
         using var client = new HttpClient(new StubHandler(response));
-        var service = new WindowsUpdateService(client);
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.9");
+
+        WindowsUpdateManifest? update = await service.CheckAsync();
+
+        Assert.Equal("1.0.9", service.EffectiveCurrentVersion);
+        Assert.NotNull(update);
+        Assert.Equal("1.0.10", update.Version);
+    }
+
+    [Fact]
+    public async Task NewerManifestWithoutInstallerMetadataIsRejected()
+    {
+        const string Manifest = """
+            {
+              "channel": "production",
+              "version": "1.0.11",
+              "tag": "windows-v1.0.11"
+            }
+            """;
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(Manifest, Encoding.UTF8, "application/json"),
+        };
+        using var client = new HttpClient(new StubHandler(response));
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => service.CheckAsync());
+    }
+
+    [Fact]
+    public async Task NewerManifestRejectsTheFormerMsiContract()
+    {
+        const string Manifest = """
+            {
+              "channel": "production",
+              "version": "1.0.11",
+              "tag": "windows-v1.0.11",
+              "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v1.0.11/SIDEY-Windows-x64-v1.0.11.msi",
+              "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+            }
+            """;
+        using var response = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(Manifest, Encoding.UTF8, "application/json"),
+        };
+        using var client = new HttpClient(new StubHandler(response));
+        var service = new WindowsUpdateService(client, currentVersion: "1.0.10");
 
         await Assert.ThrowsAsync<InvalidDataException>(() => service.CheckAsync());
     }
@@ -169,5 +200,10 @@ public sealed class WindowsUpdateServiceTests
             _ = cancellationToken;
             return Task.FromResult(response);
         }
+    }
+
+    private sealed class InlineProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 }

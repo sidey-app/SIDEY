@@ -1,0 +1,62 @@
+{
+  "approval" : "pending",
+  "assets" : [
+    {
+      "approval" : "pending",
+      "file" : "visual\/hamster-stun-frame-8-v1.png",
+      "sha256" : "463afba995a028435975d135e8968cc55487ff01c6e49b34aaad57ea8938a4f9"
+    },
+    {
+      "approval" : "pending",
+      "file" : "visual\/hamster-stun-frame-9-v1.png",
+      "sha256" : "00190eb2d2a3ee7b0f92f306986504b51056fd43dd99d6fc7fd2d66bef74cfe4"
+    },
+    {
+      "approval" : "pending",
+      "file" : "visual\/hamster-stun-orbit-v1.gif",
+      "sha256" : "cfd03f5d9bf42aecc21f53bd5704ba26fb4788f2917ea3a73c91aeef63ad0131"
+    },
+    {
+      "approval" : "pending",
+      "file" : "visual\/hamster-stun-review-v1.png",
+      "sha256" : "fcb40b9449bd7640d03330f7054a2edd973568222f31b62131b7729d5ca9b5d1"
+    },
+    {
+      "approval" : "pending",
+      "file" : "visual\/hamster-stun-timeline-v1.gif",
+      "sha256" : "718bda5503fd9d4b30b987500bf1f12ed13bc2a4f1511eb87d318a58efd58ed5"
+    },
+    {
+      "approval" : "pending",
+      "file" : "visual\/star-v1-16x.png",
+      "sha256" : "e0d7cfd7968aa72fac24ee3826deac010ca21fc4ccdfc4ed1b61f33a64cbe1bc"
+    },
+    {
+      "approval" : "pending",
+      "file" : "visual\/star-v1.png",
+      "sha256" : "bf198e4045480e79843feabe8e6a2f1f0359e4fb0a49773544c650807bd02f53"
+    }
+  ],
+  "body_frame_seconds" : 1.2,
+  "fps" : 30,
+  "orbit_center_logical_pixels" : [
+    32,
+    19
+  ],
+  "orbit_radius_logical_pixels" : [
+    11,
+    5
+  ],
+  "orbit_seconds" : 1.2,
+  "provenance" : "Native code rendering of unchanged approved character frames plus a pixel-grid star icon.",
+  "recovery_protection_seconds" : 0,
+  "review_round" : 1,
+  "source_character_sha256" : "43171c1dd614629058b6d593c57ca0e5841b0be03a04a05181dfda67c53a7f45",
+  "source_frames" : [
+    8,
+    9
+  ],
+  "star_count" : 3,
+  "star_size_logical_pixels" : 7,
+  "stun_seconds" : 6
+}

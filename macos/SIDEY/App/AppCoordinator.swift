@@ -4,17 +4,19 @@ import AppKit
 final class AppCoordinator {
     let model: AppModel
 
-    private let preferencesStore: PreferencesStore
+    let preferencesStore: PreferencesStore
     private let legacyMigrator: LegacySettingsMigrator
     private let updateController: any AppUpdateChecking
     let releaseChannel: AppReleaseChannel
     var backend: SideyBackend?
     private let runtimeConfiguration: RuntimeConfiguration?
     let configurationError: Error?
-    private let keychainAccessSession: KeychainAccessSession
+    let keychainAccessSession: KeychainAccessSession
     let launchReason: LaunchReason
     private let onLandingFirstFrame: () -> Void
     private let launchAtLoginController: LaunchAtLoginController
+    let appStorePurchaseController: AppStorePurchaseController
+    let appStoreAccountClient: AppStoreAccountClient
     lazy var overlayWindows = OverlayWindowGroup(
         model: model,
         onSend: { [weak self] body in self?.sendMessage(body) },
@@ -41,7 +43,14 @@ final class AppCoordinator {
             onRefreshCommerceState: { [weak self] productID in
                 self?.refreshCommerceState(productID: productID)
             },
+            onSetEquippedCosmetic: { [weak self] kind, catalogItemID in
+                self?.setEquippedCosmetic(kind: kind, catalogItemID: catalogItemID)
+            },
+            onRestorePurchases: { [weak self] in self?.restoreAppStorePurchases() },
+            onSignInWithApple: { [weak self] payload in self?.signInWithApple(payload) },
+            onDeleteAccount: { [weak self] payload in self?.deleteAccount(payload) },
             onSaveProfile: { [weak self] in self?.saveProfile() },
+            onSetCharacter: { [weak self] characterID in self?.setCharacter(characterID) },
             onCreateRoom: { [weak self] in self?.createRoom() },
             onJoinRoom: { [weak self] in self?.joinRoom() },
             onSelectRoom: { [weak self] roomID in self?.selectRoom(roomID) },
@@ -51,7 +60,28 @@ final class AppCoordinator {
             onRotateInviteCode: { [weak self] roomID in self?.rotateInviteCode(roomID: roomID) },
             onRenameRoom: { [weak self] roomID, name in self?.renameRoom(roomID, name: name) },
             onRemoveRoomMember: { [weak self] roomID, userID in self?.removeRoomMember(roomID, userID: userID) },
-            onDeleteRoom: { [weak self] roomID in self?.deleteRoom(roomID) }
+            onLeaveRoom: { [weak self] roomID in self?.leaveRoom(roomID) },
+            onDeleteRoom: { [weak self] roomID in self?.deleteRoom(roomID) },
+            onCharacterSoundEffectsChanged: { [weak self] enabled in
+                #if !APP_STORE
+                guard let self else { return }
+                self.model.preferences.characterSoundEffectsEnabled = enabled
+                self.model.characterImpactAudio.isEnabled = enabled
+                self.persistPreferences()
+                #endif
+            },
+            onCharacterImpact: { [weak self] id, time in
+                #if !APP_STORE
+                guard let self else { return }
+                self.model.characterImpactAudio.isEnabled = self.model.preferences.characterSoundEffectsEnabled
+                self.model.characterImpactAudio.play(objectID: id, at: time)
+                #endif
+            },
+            onStopCharacterSounds: { [weak self] in
+                #if !APP_STORE
+                self?.model.characterImpactAudio.stopAll()
+                #endif
+            }
         ),
         onClose: { [weak self] in self?.settingsDidClose() }
     )
@@ -80,6 +110,8 @@ final class AppCoordinator {
     var typingTask: Task<Void, Never>?
     var bubbleExpiryTask: Task<Void, Never>?
     var commerceProductTasks: [String: Task<Void, Never>] = [:]
+    var cosmeticEquipmentTasks: [CommerceProductKind: Task<Void, Never>] = [:]
+    var characterEquipmentTask: Task<Void, Never>?
     var commerceAuthTask: Task<Void, Never>?
     var googleConnectionProductID: String?
     private var landingDidComplete = false
@@ -105,9 +137,9 @@ final class AppCoordinator {
     ) {
         self.updateController = updateController
         self.releaseChannel = releaseChannel
-        self.launchAtLoginController = LaunchAtLoginController(
-            helperIdentifier: releaseChannel.loginItemIdentifier
-        )
+        self.launchAtLoginController = LaunchAtLoginController(mode: releaseChannel.loginItemMode)
+        self.appStorePurchaseController = AppStorePurchaseController()
+        self.appStoreAccountClient = AppStoreAccountClient()
         self.preferencesStore = preferencesStore
         self.legacyMigrator = legacyMigrator
         self.keychainAccessSession = keychainAccessSession
@@ -217,7 +249,16 @@ final class AppCoordinator {
         bubbleExpiryTask?.cancel()
         commerceProductTasks.values.forEach { $0.cancel() }
         commerceProductTasks.removeAll()
+        cosmeticEquipmentTasks.values.forEach { $0.cancel() }
+        for kind in cosmeticEquipmentTasks.keys {
+            model.endCosmeticEquipmentRequest(kind: kind)
+        }
+        cosmeticEquipmentTasks.removeAll()
+        characterEquipmentTask?.cancel()
+        characterEquipmentTask = nil
+        model.endCharacterEquipmentRequest()
         commerceAuthTask?.cancel()
+        appStorePurchaseController.stopObserving()
         roomSwitchPipeline.cancel()
         activityMonitor.stop()
         mainThreadProbe.stop()
@@ -295,7 +336,10 @@ final class AppCoordinator {
     }
 
     func handleOpenURL(_ url: URL) -> Bool {
-        guard releaseChannel.storeAvailability.allowsCommerceActions,
+#if APP_STORE
+        return false
+#else
+        guard releaseChannel.storeAvailability == .direct,
               SideyAuthCallback.matches(url),
               let backend
         else { return false }
@@ -311,7 +355,7 @@ final class AppCoordinator {
             do {
                 try await backend.handleAuthCallback(url)
                 refreshCommerceState()
-                model.successMessage = "Google 계정을 연결했습니다."
+                model.presentSuccess("Google 계정을 연결했습니다.")
                 model.errorMessage = nil
             } catch {
                 if let targetProductID {
@@ -324,6 +368,7 @@ final class AppCoordinator {
             }
         }
         return true
+#endif
     }
 
     private func settingsDidClose() {
@@ -401,12 +446,12 @@ final class AppCoordinator {
 
     private func copyInviteCode(roomID: UUID) async -> Bool {
         guard model.rooms.first(where: { $0.id == roomID })?.inviteCodeReady == true else {
-            model.successMessage = nil
+            model.dismissSuccess()
             model.errorMessage = "이 그룹의 이전 초대 코드는 폐기됐습니다. 방장이 새 코드를 발급해야 합니다."
             return false
         }
         guard let backend else {
-            model.successMessage = nil
+            model.dismissSuccess()
             model.errorMessage = "초대 코드를 읽을 서버 구성이 없습니다."
             return false
         }
@@ -414,21 +459,21 @@ final class AppCoordinator {
             guard let inviteCode = try await backend.storedInviteCode(roomID: roomID),
                   !inviteCode.isEmpty
             else {
-                model.successMessage = nil
+                model.dismissSuccess()
                 model.errorMessage = "이 기기에 이 그룹의 초대 코드 원문이 없습니다. 보안상 데이터베이스의 해시에서는 복구할 수 없습니다."
                 return false
             }
             NSPasteboard.general.clearContents()
             guard NSPasteboard.general.setString(inviteCode, forType: .string) else {
-                model.successMessage = nil
+                model.dismissSuccess()
                 model.errorMessage = "초대 코드를 클립보드에 복사하지 못했습니다."
                 return false
             }
             model.errorMessage = nil
-            model.successMessage = nil
+            model.dismissSuccess()
             return true
         } catch {
-            model.successMessage = nil
+            model.dismissSuccess()
             model.errorMessage = "초대 코드를 읽지 못했습니다: \(error.localizedDescription)"
             return false
         }

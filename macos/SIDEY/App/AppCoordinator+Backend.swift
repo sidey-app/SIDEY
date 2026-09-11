@@ -21,16 +21,11 @@ extension AppCoordinator {
             return
         }
         let requireExistingSession = model.preferences.onboardingComplete
+            || releaseChannel.requiresAppleAuthentication
         backendConnectionStatus = nil
         model.setActiveRoomRealtimeConnected(false)
         model.connectionState = .connecting
-        backendEventTask?.cancel()
-        backendEventTask = Task { [weak self] in
-            for await event in backend.events {
-                guard !Task.isCancelled else { return }
-                self?.handleBackendEvent(event)
-            }
-        }
+        startBackendEventHandling(backend.events)
         backendTask?.cancel()
         backendTask = Task { [weak self] in
             guard let self else { return }
@@ -39,6 +34,9 @@ extension AppCoordinator {
                 let userID = await backend.currentUserID()
                 guard !Task.isCancelled else { return }
                 model.apply(snapshot: snapshot, currentUserID: userID)
+                if releaseChannel == .appStore, userID != nil {
+                    await configureAppStoreCommerce(backend: backend)
+                }
                 refreshCommerceState()
                 let reconciliation = try await backend.syncRealtime(
                     rooms: snapshot.rooms,
@@ -57,6 +55,18 @@ extension AppCoordinator {
                 advanceFirstRunTransition()
             } catch {
                 guard !Task.isCancelled else { return }
+                if releaseChannel.requiresAppleAuthentication,
+                   error as? SideyBackendError == .sessionRecoveryFailed {
+                    model.authenticationRequired = true
+                    model.connectionState = .idle
+                    model.errorMessage = nil
+                    backendBootstrapState = .failed
+                    applyRequestedOverlayVisibility()
+                    refreshStatusItem()
+                    if launchReason == .loginItem { showSettings() }
+                    advanceFirstRunTransition()
+                    return
+                }
                 model.connectionState = .failed(error.localizedDescription)
                 model.errorMessage = "서버 연결 실패: \(error.localizedDescription)"
                 backendBootstrapState = .failed
@@ -69,8 +79,25 @@ extension AppCoordinator {
         }
     }
 
+    func startBackendEventHandling(_ events: AsyncStream<BackendEvent>) {
+        // Cancelling an AsyncStream consumer terminates the shared stream. Keep
+        // this task alive across authentication/bootstrap retries until shutdown.
+        guard backendEventTask == nil else { return }
+        backendEventTask = Task { [weak self] in
+            defer { self?.backendEventTask = nil }
+            for await event in events {
+                guard !Task.isCancelled, let self else { return }
+                self.handleBackendEvent(event)
+            }
+        }
+    }
+
     func saveProfile() {
         guard let backend else { return }
+        let hadProfile = model.hasProfile
+        guard !hadProfile || model.hasNicknameChanges else { return }
+        let nickname = model.normalizedNicknameDraft
+        guard ProfileValidator.isValidNickname(model.nickname) else { return }
         let characterID = PixelCharacterCatalog.canonicalID(for: model.selectedCharacterID)
         guard model.isCharacterSelectable(characterID) else {
             model.errorMessage = "보유한 캐릭터만 프로필에 선택할 수 있습니다."
@@ -80,22 +107,64 @@ extension AppCoordinator {
         guard !model.isWorking, model.groupOperation == .idle else { return }
         model.isWorking = true
         model.errorMessage = nil
-        model.successMessage = nil
+        model.dismissSuccess()
         Task { [weak self] in
             guard let self else { return }
             defer { model.isWorking = false }
             do {
                 let profile = try await backend.upsertProfile(
-                    nickname: model.nickname,
+                    nickname: nickname,
                     characterID: characterID
                 )
                 model.apply(profile: profile)
-                model.successMessage = "프로필을 저장했습니다."
+                model.presentSuccess(hadProfile ? "닉네임을 변경했습니다." : "프로필을 저장했습니다.")
                 applyRequestedOverlayVisibility()
                 refreshStatusItem()
                 persistPreferences()
             } catch {
                 model.errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    func setCharacter(_ requestedCharacterID: String) {
+        guard let backend,
+              let confirmedNickname = model.confirmedNickname,
+              !model.isWorking,
+              model.groupOperation == .idle,
+              characterEquipmentTask == nil,
+              model.beginCharacterEquipmentRequest(characterID: requestedCharacterID)
+        else { return }
+        let characterID = PixelCharacterCatalog.canonicalID(for: requestedCharacterID)
+        let displayName = PixelCharacterCatalog.definition(for: characterID).displayName
+        model.isWorking = true
+        model.errorMessage = nil
+        model.dismissSuccess()
+        characterEquipmentTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                model.isWorking = false
+                model.endCharacterEquipmentRequest()
+                characterEquipmentTask = nil
+            }
+            do {
+                let profile = try await backend.upsertProfile(
+                    nickname: confirmedNickname,
+                    characterID: characterID
+                )
+                guard profile.id == model.currentUserID else {
+                    throw SideyBackendError.malformedResponse
+                }
+                model.apply(profile: profile)
+                model.presentSuccess("\(displayName) 캐릭터를 장착했습니다.")
+                model.errorMessage = nil
+                applyRequestedOverlayVisibility()
+                refreshStatusItem()
+                persistPreferences()
+            } catch is CancellationError {
+                return
+            } catch {
+                model.errorMessage = "캐릭터를 장착하지 못했습니다: \(error.localizedDescription)"
             }
         }
     }
@@ -110,7 +179,7 @@ extension AppCoordinator {
         }
         runMutation(groupOperation: .creating) {
             _ = try await backend.upsertProfile(
-                nickname: self.model.nickname,
+                nickname: self.model.confirmedNickname ?? self.model.normalizedNicknameDraft,
                 characterID: characterID
             )
             let created = try await backend.createRoom(name: roomName)
@@ -133,7 +202,7 @@ extension AppCoordinator {
         }
         runMutation(groupOperation: .joining) {
             _ = try await backend.upsertProfile(
-                nickname: self.model.nickname,
+                nickname: self.model.confirmedNickname ?? self.model.normalizedNicknameDraft,
                 characterID: characterID
             )
             let joined = try await backend.joinRoom(inviteCode: inviteCode)
@@ -160,6 +229,14 @@ extension AppCoordinator {
             .nickname ?? "멤버"
         runMutation(successMessage: "\(nickname)님을 그룹에서 내보냈습니다.") {
             try await backend.removeRoomMember(roomID, userID: userID)
+        }
+    }
+
+    func leaveRoom(_ roomID: UUID) {
+        guard let backend else { return }
+        let roomName = model.rooms.first(where: { $0.id == roomID })?.name ?? "그룹"
+        runMutation(successMessage: "‘\(roomName)’ 그룹에서 나갔습니다.") {
+            try await backend.leaveRoom(roomID)
         }
     }
 
@@ -270,7 +347,7 @@ extension AppCoordinator {
         model.isWorking = true
         if let groupOperation { model.groupOperation = groupOperation }
         model.errorMessage = nil
-        model.successMessage = nil
+        model.dismissSuccess()
         Task { [weak self] in
             guard let self else { return }
             defer {
@@ -286,23 +363,42 @@ extension AppCoordinator {
                 serverMutationCommitted = true
                 let postCommitWarning = model.errorMessage
                 let snapshot = try await backend.loadSnapshot()
-                let reconciliation = try await backend.syncRealtime(
-                    rooms: snapshot.rooms,
-                    activeRoomID: model.resolvedActiveRoomID(in: snapshot.rooms)
-                )
-                applyBackendReconciliation(reconciliation)
-                model.connectionState = .online
-                model.errorMessage = postCommitWarning
-                model.successMessage = successMessage
+                // The database mutation is durable once the snapshot loads. Apply it before
+                // Realtime work so a transient channel rebuild cannot leave successful room
+                // changes looking like failures or invite users to repeat the mutation.
+                applyBackendSnapshot(snapshot, currentUserID: model.currentUserID)
+
+                var realtimeWarning: String?
+                do {
+                    let reconciliation = try await backend.syncRealtime(
+                        rooms: snapshot.rooms,
+                        activeRoomID: model.resolvedActiveRoomID(in: snapshot.rooms)
+                    )
+                    applyBackendReconciliation(reconciliation)
+                    model.connectionState = .online
+                } catch is CancellationError where Task.isCancelled {
+                    throw CancellationError()
+                } catch {
+                    model.connectionState = .connecting
+                    model.setActiveRoomRealtimeConnected(false)
+                    realtimeWarning = "변경사항은 서버에 저장됐습니다. 실시간 연결을 복구 중입니다."
+                }
+                let warnings = [postCommitWarning, realtimeWarning].compactMap { $0 }
+                model.errorMessage = warnings.isEmpty ? nil : warnings.joined(separator: " ")
+                if realtimeWarning == nil, let successMessage {
+                    model.presentSuccess(successMessage)
+                }
                 if !wasOnboardingComplete && model.preferences.onboardingComplete {
                     model.activeSettingsPage = .groups
                     settingsWindow.transitionFromOnboardingToSettings()
+                } else if wasOnboardingComplete && !model.preferences.onboardingComplete {
+                    settingsWindow.transitionFromSettingsToOnboarding()
                 }
                 applyRequestedOverlayVisibility()
                 refreshStatusItem()
                 persistPreferences()
             } catch {
-                model.successMessage = nil
+                model.dismissSuccess()
                 model.errorMessage = serverMutationCommitted
                     ? "서버 작업은 완료됐지만 상태 동기화에 실패했습니다: \(error.localizedDescription)"
                     : error.localizedDescription
@@ -454,6 +550,9 @@ extension AppCoordinator {
     }
 
     func characterDoubleClicked() {
+        #if !APP_STORE
+        if let id = model.currentUserID, model.characterStunState.isStunned(id) { return }
+        #endif
         guard let room = model.activeRoom,
               let userID = model.currentUserID,
               room.members.contains(where: { $0.userID == userID }),
@@ -471,6 +570,9 @@ extension AppCoordinator {
     }
 
     func characterThrowRequested(targetUserID: UUID) {
+        #if !APP_STORE
+        if let id = model.currentUserID, model.characterStunState.isStunned(id) { return }
+        #endif
         guard model.activeRoomRealtimeAvailable,
               let room = model.activeRoom,
               let actorUserID = model.currentUserID,
@@ -490,7 +592,8 @@ extension AppCoordinator {
             roomID: room.id,
             actorUserID: actorUserID,
             targetUserID: targetUserID,
-            sourceCharacterID: PixelCharacterCatalog.canonicalID(for: actor.characterID)
+            sourceCharacterID: PixelCharacterCatalog.canonicalID(for: actor.characterID),
+            throwableID: model.equippedThrowableID
         )
         overlayWindows.playCharacterThrow(event)
         guard let backend else { return }
@@ -507,35 +610,89 @@ extension AppCoordinator {
         guard releaseChannel.storeAvailability.allowsCommerceActions,
               let backend
         else { return }
-        let productIDs = productID.map { [$0] } ?? model.commerceProducts.map(\.id)
-
-        for productID in productIDs {
-            guard model.commerceProduct(id: productID) != nil,
-                  commerceProductTasks[productID] == nil
-            else { continue }
-
-            model.setCommerceWorking(true, productID: productID)
-            commerceProductTasks[productID] = Task { [weak self] in
-                guard let self else { return }
-                defer {
-                    model.setCommerceWorking(false, productID: productID)
-                    commerceProductTasks[productID] = nil
+        let requestedIDs = productID.map { [$0] } ?? model.commerceProducts.map(\.id)
+        let productIDs = requestedIDs.filter {
+            model.commerceProduct(id: $0) != nil && commerceProductTasks[$0] == nil
+        }
+        guard !productIDs.isEmpty else { return }
+        productIDs.forEach { model.setCommerceWorking(true, productID: $0) }
+        let task = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                for id in productIDs {
+                    model.setCommerceWorking(false, productID: id)
+                    commerceProductTasks[id] = nil
                 }
-                do {
-                    let state = try await backend.commerceState(productID: productID)
-                    model.apply(commerceState: state)
-                } catch is CancellationError {
-                    return
-                } catch {
+            }
+            do {
+                let states = try await backend.storeState()
+                model.apply(commerceStates: states)
+                if releaseChannel.storeAvailability.usesAppStore {
+                    for state in states where state.entitlementStatus != "active" {
+                        model.setCommercePurchaseState(.available, productID: state.product.id)
+                    }
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                for id in productIDs {
                     model.setCommercePurchaseState(
                         .error("상점 상태를 불러오지 못했습니다."),
-                        productID: productID
+                        productID: id
                     )
                 }
             }
         }
+        productIDs.forEach { commerceProductTasks[$0] = task }
     }
 
+    func setEquippedCosmetic(kind: CommerceProductKind, catalogItemID: String?) {
+        let product = catalogItemID.flatMap { requestedID in
+            model.ownedProfileCosmeticProducts(for: kind).first {
+                $0.catalogItemID == requestedID
+            }
+        }
+        guard releaseChannel.storeAvailability.allowsCosmeticEquipment,
+              kind != .character,
+              let backend,
+              catalogItemID == nil || product != nil,
+              model.equippedCosmeticID(for: kind) != catalogItemID,
+              cosmeticEquipmentTasks[kind] == nil,
+              model.beginCosmeticEquipmentRequest(kind: kind, catalogItemID: catalogItemID)
+        else { return }
+
+        model.errorMessage = nil
+        model.dismissSuccess()
+        cosmeticEquipmentTasks[kind] = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                model.endCosmeticEquipmentRequest(kind: kind)
+                cosmeticEquipmentTasks[kind] = nil
+            }
+            do {
+                let profile = try await backend.setEquippedCosmetic(
+                    kind: kind,
+                    catalogItemID: catalogItemID
+                )
+                guard profile.id == model.currentUserID else {
+                    throw SideyBackendError.malformedResponse
+                }
+                model.apply(profile: profile)
+                model.presentSuccess(CosmeticEquipmentFeedback.successMessage(
+                    kind: kind,
+                    product: product
+                ))
+                model.errorMessage = nil
+                persistPreferences()
+            } catch is CancellationError {
+                return
+            } catch {
+                model.errorMessage = "장착 상태를 바꾸지 못했습니다: \(error.localizedDescription)"
+            }
+        }
+    }
+
+#if !APP_STORE
     private func connectGoogleForCommerce(productID: String) {
         guard releaseChannel.storeAvailability.allowsCommerceActions,
               let backend,
@@ -563,7 +720,7 @@ extension AppCoordinator {
                     throw SideyBackendError.remote("기본 브라우저를 열지 못했습니다.")
                 }
                 didOpenBrowser = true
-                model.successMessage = "브라우저에서 Google 계정 연결을 완료해 주세요."
+                model.presentSuccess("브라우저에서 Google 계정 연결을 완료해 주세요.")
             } catch is CancellationError {
                 return
             } catch {
@@ -575,6 +732,7 @@ extension AppCoordinator {
             }
         }
     }
+#endif
 
     func purchase(productID: String) {
         guard releaseChannel.storeAvailability.allowsCommerceActions,
@@ -584,10 +742,13 @@ extension AppCoordinator {
               productState.purchaseState != .owned
         else { return }
 
-        if productState.purchaseState == .googleConnectionRequired {
+#if !APP_STORE
+        if !releaseChannel.storeAvailability.usesAppStore,
+           productState.purchaseState == .googleConnectionRequired {
             connectGoogleForCommerce(productID: productID)
             return
         }
+#endif
         guard productState.purchaseState == .available
                 || productState.purchaseState == .refunded
         else { return }
@@ -603,6 +764,48 @@ extension AppCoordinator {
                 commerceProductTasks[productID] = nil
             }
             do {
+                if releaseChannel.storeAvailability.usesAppStore {
+                    guard let userID = model.currentUserID else {
+                        throw SideyBackendError.sessionRecoveryFailed
+                    }
+                    let purchased = try await appStorePurchaseController.purchase(
+                        productID: productID,
+                        userID: userID,
+                        accessToken: try await backend.currentAccessToken()
+                    )
+                    if purchased {
+                        let snapshot = try await backend.loadSnapshot()
+                        applyBackendSnapshot(snapshot, currentUserID: userID)
+                        model.setCommercePurchaseState(.owned, productID: productID)
+                        if let equipment = product.automaticEquipmentAfterFreshPurchase {
+                            do {
+                                let profile = try await backend.setEquippedCosmetic(
+                                    kind: equipment.kind,
+                                    catalogItemID: equipment.catalogItemID
+                                )
+                                guard profile.id == userID else {
+                                    throw SideyBackendError.malformedResponse
+                                }
+                                model.apply(profile: profile)
+                                persistPreferences()
+                                model.presentSuccess("\(product.displayName) 구매 및 장착이 완료되었습니다.")
+                            } catch is CancellationError {
+                                return
+                            } catch {
+                                model.presentSuccess("\(product.displayName) 구매가 완료되었습니다.")
+                                model.errorMessage = "구매는 반영됐지만 자동 장착하지 못했습니다: \(error.localizedDescription)"
+                            }
+                        } else {
+                            model.presentSuccess("\(product.displayName) 구매가 완료되었습니다.")
+                        }
+                    } else {
+                        model.setCommercePurchaseState(.available, productID: productID)
+                    }
+                    return
+                }
+#if APP_STORE
+                throw SideyBackendError.remote("App Store 배포 구성이 올바르지 않습니다.")
+#else
                 let checkout = try await backend.createCommerceOrder(productID: productID)
                 guard NSWorkspace.shared.open(checkout.checkoutURL) else {
                     throw SideyBackendError.remote("기본 브라우저를 열지 못했습니다.")
@@ -617,7 +820,7 @@ extension AppCoordinator {
                         model.apply(commerceState: state)
                         let snapshot = try await backend.loadSnapshot()
                         applyBackendSnapshot(snapshot, currentUserID: model.currentUserID)
-                        model.successMessage = "\(product.displayName) 구매가 완료되었습니다."
+                        model.presentSuccess("\(product.displayName) 구매가 완료되었습니다.")
                         model.errorMessage = nil
                         persistPreferences()
                         return
@@ -635,6 +838,7 @@ extension AppCoordinator {
                     .error("결제 승인 확인 시간이 초과되었습니다. 상점 상태를 다시 확인해 주세요."),
                     productID: productID
                 )
+#endif
             } catch is CancellationError {
                 return
             } catch {
@@ -645,5 +849,97 @@ extension AppCoordinator {
                 model.errorMessage = "\(product.displayName) 구매 처리 실패: \(error.localizedDescription)"
             }
         }
+    }
+
+    func signInWithApple(_ payload: AppleAuthorizationPayload) {
+        guard releaseChannel.requiresAppleAuthentication, let backend,
+              !model.accountOperationInProgress else { return }
+        model.accountOperationInProgress = true
+        model.errorMessage = nil
+        Task { [weak self] in
+            guard let self else { return }
+            defer { model.accountOperationInProgress = false }
+            do {
+                try await backend.signInWithApple(
+                    identityToken: payload.identityToken,
+                    nonce: payload.nonce
+                )
+                model.authenticationRequired = false
+                startBackend()
+            } catch {
+                model.authenticationRequired = true
+                model.errorMessage = "Apple 로그인 실패: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func restoreAppStorePurchases() {
+        guard releaseChannel == .appStore, let backend, let userID = model.currentUserID,
+              !model.accountOperationInProgress else { return }
+        model.accountOperationInProgress = true
+        model.errorMessage = nil
+        Task { [weak self] in
+            guard let self else { return }
+            defer { model.accountOperationInProgress = false }
+            do {
+                try await appStorePurchaseController.restore(
+                    accessToken: try await backend.currentAccessToken()
+                )
+                let snapshot = try await backend.loadSnapshot()
+                applyBackendSnapshot(snapshot, currentUserID: userID)
+                refreshCommerceState()
+                model.presentSuccess("App Store 구매 내역을 복원했습니다.")
+            } catch {
+                model.errorMessage = "구매 복원 실패: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func deleteAccount(_ payload: AppleAuthorizationPayload) {
+        guard releaseChannel == .appStore, let backend,
+              !model.accountOperationInProgress else { return }
+        model.accountOperationInProgress = true
+        model.errorMessage = nil
+        Task { [weak self] in
+            guard let self else { return }
+            defer { model.accountOperationInProgress = false }
+            do {
+                try await appStoreAccountClient.deleteAccount(
+                    payload: payload,
+                    accessToken: try await backend.currentAccessToken()
+                )
+                try? await backend.signOut()
+                try? KeychainStore(
+                    service: releaseChannel.keychainService,
+                    session: keychainAccessSession
+                ).deleteAll()
+                preferencesStore.save(.defaults)
+                NSApplication.shared.terminate(nil)
+            } catch {
+                model.errorMessage = "계정 탈퇴 실패: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func configureAppStoreCommerce(backend: SideyBackend) async {
+        do {
+            model.setCommerceLocalizedPrices(try await appStorePurchaseController.loadProducts())
+        } catch {
+            model.errorMessage = "App Store 상품 정보를 불러오지 못했습니다: \(error.localizedDescription)"
+        }
+        do {
+            try await appStorePurchaseController.reconcileCurrentEntitlements(
+                accessToken: try await backend.currentAccessToken()
+            )
+        } catch {
+            model.errorMessage = "App Store 구매 내역을 반영하지 못했습니다: \(error.localizedDescription)"
+        }
+        appStorePurchaseController.startObserving(
+            accessToken: { try await backend.currentAccessToken() },
+            didChange: { [weak self] in self?.refreshCommerceState() },
+            didFail: { [weak self] message in
+                self?.model.errorMessage = "App Store 거래 반영 실패: \(message)"
+            }
+        )
     }
 }

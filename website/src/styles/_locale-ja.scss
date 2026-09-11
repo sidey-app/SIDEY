@@ -1,0 +1,83 @@
+@use "settings" as *;
+
+html:lang(ja) {
+  font-family: "M PLUS 1p", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  line-break: strict;
+
+  :where(h1, h2, h3, h4, p, li, dd, figcaption, blockquote, summary) {
+    word-break: normal;
+  }
+
+  :where(h1, h2, h3, h4) {
+    overflow-wrap: normal;
+    word-break: auto-phrase;
+    text-wrap: balance;
+  }
+
+  :where(p, li, dd, figcaption, blockquote, summary) {
+    overflow-wrap: anywhere;
+    word-break: auto-phrase;
+    text-wrap: pretty;
+  }
+
+  .phrase-unit {
+    display: inline-block;
+  }
+
+  .hero {
+    grid-template-columns: minmax(0, 1.05fr) minmax(31.25rem, 1fr);
+    gap: clamp(2.5rem, 5vw, 4rem);
+
+    h1 {
+      max-width: 9.5ch;
+      font-size: clamp(2.8rem, 4.5vw, 4.5rem);
+      font-weight: 800;
+      letter-spacing: -.035em;
+      line-height: 1.08;
+    }
+  }
+
+  .hero-copy {
+    > p {
+      font-size: clamp(.94rem, 1.2vw, 1.08rem);
+      line-height: 1.9;
+    }
+  }
+
+  .section {
+    h2 {
+      font-size: clamp(2.1rem, 3.9vw, 3.8rem);
+      font-weight: 800;
+      letter-spacing: -.03em;
+      line-height: 1.14;
+    }
+  }
+
+  .motion-card-heading {
+    h3 {
+      max-width: none;
+      font-size: clamp(1.35rem, 2vw, 1.95rem);
+      font-weight: 800;
+      letter-spacing: -.025em;
+      line-height: 1.18;
+    }
+  }
+}
+
+@media (max-width: $breakpoint-tablet) {
+  html:lang(ja) {
+    .hero {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+@media (max-width: $breakpoint-mobile) {
+  html:lang(ja) {
+    .hero {
+      h1 {
+        font-size: clamp(2.5rem, 12vw, 4rem);
+      }
+    }
+  }
+}

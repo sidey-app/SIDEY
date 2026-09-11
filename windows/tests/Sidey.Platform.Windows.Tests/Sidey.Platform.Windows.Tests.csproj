@@ -11,7 +11,10 @@
     <RootNamespace>Sidey.Platform.Windows.Tests</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="coverlet.collector">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">
@@ -20,31 +23,15 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Sidey.Overlay/Sidey.Overlay.csproj" />
+    <Compile Include="../../src/Sidey.App/AppCoordinator.cs" Link="AppCoordinator.cs" />
+    <Compile Include="../../installer/Sidey.Setup/InstallerLanguages.cs" Link="InstallerLanguages.cs" />
     <ProjectReference Include="../../src/Sidey.Presentation/Sidey.Presentation.csproj" />
+    <ProjectReference Include="../../src/Sidey.Overlay/Sidey.Overlay.csproj" />
     <ProjectReference Include="../../src/Sidey.Infrastructure/Sidey.Infrastructure.csproj" />
     <ProjectReference Include="../../src/Sidey.Platform.Windows/Sidey.Platform.Windows.csproj" />
   </ItemGroup>
   <ItemGroup>
     <None Include="../../src/Sidey.App/Langs/*.json" Link="Langs/%(Filename)%(Extension)">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="../../src/Sidey.Infrastructure/SupabaseBackendGateway.cs" Link="TestAssets/SupabaseBackendGateway.cs">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="../../src/Sidey.Infrastructure/SupabaseRealtimeTransport.cs" Link="TestAssets/SupabaseRealtimeTransport.cs">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="../../src/Sidey.App/AppCoordinator.cs" Link="TestAssets/AppCoordinator.cs">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="../../src/Sidey.Overlay/NativePixelWorldSession.cs" Link="TestAssets/NativePixelWorldSession.cs">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="../../src/Sidey.Platform.Windows/NativeOverlayWindowThread.cs" Link="TestAssets/NativeOverlayWindowThread.cs">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="../../src/Sidey.Platform.Windows/NativeOverlayWindow.cs" Link="TestAssets/NativeOverlayWindow.cs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="../../src/Sidey.App/Sidey.App.csproj" Link="TestAssets/Sidey.App.csproj.xml">
@@ -53,13 +40,7 @@
     <None Include="../../src/Sidey.Overlay/Sidey.Overlay.csproj" Link="TestAssets/Sidey.Overlay.csproj.xml">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="../../installer/Sidey.Msi/Package.wxs" Link="TestAssets/Sidey.Msi.Package.wxs">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="../../installer/Sidey.Msi/Sidey.Msi.wixproj" Link="TestAssets/Sidey.Msi.wixproj.xml">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Include="../../installer/Sidey.Msi/SideyUI.wxs" Link="TestAssets/Sidey.Msi.SideyUI.wxs">
+    <None Include="../../installer/Sidey.Setup/Sidey.Setup.nsi" Link="TestAssets/Sidey.Setup.nsi">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

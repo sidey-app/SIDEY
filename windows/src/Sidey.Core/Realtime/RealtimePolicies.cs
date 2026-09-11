@@ -13,7 +13,7 @@ public sealed class RealtimeConnectionTracker
 
     public void ReplaceDesiredRoomIds(IEnumerable<Guid> roomIds)
     {
-        _desiredRoomIds = roomIds.ToHashSet();
+        _desiredRoomIds = [.. roomIds];
         _subscribedRoomIds.IntersectWith(_desiredRoomIds);
     }
 
@@ -42,6 +42,9 @@ public static class PresencePublicationPlan
 
 public static class LocalPresenceProjection
 {
+    public static PresenceState ForOverlay(PresenceState presence, bool activeRoomConnected) =>
+        activeRoomConnected ? presence : PresenceState.Reconnecting;
+
     public static PresenceState ForMember(
         Guid memberId,
         Guid currentUserId,
@@ -87,11 +90,21 @@ public static class PresenceChangePlan
     public static IReadOnlyList<PresenceUpdate> Updates(
         IReadOnlyDictionary<Guid, PresenceState> joined,
         IReadOnlySet<Guid> left) =>
-        left.Except(joined.Keys)
+        [.. left.Except(joined.Keys)
             .Select(userId => new PresenceUpdate(userId, PresenceState.Offline))
             .Concat(joined.Select(pair => new PresenceUpdate(pair.Key, pair.Value)))
-            .OrderBy(update => update.UserId.ToString("D"), StringComparer.Ordinal)
-            .ToArray();
+            .OrderBy(update => update.UserId.ToString("D"), StringComparer.Ordinal)];
+}
+
+public static class PresenceSnapshotPlan
+{
+    public static IReadOnlyList<PresenceUpdate> Updates(
+        IReadOnlyDictionary<Guid, PresenceState> current,
+        IReadOnlySet<Guid> previouslyPresent) =>
+        [.. previouslyPresent.Except(current.Keys)
+            .Select(userId => new PresenceUpdate(userId, PresenceState.Offline))
+            .Concat(current.Select(pair => new PresenceUpdate(pair.Key, pair.Value)))
+            .OrderBy(update => update.UserId.ToString("D"), StringComparer.Ordinal)];
 }
 
 public abstract record TypingLeaseAction(Guid RoomId)
@@ -150,8 +163,8 @@ public sealed class CharacterPulseCooldown
             return false;
         }
 
-        var key = (roomId, userId);
-        if (_lastAcceptedUptime.TryGetValue(key, out var last) && uptime - last < Duration)
+        (Guid roomId, Guid userId) key = (roomId, userId);
+        if (_lastAcceptedUptime.TryGetValue(key, out TimeSpan last) && uptime - last < Duration)
         {
             return false;
         }
@@ -174,8 +187,8 @@ public sealed class CharacterThrowCooldown
             return false;
         }
 
-        var key = (roomId, userId);
-        if (_lastAcceptedUptime.TryGetValue(key, out var last) && uptime - last < Duration)
+        (Guid roomId, Guid userId) key = (roomId, userId);
+        if (_lastAcceptedUptime.TryGetValue(key, out TimeSpan last) && uptime - last < Duration)
         {
             return false;
         }
@@ -188,6 +201,28 @@ public sealed class CharacterThrowCooldown
 public static class RealtimeRecoveryPolicy
 {
     public static readonly TimeSpan WatchdogInterval = TimeSpan.FromSeconds(5);
+    public static readonly TimeSpan PathRecoveryDebounce = TimeSpan.FromMilliseconds(350);
+
+    public static TimeSpan ConnectionDelayForAttempt(int attempt, double randomSample)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(randomSample);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(randomSample, 1);
+        if (!double.IsFinite(randomSample))
+            throw new ArgumentOutOfRangeException(nameof(randomSample));
+        if (attempt <= 1)
+            return PathRecoveryDebounce;
+        double seconds = attempt switch
+        {
+            2 => 8,
+            3 => 16,
+            4 => 30,
+            5 => 60,
+            6 => 120,
+            7 => 240,
+            _ => 300,
+        };
+        return TimeSpan.FromSeconds(Math.Min(300, seconds * (0.8 + 0.4 * randomSample)));
+    }
 
     public static TimeSpan DelayForAttempt(int attempt) => attempt switch
     {
@@ -205,7 +240,7 @@ public static class RealtimeRecoveryPolicy
 public sealed class CoalescingPublicationQueue<T>(Func<T, CancellationToken, Task> publish)
     : IAsyncDisposable
 {
-    private readonly object _gate = new();
+    private readonly Lock _gate = new();
     private readonly Func<T, CancellationToken, Task> _publish = publish
         ?? throw new ArgumentNullException(nameof(publish));
     private readonly CancellationTokenSource _shutdown = new();
@@ -310,7 +345,7 @@ public sealed class CoalescingPublicationQueue<T>(Func<T, CancellationToken, Tas
         IEnumerable<TaskCompletionSource> completions,
         Action<TaskCompletionSource> complete)
     {
-        foreach (var completion in completions)
+        foreach (TaskCompletionSource completion in completions)
         {
             complete(completion);
         }

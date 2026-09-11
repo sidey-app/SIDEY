@@ -14,13 +14,23 @@ public sealed record ValidationMetricsSnapshot(
 public sealed record AvailableUpdate(
     string Version,
     Uri? InstallerUri = null,
-    string? Sha256 = null);
+    string? Sha256 = null,
+    Uri? ReleaseNotesUri = null);
 
 public interface IUpdateService
 {
-    Task<AvailableUpdate?> CheckAsync(CancellationToken cancellationToken = default);
+    public string CurrentVersion { get; }
 
-    Task DownloadAndLaunchInstallerAsync(
+    public DateTimeOffset? LastCheckedAt { get; }
+
+    public Uri CurrentReleaseNotesUri { get; }
+
+    public Task<AvailableUpdate?> CheckAsync(CancellationToken cancellationToken = default);
+
+    public Task DownloadAndLaunchInstallerAsync(
         AvailableUpdate update,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        IProgress<int>? progress = null);
+
+    public Task OpenReleaseNotesAsync(Uri releaseNotesUri);
 }

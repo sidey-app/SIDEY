@@ -11,26 +11,61 @@ internal static class PixelVisualOrientation
             return source;
         }
 
-        var width = edge is OverlayEdge.Left or OverlayEdge.Right
+        int width = edge is OverlayEdge.Left or OverlayEdge.Right
             ? source.Height
             : source.Width;
-        var height = edge is OverlayEdge.Left or OverlayEdge.Right
+        int height = edge is OverlayEdge.Left or OverlayEdge.Right
             ? source.Width
             : source.Height;
-        var pixels = new byte[checked(width * height * 4)];
-        for (var y = 0; y < height; y++)
+        byte[] pixels = new byte[checked(width * height * 4)];
+        for (int y = 0; y < height; y++)
         {
-            for (var x = 0; x < width; x++)
+            for (int x = 0; x < width; x++)
             {
-                var (sourceX, sourceY) = SourceCoordinate(source, edge, x, y);
-                var sourceIndex = ((sourceY * source.Width) + sourceX) * 4;
-                var destinationIndex = ((y * width) + x) * 4;
+                (int sourceX, int sourceY) = SourceCoordinate(source, edge, x, y);
+                int sourceIndex = ((sourceY * source.Width) + sourceX) * 4;
+                int destinationIndex = ((y * width) + x) * 4;
                 source.Pixels.AsSpan(sourceIndex, 4).CopyTo(pixels.AsSpan(destinationIndex, 4));
             }
         }
 
         Array.Clear(source.Pixels);
-        return new PremultipliedVisual(pixels, width, height);
+        return new PremultipliedVisual(
+            pixels,
+            width,
+            height,
+            source.BubblePalette,
+            RotateBodyBounds(source, edge));
+    }
+
+    private static PixelVisualBodyBounds? RotateBodyBounds(
+        PremultipliedVisual source,
+        OverlayEdge edge)
+    {
+        if (source.BubbleBodyBounds is not { } body)
+        {
+            return null;
+        }
+
+        return edge switch
+        {
+            OverlayEdge.Top => new PixelVisualBodyBounds(
+                source.Width - body.X - body.Width,
+                source.Height - body.Y - body.Height,
+                body.Width,
+                body.Height),
+            OverlayEdge.Left => new PixelVisualBodyBounds(
+                source.Height - body.Y - body.Height,
+                body.X,
+                body.Height,
+                body.Width),
+            OverlayEdge.Right => new PixelVisualBodyBounds(
+                body.Y,
+                source.Width - body.X - body.Width,
+                body.Height,
+                body.Width),
+            _ => throw new ArgumentOutOfRangeException(nameof(edge)),
+        };
     }
 
     private static (int X, int Y) SourceCoordinate(

@@ -1,0 +1,86 @@
+{
+  "approval" : "pending",
+  "assets" : [
+    {
+      "approval" : "pending",
+      "file" : "visual\/hamster-stun-frame-8-v2.png",
+      "sha256" : "af791c5c06339ce0edc4993e20cb2eadc48970566b17335ef9874272b1795beb"
+    },
+    {
+      "approval" : "pending",
+      "file" : "visual\/hamster-stun-frame-9-v2.png",
+      "sha256" : "1b8b98fa31ae59523a1a84051b3c11496330f8b8bb21fe86d28c6c5098b06659"
+    },
+    {
+      "approval" : "pending",
+      "file" : "visual\/hamster-stun-orbit-v2.gif",
+      "sha256" : "fd17dfc1281f6669b076a50fa5ea8db710200c430d92010503f53b372122ff16"
+    },
+    {
+      "approval" : "pending",
+      "file" : "visual\/hamster-stun-review-v2.png",
+      "sha256" : "df4b8ea14768591c402f220dbe2a3daebeb10e2488f31729c544ba565333d698"
+    },
+    {
+      "approval" : "pending",
+      "file" : "visual\/hamster-stun-timeline-v2.gif",
+      "sha256" : "c4fa851d150bcaa02f36d0a7a65905401dc1aaf5e7d4616289e7af96acbb8324"
+    },
+    {
+      "approval" : "pending",
+      "file" : "visual\/ring-v2-8x.png",
+      "sha256" : "f059a746017255b622bf85a0f1334416edb95c2ae75f94ea8e512f997e09f24f"
+    },
+    {
+      "approval" : "pending",
+      "file" : "visual\/ring-v2.png",
+      "sha256" : "bda0da61f9e80a38c975865cccb6fbfa84153bf96ee026d1834cd8d81b4ae503"
+    },
+    {
+      "approval" : "pending",
+      "file" : "visual\/star-v1-16x.png",
+      "sha256" : "e0d7cfd7968aa72fac24ee3826deac010ca21fc4ccdfc4ed1b61f33a64cbe1bc"
+    },
+    {
+      "approval" : "pending",
+      "file" : "visual\/star-v1.png",
+      "sha256" : "bf198e4045480e79843feabe8e6a2f1f0359e4fb0a49773544c650807bd02f53"
+    }
+  ],
+  "body_frame_seconds" : 1.2,
+  "feedback" : "V1 star orbit retained; thin ring added at user's request. Full V2 approval pending.",
+  "fps" : 30,
+  "orbit_center_logical_pixels" : [
+    32,
+    19
+  ],
+  "orbit_radius_logical_pixels" : [
+    11,
+    5
+  ],
+  "orbit_seconds" : 1.2,
+  "provenance" : "Native code rendering of unchanged approved character frames plus a pixel-grid star icon.",
+  "recovery_protection_seconds" : 0,
+  "review_round" : 2,
+  "ring" : {
+    "back_color" : "#A68C58",
+    "front_color" : "#D7B868",
+    "origin_logical_pixels" : [
+      21,
+      14
+    ],
+    "size_logical_pixels" : [
+      23,
+      11
+    ],
+    "width_logical_pixels" : 1
+  },
+  "source_character_sha256" : "43171c1dd614629058b6d593c57ca0e5841b0be03a04a05181dfda67c53a7f45",
+  "source_frames" : [
+    8,
+    9
+  ],
+  "star_count" : 3,
+  "star_size_logical_pixels" : 7,
+  "stun_seconds" : 6
+}

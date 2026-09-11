@@ -25,15 +25,15 @@ public static class WindowsTaskbarService
             throw new ArgumentOutOfRangeException(nameof(monitorBounds));
         }
 
-        var inset = 0;
-        foreach (var taskbar in taskbarBounds)
+        int inset = 0;
+        foreach (NativePixelRect taskbar in taskbarBounds)
         {
-            if (!TryIntersect(monitorBounds, taskbar, out var visible))
+            if (!TryIntersect(monitorBounds, taskbar, out NativePixelRect visible))
             {
                 continue;
             }
 
-            var candidate = edge switch
+            int candidate = edge switch
             {
                 OverlayEdge.Bottom
                     when Touches(visible.Y + visible.Height, monitorBounds.Y + monitorBounds.Height)
@@ -73,10 +73,10 @@ public static class WindowsTaskbarService
         var bounds = new List<NativePixelRect>();
         AddVisibleBounds(NativeMethods.FindWindow("Shell_TrayWnd", null), bounds);
 
-        var previous = nint.Zero;
+        nint previous = nint.Zero;
         while (true)
         {
-            var taskbar = NativeMethods.FindWindowEx(
+            nint taskbar = NativeMethods.FindWindowEx(
                 nint.Zero,
                 previous,
                 "Shell_SecondaryTrayWnd",
@@ -96,13 +96,13 @@ public static class WindowsTaskbarService
     {
         if (window == nint.Zero
             || !NativeMethods.IsWindowVisible(window)
-            || !NativeMethods.GetWindowRect(window, out var rectangle))
+            || !NativeMethods.GetWindowRect(window, out NativeRect rectangle))
         {
             return;
         }
 
-        var width = rectangle.Right - rectangle.Left;
-        var height = rectangle.Bottom - rectangle.Top;
+        int width = rectangle.Right - rectangle.Left;
+        int height = rectangle.Bottom - rectangle.Top;
         if (width > 0 && height > 0)
         {
             bounds.Add(new NativePixelRect(rectangle.Left, rectangle.Top, width, height));
@@ -114,10 +114,10 @@ public static class WindowsTaskbarService
         NativePixelRect second,
         out NativePixelRect intersection)
     {
-        var left = Math.Max(first.X, second.X);
-        var top = Math.Max(first.Y, second.Y);
-        var right = Math.Min(first.X + first.Width, second.X + second.Width);
-        var bottom = Math.Min(first.Y + first.Height, second.Y + second.Height);
+        int left = Math.Max(first.X, second.X);
+        int top = Math.Max(first.Y, second.Y);
+        int right = Math.Min(first.X + first.Width, second.X + second.Width);
+        int bottom = Math.Min(first.Y + first.Height, second.Y + second.Height);
         intersection = new NativePixelRect(left, top, right - left, bottom - top);
         return intersection.IsValid;
     }

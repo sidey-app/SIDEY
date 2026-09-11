@@ -8,7 +8,7 @@ namespace Sidey.Infrastructure;
 
 public sealed class AtomicPreferencesStore : IPreferencesStore
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new()
+    private static readonly JsonSerializerOptions s_serializerOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
@@ -44,9 +44,9 @@ public sealed class AtomicPreferencesStore : IPreferencesStore
                 FileShare.Read,
                 bufferSize: 4096,
                 FileOptions.Asynchronous | FileOptions.SequentialScan);
-            var preferences = await JsonSerializer.DeserializeAsync<AppPreferences>(
+            AppPreferences? preferences = await JsonSerializer.DeserializeAsync<AppPreferences>(
                 stream,
-                SerializerOptions,
+                s_serializerOptions,
                 cancellationToken).ConfigureAwait(false);
             return preferences?.Normalize() ?? AppPreferences.CreateDefault();
         }
@@ -68,10 +68,10 @@ public sealed class AtomicPreferencesStore : IPreferencesStore
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var directory = Path.GetDirectoryName(_path)
+            string directory = Path.GetDirectoryName(_path)
                 ?? throw new InvalidOperationException(I18n.Get("preferences.invalidFolder"));
             Directory.CreateDirectory(directory);
-            var temporaryPath = Path.Combine(
+            string temporaryPath = Path.Combine(
                 directory,
                 $".{Path.GetFileName(_path)}.{Guid.NewGuid():N}.tmp");
             try
@@ -87,7 +87,7 @@ public sealed class AtomicPreferencesStore : IPreferencesStore
                     await JsonSerializer.SerializeAsync(
                         stream,
                         preferences.Normalize(),
-                        SerializerOptions,
+                        s_serializerOptions,
                         cancellationToken).ConfigureAwait(false);
                     await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
                 }

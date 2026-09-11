@@ -7,7 +7,7 @@ public sealed class WindowsLaunchArgumentsTests
     {
         string? resolved = WindowsLaunchArguments.Resolve(
             "--background",
-            ["SIDEY.exe", "--onboarding-preview"]);
+            ["SIDEY.exe", "--ignored"]);
 
         Assert.Equal("--background", resolved);
     }
@@ -17,9 +17,9 @@ public sealed class WindowsLaunchArgumentsTests
     {
         string? resolved = WindowsLaunchArguments.Resolve(
             string.Empty,
-            ["SIDEY.exe", "--onboarding-preview"]);
+            ["SIDEY.exe", "--background"]);
 
-        Assert.Equal("--onboarding-preview", resolved);
+        Assert.Equal("--background", resolved);
     }
 
     [Fact]

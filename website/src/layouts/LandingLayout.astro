@@ -1,0 +1,81 @@
+---
+import { getRelativeLocaleUrl } from "astro:i18n";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFonts from "../components/SiteFonts.astro";
+import SiteTheme from "../components/SiteTheme.astro";
+import "../styles/styles.scss";
+import type { Locale } from "../i18n/landing";
+import { releases } from "../data/releases";
+
+interface Props {
+  locale: Locale;
+  title: string;
+  description: string;
+  ogTitle: string;
+  ogDescription: string;
+  ogAlt: string;
+}
+
+const { locale, title, description, ogTitle, ogDescription, ogAlt } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const canonicalPath = getRelativeLocaleUrl(locale);
+const koreanHome = getRelativeLocaleUrl("ko");
+const englishHome = getRelativeLocaleUrl("en");
+const japaneseHome = getRelativeLocaleUrl("ja");
+const ogLocales: Record<Locale, string> = { ko: "ko_KR", en: "en_US", ja: "ja_JP" };
+const canonical = new URL(canonicalPath, Astro.site);
+const ogImage = new URL(`${base}assets/og.png`, Astro.site);
+const schema = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "SIDEY",
+  applicationCategory: "CommunicationApplication",
+  operatingSystem: "macOS 26 or later",
+  softwareVersion: releases.macos.version,
+  inLanguage: locale,
+  url: canonical.href,
+  downloadUrl: releases.macos.url,
+  description,
+};
+---
+
+<!doctype html>
+<html lang={locale}>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{title}</title>
+    <meta name="description" content={description}>
+    <SiteTheme />
+    <SiteFonts />
+    <link rel="canonical" href={canonical}>
+    <link rel="alternate" hreflang="ko" href={new URL(koreanHome, Astro.site)}>
+    <link rel="alternate" hreflang="en" href={new URL(englishHome, Astro.site)}>
+    <link rel="alternate" hreflang="ja" href={new URL(japaneseHome, Astro.site)}>
+    <link rel="alternate" hreflang="x-default" href={new URL(base, Astro.site)}>
+    <link rel="icon" type="image/png" href={`${base}assets/app-icon.png`}>
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="SIDEY">
+    <meta property="og:locale" content={ogLocales[locale]}>
+    {Object.entries(ogLocales).filter(([code]) => code !== locale).map(([, value]) => <meta property="og:locale:alternate" content={value}>)}
+    <meta property="og:url" content={canonical}>
+    <meta property="og:title" content={ogTitle}>
+    <meta property="og:description" content={ogDescription}>
+    <meta property="og:image" content={ogImage}>
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content={ogAlt}>
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content={ogTitle}>
+    <meta name="twitter:description" content={ogDescription}>
+    <meta name="twitter:image" content={ogImage}>
+    <meta name="twitter:image:alt" content={ogAlt}>
+    <script type="application/ld+json" set:html={JSON.stringify(schema)} />
+    <script src={`${base}assets/script.js`} defer is:inline></script>
+  </head>
+  <body class="landing-page route-content-enter">
+    <slot name="skip" />
+    <SiteHeader locale={locale} current="home" />
+    <slot />
+  </body>
+</html>

@@ -9,199 +9,184 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
         <description>Signed macOS updates for SIDEY</description>
         <language>ko</language>
         <item>
-            <title>1.0.5</title>
-            <pubDate>Thu, 03 Sep 2026 16:27:57 +0900</pubDate>
-            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.5</link>
-            <sparkle:version>16</sparkle:version>
-            <sparkle:shortVersionString>1.0.5</sparkle:shortVersionString>
+            <title>1.1.0</title>
+            <pubDate>Thu, 10 Sep 2026 13:11:33 +0900</pubDate>
+            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.1.0</link>
+            <sparkle:version>24</sparkle:version>
+            <sparkle:shortVersionString>1.1.0</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.5
+            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.1.0
 
-`1.0.5` build `16` · macOS 26+ · Apple Silicon(arm64)
+`1.1.0` build `24` · 2026년 9월 10일 · macOS 26+ · Apple Silicon(arm64)
+
+캐릭터 피격 효과음과 기절 모션을 추가하고 꾸미기 선택 표시를 통일했습니다.
 
 ## 변경 사항
 
-- 친구 캐릭터를 클릭해 물체를 던질 수 있습니다. 기본 설정에서는 바로 클릭해 던지고, `우클릭 후 던지기`를 켜면 내 캐릭터를 우클릭한 뒤 10초 동안 여러 번 던질 수 있습니다.
-- 여러 데스크탑을 사용할 때 캐릭터를 클릭해도 메시지 입력창이 나타나지 않던 문제를 수정했습니다.
-- Mac을 덮었다 다시 열거나 절전 모드에서 깨어난 뒤 내 캐릭터만 회색 연결 중 상태로 남던 문제를 수정했습니다.
+- 캐릭터가 맞을 때 투척물별 효과음 8종을 재생합니다.
+- 설정의 `소리 → 캐릭터 효과음`에서 소리를 켜고 끌 수 있으며 기본값은 켜짐입니다.
+- 10초 안에 10번 맞으면 수면 자세 위로 노란 별과 링이 도는 기절 모션을 6초 동안 보여줍니다.
+- 기절 중에는 이동·확대·던지기가 멈추지만 채팅은 계속할 수 있습니다.
+- 기절 중 더 맞아도 시간이 늘어나지 않으며 회복 직후부터 다시 피격 횟수를 셉니다.
+- 캐릭터·말풍선·투척물의 선택 표시를 보라색 테두리와 체크로 통일했습니다.
 
 ## 설치 및 업데이트
 
-- 신규 설치는 `SIDEY-macOS-arm64-v1.0.5.dmg`를 사용하세요.
+- 새로 설치할 때는 `SIDEY-macOS-arm64-v1.1.0.dmg`를 사용하세요.
+- 기존 사용자는 앱의 `업데이트 확인` 또는 Homebrew로 업데이트할 수 있습니다.
+- 로그인 상태와 그룹 설정은 업데이트 뒤에도 유지됩니다.
+
+## 현재 제한
+
+- 이번 기능은 macOS 직배포판에 적용되며 App Store판과 Windows판에는 포함되지 않습니다.
+- 정식판 상점의 실제 판매는 아직 열리지 않았습니다.
+- 보안 화면, DRM 앱, 권한이 더 높은 앱, 모든 독점 전체화면 게임 위 표시를 보장하지 않습니다.
+]]></description>
+            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.1.0/SIDEY-macOS-arm64-v1.1.0.zip" length="5890648" type="application/octet-stream" sparkle:edSignature="F0V5mf3DImhuLomCir+1nokaYGsyqkEqdbnuc9tuAVE12vNpWGhjnrg6rwVssJcPug7pcSqhdFfCL0TemiKfDA=="/>
+        </item>
+        <item>
+            <title>1.0.10</title>
+            <pubDate>Sun, 06 Sep 2026 00:13:24 +0900</pubDate>
+            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.10</link>
+            <sparkle:version>21</sparkle:version>
+            <sparkle:shortVersionString>1.0.10</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.10
+
+`1.0.10` build `21` · macOS 26+ · Apple Silicon(arm64)
+
+설정 관리와 그룹 나가기, 상점 탐색을 개선하고 최근 메시지 보관 기간을 3일로 변경했습니다.
+
+## 변경 사항
+
+- 캐릭터를 고르면 바로 적용되고, 작성 중인 닉네임은 다른 변경이 와도 유지됩니다.
+- 보유 상품이 없어도 기본 말풍선과 캐릭터 기본 투척물의 장착 상태를 확인할 수 있습니다.
+- 상점에서 기본순·가격순 정렬과 보유 상품 숨기기를 사용할 수 있습니다.
+- 그룹을 직접 나갈 수 있으며 방장 이전이나 마지막 그룹 삭제 영향을 미리 안내합니다.
+- 그룹 멤버가 바뀔 때 필요한 그룹만 다시 연결해 현재 그룹의 연결을 안정적으로 유지합니다.
+- 설정의 완료 안내는 3초 뒤 자동으로 닫히고 오류 안내는 직접 닫을 때까지 유지됩니다.
+
+## 설치 및 업데이트
+
+- 새로 설치할 때는 `SIDEY-macOS-arm64-v1.0.10.dmg`를 사용하세요.
+- 기존 사용자는 앱의 `업데이트 확인` 또는 Homebrew로 업데이트할 수 있습니다.
+- 로그인 상태와 그룹 설정은 업데이트 뒤에도 유지됩니다.
+
+## 메시지 보관 변경
+
+- 최근 메시지와 기록은 생성 후 3일 동안 제공됩니다.
+- 정책 전환 시 이미 3일이 지난 메시지는 영구 삭제되며 복구할 수 없습니다.
+
+## 현재 제한
+
+- 정식판 상점의 실제 판매는 아직 열리지 않았습니다.
+- 이번 macOS 설정·상점 개선은 App Store판과 Windows판에 포함되지 않습니다.
+- 보안 화면, DRM 앱, 권한이 더 높은 앱, 모든 독점 전체화면 게임 위 표시를 보장하지 않습니다.
+]]></description>
+            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.10/SIDEY-macOS-arm64-v1.0.10.zip" length="5732912" type="application/octet-stream" sparkle:edSignature="DqHY8BcWcStF3RztC7c1poFdOSSQAXoqfGXf3dBWksnBfa6xcvq+Fd8cm8p9usK2UqqjCmiFbClQkZMROKNtDQ=="/>
+        </item>
+        <item>
+            <title>1.0.9</title>
+            <pubDate>Sat, 05 Sep 2026 20:29:01 +0900</pubDate>
+            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.9</link>
+            <sparkle:version>20</sparkle:version>
+            <sparkle:shortVersionString>1.0.9</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.9
+
+`1.0.9` build `20` · macOS 26+ · Apple Silicon(arm64)
+
+## 변경 사항
+
+- 내 프로필에서 보유한 말풍선과 투척물을 선택할 수 있습니다.
+- 선택한 꾸미기는 프로필 저장 없이 모든 그룹에 바로 적용됩니다.
+- 기본 말풍선과 캐릭터 기본 투척물로 언제든 되돌릴 수 있습니다.
+
+## 설치 및 업데이트
+
+- 신규 설치는 `SIDEY-macOS-arm64-v1.0.9.dmg`를 사용하세요.
+- 기존 사용자는 앱의 `업데이트 확인…` 또는 Homebrew로 업데이트할 수 있습니다.
+- 업데이트해도 SIDEY 계정, 그룹, 닉네임과 로컬 설정은 유지됩니다.
+
+## 현재 제한
+
+- 정식판 상점의 실제 판매는 아직 시작하지 않습니다.
+- 프로필에는 현재 보유한 말풍선과 투척물만 표시됩니다.
+- Windows v1.0.6 배포물과 Windows의 꾸미기 지원 범위는 이번 macOS 릴리스에서 변경되지 않습니다.
+- 보안 화면, DRM 앱, 권한이 더 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
+]]></description>
+            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.9/SIDEY-macOS-arm64-v1.0.9.zip" length="5687131" type="application/octet-stream" sparkle:edSignature="+vLqPUiXk7TWTlAW6apFQcQGUXkcYpzezHn3eYGq8HXZNuewHYlsyNJIIbtdtxaurvZRg7DD4mWFg3IV6C8lCA=="/>
+        </item>
+        <item>
+            <title>1.0.8</title>
+            <pubDate>Sat, 05 Sep 2026 19:38:59 +0900</pubDate>
+            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.8</link>
+            <sparkle:version>19</sparkle:version>
+            <sparkle:shortVersionString>1.0.8</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.8
+
+`1.0.8` build `19` · macOS 26+ · Apple Silicon(arm64)
+
+## 변경 사항
+
+- 잠긴 꾸미기 상품을 눌러 캐릭터·말풍선·투척물의 실제 움직임을 미리 볼 수 있습니다.
+- 친구가 사용하는 새 말풍선과 투척물을 기본 모양 대신 실제 디자인으로 표시합니다.
+- 상단 영역에서도 닉네임과 말풍선 글자가 똑바로 표시됩니다.
+- 그룹 정보를 변경할 때 실시간 연결이 불필요하게 끊기지 않도록 안정성을 개선했습니다.
+
+## 설치 및 업데이트
+
+- 신규 설치는 `SIDEY-macOS-arm64-v1.0.8.dmg`를 사용하세요.
+- 기존 사용자는 앱의 `업데이트 확인…` 또는 Homebrew로 업데이트할 수 있습니다.
+- 업데이트해도 SIDEY 계정, 그룹, 닉네임과 로컬 설정은 유지됩니다.
+
+## 현재 제한
+
+- 정식판 상점의 실제 판매는 아직 시작하지 않습니다.
+- Windows v1.0.6 배포물과 Windows의 꾸미기 지원 범위는 이번 macOS 릴리스에서 변경되지 않습니다.
+- 보안 화면, DRM 앱, 권한이 더 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
+]]></description>
+            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.8/SIDEY-macOS-arm64-v1.0.8.zip" length="5652563" type="application/octet-stream" sparkle:edSignature="TF5eD3w7y7bI4uv6li1/M+fs8u9EmkDdCYU5MQ1p1Sk9EIurFcJu2T2hozJLZJwK8l68KLtAemTKqfrjTWfrCQ=="/>
+        </item>
+        <item>
+            <title>1.0.7</title>
+            <pubDate>Fri, 04 Sep 2026 14:30:02 +0900</pubDate>
+            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.7</link>
+            <sparkle:version>18</sparkle:version>
+            <sparkle:shortVersionString>1.0.7</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.7
+
+`1.0.7` build `18` · macOS 26+ · Apple Silicon(arm64)
+
+## 변경 사항
+
+- macOS 이모지·기호 선택기에서 고른 이모지가 메시지 입력창에 정상적으로 들어갑니다.
+- 친구마다 최근 메시지를 최대 두 개까지 함께 표시합니다. 이전 메시지는 위에, 최신 메시지는 캐릭터 가까이에 표시됩니다.
+
+## 설치 및 업데이트
+
+- 신규 설치는 `SIDEY-macOS-arm64-v1.0.7.dmg`를 사용하세요.
 - 기존 사용자는 앱의 `업데이트 확인…` 또는 Homebrew로 업데이트할 수 있습니다.
 - 업데이트해도 SIDEY 계정, 그룹, 닉네임과 로컬 설정은 유지됩니다.
 
 ## 현재 제한
 
 - 정식판 상점의 실제 캐릭터 판매는 아직 시작하지 않습니다.
-- Windows v1.0.3 배포물과 Windows의 무료 캐릭터 정책은 이번 macOS 릴리스에서 변경되지 않습니다.
+- Windows v1.0.6 배포물과 Windows의 무료 캐릭터 정책은 이번 macOS 릴리스에서 변경되지 않습니다.
 - 보안 화면, DRM 앱, 권한이 더 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
 ]]></description>
-            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.5/SIDEY-macOS-arm64-v1.0.5.zip" length="5489752" type="application/octet-stream" sparkle:edSignature="5UnqBMW/KppK1y8B5XQHmRZH7CVIJeOGH7XB1pUyyrGRTtJ284QscODHd2CQluEfxb3WPZvSlQI5+BchgfVWBg=="/>
-        </item>
-        <item>
-            <title>1.0.4</title>
-            <pubDate>Wed, 02 Sep 2026 22:22:24 +0900</pubDate>
-            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.4</link>
-            <sparkle:version>15</sparkle:version>
-            <sparkle:shortVersionString>1.0.4</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.4
-
-`1.0.4` build `15` · macOS 26+ · Apple Silicon(arm64)
-
-## 변경 사항
-
-- 프로필의 닉네임이나 캐릭터를 바꾼 뒤 내 상태가 회색으로 남거나 친구 상태가 빨강·초록으로 흔들리던 문제를 수정했습니다.
-- 꾸미기·상점에 별빛 우파루파, 아기 기니피그, 아기 원숭이, 아기 친칠라 카드가 추가되었습니다.
-- 정식판 상점은 출시 전까지 잠겨 있으며 결제를 시작하지 않습니다. 이미 사용권이 있는 캐릭터는 프로필과 월드에서 계속 사용할 수 있습니다.
-- 캐릭터 결제 준비 구조를 PortOne V2로 전환하고 결제 상태를 서버에서 다시 확인하도록 정비했습니다.
-
-## 설치 및 업데이트
-
-- 신규 설치는 `SIDEY-macOS-arm64-v1.0.4.dmg`를 사용하세요.
-- 기존 사용자는 앱의 `업데이트 확인…` 또는 Homebrew로 업데이트할 수 있습니다.
-- 업데이트해도 SIDEY 계정, 그룹, 닉네임과 로컬 설정은 유지됩니다.
-
-## 현재 제한
-
-- 실제 캐릭터 판매는 아직 시작하지 않습니다.
-- Windows v1.0.3 배포물과 Windows의 무료 캐릭터 정책은 이번 macOS 릴리스에서 변경되지 않습니다.
-- 보안 화면, DRM 앱, 권한이 더 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
-]]></description>
-            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.4/SIDEY-macOS-arm64-v1.0.4.zip" length="5429977" type="application/octet-stream" sparkle:edSignature="BkyTEbepLkoj+QTxuPMM0FisqbK9riHX9pAC3Fmaec94YeFt9AIBNvGLHW3uaTZ2T8oZTwoEOy2dtq4GvRgSAw=="/>
-        </item>
-        <item>
-            <title>1.0.3</title>
-            <pubDate>Tue, 01 Sep 2026 21:35:15 +0900</pubDate>
-            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.3</link>
-            <sparkle:version>14</sparkle:version>
-            <sparkle:shortVersionString>1.0.3</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.3
-
-`1.0.3` build `14` · macOS 26+ · Apple Silicon(arm64) · 최근 기록 개선
-
-## 설치
-
-- Homebrew: `brew install --cask sidey-app/tap/sidey`
-- 직접 설치: Release의 DMG를 열고 `SIDEY.app`을 Applications로 이동
-
-새 설치에는 공증된 DMG를 사용합니다. ZIP은 앱 내 업데이트용이며 DMG와 ZIP의 SHA-256 파일을 같은 Release에서 제공합니다.
-
-## 변경 사항
-
-- 최근 기록을 발신자의 픽셀 캐릭터, 닉네임, 로컬 전송 시각과 메시지 상태를 함께 보여 주는 카드로 개편했습니다.
-- 최신 메시지부터 표시하고 목록 하단에 도달하면 50개씩 자동으로 이전 기록을 가져옵니다. 서버 보존 정책에 따라 최대 7일까지 탐색할 수 있습니다.
-- 실시간 수신 메시지와 전송 대기·실패 메시지를 페이지 결과에 UUID 기준으로 병합해 중복 없이 유지합니다.
-- 탈퇴 등으로 멤버 정보를 찾을 수 없는 발신자는 햄스터 캐릭터와 `알 수 없는 친구`로 안전하게 표시합니다.
-- 최초 로딩, 빈 기록, 오류·재시도, 추가 페이지 로딩·오류를 구분하고 방 전환·창 닫기 시 진행 중인 요청과 적재한 페이지를 정리합니다.
-
-## 업데이트 후 확인
-
-- 서버 migration이나 초대 코드 재발급은 필요하지 않습니다.
-- 최근 기록 창을 열고 아래로 스크롤하면 이전 기록이 자동으로 이어집니다.
-
-## 제한 사항
-
-- macOS 26 이상 Apple Silicon Mac만 지원합니다.
-- E2EE는 제공하지 않습니다.
-- 보안 화면, DRM 앱, 권한이 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
-- 12명 실제 방의 30분 장시간 RSS·30 FPS 계측은 지속 검증 항목입니다.
-- Windows 개발 파일은 이 macOS 배포에 포함되지 않습니다.
-]]></description>
-            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.3/SIDEY-macOS-arm64-v1.0.3.zip" length="5264851" type="application/octet-stream" sparkle:edSignature="g6YOMKZXjjg1YoY37PWQzUwDaJmuUg68noZqlU7pNADF6RebVs+u1kt2KbyO573yYY6vzGCufR3XoVJzKwoIBA=="/>
-        </item>
-        <item>
-            <title>1.0.2</title>
-            <pubDate>Tue, 01 Sep 2026 16:47:15 +0900</pubDate>
-            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.2</link>
-            <sparkle:version>13</sparkle:version>
-            <sparkle:shortVersionString>1.0.2</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.2
-
-`1.0.2` build `13` · macOS 26+ · Apple Silicon(arm64) · Presence hotfix
-
-## 설치
-
-- Homebrew: `brew install --cask sidey-app/tap/sidey`
-- 직접 설치: Release의 DMG를 열고 `SIDEY.app`을 Applications로 이동
-
-새 설치에는 공증된 DMG를 사용합니다. ZIP은 앱 내 업데이트용이며 DMG와 ZIP의 SHA-256 파일을 같은 Release에서 제공합니다.
-
-## 변경 사항
-
-- 초대 코드로 그룹에 참여할 때 기존 멤버의 초기 Presence가 snapshot보다 먼저 도착해도 이벤트를 보존하고 UUID 기준으로 병합합니다.
-- 새 그룹 참여 직후 갱신 전 로컬 방 목록이 아니라 서버에서 다시 읽은 snapshot을 기준으로 활성 그룹을 결정해, 참여자가 상대 화면에서 오프라인으로 고착되는 문제를 수정했습니다.
-- 같은 순서 경합이 타이핑 상태에도 남지 않도록 snapshot 전 typing 이벤트를 함께 보존합니다.
-
-## 업데이트 후 확인
-
-- 서버 migration이나 초대 코드 재발급은 필요하지 않습니다.
-- 업데이트 뒤 SIDEY가 자동으로 재실행되면 현재 그룹의 Presence를 새로 게시합니다.
-
-## 제한 사항
-
-- macOS 26 이상 Apple Silicon Mac만 지원합니다.
-- E2EE는 제공하지 않습니다.
-- 보안 화면, DRM 앱, 권한이 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
-- 12명 실제 방의 30분 장시간 RSS·30 FPS 계측은 지속 검증 항목입니다.
-- Windows 개발 파일은 이 macOS 배포에 포함되지 않습니다.
-]]></description>
-            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.2/SIDEY-macOS-arm64-v1.0.2.zip" length="5208795" type="application/octet-stream" sparkle:edSignature="TNZPe+pGSp7pmu32HO4+SH0CUh0yG2NhZveuLSJJlnvFvO/NNIOWofiBlzd0dUtHUTGmWd0KeQ/oyrcAZOfCAA=="/>
-        </item>
-        <item>
-            <title>1.0.1</title>
-            <pubDate>Tue, 01 Sep 2026 12:58:49 +0900</pubDate>
-            <link>https://github.com/sidey-app/SIDEY/releases/tag/v1.0.1</link>
-            <sparkle:version>12</sparkle:version>
-            <sparkle:shortVersionString>1.0.1</sparkle:shortVersionString>
-            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
-            <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <description sparkle:format="markdown"><![CDATA[# SIDEY v1.0.1
-
-`1.0.1` build `12` · macOS 26+ · Apple Silicon(arm64) · security hotfix
-
-## 설치
-
-- Homebrew: `brew install --cask sidey-app/tap/sidey`
-- 직접 설치: Release의 DMG를 열고 `SIDEY.app`을 Applications로 이동
-
-새 설치에는 공증된 DMG를 사용합니다. ZIP은 앱 내 업데이트용이며 DMG와 ZIP의 SHA-256 파일을 같은 Release에서 제공합니다.
-
-## 변경 사항
-
-- Realtime 채널을 방 epoch별 DB 이벤트와 일시 이벤트로 분리하고, 클라이언트가 DB형 Broadcast를 위조할 수 없게 차단했습니다.
-- 메시지 본문은 Postgres RLS 재조회 뒤 확정하며, 타이핑과 캐릭터 리액션은 서버 RPC가 방·사용자·이벤트 종류·전송 빈도를 검증합니다.
-- 초대 코드 검증 정보를 Data API에서 숨긴 private HMAC 저장소로 옮기고 코드를 128-bit 형식으로 강화했습니다.
-- 방별 메시지 outbox와 동일 UUID 재시도로 방 전환 중 실패 본문 유출과 응답 유실 뒤 중복 전송을 막았습니다.
-- Realtime 재연결 때 Presence·멤버·최근 메시지를 다시 맞추고, 메시지 기록과 이벤트 버퍼의 장시간 메모리 사용량을 제한했습니다.
-- 오래된 정상 익명 계정이 삭제되지 않도록 정리 조건을 제한하고, 초대·방 정원·메시지 전송의 병렬 rate/limit 경합을 서버에서 직렬화했습니다.
-- 설정창에 macOS 네이티브 타이틀바 재질을 적용하고 온보딩 캐릭터 선택을 4열로 정리했습니다.
-
-## 업데이트 후 확인
-
-- 기존 짧은 초대 코드는 보안상 비활성화됩니다. 각 그룹 방장은 그룹 설정에서 새 초대 코드를 한 번 재발급해야 합니다.
-- 서버 계약이 함께 바뀌는 hotfix이므로 `v1.0.0` 이하 클라이언트는 더 이상 기존 Realtime topic을 사용할 수 없습니다.
-
-## 제한 사항
-
-- macOS 26 이상 Apple Silicon Mac만 지원합니다.
-- E2EE는 제공하지 않습니다.
-- 보안 화면, DRM 앱, 권한이 높은 앱, 모든 독점 전체화면 게임 위 표시는 보장하지 않습니다.
-- 12명 실제 방의 30분 장시간 RSS·30 FPS 계측은 지속 검증 항목입니다.
-- Windows 개발 파일은 이 macOS 배포에 포함되지 않습니다.
-]]></description>
-            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.1/SIDEY-macOS-arm64-v1.0.1.zip" length="5208990" type="application/octet-stream" sparkle:edSignature="/1XIO++40gZ8BSyHn0JqMSNOa16ZkcBFT31YDNK1xZIM9DYGd/NLCg4juTRMNzJHgj2I74To2vAB+3ug9dJfAA=="/>
+            <enclosure url="https://github.com/sidey-app/SIDEY/releases/download/v1.0.7/SIDEY-macOS-arm64-v1.0.7.zip" length="5505964" type="application/octet-stream" sparkle:edSignature="V3eFEWcyP49EH7J2yLegZlYbaC8lEcsSIv4fPcm7B8JOi0iFnRkI6tubb6QYBD39tIfCPmJJglag4FDPMAEKDg=="/>
         </item>
     </channel>
 </rss>
 <!-- sparkle-signatures:
-edSignature: IMi3BE0CjKBN147B9hwf3JvLNTSG1bzH0bc/zDuG6akpAkOxsUXb7LEU8DhZt89Qg4nUpD3D68/d5ORA/d9/Cg==
-length: 13203
+edSignature: mHT/ua9rT8cMZ2ypf9FnlyH0Qa+KQdrSC8R8mywR3j8vLhReQfLgrBChzGvahhbzvxkJKeU8Lhaji+oN22N1Cg==
+length: 11344
 -->

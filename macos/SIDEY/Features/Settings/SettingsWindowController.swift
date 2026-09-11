@@ -49,6 +49,14 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate {
         show()
     }
 
+    func transitionFromSettingsToOnboarding() {
+        guard let window else { return }
+        window.orderOut(nil)
+        window.setContentSize(Self.onboardingContentSize)
+        window.center()
+        show()
+    }
+
     var contentSize: CGSize {
         guard let window else { return .zero }
         return window.contentRect(forFrameRect: window.frame).size

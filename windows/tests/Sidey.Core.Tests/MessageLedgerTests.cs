@@ -17,7 +17,7 @@ public sealed class MessageLedgerTests
 
         Assert.False(ledger.Confirm(message));
         Assert.False(ledger.Confirm(message));
-        var entry = Assert.Single(ledger.Entries);
+        MessageLedgerEntry entry = Assert.Single(ledger.Entries);
         Assert.Equal(senderId, entry.SenderId);
         Assert.Equal(MessageDeliveryState.Confirmed, entry.State);
     }
@@ -77,8 +77,8 @@ public sealed class MessageLedgerTests
         var roomId = Guid.NewGuid();
         var senderId = Guid.NewGuid();
         var ledger = new MessageLedger();
-        var start = DateTimeOffset.UtcNow.AddMinutes(-2);
-        for (var index = 0; index < 51; index++)
+        DateTimeOffset start = DateTimeOffset.UtcNow.AddMinutes(-2);
+        for (int index = 0; index < 51; index++)
         {
             ledger.Confirm(new ChatMessage(
                 Guid.NewGuid(),
@@ -98,27 +98,93 @@ public sealed class MessageLedgerTests
     }
 
     [Fact]
-    public void ActiveBubblesReplacePerSenderEvictOldestAndExpireIndependently()
+    public void ConfirmedHistoryUsesThreeDayBoundary()
+    {
+        var roomId = Guid.NewGuid();
+        var senderId = Guid.NewGuid();
+        var now = DateTimeOffset.FromUnixTimeSeconds(1_000_000);
+        var expiredId = Guid.NewGuid();
+        var boundaryId = Guid.NewGuid();
+        var recentId = Guid.NewGuid();
+        var ledger = new MessageLedger();
+
+        ledger.Confirm(new ChatMessage(
+            expiredId,
+            roomId,
+            senderId,
+            "만료",
+            now - MessageLedger.ConfirmedRetention - TimeSpan.FromSeconds(1)), now);
+        ledger.Confirm(new ChatMessage(
+            boundaryId,
+            roomId,
+            senderId,
+            "경계",
+            now - MessageLedger.ConfirmedRetention), now);
+        ledger.Confirm(new ChatMessage(
+            recentId,
+            roomId,
+            senderId,
+            "최근",
+            now - TimeSpan.FromDays(2)), now);
+
+        Assert.Equal(TimeSpan.FromDays(3), MessageLedger.ConfirmedRetention);
+        Assert.DoesNotContain(ledger.Entries, entry => entry.Id == expiredId);
+        Assert.Contains(ledger.Entries, entry => entry.Id == boundaryId);
+        Assert.Contains(ledger.Entries, entry => entry.Id == recentId);
+    }
+
+    [Fact]
+    public void ActiveBubblesKeepTwoPerSenderWithoutGlobalEviction()
     {
         var ledger = new ActiveBubbleLedger();
         var start = DateTimeOffset.FromUnixTimeSeconds(1_000);
-        var senders = Enumerable.Range(0, 5).Select(_ => Guid.NewGuid()).ToArray();
+        Guid[] senders = [.. Enumerable.Range(0, 12).Select(_ => Guid.NewGuid())];
 
-        for (var index = 0; index < 4; index++)
+        for (int index = 0; index < senders.Length; index++)
         {
-            ledger.Show(senders[index], Guid.NewGuid(), $"메시지 {index}", start.AddSeconds(index + 1));
+            ledger.Show(
+                senders[index],
+                Guid.NewGuid(),
+                $"이전 {index}",
+                start.AddSeconds(index + 1));
+            ledger.Show(
+                senders[index],
+                Guid.NewGuid(),
+                $"최신 {index}",
+                start.AddSeconds(index + 20));
         }
 
-        var replacementId = Guid.NewGuid();
-        ledger.Show(senders[0], replacementId, "교체", start.AddSeconds(20));
-        Assert.Equal(4, ledger.Bubbles.Count);
-        Assert.Contains(ledger.Bubbles, bubble => bubble.SenderId == senders[0] && bubble.MessageId == replacementId);
+        Assert.Equal(24, ledger.Bubbles.Count);
+        Assert.All(senders, sender =>
+            Assert.Equal(2, ledger.Bubbles.Count(bubble => bubble.SenderId == sender)));
+    }
 
-        ledger.Show(senders[4], Guid.NewGuid(), "다섯 번째", start.AddSeconds(21));
-        Assert.Equal(4, ledger.Bubbles.Count);
-        Assert.DoesNotContain(ledger.Bubbles, bubble => bubble.SenderId == senders[1]);
+    [Fact]
+    public void ThirdBubbleEvictsOnlyThatSendersOldestAndExpiryIsIndependent()
+    {
+        var ledger = new ActiveBubbleLedger();
+        var start = DateTimeOffset.FromUnixTimeSeconds(1_000);
+        var sender = Guid.NewGuid();
+        var otherSender = Guid.NewGuid();
+        var oldestId = Guid.NewGuid();
+        var middleId = Guid.NewGuid();
+        var latestId = Guid.NewGuid();
+        var otherId = Guid.NewGuid();
 
-        ledger.Prune(start.AddSeconds(20.5));
-        Assert.Equal(senders[4], Assert.Single(ledger.Bubbles).SenderId);
+        ledger.Show(sender, oldestId, "첫 번째", start.AddSeconds(1));
+        ledger.Show(sender, middleId, "두 번째", start.AddSeconds(20));
+        ledger.Show(otherSender, otherId, "다른 친구", start.AddSeconds(30));
+        ledger.Show(sender, latestId, "세 번째", start.AddSeconds(40));
+
+        Assert.DoesNotContain(ledger.Bubbles, bubble => bubble.MessageId == oldestId);
+        Assert.Contains(ledger.Bubbles, bubble => bubble.MessageId == middleId);
+        Assert.Contains(ledger.Bubbles, bubble => bubble.MessageId == latestId);
+        Assert.Contains(ledger.Bubbles, bubble => bubble.MessageId == otherId);
+
+        ledger.Prune(start.AddSeconds(25));
+
+        Assert.DoesNotContain(ledger.Bubbles, bubble => bubble.MessageId == middleId);
+        Assert.Contains(ledger.Bubbles, bubble => bubble.MessageId == latestId);
+        Assert.Contains(ledger.Bubbles, bubble => bubble.MessageId == otherId);
     }
 }

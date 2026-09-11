@@ -4,7 +4,7 @@ namespace Sidey.Platform.Windows.Tests;
 
 public sealed class ResponsiveWindowSizePolicyTests
 {
-    private static readonly WindowsMonitorInfo Qhd125Percent = new(
+    private static readonly WindowsMonitorInfo s_qhd125Percent = new(
         "display-1",
         "display-1",
         new NativePixelRect(0, 0, 2560, 1600),
@@ -15,8 +15,8 @@ public sealed class ResponsiveWindowSizePolicyTests
     [Fact]
     public void QhdSettingsSizeMatchesReferenceCaptureProportions()
     {
-        var size = ResponsiveWindowSizePolicy.Calculate(
-            Qhd125Percent,
+        ResponsiveWindowSize size = ResponsiveWindowSizePolicy.Calculate(
+            s_qhd125Percent,
             SideyWindowKind.Settings);
 
         Assert.Equal(1280, size.Width);
@@ -26,8 +26,8 @@ public sealed class ResponsiveWindowSizePolicyTests
     [Fact]
     public void QhdHistorySizeMatchesReferenceCaptureProportions()
     {
-        var size = ResponsiveWindowSizePolicy.Calculate(
-            Qhd125Percent,
+        ResponsiveWindowSize size = ResponsiveWindowSizePolicy.Calculate(
+            s_qhd125Percent,
             SideyWindowKind.History);
 
         Assert.Equal(768, size.Width);
@@ -37,8 +37,8 @@ public sealed class ResponsiveWindowSizePolicyTests
     [Fact]
     public void QhdOnboardingUsesTheMacSetupAssistantProportions()
     {
-        var size = ResponsiveWindowSizePolicy.Calculate(
-            Qhd125Percent,
+        ResponsiveWindowSize size = ResponsiveWindowSizePolicy.Calculate(
+            s_qhd125Percent,
             SideyWindowKind.Onboarding);
 
         Assert.Equal(1300, size.Width);
@@ -48,14 +48,14 @@ public sealed class ResponsiveWindowSizePolicyTests
     [Fact]
     public void SmallWorkAreaIsKeptWithinScreenBounds()
     {
-        var monitor = Qhd125Percent with
+        WindowsMonitorInfo monitor = s_qhd125Percent with
         {
             MonitorPixels = new NativePixelRect(0, 0, 1024, 600),
             WorkAreaPixels = new NativePixelRect(0, 0, 1024, 560),
             Dpi = 96,
         };
 
-        var size = ResponsiveWindowSizePolicy.Calculate(monitor, SideyWindowKind.Settings);
+        ResponsiveWindowSize size = ResponsiveWindowSizePolicy.Calculate(monitor, SideyWindowKind.Settings);
 
         Assert.InRange(size.Width, 1, 962);
         Assert.InRange(size.Height, 1, 526);
@@ -64,9 +64,26 @@ public sealed class ResponsiveWindowSizePolicyTests
     [Fact]
     public void MinimumSettingsSizeRemainsUsableAtMonitorScale()
     {
-        var size = ResponsiveWindowSizePolicy.Minimum(Qhd125Percent, SideyWindowKind.Settings);
+        ResponsiveWindowSize size = ResponsiveWindowSizePolicy.Minimum(s_qhd125Percent, SideyWindowKind.Settings);
 
-        Assert.Equal(800, size.Width);
-        Assert.Equal(700, size.Height);
+        Assert.Equal(1075, size.Width);
+        Assert.Equal(800, size.Height);
+    }
+
+    [Fact]
+    public void NativeTrackingConstraintClampsEachDimensionWithoutShrinkingTheOther()
+    {
+        var minimum = new ResponsiveWindowSize(1075, 800);
+
+        Assert.Equal(
+            new ResponsiveWindowSize(1075, 900),
+            WindowsMinimumSizeController.ClampMinimumTrackSize(
+                new ResponsiveWindowSize(900, 900),
+                minimum));
+        Assert.Equal(
+            new ResponsiveWindowSize(1200, 800),
+            WindowsMinimumSizeController.ClampMinimumTrackSize(
+                new ResponsiveWindowSize(1200, 700),
+                minimum));
     }
 }

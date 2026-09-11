@@ -5,8 +5,8 @@
     xmlns:i18n="using:Sidey.App.Localization">
   <Grid Padding="32">
     <StackPanel MaxWidth="520" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
-      <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="{i18n:I18n Key=unsupported.title}" />
-      <TextBlock Text="{i18n:I18n Key=unsupported.description}" TextWrapping="Wrap" />
+      <TextBlock Style="{ThemeResource TitleTextBlockStyle}" Text="{Binding Value, Source={i18n:I18n Key=unsupported.title}, Mode=OneWay}" />
+      <TextBlock Text="{Binding Value, Source={i18n:I18n Key=unsupported.description}, Mode=OneWay}" TextWrapping="Wrap" />
     </StackPanel>
   </Grid>
 </Window>

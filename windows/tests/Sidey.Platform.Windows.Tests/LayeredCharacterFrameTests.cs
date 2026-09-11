@@ -8,10 +8,10 @@ public sealed class LayeredCharacterFrameTests
     [Fact]
     public void FrameBuilderPremultipliesAndRepeatsPixelsAtIntegerScale()
     {
-        var sheet = EmptySheet();
+        byte[] sheet = EmptySheet();
         SetPixel(sheet, frame: 0, x: 0, y: 0, b: 100, g: 50, r: 20, a: 128);
 
-        var frame = PremultipliedBgraFrameBuilder.BuildFrame(
+        byte[] frame = PremultipliedBgraFrameBuilder.BuildFrame(
             sheet,
             PixelCharacterCatalog.Fallback,
             frame: 0,
@@ -33,10 +33,10 @@ public sealed class LayeredCharacterFrameTests
         int expectedX,
         int expectedY)
     {
-        var sheet = EmptySheet();
+        byte[] sheet = EmptySheet();
         SetPixel(sheet, frame: 0, x: 2, y: 3, b: 255, g: 0, r: 0, a: 255);
 
-        var frame = PremultipliedBgraFrameBuilder.BuildFrame(
+        byte[] frame = PremultipliedBgraFrameBuilder.BuildFrame(
             sheet,
             PixelCharacterCatalog.Fallback,
             frame: 0,
@@ -50,10 +50,10 @@ public sealed class LayeredCharacterFrameTests
     [Fact]
     public void FrameBuilderFlipsBeforeApplyingEdgeRotation()
     {
-        var sheet = EmptySheet();
+        byte[] sheet = EmptySheet();
         SetPixel(sheet, frame: 0, x: 2, y: 3, b: 255, g: 0, r: 0, a: 255);
 
-        var frame = PremultipliedBgraFrameBuilder.BuildFrame(
+        byte[] frame = PremultipliedBgraFrameBuilder.BuildFrame(
             sheet,
             PixelCharacterCatalog.Fallback,
             frame: 0,
@@ -76,7 +76,7 @@ public sealed class LayeredCharacterFrameTests
         byte r,
         byte a)
     {
-        var index = ((y * 240) + (frame * 24) + x) * 4;
+        int index = ((y * 240) + (frame * 24) + x) * 4;
         sheet[index] = b;
         sheet[index + 1] = g;
         sheet[index + 2] = r;
@@ -93,7 +93,7 @@ public sealed class LayeredCharacterFrameTests
         byte r,
         byte a)
     {
-        var index = ((y * size) + x) * 4;
+        int index = ((y * size) + x) * 4;
         Assert.Equal(b, frame[index]);
         Assert.Equal(g, frame[index + 1]);
         Assert.Equal(r, frame[index + 2]);

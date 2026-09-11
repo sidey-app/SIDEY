@@ -1,0 +1,32 @@
+---
+import PolicyLayout from "./PolicyLayout.astro";
+import type { Locale } from "../i18n/landing";
+
+interface PolicyFrontmatter {
+  title: string;
+  description: string;
+  canonicalPath: string;
+  heading: string;
+  introduction: string;
+  locale?: Locale;
+  originalPath?: string;
+  translationNotice?: string;
+  originalLabel?: string;
+}
+
+const { frontmatter } = Astro.props as { frontmatter: PolicyFrontmatter };
+---
+
+<PolicyLayout
+  title={frontmatter.title}
+  description={frontmatter.description}
+  canonicalPath={frontmatter.canonicalPath}
+  heading={frontmatter.heading}
+  introduction={frontmatter.introduction}
+  locale={frontmatter.locale}
+  originalPath={frontmatter.originalPath}
+  translationNotice={frontmatter.translationNotice}
+  originalLabel={frontmatter.originalLabel}
+>
+  <article class="policy-markdown"><slot /></article>
+</PolicyLayout>

@@ -1,3 +1,5 @@
+using Sidey.Core.Localization;
+
 namespace Sidey.Core.Domain;
 
 public sealed record AppPreferences(
@@ -14,7 +16,12 @@ public sealed record AppPreferences(
     Guid? ActiveRoomId,
     OverlayRegionPreference OverlayRegion)
 {
-    public const int CurrentSchemaVersion = 3;
+    public string? Language { get; init; }
+
+    public bool CharacterSoundEffectsEnabled { get; init; } = true;
+    public int CharacterSoundEffectsVolume { get; init; } = 100;
+
+    public const int CurrentSchemaVersion = 4;
 
     public static AppPreferences CreateDefault(long? installationSeed = null) => new(
         SchemaVersion: CurrentSchemaVersion,
@@ -35,6 +42,9 @@ public sealed record AppPreferences(
     public AppPreferences Normalize() => this with
     {
         SchemaVersion = CurrentSchemaVersion,
+        CharacterSoundEffectsVolume = Math.Clamp(CharacterSoundEffectsVolume, 0, 100),
+        CharacterSoundEffectsEnabled = CharacterSoundEffectsEnabled && CharacterSoundEffectsVolume > 0,
+        Language = I18n.IsSupportedLanguage(Language) ? Language : null,
         InstallationSeed = InstallationSeed == 0 ? Random.Shared.NextInt64() : InstallationSeed,
         CachedNickname = CachedNickname is not null && ProfileValidator.IsValidNickname(CachedNickname)
             ? ProfileValidator.NormalizeNickname(CachedNickname)

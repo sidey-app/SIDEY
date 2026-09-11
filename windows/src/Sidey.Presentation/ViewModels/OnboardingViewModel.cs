@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sidey.Core.Domain;
@@ -6,32 +7,25 @@ using Sidey.Presentation.Services;
 
 namespace Sidey.Presentation.ViewModels;
 
-public sealed partial class OnboardingViewModel : ObservableObject
+public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
 {
-    private readonly ISideyCoordinator _coordinator;
+    private readonly IOnboardingCoordinator _coordinator;
+    private bool _disposed;
     private CoordinatorState _state;
     private string _syncedProfileNickname = string.Empty;
     private string _syncedProfileCharacterId = PixelCharacterCatalog.FallbackId;
+    private string _syncedRoomName = string.Empty;
 
-    public OnboardingViewModel(ISideyCoordinator coordinator, bool isPreviewMode = false)
+    public OnboardingViewModel(IOnboardingCoordinator coordinator)
     {
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
-        IsPreviewMode = isPreviewMode;
         _state = coordinator.State;
-        CharacterSelections = PixelCharacterCatalog.Selectable
-            .Select(character => new CharacterSelectionItemViewModel(
-                character.Id,
-                character.DisplayName,
-                character.Id))
-            .ToArray();
         ApplyState(coordinator.State);
     }
 
     public event Action? Completed;
 
-    public IReadOnlyList<CharacterSelectionItemViewModel> CharacterSelections { get; }
-
-    public bool IsPreviewMode { get; }
+    public ObservableCollection<CharacterSelectionItemViewModel> CharacterSelections { get; } = [];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsLanding))]
@@ -40,6 +34,7 @@ public sealed partial class OnboardingViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsGroupStep))]
     [NotifyPropertyChangedFor(nameof(IsReadyStep))]
     [NotifyPropertyChangedFor(nameof(CanGoBack))]
+    [NotifyCanExecuteChangedFor(nameof(SkipGroupCommand))]
     public partial int Step { get; set; }
 
     [ObservableProperty]
@@ -71,6 +66,7 @@ public sealed partial class OnboardingViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(CanSaveProfile))]
     [NotifyPropertyChangedFor(nameof(CanCreateRoom))]
     [NotifyPropertyChangedFor(nameof(CanJoinRoom))]
+    [NotifyCanExecuteChangedFor(nameof(SkipGroupCommand))]
     public partial bool IsWorking { get; set; }
 
     [ObservableProperty]
@@ -92,34 +88,41 @@ public sealed partial class OnboardingViewModel : ObservableObject
     public bool CanGoBack => Step is 1 or 2;
 
     public bool CanSaveProfile =>
-        (IsPreviewMode || IsConnected)
+        IsConnected
         && !IsWorking
         && ProfileValidator.IsValidNickname(Nickname);
 
     public bool CanCreateRoom =>
-        (IsPreviewMode || IsConnected)
+        IsConnected
         && !IsWorking
         && RoomNameValidator.IsValid(RoomName);
 
     public bool CanJoinRoom =>
-        (IsPreviewMode || IsConnected)
+        IsConnected
         && !IsWorking
         && !string.IsNullOrWhiteSpace(InviteCode);
 
-    public string ConnectionText => IsPreviewMode
-        ? I18n.Get("onboarding.previewConnection")
-        : IsConnected
+    public string ConnectionText => IsConnected
         ? I18n.Get("onboarding.serverConnected")
         : I18n.Get("onboarding.serverConnecting");
 
     public void ApplyState(CoordinatorState state)
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         bool shouldApplyProfileDraft = ProfileDraftMatchesSyncedState();
         (string syncedNickname, string syncedCharacterId) = GetSyncedProfileDraft(state);
+        bool shouldApplyRoomDraft = StringComparer.Ordinal.Equals(RoomName, _syncedRoomName);
+        string syncedRoomName = GetSyncedRoomName(state);
         _syncedProfileNickname = syncedNickname;
         _syncedProfileCharacterId = syncedCharacterId;
+        _syncedRoomName = syncedRoomName;
 
         _state = state;
+        RefreshCharacterSelections(state.ActiveEntitlementKeys);
         IsConnected = state.Connected;
         OnPropertyChanged(nameof(ConnectionText));
 
@@ -128,32 +131,12 @@ public sealed partial class OnboardingViewModel : ObservableObject
             Nickname = syncedNickname;
             SelectedCharacterId = syncedCharacterId;
         }
-
-        if (IsPreviewMode && string.IsNullOrWhiteSpace(RoomName))
+        if (shouldApplyRoomDraft)
         {
-            Room? previewRoom = state.ActiveRoomId is { } activeRoomId
-                ? state.Rooms.FirstOrDefault(room => room.Id == activeRoomId)
-                : null;
-            previewRoom ??= state.Rooms.FirstOrDefault();
-            if (previewRoom is not null)
-            {
-                RoomName = previewRoom.Name;
-            }
+            RoomName = syncedRoomName;
         }
 
         UpdateCharacterSelectionState();
-
-        if (!IsPreviewMode
-            && Step > 0
-            && state.Preferences.OnboardingCompleted
-            && state.Rooms.Count > 0)
-        {
-            Step = 3;
-        }
-        else if (!IsPreviewMode && Step == 1 && state.Profile is not null)
-        {
-            Step = 2;
-        }
 
         if (!string.IsNullOrWhiteSpace(state.ErrorMessage))
         {
@@ -163,22 +146,34 @@ public sealed partial class OnboardingViewModel : ObservableObject
         RaiseActionAvailability();
     }
 
-    public void ReportError(Exception exception) => ErrorMessage = exception.Message;
+    public void ReportError(Exception exception)
+    {
+        if (!_disposed)
+        {
+            ErrorMessage = exception.Message;
+        }
+    }
 
     [RelayCommand]
     private void Begin()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         ErrorMessage = null;
-        Step = IsPreviewMode
-            ? 1
-            : _state.Preferences.OnboardingCompleted && _state.Rooms.Count > 0
-            ? 3
-            : _state.Profile is null ? 1 : 2;
+        Step = 1;
     }
 
     [RelayCommand]
     private void Back()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         ErrorMessage = null;
         if (Step == 2)
         {
@@ -193,20 +188,18 @@ public sealed partial class OnboardingViewModel : ObservableObject
     [RelayCommand]
     private async Task SaveProfileAsync()
     {
-        if (!CanSaveProfile)
+        if (_disposed || !CanSaveProfile)
         {
-            return;
-        }
-
-        if (IsPreviewMode)
-        {
-            Step = 2;
             return;
         }
 
         await RunAsync(async () =>
         {
             await _coordinator.SaveProfileAsync(Nickname, SelectedCharacterId);
+            if (_disposed)
+            {
+                return;
+            }
             ApplyState(_coordinator.State);
             Step = 2;
         });
@@ -215,47 +208,74 @@ public sealed partial class OnboardingViewModel : ObservableObject
     [RelayCommand]
     private async Task CreateRoomAsync()
     {
-        if (!CanCreateRoom)
+        if (_disposed || !CanCreateRoom)
         {
-            return;
-        }
-
-        if (IsPreviewMode)
-        {
-            Step = 3;
             return;
         }
 
         await RunAsync(async () =>
         {
             await _coordinator.CreateRoomAsync(RoomName);
+            if (_disposed)
+            {
+                return;
+            }
             ApplyState(_coordinator.State);
+            Step = 3;
         });
     }
 
     [RelayCommand]
     private async Task JoinRoomAsync()
     {
-        if (!CanJoinRoom)
+        if (_disposed || !CanJoinRoom)
         {
-            return;
-        }
-
-        if (IsPreviewMode)
-        {
-            Step = 3;
             return;
         }
 
         await RunAsync(async () =>
         {
             await _coordinator.JoinRoomAsync(InviteCode.Trim().ToUpperInvariant());
+            if (_disposed)
+            {
+                return;
+            }
             ApplyState(_coordinator.State);
+            Step = 3;
         });
     }
 
-    [RelayCommand]
-    private void Finish() => Completed?.Invoke();
+    [RelayCommand(CanExecute = nameof(CanSkipGroup))]
+    private void SkipGroup()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        ErrorMessage = null;
+        Step = 3;
+    }
+
+    private bool CanSkipGroup() => Step == 2 && !IsWorking;
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task FinishAsync()
+    {
+        if (_disposed || Step != 3)
+        {
+            return;
+        }
+
+        await RunAsync(async () =>
+        {
+            await _coordinator.CompleteOnboardingAsync();
+            if (!_disposed)
+            {
+                Completed?.Invoke();
+            }
+        });
+    }
 
     partial void OnSelectedCharacterIdChanged(string value) => UpdateCharacterSelectionState();
 
@@ -270,6 +290,11 @@ public sealed partial class OnboardingViewModel : ObservableObject
 
     private async Task RunAsync(Func<Task> action)
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         IsWorking = true;
         ErrorMessage = null;
         try
@@ -278,12 +303,24 @@ public sealed partial class OnboardingViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            ErrorMessage = exception.Message;
+            if (!_disposed)
+            {
+                ErrorMessage = exception.Message;
+            }
         }
         finally
         {
-            IsWorking = false;
+            if (!_disposed)
+            {
+                IsWorking = false;
+            }
         }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Completed = null;
     }
 
     private void UpdateCharacterSelectionState()
@@ -293,6 +330,26 @@ public sealed partial class OnboardingViewModel : ObservableObject
             character.IsSelected = StringComparer.Ordinal.Equals(
                 character.Id,
                 SelectedCharacterId);
+        }
+    }
+
+    private void RefreshCharacterSelections(IReadOnlySet<string> activeEntitlementKeys)
+    {
+        IReadOnlyList<PixelCharacterDefinition> desired =
+            PixelCharacterCatalog.SelectableFor(activeEntitlementKeys);
+        if (CharacterSelections.Select(character => character.Id)
+            .SequenceEqual(desired.Select(character => character.Id), StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        CharacterSelections.Clear();
+        foreach (PixelCharacterDefinition character in desired)
+        {
+            CharacterSelections.Add(new CharacterSelectionItemViewModel(
+                character.Id,
+                character.DisplayName,
+                character.Id));
         }
     }
 
@@ -307,6 +364,13 @@ public sealed partial class OnboardingViewModel : ObservableObject
         PixelCharacterCatalog.NormalizeId(
             state.Profile?.CharacterId ?? state.Preferences.CachedCharacterId)
     );
+
+    private static string GetSyncedRoomName(CoordinatorState state) =>
+        (state.ActiveRoomId is { } activeRoomId
+            ? state.Rooms.FirstOrDefault(room => room.Id == activeRoomId)
+            : null)?.Name
+        ?? state.Rooms.FirstOrDefault()?.Name
+        ?? string.Empty;
 
     private void RaiseActionAvailability()
     {

@@ -10,9 +10,9 @@ public sealed record AuthSession(
 
 public interface IAuthService
 {
-    Task<AuthSession?> RestoreSessionAsync(CancellationToken cancellationToken = default);
-    Task<AuthSession> CreateAnonymousSessionAsync(CancellationToken cancellationToken = default);
-    Task SignOutAsync(CancellationToken cancellationToken = default);
+    public Task<AuthSession?> RestoreSessionAsync(CancellationToken cancellationToken = default);
+    public Task<AuthSession> CreateAnonymousSessionAsync(CancellationToken cancellationToken = default);
+    public Task SignOutAsync(CancellationToken cancellationToken = default);
 }
 
 public sealed class SessionRecoveryException(string message, Exception? innerException = null)
@@ -56,7 +56,8 @@ public static class AnonymousSessionBootstrapper
 public sealed record BackendSnapshot(
     Profile? Profile,
     IReadOnlyList<Room> Rooms,
-    Guid CurrentUserId);
+    Guid CurrentUserId,
+    IReadOnlySet<string> ActiveEntitlementKeys);
 
 public sealed record CreateRoomResult(Room Room, string InviteCode);
 
@@ -65,6 +66,23 @@ public sealed record MessageHistoryCursor(DateTimeOffset CreatedAt, Guid Id);
 public sealed record MessageHistoryPage(
     IReadOnlyList<ChatMessage> Messages,
     MessageHistoryCursor? NextCursor);
+
+public sealed record CommerceCheckout(Guid OrderId, Uri CheckoutUri);
+
+public sealed record RealtimeConnectionStatus(
+    bool TransportConnected,
+    bool ActiveRoomTransportConnected,
+    bool RecoveryReconciled)
+{
+    public static RealtimeConnectionStatus Disconnected { get; } = new(false, false, false);
+
+    public bool IsReady => TransportConnected && RecoveryReconciled;
+
+    public RealtimeConnectionStatus WithRecoveryReconciled(bool reconciled) => this with
+    {
+        RecoveryReconciled = TransportConnected && reconciled,
+    };
+}
 
 public abstract record BackendEvent
 {
@@ -79,60 +97,65 @@ public abstract record BackendEvent
     public sealed record CharacterPulsed(CharacterPulseEvent Pulse) : BackendEvent;
     public sealed record CharacterThrown(CharacterThrowEvent Throw) : BackendEvent;
     public sealed record RoomStructureChanged(Guid RoomId) : BackendEvent;
-    public sealed record ConnectionChanged(bool Connected) : BackendEvent;
+    public sealed record ConnectionChanged(RealtimeConnectionStatus Status) : BackendEvent;
     public sealed record ReconciliationRequired : BackendEvent;
+    public sealed record Diagnostic(string Stage) : BackendEvent;
     public sealed record TechnicalError(string Message) : BackendEvent;
 }
 
 public interface IBackendGateway
 {
-    Task<BackendSnapshot> FetchSnapshotAsync(CancellationToken cancellationToken = default);
-    Task<Profile> SaveProfileAsync(string nickname, string characterId, CancellationToken cancellationToken = default);
-    Task<CreateRoomResult> CreateRoomAsync(string name, CancellationToken cancellationToken = default);
-    Task<Room> JoinRoomAsync(string inviteCode, CancellationToken cancellationToken = default);
-    Task LeaveRoomAsync(Guid roomId, CancellationToken cancellationToken = default);
-    Task RenameRoomAsync(Guid roomId, string name, CancellationToken cancellationToken = default);
-    Task<string> RotateInviteCodeAsync(Guid roomId, CancellationToken cancellationToken = default);
-    Task RemoveRoomMemberAsync(Guid roomId, Guid userId, CancellationToken cancellationToken = default);
-    Task DeleteRoomAsync(Guid roomId, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<ChatMessage>> FetchRecentMessagesAsync(Guid roomId, CancellationToken cancellationToken = default);
-    Task<MessageHistoryPage> FetchMessagePageAsync(
+    public Task<BackendSnapshot> FetchSnapshotAsync(CancellationToken cancellationToken = default);
+    public Task<Profile> SaveProfileAsync(string nickname, string characterId, CancellationToken cancellationToken = default);
+    public Task<Profile> SetEquippedCosmeticAsync(
+        CommerceProductKind kind,
+        string? catalogItemId,
+        CancellationToken cancellationToken = default);
+    public Task<CreateRoomResult> CreateRoomAsync(string name, CancellationToken cancellationToken = default);
+    public Task<Room> JoinRoomAsync(string inviteCode, CancellationToken cancellationToken = default);
+    public Task LeaveRoomAsync(Guid roomId, CancellationToken cancellationToken = default);
+    public Task RenameRoomAsync(Guid roomId, string name, CancellationToken cancellationToken = default);
+    public Task<string> RotateInviteCodeAsync(Guid roomId, CancellationToken cancellationToken = default);
+    public Task RemoveRoomMemberAsync(Guid roomId, Guid userId, CancellationToken cancellationToken = default);
+    public Task DeleteRoomAsync(Guid roomId, CancellationToken cancellationToken = default);
+    public Task<IReadOnlyList<ChatMessage>> FetchRecentMessagesAsync(Guid roomId, CancellationToken cancellationToken = default);
+    public Task<MessageHistoryPage> FetchMessagePageAsync(
         Guid roomId,
         MessageHistoryCursor? before,
         int limit = 50,
         CancellationToken cancellationToken = default);
-    Task<ChatMessage> SendMessageAsync(Guid id, Guid roomId, string body, CancellationToken cancellationToken = default);
-    Task PublishPresenceAsync(Guid roomId, PresenceState state, CancellationToken cancellationToken = default);
-    Task BroadcastTypingAsync(Guid roomId, bool active, bool keepalive, CancellationToken cancellationToken = default);
-    Task BroadcastCharacterPulseAsync(Guid roomId, Guid eventId, CancellationToken cancellationToken = default);
-    Task BroadcastCharacterThrowAsync(
+    public Task<ChatMessage> SendMessageAsync(Guid id, Guid roomId, string body, CancellationToken cancellationToken = default);
+    public Task PublishPresenceAsync(Guid roomId, PresenceState state, CancellationToken cancellationToken = default);
+    public Task BroadcastTypingAsync(Guid roomId, bool active, bool keepalive, CancellationToken cancellationToken = default);
+    public Task BroadcastCharacterPulseAsync(Guid roomId, Guid eventId, CancellationToken cancellationToken = default);
+    public Task BroadcastCharacterThrowAsync(
         Guid roomId,
         Guid eventId,
         Guid targetUserId,
         CancellationToken cancellationToken = default);
-    Task SynchronizeRealtimeRoomsAsync(
+    public Task SynchronizeRealtimeRoomsAsync(
         IReadOnlyDictionary<Guid, long> roomEpochs,
         Guid? activeRoomId,
         PresenceState localPresence,
         CancellationToken cancellationToken = default);
-    IAsyncEnumerable<BackendEvent> SubscribeAsync(CancellationToken cancellationToken = default);
+    public IAsyncEnumerable<BackendEvent> SubscribeAsync(CancellationToken cancellationToken = default);
 }
 
 public interface IOverlayHost
 {
-    bool IsVisible { get; }
-    ValueTask ApplyAsync(WorldSnapshot snapshot, CancellationToken cancellationToken = default);
-    ValueTask SetVisibleAsync(bool visible, CancellationToken cancellationToken = default);
+    public bool IsVisible { get; }
+    public void Apply(WorldSnapshot snapshot);
+    public ValueTask SetVisibleAsync(bool visible, CancellationToken cancellationToken = default);
 }
 
 public interface IActivityMonitor : IAsyncDisposable
 {
-    IAsyncEnumerable<PresenceState> ObserveAsync(CancellationToken cancellationToken = default);
+    public IAsyncEnumerable<PresenceState> ObserveAsync(CancellationToken cancellationToken = default);
 }
 
 public interface IMonitorService
 {
-    IReadOnlyList<MonitorGeometry> GetMonitors();
+    public IReadOnlyList<MonitorGeometry> GetMonitors();
 }
 
 public enum CredentialKey
@@ -142,16 +165,16 @@ public enum CredentialKey
 
 public interface ICredentialStore
 {
-    ValueTask<string?> ReadAsync(CredentialKey key, CancellationToken cancellationToken = default);
-    ValueTask WriteAsync(CredentialKey key, string value, CancellationToken cancellationToken = default);
-    ValueTask DeleteAsync(CredentialKey key, CancellationToken cancellationToken = default);
-    ValueTask<string?> ReadInviteCodeAsync(Guid roomId, CancellationToken cancellationToken = default);
-    ValueTask WriteInviteCodeAsync(Guid roomId, string inviteCode, CancellationToken cancellationToken = default);
-    ValueTask DeleteInviteCodeAsync(Guid roomId, CancellationToken cancellationToken = default);
+    public ValueTask<string?> ReadAsync(CredentialKey key, CancellationToken cancellationToken = default);
+    public ValueTask WriteAsync(CredentialKey key, string value, CancellationToken cancellationToken = default);
+    public ValueTask DeleteAsync(CredentialKey key, CancellationToken cancellationToken = default);
+    public ValueTask<string?> ReadInviteCodeAsync(Guid roomId, CancellationToken cancellationToken = default);
+    public ValueTask WriteInviteCodeAsync(Guid roomId, string inviteCode, CancellationToken cancellationToken = default);
+    public ValueTask DeleteInviteCodeAsync(Guid roomId, CancellationToken cancellationToken = default);
 }
 
 public interface IPreferencesStore
 {
-    ValueTask<AppPreferences> LoadAsync(CancellationToken cancellationToken = default);
-    ValueTask SaveAsync(AppPreferences preferences, CancellationToken cancellationToken = default);
+    public ValueTask<AppPreferences> LoadAsync(CancellationToken cancellationToken = default);
+    public ValueTask SaveAsync(AppPreferences preferences, CancellationToken cancellationToken = default);
 }

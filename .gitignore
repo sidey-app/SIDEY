@@ -2,6 +2,10 @@
 
 # Native build products.
 /build/
+website/dist/
+website/node_modules/
+website/.astro/
+/.pnpm-store/
 **/bin/
 **/obj/
 .vs/
