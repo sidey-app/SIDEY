@@ -17,6 +17,7 @@
     "jose": "6.2.10"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/node": "26.4.1",
     "typescript": "7.0.2"
   }

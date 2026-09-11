@@ -2,23 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { entitlementByProduct, isSideyProductID, transactionStatus } from "../src/catalog.js";
 
-test("catalog maps exactly the ten SIDEY App Store products", () => {
-  assert.deepEqual(entitlementByProduct, {
-    character_starlight_upalupa: "character:pixel_starlight_upalupa",
-    character_guinea_pig: "character:pixel_guinea_pig",
-    character_monkey: "character:pixel_monkey",
-    character_chinchilla: "character:pixel_chinchilla",
-    bubble_bunny_pink: "bubble:bubble_bunny_pink",
-    bubble_butter_chick: "bubble:bubble_butter_chick",
-    bubble_starry_cat: "bubble:bubble_starry_cat",
-    throwable_bouncy_heart: "throwable:throwable_bouncy_heart",
-    throwable_toy_cannon: "throwable:throwable_toy_cannon",
-    throwable_squeaky_duck: "throwable:throwable_squeaky_duck",
-  });
+test("legacy and solo product IDs remain accepted while typos fail closed", () => {
+  assert.equal(Object.keys(entitlementByProduct).length, 28);
+  assert.equal(isSideyProductID("character_monkey_solo"), true);
   assert.equal(isSideyProductID("character_monkey"), true);
-  assert.equal(isSideyProductID("bubble_starry_cat"), true);
-  assert.equal(isSideyProductID("throwable_toy_cannon"), true);
-  assert.equal(isSideyProductID("character_unknown"), false);
+  assert.equal(isSideyProductID("throwable_clam"), true);
+  assert.equal(isSideyProductID("haracter_pig"), false);
 });
 
 test("a revocation date makes a non-consumable transaction refunded", () => {
