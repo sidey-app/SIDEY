@@ -245,6 +245,21 @@
     {
       "displayPrice": "2200",
       "familyShareable": false,
+      "internalID": "C4478E77-6BC7-4D27-861A-0D8819307D63",
+      "localizations": [
+        {
+          "description": "둥근 초록 잎과 보라 목도리의 작은 나무예요.",
+          "displayName": "나무",
+          "locale": "ko_KR"
+        }
+      ],
+      "productID": "character_tree_2",
+      "referenceName": "나무",
+      "type": "NonConsumable"
+    },
+    {
+      "displayPrice": "2200",
+      "familyShareable": false,
       "internalID": "01000000-0000-4000-8000-000000000013",
       "localizations": [
         {

@@ -22,6 +22,11 @@ final class KeepsakeStoreTests: XCTestCase {
         XCTAssertEqual(CommerceCatalog.product(appStoreID: "character_monkey_solo")?.id, CommerceProduct.monkey.id)
         XCTAssertEqual(CommerceCatalog.product(appStoreID: "character_monkey")?.id, CommerceProduct.monkey.id)
         XCTAssertEqual(CommerceProduct.monkey.appStoreProductID, "character_monkey_solo")
+        XCTAssertEqual(CommerceProduct.tree.appStoreProductID, "character_tree_2")
+        XCTAssertEqual(CommerceCatalog.product(appStoreID: "character_tree_2")?.id, CommerceProduct.tree.id)
+        XCTAssertEqual(CommerceCatalog.product(appStoreID: "character_tree")?.id, CommerceProduct.tree.id)
+        XCTAssertEqual(CommerceProduct.tree.entitlementKey, "character:pixel_tree")
+        XCTAssertNil(CommerceCatalog.product(appStoreID: "character_tree_3"))
         XCTAssertNil(CommerceCatalog.product(appStoreID: "haracter_pig"))
     }
     func testFriendClickThrowsKeepsakeWithSoundAndViewUpdatesDoNotThrowAgain() throws {

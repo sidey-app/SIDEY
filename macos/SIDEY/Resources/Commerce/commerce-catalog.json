@@ -114,8 +114,10 @@
     "sort_order": 70,
     "direct_price": 1900,
     "app_store_price": 2200,
-    "app_store_product_id": "character_tree",
-    "legacy_app_store_product_ids": [],
+    "app_store_product_id": "character_tree_2",
+    "legacy_app_store_product_ids": [
+      "character_tree"
+    ],
     "related_character_product_id": null,
     "render_asset_id": null
   },
