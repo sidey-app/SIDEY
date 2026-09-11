@@ -47,7 +47,7 @@ test("new catalog preserves sales lock and enforces paid character ownership", a
       [{ sales_enabled: false }]);
     assert.deepEqual((await db.query(`select amount_krw, count(*)::int as count
       from commerce_prices group by amount_krw order by amount_krw`)).rows,
-      [{ amount_krw: 990, count: 5 }, { amount_krw: 1900, count: 2 }]);
+      [{ amount_krw: 990, count: 4 }, { amount_krw: 1900, count: 3 }]);
     assert.equal((await db.query("select * from commerce_entitlements")).rows.length, 0);
 
     for (const id of ["pixel_otter", "pixel_pig", "pixel_tree"]) {
