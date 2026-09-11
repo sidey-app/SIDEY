@@ -84,7 +84,7 @@ struct StoreView: View {
                                 selectedProductID = state.id
                             }
                         case .direct, .appStore:
-                            StoreProductCard(productState: state, actions: actions) {
+                            StoreProductCard(productState: state, actions: actions, availability: availability) {
                                 selectedProductID = state.id
                             }
                         }
@@ -171,6 +171,7 @@ struct StoreView: View {
 }
 
 struct StoreProductCard: View {
+    let availability: StoreAvailability
     let productState: CommerceProductState
     let actions: SettingsActions
     var onSelect: () -> Void
@@ -181,10 +182,12 @@ struct StoreProductCard: View {
     init(
         productState: CommerceProductState,
         actions: SettingsActions,
+        availability: StoreAvailability = AppReleaseChannel.resolve().storeAvailability,
         onSelect: @escaping () -> Void = {}
     ) {
         self.productState = productState
         self.actions = actions
+        self.availability = availability
         self.onSelect = onSelect
     }
 
@@ -237,7 +240,7 @@ struct StoreProductCard: View {
         if productState.isEquipped { return "사용 중" }
         if productState.purchaseState == .owned { return "보유 중" }
         if case .error = productState.purchaseState { return "오류" }
-        return productState.formattedPrice
+        return productState.priceLabel(for: availability)
     }
 
     private var statusColor: Color {

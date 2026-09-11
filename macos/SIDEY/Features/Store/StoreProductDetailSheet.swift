@@ -119,9 +119,16 @@ private struct StoreDetailPurchaseCard: View {
             Button("상태 다시 확인") { actions.onRefreshCommerceState(state.id) }
                 .disabled(purchaseInProgress)
         } else if availability.usesAppStore && state.localizedPrice == nil {
-            Text("가격을 불러오는 중이에요")
-                .font(.caption).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, minHeight: 30)
+            VStack(spacing: 6) {
+                Text(state.priceLoadState == .loading
+                     ? "가격을 불러오는 중이에요" : "App Store 가격을 확인할 수 없어요")
+                    .font(.caption).foregroundStyle(.secondary)
+                if state.priceLoadState != .loading {
+                    Button("가격 다시 확인") { actions.onRefreshCommerceState(state.id) }
+                        .disabled(purchaseInProgress)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 30)
         } else {
             Button {
                 actions.onPurchase(state.id)

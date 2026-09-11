@@ -360,6 +360,42 @@ final class CommerceModelTests: XCTestCase {
         XCTAssertEqual(state.formattedPrice, "$0.99")
     }
 
+    func testMissingApplePriceNeverDisplaysServerDirectPrice() {
+        let state = CommerceProductState(product: .snowflake, purchaseState: .available, isWorking: false)
+        XCTAssertEqual(state.priceLabel(for: .appStore), "가격 확인 필요")
+        XCTAssertEqual(state.priceLabel(for: .direct), state.product.formattedPrice)
+        XCTAssertNotEqual(state.priceLabel(for: .appStore), state.product.formattedPrice)
+    }
+
+    func testPartialApplePriceResponseFinishesLoadingAndRetryRecoversMissingProduct() throws {
+        let model = AppModel(preferences: .defaults, commerceProducts: [.snowflake, .baseball])
+        model.setCommercePurchaseState(.owned, productID: CommerceProduct.baseball.id)
+        model.beginCommercePriceLoading()
+        XCTAssertEqual(model.commerceProduct(id: CommerceProduct.snowflake.id)?.priceLabel(for: .appStore), "가격 확인 중")
+        model.setCommerceLocalizedPrices([CommerceProduct.baseball.id: "₩1,100"])
+        let unavailable = try XCTUnwrap(model.commerceProduct(id: CommerceProduct.snowflake.id))
+        XCTAssertEqual(unavailable.priceLoadState, .unavailable)
+        XCTAssertEqual(unavailable.priceLabel(for: .appStore), "가격 확인 불가")
+        XCTAssertEqual(model.commerceProduct(id: CommerceProduct.baseball.id)?.purchaseState, .owned)
+
+        model.beginCommercePriceLoading()
+        model.setCommerceLocalizedPrices([CommerceProduct.baseball.id: "₩1,100", CommerceProduct.snowflake.id: "₩1,100"])
+        let recovered = try XCTUnwrap(model.commerceProduct(id: CommerceProduct.snowflake.id))
+        XCTAssertEqual(recovered.priceLoadState, .available)
+        XCTAssertEqual(recovered.priceLabel(for: .appStore), "₩1,100")
+        XCTAssertEqual(model.commerceProduct(id: CommerceProduct.baseball.id)?.purchaseState, .owned)
+    }
+
+    func testFailedApplePriceRequestStopsLoadingWithoutInventingPrice() throws {
+        let model = AppModel(preferences: .defaults, commerceProducts: [.snowflake])
+        model.beginCommercePriceLoading()
+        model.failCommercePriceLoading()
+        let failed = try XCTUnwrap(model.commerceProduct(id: CommerceProduct.snowflake.id))
+        XCTAssertEqual(failed.priceLoadState, .failed)
+        XCTAssertNil(failed.localizedPrice)
+        XCTAssertEqual(failed.priceLabel(for: .appStore), "가격 확인 불가")
+    }
+
     func testStoreReactionPreviewFitsInsideItsCardWithoutUsingWorldScale() {
         XCTAssertEqual(StoreReactionPreviewStyle.peakScale, 1.45, accuracy: 0.001)
         XCTAssertEqual(StoreReactionPreviewStyle.maximumRenderedCharacterSize, 139.2, accuracy: 0.001)

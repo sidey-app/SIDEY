@@ -342,9 +342,23 @@ final class AppModel {
         commerceProducts[index].purchaseState = state
     }
 
+    func beginCommercePriceLoading() {
+        for index in commerceProducts.indices {
+            commerceProducts[index].priceLoadState = .loading
+        }
+    }
+
+    func failCommercePriceLoading() {
+        for index in commerceProducts.indices {
+            commerceProducts[index].priceLoadState = .failed
+        }
+    }
+
     func setCommerceLocalizedPrices(_ prices: [String: String]) {
         for index in commerceProducts.indices {
             commerceProducts[index].localizedPrice = prices[commerceProducts[index].id]
+            commerceProducts[index].priceLoadState = commerceProducts[index].localizedPrice == nil
+                ? .unavailable : .available
         }
     }
 

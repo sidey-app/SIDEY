@@ -61,3 +61,10 @@ Xcode 프로젝트: `_workspace/tree-right-click-controls/macos/SIDEY.xcodeproj`
 - 실제 실행 로그: `Store catalog count mismatch: server 10, app 24`. 새 서버 카탈로그 미반영으로 상점 상태 조회가 실패한다. 소유권 검증을 우회하거나 누락 상품을 구매 가능으로 표시하지 않았다.
 - 실제 StoreKit 조회는 24종 중 12종만 반환했다. 미조회 ID: character_chinchilla_solo, character_guinea_pig_solo, character_monkey_solo, character_starlight_upalupa_solo, character_tree, throwable_banana, throwable_clam, throwable_mini_paprika, throwable_pork, throwable_snowflake, throwable_starlight_orb, throwable_timber.
 - 상품 등록 정보 전파 및 App Store Connect 가격·지역·계약 확인, 서버 migration/verifier 반영, Sandbox 신규 구매·복원 검증이 필요하다. 이번 재확인에서 원격 배포·구매·심사 제출·업로드는 실행하지 않았다.
+
+## 2026-09-12 01:51 가격 미조회 재확인
+
+- 새 실행에서 이전 server 10/app 24 카탈로그 불일치 로그는 관찰되지 않았다. 사용자는 앞서 Cloud Run Sandbox revision 00006-8w9 배포 성공을 보고했다.
+- 실제 Apple 상품 조회는 24개 중 15개이며 미조회 9개는 character_chinchilla_solo, character_guinea_pig_solo, character_monkey_solo, character_starlight_upalupa_solo, character_tree, throwable_banana, throwable_clam, throwable_pork, throwable_snowflake다.
+- App Store 가격이 없을 때 서버의 직배포 가격을 대신 표시하던 목록을 수정했다. 조회 중·조회 불가·실패를 구분하고 상세의 가격 다시 확인과 상점 재진입/상태 갱신에서 Apple 가격을 다시 조회한다. 미조회 상품의 구매 차단과 보유 권리 유지 정책은 유지한다.
+- 가격 일부 누락·실패·재조회 복구·직배포 표시를 포함한 상점 관련 테스트 45개 통과. 수정된 App Store Debug 빌드를 실행해 실제 재조회 로그를 확인했다. Apple에서 아직 반환하지 않는 상품의 등록/가격/판매 지역/전파 상태 확인과 Sandbox 신규 구매·복원 실검증은 남아 있다.

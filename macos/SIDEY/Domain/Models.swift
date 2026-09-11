@@ -354,11 +354,16 @@ struct CommerceProduct: Equatable, Sendable {
     }
 }
 
+enum StorePriceLoadState: Equatable, Sendable {
+    case notRequested, loading, available, unavailable, failed
+}
+
 struct CommerceProductState: Equatable, Identifiable, Sendable {
     var product: CommerceProduct
     var purchaseState: CommercePurchaseState
     var isWorking: Bool
     var localizedPrice: String?
+    var priceLoadState: StorePriceLoadState = .notRequested
     var isEquipped: Bool
 
     init(
@@ -377,6 +382,16 @@ struct CommerceProductState: Equatable, Identifiable, Sendable {
 
     var id: String { product.id }
     var formattedPrice: String { localizedPrice ?? product.formattedPrice }
+
+    func priceLabel(for availability: StoreAvailability) -> String {
+        guard availability.usesAppStore else { return formattedPrice }
+        if let localizedPrice { return localizedPrice }
+        switch priceLoadState {
+        case .loading: return "가격 확인 중"
+        case .notRequested: return "가격 확인 필요"
+        case .available, .unavailable, .failed: return "가격 확인 불가"
+        }
+    }
 }
 
 enum CommercePurchaseState: Equatable, Sendable {
