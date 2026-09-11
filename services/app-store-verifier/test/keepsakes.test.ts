@@ -15,7 +15,7 @@ function fn(sql: string, name: string) {
   assert.ok(start >= 0, name);
   return sql.slice(start, sql.indexOf('$$;', start) + 3);
 }
-test('current catalog has 24 products, 29 Apple offers and seven independent keepsakes', async () => {
+test('current catalog has 24 products, 32 Apple offers and seven independent keepsakes', async () => {
   const products = JSON.parse(await read('assets/v1/commerce-catalog.json'));
   assert.equal(products.length, 24);
   assert.equal(products.filter((p: any) => p.related_character_product_id).length, 7);
@@ -80,12 +80,14 @@ test('actual commerce SQL preserves legacy sources, restores old offers and isol
     await db.exec(await read('supabase/migrations/20260912010000_keepsake_descriptions.sql'));
     await db.exec(await read('supabase/migrations/20260912020000_tree_app_store_offer.sql'));
     await db.exec(await read('supabase/migrations/20260912020000_tree_app_store_offer.sql')); // safe replay
+    await db.exec(await read('supabase/migrations/20260912030000_remaining_app_store_offers.sql'));
+    await db.exec(await read('supabase/migrations/20260912030000_remaining_app_store_offers.sql')); // safe replay
     const owned = async (key: string, uid = user) => (await db.query<any>(
       'select status from commerce_entitlements where user_id=$1 and entitlement_key=$2',[uid,key])).rows[0]?.status;
     assert.equal(await owned('throwable:throwable_banana'),'active');
     assert.equal((await db.query<any>('select equipped_throwable_id from profiles where id=$1',[user])).rows[0].equipped_throwable_id,'throwable_banana');
     assert.equal((await db.query('select * from get_store_state()')).rows.length,24);
-    assert.equal((await db.query('select * from private.app_store_product_offers')).rows.length,29);
+    assert.equal((await db.query('select * from private.app_store_product_offers')).rows.length,32);
     const catalog = JSON.parse(await read('assets/v1/commerce-catalog.json'));
     for (const product of catalog) {
       const row = (await db.query<any>('select * from get_store_state() where product_id=$1',[product.id])).rows[0];
@@ -120,6 +122,24 @@ test('actual commerce SQL preserves legacy sources, restores old offers and isol
     assert.notEqual(await owned('character:pixel_tree',other),'active');
     await apply('tree-old','character_tree','active',other,'2026-09-14');
     assert.equal(await owned('character:pixel_tree',other),'active');
+    // Reissued offers retain the same entitlement; refunding one purchase
+    // must not revoke another active purchase of that item.
+    for (const [oldOffer, newOffer, entitlement] of [
+      ['character_monkey_solo', 'character_monkey_solo_2', 'character:pixel_monkey'],
+      ['throwable_clam', 'throwable_clam_2', 'throwable:throwable_clam'],
+      ['throwable_pork', 'throwable_pork_2', 'throwable:throwable_pork'],
+    ] as const) {
+      await apply(`replacement-old-${oldOffer}`, oldOffer);
+      await apply(`replacement-new-${oldOffer}`, newOffer);
+      assert.equal(await owned(entitlement,other),'active');
+      await apply(`replacement-old-${oldOffer}`, oldOffer, 'refunded');
+      assert.equal(await owned(entitlement,other),'active');
+      await apply(`replacement-new-${oldOffer}`, newOffer, 'refunded');
+      assert.notEqual(await owned(entitlement,other),'active');
+    }
+    assert.equal(await owned('throwable:throwable_banana',other),undefined);
+    assert.equal(await owned('character:pixel_otter',other),undefined);
+    assert.equal(await owned('character:pixel_pig',other),undefined);
     await apply('solo-purchase','character_monkey_solo');
     assert.equal(await owned('character:pixel_monkey',other),'active');
     assert.equal(await owned('throwable:throwable_banana',other),undefined);
