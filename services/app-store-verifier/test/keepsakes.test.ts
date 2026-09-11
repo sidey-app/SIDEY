@@ -15,7 +15,7 @@ function fn(sql: string, name: string) {
   assert.ok(start >= 0, name);
   return sql.slice(start, sql.indexOf('$$;', start) + 3);
 }
-test('current catalog has 24 products, 32 Apple offers and seven independent keepsakes', async () => {
+test('current catalog has 24 products, 33 Apple offers and seven independent keepsakes', async () => {
   const products = JSON.parse(await read('assets/v1/commerce-catalog.json'));
   assert.equal(products.length, 24);
   assert.equal(products.filter((p: any) => p.related_character_product_id).length, 7);
@@ -84,12 +84,14 @@ test('actual commerce SQL preserves legacy sources, restores old offers and isol
     await db.exec(await read('supabase/migrations/20260912030000_remaining_app_store_offers.sql')); // safe replay
     await db.exec(await read('supabase/migrations/20260912040000_character_store_stories.sql'));
     await db.exec(await read('supabase/migrations/20260912040000_character_store_stories.sql')); // safe replay
+    await db.exec(await read('supabase/migrations/20260912050000_monkey_app_store_offer_retry.sql'));
+    await db.exec(await read('supabase/migrations/20260912050000_monkey_app_store_offer_retry.sql')); // safe replay
     const owned = async (key: string, uid = user) => (await db.query<any>(
       'select status from commerce_entitlements where user_id=$1 and entitlement_key=$2',[uid,key])).rows[0]?.status;
     assert.equal(await owned('throwable:throwable_banana'),'active');
     assert.equal((await db.query<any>('select equipped_throwable_id from profiles where id=$1',[user])).rows[0].equipped_throwable_id,'throwable_banana');
     assert.equal((await db.query('select * from get_store_state()')).rows.length,24);
-    assert.equal((await db.query('select * from private.app_store_product_offers')).rows.length,32);
+    assert.equal((await db.query('select * from private.app_store_product_offers')).rows.length,33);
     const catalog = JSON.parse(await read('assets/v1/commerce-catalog.json'));
     for (const product of catalog) {
       const row = (await db.query<any>('select * from get_store_state() where product_id=$1',[product.id])).rows[0];
@@ -128,6 +130,7 @@ test('actual commerce SQL preserves legacy sources, restores old offers and isol
     // must not revoke another active purchase of that item.
     for (const [oldOffer, newOffer, entitlement] of [
       ['character_monkey_solo', 'character_monkey_solo_2', 'character:pixel_monkey'],
+      ['character_monkey_solo_2', 'character_monkey_solo_3', 'character:pixel_monkey'],
       ['throwable_clam', 'throwable_clam_2', 'throwable:throwable_clam'],
       ['throwable_pork', 'throwable_pork_2', 'throwable:throwable_pork'],
     ] as const) {

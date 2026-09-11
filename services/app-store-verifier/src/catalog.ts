@@ -4,6 +4,7 @@ export const entitlementByProduct = Object.freeze({
   character_starlight_upalupa: "character:pixel_starlight_upalupa",
   character_guinea_pig_solo: "character:pixel_guinea_pig",
   character_guinea_pig: "character:pixel_guinea_pig",
+  character_monkey_solo_3: "character:pixel_monkey",
   character_monkey_solo_2: "character:pixel_monkey",
   character_monkey_solo: "character:pixel_monkey",
   character_monkey: "character:pixel_monkey",
