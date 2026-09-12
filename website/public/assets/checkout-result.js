@@ -1,19 +1,10 @@
+import { commerceProducts } from "./commerce-products.js";
+
 (() => {
   "use strict";
 
   const productionHost = "whtejsviizgejauasqqt.supabase.co";
-  const productNames = {
-    character_starlight_upalupa: "별빛 우파루파",
-    character_guinea_pig: "아기 기니피그",
-    character_monkey: "아기 원숭이",
-    character_chinchilla: "아기 친칠라",
-    bubble_bunny_pink: "핑크 토끼 말풍선",
-    bubble_butter_chick: "버터 병아리 말풍선",
-    bubble_starry_cat: "별밤 고양이 말풍선",
-    throwable_bouncy_heart: "통통 하트",
-    throwable_toy_cannon: "미니 대포",
-    throwable_squeaky_duck: "삑삑 오리",
-  };
+  const productNames = Object.fromEntries(Object.entries(commerceProducts).map(([id, product]) => [id, product.name]));
   const results = {
     success: (name) => ({
       icon: "✦",
