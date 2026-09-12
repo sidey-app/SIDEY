@@ -1,0 +1,1055 @@
+// !$*UTF8*$!
+{
+	"archiveVersion" = 1;
+	"classes" = {
+	};
+	"objectVersion" = 60;
+	"objects" = {
+		"22AA1EC217B60DB6981FD515" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../SIDEY/Domain/OverlayModels.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"0AE66DA08ECD0B96310B64AE" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../SIDEY/Domain/CommerceModels.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"02A0DA02B1B67FD3C4514E07" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../SIDEY/Domain/CommerceProductDefinition.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"F11854D6D857D714516F8E5A" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../SIDEY/Infrastructure/System/BuildReview.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"02D5214555BC5AC2224DD79A" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../SIDEY/Infrastructure/System/SystemActivityMonitor.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"38E0F72EE9414943459EC104" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../SIDEY/Features/PixelWorld/PixelWorldScene.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"314B29270469C849203C3A9A" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../SIDEY/Features/PixelWorld/PixelBubbleLayout.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"C9BEA24484B313C75A9FDD10" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../SIDEY/Features/PixelWorld/PixelWorldSimulation.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"55946B79B4EE06ABEBC245D8" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../SIDEY/Features/PixelWorld/PixelCharacterCatalog.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"8A253E906760F210FC428D7E" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../SIDEY/Features/PixelWorld/PixelCharacterStunEffect.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"2404C0BF52FB60D2FF8D9A11" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../SIDEY/Features/PixelWorld/CharacterStunState.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"7DAA09B0FDE1CF02A14A6336" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../SIDEY/Features/PixelWorld/PixelCharacterPreviewImage.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"E0BA054C6239F5EFC44DCDCB" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../SIDEY/Features/PixelWorld/CharacterImpactAudio.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"681205B895143A2F028B75E3" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../SIDEY/Features/PixelWorld/PixelCharacterThrowCatalog.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"73B6EA4FA15EDE07919E2E0A" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "Sources/RealsApp.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"9E217FF7DD532C9977DFA2FF" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "Sources/RealsEditor.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"DDC63D4431F31EA7ED648AC1" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "Sources/RealsEditorView.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"EBCF49759396794025E0126D" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "Sources/RealsPlayer.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"A5C26C949581ED0C92864A86" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "Sources/RealsProject.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"44DAA38557590CA67274616B" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "SideyBuildStamp.swift";
+			"sourceTree" = "DERIVED_FILE_DIR";
+		};
+		"F2DA6F560DE529A707C65297" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/Characters/PixelCat/pixel_cat.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"F4017F8152EBD1EF5EC0C309" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/Characters/PixelChinchilla/pixel_chinchilla.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"9F2275F05ADBE70375AB9610" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/Characters/PixelGuineaPig/pixel_guinea_pig.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"2CF73A8D47D0AE5484E9EAA8" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/Characters/PixelHamster/pixel_hamster.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"3F01ABD148B4E23B45CE67C3" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/Characters/PixelMonkey/pixel_monkey.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"CDC76415786C8F5D50738E8D" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/Characters/PixelOtter/pixel_otter.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"11A60A2C64ABE3BAE857E4DC" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/Characters/PixelPenguin/pixel_penguin.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"038011010B9F7704504E75B3" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/Characters/PixelPig/pixel_pig.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"A3154C55AF13076B991A13D8" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/Characters/PixelPuppy/pixel_puppy.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"06DDCC9C000625A28BD2304E" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/Characters/PixelRabbit/pixel_rabbit.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"887A98FCA29F40B4AF373753" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/Characters/PixelStarlightUpalupa/pixel_starlight_upalupa.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"96E80B04289533902F127B98" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/Characters/PixelTree/pixel_tree.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"A7F64AEFA5A05952050F8F2F" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ActionSheets/pixel_cat_throw_hit.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"3EF24FDF93203BEA360A9F9A" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ActionSheets/pixel_chinchilla_throw_hit.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"89B1E4D0C042DA14126D75AF" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ActionSheets/pixel_guinea_pig_throw_hit.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"F25BFAD673EF65D659ACF13B" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ActionSheets/pixel_hamster_throw_hit.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"BF661D86AE33B3B7E3803987" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ActionSheets/pixel_monkey_throw_hit.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"C8360ABC29F18E351D5D4DF7" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ActionSheets/pixel_otter_throw_hit.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"E7325F3A643715022CB62378" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ActionSheets/pixel_penguin_throw_hit.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"2F008539E22BB935D2D982BC" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ActionSheets/pixel_pig_throw_hit.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"2C3F30DCD65A7627EB99DB57" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ActionSheets/pixel_puppy_throw_hit.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"68AFEA6513D23F0067642596" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ActionSheets/pixel_rabbit_throw_hit.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"7CE0F78B189661388D694F53" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ActionSheets/pixel_starlight_upalupa_throw_hit.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"DBC4DEE126BD594E97EFFEF4" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ActionSheets/pixel_tree_throw_hit.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"3CF01F19ED5FE53A7F729594" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/EmitterSheets/throwable_toy_cannon_emitter.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"E3D62130494EEB3EDFF26BF3" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ObjectSheets/banana.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"CEF09591B231DCB06772D114" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ObjectSheets/clam.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"E597B0D2667D0B31BDA740D6" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ObjectSheets/dust_bath_pouch.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"2E9C4B56D014756D6A47F1BC" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ObjectSheets/mini_paprika.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"900CAF268A7AB94A8DF87367" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ObjectSheets/patch_soft_ball.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"EE258C19F0DF759CAC99E19A" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ObjectSheets/pork.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"D3E82CD4C5FF829241134CE7" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ObjectSheets/starlight_orb.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"B99DD82C2078199BC7B03FA3" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ObjectSheets/throwable_baseball.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"6CAB872D43F03B8352A5F1BA" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ObjectSheets/throwable_bouncy_heart.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"DE84ADA5E4F8E8A0103BBEB5" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ObjectSheets/throwable_dujjonku.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"23D6365773A000C0FED536A2" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ObjectSheets/throwable_snowflake.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"914EA46E02F9C5EA1FC20C63" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ObjectSheets/throwable_squeaky_duck.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"61FE42554B042FD2582DC5F3" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ObjectSheets/throwable_toy_cannon.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"9C0B9A6121666A31FF267593" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ObjectSheets/throwable_wakkuball.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"BEC42FE52CEBC8207D290027" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/CharacterThrow/ObjectSheets/timber.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"416EF76005A8EFA6F056B00F" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/Bubbles/bubble_bunny_pink.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"06F7E0ED5E2A3C9830499535" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/Bubbles/bubble_butter_chick.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"C9823F652735EECA98A44264" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/Bubbles/bubble_starry_cat.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"1B1294270F26C751A116D270" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/DirectStun/character-stun-ring.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"91DE5B1C1A3073D396DFEBF1" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "image.png";
+			"path" = "../SIDEY/Resources/DirectStun/character-stun-star.png";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"E7EC53CAF730A7B61CCA7E3E" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "audio.wav";
+			"path" = "../SIDEY/Resources/DirectImpactAudio/impact-banana.wav";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"C1E82E3D108DD637FCC1FBCC" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "audio.wav";
+			"path" = "../SIDEY/Resources/DirectImpactAudio/impact-clam.wav";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"FC3EF018B04F034AAB430BAE" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "audio.wav";
+			"path" = "../SIDEY/Resources/DirectImpactAudio/impact-dust_bath_pouch.wav";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"FEE82DF3F33E8F1C88451BB1" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "audio.wav";
+			"path" = "../SIDEY/Resources/DirectImpactAudio/impact-mini_paprika.wav";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"DEE42DC7AF4C9E4EAC238108" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "audio.wav";
+			"path" = "../SIDEY/Resources/DirectImpactAudio/impact-patch_soft_ball.wav";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"138871698E777B3AEB63EA26" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "audio.wav";
+			"path" = "../SIDEY/Resources/DirectImpactAudio/impact-pork.wav";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"3693ACA56DA25D67A3ED80FC" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "audio.wav";
+			"path" = "../SIDEY/Resources/DirectImpactAudio/impact-starlight_orb.wav";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"C60A54988B69F68FC93B6168" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "audio.wav";
+			"path" = "../SIDEY/Resources/DirectImpactAudio/impact-throwable_baseball.wav";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"A57D1B1DA12860DB32040202" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "audio.wav";
+			"path" = "../SIDEY/Resources/DirectImpactAudio/impact-throwable_bouncy_heart.wav";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"06404376B06C6F5CEA64C06C" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "audio.wav";
+			"path" = "../SIDEY/Resources/DirectImpactAudio/impact-throwable_dujjonku.wav";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"D5BD83D43CEBD730C7CDA0B7" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "audio.wav";
+			"path" = "../SIDEY/Resources/DirectImpactAudio/impact-throwable_snowflake.wav";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"E9F0E512A46C0E4C44FB8ED7" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "audio.wav";
+			"path" = "../SIDEY/Resources/DirectImpactAudio/impact-throwable_squeaky_duck.wav";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"4678955EC389575DC265EFD0" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "audio.wav";
+			"path" = "../SIDEY/Resources/DirectImpactAudio/impact-throwable_toy_cannon.wav";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"7D06F005E4F2874CD84E19BF" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "audio.wav";
+			"path" = "../SIDEY/Resources/DirectImpactAudio/impact-throwable_wakkuball.wav";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"A659E5DDD373452EB505B65B" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "audio.wav";
+			"path" = "../SIDEY/Resources/DirectImpactAudio/impact-timber.wav";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"F5DDA4A7C0C6AA9FF8A26755" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "text.json";
+			"path" = "../SIDEY/Resources/Commerce/commerce-catalog.json";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"A172CEDCAE47474B615C54D5" = {
+			"isa" = "PBXFileReference";
+			"explicitFileType" = "wrapper.application";
+			"path" = "sidey-reals.app";
+			"sourceTree" = "BUILT_PRODUCTS_DIR";
+			"includeInIndex" = 0;
+		};
+		"59830EBC3A4184110566BF1A" = {
+			"isa" = "PBXFileReference";
+			"explicitFileType" = "wrapper.cfbundle";
+			"path" = "RealsTests.xctest";
+			"sourceTree" = "BUILT_PRODUCTS_DIR";
+			"includeInIndex" = 0;
+		};
+		"B3A0E79533DFE6FA1AE86C89" = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "Tests/RealsTests.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		"E6F07D43B5C21DB0FBB9A31F" = {
+			"isa" = "PBXShellScriptBuildPhase";
+			"alwaysOutOfDate" = 1;
+			"buildActionMask" = 2147483647;
+			"files" = ();
+			"inputPaths" = ();
+			"outputPaths" = ("$(DERIVED_FILE_DIR)/SideyBuildStamp.swift", "$(DERIVED_FILE_DIR)/SideyBuildReceipt.json");
+			"runOnlyForDeploymentPostprocessing" = 0;
+			"shellPath" = "/bin/sh";
+			"shellScript" = "set -eu\n/usr/bin/python3 \"$SRCROOT/../../scripts/macos/build_provenance.py\" begin\n";
+		};
+		"42AF43E3616EBA4A133A7555" = {
+			"isa" = "PBXShellScriptBuildPhase";
+			"alwaysOutOfDate" = 1;
+			"buildActionMask" = 2147483647;
+			"files" = ();
+			"inputPaths" = ();
+			"outputPaths" = ();
+			"runOnlyForDeploymentPostprocessing" = 0;
+			"shellPath" = "/bin/sh";
+			"shellScript" = "set -eu\n/usr/bin/python3 \"$SRCROOT/../../scripts/macos/build_provenance.py\" finish\n";
+		};
+		"73EBF6644258C120893E685D" = {
+			"isa" = "XCBuildConfiguration";
+			"name" = "Debug";
+			"buildSettings" = {
+				"SDKROOT" = "macosx";
+				"MACOSX_DEPLOYMENT_TARGET" = "26.0";
+				"SWIFT_VERSION" = "6.0";
+				"SWIFT_STRICT_CONCURRENCY" = "complete";
+				"CODE_SIGN_IDENTITY" = "-";
+				"CODE_SIGN_STYLE" = "Manual";
+				"ENABLE_USER_SCRIPT_SANDBOXING" = "NO";
+				"SWIFT_OPTIMIZATION_LEVEL" = "-Onone";
+				"SWIFT_ACTIVE_COMPILATION_CONDITIONS" = "SIDEY_REALS DEBUG";
+				"ENABLE_TESTABILITY" = "YES";
+				"DEBUG_INFORMATION_FORMAT" = "dwarf";
+				"CLANG_ENABLE_MODULES" = "YES";
+			};
+		};
+		"0B0C687DF8B6B8DC790B519C" = {
+			"isa" = "XCBuildConfiguration";
+			"name" = "Release";
+			"buildSettings" = {
+				"SDKROOT" = "macosx";
+				"MACOSX_DEPLOYMENT_TARGET" = "26.0";
+				"SWIFT_VERSION" = "6.0";
+				"SWIFT_STRICT_CONCURRENCY" = "complete";
+				"CODE_SIGN_IDENTITY" = "-";
+				"CODE_SIGN_STYLE" = "Manual";
+				"ENABLE_USER_SCRIPT_SANDBOXING" = "NO";
+				"SWIFT_OPTIMIZATION_LEVEL" = "-O";
+				"SWIFT_ACTIVE_COMPILATION_CONDITIONS" = "SIDEY_REALS";
+				"ENABLE_TESTABILITY" = "NO";
+				"DEBUG_INFORMATION_FORMAT" = "dwarf";
+				"CLANG_ENABLE_MODULES" = "YES";
+			};
+		};
+		"76F8DEC3DFE0BDB465198890" = {
+			"isa" = "XCConfigurationList";
+			"buildConfigurations" = ("73EBF6644258C120893E685D", "0B0C687DF8B6B8DC790B519C");
+			"defaultConfigurationIsVisible" = 0;
+			"defaultConfigurationName" = "Release";
+		};
+		"B00CCDD09424E369308D67FA" = {
+			"isa" = "XCBuildConfiguration";
+			"name" = "Debug";
+			"buildSettings" = {
+				"PRODUCT_NAME" = "sidey-reals";
+				"PRODUCT_MODULE_NAME" = "SideyReals";
+				"PRODUCT_BUNDLE_IDENTIFIER" = "app.sidey.reals";
+				"INFOPLIST_FILE" = "Info.plist";
+				"MARKETING_VERSION" = "0.1.0";
+				"CURRENT_PROJECT_VERSION" = "1";
+				"LD_RUNPATH_SEARCH_PATHS" = ("$(inherited)", "@executable_path/../Frameworks");
+				"ENABLE_HARDENED_RUNTIME" = "YES";
+			};
+		};
+		"1B104479E55E37CF8A63CBDF" = {
+			"isa" = "XCBuildConfiguration";
+			"name" = "Release";
+			"buildSettings" = {
+				"PRODUCT_NAME" = "sidey-reals";
+				"PRODUCT_MODULE_NAME" = "SideyReals";
+				"PRODUCT_BUNDLE_IDENTIFIER" = "app.sidey.reals";
+				"INFOPLIST_FILE" = "Info.plist";
+				"MARKETING_VERSION" = "0.1.0";
+				"CURRENT_PROJECT_VERSION" = "1";
+				"LD_RUNPATH_SEARCH_PATHS" = ("$(inherited)", "@executable_path/../Frameworks");
+				"ENABLE_HARDENED_RUNTIME" = "YES";
+			};
+		};
+		"06CB67C35A91E16DBD17B949" = {
+			"isa" = "XCConfigurationList";
+			"buildConfigurations" = ("B00CCDD09424E369308D67FA", "1B104479E55E37CF8A63CBDF");
+			"defaultConfigurationIsVisible" = 0;
+			"defaultConfigurationName" = "Release";
+		};
+		"DD3F495F7D6A5AA1C1769021" = {
+			"isa" = "XCBuildConfiguration";
+			"name" = "Debug";
+			"buildSettings" = {
+				"PRODUCT_NAME" = "RealsTests";
+				"PRODUCT_BUNDLE_IDENTIFIER" = "app.sidey.reals.tests";
+				"GENERATE_INFOPLIST_FILE" = "YES";
+				"TEST_HOST" = "$(BUILT_PRODUCTS_DIR)/sidey-reals.app/Contents/MacOS/sidey-reals";
+				"BUNDLE_LOADER" = "$(TEST_HOST)";
+				"LD_RUNPATH_SEARCH_PATHS" = ("$(inherited)", "@loader_path/../Frameworks", "@executable_path/../Frameworks");
+			};
+		};
+		"E670BC2FFE794172EBC92AE3" = {
+			"isa" = "XCBuildConfiguration";
+			"name" = "Release";
+			"buildSettings" = {
+				"PRODUCT_NAME" = "RealsTests";
+				"PRODUCT_BUNDLE_IDENTIFIER" = "app.sidey.reals.tests";
+				"GENERATE_INFOPLIST_FILE" = "YES";
+				"TEST_HOST" = "$(BUILT_PRODUCTS_DIR)/sidey-reals.app/Contents/MacOS/sidey-reals";
+				"BUNDLE_LOADER" = "$(TEST_HOST)";
+				"LD_RUNPATH_SEARCH_PATHS" = ("$(inherited)", "@loader_path/../Frameworks", "@executable_path/../Frameworks");
+			};
+		};
+		"5FA394EFD07597E96CACD8E1" = {
+			"isa" = "XCConfigurationList";
+			"buildConfigurations" = ("DD3F495F7D6A5AA1C1769021", "E670BC2FFE794172EBC92AE3");
+			"defaultConfigurationIsVisible" = 0;
+			"defaultConfigurationName" = "Release";
+		};
+		"4EF5393CC9A47B997BDD37F9" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "22AA1EC217B60DB6981FD515";
+		};
+		"5EDC9252A307EB2783AB5348" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "0AE66DA08ECD0B96310B64AE";
+		};
+		"4E936D6B8045FF0506F18EB5" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "02A0DA02B1B67FD3C4514E07";
+		};
+		"C4F7B8451A3582DCEB9B1C93" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "F11854D6D857D714516F8E5A";
+		};
+		"639D1DB3AF70B09BD809E4B4" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "02D5214555BC5AC2224DD79A";
+		};
+		"CCEDDD337785754DF731BFBB" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "38E0F72EE9414943459EC104";
+		};
+		"222F7E63A58DB12C95510E17" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "314B29270469C849203C3A9A";
+		};
+		"47FFC22215A644D7D31679FC" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "C9BEA24484B313C75A9FDD10";
+		};
+		"AB591AC1A59783C5922DA269" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "55946B79B4EE06ABEBC245D8";
+		};
+		"B822C14BB75E4E204D8D5572" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "8A253E906760F210FC428D7E";
+		};
+		"4D1680F91FBE1F03CDE066D9" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "2404C0BF52FB60D2FF8D9A11";
+		};
+		"7A226C6EF8F5D786FFA48016" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "7DAA09B0FDE1CF02A14A6336";
+		};
+		"CFAEFC76F09CD8AC033FCEBC" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "E0BA054C6239F5EFC44DCDCB";
+		};
+		"8929FCBC0DFDEB2A60322AF9" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "681205B895143A2F028B75E3";
+		};
+		"D559C68DE8054080D355D86F" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "73B6EA4FA15EDE07919E2E0A";
+		};
+		"116ADA839D5E167FE94F4CE6" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "9E217FF7DD532C9977DFA2FF";
+		};
+		"B42681DF210971814AE13635" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "DDC63D4431F31EA7ED648AC1";
+		};
+		"AC2871C95757B4730B9F4676" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "EBCF49759396794025E0126D";
+		};
+		"9460B126682105BC79093DD0" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A5C26C949581ED0C92864A86";
+		};
+		"5972EFA52FD697A7D3D8D78F" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "44DAA38557590CA67274616B";
+		};
+		"878A52FC5FF6A57D50B7B870" = {
+			"isa" = "PBXSourcesBuildPhase";
+			"buildActionMask" = 2147483647;
+			"files" = ("4EF5393CC9A47B997BDD37F9", "5EDC9252A307EB2783AB5348", "4E936D6B8045FF0506F18EB5", "C4F7B8451A3582DCEB9B1C93", "639D1DB3AF70B09BD809E4B4", "CCEDDD337785754DF731BFBB", "222F7E63A58DB12C95510E17", "47FFC22215A644D7D31679FC", "AB591AC1A59783C5922DA269", "B822C14BB75E4E204D8D5572", "4D1680F91FBE1F03CDE066D9", "7A226C6EF8F5D786FFA48016", "CFAEFC76F09CD8AC033FCEBC", "8929FCBC0DFDEB2A60322AF9", "D559C68DE8054080D355D86F", "116ADA839D5E167FE94F4CE6", "B42681DF210971814AE13635", "AC2871C95757B4730B9F4676", "9460B126682105BC79093DD0", "5972EFA52FD697A7D3D8D78F");
+			"runOnlyForDeploymentPostprocessing" = 0;
+		};
+		"E2AA269EB967A8853A258BFA" = {
+			"isa" = "PBXFrameworksBuildPhase";
+			"buildActionMask" = 2147483647;
+			"files" = ();
+			"runOnlyForDeploymentPostprocessing" = 0;
+		};
+		"7DD00252ACAD46B7EEB78B71" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "F2DA6F560DE529A707C65297";
+		};
+		"81C7EB09CA5B6ACABE46B25F" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "F4017F8152EBD1EF5EC0C309";
+		};
+		"9B9FE40EC2D7E34E80573172" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "9F2275F05ADBE70375AB9610";
+		};
+		"EC45DC14AD46F8D9F0D13A69" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "2CF73A8D47D0AE5484E9EAA8";
+		};
+		"A34BE59CB8B0198E0BB21304" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "3F01ABD148B4E23B45CE67C3";
+		};
+		"1881CD3092BDA55A4A3D3FE8" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "CDC76415786C8F5D50738E8D";
+		};
+		"55645FE22EB2CF81E7811F2C" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "11A60A2C64ABE3BAE857E4DC";
+		};
+		"E9535B8D9189C35BF6215DF8" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "038011010B9F7704504E75B3";
+		};
+		"D8A32F660BE7A2CBD1D23003" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A3154C55AF13076B991A13D8";
+		};
+		"35BFA10438D7F9C2AAFE4AF2" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "06DDCC9C000625A28BD2304E";
+		};
+		"B9A82E6E44407F4F3A66DE6E" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "887A98FCA29F40B4AF373753";
+		};
+		"C1D9C5FF9EF8BE4420FA0360" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "96E80B04289533902F127B98";
+		};
+		"C7FD02C948CD95C30A3846F8" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A7F64AEFA5A05952050F8F2F";
+		};
+		"2B2A3FFBE7973677D679C0E1" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "3EF24FDF93203BEA360A9F9A";
+		};
+		"709C0D76E788A1834AF26AE2" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "89B1E4D0C042DA14126D75AF";
+		};
+		"65E60BFA0717E26B0EDF4FFE" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "F25BFAD673EF65D659ACF13B";
+		};
+		"D66AADD2D6054AEB751B4BEF" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "BF661D86AE33B3B7E3803987";
+		};
+		"0AD311A5D124FB0965C8B2B0" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "C8360ABC29F18E351D5D4DF7";
+		};
+		"7E6EB722673A07E72AF27CB4" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "E7325F3A643715022CB62378";
+		};
+		"68F66196B7CEE17BF8D3DD1A" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "2F008539E22BB935D2D982BC";
+		};
+		"DCE10029E67131C3D4463143" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "2C3F30DCD65A7627EB99DB57";
+		};
+		"70AAF4B9FF0030CFFD222590" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "68AFEA6513D23F0067642596";
+		};
+		"9F44E39CF32D1438903C0FCD" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "7CE0F78B189661388D694F53";
+		};
+		"93E59950DE5B248ECB74E757" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "DBC4DEE126BD594E97EFFEF4";
+		};
+		"BEEB3F9CA5BD5C5020A6AD02" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "3CF01F19ED5FE53A7F729594";
+		};
+		"71026BD7A8631556BAAFAD84" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "E3D62130494EEB3EDFF26BF3";
+		};
+		"BB614B8B2EF0953589F2BD56" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "CEF09591B231DCB06772D114";
+		};
+		"A6BE14187ABAACBFB9C72E3C" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "E597B0D2667D0B31BDA740D6";
+		};
+		"9543404016AF161421C919AD" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "2E9C4B56D014756D6A47F1BC";
+		};
+		"D6A6BA5AD47DCE0D0C904405" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "900CAF268A7AB94A8DF87367";
+		};
+		"D56A5B4BCCF0A03B0A6E1D34" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "EE258C19F0DF759CAC99E19A";
+		};
+		"81769E15D3D84A9B4336A480" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "D3E82CD4C5FF829241134CE7";
+		};
+		"F1B31DB89DA07994A7391B2B" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "B99DD82C2078199BC7B03FA3";
+		};
+		"4808F9A05F4D2B099A17979A" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "6CAB872D43F03B8352A5F1BA";
+		};
+		"85E62483A94D6C8D63538DAC" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "DE84ADA5E4F8E8A0103BBEB5";
+		};
+		"C597F65F956A2BA2B16D0316" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "23D6365773A000C0FED536A2";
+		};
+		"9E60A1ECCF38A41B262187C2" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "914EA46E02F9C5EA1FC20C63";
+		};
+		"CA3B39A086F92FA5B0CE04FC" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "61FE42554B042FD2582DC5F3";
+		};
+		"776036E0519B2EA601913C69" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "9C0B9A6121666A31FF267593";
+		};
+		"06C9C88ACBFF810E698BFD26" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "BEC42FE52CEBC8207D290027";
+		};
+		"47DD4A6A7B382CA28555146F" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "416EF76005A8EFA6F056B00F";
+		};
+		"3269DD01D84333AE226A09BE" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "06F7E0ED5E2A3C9830499535";
+		};
+		"F8B768B2BFBFFC399F757616" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "C9823F652735EECA98A44264";
+		};
+		"5041DE727BC8CA5C9085860F" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "1B1294270F26C751A116D270";
+		};
+		"17A8D128A9195288F4A78EE2" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "91DE5B1C1A3073D396DFEBF1";
+		};
+		"548477A2AFB396F6E30BF945" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "E7EC53CAF730A7B61CCA7E3E";
+		};
+		"F5E6B6E8E836C6A274AE92F5" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "C1E82E3D108DD637FCC1FBCC";
+		};
+		"0957E1D8C7FEE884A66476CC" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "FC3EF018B04F034AAB430BAE";
+		};
+		"0D09286132250F613CA0187D" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "FEE82DF3F33E8F1C88451BB1";
+		};
+		"C158DA22705B976C44B22E21" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "DEE42DC7AF4C9E4EAC238108";
+		};
+		"012A553D0CEBBB86891F5C64" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "138871698E777B3AEB63EA26";
+		};
+		"9D392725475DDA16723AA28E" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "3693ACA56DA25D67A3ED80FC";
+		};
+		"969CCAEBAC437389CA0A710F" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "C60A54988B69F68FC93B6168";
+		};
+		"9F2BEC7B06491A1253697DB6" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A57D1B1DA12860DB32040202";
+		};
+		"DF7929A61220C362E9C3D60D" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "06404376B06C6F5CEA64C06C";
+		};
+		"F562089A83301F3AC7DA0A43" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "D5BD83D43CEBD730C7CDA0B7";
+		};
+		"72E9C17509C6810CE43AAE58" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "E9F0E512A46C0E4C44FB8ED7";
+		};
+		"37C4173B8CE8D6CC0E08B79B" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "4678955EC389575DC265EFD0";
+		};
+		"DBB716D6246CC43EFF2BDB75" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "7D06F005E4F2874CD84E19BF";
+		};
+		"8A26C110F04537BD916E8FD7" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "A659E5DDD373452EB505B65B";
+		};
+		"7519A7B22FA0FB53F01C4583" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "F5DDA4A7C0C6AA9FF8A26755";
+		};
+		"41D311A605520FC7B8B9A980" = {
+			"isa" = "PBXResourcesBuildPhase";
+			"buildActionMask" = 2147483647;
+			"files" = ("7DD00252ACAD46B7EEB78B71", "81C7EB09CA5B6ACABE46B25F", "9B9FE40EC2D7E34E80573172", "EC45DC14AD46F8D9F0D13A69", "A34BE59CB8B0198E0BB21304", "1881CD3092BDA55A4A3D3FE8", "55645FE22EB2CF81E7811F2C", "E9535B8D9189C35BF6215DF8", "D8A32F660BE7A2CBD1D23003", "35BFA10438D7F9C2AAFE4AF2", "B9A82E6E44407F4F3A66DE6E", "C1D9C5FF9EF8BE4420FA0360", "C7FD02C948CD95C30A3846F8", "2B2A3FFBE7973677D679C0E1", "709C0D76E788A1834AF26AE2", "65E60BFA0717E26B0EDF4FFE", "D66AADD2D6054AEB751B4BEF", "0AD311A5D124FB0965C8B2B0", "7E6EB722673A07E72AF27CB4", "68F66196B7CEE17BF8D3DD1A", "DCE10029E67131C3D4463143", "70AAF4B9FF0030CFFD222590", "9F44E39CF32D1438903C0FCD", "93E59950DE5B248ECB74E757", "BEEB3F9CA5BD5C5020A6AD02", "71026BD7A8631556BAAFAD84", "BB614B8B2EF0953589F2BD56", "A6BE14187ABAACBFB9C72E3C", "9543404016AF161421C919AD", "D6A6BA5AD47DCE0D0C904405", "D56A5B4BCCF0A03B0A6E1D34", "81769E15D3D84A9B4336A480", "F1B31DB89DA07994A7391B2B", "4808F9A05F4D2B099A17979A", "85E62483A94D6C8D63538DAC", "C597F65F956A2BA2B16D0316", "9E60A1ECCF38A41B262187C2", "CA3B39A086F92FA5B0CE04FC", "776036E0519B2EA601913C69", "06C9C88ACBFF810E698BFD26", "47DD4A6A7B382CA28555146F", "3269DD01D84333AE226A09BE", "F8B768B2BFBFFC399F757616", "5041DE727BC8CA5C9085860F", "17A8D128A9195288F4A78EE2", "548477A2AFB396F6E30BF945", "F5E6B6E8E836C6A274AE92F5", "0957E1D8C7FEE884A66476CC", "0D09286132250F613CA0187D", "C158DA22705B976C44B22E21", "012A553D0CEBBB86891F5C64", "9D392725475DDA16723AA28E", "969CCAEBAC437389CA0A710F", "9F2BEC7B06491A1253697DB6", "DF7929A61220C362E9C3D60D", "F562089A83301F3AC7DA0A43", "72E9C17509C6810CE43AAE58", "37C4173B8CE8D6CC0E08B79B", "DBB716D6246CC43EFF2BDB75", "8A26C110F04537BD916E8FD7", "7519A7B22FA0FB53F01C4583");
+			"runOnlyForDeploymentPostprocessing" = 0;
+		};
+		"AC44A5EE06496B21A17CA082" = {
+			"isa" = "PBXNativeTarget";
+			"name" = "sidey-reals";
+			"productName" = "sidey-reals";
+			"productReference" = "A172CEDCAE47474B615C54D5";
+			"productType" = "com.apple.product-type.application";
+			"buildConfigurationList" = "06CB67C35A91E16DBD17B949";
+			"buildPhases" = ("E6F07D43B5C21DB0FBB9A31F", "878A52FC5FF6A57D50B7B870", "E2AA269EB967A8853A258BFA", "41D311A605520FC7B8B9A980", "42AF43E3616EBA4A133A7555");
+			"buildRules" = ();
+			"dependencies" = ();
+		};
+		"1241936D4DD3AAD68FE7BFBD" = {
+			"isa" = "PBXContainerItemProxy";
+			"containerPortal" = "244210E48437B6556980A702";
+			"proxyType" = 1;
+			"remoteGlobalIDString" = "AC44A5EE06496B21A17CA082";
+			"remoteInfo" = "sidey-reals";
+		};
+		"F26350DAFE3F19AABFD69AC4" = {
+			"isa" = "PBXTargetDependency";
+			"target" = "AC44A5EE06496B21A17CA082";
+			"targetProxy" = "1241936D4DD3AAD68FE7BFBD";
+		};
+		"AE4101BE0C963ABD1DA7556D" = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "B3A0E79533DFE6FA1AE86C89";
+		};
+		"B2298129A58493C45A5D7D9A" = {
+			"isa" = "PBXSourcesBuildPhase";
+			"buildActionMask" = 2147483647;
+			"files" = ("AE4101BE0C963ABD1DA7556D");
+			"runOnlyForDeploymentPostprocessing" = 0;
+		};
+		"28557525D9B40FEE6754FB60" = {
+			"isa" = "PBXFrameworksBuildPhase";
+			"buildActionMask" = 2147483647;
+			"files" = ();
+			"runOnlyForDeploymentPostprocessing" = 0;
+		};
+		"3A0C9CEF9D8F3BC090274361" = {
+			"isa" = "PBXNativeTarget";
+			"name" = "RealsTests";
+			"productName" = "RealsTests";
+			"productReference" = "59830EBC3A4184110566BF1A";
+			"productType" = "com.apple.product-type.bundle.unit-test";
+			"buildConfigurationList" = "5FA394EFD07597E96CACD8E1";
+			"buildPhases" = ("B2298129A58493C45A5D7D9A", "28557525D9B40FEE6754FB60");
+			"buildRules" = ();
+			"dependencies" = ("F26350DAFE3F19AABFD69AC4");
+		};
+		"AD936FCBED631FA67E05C3EA" = {
+			"isa" = "PBXGroup";
+			"children" = ("22AA1EC217B60DB6981FD515", "0AE66DA08ECD0B96310B64AE", "02A0DA02B1B67FD3C4514E07", "F11854D6D857D714516F8E5A", "02D5214555BC5AC2224DD79A", "38E0F72EE9414943459EC104", "314B29270469C849203C3A9A", "C9BEA24484B313C75A9FDD10", "55946B79B4EE06ABEBC245D8", "8A253E906760F210FC428D7E", "2404C0BF52FB60D2FF8D9A11", "7DAA09B0FDE1CF02A14A6336", "E0BA054C6239F5EFC44DCDCB", "681205B895143A2F028B75E3", "73B6EA4FA15EDE07919E2E0A", "9E217FF7DD532C9977DFA2FF", "DDC63D4431F31EA7ED648AC1", "EBCF49759396794025E0126D", "A5C26C949581ED0C92864A86", "44DAA38557590CA67274616B", "F2DA6F560DE529A707C65297", "F4017F8152EBD1EF5EC0C309", "9F2275F05ADBE70375AB9610", "2CF73A8D47D0AE5484E9EAA8", "3F01ABD148B4E23B45CE67C3", "CDC76415786C8F5D50738E8D", "11A60A2C64ABE3BAE857E4DC", "038011010B9F7704504E75B3", "A3154C55AF13076B991A13D8", "06DDCC9C000625A28BD2304E", "887A98FCA29F40B4AF373753", "96E80B04289533902F127B98", "A7F64AEFA5A05952050F8F2F", "3EF24FDF93203BEA360A9F9A", "89B1E4D0C042DA14126D75AF", "F25BFAD673EF65D659ACF13B", "BF661D86AE33B3B7E3803987", "C8360ABC29F18E351D5D4DF7", "E7325F3A643715022CB62378", "2F008539E22BB935D2D982BC", "2C3F30DCD65A7627EB99DB57", "68AFEA6513D23F0067642596", "7CE0F78B189661388D694F53", "DBC4DEE126BD594E97EFFEF4", "3CF01F19ED5FE53A7F729594", "E3D62130494EEB3EDFF26BF3", "CEF09591B231DCB06772D114", "E597B0D2667D0B31BDA740D6", "2E9C4B56D014756D6A47F1BC", "900CAF268A7AB94A8DF87367", "EE258C19F0DF759CAC99E19A", "D3E82CD4C5FF829241134CE7", "B99DD82C2078199BC7B03FA3", "6CAB872D43F03B8352A5F1BA", "DE84ADA5E4F8E8A0103BBEB5", "23D6365773A000C0FED536A2", "914EA46E02F9C5EA1FC20C63", "61FE42554B042FD2582DC5F3", "9C0B9A6121666A31FF267593", "BEC42FE52CEBC8207D290027", "416EF76005A8EFA6F056B00F", "06F7E0ED5E2A3C9830499535", "C9823F652735EECA98A44264", "1B1294270F26C751A116D270", "91DE5B1C1A3073D396DFEBF1", "E7EC53CAF730A7B61CCA7E3E", "C1E82E3D108DD637FCC1FBCC", "FC3EF018B04F034AAB430BAE", "FEE82DF3F33E8F1C88451BB1", "DEE42DC7AF4C9E4EAC238108", "138871698E777B3AEB63EA26", "3693ACA56DA25D67A3ED80FC", "C60A54988B69F68FC93B6168", "A57D1B1DA12860DB32040202", "06404376B06C6F5CEA64C06C", "D5BD83D43CEBD730C7CDA0B7", "E9F0E512A46C0E4C44FB8ED7", "4678955EC389575DC265EFD0", "7D06F005E4F2874CD84E19BF", "A659E5DDD373452EB505B65B", "F5DDA4A7C0C6AA9FF8A26755", "B3A0E79533DFE6FA1AE86C89", "A172CEDCAE47474B615C54D5", "59830EBC3A4184110566BF1A");
+			"sourceTree" = "<group>";
+		};
+		"244210E48437B6556980A702" = {
+			"isa" = "PBXProject";
+			"attributes" = {
+				"LastUpgradeCheck" = "2600";
+			};
+			"buildConfigurationList" = "76F8DEC3DFE0BDB465198890";
+			"compatibilityVersion" = "Xcode 15.0";
+			"developmentRegion" = "ko";
+			"knownRegions" = ("ko", "en", "Base");
+			"mainGroup" = "AD936FCBED631FA67E05C3EA";
+			"projectDirPath" = "";
+			"projectRoot" = "";
+			"targets" = ("AC44A5EE06496B21A17CA082", "3A0C9CEF9D8F3BC090274361");
+		};
+	};
+	"rootObject" = "244210E48437B6556980A702";
+}

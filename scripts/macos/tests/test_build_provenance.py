@@ -1,5 +1,8 @@
 import importlib.util
 import json
+import os
+import plistlib
+from unittest.mock import patch
 from pathlib import Path
 import subprocess
 import sys
@@ -42,6 +45,53 @@ class ProvenanceTests(unittest.TestCase):
             verify_running(ticket, receipt, '/new/App', '/Applications/old/App')
         with self.assertRaises(RuntimeError):
             verify_running(ticket, {**receipt, 'window_ready': False}, '/new/App', '/new/App')
+
+    def test_build_phases_reject_mid_build_changes_and_stamp_unique_private_release(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(['git', 'init', str(root)], check=True, capture_output=True)
+            subprocess.run(['git', '-C', str(root), '-c', 'user.name=T', '-c', 'user.email=t@example.test',
+                            '-c', 'commit.gpgsign=false', 'commit', '--allow-empty', '-m', 'fixture'], check=True, capture_output=True)
+            source = root / 'macos/SIDEY/New.swift'
+            source.parent.mkdir(parents=True)
+            source.write_text('struct New {}')
+            derived = root / 'derived'
+            app = root / 'Products/Test.app'
+            env = {'TARGET_NAME': 'SIDEYAppStore', 'CONFIGURATION': 'Release',
+                   'PRODUCT_BUNDLE_IDENTIFIER': 'app.sidey.test', 'DERIVED_FILE_DIR': str(derived),
+                   'TARGET_BUILD_DIR': str(app.parent), 'UNLOCALIZED_RESOURCES_FOLDER_PATH': 'Test.app/Contents/Resources',
+                   'SECRET_TOKEN': 'never-include-this', 'SRCROOT': str(root)}
+            original = p.source_state
+            with patch.dict(os.environ, env), patch.object(p, 'source_state', side_effect=lambda: original(root)):
+                p.begin()
+                first = json.loads((derived / 'SideyBuildReceipt.json').read_text())
+                source.write_text('struct Changed {}')
+                with self.assertRaisesRegex(RuntimeError, 'changed during'):
+                    p.finish()
+                self.assertFalse((app / 'Contents/Resources/SideyBuildReceipt.json').exists())
+                p.begin()
+                second = json.loads((derived / 'SideyBuildReceipt.json').read_text())
+                self.assertNotEqual(first['build_id'], second['build_id'])
+                p.finish()
+            receipt = (app / 'Contents/Resources/SideyBuildReceipt.json').read_text()
+            self.assertNotIn(str(root), receipt)
+            self.assertNotIn('never-include-this', receipt)
+            (app / 'Contents/Info.plist').write_bytes(plistlib.dumps({'CFBundleIdentifier': 'app.sidey.test'}))
+            p.verify(app, root=root, target='SIDEYAppStore', configuration='Release')
+            with self.assertRaisesRegex(RuntimeError, 'different target'):
+                p.verify(app, root=root, target='SIDEY')
+            source.write_text('struct EditedAfterBuild {}')
+            with self.assertRaisesRegex(RuntimeError, 'stale'):
+                p.verify(app, root=root)
+
+    def test_source_links_cannot_silently_include_another_worktree(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = root / 'macos/SIDEY'
+            directory.mkdir(parents=True)
+            (directory / 'Linked').symlink_to(root, target_is_directory=True)
+            with self.assertRaisesRegex(RuntimeError, 'Symlink directory'):
+                p.inputs(root)
 
 
 if __name__ == '__main__':

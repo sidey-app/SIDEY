@@ -12,8 +12,8 @@ import time
 import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
-INPUT_DIRS = ('macos/SIDEY', 'macos/SIDEYLoginItem', 'macos/Config', 'macos/SIDEY.xcodeproj', 'scripts/macos')
-EXCLUDED = {'xcuserdata', 'build', 'DerivedData', '__pycache__', '.git', 'node_modules'}
+INPUT_DIRS = ('macos/SIDEY', 'macos/SIDEYLoginItem', 'macos/Config', 'macos/SIDEY.xcodeproj', 'scripts/macos', 'macos/Recording')
+EXCLUDED = {'xcuserdata', 'build', 'DerivedData', '__pycache__', '.git', 'node_modules', 'dist'}
 
 
 def command(*args):
@@ -28,6 +28,8 @@ def inputs(root=ROOT):
             continue
         for current, dirs, files in os.walk(base, followlinks=False):
             dirs[:] = sorted(d for d in dirs if d not in EXCLUDED and not d.startswith('.'))
+            if any((Path(current) / d).is_symlink() for d in dirs):
+                raise RuntimeError('Symlink directory is not a reproducible build input')
             for name in sorted(files):
                 path = Path(current) / name
                 if name.startswith('.') or name.endswith(('.xcuserstate', '.pyc')):
@@ -132,6 +134,7 @@ def prepare_launch(app, target=None):
     ticket_path = directory / f"{receipt['build_id']}.ticket.json"
     ready_path = directory / f'{session}.ready.json'
     write_json(ticket_path, ticket)
+    write_json(app.parent / "SideyLastLaunch.json", {"ticket": ticket, "ready": str(ready_path)})
     return ticket, ready_path
 
 

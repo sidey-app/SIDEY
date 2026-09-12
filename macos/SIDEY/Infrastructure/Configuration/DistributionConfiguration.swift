@@ -53,19 +53,3 @@ enum AppReleaseChannel: String, Equatable {
 
     var requiresAppleAuthentication: Bool { self == .appStore }
 }
-
-enum StoreAvailability: Equatable {
-    case comingSoon
-    case direct
-    case appStore
-
-    var allowsCommerceActions: Bool { self != .comingSoon }
-    var allowsCosmeticEquipment: Bool { true }
-    var usesAppStore: Bool { self == .appStore }
-
-    var unavailableDetailMessage: String? {
-        self == .comingSoon
-            ? "상점은 준비 중입니다. 빠른 시일 내에 만나요."
-            : nil
-    }
-}

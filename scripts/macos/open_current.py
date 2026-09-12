@@ -67,7 +67,7 @@ end run'''
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--worktree', type=Path)
-    parser.add_argument('--scheme', default='SIDEYAppStore', choices=['SIDEYAppStore', 'SIDEY'])
+    parser.add_argument('--scheme', default='SIDEYAppStore', choices=['SIDEYAppStore', 'SIDEY', 'sidey-reals'])
     parser.add_argument('--offline', action='store_true')
     parser.add_argument('--build-only', action='store_true')
     args = parser.parse_args()
@@ -94,7 +94,7 @@ def main():
         run('git', '-C', str(root), 'merge-base', '--is-ancestor', remote, 'HEAD')
     identifier = hashlib.sha256(str(root).encode()).hexdigest()[:16]
     derived = root / 'build/review' / identifier / args.scheme / 'Debug'
-    project = root / 'macos/SIDEY.xcodeproj'
+    project = root / ('macos/Recording/SIDEYRecording.xcodeproj' if args.scheme == 'sidey-reals' else 'macos/SIDEY.xcodeproj')
     # Persist only this worktree's Xcode personal DerivedData preference.
     username = __import__('getpass').getuser()
     settings = project / 'project.xcworkspace/xcuserdata' / f'{username}.xcuserdatad/WorkspaceSettings.xcsettings'
