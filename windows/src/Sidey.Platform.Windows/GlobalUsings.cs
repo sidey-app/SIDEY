@@ -1,0 +1,9 @@
+global using Sidey.Platform.Windows.Activity;
+global using Sidey.Platform.Windows.Audio;
+global using Sidey.Platform.Windows.Authentication;
+global using Sidey.Platform.Windows.Deployment;
+global using Sidey.Platform.Windows.Monitoring;
+global using Sidey.Platform.Windows.Overlay;
+global using Sidey.Platform.Windows.Shell;
+global using Sidey.Platform.Windows.Startup;
+global using Sidey.Platform.Windows.Windowing;

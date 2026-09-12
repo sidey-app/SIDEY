@@ -1,0 +1,9 @@
+global using Sidey.Overlay.Assets;
+global using Sidey.Overlay.Diagnostics;
+global using Sidey.Overlay.Interaction;
+global using Sidey.Overlay.Layout;
+global using Sidey.Overlay.Rendering;
+global using Sidey.Platform.Windows.Deployment;
+global using Sidey.Platform.Windows.Monitoring;
+global using Sidey.Platform.Windows.Overlay;
+global using Sidey.Platform.Windows.Shell;

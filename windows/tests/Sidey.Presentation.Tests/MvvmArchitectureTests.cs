@@ -75,6 +75,7 @@ public sealed class MvvmArchitectureTests
             "windows",
             "src",
             "Sidey.App",
+            "Views",
             fileName));
 
         Assert.Contains(

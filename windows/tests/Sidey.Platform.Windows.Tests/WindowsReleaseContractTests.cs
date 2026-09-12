@@ -54,6 +54,21 @@ public sealed class WindowsReleaseContractTests
         Assert.DoesNotContain("SelfSigned", releaseWorkflow, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData("windows.yml")]
+    [InlineData("windows-release.yml")]
+    public void CoverageUploadOnlyRunsAfterTheTestStepStarts(string workflowName)
+    {
+        string workflow = Read(".github", "workflows", workflowName);
+
+        Assert.Contains("id: tests", workflow, StringComparison.Ordinal);
+        Assert.Contains(
+            "steps.tests.outcome == 'success' || steps.tests.outcome == 'failure'",
+            workflow,
+            StringComparison.Ordinal);
+        Assert.Contains("if-no-files-found: error", workflow, StringComparison.Ordinal);
+    }
+
     private static string Read(params string[] pathSegments) =>
         File.ReadAllText(RepositoryPath(pathSegments));
 

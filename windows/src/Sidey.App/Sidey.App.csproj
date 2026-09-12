@@ -40,7 +40,7 @@
     </ItemGroup>
   </Target>
   <ItemGroup Condition="'$(Configuration)' != 'Debug'">
-    <Compile Remove="DevelopmentUpdateService.cs" />
+    <Compile Remove="Services\DevelopmentUpdateService.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Sidey.Core/Sidey.Core.csproj" />

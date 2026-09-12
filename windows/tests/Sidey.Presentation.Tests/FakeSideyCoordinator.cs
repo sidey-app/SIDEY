@@ -4,7 +4,7 @@ using Sidey.Presentation.Services;
 
 namespace Sidey.Presentation.Tests;
 
-internal sealed class FakeSideyCoordinator : ISideyCoordinator
+internal sealed class FakeSideyCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 {
     public int ConnectionRetryCount { get; private set; }
     public Task RetryConnectionAsync(bool userInitiated = true) { ConnectionRetryCount++; return Task.CompletedTask; }

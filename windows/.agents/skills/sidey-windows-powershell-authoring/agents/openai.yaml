@@ -1,7 +1,0 @@
-interface:
-  display_name: "SIDEY Windows PowerShell"
-  short_description: "Write consistent SIDEY Windows PowerShell"
-  default_prompt: "Use $sidey-windows-powershell-authoring to create or revise this SIDEY Windows PowerShell script."
-
-policy:
-  allow_implicit_invocation: true

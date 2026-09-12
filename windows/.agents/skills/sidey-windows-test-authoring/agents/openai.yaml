@@ -1,7 +1,0 @@
-interface:
-  display_name: "SIDEY Windows Test Authoring"
-  short_description: "Write reliable tests for SIDEY Windows"
-  default_prompt: "Use $sidey-windows-test-authoring to add or improve tests for this SIDEY Windows change."
-
-policy:
-  allow_implicit_invocation: true

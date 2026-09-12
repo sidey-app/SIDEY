@@ -1,7 +1,0 @@
-interface:
-  display_name: "SIDEY Windows Code Review"
-  short_description: "Review SIDEY Windows changes for defects"
-  default_prompt: "Use $sidey-windows-code-review to review this SIDEY Windows diff and report actionable findings."
-
-policy:
-  allow_implicit_invocation: true

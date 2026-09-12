@@ -1,0 +1,4 @@
+interface:
+  display_name: "Write Docs"
+  short_description: "Write clear evidence-based engineering documentation"
+  default_prompt: "Use $write-docs to create or revise this engineering document."

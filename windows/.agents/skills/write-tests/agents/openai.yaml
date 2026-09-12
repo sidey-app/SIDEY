@@ -1,0 +1,7 @@
+interface:
+  display_name: "Write Tests"
+  short_description: "Create reliable tests at the right boundary"
+  default_prompt: "Use $write-tests to add or improve tests for this Windows application change."
+
+policy:
+  allow_implicit_invocation: true

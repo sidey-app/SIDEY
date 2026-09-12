@@ -1,0 +1,7 @@
+interface:
+  display_name: "Write PowerShell"
+  short_description: "Create reliable repository-aware PowerShell"
+  default_prompt: "Use $write-powershell to create or revise this PowerShell script."
+
+policy:
+  allow_implicit_invocation: true

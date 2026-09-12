@@ -1,6 +1,6 @@
 // This test double must share the namespace used by the linked production coordinator.
 #pragma warning disable IDE0130
-namespace Sidey.App;
+namespace Sidey.App.Services;
 #pragma warning restore IDE0130
 
 // Exercise the production coordinator without starting an app session or writing

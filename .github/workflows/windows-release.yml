@@ -71,13 +71,14 @@ jobs:
         run: dotnet build windows/SIDEY.Windows.slnx --configuration Release --no-restore
 
       - name: Test
+        id: tests
         run: dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build --logger trx --collect:"XPlat Code Coverage" --settings windows/coverlet.runsettings --results-directory artifacts/coverage
 
       - name: Test runtime prerequisites and migration cleanup
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./scripts/windows/tests/Test-RuntimePrerequisites.ps1
 
       - name: Upload coverage
-        if: always()
+        if: ${{ always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure') }}
         uses: actions/upload-artifact@v5
         with:
           name: windows-release-code-coverage-${{ steps.metadata.outputs.version }}

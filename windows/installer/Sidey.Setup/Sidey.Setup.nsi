@@ -397,7 +397,11 @@ Section "SIDEY" MainSection
   InitPluginsDir
   File /oname=$PLUGINSDIR\SideyLegacyMsiHelper.exe "${PUBLISH_DIR}\Uninstall.exe"
   ExecWait '"$PLUGINSDIR\SideyLegacyMsiHelper.exe" --uninstall-legacy-msi' $0
-  ${If} $0 != 0
+  ${If} $0 == 3010
+    SetErrorLevel 3010
+    MessageBox MB_OK|MB_ICONEXCLAMATION "$(LegacyMigrationRestart)"
+    Abort
+  ${ElseIf} $0 != 0
   ${AndIf} $0 != 1605
     Call ResetInstallerError
     StrCpy $InstallerErrorNativeCode $0

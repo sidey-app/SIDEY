@@ -193,7 +193,16 @@ def validate_windows(allow_unreleased_source: bool = False) -> dict[str, str]:
             "Windows file version does not match the project version")
     require(values.get("AssemblyVersion") == f"{source_version}.0",
             "Windows assembly version does not match the project version")
-    update_source = read("windows/src/Sidey.Platform.Windows/WindowsUpdateService.cs")
+    update_source_paths = sorted(
+        (ROOT / "windows" / "src" / "Sidey.Platform.Windows").rglob(
+            "WindowsUpdateService.cs"
+        )
+    )
+    require(
+        len(update_source_paths) == 1,
+        "Windows updater source must resolve to exactly one WindowsUpdateService.cs",
+    )
+    update_source = update_source_paths[0].read_text(encoding="utf-8")
     require(f'CurrentVersion = "{source_version}"' in update_source,
             "Windows updater version does not match the project version")
     require((ROOT / notes).is_file(), f"Windows release notes are missing: {notes}")
