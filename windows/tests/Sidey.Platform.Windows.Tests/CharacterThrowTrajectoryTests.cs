@@ -1,6 +1,6 @@
 using Sidey.Core.Domain;
-using Sidey.Overlay;
 using Sidey.Core.Overlay;
+using Sidey.Overlay;
 
 namespace Sidey.Platform.Windows.Tests;
 

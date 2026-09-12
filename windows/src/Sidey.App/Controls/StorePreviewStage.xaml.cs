@@ -982,7 +982,7 @@ public sealed partial class StorePreviewStage : UserControl
             double endCenterX = leftToRight
                 ? rightX + (RenderedCharacterSize / 2d)
                 : leftX + (RenderedCharacterSize / 2d);
-            var trajectory = ProductKind == CommerceProductKind.Character
+            CharacterThrowTrajectory trajectory = ProductKind == CommerceProductKind.Character
                 ? _manualThrowTrajectory
                 : new CharacterThrowTrajectory((startCenterX, ProjectilePathY), (endCenterX, ProjectilePathY), PreviewScale);
             (double centerX, double centerY) = trajectory.PointAt(
