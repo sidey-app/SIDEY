@@ -362,6 +362,9 @@ def main() -> int:
             base_path, mirrors["character_base_png"], entry, canonical_only=canonical_only
         )
         validate_declared_png_mirrors(
+            base_path, entry.get("additional_base_mirrors", []), entry, canonical_only=canonical_only
+        )
+        validate_declared_png_mirrors(
             action_path, mirrors["throw_hit_png"], entry, canonical_only=canonical_only
         )
         if not canonical_only and "windows" in entry["supported_platforms"]:
@@ -385,14 +388,6 @@ def main() -> int:
         validate_declared_png_mirrors(
             sprite_path, mirrors["throwable_png"], entry, canonical_only=canonical_only
         )
-        if "checkout" in entry["supported_platforms"]:
-            checkout_source = ASSET_ROOT / entry.get("preview", entry["sprite"])["path"]
-            validate_declared_png_mirrors(
-                checkout_source,
-                mirrors["throwable_checkout_preview_png"],
-                entry,
-                canonical_only=canonical_only,
-            )
         if not canonical_only and "windows" in entry["supported_platforms"]:
             for pattern in mirrors["throwable_bgra"]:
                 validate_bgra_mirror(
