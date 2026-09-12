@@ -86,7 +86,7 @@ const ui = {
     hero: {
       title: "Friends at the edge of your screen.",
       description: "Your friends become tiny pixel characters wandering along the edge of your screen. Glance over while you work, and send a quick note when they cross your mind.",
-      downloadsLabel: "Download options", appStoreDownload: "Download on the App Store", macDownload: "Download for macOS", windowsDownload: "Download for Windows",
+      downloadsLabel: "Download options", appStoreDownload: "Download on App Store", macDownload: "Download for macOS", windowsDownload: "Download for Windows",
       choosePlatform: "Choose your platform", platformMenu: "Choose a platform manually", menuToggle: "Choose another platform",
       windowsStatus: "Windows 11 25H2 or later · x64", browserTitle: "Today’s tasks | Notes", browserNote: "Today's list",
       message: "Meet at seven?", typingLabel: "Rosie is typing",
@@ -154,7 +154,7 @@ const ui = {
       title: "画面の端を、友だちがトコトコ。",
       titleParts: ["画面の端を、", "友だちが", "トコトコ。"],
       description: "友だちが小さなピクセルキャラクターになって、画面の端を歩き回ります。作業の合間にちらっと眺めたり、思い立ったときに短いひと言を送ったり。",
-      downloadsLabel: "ダウンロードを選択", appStoreDownload: "App Storeからダウンロード", macDownload: "macOS版をダウンロード", windowsDownload: "Windows版をダウンロード",
+      downloadsLabel: "ダウンロードを選択", appStoreDownload: "App Storeでダウンロード", macDownload: "macOS版をダウンロード", windowsDownload: "Windows版をダウンロード",
       choosePlatform: "OSを選択", platformMenu: "OSを選択してください", menuToggle: "別のOSを選ぶ",
       windowsStatus: "Windows 11 25H2以降 · x64", browserTitle: "今日やること | メモ", browserNote: "今日やること",
       message: "7時に会う？", typingLabel: "おもちが入力中",

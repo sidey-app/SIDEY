@@ -8,7 +8,7 @@
 
 ## 확정된 결정
 
-2026-09-12 랜딩 첫 화면의 다운로드 CTA 맨 위에 흰색 App Store 아이콘과 파란색 `App Store 다운로드` 버튼을 추가한다. 연결 주소는 `https://apps.apple.com/kr/app/sidey/id6808528060?mt=12`이며 기존 macOS·Windows 분할형 다운로드 버튼을 바로 아래로 내린다. 두 줄의 전체 폭·높이는 같게 유지하고 한국어·영어·일본어 문구를 제공한다. 사용자는 main 반영과 즉시 Pages 배포를 승인했다.
+2026-09-12 랜딩 첫 화면의 기존 macOS 다운로드 버튼을 App Store 아이콘·파란색 `App Store 다운로드` 버튼으로 교체한다. 연결 주소는 `https://apps.apple.com/kr/app/sidey/id6808528060?mt=12`다. 사용자 정정에 따라 버튼을 추가하거나 두 줄로 만들지 않으며 OS 감지·Windows 다운로드 선택과 기존 버튼 크기를 유지한다. 언어별 문구를 제공하고 main 반영·Pages 즉시 배포를 승인했다.
 
 2026-09-12 사용자가 상품 적용 완료를 보고하고 최신 App Store판의 main 반영·Xcode 열기와 Google Cloud Console 배포 명령을 요청했다. 실행 중인 Xcode 작업 폴더와 앱 번들에서 원숭이 현재 ID `character_monkey_solo_4`를 확인했고, 제공 로그는 미조회 ID 없이 24개 StoreKit 상품 반환을 보여준다. 조회 성공을 실제 결제·복원 성공으로 확대 해석하지 않는다. App Store 후보는 동등 기능의 직배포와 같은 1.2.1이며, Xcode 성공 업로드 27 및 공개 직배포 29 다음 build 30을 사용한다. 직배포 1.2.1 build 29와 공개 appcast는 유지한다. 서버 명령 제공·Archive 열기와 실제 Cloud Run 배포·Connect 업로드·심사 제출은 구분한다.
 

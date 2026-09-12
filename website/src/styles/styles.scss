@@ -161,7 +161,7 @@ main { overflow: hidden; }
   > p { max-width: 33.75rem; margin: 1.625rem 0 0; color: var(--muted); font-size: clamp(1rem, 1.35vw, 1.18rem); line-height: 1.78; word-break: keep-all; text-wrap: pretty; }
 }
 .hero-actions, .download-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .625rem; }
-.hero-actions { display: grid; width: 100%; max-width: 18.25rem; margin-top: 1.875rem; }
+.hero-actions { display: block; width: 100%; max-width: 18.25rem; margin-top: 1.875rem; }
 .button {
   display: inline-flex; align-items: center; justify-content: center; gap: .5625rem; min-height: 3rem; padding: 0 1.125rem; border: .0625rem solid transparent; border-radius: .6875rem; font: inherit; font-size: .9rem; font-weight: 790; text-decoration: none; transition: color 150ms ease, border-color 150ms ease, background-color 150ms ease;
 
@@ -182,9 +182,6 @@ main { overflow: hidden; }
 }
 .download-button-simple { width: 100%; min-width: 0; min-height: 3rem; gap: .625rem; padding: .4375rem 1rem; font-size: .9rem; }
 .download-button-simple .download-button-label { padding: 0; }
-.app-store-download { color: #fff; background: #006cde; border-color: #006cde; border-radius: 62.4375rem; box-shadow: 0 .5rem 1.125rem rgba(0, 108, 222, .2); }
-.app-store-download:hover { color: #fff; background: #005bc0; border-color: #005bc0; }
-.app-store-logo { flex: 0 0 auto; width: 1.25rem; height: 1.25rem; }
 #windows-download-action[disabled] { cursor: not-allowed; color: #8a8990; border-color: rgba(120, 119, 130, .2); background: rgba(239, 238, 235, .68); box-shadow: none; }
 .download-button-label { padding-inline: .25rem .5rem; white-space: nowrap; }
 .download-platform-logo { flex: 0 0 auto; width: 1.125rem; height: 1.125rem; object-fit: contain; }
@@ -198,8 +195,6 @@ main { overflow: hidden; }
   &::after { position: absolute; top: 100%; left: 0; width: 100%; height: .4375rem; content: ""; }
 }
 .download-license-wrap:hover .download-license-tooltip, .download-license-wrap:focus-within .download-license-tooltip, .download-selector:hover .download-license-tooltip, .download-selector:focus-within .download-license-tooltip { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
-.hero-actions .download-license-tooltip { top: calc(100% + .5rem); bottom: auto; }
-.hero-actions .download-license-tooltip::after { top: auto; bottom: 100%; }
 .download-selector { position: relative; display: grid; width: 100%; grid-template-columns: minmax(0, 1fr) 2.625rem; }
 .download-selector .primary-download-action { border-radius: 62.4375rem 0 0 62.4375rem; border-right: 0; }
 .download-selector-toggle {
@@ -740,3 +735,12 @@ main { overflow: hidden; }
 @media (prefers-contrast: more) {
   :root { --line: #aaa9a2; --line-strong: #777770; --muted: #4c4d52; }
 }
+
+// Keep the App Store destination blue in both themes; Windows retains its platform style.
+.download-selector[data-platform="macos"] {
+  .primary-download-action, .download-selector-toggle { color: #fff; background: #006cde; border-color: #006cde; }
+  .download-selector-toggle { border-left-color: rgba(255, 255, 255, .3); }
+  .primary-download-action:hover, .download-selector-toggle:hover { color: #fff; background: #005bc0; }
+  .primary-download-action .download-platform-logo-app-store { filter: brightness(0) invert(1); }
+}
+.download-selector .download-platform-menu .download-platform-logo-app-store { filter: none; }
