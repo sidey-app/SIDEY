@@ -13,6 +13,10 @@ Before editing public landing, store, policy, or checkout pages under `website/`
 
 If the documents conflict, confirmed decisions in `docs/DECISIONS.md` win.
 
+## Work lifecycle
+
+Use [.agents/skills/sidey-workflow/SKILL.md](.agents/skills/sidey-workflow/SKILL.md) and `scripts/workflow.py` for task start, resume, integration and app opening. Default completion includes reviewed PR integration and refreshing the primary main checkout; app-affecting changes also require build/run provenance verification. Public releases, store uploads and production deployments remain separate.
+
 ## Branch and platform isolation
 
 - Use `macos/<topic>` for macOS implementation, `windows/<topic>` for Windows implementation, and `shared/<topic>` for shared documentation, backend, website, protocol, or repository-wide work.

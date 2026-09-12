@@ -24,3 +24,8 @@ website/.astro/
 .env
 .env.*
 !.env.example
+
+# Isolated worktrees and local Xcode UI state.
+/_workspace/
+**/xcuserdata/
+*.xcuserstate

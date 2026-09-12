@@ -7,6 +7,8 @@ description: Write or update SIDEY README update sections, release-note files, a
 
 Create public release writing for ordinary SIDEY users. Describe what changed for the user, not how it was implemented.
 
+Use [sidey-workflow](../sidey-workflow/SKILL.md) and `scripts/workflow.py` for fresh-main, worktree ownership, checked-head and completion checks.
+
 ## Required context
 
 1. Read the repository-root `AGENTS.md` completely.
