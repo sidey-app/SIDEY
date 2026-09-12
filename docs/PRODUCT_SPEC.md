@@ -738,3 +738,8 @@ Windows CI는 PR과 `main` 검증만 담당하며 태그 push로 배포하지 �
 2026-09-12 나무 Apple 상품 재등록 비교: 사용자 요청으로 나무의 현재 App Store 상품 ID만 `character_tree_2`로 교체한다. 내부 상품 `character_tree`, 권리 `character:pixel_tree`, 한국 가격 2,200원과 별도 판매 애착 물건은 유지한다. 기존 Apple ID `character_tree`는 복원·거래 검증용으로 보존한다. 원숭이·조개·돼지고기는 변경하지 않는다. 판매 상품은 24종, Apple 검증 ID는 29개다. Connect 신규 상품 등록과 실제 조회·구매·복원 성공은 별도 검증이며 이번 로컬 변경만으로 완료 처리하지 않는다.
 
 2026-09-12 나무 새 ID의 한국 가격 2,200원 조회를 사용자가 확인하고 나머지 미조회 3종의 재등록을 요청했다. 원숭이 단품은 `character_monkey_solo_2`, 조개는 `throwable_clam_2`, 돼지고기 투척물은 `throwable_pork_2`로 현재 Apple 판매 ID를 변경한다. 돼지 캐릭터는 대상이 아니다. 내부 상품·가격·권리는 유지하고 기존 Apple ID는 모두 복원·거래 검증 대상으로 보존한다. 특히 원숭이 과거 포함 상품과 기존 단품의 바나나 포함 여부를 바꾸지 않는다. 판매 상품 24종·Apple 검증 ID 32개다. 신규 3종의 Connect 등록 및 실제 가격·구매·복원 검증과 서버 배포 상태는 별도 확인하며 재등록 성공을 기존 ID 장애의 원인 확정으로 간주하지 않는다.
+
+
+### 2026-09-12 App Store 최신 업로드 후보
+
+App Store 후보는 1.2.1 build 30, 원숭이 현재 상품 ID는 `character_monkey_solo_4`다. 최신 상점 소개와 재등록 상품 24종·과거 복원 포함 Apple ID 34개를 사용한다. 사용자가 제공한 실행 로그에서 상품 24종 조회와 미조회 ID 없음을 확인했다. 실제 거래·복원·환불·서버 배포·Connect 업로드는 별도 검증한다. Cloud Run 배포 명령은 verifier README에 제공하고 기존 서비스의 시크릿·환경설정을 보존한다. 직배포 공개 manifest·appcast와 Windows는 변경하지 않는다.
