@@ -125,8 +125,7 @@
       label.textContent = supported ? primary.dataset[`${key}Label`] : primary.dataset.chooseLabel;
       logo.src = logo.dataset[`${key}Logo`];
       logo.classList.toggle("download-platform-logo-windows", platform === "windows");
-      logo.classList.toggle("download-platform-logo-app-store", platform !== "windows");
-      selector.dataset.platform = supported ? platform : "unsupported";
+      logo.classList.toggle("download-platform-logo-macos", platform !== "windows");
       logo.hidden = !supported;
       primary.dataset.detectedPlatform = supported ? platform : "unsupported";
     };

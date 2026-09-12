@@ -735,12 +735,3 @@ main { overflow: hidden; }
 @media (prefers-contrast: more) {
   :root { --line: #aaa9a2; --line-strong: #777770; --muted: #4c4d52; }
 }
-
-// Keep the App Store destination blue in both themes; Windows retains its platform style.
-.download-selector[data-platform="macos"] {
-  .primary-download-action, .download-selector-toggle { color: #fff; background: #006cde; border-color: #006cde; }
-  .download-selector-toggle { border-left-color: rgba(255, 255, 255, .3); }
-  .primary-download-action:hover, .download-selector-toggle:hover { color: #fff; background: #005bc0; }
-  .primary-download-action .download-platform-logo-app-store { filter: brightness(0) invert(1); }
-}
-.download-selector .download-platform-menu .download-platform-logo-app-store { filter: none; }
