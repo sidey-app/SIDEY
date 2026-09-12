@@ -155,8 +155,8 @@ final class CharacterStunTests: XCTestCase {
         for _ in 0..<10 { coordinator.model.characterStunState.recordHit(user, at: now) }
         coordinator.characterDoubleClicked()
         coordinator.characterThrowRequested(targetUserID: friend)
-        XCTAssertTrue(coordinator.characterPulseCooldown.accept(roomID: room, userID: user, uptime: now))
-        XCTAssertTrue(coordinator.characterThrowCooldown.accept(actorUserID: user, uptime: now))
+        XCTAssertTrue(coordinator.roomSession.pulseCooldown.accept(roomID: room, userID: user, uptime: now))
+        XCTAssertTrue(coordinator.roomSession.throwCooldown.accept(actorUserID: user, uptime: now))
         XCTAssertEqual(coordinator.model.draft, "기절해도 채팅 중")
         coordinator.model.setActiveRoomRealtimeConnected(true)
         XCTAssertFalse(coordinator.model.characterStunState.isStunned(user))
