@@ -42,13 +42,13 @@ def open_project(project, scheme):
     script = '''on run argv
 set projectPath to item 1 of argv
 set schemeName to item 2 of argv
+set alternatePath to item 3 of argv
 tell application "Xcode"
   repeat 120 times
     repeat with doc in workspace documents
-      if (path of doc as text) is projectPath then
+      if (path of doc as text) is projectPath or (path of doc as text) is alternatePath then
         if loaded of doc then
           set active scheme of doc to first scheme of doc whose name is schemeName
-          set active workspace document to doc
           return (path of doc as text) & linefeed & (name of active scheme of doc)
         end if
       end if
@@ -58,8 +58,8 @@ tell application "Xcode"
 end tell
 error "Exact Xcode project/scheme could not be confirmed"
 end run'''
-    result = run('/usr/bin/osascript', '-e', script, str(project), scheme, capture=True).splitlines()
-    if result != [str(project), scheme]:
+    result = run('/usr/bin/osascript', '-e', script, str(project), scheme, str(project).replace('/private/tmp/', '/tmp/', 1), capture=True).splitlines()
+    if len(result) != 2 or Path(result[0]).resolve() != project.resolve() or result[1] != scheme:
         raise RuntimeError('Xcode reported a different project or active scheme')
     return {'project': result[0], 'scheme': result[1]}
 

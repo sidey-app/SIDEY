@@ -1,10 +1,17 @@
 import AppKit
+import Darwin
 
 /// Debug launch proof is prepared outside the sandbox by the CLI/Xcode launch action.
 /// The executable's compiled build ID, never a disk-only bundle version, identifies it.
 @MainActor
 final class BuildReview {
     static let shared = BuildReview()
+    private static var executablePath: String? {
+        guard let path = Bundle.main.executableURL?.path, let canonical = realpath(path, nil) else { return nil }
+        defer { free(canonical) }
+        return String(cString: canonical)
+    }
+
     private var ticket: Ticket?
     private var readinessTask: Task<Void, Never>?
 
@@ -34,18 +41,25 @@ final class BuildReview {
             try FileManager.default.removeItem(at: path)
             let candidate = try JSONDecoder().decode(Ticket.self, from: data)
             let age = Date().timeIntervalSince1970 - candidate.issued_at
-            guard age >= 0, age < 60,
-                  candidate.build_id == SideyBuildStamp.buildID,
-                  candidate.commit == SideyBuildStamp.commit,
-                  candidate.input_hash == SideyBuildStamp.inputHash,
-                  candidate.target == SideyBuildStamp.target,
-                  candidate.configuration == SideyBuildStamp.configuration,
-                  candidate.bundle_id == Bundle.main.bundleIdentifier,
-                  candidate.executable == Bundle.main.executableURL?.resolvingSymlinksInPath().path
-            else { throw CocoaError(.fileReadCorruptFile) }
+            let checks: [String: Bool] = [
+                "age": age >= 0 && age < 60,
+                "build": candidate.build_id == SideyBuildStamp.buildID,
+                "commit": candidate.commit == SideyBuildStamp.commit,
+                "inputs": candidate.input_hash == SideyBuildStamp.inputHash,
+                "target": candidate.target == SideyBuildStamp.target,
+                "configuration": candidate.configuration == SideyBuildStamp.configuration,
+                "bundle": candidate.bundle_id == Bundle.main.bundleIdentifier,
+                "executable": candidate.executable == Self.executablePath,
+            ]
+            let failed = checks.filter { !$0.value }.keys.sorted()
+            guard failed.isEmpty else {
+                NSLog("SIDEY build review: mismatched fields %@", failed.joined(separator: ", "))
+                throw CocoaError(.fileReadCorruptFile)
+            }
             ticket = candidate
             return true
         } catch {
+            NSLog("SIDEY build review: launch ticket rejected: %@", String(describing: error))
             let alert = NSAlert()
             alert.messageText = "현재 소스로 빌드한 앱인지 확인할 수 없습니다."
             alert.informativeText = "scripts/macos/open_current.sh로 다시 열거나 Xcode에서 빌드 후 실행해 주세요."
@@ -76,7 +90,7 @@ final class BuildReview {
                         "input_hash": SideyBuildStamp.inputHash,
                         "target": SideyBuildStamp.target,
                         "configuration": SideyBuildStamp.configuration,
-                        "executable": Bundle.main.executableURL?.resolvingSymlinksInPath().path ?? "",
+                        "executable": Self.executablePath ?? "",
                         "pid": ProcessInfo.processInfo.processIdentifier,
                         "window_ready": true,
                     ]
