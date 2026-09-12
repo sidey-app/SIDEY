@@ -59,8 +59,22 @@ def write_json(path, value):
     temporary.replace(path)
 
 
+def claim_build_directory(directory, root, target, configuration):
+    # Shared package caches are fine; executable products must have one source/target owner.
+    import fcntl
+    directory.mkdir(parents=True, exist_ok=True)
+    identity = {'source': str(root.resolve()), 'target': target, 'configuration': configuration}
+    with (directory / '.sidey-build-owner.lock').open('a+b') as stream:
+        fcntl.flock(stream, fcntl.LOCK_EX)
+        owner = directory / '.sidey-build-owner.json'
+        if owner.exists() and json.loads(owner.read_text()) != identity:
+            raise RuntimeError('DerivedData products belong to another worktree/target/configuration; use an isolated build directory')
+        write_json(owner, identity)
+
+
 def begin():
     env = os.environ
+    claim_build_directory(Path(env['TARGET_BUILD_DIR']), ROOT, env['TARGET_NAME'], env['CONFIGURATION'])
     state = source_state()
     state.update(schema=1, build_id=str(uuid.uuid4()), target=env['TARGET_NAME'],
                  configuration=env['CONFIGURATION'], bundle_id=env['PRODUCT_BUNDLE_IDENTIFIER'])

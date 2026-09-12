@@ -93,6 +93,17 @@ class ProvenanceTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, 'Symlink directory'):
                 p.inputs(root)
 
+    def test_shared_derived_products_cannot_change_worktree_or_target(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = root / 'products'
+            p.claim_build_directory(directory, root, 'SIDEYAppStore', 'Debug')
+            p.claim_build_directory(directory, root, 'SIDEYAppStore', 'Debug')
+            for source, target, configuration in [(root / 'other', 'SIDEYAppStore', 'Debug'),
+                                                  (root, 'SIDEY', 'Debug'), (root, 'SIDEYAppStore', 'Release')]:
+                with self.subTest(target=target, source=source), self.assertRaisesRegex(RuntimeError, 'another worktree'):
+                    p.claim_build_directory(directory, source, target, configuration)
+
 
 if __name__ == '__main__':
     unittest.main()
