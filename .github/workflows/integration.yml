@@ -1,0 +1,288 @@
+name: SIDEY integration
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  scope:
+    runs-on: ubuntu-latest
+    outputs:
+      scopes: ${{ steps.scope.outputs.scopes }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: scope
+        run: python3 scripts/workflow_ci.py
+
+  shared:
+    needs: scope
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s scripts/tests
+      - run: python3 scripts/validate_pixel_assets.py
+      - run: python3 scripts/verify_release_consistency.py --allow-pending-appcast --allow-unreleased-source
+
+  server:
+    needs: scope
+    if: contains(fromJSON(needs.scope.outputs.scopes), 'server')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: services/app-store-verifier/package-lock.json
+      - run: npm ci
+        working-directory: services/app-store-verifier
+      - run: npm test
+        working-directory: services/app-store-verifier
+
+  macos:
+    needs: scope
+    if: contains(fromJSON(needs.scope.outputs.scopes), 'macos')
+    name: Native tests
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validate central pixel assets and mirrors
+        run: python3 ./scripts/validate_pixel_assets.py
+
+      - name: Read Xcode build version
+        id: xcode
+        run: |
+          build_version=$(xcodebuild -version | awk '/^Build version / { print $3 }')
+          test -n "$build_version"
+          echo "build-version=$build_version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Swift package sources and artifacts
+        id: packages
+        uses: actions/cache@v6
+        continue-on-error: true
+        with:
+          # Xcode package downloads only; DerivedData remains fresh for every run.
+          path: ${{ runner.temp }}/sidey-source-packages
+          key: sidey-spm-${{ runner.os }}-${{ runner.arch }}-${{ steps.xcode.outputs.build-version }}-${{ hashFiles('macos/SIDEY.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+
+      - name: Prepare fresh packages after a cache miss or restore failure
+        if: steps.packages.outputs.cache-hit != 'true'
+        run: rm -rf "$RUNNER_TEMP/sidey-source-packages"
+
+      - name: Run native test suite
+        run: ./scripts/macos/test_native.sh -clonedSourcePackagesDirPath "$RUNNER_TEMP/sidey-source-packages"
+
+  windows:
+    needs: scope
+    if: contains(fromJSON(needs.scope.outputs.scopes), 'windows')
+    runs-on: windows-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validate Windows release metadata
+        run: >-
+          python ./scripts/verify_release_consistency.py
+          --platform windows
+          --allow-unreleased-source
+
+      - name: Validate central pixel assets and mirrors
+        run: python ./scripts/validate_pixel_assets.py
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore windows/SIDEY.Windows.slnx
+
+      - name: Verify formatting
+        run: dotnet format windows/SIDEY.Windows.slnx --no-restore --verify-no-changes --verbosity minimal
+
+      - name: Build
+        run: dotnet build windows/SIDEY.Windows.slnx --configuration Release --no-restore
+
+      - name: Test
+        id: tests
+        run: dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build --logger trx --collect:"XPlat Code Coverage" --settings windows/coverlet.runsettings --results-directory artifacts/coverage
+
+      - name: Test runtime prerequisites and migration cleanup
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./scripts/windows/tests/Test-RuntimePrerequisites.ps1
+
+      - name: Publish and verify framework-dependent payload
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
+            --configuration Release --runtime win-x64 --self-contained false `
+            --no-restore -p:WindowsAppSDKSelfContained=false -p:PublishSingleFile=false `
+            --output build/windows/publish
+          ./scripts/windows/Test-FrameworkDependentPublish.ps1 -PublishDirectory ./build/windows/publish
+          ./scripts/windows/tests/Test-FrameworkPublishGuard.ps1 -PublishDirectory ./build/windows/publish
+
+      - name: Compile NSIS installer
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          winget install NSIS.NSIS --exact --version 3.12 --silent `
+            --accept-package-agreements --accept-source-agreements --disable-interactivity
+          $version = (Get-Content ./release/windows.json -Raw | ConvertFrom-Json).version
+          ./scripts/windows/New-WindowsInstaller.ps1 -PublishDirectory ./build/windows/publish `
+            -OutputDirectory ./build/windows/artifacts -Version $version
+
+      - name: Upload coverage
+        if: ${{ always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure') }}
+        uses: actions/upload-artifact@v5
+        with:
+          name: integration-windows-code-coverage
+          path: artifacts/coverage/**/coverage.cobertura.xml
+          if-no-files-found: error
+
+  database:
+    needs: scope
+    if: contains(fromJSON(needs.scope.outputs.scopes), 'database')
+    name: Supabase reset and pgTAP
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.116.0
+
+      - name: Start local Supabase
+        run: supabase start
+
+      - name: Reset migrations from scratch
+        run: supabase db reset --local
+
+      - name: Run database tests
+        run: supabase test db
+
+      - name: Run concurrent transaction tests
+        run: ./scripts/supabase/test_concurrency.sh
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup
+
+  web:
+    needs: scope
+    if: contains(fromJSON(needs.scope.outputs.scopes), 'web')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '11.24.0'
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: website/pnpm-lock.yaml
+
+      - name: Install website dependencies
+        working-directory: website
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and test website
+        working-directory: website
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm test
+
+      - name: Validate central pixel assets and mirrors
+        run: python3 ./scripts/validate_pixel_assets.py
+
+      - name: Validate release metadata preparation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $macOSManifest = Get-Content ./release/macos.json -Raw | ConvertFrom-Json
+          $macOSVersion = [string]$macOSManifest.version
+          $macOSDmgName = "SIDEY-macOS-arm64-v${macOSVersion}.dmg"
+          $windowsManifest = Get-Content ./release/windows.json -Raw | ConvertFrom-Json
+          $windowsVersion = [string]$windowsManifest.version
+          $windowsInstallerName = "SIDEY-Windows-x64-v${windowsVersion}-Setup.exe"
+          New-Item -ItemType Directory -Path ./build/pages-test-release -Force |
+            Out-Null
+          Copy-Item ./release/macos.json `
+            "./build/pages-test-release/$macOSDmgName"
+          Copy-Item ./release/windows.json `
+            "./build/pages-test-release/$windowsInstallerName"
+
+          ./scripts/website/prepare-release-metadata.ps1 `
+            -WebsiteDir ./website/dist `
+            -OutputDir ./build/pages-test-site `
+            -MacOSReleaseManifest ./release/macos.json `
+            -MacOSReleaseDmg "./build/pages-test-release/$macOSDmgName" `
+            -WindowsReleaseManifest ./release/windows.json `
+            -WindowsReleaseInstaller "./build/pages-test-release/$windowsInstallerName"
+
+          $published = Get-Content ./build/pages-test-site/windows-latest.json -Raw |
+            ConvertFrom-Json
+          $macOSHash = (Get-FileHash `
+            -LiteralPath "./build/pages-test-release/$macOSDmgName" `
+            -Algorithm SHA256).Hash.ToLowerInvariant()
+          $windowsHash = (Get-FileHash `
+            -LiteralPath "./build/pages-test-release/$windowsInstallerName" `
+            -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ([string]$published.sha256 -cne $windowsHash) {
+            throw 'Generated Windows SHA-256 does not match the release asset.'
+          }
+          foreach ($page in @('ko/index.html', 'en/index.html', 'ja/index.html')) {
+            $html = Get-Content "./build/pages-test-site/$page" -Raw
+            if ($html -notmatch "<code id=`"macos-download-sha256`" data-release-platform=`"macos`">$macOSHash</code>") {
+              throw "Generated macOS SHA-256 is missing: $page"
+            }
+            if ($html -notmatch "<code id=`"windows-download-sha256`" data-release-platform=`"windows`">$windowsHash</code>") {
+              throw "Generated Windows SHA-256 is missing: $page"
+            }
+          }
+
+  gate:
+    name: SIDEY integration gate
+    if: always()
+    needs: [scope, shared, macos, windows, database, web, server]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Require every applicable check, including missing or skipped jobs
+        env:
+          SIDEY_NEEDS: ${{ toJSON(needs) }}
+        run: python3 scripts/workflow_ci.py gate
