@@ -135,6 +135,13 @@ if [ -e "$SIDEY_APP/Contents/Library/LoginItems" ]; then
 	exit 1
 fi
 
+# App Store ingestion rejects quarantine even when code signing is valid (91109).
+SIDEY_ARCHIVE_XATTRS=$(/usr/bin/xattr -r "$SIDEY_APP")
+if printf '%s\n' "$SIDEY_ARCHIVE_XATTRS" | grep -E ': com\.apple\.quarantine$' >/dev/null; then
+	echo "App Store archive still contains com.apple.quarantine; do not upload" >&2
+	exit 1
+fi
+
 codesign --verify --deep --strict "$SIDEY_APP"
 if otool -L "$SIDEY_EXECUTABLE" | grep -F 'Sparkle.framework' >/dev/null; then
 	echo "App Store executable must not link Sparkle" >&2
