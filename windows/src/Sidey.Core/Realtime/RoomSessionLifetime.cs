@@ -39,12 +39,14 @@ public sealed class RoomSessionLifetime : IAsyncDisposable
 
     public void StopTyping()
     {
-        lock (_gate) StopTypingCore();
+        lock (_gate)
+            StopTypingCore();
     }
 
     private void StopTypingCore()
     {
-        if (_typingCancellation is not { } cancellation) return;
+        if (_typingCancellation is not { } cancellation)
+            return;
         Task task = _typingTask ?? Task.CompletedTask;
         _typingCancellation = null;
         _typingTask = null;
@@ -55,7 +57,8 @@ public sealed class RoomSessionLifetime : IAsyncDisposable
 
     private static async Task DrainTypingAsync(Task task, CancellationTokenSource cancellation)
     {
-        try { await task.ConfigureAwait(false); }
+        try
+        { await task.ConfigureAwait(false); }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         finally { cancellation.Dispose(); }
     }
@@ -75,7 +78,8 @@ public sealed class RoomSessionLifetime : IAsyncDisposable
         StopTypingCore();
         try
         {
-            if (SwitchPipeline is not null) await SwitchPipeline.DisposeAsync().ConfigureAwait(false);
+            if (SwitchPipeline is not null)
+                await SwitchPipeline.DisposeAsync().ConfigureAwait(false);
             await Task.WhenAll(_retiredTyping.Append(EventPump ?? Task.CompletedTask)
                 .Append(ActivityPump ?? Task.CompletedTask)).ConfigureAwait(false);
         }
