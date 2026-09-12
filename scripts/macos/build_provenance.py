@@ -1,0 +1,159 @@
+#!/usr/bin/env python3
+"""Build input stamps and one-use Debug launch tickets (also used by Xcode)."""
+from __future__ import annotations
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import plistlib
+import subprocess
+import time
+import uuid
+
+ROOT = Path(__file__).resolve().parents[2]
+INPUT_DIRS = ('macos/SIDEY', 'macos/SIDEYLoginItem', 'macos/Config', 'macos/SIDEY.xcodeproj', 'scripts/macos')
+EXCLUDED = {'xcuserdata', 'build', 'DerivedData', '__pycache__', '.git', 'node_modules'}
+
+
+def command(*args):
+    return subprocess.check_output(args, cwd=ROOT, text=True).rstrip('\n')
+
+
+def inputs(root=ROOT):
+    result = []
+    for directory in INPUT_DIRS:
+        base = root / directory
+        if not base.exists():
+            continue
+        for current, dirs, files in os.walk(base, followlinks=False):
+            dirs[:] = sorted(d for d in dirs if d not in EXCLUDED and not d.startswith('.'))
+            for name in sorted(files):
+                path = Path(current) / name
+                if name.startswith('.') or name.endswith(('.xcuserstate', '.pyc')):
+                    continue
+                if path.is_symlink():
+                    raise RuntimeError(f'Symlink is not a reproducible build input: {path.relative_to(root)}')
+                result.append(path)
+    return sorted(result)
+
+
+def source_state(root=ROOT):
+    digest = hashlib.sha256()
+    paths = inputs(root)
+    for path in paths:
+        digest.update(path.relative_to(root).as_posix().encode() + b'\0')
+        digest.update(hashlib.sha256(path.read_bytes()).digest())
+    commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root, text=True).strip()
+    status = subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=all', '--',
+                                      *INPUT_DIRS], cwd=root, text=True)
+    return {'commit': commit, 'input_hash': digest.hexdigest(), 'dirty': bool(status)}
+
+
+def write_json(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + '.' + uuid.uuid4().hex)
+    temporary.write_text(json.dumps(value, indent=2) + '\n')
+    temporary.replace(path)
+
+
+def begin():
+    env = os.environ
+    state = source_state()
+    state.update(schema=1, build_id=str(uuid.uuid4()), target=env['TARGET_NAME'],
+                 configuration=env['CONFIGURATION'], bundle_id=env['PRODUCT_BUNDLE_IDENTIFIER'])
+    # Allowlist build settings; credentials, service URLs and signing secrets never enter metadata.
+    state['settings'] = {key: env.get(key, '') for key in (
+        'ARCHS', 'SDK_VERSION', 'XCODE_VERSION_ACTUAL', 'SWIFT_VERSION',
+        'SWIFT_OPTIMIZATION_LEVEL', 'SWIFT_ACTIVE_COMPILATION_CONDITIONS',
+        'MACOSX_DEPLOYMENT_TARGET', 'MARKETING_VERSION', 'CURRENT_PROJECT_VERSION')}
+    derived = Path(env['DERIVED_FILE_DIR'])
+    write_json(derived / 'SideyBuildReceipt.json', state)
+    literal = lambda value: json.dumps(value, ensure_ascii=False)
+    # The running executable carries immutable metadata, independent of the bundle on disk.
+    source = 'enum SideyBuildStamp {\n' + '\n'.join(
+        f'    static let {key} = {literal(value)}' for key, value in {
+            'buildID': state['build_id'], 'commit': state['commit'], 'inputHash': state['input_hash'],
+            'target': state['target'], 'configuration': state['configuration'],
+            'bundleID': state['bundle_id'], 'dirty': state['dirty']}.items()) + '\n}\n'
+    (derived / 'SideyBuildStamp.swift').write_text(source)
+
+
+def finish():
+    env = os.environ
+    state = json.loads((Path(env['DERIVED_FILE_DIR']) / 'SideyBuildReceipt.json').read_text())
+    current = source_state()
+    if any(current[key] != state[key] for key in current):
+        raise RuntimeError('Build inputs changed during compilation; rebuild before reviewing')
+    destination = Path(env['TARGET_BUILD_DIR']) / env['UNLOCALIZED_RESOURCES_FOLDER_PATH']
+    write_json(destination / 'SideyBuildReceipt.json', state)
+
+
+def read_build(app):
+    receipt = json.loads((app / 'Contents/Resources/SideyBuildReceipt.json').read_text())
+    info = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
+    if receipt['bundle_id'] != info['CFBundleIdentifier']:
+        raise RuntimeError('Bundle identifier does not match compiled build metadata')
+    return receipt, info
+
+
+def verify(app, root=ROOT, target=None, configuration=None):
+    receipt, info = read_build(app)
+    current = source_state(root)
+    if any(receipt[key] != current[key] for key in current):
+        raise RuntimeError('App is stale for this source/commit; build again')
+    if target and target != receipt['target']:
+        raise RuntimeError('App was built for a different target')
+    if configuration and configuration != receipt['configuration']:
+        raise RuntimeError('App was built with a different configuration')
+    return receipt, info
+
+
+def ticket_directory(app, bundle_id):
+    # The sandboxed process reads only its own container. It never reads the repository.
+    result = subprocess.run(['/usr/bin/codesign', '-d', '--entitlements', ':-', str(app)],
+                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    try:
+        entitlements = plistlib.loads(result.stdout)
+    except Exception:
+        entitlements = {}
+    home = Path.home()
+    if entitlements.get('com.apple.security.app-sandbox'):
+        home /= f'Library/Containers/{bundle_id}/Data'
+    return home / 'Library/Application Support/SIDEY/BuildReview'
+
+
+def prepare_launch(app, target=None):
+    receipt, info = verify(app, target=target, configuration='Debug')
+    directory = ticket_directory(app, receipt['bundle_id'])
+    session = str(uuid.uuid4())
+    executable = str((app / 'Contents/MacOS' / info['CFBundleExecutable']).resolve())
+    ticket = {**receipt, 'session': session, 'executable': executable, 'issued_at': time.time()}
+    ticket_path = directory / f"{receipt['build_id']}.ticket.json"
+    ready_path = directory / f'{session}.ready.json'
+    write_json(ticket_path, ticket)
+    return ticket, ready_path
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('command', choices=['begin', 'finish', 'verify', 'prepare-launch', 'source'])
+    parser.add_argument('--app', type=Path)
+    parser.add_argument('--target')
+    args = parser.parse_args()
+    if args.command == 'begin':
+        begin()
+    elif args.command == 'finish':
+        finish()
+    elif args.command == 'source':
+        print(json.dumps(source_state()))
+    elif args.command == 'verify':
+        print(json.dumps(verify(args.app, target=args.target)[0]))
+    else:
+        app = args.app or Path(os.environ['TARGET_BUILD_DIR']) / os.environ['FULL_PRODUCT_NAME']
+        ticket, ready = prepare_launch(app, args.target or os.environ.get('TARGET_NAME'))
+        print(json.dumps({'session': ticket['session'], 'ready': str(ready)}))
+
+
+if __name__ == '__main__':
+    main()

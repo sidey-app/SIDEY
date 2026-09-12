@@ -25,6 +25,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             || NSClassFromString("XCTest.XCTestCase") != nil {
             return
         }
+        guard BuildReview.shared.validateLaunch() else {
+            NSApplication.shared.terminate(nil)
+            return
+        }
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--store-review") {
             NSApplication.shared.setActivationPolicy(.regular)
@@ -80,6 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         self.coordinator = coordinator
         coordinator.start()
+        BuildReview.shared.observeReadyWindow()
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
@@ -107,6 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        BuildReview.shared.stop()
         coordinator?.shutdown()
     }
 }
