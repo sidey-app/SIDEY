@@ -92,3 +92,23 @@ particle burst 효과를 제안할 수 있습니다. 이러한 효과는 PNG 프
 검사 통과를 위해 규격을 억지로 재인코딩하지 말고 원본 제작 파일에서 문제를
 바로잡아 주세요. 승인된 `v1` 파일을 변경해야 한다면 기존 hash를 조용히 덮지
 말고 변경 이유와 호환 영향을 함께 리뷰해야 합니다.
+
+## 상품 수정
+
+자산 규격은 `manifest.json`, 상품 ID·가격·권리·현재/과거 Apple ID와 애착 물건 연결은
+[`v1/commerce-catalog.json`](v1/commerce-catalog.json)이 원본입니다.
+
+1. `shared/*` 작업에서 상품 원본과 필요한 승인 자산을 수정합니다.
+2. `python3 scripts/commerce_catalog.py --target shared --write`로 verifier 매핑,
+   Edge Function 허용 목록, 상점·checkout 공통 상품 표현을 생성합니다.
+3. `--target shared --check`는 바이트 차이·중복 ID·권리·자산 참조를 검사합니다.
+4. 공통 PR 통합 뒤 별도 `macos/*` 작업에서 `--target macos --write`로 번들 사본을 갱신합니다.
+   `--target macos --check`는 번들 사본과 현재 StoreKit 상품 ID·비소모성 유형·가격을 검사합니다.
+   StoreKit 등록·지역·심사 설정 전체를 생성기로 덮어쓰지 않습니다.
+5. 적용된 migration은 수정하지 않습니다. 새 forward migration을 추가하고 verifier의
+   `npm test` 및 Supabase pgTAP로 최종 catalog·구매·별도 소유·복원·환불 동작을 검증합니다.
+6. 영어·일본어 유료 상품 소개는 `website/src/data/store-translations.ts`에서 관리합니다.
+   번역 누락은 웹 빌드를 실패시킵니다. 기본 제공 7종은 상점의 명시 목록으로 유지합니다.
+
+생성에는 하나의 대상을 반드시 지정합니다. `all` 쓰기 옵션은 제공하지 않으며 반대 플랫폼을
+수정하지 않습니다. 원격 상품 등록·판매 활성화·가격 및 서버 배포는 별도 작업입니다.
