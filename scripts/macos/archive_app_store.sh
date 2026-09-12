@@ -4,8 +4,27 @@ set -eu
 SIDEY_REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && /bin/pwd -P)
 SIDEY_APP_STORE_VERIFIER_URL=${SIDEY_APP_STORE_VERIFIER_URL:-}
 SIDEY_DEVELOPMENT_TEAM=${SIDEY_DEVELOPMENT_TEAM:-}
-SIDEY_EXPECTED_MARKETING_VERSION=${SIDEY_EXPECTED_MARKETING_VERSION:-1.2.0}
-SIDEY_EXPECTED_BUILD_VERSION=${SIDEY_EXPECTED_BUILD_VERSION:-28}
+SIDEY_SOURCE_VERSIONS=$(python3 - "$SIDEY_REPO_ROOT/macos/SIDEY.xcodeproj/project.pbxproj" <<'PYVERSIONS'
+import re
+import sys
+from pathlib import Path
+source = Path(sys.argv[1]).read_text()
+versions = set()
+for settings in re.findall(r"buildSettings = \{(.*?)\n\s*\};", source, re.S):
+    if "PRODUCT_BUNDLE_IDENTIFIER = app.sidey.desktop.appstore;" not in settings:
+        continue
+    version = re.search(r"MARKETING_VERSION = ([0-9.]+);", settings)
+    build = re.search(r"CURRENT_PROJECT_VERSION = ([0-9]+);", settings)
+    if not version or not build:
+        raise SystemExit("App Store source version is missing")
+    versions.add((version.group(1), build.group(1)))
+if len(versions) != 1:
+    raise SystemExit("App Store Debug and Release source versions must match")
+print(*next(iter(versions)))
+PYVERSIONS
+)
+SIDEY_EXPECTED_MARKETING_VERSION=${SIDEY_EXPECTED_MARKETING_VERSION:-${SIDEY_SOURCE_VERSIONS% *}}
+SIDEY_EXPECTED_BUILD_VERSION=${SIDEY_EXPECTED_BUILD_VERSION:-${SIDEY_SOURCE_VERSIONS##* }}
 SIDEY_ARCHIVE_PATH=${1:-$SIDEY_REPO_ROOT/build/app-store/SIDEYAppStore.xcarchive}
 SIDEY_DERIVED_DATA=${SIDEY_DERIVED_DATA:-$SIDEY_REPO_ROOT/build/app-store-derived}
 
@@ -36,6 +55,11 @@ fi
 python3 "$SIDEY_REPO_ROOT/scripts/validate_pixel_assets.py" --canonical-only
 mkdir -p "$(dirname -- "$SIDEY_ARCHIVE_PATH")" "$SIDEY_DERIVED_DATA"
 
+set --
+if [ -n "${SIDEY_CLONED_SOURCE_PACKAGES:-}" ]; then
+    set -- -clonedSourcePackagesDirPath "$SIDEY_CLONED_SOURCE_PACKAGES"
+fi
+
 xcodebuild \
 	-project "$SIDEY_REPO_ROOT/macos/SIDEY.xcodeproj" \
 	-scheme SIDEYAppStore \
@@ -47,6 +71,7 @@ xcodebuild \
 	-allowProvisioningUpdates \
 	"DEVELOPMENT_TEAM=$SIDEY_DEVELOPMENT_TEAM" \
 	"SIDEY_APP_STORE_VERIFIER_URL=$SIDEY_APP_STORE_VERIFIER_URL" \
+	"$@" \
 	archive
 
 SIDEY_APP="$SIDEY_ARCHIVE_PATH/Products/Applications/SIDEYAppStore.app"
