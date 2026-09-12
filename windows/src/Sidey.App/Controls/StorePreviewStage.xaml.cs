@@ -75,7 +75,7 @@ public sealed partial class StorePreviewStage : UserControl
     private readonly List<Microsoft.UI.Xaml.Shapes.Polygon> _pulseSparkles = [];
     private double _pulseStarted = double.NegativeInfinity;
     private double _manualThrowStartX;
-    private double _manualThrowArcHeight;
+    private CharacterThrowTrajectory _manualThrowTrajectory;
     private readonly CancellationToken _lifetimeToken;
     private IReadOnlyList<ImageSource> _projectileFrames = [];
     private IReadOnlyList<ImageSource> _emitterFrames = [];
@@ -976,29 +976,17 @@ public sealed partial class StorePreviewStage : UserControl
 
         if (local >= ThrowReleaseSeconds && local < impactStarted)
         {
-            double progress = (local - ThrowReleaseSeconds) / flightDuration;
             double startCenterX = leftToRight
                 ? leftX + (RenderedCharacterSize / 2d)
                 : rightX + (RenderedCharacterSize / 2d);
-            if (ProductKind == CommerceProductKind.Character)
-            {
-                startCenterX = _manualThrowStartX;
-            }
             double endCenterX = leftToRight
                 ? rightX + (RenderedCharacterSize / 2d)
                 : leftX + (RenderedCharacterSize / 2d);
-            double inverse = 1 - progress;
-            double distance = Math.Abs(endCenterX - startCenterX);
-            double arcHeight = ProductKind == CommerceProductKind.Character
-                ? _manualThrowArcHeight
-                : Math.Clamp(distance / PreviewScale * 0.18, 24, 96) * PreviewScale;
-            double centerX = (inverse * inverse * startCenterX)
-                + (2 * inverse * progress * ((startCenterX + endCenterX) / 2d))
-                + (progress * progress * endCenterX);
-            double controlY = ProjectilePathY - arcHeight;
-            double centerY = (inverse * inverse * ProjectilePathY)
-                + (2 * inverse * progress * controlY)
-                + (progress * progress * ProjectilePathY);
+            CharacterThrowTrajectory trajectory = ProductKind == CommerceProductKind.Character
+                ? _manualThrowTrajectory
+                : new CharacterThrowTrajectory((startCenterX, ProjectilePathY), (endCenterX, ProjectilePathY), PreviewScale);
+            (double centerX, double centerY) = trajectory.PointAt(
+                (endCenterX, ProjectilePathY), local - ThrowReleaseSeconds, OverlayEdge.Bottom);
             int projectileFrame = (int)((local - ThrowReleaseSeconds) / ProjectileRotationFrameSeconds) % 8;
             ProjectileImage.ShowFrame(projectileFrame);
             ProjectileScale.ScaleX = 1;
@@ -1054,8 +1042,7 @@ public sealed partial class StorePreviewStage : UserControl
 
     private static double ThrowFlightDuration(double leftX, double rightX)
     {
-        double distance = Math.Abs(rightX - leftX) / PreviewScale;
-        return Math.Clamp(0.35 + (distance / 1600d), 0.35, 0.95);
+        return new CharacterThrowTrajectory((leftX, 0d), (rightX, 0d), PreviewScale).DurationSeconds;
     }
 
     private void ApplyBubbleColors()
@@ -1232,12 +1219,10 @@ public sealed partial class StorePreviewStage : UserControl
         if (ProductKind == CommerceProductKind.Character && _resourcesLoaded && _isPresented)
         {
             _manualThrowStartX = _movementAgents[0].TrackPosition;
-            _manualThrowArcHeight = Math.Clamp(
-                Math.Abs(_movementAgents[1].TrackPosition - _manualThrowStartX) / PreviewScale * 0.18,
-                24, 96) * PreviewScale;
-            _manualThrowFlightDuration = ThrowFlightDuration(
-                _movementAgents[0].TrackPosition - (RenderedCharacterSize / 2d),
-                _movementAgents[1].TrackPosition - (RenderedCharacterSize / 2d));
+            _manualThrowTrajectory = new CharacterThrowTrajectory(
+                (_manualThrowStartX, ProjectilePathY),
+                (_movementAgents[1].TrackPosition, ProjectilePathY), PreviewScale);
+            _manualThrowFlightDuration = _manualThrowTrajectory.DurationSeconds;
             _manualThrowStarted = _clock.Elapsed.TotalSeconds;
             UpdateScene();
             return true;
