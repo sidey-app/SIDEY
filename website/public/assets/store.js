@@ -34,24 +34,26 @@
   };
   const updateSoundButton = () => {
     soundButton?.setAttribute("aria-pressed", String(soundEnabled));
-    const icon = soundButton?.querySelector(".material-symbols-rounded");
-    if (icon) icon.textContent = soundEnabled ? "volume_up" : "volume_off";
+  };
+  const playImpactSound = () => {
+    if (!soundEnabled || !impactAudio || !dialog.open || dialog.dataset.state === "closing" || document.hidden) return;
+    const audio = impactAudio;
+    audio.currentTime = 0;
+    audio.play().catch(() => {
+      if (impactAudio !== audio) return;
+      soundEnabled = false;
+      updateSoundButton();
+    });
   };
   const scheduleImpactSound = () => {
     window.clearTimeout(impactTimer);
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    impactTimer = window.setTimeout(() => {
-      if (!soundEnabled || !impactAudio || !dialog.open || dialog.dataset.state === "closing" || document.hidden) return;
-      impactAudio.currentTime = 0;
-      impactAudio.play().catch(() => {
-        soundEnabled = false;
-        updateSoundButton();
-      });
-    }, 1000);
+    impactTimer = window.setTimeout(playImpactSound, 1000);
   };
   soundButton?.addEventListener("click", () => {
     soundEnabled = !soundEnabled;
-    if (!soundEnabled) stopSound();
+    if (soundEnabled) playImpactSound();
+    else stopSound();
     updateSoundButton();
   });
   document.addEventListener("visibilitychange", () => {
