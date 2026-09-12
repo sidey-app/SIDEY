@@ -37,7 +37,9 @@ public sealed class OnboardingGroupIntegrationTests
             Bind<Action<Guid, IReadOnlyList<ChatMessage>>>(coordinator, "CommitRoomSwitch"),
             TimeSpan.Zero);
         pipeline.InitializeCommittedRoom(previous?.Id);
-        SetField(coordinator, "_roomSwitch", pipeline);
+        RoomSessionLifetime session = Assert.IsType<RoomSessionLifetime>(typeof(AppCoordinator)
+            .GetField("_roomSession", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(coordinator));
+        session.SwitchPipeline = pipeline;
         using var onboarding = new OnboardingViewModel(coordinator)
         {
             Step = 2,

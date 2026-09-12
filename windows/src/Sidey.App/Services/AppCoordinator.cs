@@ -31,7 +31,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     public event Action? AnimationsChanged;
     private readonly IPreferencesStore _preferencesStore;
     private readonly ICredentialStore _credentialStore;
-    private readonly CancellationTokenSource _lifetime = new();
+    private readonly RoomSessionLifetime _roomSession = new();
     private readonly WindowsStartupService _startup = new();
     private readonly IActivityMonitor _activityMonitor = new WindowsActivityMonitor();
     private readonly MessageLedger _messages = new();
@@ -47,16 +47,12 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     private IAuthService? _auth;
     private IBackendGateway? _backend;
     private NativePixelWorldSession? _overlay;
-    private RoomSwitchPipeline? _roomSwitch;
-    private Task? _eventPump;
-    private Task? _activityPump;
     private long _groupOperationGeneration;
     private CoordinatorState _state = CoordinatorState.Initial;
     private readonly bool _validationMode;
     private Guid? _previewRoomId;
     private Guid? _previewUserId;
     private WorldSnapshot? _previewSnapshot;
-    private CancellationTokenSource? _typingKeepalive;
     private PresenceState _localPresence = PresenceState.Online;
     private bool _cachedStateLoaded;
     private bool _initialSnapshotReceived;
@@ -284,13 +280,13 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             return;
         if (_initializationTask?.IsCompletedSuccessfully != true)
         {
-            await InitializeAsync(_lifetime.Token);
+            await InitializeAsync(_roomSession.Token);
             return;
         }
         if (_backend is SupabaseBackendGateway backend)
         {
             if (userInitiated && backend.IsRealtimeRecoveryPaused)
-                await RefreshSnapshotAsync(_lifetime.Token);
+                await RefreshSnapshotAsync(_roomSession.Token);
             backend.RetryRealtimeConnection(userInitiated);
         }
     }
@@ -391,12 +387,12 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             ErrorMessage = commerceStateError,
         };
 
-        _roomSwitch ??= new RoomSwitchPipeline(
+        _roomSession.SwitchPipeline ??= new RoomSwitchPipeline(
             PerformRoomSwitchAsync,
             RestoreCommittedRoomAsync,
             CommitRoomSwitch);
-        _roomSwitch.InitializeCommittedRoom(activeRoomId);
-        _eventPump ??= PumpBackendEventsAsync();
+        _roomSession.SwitchPipeline.InitializeCommittedRoom(activeRoomId);
+        _roomSession.EventPump ??= PumpBackendEventsAsync();
         StartupDiagnostics.Stage(
             $"realtime-subscription-sync-started rooms={snapshot.Rooms.Count}");
         await backend.SynchronizeRealtimeRoomsAsync(
@@ -406,7 +402,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             cancellationToken);
         StartupDiagnostics.Stage(
             $"realtime-subscription-sync-completed rooms={snapshot.Rooms.Count}");
-        _activityPump ??= PumpActivityAsync();
+        _roomSession.ActivityPump ??= PumpActivityAsync();
         if (activeRoomId is { } roomId)
         {
             StartupDiagnostics.Stage("message-history-fetch-started active=true");
@@ -427,7 +423,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         IBackendGateway backend = RequiredBackend();
         Guid? userId = _state.Profile?.Id;
         Profile profile = await backend.SaveProfileAsync(nickname, characterId, cancellationToken);
-        if (!ReferenceEquals(backend, _backend) || _state.Profile?.Id != userId || _lifetime.IsCancellationRequested)
+        if (!ReferenceEquals(backend, _backend) || _state.Profile?.Id != userId || _roomSession.IsCancellationRequested)
             return;
         if (_state.Profile is { } current)
             profile = current with { Nickname = profile.Nickname, CharacterId = profile.CharacterId };
@@ -581,7 +577,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             kind,
             catalogItemId,
             cancellationToken);
-        if (!ReferenceEquals(backend, _backend) || _state.Profile?.Id != userId || _lifetime.IsCancellationRequested)
+        if (!ReferenceEquals(backend, _backend) || _state.Profile?.Id != userId || _roomSession.IsCancellationRequested)
             return;
         // Independent equipment requests can complete out of order; apply only this request's field.
         if (_state.Profile is { } current)
@@ -699,7 +695,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             throw new InvalidOperationException(I18n.Get("groups.operationBusy"));
         }
 
-        if (_roomSwitch is null
+        if (_roomSession.SwitchPipeline is null
             || _state.ActiveRoomId == roomId
             || _state.Rooms.All(room => room.Id != roomId))
         {
@@ -715,7 +711,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         });
         try
         {
-            await _roomSwitch.RequestAsync(roomId, cancellationToken);
+            await _roomSession.SwitchPipeline.RequestAsync(roomId, cancellationToken);
         }
         catch (Exception exception)
         {
@@ -1185,32 +1181,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         _animations.Changed -= OnAnimationsChanged;
         _animations.Dispose();
         _audio.Dispose();
-        _lifetime.Cancel();
-        StopTypingKeepalive();
-        if (_eventPump is not null)
-        {
-            try
-            {
-                await _eventPump.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-            }
-        }
-        if (_activityPump is not null)
-        {
-            try
-            {
-                await _activityPump.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-            }
-        }
-        if (_roomSwitch is not null)
-        {
-            await _roomSwitch.DisposeAsync().ConfigureAwait(false);
-        }
+        await _roomSession.DisposeAsync().ConfigureAwait(false);
         if (_backend is SupabaseBackendGateway supabase)
         {
             await supabase.DisposeAsync().ConfigureAwait(false);
@@ -1221,7 +1192,6 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         }
         _overlay?.Dispose();
         await _activityMonitor.DisposeAsync().ConfigureAwait(false);
-        _lifetime.Dispose();
     }
 
     private async Task<IReadOnlyList<ChatMessage>> PerformRoomSwitchAsync(
@@ -1270,12 +1240,12 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     {
         try
         {
-            await foreach (BackendEvent backendEvent in RequiredBackend().SubscribeAsync(_lifetime.Token))
+            await foreach (BackendEvent backendEvent in RequiredBackend().SubscribeAsync(_roomSession.Token))
             {
                 switch (backendEvent)
                 {
                     case BackendEvent.SnapshotReceived snapshot:
-                        await ReconcileSnapshotAsync(snapshot.Snapshot, _lifetime.Token);
+                        await ReconcileSnapshotAsync(snapshot.Snapshot, _roomSession.Token);
                         break;
                     case BackendEvent.MessageReceived message:
                         bool isActiveRoom = message.Message.RoomId == _state.ActiveRoomId;
@@ -1381,7 +1351,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                 }
             }
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        catch (OperationCanceledException) when (_roomSession.IsCancellationRequested)
         {
         }
         catch (Exception exception)
@@ -1397,7 +1367,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 
     private async Task PumpActivityAsync()
     {
-        await foreach (PresenceState presence in _activityMonitor.ObserveAsync(_lifetime.Token))
+        await foreach (PresenceState presence in _activityMonitor.ObserveAsync(_roomSession.Token))
         {
             _localPresence = presence;
             if (_state.Profile is { } profile && _state.ActiveRoomId is { } activeRoomId)
@@ -1414,9 +1384,9 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             }
             try
             {
-                await _backend.PublishPresenceAsync(roomId, presence, _lifetime.Token);
+                await _backend.PublishPresenceAsync(roomId, presence, _roomSession.Token);
             }
-            catch when (!_lifetime.IsCancellationRequested)
+            catch when (!_roomSession.IsCancellationRequested)
             {
                 SetRealtimeConnection(RealtimeConnectionStatus.Disconnected);
             }
@@ -1620,7 +1590,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             _typingLease.Update(active: false, requestedRoomId: null);
             _typing.Clear();
             _bubbles.Clear();
-            _roomSwitch?.InitializeCommittedRoom(_state.ActiveRoomId);
+            _roomSession.SwitchPipeline?.InitializeCommittedRoom(_state.ActiveRoomId);
             if (_state.ActiveRoomId is { } activeRoomId)
             {
                 IReadOnlyList<ChatMessage> history = await RequiredBackend().FetchRecentMessagesAsync(
@@ -1661,11 +1631,11 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         await RefreshSnapshotAsync(cancellationToken);
         // Selection completes the creation/join already in progress. Keep its
         // mutation guard held; the public switch action correctly rejects it.
-        if (_roomSwitch is not null
+        if (_roomSession.SwitchPipeline is not null
             && _state.ActiveRoomId != roomId
             && _state.Rooms.Any(room => room.Id == roomId))
         {
-            await _roomSwitch.RequestAsync(roomId, cancellationToken);
+            await _roomSession.SwitchPipeline.RequestAsync(roomId, cancellationToken);
         }
     }
 
@@ -2027,9 +1997,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 
     private void StartTypingKeepalive(Guid roomId)
     {
-        StopTypingKeepalive();
-        _typingKeepalive = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        _ = RunTypingKeepaliveAsync(roomId, _typingKeepalive.Token);
+        _roomSession.StartTyping(token => RunTypingKeepaliveAsync(roomId, token));
     }
 
     private async Task RunTypingKeepaliveAsync(Guid roomId, CancellationToken cancellationToken)
@@ -2069,9 +2037,9 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     {
         try
         {
-            await PersistPreferencesAsync(_lifetime.Token).ConfigureAwait(false);
+            await PersistPreferencesAsync(_roomSession.Token).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        catch (OperationCanceledException) when (_roomSession.IsCancellationRequested)
         {
         }
         catch (Exception exception)
@@ -2082,9 +2050,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 
     private void StopTypingKeepalive()
     {
-        _typingKeepalive?.Cancel();
-        _typingKeepalive?.Dispose();
-        _typingKeepalive = null;
+        _roomSession.StopTyping();
     }
 
     private static Guid? SelectActiveRoom(Guid? requested, IReadOnlyList<Room> rooms) =>
