@@ -1,10 +1,10 @@
 using Sidey.Core.Domain;
 
-namespace Sidey.Overlay.Interaction;
+namespace Sidey.Core.Overlay;
 
 // Match macOS: snapshot the launch point, duration and arc when the throw arrives,
 // while continuing to follow the target's current character center during flight.
-internal readonly record struct CharacterThrowTrajectory
+public readonly record struct CharacterThrowTrajectory
 {
     public (double X, double Y) Start { get; }
     public double DurationSeconds { get; }
