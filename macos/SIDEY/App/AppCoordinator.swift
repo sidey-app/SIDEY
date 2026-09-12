@@ -15,8 +15,6 @@ final class AppCoordinator {
     let launchReason: LaunchReason
     private let onLandingFirstFrame: () -> Void
     private let launchAtLoginController: LaunchAtLoginController
-    let appStorePurchaseController: AppStorePurchaseController
-    let appStoreAccountClient: AppStoreAccountClient
     lazy var overlayWindows = OverlayWindowGroup(
         model: model,
         onSend: { [weak self] body in self?.sendMessage(body) },
@@ -97,23 +95,12 @@ final class AppCoordinator {
         onOpenSettings: { [weak self] in self?.showSettings() },
         onQuit: { NSApplication.shared.terminate(nil) }
     )
-    var roomSwitchPipeline: RoomSwitchPipeline!
+    let commerceSession = CommerceSession()
+    let roomSession = RoomSessionLifetime()
     private var landingTask: Task<Void, Never>?
-    var backendTask: Task<Void, Never>?
-    var backendEventTask: Task<Void, Never>?
-    var typingTask: Task<Void, Never>?
-    var bubbleExpiryTask: Task<Void, Never>?
-    var commerceProductTasks: [String: Task<Void, Never>] = [:]
-    var cosmeticEquipmentTasks: [CommerceProductKind: Task<Void, Never>] = [:]
-    var characterEquipmentTask: Task<Void, Never>?
-    var commerceAuthTask: Task<Void, Never>?
-    var googleConnectionProductID: String?
     private var landingDidComplete = false
     private var didCompleteFirstRunTransition = false
     var backendBootstrapState: BackendBootstrapState = .pending
-    var typingLease = TypingLease()
-    var characterPulseCooldown = CharacterPulseCooldown()
-    var characterThrowCooldown = CharacterThrowCooldown()
     var backendConnectionStatus: BackendConnectionStatus?
     private lazy var activityMonitor = SystemActivityMonitor { [weak self] state in
         self?.localPresenceChanged(state)
@@ -132,8 +119,6 @@ final class AppCoordinator {
         self.updateController = updateController
         self.releaseChannel = releaseChannel
         self.launchAtLoginController = LaunchAtLoginController(mode: releaseChannel.loginItemMode)
-        self.appStorePurchaseController = AppStorePurchaseController()
-        self.appStoreAccountClient = AppStoreAccountClient()
         self.preferencesStore = preferencesStore
         self.legacyMigrator = legacyMigrator
         self.keychainAccessSession = keychainAccessSession
@@ -152,7 +137,7 @@ final class AppCoordinator {
             self.runtimeConfiguration = nil
             self.configurationError = error
         }
-        self.roomSwitchPipeline = RoomSwitchPipeline(
+        self.roomSession.switchPipeline = RoomSwitchPipeline(
             debounce: .milliseconds(150),
             performSwitch: { [weak self] roomID in
                 guard let self, let backend = self.backend else {
@@ -237,23 +222,8 @@ final class AppCoordinator {
 
     func shutdown() {
         landingTask?.cancel()
-        backendTask?.cancel()
-        backendEventTask?.cancel()
-        typingTask?.cancel()
-        bubbleExpiryTask?.cancel()
-        commerceProductTasks.values.forEach { $0.cancel() }
-        commerceProductTasks.removeAll()
-        cosmeticEquipmentTasks.values.forEach { $0.cancel() }
-        for kind in cosmeticEquipmentTasks.keys {
-            model.endCosmeticEquipmentRequest(kind: kind)
-        }
-        cosmeticEquipmentTasks.removeAll()
-        characterEquipmentTask?.cancel()
-        characterEquipmentTask = nil
-        model.endCharacterEquipmentRequest()
-        commerceAuthTask?.cancel()
-        appStorePurchaseController.stopObserving()
-        roomSwitchPipeline.cancel()
+        roomSession.cancel()
+        commerceSession.cancel(model: model)
         activityMonitor.stop()
         mainThreadProbe.stop()
         if let backend { Task { await backend.shutdown() } }
@@ -338,13 +308,13 @@ final class AppCoordinator {
               let backend
         else { return false }
         showStore()
-        commerceAuthTask?.cancel()
-        let targetProductID = googleConnectionProductID
-        commerceAuthTask = Task { [weak self] in
+        commerceSession.authenticationTask?.cancel()
+        let targetProductID = commerceSession.googleConnectionProductID
+        commerceSession.authenticationTask = Task { [weak self] in
             guard let self else { return }
             defer {
-                googleConnectionProductID = nil
-                commerceAuthTask = nil
+                commerceSession.googleConnectionProductID = nil
+                commerceSession.authenticationTask = nil
             }
             do {
                 try await backend.handleAuthCallback(url)
