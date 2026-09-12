@@ -8,6 +8,8 @@
 
 ## 확정된 결정
 
+2026-09-12 조개·돼지고기의 `_2`가 같은 앱 프로세스에서 정상 조회된 후, 원숭이도 기존 `character_monkey_solo_2`로 다시 연결해 비교한다. `_solo_3`은 복원·거래 검증용으로 보존하며 나무·조개·돼지고기 ID, 가격과 권리는 유지한다. 현재 원숭이 판매 ID는 `_solo_2`이며 앞선 `_solo_3` 비교 결정을 대체한다. 원격 DB·verifier 배포 및 실제 원숭이 조회 성공은 별도 확인한다.
+
 2026-09-12 원숭이 단독 재등록 비교를 승인했다. 현재 원숭이 Apple 판매 ID만 `character_monkey_solo_3`으로 변경하고 `_solo_2`·`_solo`·기존 포함 상품 `character_monkey`는 복원·거래 검증용으로 보존한다. 나무 `character_tree_2`, 조개 `throwable_clam_2`, 돼지고기 `throwable_pork_2`와 가격·내부 상품 ID·권리는 유지한다. 상품은 24종, Apple 검증 ID는 33개다. 기존 작업 브랜치에서 로컬 비교 후보를 준비하며 신규 Connect 등록과 실제 조회 성공은 별도 확인한다. 재등록 효과나 미조회 원인이 확정된 것은 아니다.
 
 2026-09-12 사용자는 캐릭터 소개 개선과 기존 Apple 상품 ID 변경의 커밋·푸시·main 병합 및 직배포 재릴리스를 승인했다. 공개 macOS 1.2.0 build 28 대비 직배포 앱 변경은 상점 소개·배치 개선이므로 PATCH인 1.2.1 build 29로 배포한다. 실제 Xcode 업로드 이력의 App Store 최신 성공 build는 27이며 통합 최대 사용 build 28 다음 번호를 사용한다. 두 macOS 타깃은 동일한 소스 버전을 사용하되 이번 배포는 Developer ID 직배포 DMG/ZIP·Sparkle·Homebrew이며 App Store 업로드, 서버 배포, 판매 잠금 해제는 포함하지 않는다.
