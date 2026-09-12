@@ -20,6 +20,12 @@ struct AppSettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 34) {
+            #if DEBUG
+            Text("\(SideyBuildStamp.target) · \(SideyBuildStamp.commit.prefix(8))\(SideyBuildStamp.dirty ? " · 미커밋 변경" : "")")
+                .font(.caption.monospaced())
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+            #endif
             SettingsSection(
                 title: "일반",
                 subtitle: "SIDEY의 기본 표시와 실행 방식을 설정할 수 있습니다.",
