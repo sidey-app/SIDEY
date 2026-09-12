@@ -106,3 +106,8 @@ Xcode 프로젝트: `_workspace/direct-name-release/macos/SIDEY.xcodeproj`
 
 - 현재 원숭이 ID는 `character_monkey_solo_3`, 한국 가격은 1,100원이다. `_solo_2`·`_solo`·`character_monkey`는 거래 복원용으로 보존한다. 조개·돼지고기는 `_2`, 나무는 `character_tree_2`를 유지한다. 판매 상품 24종, Apple 검증 ID 33개다.
 - 이번 변경은 기존 `macos/tree-store-id`의 로컬 후보이며 Connect 신규 상품 생성·가격 조회 성공이나 서버 배포 완료를 뜻하지 않는다. 로컬 컴파일만으로 공개 버전/build를 올리지 않는다.
+
+## 2026-09-12 원숭이 기존 단품 2 재연결
+
+- 원숭이 현재 판매 ID를 `character_monkey_solo_2`로 되돌려 조회한다. `_solo_3`도 과거 거래 검증용으로 유지한다. 다른 상품 ID와 버전·build는 유지한다.
+- 신규 DB migration `20260912123000_restore_monkey_second_app_store_offer.sql`로 서버 현재 판매 ID도 일치시킬 수 있다. 이번 작업은 로컬 변경이며 원격 배포·Connect 업로드·실제 가격 조회 성공을 뜻하지 않는다.
