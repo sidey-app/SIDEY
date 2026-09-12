@@ -40,3 +40,5 @@ xcodebuild \
 	SIDEY_SUPABASE_PUBLISHABLE_KEY="${SIDEY_SUPABASE_PUBLISHABLE_KEY:-}" \
 	test \
 	"$@"
+
+"$SIDEY_REPO_ROOT/scripts/macos/test_recording.sh"
