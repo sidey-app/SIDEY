@@ -12,8 +12,8 @@ import time
 import uuid
 
 ROOT = Path(__file__).resolve().parents[2]
-INPUT_DIRS = ('macos/SIDEY', 'macos/SIDEYLoginItem', 'macos/Config', 'macos/SIDEY.xcodeproj', 'scripts/macos')
-EXCLUDED = {'xcuserdata', 'build', 'DerivedData', '__pycache__', '.git', 'node_modules'}
+INPUT_DIRS = ('macos/SIDEY', 'macos/SIDEYLoginItem', 'macos/Config', 'macos/SIDEY.xcodeproj', 'scripts/macos', 'macos/Recording')
+EXCLUDED = {'xcuserdata', 'build', 'DerivedData', '__pycache__', '.git', 'node_modules', 'dist'}
 
 
 def command(*args):
@@ -28,6 +28,8 @@ def inputs(root=ROOT):
             continue
         for current, dirs, files in os.walk(base, followlinks=False):
             dirs[:] = sorted(d for d in dirs if d not in EXCLUDED and not d.startswith('.'))
+            if any((Path(current) / d).is_symlink() for d in dirs):
+                raise RuntimeError('Symlink directory is not a reproducible build input')
             for name in sorted(files):
                 path = Path(current) / name
                 if name.startswith('.') or name.endswith(('.xcuserstate', '.pyc')):
@@ -57,8 +59,22 @@ def write_json(path, value):
     temporary.replace(path)
 
 
+def claim_build_directory(directory, root, target, configuration):
+    # Shared package caches are fine; executable products must have one source/target owner.
+    import fcntl
+    directory.mkdir(parents=True, exist_ok=True)
+    identity = {'source': str(root.resolve()), 'target': target, 'configuration': configuration}
+    with (directory / '.sidey-build-owner.lock').open('a+b') as stream:
+        fcntl.flock(stream, fcntl.LOCK_EX)
+        owner = directory / '.sidey-build-owner.json'
+        if owner.exists() and json.loads(owner.read_text()) != identity:
+            raise RuntimeError('DerivedData products belong to another worktree/target/configuration; use an isolated build directory')
+        write_json(owner, identity)
+
+
 def begin():
     env = os.environ
+    claim_build_directory(Path(env['TARGET_BUILD_DIR']), ROOT, env['TARGET_NAME'], env['CONFIGURATION'])
     state = source_state()
     state.update(schema=1, build_id=str(uuid.uuid4()), target=env['TARGET_NAME'],
                  configuration=env['CONFIGURATION'], bundle_id=env['PRODUCT_BUNDLE_IDENTIFIER'])
@@ -132,6 +148,7 @@ def prepare_launch(app, target=None):
     ticket_path = directory / f"{receipt['build_id']}.ticket.json"
     ready_path = directory / f'{session}.ready.json'
     write_json(ticket_path, ticket)
+    write_json(app.parent / "SideyLastLaunch.json", {"ticket": ticket, "ready": str(ready_path)})
     return ticket, ready_path
 
 

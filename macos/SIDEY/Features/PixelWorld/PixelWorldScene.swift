@@ -226,12 +226,16 @@ final class PixelWorldScene: SKScene {
     private var lastLocalPulseTimes: [UUID: TimeInterval] = [:]
     private(set) var previewRenderEvents: [PixelWorldRenderEvent] = []
 
+    private let usesPlaybackClock: Bool
+
     init(
         size: CGSize,
         renderingConfiguration: PixelWorldRenderingConfiguration = .live,
-        clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }
+        clock: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+        usesPlaybackClock: Bool = false
     ) {
         self.clock = clock
+        self.usesPlaybackClock = usesPlaybackClock
         self.renderingConfiguration = renderingConfiguration
         super.init(size: size)
         scaleMode = .resizeFill
@@ -415,7 +419,8 @@ final class PixelWorldScene: SKScene {
         reportCharacterFrames(force: true)
     }
 
-    override func update(_ currentTime: TimeInterval) {
+    override func update(_ rendererTime: TimeInterval) {
+        let currentTime = usesPlaybackClock ? clock() : rendererTime
         let deltaTime = lastUpdateTime.map { currentTime - $0 } ?? (1.0 / 30.0)
         lastUpdateTime = currentTime
         hitUntil = hitUntil.filter { $0.value > currentTime }
