@@ -270,6 +270,22 @@ def verify_windows_run(remote, metadata, jobs):
         raise WorkflowError('Windows app startup/preview smoke is missing or did not pass')
 
 
+def recover_merged_task(root, task, remote):
+    # The server may merge successfully even if the client receives a timeout/503.
+    checked = task.get('checked', {})
+    if (checked.get('head') != head(root) or checked.get('snapshot') != snapshot(root)
+            or not is_ancestor(root, head(root), remote)):
+        return None
+    prs = json.loads(run(root, 'gh', 'pr', 'list', '--head', branch(root), '--base', 'main',
+                         '--state', 'merged', '--json', 'number,headRefOid,mergeCommit,isCrossRepository'))
+    matches = [pr for pr in prs if pr['headRefOid'] == checked['head'] and not pr['isCrossRepository']
+               and pr.get('mergeCommit') and is_ancestor(root, pr['mergeCommit']['oid'], remote)]
+    if len(matches) != 1:
+        return None
+    pr = matches[0]
+    return {**task, 'status': 'integrated', 'pr': str(pr['number']), 'merge': pr['mergeCommit']['oid']}
+
+
 def finish(root, args):
     task = owned_task(root, args.task)
     if args.paths:
@@ -287,6 +303,11 @@ def finish(root, args):
     if dirty_paths(root):
         raise WorkflowError('Commit this task explicitly with --paths and --message, then recheck')
     remote = fetch_main(root)
+    if task.get('status') not in ('integrated', 'main-updated', 'complete'):
+        recovered = recover_merged_task(root, task, remote)
+        if recovered:
+            task = recovered
+            update_task(root, args.task, task)
     if task.get('status') in ('integrated', 'main-updated'):
         primary = update_main(root, remote)
         task['status'] = 'complete' if task['platform'] == 'shared' else 'main-updated'
