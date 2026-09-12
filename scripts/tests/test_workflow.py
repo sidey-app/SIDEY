@@ -50,6 +50,28 @@ class WorkflowTests(unittest.TestCase):
             w.main(['--repo', str(self.primary), 'start', name, '--platform', platform, '--worktree', str(path)])
         return path
 
+    def test_recovers_server_merge_after_lost_client_response_only_for_checked_head(self):
+        path = self.start()
+        (path / 'change.md').write_text('task')
+        self.commit(path, 'task change')
+        task = w.read_state(path)['task']
+        task['checked'] = {'head': w.head(path), 'snapshot': w.snapshot(path)}
+        w.git(self.primary, 'merge', '--no-ff', '-m', 'merge task', 'shared/task')
+        remote = w.head(self.primary)
+        pr = dict(number=42, headRefOid=w.head(path), mergeCommit={'oid': remote}, isCrossRepository=False)
+        real_run = w.run
+        def response(root, *args, **kwargs):
+            return json.dumps([pr]) if args[0] == 'gh' else real_run(root, *args, **kwargs)
+        with patch.object(w, 'run', side_effect=response):
+            recovered = w.recover_merged_task(path, task, remote)
+            self.assertEqual(recovered['pr'], '42')
+            self.assertEqual(recovered['status'], 'integrated')
+            (path / 'change.md').write_text('unchecked change')
+            self.assertIsNone(w.recover_merged_task(path, task, remote))
+            (path / 'change.md').write_text('task')
+            pr['headRefOid'] = 'unrelated'
+            self.assertIsNone(w.recover_merged_task(path, task, remote))
+
     def advance(self):
         (self.other / 'advance.md').write_text('remote update\n')
         self.commit(self.other, 'advance main')

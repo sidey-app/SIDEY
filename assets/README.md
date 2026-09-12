@@ -112,3 +112,5 @@ particle burst 효과를 제안할 수 있습니다. 이러한 효과는 PNG 프
 
 생성에는 하나의 대상을 반드시 지정합니다. `all` 쓰기 옵션은 제공하지 않으며 반대 플랫폼을
 수정하지 않습니다. 원격 상품 등록·판매 활성화·가격 및 서버 배포는 별도 작업입니다.
+
+웹 배포 사본의 경로는 manifest의 `web_directory`를 따른다. 상품 캐릭터·투척물은 `assets/store`, 기본 캐릭터는 `assets/characters`, 기본 공은 `assets/previewer`를 사용한다. checkout도 같은 스프라이트를 사용한다. 별도로 쓰이는 랜딩 이미지 사본은 `additional_base_mirrors`로 명시하며, 사용이 끝난 웹 중간 사본을 지울 때는 이 경로 계약도 함께 갱신한다.
