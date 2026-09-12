@@ -1,6 +1,6 @@
 # Mac App Store 후보 점검 — 2026-09-12
 
-현재 App Store 후보: `macos/appstore-latest`, 마케팅 버전 1.2.1, build 30.
+현재 App Store 후보: `macos/appstore-latest`, 마케팅 버전 1.2.1, build 31.
 원숭이 현재 판매 ID는 `character_monkey_solo_4`다. Xcode 기록의 App Store 성공 업로드 27과 공개 직배포 29를 확인해 후보 번호 30을 배정했다. 아래 build 27/28 기록은 이전 시점의 검증이다.
 이 문서는 로컬 구현·검증 상태다. 원격 상품 등록·서버 배포·심사 제출 완료를 뜻하지 않는다.
 
@@ -122,3 +122,9 @@ Xcode 프로젝트: `_workspace/direct-name-release/macos/SIDEY.xcodeproj`
 - 사용자가 실행 중인 Xcode 앱과 번들에서 원숭이 `character_monkey_solo_4`를 확인했다. 제공한 로그는 `StoreKit returned 24 products; unavailable IDs:`이며 미조회 ID가 없어 24종 조회 완료 근거로 기록한다. 실제 구매·복원 성공을 뜻하지 않는다.
 - App Store판만 1.2.1 build 30으로 준비하며 직배포 1.2.1 build 29와 공개 appcast는 유지한다. 판매 ID 24개·복원 포함 검증 ID 34개를 사용한다.
 - Cloud Run verifier는 최신 main의 코드를 Sandbox·Production에 각각 배포해야 한다. 원숭이 `_4`를 포함한 DB migration은 사용자 적용 완료 보고와 실제 서버 확인을 구분한다. 이번 준비는 Connect 업로드 또는 심사 제출 완료를 뜻하지 않는다.
+
+## 2026-09-12 업로드 오류 91109 수정
+
+- build 30은 업로드 전송 후 Apple 처리 단계에서 `pixel_hamster.png`의 `com.apple.quarantine` 속성으로 실패했다. 업로드 아카이브에서 해당 속성 1건과 원본 이미지의 동일 SHA-256을 확인했다.
+- App Store 타깃은 리소스 복사 뒤 코드 서명 전에 리소스 격리 속성만 제거한다. CLI archive 검사도 전체 앱에 격리 속성이 남으면 실패한다. 일반 Xcode Archive에도 제거 단계가 적용된다.
+- 재업로드 후보는 같은 기능의 1.2.1 build 31이며 직배포 build 29는 유지한다. Apple 처리 성공·심사 제출은 새 업로드 후 별도 확인한다.
