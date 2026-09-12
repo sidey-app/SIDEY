@@ -51,7 +51,7 @@ const ko: StoreCatalog = {
     title: "말랑공부터 미니 대포까지.",
     description: "말랑공, 하트, 미니 대포처럼 친구에게 던질 수 있는 장난들을 먼저 구경해 보세요.",
     products: [
-      { id: "patch_soft_ball", name: "패치 말랑공", description: "기본 캐릭터들이 친구에게 가볍게 던지는 말랑공이에요.", price: "기본 제공", asset: "assets/previewer/patch_soft_ball.png", mode: "throwable" },
+      { id: "patch_soft_ball", name: "패치 말랑공", description: "기본 캐릭터들이 친구에게 가볍게 던지는 말랑공이에요.", price: "기본 제공", asset: "assets/previewer/patch_soft_ball.png", sound: "assets/store/impact-patch_soft_ball.wav", mode: "throwable" },
     ],
   },
   bubbles: {
@@ -82,7 +82,7 @@ const en: StoreCatalog = {
     title: "From soft balls to mini cannons.",
     description: "Preview the little things you can throw at your friends, from soft balls and hearts to mini cannons.",
     products: [
-      { id: "patch_soft_ball", name: "Patch Soft Ball", description: "The soft little ball every SIDEY character can toss at a friend.", price: "Included", asset: "assets/previewer/patch_soft_ball.png", mode: "throwable" },
+      { id: "patch_soft_ball", name: "Patch Soft Ball", description: "The soft little ball every SIDEY character can toss at a friend.", price: "Included", asset: "assets/previewer/patch_soft_ball.png", sound: "assets/store/impact-patch_soft_ball.wav", mode: "throwable" },
     ],
   },
   bubbles: {
@@ -113,7 +113,7 @@ const ja: StoreCatalog = {
     title: "やわらかボールからミニ大砲まで。",
     description: "ボールやハート、ミニ大砲など、友だちに送れる小さないたずらをプレビューできます。",
     products: [
-      { id: "patch_soft_ball", name: "パッチやわらかボール", description: "どの基本キャラクターでも、友だちにぽんと投げられるやわらかなボールです。", price: "基本付属", asset: "assets/previewer/patch_soft_ball.png", mode: "throwable" },
+      { id: "patch_soft_ball", name: "パッチやわらかボール", description: "どの基本キャラクターでも、友だちにぽんと投げられるやわらかなボールです。", price: "基本付属", asset: "assets/previewer/patch_soft_ball.png", sound: "assets/store/impact-patch_soft_ball.wav", mode: "throwable" },
     ],
   },
   bubbles: {
@@ -155,7 +155,7 @@ function completeCatalog(locale: Locale, catalog: StoreCatalog): StoreCatalog {
         bubbleTheme: kind === "bubble" ? entry.item_id.replace("bubble_", "").replaceAll("_", "-") as StoreProduct["bubbleTheme"] : undefined,
         isTree: entry.item_id === "pixel_tree",
         isKeepsake: Boolean(entry.related_character_product_id),
-        sound: ["clam", "pork", "timber", "throwable_snowflake", "throwable_baseball", "throwable_wakkuball", "throwable_dujjonku"].includes(renderID) ? `assets/store/impact-${renderID}.wav` : undefined,
+        sound: kind === "throwable" ? `assets/store/impact-${renderID}.wav` : undefined,
       };
     })];
   }

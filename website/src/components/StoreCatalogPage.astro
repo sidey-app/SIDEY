@@ -160,7 +160,11 @@ const tabs = [
     <div class="store-preview-stage-wrap">
       <div class="store-preview-stage" data-store-preview-stage aria-hidden="true"></div>
       <button class="store-preview-sound" type="button" data-store-preview-sound-toggle aria-pressed="false" hidden>
-        <span class="material-symbols-rounded" aria-hidden="true">volume_off</span><span>{chrome.sound}</span>
+        <svg class="store-sound-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <path d="M11 4 5 9H2v6h3l6 5V4Z" />
+          <g class="store-sound-waves"><path d="M15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14" /></g>
+          <g class="store-sound-mute"><path d="m16 9 6 6m0-6-6 6" /></g>
+        </svg><span>{chrome.sound}</span>
       </button>
     </div>
     <div class="store-preview-copy"><h2 id="store-preview-title" data-store-preview-title></h2><p data-store-preview-description></p></div>
