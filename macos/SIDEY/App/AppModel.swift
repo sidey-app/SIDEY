@@ -22,17 +22,19 @@ final class AppModel {
     private(set) var activeEntitlementKeys: Set<String> = []
     private(set) var snapshotActiveEntitlementKeys: Set<String> = []
     private(set) var cosmeticEquipmentRequests: [CommerceProductKind: CosmeticEquipmentRequest] = [:]
-    private(set) var commerceProducts: [CommerceProductState]
-    var draft = ""
-    private(set) var messageLedger = MessageLedger()
-    private(set) var messageOutbox = MessageOutbox()
-    private(set) var bubbleLedger = ActiveBubbleLedger()
+    private let commerce: AppCommerceProducts
+    var commerceProducts: [CommerceProductState] { commerce.commerceProducts }
+    private let messages = AppMessageState()
+    var draft: String { get { messages.draft } set { messages.draft = newValue } }
+    var messageLedger: MessageLedger { messages.messageLedger }
+    var messageOutbox: MessageOutbox { messages.messageOutbox }
+    var bubbleLedger: ActiveBubbleLedger { messages.bubbleLedger }
     var availableScreens: [OverlayScreenOption] = []
     var activeSettingsPage: SettingsPage = .profile
     var connectionState: BackendConnectionState = .idle
     var authenticationRequired = false
     var accountOperationInProgress = false
-    private(set) var activeRoomTransportConnected = false
+    var activeRoomTransportConnected: Bool { realtime.activeRoomTransportConnected }
     var rooms: [Room] = []
     var hasProfile = false
     var currentUserID: UUID?
@@ -46,9 +48,8 @@ final class AppModel {
     var inviteCode = ""
     var lastCreatedInviteCode: String?
     var launchAtLogin: Bool
-    private(set) var unreadCounts: [UUID: Int] = [:]
-    private var basePresence: [MemberPresenceKey: PresenceState] = [:]
-    private var typingMembers: Set<MemberPresenceKey> = []
+    var unreadCounts: [UUID: Int] { messages.unreadCounts }
+    private let realtime = RoomPresenceState()
 
     init(
         preferences: AppPreferences,
@@ -65,13 +66,7 @@ final class AppModel {
         self.equippedBubbleStyleID = nil
         self.equippedThrowableID = nil
         self.launchAtLogin = preferences.launchAtLogin
-        self.commerceProducts = commerceProducts.map {
-            CommerceProductState(
-                product: $0,
-                purchaseState: .confirming,
-                isWorking: false
-            )
-        }
+        self.commerce = AppCommerceProducts(products: commerceProducts)
     }
 
     func setOverlayVisibility(_ visibility: OverlayVisibility) {
@@ -138,39 +133,9 @@ final class AppModel {
         activeEntitlementKeys = snapshot.activeEntitlementKeys
         snapshotActiveEntitlementKeys = snapshot.activeEntitlementKeys
         hasProfile = snapshot.profile != nil
-        var updatedRooms = snapshot.rooms
-        let previousBasePresence = basePresence
-        let previousTypingMembers = typingMembers
-        for roomIndex in updatedRooms.indices {
-            for memberIndex in updatedRooms[roomIndex].members.indices {
-                let member = updatedRooms[roomIndex].members[memberIndex]
-                let key = MemberPresenceKey(roomID: updatedRooms[roomIndex].id, userID: member.userID)
-                if let state = previousBasePresence[key] {
-                    updatedRooms[roomIndex].members[memberIndex].presence = previousTypingMembers.contains(key)
-                        ? .typing
-                        : state
-                }
-            }
-        }
+        let updatedRooms = realtime.reconcile(snapshot.rooms)
         rooms = updatedRooms
-        let retainedRoomIDs = Set(updatedRooms.map(\.id))
-        messageLedger.retain(roomIDs: retainedRoomIDs)
-        messageOutbox.retain(roomIDs: retainedRoomIDs)
-        unreadCounts = unreadCounts.filter { roomID, _ in
-            updatedRooms.contains(where: { $0.id == roomID })
-        }
-        let validKeys = Set(updatedRooms.flatMap { room in
-            room.members.map { member in
-                MemberPresenceKey(roomID: room.id, userID: member.userID)
-            }
-        })
-        basePresence = Dictionary(uniqueKeysWithValues: updatedRooms.flatMap { room in
-            room.members.map { member in
-                let key = MemberPresenceKey(roomID: room.id, userID: member.userID)
-                return (key, previousBasePresence[key] ?? member.presence)
-            }
-        })
-        typingMembers = previousTypingMembers.intersection(validKeys)
+        messages.retain(roomIDs: Set(updatedRooms.map(\.id)))
         if let profile = snapshot.profile {
             let shouldAdoptNickname = confirmedNickname.map {
                 normalizedNicknameDraft == $0
@@ -227,12 +192,7 @@ final class AppModel {
     }
 
     func apply(commerceState: CommerceState) {
-        guard let index = commerceProducts.firstIndex(where: {
-            $0.id == commerceState.product.id
-        }) else { return }
-        commerceProducts[index].product = commerceState.product
-        commerceProducts[index].purchaseState = commerceState.purchaseState
-        commerceProducts[index].isEquipped = commerceState.isEquipped
+        guard commerce.apply(commerceState) else { return }
         if commerceState.entitlementStatus == "active" {
             activeEntitlementKeys.insert(commerceState.product.entitlementKey)
             if commerceState.isEquipped {
@@ -332,35 +292,11 @@ final class AppModel {
         snapshotActiveEntitlementKeys
     }
 
-    func setCommerceWorking(_ isWorking: Bool, productID: String) {
-        guard let index = commerceProducts.firstIndex(where: { $0.id == productID }) else { return }
-        commerceProducts[index].isWorking = isWorking
-    }
-
-    func setCommercePurchaseState(_ state: CommercePurchaseState, productID: String) {
-        guard let index = commerceProducts.firstIndex(where: { $0.id == productID }) else { return }
-        commerceProducts[index].purchaseState = state
-    }
-
-    func beginCommercePriceLoading() {
-        for index in commerceProducts.indices {
-            commerceProducts[index].priceLoadState = .loading
-        }
-    }
-
-    func failCommercePriceLoading() {
-        for index in commerceProducts.indices {
-            commerceProducts[index].priceLoadState = .failed
-        }
-    }
-
-    func setCommerceLocalizedPrices(_ prices: [String: String]) {
-        for index in commerceProducts.indices {
-            commerceProducts[index].localizedPrice = prices[commerceProducts[index].id]
-            commerceProducts[index].priceLoadState = commerceProducts[index].localizedPrice == nil
-                ? .unavailable : .available
-        }
-    }
+    func setCommerceWorking(_ isWorking: Bool, productID: String) { commerce.setCommerceWorking(isWorking, productID: productID) }
+    func setCommercePurchaseState(_ state: CommercePurchaseState, productID: String) { commerce.setCommercePurchaseState(state, productID: productID) }
+    func beginCommercePriceLoading() { commerce.beginCommercePriceLoading() }
+    func failCommercePriceLoading() { commerce.failCommercePriceLoading() }
+    func setCommerceLocalizedPrices(_ prices: [String: String]) { commerce.setCommerceLocalizedPrices(prices) }
 
     private func enforceSelectableCurrentCharacter() {
         guard !isCharacterSelectable(selectedCharacterID) else { return }
@@ -399,14 +335,8 @@ final class AppModel {
             }) else { continue }
             rooms[roomIndex].members[memberIndex].equippedBubbleStyleID = equippedBubbleStyleID
         }
-        for index in commerceProducts.indices {
-            let product = commerceProducts[index].product
-            commerceProducts[index].isEquipped = switch product.kind {
-            case .character: product.characterID == selectedCharacterID
-            case .bubble: product.catalogItemID == equippedBubbleStyleID
-            case .throwable: product.catalogItemID == equippedThrowableID
-            }
-        }
+        commerce.updateEquipment(characterID: selectedCharacterID, bubbleID: equippedBubbleStyleID,
+                                 throwableID: equippedThrowableID)
     }
 
     var effectiveLocalPresence: PresenceState {
@@ -430,76 +360,25 @@ final class AppModel {
     }
 
     var pixelWorldMembers: [PixelWorldMember] {
-        guard let activeRoom else { return [] }
-        return activeRoom.members.compactMap { member in
-            let key = MemberPresenceKey(roomID: activeRoom.id, userID: member.userID)
-            let isCurrentUser = member.userID == currentUserID
-            let isTyping = typingMembers.contains(key)
-            let baseState = isCurrentUser
-                ? effectiveLocalPresence
-                : (basePresence[key] ?? (member.presence == .typing ? .online : member.presence))
-            guard isCurrentUser || preferences.showOfflineMembers || baseState != .offline else { return nil }
-            return PixelWorldMember(
-                id: member.userID,
-                nickname: ProfileValidator.displayNickname(member.nickname),
-                characterID: PixelCharacterCatalog.canonicalID(for: member.characterID),
-                presence: baseState,
-                isTyping: isTyping,
-                isCurrentUser: isCurrentUser,
-                equippedBubbleStyleID: member.equippedBubbleStyleID
-            )
-        }
+        OverlayMemberProjection.members(room: activeRoom, currentUserID: currentUserID,
+                                        localPresence: effectiveLocalPresence,
+                                        showsOffline: preferences.showOfflineMembers, state: realtime)
     }
 
     var activeBubbles: [ActiveBubble] { bubbleLedger.bubbles }
 
-    var totalUnreadCount: Int {
-        unreadCounts.values.reduce(0, +)
-    }
-
-    var activeRoomUnreadCount: Int {
-        activeRoom.map { unreadCounts[$0.id, default: 0] } ?? 0
-    }
-
-    func unreadCount(in roomID: UUID) -> Int {
-        unreadCounts[roomID, default: 0]
-    }
-
-    func markRoomRead(_ roomID: UUID) {
-        unreadCounts.removeValue(forKey: roomID)
-    }
-
-    func incrementUnread(in roomID: UUID) {
-        unreadCounts[roomID, default: 0] += 1
-    }
+    var totalUnreadCount: Int { messages.totalUnreadCount }
+    var activeRoomUnreadCount: Int { activeRoom.map { messages.unreadCount(in: $0.id) } ?? 0 }
+    func unreadCount(in roomID: UUID) -> Int { messages.unreadCount(in: roomID) }
+    func markRoomRead(_ roomID: UUID) { messages.markRoomRead(roomID) }
+    func incrementUnread(in roomID: UUID) { messages.incrementUnread(in: roomID) }
 
     func updatePresence(roomID: UUID, userID: UUID, state: PresenceState) {
-        let key = MemberPresenceKey(roomID: roomID, userID: userID)
-        basePresence[key] = state
-        if state == .offline {
-            typingMembers.remove(key)
-        }
-        guard let roomIndex = rooms.firstIndex(where: { $0.id == roomID }),
-              let memberIndex = rooms[roomIndex].members.firstIndex(where: { $0.userID == userID })
-        else { return }
-        rooms[roomIndex].members[memberIndex].presence = typingMembers.contains(key) ? .typing : state
+        realtime.updatePresence(roomID: roomID, userID: userID, state: state, rooms: &rooms)
     }
 
     func updateTyping(roomID: UUID, userID: UUID, active: Bool) {
-        let key = MemberPresenceKey(roomID: roomID, userID: userID)
-        if active {
-            typingMembers.insert(key)
-        } else {
-            typingMembers.remove(key)
-        }
-        guard let roomIndex = rooms.firstIndex(where: { $0.id == roomID }),
-              let memberIndex = rooms[roomIndex].members.firstIndex(where: { $0.userID == userID })
-        else { return }
-        if active {
-            rooms[roomIndex].members[memberIndex].presence = .typing
-        } else {
-            rooms[roomIndex].members[memberIndex].presence = basePresence[key] ?? .online
-        }
+        realtime.updateTyping(roomID: roomID, userID: userID, active: active, rooms: &rooms)
     }
 
     func setActiveRoomRealtimeConnected(_ connected: Bool) {
@@ -509,100 +388,31 @@ final class AppModel {
             #endif
             characterImpactAudio.stopAll()
         }
-        activeRoomTransportConnected = connected
-        // Typing is a transient Broadcast lease. A disconnect can lose the
-        // matching typing_stop event, so never carry typing across reconnect.
-        guard let activeRoomID = activeRoom?.id,
-              let roomIndex = rooms.firstIndex(where: { $0.id == activeRoomID })
-        else { return }
-        if !connected {
-            typingMembers = typingMembers.filter { $0.roomID != activeRoomID }
-        }
-        for memberIndex in rooms[roomIndex].members.indices {
-            let member = rooms[roomIndex].members[memberIndex]
-            let key = MemberPresenceKey(roomID: activeRoomID, userID: member.userID)
-            if connected {
-                rooms[roomIndex].members[memberIndex].presence = typingMembers.contains(key)
-                    ? .typing
-                    : (basePresence[key] ?? .offline)
-            } else if member.presence != .offline {
-                rooms[roomIndex].members[memberIndex].presence = .reconnecting
-                if member.userID != currentUserID {
-                    // Presence state is a lease on this active room's channel.
-                    // Do not invalidate unrelated rooms during a selective swap.
-                    basePresence[key] = .offline
-                }
-            }
-        }
+        realtime.setConnected(connected, activeRoomID: activeRoom?.id, currentUserID: currentUserID, rooms: &rooms)
     }
 
-    func stageMessage(
-        id: UUID,
-        roomID: UUID,
-        senderID: UUID,
-        body: String,
-        revealBubble: Bool = true,
-        now: Date = .now
-    ) {
-        messageOutbox.stage(id: id, roomID: roomID, senderID: senderID, body: body, createdAt: now)
-        if revealBubble, roomID == activeRoom?.id {
-            bubbleLedger.show(
-                senderID: senderID,
-                messageID: id,
-                body: body,
-                bubbleStyleID: equippedBubbleStyleID,
-                expiresAt: now.addingTimeInterval(ActiveBubbleLedger.defaultLifetime)
-            )
-        }
+    func stageMessage(id: UUID, roomID: UUID, senderID: UUID, body: String,
+                      revealBubble: Bool = true, now: Date = .now) {
+        messages.stageMessage(id: id, roomID: roomID, senderID: senderID, body: body,
+                              revealBubble: revealBubble, now: now, activeRoomID: activeRoom?.id,
+                              equippedBubbleStyleID: equippedBubbleStyleID)
     }
 
     @discardableResult
     func confirmMessage(_ message: ChatMessage, revealBubble: Bool = true) -> Bool {
-        let wasOutgoing = messageOutbox.confirm(id: message.id, roomID: message.roomID)
-        let wasNewToLedger = messageLedger.confirm(message)
-        let isNew = wasNewToLedger && !wasOutgoing
-        if (isNew || wasOutgoing), revealBubble, message.roomID == activeRoom?.id {
-            bubbleLedger.show(
-                senderID: message.senderID,
-                messageID: message.id,
-                body: message.body,
-                bubbleStyleID: message.bubbleStyleID,
-                expiresAt: message.createdAt.addingTimeInterval(ActiveBubbleLedger.defaultLifetime)
-            )
-            bubbleLedger.prune()
-        }
-        return isNew
+        messages.confirmMessage(message, revealBubble: revealBubble, activeRoomID: activeRoom?.id)
     }
 
     func failMessage(id: UUID, roomID: UUID) -> OutgoingMessage? {
-        let message = messageOutbox.fail(id: id, roomID: roomID)
-        bubbleLedger.remove(messageID: id)
-        return message
+        messages.failMessage(id: id, roomID: roomID)
     }
 
-    func replaceMessages(roomID: UUID, with messages: [ChatMessage]) {
-        messageLedger.replaceConfirmed(roomID: roomID, with: messages)
-        for message in messages {
-            _ = messageOutbox.confirm(id: message.id, roomID: roomID)
-        }
+    func replaceMessages(roomID: UUID, with values: [ChatMessage]) {
+        messages.replaceMessages(roomID: roomID, with: values)
     }
 
-    func removeMessage(id: UUID, roomID: UUID) {
-        messageLedger.remove(id: id, roomID: roomID)
-        bubbleLedger.remove(messageID: id)
-    }
+    func removeMessage(id: UUID, roomID: UUID) { messages.removeMessage(id: id, roomID: roomID) }
+    func clearBubbles() { messages.clearBubbles() }
+    func dismissExpiredBubbles(at date: Date = .now) { messages.dismissExpiredBubbles(at: date) }
 
-    func clearBubbles() {
-        bubbleLedger.removeAll()
-    }
-
-    func dismissExpiredBubbles(at date: Date = .now) {
-        bubbleLedger.prune(at: date)
-        messageLedger.prune(now: date)
-    }
-}
-
-private struct MemberPresenceKey: Hashable {
-    let roomID: UUID
-    let userID: UUID
 }

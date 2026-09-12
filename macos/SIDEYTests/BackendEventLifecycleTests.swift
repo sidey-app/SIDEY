@@ -19,17 +19,17 @@ final class BackendEventLifecycleTests: XCTestCase {
         }
 
         coordinator.startBackendEventHandling(events)
-        let firstTask = try XCTUnwrap(coordinator.backendEventTask)
+        let firstTask = try XCTUnwrap(coordinator.roomSession.eventTask)
         // A second start before the task runs must also be harmless.
         coordinator.startBackendEventHandling(events)
-        XCTAssertEqual(coordinator.backendEventTask, firstTask)
+        XCTAssertEqual(coordinator.roomSession.eventTask, firstTask)
 
         continuation.yield(.technicalError("before login"))
         try await waitUntil { coordinator.model.errorMessage == "before login" }
 
         // Model the restart after Apple authentication with a suspended consumer.
         coordinator.startBackendEventHandling(events)
-        XCTAssertEqual(coordinator.backendEventTask, firstTask)
+        XCTAssertEqual(coordinator.roomSession.eventTask, firstTask)
         XCTAssertFalse(firstTask.isCancelled)
 
         let userID = UUID()
@@ -44,7 +44,7 @@ final class BackendEventLifecycleTests: XCTestCase {
             }
         }
         continuation.finish()
-        try await waitUntil { coordinator.backendEventTask == nil }
+        try await waitUntil { coordinator.roomSession.eventTask == nil }
 
         XCTAssertEqual(savedNicknames.withLock { $0 }, ["첫째", "둘째"])
         XCTAssertEqual(coordinator.model.nickname, "둘째")
@@ -56,12 +56,12 @@ final class BackendEventLifecycleTests: XCTestCase {
         let (events, continuation) = AsyncStream<BackendEvent>.makeStream()
         defer { continuation.finish() }
         coordinator.startBackendEventHandling(events)
-        let task = try XCTUnwrap(coordinator.backendEventTask)
+        let task = try XCTUnwrap(coordinator.roomSession.eventTask)
         continuation.yield(.technicalError("received"))
         try await waitUntil { coordinator.model.errorMessage == "received" }
 
         coordinator.shutdown()
-        try await waitUntil { coordinator.backendEventTask == nil }
+        try await waitUntil { coordinator.roomSession.eventTask == nil }
 
         XCTAssertTrue(task.isCancelled)
         guard case .terminated = continuation.yield(.technicalError("after shutdown")) else {
@@ -79,7 +79,7 @@ final class BackendEventLifecycleTests: XCTestCase {
         continuation.yield(.technicalError("must not be handled"))
 
         coordinator.shutdown()
-        try await waitUntil { coordinator.backendEventTask == nil }
+        try await waitUntil { coordinator.roomSession.eventTask == nil }
 
         XCTAssertNil(coordinator.model.errorMessage)
     }
