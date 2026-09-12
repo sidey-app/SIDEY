@@ -46,8 +46,10 @@
     "sort_order": 30,
     "direct_price": 990,
     "app_store_price": 1100,
-    "app_store_product_id": "character_monkey_solo_2",
+    "app_store_product_id": "character_monkey_solo_4",
     "legacy_app_store_product_ids": [
+      "character_monkey_solo_2",
+      "character_monkey_solo_3",
       "character_monkey_solo",
       "character_monkey"
     ],
