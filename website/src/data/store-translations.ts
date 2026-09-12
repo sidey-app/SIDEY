@@ -1,6 +1,16 @@
 // Product mechanics and prices come from commerce-catalog.json; these are public translations.
 export const paidTranslations: Record<"en" | "ja", Record<string, [string, string]>> = {
   en: {
+    character_starlight_upalupa: ["Starlight Axolotl", "A pearl-bright friend with shimmering, starry gills."],
+    character_guinea_pig: ["Baby Guinea Pig", "Round, cozy, and dressed in three-color patches."],
+    character_monkey: ["Baby Monkey", "A bright little walker with chestnut fur and a cyan scarf."],
+    character_chinchilla: ["Baby Chinchilla", "Big round ears and cloud-soft gray fur in one tiny companion."],
+    throwable_bouncy_heart: ["Bouncy Heart", "A cheerful heart that bounces its way across the screen."],
+    throwable_toy_cannon: ["Toy Cannon", "A pocket-size cannon appears beside your character and fires one bold shot."],
+    throwable_squeaky_duck: ["Squeaky Duck", "A sunny yellow duck that spins through the air with comic flair."],
+    bubble_bunny_pink: ["Pink Bunny Bubble", "A rosy bubble with a tiny bunny and clear dark lettering."],
+    bubble_butter_chick: ["Butter Chick Bubble", "A warm butter-yellow bubble topped by a sunny little chick."],
+    bubble_starry_cat: ["Starry Cat Bubble", "A midnight-violet bubble with a starry cat and soft cream text."],
     character_otter: ["Baby Otter", "A cream-bellied otter wrapped in a violet scarf."],
     character_pig: ["Baby Pig", "A round little snout and a violet scarf. Ready to trot!"],
     character_tree: ["Little Tree", "Round green leaves, a tiny trunk, and a violet scarf."],
@@ -17,6 +27,16 @@ export const paidTranslations: Record<"en" | "ja", Record<string, [string, strin
     throwable_timber: ["Little Tree’s Tiny Tree", "A tree throwing a tree. Perhaps we should check the family tree first."],
   },
   ja: {
+    character_starlight_upalupa: ["星明かりのウーパールーパー", "真珠のような体と、星明かりをまとったえらがきらめく友だちです。"],
+    character_guinea_pig: ["こどもモルモット", "ころんとした体と、あたたかな三色の模様が魅力です。"],
+    character_monkey: ["こざる", "栗色の毛とシアンのマフラーで、元気よく歩きます。"],
+    character_chinchilla: ["こどもチンチラ", "大きく丸い耳と、雲のようにやわらかな灰色の毛が自慢です。"],
+    throwable_bouncy_heart: ["はずむハート", "画面をぴょんぴょん弾みながら、気持ちを届けるハートです。"],
+    throwable_toy_cannon: ["ミニ大砲", "キャラクターの隣に小さな大砲が現れ、元気よく一発を撃ち出します。"],
+    throwable_squeaky_duck: ["ピヨピヨアヒル", "黄色いアヒルがくるくる回りながら飛んでいく、愉快な投げアイテムです。"],
+    bubble_bunny_pink: ["ピンクうさぎの吹き出し", "小さなうさぎを添えた、濃い文字が読みやすい桃色の吹き出しです。"],
+    bubble_butter_chick: ["バターひよこの吹き出し", "明るいひよこを添えた、あたたかなバター色の吹き出しです。"],
+    bubble_starry_cat: ["星空ねこの吹き出し", "星空のねこを添えた、やさしいクリーム色の文字が映える夜色の吹き出しです。"],
     character_otter: ["こどもカワウソ", "クリーム色のおなかに、紫のマフラーを巻いたカワウソです。"],
     character_pig: ["こぶた", "まんまるな鼻と紫のマフラーがかわいい、こぶたです。"],
     character_tree: ["小さな木", "丸い緑の葉と紫のマフラーをまとった、小さな木です。"],
