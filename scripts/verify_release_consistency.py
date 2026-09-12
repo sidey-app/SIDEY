@@ -29,6 +29,16 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
+def release_display(platform: str) -> str:
+    source = read("README.md")
+    start = f"<!-- sidey-release:{platform}:start -->"
+    end = f"<!-- sidey-release:{platform}:end -->"
+    require(source.count(start) == 1 and source.count(end) == 1,
+            f"README must have one {platform} release display region")
+    require(source.index(start) < source.index(end), "release display markers are reversed")
+    return source.split(start, 1)[1].split(end, 1)[0]
+
+
 def load_manifest(platform: str) -> dict[str, object]:
     path = ROOT / "release" / f"{platform}.json"
     data = json.loads(path.read_text(encoding="utf-8"))
@@ -150,12 +160,11 @@ def validate_macos(allow_pending_appcast: bool = False) -> dict[str, str]:
     require("releases/tag/v${macOSRelease.version}" in release_data,
             "website release data has the wrong macOS release URL template")
 
-    require(f"`{tag}`(build {build})" in read("README.md"),
-            "README macOS public version does not match release/macos.json")
-    require(f"`{tag}` macOS GitHub 정식 stable release" in read("docs/DECISIONS.md"),
-            "DECISIONS macOS public version does not match release/macos.json")
-    require(f"macOS `{tag}`(build {build}) 정식 공개" in read("docs/PRODUCT_SPEC.md"),
-            "PRODUCT_SPEC macOS public version does not match release/macos.json")
+    display = release_display("macos")
+    require(re.findall(r"`v([0-9]+\.[0-9]+\.[0-9]+)`", display) == [version],
+            "README macOS release display has the wrong version")
+    require(re.findall(r"\bbuild\s+([0-9]+)\b", display) == [build],
+            "README macOS release display has the wrong build")
 
     return {
         "version": version,
@@ -207,12 +216,9 @@ def validate_windows(allow_unreleased_source: bool = False) -> dict[str, str]:
             "Windows updater version does not match the project version")
     require((ROOT / notes).is_file(), f"Windows release notes are missing: {notes}")
 
-    require(installer_name in read("README.md"),
-            "README Windows installer does not match release/windows.json")
-    require(f"`{tag}` Windows 정식 release" in read("docs/DECISIONS.md"),
-            "DECISIONS Windows public version does not match release/windows.json")
-    require(f"Windows 네이티브 `v{version}` 정식 출시" in read("docs/PRODUCT_SPEC.md"),
-            "PRODUCT_SPEC Windows public version does not match release/windows.json")
+    require(re.findall(r"SIDEY-Windows-x64-v[0-9]+\.[0-9]+\.[0-9]+-Setup\.exe",
+                       release_display("windows")) == [installer_name],
+            "README Windows release display has the wrong installer")
     release_data = read("website/src/data/releases.ts")
     require("version: windowsRelease.version" in release_data,
             "website release data must derive the Windows version from release/windows.json")

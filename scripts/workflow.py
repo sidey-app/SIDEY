@@ -273,11 +273,11 @@ def finish(root, args):
     if dirty_paths(root):
         raise WorkflowError('Commit this task explicitly with --paths and --message, then recheck')
     remote = fetch_main(root)
-    if task.get('status') == 'integrated':
+    if task.get('status') in ('integrated', 'main-updated'):
         primary = update_main(root, remote)
-        task['status'] = 'complete'
+        task['status'] = 'complete' if task['platform'] == 'shared' else 'main-updated'
         update_task(root, args.task, task)
-        return {'status': 'complete', 'main': str(primary), 'sha': remote}
+        return {'status': task['status'], 'main': str(primary), 'sha': remote}
     attest(root, task, remote)
     validate_paths(branch(root), changed_paths(root, remote))
     git(root, 'push', '-u', 'origin', branch(root))
@@ -310,9 +310,9 @@ def finish(root, args):
     task.update(status='integrated', pr=number, merge=info['mergeCommit']['oid'])
     update_task(root, args.task, task)
     primary = update_main(root, remote)
-    task['status'] = 'complete'
+    task['status'] = 'complete' if task['platform'] == 'shared' else 'main-updated'
     update_task(root, args.task, task)
-    return {'status': 'complete', 'pr': number, 'main': str(primary), 'sha': remote,
+    return {'status': task['status'], 'pr': number, 'main': str(primary), 'sha': remote,
             'app': 'App verification is a separate required step when app inputs changed'}
 
 
@@ -340,6 +340,7 @@ def main(argv=None):
             sub.add_argument('--title')
             sub.add_argument('--body-file')
     opener = subs.add_parser('open')
+    opener.add_argument('--task', help='Complete an integrated macOS task after verified latest-main app review')
     opener.add_argument('--preview', type=Path)
     opener.add_argument('--offline', action='store_true')
     opener.add_argument('--scheme', default='SIDEYAppStore', choices=['SIDEYAppStore', 'SIDEY', 'sidey-reals'])
@@ -398,6 +399,8 @@ def main(argv=None):
     elif args.command == 'finish':
         result = finish(root, args)
     else:
+        if args.task and (args.offline or args.preview):
+            raise WorkflowError('Task completion requires latest main; previews remain incomplete')
         if args.offline and not args.preview:
             raise WorkflowError('Offline mode requires an explicit --preview worktree')
         target = root_at(args.preview) if args.preview else primary_root(root)
@@ -413,7 +416,17 @@ def main(argv=None):
         command = [str(script), '--worktree', str(target), '--scheme', args.scheme]
         if args.offline:
             command.append('--offline')
+        task = read_state(root).get(args.task) if args.task else None
+        if args.task and (not task or task['status'] != 'main-updated' or task['platform'] != 'macos'
+                          or task['app'] != args.scheme or not is_ancestor(root, task['checked']['head'], remote)):
+            raise WorkflowError('Task must be integrated and awaiting its selected macOS app review')
         run(target, *command, capture=False)
+        if task:
+            if fetch_main(root) != remote or head(target) != remote:
+                raise WorkflowError('Main changed during review; task completion remains pending')
+            task.update(status='complete', app_review={'main': remote, 'scheme': args.scheme,
+                        'source': str(target), 'time': time.time()})
+            update_task(root, args.task, task)
         result = {'target': str(target), 'freshness': 'unverified' if args.offline else 'verified'}
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
