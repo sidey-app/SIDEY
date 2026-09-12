@@ -1,19 +1,10 @@
+import { commerceProducts } from "./commerce-products.js";
+
 (() => {
   "use strict";
 
   const productionHost = "whtejsviizgejauasqqt.supabase.co";
-  const products = {
-    character_starlight_upalupa: { image: "./assets/characters/pixel_starlight_upalupa.png", kind: "character" },
-    character_guinea_pig: { image: "./assets/characters/pixel_guinea_pig.png", kind: "character" },
-    character_monkey: { image: "./assets/characters/pixel_monkey.png", kind: "character" },
-    character_chinchilla: { image: "./assets/characters/pixel_chinchilla.png", kind: "character" },
-    bubble_bunny_pink: { image: "./assets/cosmetics/bubble_bunny_pink.png", kind: "bubble" },
-    bubble_butter_chick: { image: "./assets/cosmetics/bubble_butter_chick.png", kind: "bubble" },
-    bubble_starry_cat: { image: "./assets/cosmetics/bubble_starry_cat.png", kind: "bubble" },
-    throwable_bouncy_heart: { image: "./assets/cosmetics/throwable_bouncy_heart.png", kind: "throwable" },
-    throwable_toy_cannon: { image: "./assets/cosmetics/throwable_toy_cannon.png", kind: "effect" },
-    throwable_squeaky_duck: { image: "./assets/cosmetics/throwable_squeaky_duck.png", kind: "throwable" },
-  };
+  const products = commerceProducts;
   const loading = document.querySelector("#checkout-loading");
   const error = document.querySelector("#checkout-error");
   const errorMessage = document.querySelector("#checkout-error-message");
@@ -70,7 +61,7 @@
 
   function validPrepared(config) {
     return config
-      && products[config.product_id]
+      && Object.hasOwn(products, config.product_id)
       && typeof config.order_name === "string"
       && Number.isSafeInteger(config.amount)
       && config.amount > 0
@@ -121,7 +112,7 @@
       orderName.textContent = prepared.order_name;
       amount.textContent = new Intl.NumberFormat("ko-KR").format(prepared.amount);
       const preview = products[prepared.product_id];
-      productImage.src = preview.image;
+      productImage.src = new URL(`../${preview.image}`, import.meta.url).href;
       productImage.alt = prepared.order_name;
       previewFrame.dataset.productKind = preview.kind;
       policyNotice.textContent = prepared.policy_notice;

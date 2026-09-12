@@ -22,7 +22,7 @@ test('current catalog has 24 products, 34 Apple offers and seven independent kee
   const offers = Object.fromEntries(products.flatMap((p: any) =>
     [p.app_store_product_id, ...p.legacy_app_store_product_ids].map(id => [id, p.entitlement])));
   assert.deepEqual(entitlementByProduct, offers);
-  const edge = await read('supabase/functions/_shared/commerce.ts');
+  const edge = await read('supabase/functions/_shared/commerce-products.ts');
   const allowlist = edge.slice(edge.indexOf('new Set(['),edge.indexOf(']);'));
   const directIDs = [...allowlist.matchAll(/"([a-z0-9_]+)"/g)].map(match => match[1]);
   assert.deepEqual(new Set(directIDs),new Set(products.map((p: any) => p.id)));

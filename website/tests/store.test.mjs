@@ -58,3 +58,20 @@ test("public sheets and sounds exactly match the approved canonical assets", () 
     assert.ok(read("ko/store/throwables/index.html").includes(`data-preview-sound="/SIDEY/assets/store/${path}"`));
   }
 });
+
+test("checkout and store share all current products and correct base-relative image URLs", async () => {
+  const { commerceProducts } = await import("../public/assets/commerce-products.js");
+  assert.deepEqual(Object.keys(commerceProducts).sort(), catalog.map(p => p.id).sort());
+  for (const entry of catalog) {
+    const product = commerceProducts[entry.id];
+    assert.equal(product.name, entry.name);
+    assert.ok(existsSync(new URL(`website/public/${product.image}`, root)), product.image);
+    for (const base of ["https://example.test/SIDEY/", "https://example.test/"]) {
+      const url = new URL(`../${product.image}`, `${base}assets/checkout.js`);
+      assert.equal(url.href, base + product.image);
+    }
+  }
+  for (const page of ["checkout", "checkout-result"]) {
+    assert.match(read(`${page}/index.html`), new RegExp(`type="module"[^>]*src="[^\"]*${page}\\.js"|src="[^\"]*${page}\\.js"[^>]*type="module"`));
+  }
+});
