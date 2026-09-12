@@ -7,6 +7,8 @@ description: Create or revise SIDEY public website landing, store, policy, and c
 
 Write public pages for ordinary SIDEY users. Describe the product, purchase path, terms, and limitations without turning the website into an engineering status page.
 
+Use [sidey-workflow](../sidey-workflow/SKILL.md) and `scripts/workflow.py` for fresh-main, worktree ownership, checked-head and completion checks.
+
 ## Required context
 
 1. Read the repository-root `AGENTS.md` completely.

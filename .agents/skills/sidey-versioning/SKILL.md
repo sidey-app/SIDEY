@@ -7,6 +7,8 @@ description: Determine, apply, and validate independent macOS and Windows semant
 
 Own version classification, version-number changes, build-number allocation, and consistency checks. Keep macOS and Windows version lines independent. Do not rewrite historical releases to fit this policy.
 
+Use [sidey-workflow](../sidey-workflow/SKILL.md) and `scripts/workflow.py` for fresh-main, worktree ownership, checked-head and completion checks.
+
 ## Establish the evidence
 
 1. Read the repository-root `AGENTS.md`, `docs/DECISIONS.md`, and `docs/PRODUCT_SPEC.md`; confirmed decisions win.
