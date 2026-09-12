@@ -11,6 +11,8 @@
 		100000000000000000000042 /* SIDEYLoginItem.app in Embed Login Items */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000C /* SIDEYLoginItem.app */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		100000000000000000000043 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000045 /* Sparkle */; };
 		100000000000000000000046 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000041 /* Supabase */; };
+		200000000000000000000001 /* SideyBuildStamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000003; };
+		200000000000000000000002 /* SideyBuildStamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000003; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -49,6 +51,7 @@
 		100000000000000000000004 /* SIDEYTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SIDEYTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		10000000000000000000000C /* SIDEYLoginItem.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SIDEYLoginItem.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		100000000000000000000047 /* SIDEYAppStore.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SIDEYAppStore.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		200000000000000000000003 /* SideyBuildStamp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SideyBuildStamp.swift; sourceTree = DERIVED_FILE_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -146,10 +149,12 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 100000000000000000000030 /* Build configuration list for PBXNativeTarget "SIDEY" */;
 			buildPhases = (
+				200000000000000000000004 /* Record build inputs */,
 				100000000000000000000021 /* Sources */,
 				100000000000000000000007 /* Frameworks */,
 				100000000000000000000022 /* Resources */,
 				10000000000000000000000F /* Embed Login Items */,
+				200000000000000000000005 /* Verify build inputs */,
 			);
 			buildRules = (
 			);
@@ -215,10 +220,12 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 10000000000000000000004E /* Build configuration list for PBXNativeTarget "SIDEYAppStore" */;
 			buildPhases = (
+				200000000000000000000004 /* Record build inputs */,
 				10000000000000000000004A /* Sources */,
 				100000000000000000000048 /* Frameworks */,
 				10000000000000000000004B /* Resources */,
 				100000000000000000000061 /* Remove App Store resource quarantine */,
+				200000000000000000000005 /* Verify build inputs */,
 			);
 			buildRules = (
 			);
@@ -331,6 +338,30 @@
 			shellPath = /bin/sh;
 			shellScript = "set -eu\nSIDEY_RESOURCES=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\n/usr/bin/xattr -dr com.apple.quarantine \"$SIDEY_RESOURCES\"\n";
 		};
+		200000000000000000000004 /* Record build inputs */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ();
+			name = "Record build inputs";
+			outputPaths = ("$(DERIVED_FILE_DIR)/SideyBuildStamp.swift","$(DERIVED_FILE_DIR)/SideyBuildReceipt.json",);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\n/usr/bin/python3 \"$SRCROOT/../scripts/macos/build_provenance.py\" begin\n";
+		};
+		200000000000000000000005 /* Verify build inputs */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = ();
+			name = "Verify build inputs";
+			outputPaths = ("$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/SideyBuildReceipt.json",);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\n/usr/bin/python3 \"$SRCROOT/../scripts/macos/build_provenance.py\" finish\n";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -338,6 +369,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				200000000000000000000001 /* SideyBuildStamp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -359,6 +391,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				200000000000000000000002 /* SideyBuildStamp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
