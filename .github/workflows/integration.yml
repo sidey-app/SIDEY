@@ -145,6 +145,15 @@ jobs:
           ./scripts/windows/Test-FrameworkDependentPublish.ps1 -PublishDirectory ./build/windows/publish
           ./scripts/windows/tests/Test-FrameworkPublishGuard.ps1 -PublishDirectory ./build/windows/publish
 
+      - name: Run Windows app smoke
+        env:
+          SIDEY_STORE_PREVIEW_SMOKE: '1'
+          SIDEY_OVERLAY_STARTUP_SMOKE: '1'
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./windows/installer/Sidey.Setup/SetupRuntime.ps1
+          ./scripts/windows/Test-PublishedApplication.ps1 -PublishDirectory ./build/windows/publish -TimeoutSeconds 120
+
       - name: Compile NSIS installer
         run: |
           $PSNativeCommandUseErrorActionPreference = $true

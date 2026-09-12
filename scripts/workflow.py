@@ -256,6 +256,20 @@ def update_main(root, remote):
     return primary
 
 
+def verify_windows_run(remote, metadata, jobs):
+    if (metadata.get('head_sha') != remote or metadata.get('head_branch') != 'main'
+            or metadata.get('event') != 'push' or metadata.get('status') != 'completed'
+            or metadata.get('conclusion') != 'success'
+            or metadata.get('path', '').split('@')[0] != '.github/workflows/integration.yml'):
+        raise WorkflowError('Windows app review requires the successful integration run of current main')
+    windows = [job for job in jobs if job.get('name') == 'windows']
+    if len(windows) != 1 or windows[0].get('conclusion') != 'success':
+        raise WorkflowError('Current main did not run the Windows job successfully')
+    steps = [step for step in windows[0].get('steps', []) if step.get('name') == 'Run Windows app smoke']
+    if len(steps) != 1 or steps[0].get('conclusion') != 'success':
+        raise WorkflowError('Windows app startup/preview smoke is missing or did not pass')
+
+
 def finish(root, args):
     task = owned_task(root, args.task)
     if args.paths:
@@ -276,6 +290,16 @@ def finish(root, args):
     if task.get('status') in ('integrated', 'main-updated'):
         primary = update_main(root, remote)
         task['status'] = 'complete' if task['platform'] == 'shared' else 'main-updated'
+        if args.windows_run:
+            if task['platform'] != 'windows':
+                raise WorkflowError('--windows-run applies only to an integrated Windows task')
+            metadata = json.loads(run(root, 'gh', 'api', f'repos/{{owner}}/{{repo}}/actions/runs/{args.windows_run}'))
+            jobs = json.loads(run(root, 'gh', 'api', f'repos/{{owner}}/{{repo}}/actions/runs/{args.windows_run}/jobs?per_page=100'))
+            verify_windows_run(remote, metadata, jobs['jobs'])
+            if fetch_main(root) != remote or head(primary) != remote or dirty_paths(primary):
+                raise WorkflowError('Main changed during Windows app review')
+            task.update(status='complete', app_review={'main': remote, 'environment': 'GitHub Actions Windows',
+                        'run': args.windows_run, 'url': metadata['html_url'], 'time': time.time()})
         update_task(root, args.task, task)
         return {'status': task['status'], 'main': str(primary), 'sha': remote}
     attest(root, task, remote)
@@ -339,6 +363,7 @@ def main(argv=None):
             sub.add_argument('--message')
             sub.add_argument('--title')
             sub.add_argument('--body-file')
+            sub.add_argument('--windows-run', type=int, help='Complete an integrated Windows task using current-main app smoke CI')
     opener = subs.add_parser('open')
     opener.add_argument('--task', help='Complete an integrated macOS task after verified latest-main app review')
     opener.add_argument('--preview', type=Path)

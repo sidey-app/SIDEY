@@ -690,3 +690,13 @@ Windows CI는 PR과 `main` 검증만 담당하며 태그 push로 배포하지 �
 2026-09-12: macOS App Store판에도 직배포판과 동일한 보라색 프로필 선택 테두리·체크·배경을 적용한다. 캐릭터·말풍선·투척물은 공통 선택 스타일을 사용하고 상점 카드의 hover·키보드 focus 및 사용 중 표시도 같은 보라색을 사용한다. 보유·오류 상태의 의미 색은 유지한다. 이전 직배포 전용 범위를 이번 사용자 요청으로 App Store판까지 확장한다.
 
 2026-09-12: App Store 상점은 Apple에서 조회한 가격만 표시한다. Apple 응답에 없는 상품에 직배포 DB 가격을 대신 표시하거나 조회가 끝난 뒤에도 로딩 중으로 안내하지 않는다. 실제 조회 중·조회 불가·조회 실패를 구분하고 상세의 가격 다시 확인 및 상점 상태 새로고침은 Apple 상품 조회도 재실행한다. Apple 상품을 받지 못한 항목의 구매는 계속 차단하며 이미 보유한 권리는 가격 조회 실패로 변경하지 않는다.
+
+## 개발 구조와 로컬 촬영 도구
+
+macOS `AppModel`은 메시지·상품 표시·Presence 상태 소유자를 조합하고, 오버레이 멤버 목록은 분리한 투영에서 만든다. `CommerceSession`과 `RoomSessionLifetime`은 서로의 작업을 취소하지 않으며 각자 결제/장착·방 전환/이벤트/타이핑 수명을 관리한다. 공유 렌더러의 값 타입은 `OverlayModels`와 `CommerceModels`에 둔다.
+
+Windows는 기존 Core/Infrastructure/Presentation/Overlay/Platform 구분을 유지한다. 상점 미리보기와 실제 오버레이는 Core의 `CharacterThrowTrajectory`를 사용하고 각 OS 표현은 유지한다. 방 세션은 교체된 타이핑 작업까지 취소 완료를 기다린 뒤 백엔드를 정리한다.
+
+내부 촬영 앱은 macOS 26 이상용 `sidey-reals`다. `macos/Recording/SIDEYRecording.xcodeproj`에서 독립 빌드하며 외부 패키지 없이 실제 SpriteKit 렌더러·값 모델·자산을 사용한다. 출연자 1~12명, 대사·간격·펄스/투척 액션·준비/마지막 유지 시간을 편집하고 JSON으로 저장·복원한다. 기존 설정 영역은 유지하며 일시정지 때 투척을 포함한 가상 시계를 멈춘다. 앱은 화면·마이크를 직접 녹화하지 않는다. 실행과 촬영 안내는 [Recording README](../macos/Recording/README.md)에 모은다.
+
+개발 완료는 검사한 SHA의 PR 통합, 기본 작업 폴더 main 갱신, 필요한 앱 검토로 판정한다. macOS는 최신 main의 프로젝트·scheme·실행 빌드·정상 시작 창을 검증한다. Windows는 최신 main 통합 CI의 실제 앱 실행/미리보기 검사 결과를 기록할 수 있으며 로컬 실행으로 보고하지 않는다. 제품 공개 릴리스·업로드·운영 배포는 별도 작업이다.
