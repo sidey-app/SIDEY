@@ -343,8 +343,9 @@ public sealed class DistributionSourceTests
         int start = setup.IndexOf("Function EnsurePrerequisites", StringComparison.Ordinal);
         string prerequisiteFunction = setup[start..setup.IndexOf("FunctionEnd", start, StringComparison.Ordinal)];
         Assert.Contains("-ProvisionAllUsers", prerequisiteFunction, StringComparison.Ordinal);
-        Assert.Contains("$0 == 3010", prerequisiteFunction, StringComparison.Ordinal);
-        Assert.Contains("$0 != 0", prerequisiteFunction, StringComparison.Ordinal);
+        Assert.Contains("SUCCESS_REBOOT_REQUIRED", prerequisiteFunction, StringComparison.Ordinal);
+        Assert.Contains("$InstallerErrorStatus == \"SUCCESS\"", prerequisiteFunction, StringComparison.Ordinal);
+        Assert.Contains("Call ShowInstallerError", prerequisiteFunction, StringComparison.Ordinal);
         Assert.Equal(2, prerequisiteFunction.Split("    Abort", StringSplitOptions.None).Length - 1);
 
         string uninstall = setup[setup.IndexOf("Section \"Uninstall\"", StringComparison.Ordinal)..];

@@ -1,4 +1,8 @@
 # Runs in Windows PowerShell 5.1 / the OS .NET Framework, before .NET 10 exists.
+if ($null -eq (Get-Command New-SideyInstallerException -ErrorAction SilentlyContinue)) {
+    . (Join-Path $PSScriptRoot 'InstallerErrors.ps1')
+}
+
 function Test-SideyDotNetVersion {
     param([string[]]$Versions, [version]$MinimumVersion)
     foreach ($candidate in $Versions) {
@@ -161,11 +165,22 @@ function Enable-SideyRuntimeForAllUsers {
         # Frameworks are registered through the provisioned Main/DDLM package's
         # dependencies; Windows does not support provisioning frameworks directly.
         if ($package.family -like 'Microsoft.WindowsAppRuntime.*') { continue }
-        $operation = $manager.ProvisionPackageForAllUsersAsync($package.family)
-        $task = $asTask.MakeGenericMethod($resultType, $progressType).Invoke($null, @($operation))
-        $result = $task.GetAwaiter().GetResult()
-        if ($result.ExtendedErrorCode -and $result.ExtendedErrorCode.HResult -ne 0) {
-            throw "Windows App Runtime provisioning failed: $($result.ErrorText)"
+        try {
+            $operation = $manager.ProvisionPackageForAllUsersAsync($package.family)
+            $task = $asTask.MakeGenericMethod($resultType, $progressType).Invoke($null, @($operation))
+            $result = $task.GetAwaiter().GetResult()
+            if ($result.ExtendedErrorCode -and $result.ExtendedErrorCode.HResult -ne 0) {
+                throw (New-SideyInstallerException `
+                    -Message "Windows App Runtime provisioning failed: $($result.ErrorText)" `
+                    -NativeCode $result.ExtendedErrorCode.HResult -Source 'APPX' -Stage 'INSTALL' `
+                    -Target $package.family -CommandDescription 'PackageManager.ProvisionPackageForAllUsersAsync')
+            }
+        }
+        catch {
+            if ($null -ne (Get-SideyExceptionData $_.Exception 'Source')) { throw }
+            throw (New-SideyInstallerException -Message 'Windows App Runtime provisioning failed.' `
+                -InnerException $_.Exception -Source 'APPX' -Stage 'INSTALL' `
+                -Target $package.family -CommandDescription 'PackageManager.ProvisionPackageForAllUsersAsync')
         }
     }
 }
@@ -174,14 +189,22 @@ function Install-SideyPrerequisites {
     param($Configuration, [string]$DownloadDirectory, [switch]$CheckOnly, [switch]$ProvisionAllUsers)
     $requirements = @(
         @{ Name = 'Visual C++ v14 x64 Redistributable'; Config = $Configuration.visualCpp;
-            Test = 'Test-SideyVisualCpp'; File = 'vc_redist.x64.exe'; Arguments = '/install /quiet /norestart' },
+            Source = 'VC_REDIST'; Test = 'Test-SideyVisualCpp'; File = 'vc_redist.x64.exe'; Arguments = '/install /quiet /norestart' },
         @{ Name = '.NET 10 x64 Runtime'; Config = $Configuration.dotnet;
-            Test = 'Test-SideyDotNet'; File = 'dotnet-runtime-x64.exe'; Arguments = '/install /quiet /norestart' },
+            Source = 'DOTNET'; Test = 'Test-SideyDotNet'; File = 'dotnet-runtime-x64.exe'; Arguments = '/install /quiet /norestart' },
         @{ Name = 'Windows App Runtime x64'; Config = $Configuration.windowsAppRuntime;
-            Test = 'Test-SideyWindowsAppRuntime'; File = 'windowsappruntimeinstall-x64.exe'; Arguments = '--quiet' }
+            Source = 'APPX'; Test = 'Test-SideyWindowsAppRuntime'; File = 'windowsappruntimeinstall-x64.exe'; Arguments = '--quiet' }
     )
     foreach ($requirement in $requirements) {
-        if (& $requirement.Test $requirement.Config) {
+        try {
+            $available = & $requirement.Test $requirement.Config
+        }
+        catch {
+            throw (New-SideyInstallerException -Message "$($requirement.Name) availability check failed." `
+                -InnerException $_.Exception -Source $requirement.Source -Stage 'CHECK' `
+                -Target $requirement.Name -CommandDescription $requirement.Test)
+        }
+        if ($available) {
             Write-Host "$($requirement.Name): available"
             continue
         }
@@ -189,14 +212,46 @@ function Install-SideyPrerequisites {
         Write-Host "$($requirement.Name): downloading from Microsoft"
         $download = Join-Path $DownloadDirectory $requirement.File
         try {
-            Save-SideyMicrosoftInstaller $requirement.Config.url $download
-            Assert-SideyMicrosoftSignature $download
-            $code = Invoke-SideyRuntimeInstaller $download $requirement.Arguments
+            try {
+                Save-SideyMicrosoftInstaller $requirement.Config.url $download
+            }
+            catch {
+                $downloadCategory = Get-SideyDownloadCategoryHint $_.Exception
+                throw (New-SideyInstallerException -Message "$($requirement.Name) download failed." `
+                    -InnerException $_.Exception -Source 'NETWORK' -Stage 'DOWNLOAD' `
+                    -CategoryHint $downloadCategory -Target $requirement.Name `
+                    -CommandDescription "GET $($requirement.Config.url)")
+            }
+            try {
+                Assert-SideyMicrosoftSignature $download
+            }
+            catch {
+                throw (New-SideyInstallerException -Message "$($requirement.Name) signature verification failed." `
+                    -InnerException $_.Exception -Source 'AUTHENTICODE' -Stage 'VERIFY' `
+                    -CategoryHint 'SIGNATURE_ERROR' -Target $requirement.Name `
+                    -CommandDescription "Get-AuthenticodeSignature $($requirement.File)")
+            }
+            try {
+                $code = Invoke-SideyRuntimeInstaller $download $requirement.Arguments
+            }
+            catch {
+                throw (New-SideyInstallerException -Message "$($requirement.Name) installer could not be started." `
+                    -InnerException $_.Exception -Source $requirement.Source -Stage 'INSTALL' `
+                    -Target $requirement.Name -CommandDescription "$($requirement.File) $($requirement.Arguments)")
+            }
             # Never restart the machine automatically or remove the old SIDEY yet.
-            if ($code -in @(3010, 1641)) { return 3010 }
-            if ($code -ne 0) { throw "$($requirement.Name) installation failed (exit=$code)." }
+            if ($code -in @(3010, 1641)) { return $code }
+            if ($code -ne 0) {
+                throw (New-SideyInstallerException -Message "$($requirement.Name) installation failed (exit=$code)." `
+                    -NativeCode $code -Source $requirement.Source -Stage 'INSTALL' `
+                    -Target $requirement.Name -CommandDescription "$($requirement.File) $($requirement.Arguments)" `
+                    -ExitCode ([string]$code))
+            }
             if (-not (& $requirement.Test $requirement.Config)) {
-                throw "$($requirement.Name) is still unavailable after installation."
+                throw (New-SideyInstallerException `
+                    -Message "$($requirement.Name) is still unavailable after installation." `
+                    -Source $requirement.Source -Stage 'VERIFY' -CategoryHint 'DEPENDENCY_MISSING' `
+                    -Target $requirement.Name -CommandDescription $requirement.Test)
             }
         }
         finally {

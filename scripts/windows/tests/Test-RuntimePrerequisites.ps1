@@ -57,6 +57,46 @@ foreach ($subject in @('', 'CN=Microsoft Corporation', 'CN=.NET, O=Not Microsoft
     Assert-True (-not (Test-SideyMicrosoftSignerSubject $subject)) 'Reject a missing or non-Microsoft publisher organization.'
 }
 
+$errorMappings = @(
+    @('0x80073CF0', 'PACKAGE_CORRUPTED'), @('0x80073CF3', 'DEPENDENCY_CONFLICT'),
+    @('0x80073CF4', 'DISK_FULL'), @('0x80073CF5', 'DOWNLOAD_FAILED'),
+    @('0x80073CF6', 'PACKAGE_REGISTRATION_FAILED'), @('0x80073CF9', 'UNKNOWN_ERROR'),
+    @('0x80073CFB', 'ALREADY_INSTALLED'), @('0x80073CFD', 'DEPENDENCY_MISSING'),
+    @('0x80073CFE', 'PACKAGE_REPOSITORY_CORRUPTED'), @('0x80073CFF', 'BLOCKED_BY_POLICY'),
+    @('0x80073D01', 'BLOCKED_BY_POLICY'), @('0x80073D02', 'APP_IN_USE'),
+    @('0x80073D06', 'ALREADY_INSTALLED'), @('0x80073D10', 'INCOMPATIBLE_SYSTEM'),
+    @('0x80073D28', 'PERMISSION_DENIED'), @('0x80080203', 'PACKAGE_CORRUPTED'),
+    @('0x80080206', 'PACKAGE_CORRUPTED'), @('0x80080207', 'PACKAGE_CORRUPTED'),
+    @('0x800B0100', 'SIGNATURE_ERROR'), @('0x800B0109', 'SIGNATURE_ERROR'),
+    @('0x80070005', 'PERMISSION_DENIED'), @('0x80070070', 'DISK_FULL'),
+    @('12002', 'NETWORK_ERROR'), @('12007', 'NETWORK_ERROR'), @('12029', 'NETWORK_ERROR'),
+    @('12030', 'NETWORK_ERROR'), @('12031', 'NETWORK_ERROR'), @('12163', 'NETWORK_ERROR'),
+    @('1602', 'USER_CANCELLED'), @('1603', 'UNKNOWN_ERROR'),
+    @('1618', 'ANOTHER_INSTALLATION_RUNNING'), @('1619', 'PACKAGE_CORRUPTED'),
+    @('1620', 'PACKAGE_CORRUPTED'), @('1625', 'BLOCKED_BY_POLICY'),
+    @('1633', 'INCOMPATIBLE_SYSTEM'), @('1638', 'ALREADY_INSTALLED')
+)
+foreach ($mapping in $errorMappings) {
+    $result = Resolve-SideyInstallerError $mapping[0] 'TEST' 'INSTALL'
+    Assert-True ($result.Status -eq 'FAILED' -and $result.Category -eq $mapping[1]) `
+        "Normalize $($mapping[0]) as $($mapping[1])."
+}
+Assert-True ((Resolve-SideyInstallerError -2147009281 'APPX' 'INSTALL').NativeCode -eq '0x80073CFF') `
+    'Preserve a signed HRESULT as canonical hexadecimal.'
+Assert-True ((Resolve-SideyInstallerError 0 'MSI' 'INSTALL').Status -eq 'SUCCESS') 'MSI 0 is success.'
+foreach ($code in @(1641, 3010)) {
+    $result = Resolve-SideyInstallerError $code 'MSI' 'INSTALL'
+    Assert-True ($result.Status -eq 'SUCCESS_REBOOT_REQUIRED' -and $result.Category -eq 'REBOOT_REQUIRED') `
+        "MSI $code is successful and requires a reboot."
+}
+$unknown = Resolve-SideyInstallerError '0x8ABCDEF0' 'TEST' 'INSTALL'
+Assert-True ($unknown.Status -eq 'FAILED' -and $unknown.Category -eq 'UNKNOWN_ERROR' -and
+    $unknown.NativeCode -eq '0x8ABCDEF0') 'Unknown errors retain their native code and use the fallback category.'
+Assert-True ((Get-SideyDownloadCategoryHint ([Net.WebException]::new('timeout', [Net.WebExceptionStatus]::Timeout))) `
+    -eq 'NETWORK_ERROR') 'Classify managed connection failures as network errors.'
+Assert-True ((Get-SideyDownloadCategoryHint ([Exception]::new('HTTP failure'))) -eq 'DOWNLOAD_FAILED') `
+    'Keep non-connection download failures distinct from network errors.'
+
 # Exercise the real orchestration with only OS/network boundaries replaced.
 # No Microsoft installs, app termination, or real SIDEY data mutations in tests.
 foreach ($scenario in @('present', 'missing', 'download-failure', 'signature-failure', 'install-failure',
@@ -106,7 +146,8 @@ foreach ($scenario in @('present', 'missing', 'download-failure', 'signature-fai
             Assert-True (($script:events -join ',') -ceq $expected) 'Verify signatures before executing; skip installed runtimes.'
         }
         elseif ($scenario -in @('restart', 'restart-initiated')) {
-            Assert-True ((& $operation) -eq 3010) 'Return restart without proceeding to the next prerequisite.'
+            $expectedCode = if ($scenario -eq 'restart-initiated') { 1641 } else { 3010 }
+            Assert-True ((& $operation) -eq $expectedCode) 'Preserve the native reboot-success code and stop before the next prerequisite.'
             Assert-True ($script:events.Count -eq 3) 'Stop after reboot result.'
         }
         else { Assert-Throws $operation "$scenario must block app replacement." }
@@ -119,6 +160,21 @@ foreach ($scenario in @('present', 'missing', 'download-failure', 'signature-fai
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) "SIDEY-Prerequisite-Tests-$([guid]::NewGuid().ToString('N'))"
 [IO.Directory]::CreateDirectory($testRoot) | Out-Null
 try {
+    $resultPath = Join-Path $testRoot 'InstallerResult.ini'
+    $logPath = Join-Path $testRoot 'SIDEY-Setup.log'
+    $result = New-SideyInstallerResult -2147009281 'APPX' 'INSTALL' '' 'Windows App Runtime x64' `
+        'windowsappruntimeinstall-x64.exe --quiet' '-2147009281' 'policy failure' '1.2.1'
+    Write-SideyInstallerResult $result $resultPath $logPath
+    $resultText = Get-Content -LiteralPath $resultPath -Raw -Encoding Unicode
+    $logText = Get-Content -LiteralPath $logPath -Raw -Encoding UTF8
+    Assert-True ($resultText -match 'category=BLOCKED_BY_POLICY' -and $resultText -match 'nativeCode=0x80073CFF') `
+        'Write normalized UI handoff data without losing the HRESULT.'
+    foreach ($field in @('timestamp=', 'stage=INSTALL', 'source=APPX', 'nativeCode=0x80073CFF',
+        'category=BLOCKED_BY_POLICY', 'target=Windows App Runtime x64', 'exitCode=-2147009281',
+        'windowsVersion=', 'installerVersion=1.2.1')) {
+        Assert-True ($logText.Contains($field)) "Installer log must contain $field."
+    }
+
     $installRoot = Join-Path $testRoot 'Install'
     $runtimeRoot = Join-Path $installRoot 'Runtime'
     [IO.Directory]::CreateDirectory((Join-Path $runtimeRoot 'en-US')) | Out-Null

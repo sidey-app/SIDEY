@@ -35,6 +35,7 @@ Unicode true
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 !include "WordFunc.nsh"
+!include "FileFunc.nsh"
 !include "nsDialogs.nsh"
 !include "WinMessages.nsh"
 !include "x64.nsh"
@@ -159,6 +160,7 @@ LangString CleanupFailed ${LANG_ENGLISH} "Some selected current-user data could 
 LangString CleanupFailed ${LANG_KOREAN} "선택한 현재 사용자 데이터 일부를 삭제하지 못했습니다. 오류 코드: $0"
 
 !include "${__FILEDIR__}\Languages.nsh"
+!include "${__FILEDIR__}\InstallerErrors.nsh"
 
 Var InstallState
 Var InstalledVersion
@@ -178,6 +180,7 @@ Function .onInit
   SetRegView 64
   SetShellVarContext all
   Call SelectInstallerLanguage
+  Call InitializeInstallerErrorHandling
 
   StrCpy $InstallState "fresh"
   StrCpy $HasNsisInstall "false"
@@ -324,23 +327,35 @@ Function PrepareRuntimeHelper
   InitPluginsDir
   File /oname=$PLUGINSDIR\SetupRuntime.ps1 "${__FILEDIR__}\SetupRuntime.ps1"
   File /oname=$PLUGINSDIR\Prerequisites.ps1 "${__FILEDIR__}\Prerequisites.ps1"
+  File /oname=$PLUGINSDIR\InstallerErrors.ps1 "${__FILEDIR__}\InstallerErrors.ps1"
   File /oname=$PLUGINSDIR\prerequisites.json "${__FILEDIR__}\prerequisites.json"
 FunctionEnd
 
 Function EnsurePrerequisites
   Call PrepareRuntimeHelper
+  Call ResetInstallerError
+  StrCpy $InstallerErrorSource "PREREQUISITE"
+  StrCpy $InstallerErrorStage "INSTALL"
+  StrCpy $InstallerErrorTarget "SIDEY required runtimes"
+  StrCpy $InstallerErrorCommand "Install-SideyPrerequisites"
   DetailPrint "$(PrerequisitesStatus)"
   ${DisableX64FSRedirection}
-  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\SetupRuntime.ps1" -ProvisionAllUsers'
+  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\SetupRuntime.ps1" -ProvisionAllUsers -ResultPath "$InstallerErrorResultPath" -LogPath "$InstallerErrorLogPath" -InstallerVersion "${APP_VERSION}"'
   Pop $0
   ${EnableX64FSRedirection}
-  ${If} $0 == 3010
+  StrCpy $InstallerErrorExitCode $0
+  StrCpy $InstallerErrorNativeCode $0
+  Call LoadInstallerResult
+  ${If} $InstallerErrorStatus == "SUCCESS"
+  ${AndIf} $0 == 0
+    Return
+  ${ElseIf} $InstallerErrorStatus == "SUCCESS_REBOOT_REQUIRED"
     SetErrorLevel 3010
-    MessageBox MB_OK|MB_ICONSTOP "$(PrerequisitesRestart)" /SD IDOK
+    Call ShowInstallerError
     Abort
-  ${ElseIf} $0 != 0
+  ${Else}
     SetErrorLevel 1
-    MessageBox MB_OK|MB_ICONSTOP "$(PrerequisitesFailed)" /SD IDOK
+    Call ShowInstallerError
     Abort
   ${EndIf}
 FunctionEnd
@@ -366,7 +381,15 @@ Section "SIDEY" MainSection
   Goto existing_uninstall_done
 
   existing_uninstall_failed:
-    MessageBox MB_OK|MB_ICONSTOP "$(ExistingRemovalFailed)"
+    Call ResetInstallerError
+    StrCpy $InstallerErrorNativeCode $0
+    StrCpy $InstallerErrorExitCode $0
+    StrCpy $InstallerErrorSource "NSIS"
+    StrCpy $InstallerErrorStage "UNINSTALL"
+    StrCpy $InstallerErrorTarget "Existing SIDEY installation"
+    StrCpy $InstallerErrorCommand "Uninstall.exe /S"
+    Call NormalizeInstallerError
+    Call ShowInstallerError
     Abort
 
   existing_uninstall_done:
@@ -374,12 +397,17 @@ Section "SIDEY" MainSection
   InitPluginsDir
   File /oname=$PLUGINSDIR\SideyLegacyMsiHelper.exe "${PUBLISH_DIR}\Uninstall.exe"
   ExecWait '"$PLUGINSDIR\SideyLegacyMsiHelper.exe" --uninstall-legacy-msi' $0
-  ${If} $0 == 3010
-    MessageBox MB_OK|MB_ICONSTOP "$(LegacyMigrationRestart)"
-    Abort
-  ${ElseIf} $0 != 0
+  ${If} $0 != 0
   ${AndIf} $0 != 1605
-    MessageBox MB_OK|MB_ICONSTOP "$(LegacyMigrationFailed)"
+    Call ResetInstallerError
+    StrCpy $InstallerErrorNativeCode $0
+    StrCpy $InstallerErrorExitCode $0
+    StrCpy $InstallerErrorSource "MSI"
+    StrCpy $InstallerErrorStage "UNINSTALL"
+    StrCpy $InstallerErrorTarget "Legacy SIDEY MSI"
+    StrCpy $InstallerErrorCommand "SideyLegacyMsiHelper.exe --uninstall-legacy-msi"
+    Call NormalizeInstallerError
+    Call ShowInstallerError
     Abort
   ${EndIf}
 
@@ -387,13 +415,21 @@ Section "SIDEY" MainSection
   ; self-contained files in SIDEY's private Runtime tree before copying new files.
   ${If} $HasPrivateRuntime == "true"
   ${OrIf} $HasNsisInstall == "true"
+    Call ResetInstallerError
+    StrCpy $InstallerErrorSource "FILESYSTEM"
+    StrCpy $InstallerErrorStage "CLEANUP"
+    StrCpy $InstallerErrorTarget "SIDEY private Runtime"
+    StrCpy $InstallerErrorCommand "Remove-SideyPrivateRuntime"
     ${DisableX64FSRedirection}
-    nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\SetupRuntime.ps1" -InstallDirectory "$INSTDIR"'
+    nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\SetupRuntime.ps1" -InstallDirectory "$INSTDIR" -ResultPath "$InstallerErrorResultPath" -LogPath "$InstallerErrorLogPath" -InstallerVersion "${APP_VERSION}"'
     Pop $0
     ${EnableX64FSRedirection}
-    ${If} $0 != 0
+    StrCpy $InstallerErrorExitCode $0
+    StrCpy $InstallerErrorNativeCode $0
+    Call LoadInstallerResult
+    ${If} $InstallerErrorStatus != "SUCCESS"
       SetErrorLevel 1
-      MessageBox MB_OK|MB_ICONSTOP "$(ExistingRemovalFailed)" /SD IDOK
+      Call ShowInstallerError
       Abort
     ${EndIf}
   ${EndIf}
