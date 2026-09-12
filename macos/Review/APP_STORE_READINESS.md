@@ -1,7 +1,7 @@
 # Mac App Store 후보 점검 — 2026-09-12
 
-현재 소스: `macos/direct-name-release`, 마케팅 버전 1.2.0, build 28.
-사용자가 build 27의 App Store Connect 업로드 완료를 확인해 새 배포 번호를 28로 배정했다.
+현재 App Store 후보: `macos/appstore-latest`, 마케팅 버전 1.2.1, build 30.
+원숭이 현재 판매 ID는 `character_monkey_solo_4`다. Xcode 기록의 App Store 성공 업로드 27과 공개 직배포 29를 확인해 후보 번호 30을 배정했다. 아래 build 27/28 기록은 이전 시점의 검증이다.
 이 문서는 로컬 구현·검증 상태다. 원격 상품 등록·서버 배포·심사 제출 완료를 뜻하지 않는다.
 
 ## 구현 완료
@@ -116,3 +116,9 @@ Xcode 프로젝트: `_workspace/direct-name-release/macos/SIDEY.xcodeproj`
 
 - 현재 원숭이 ID는 `character_monkey_solo_4`이며 앞선 `_solo_2` 재연결 후보를 대체한다. 기존 원숭이 ID는 모두 거래 검증용으로 보존한다. 판매 상품 24종·Apple 검증 ID 34개다. 다른 상품과 버전·build는 유지한다.
 - 로컬 후보이며 Connect 신규 상품 등록, migration `20260912130000_monkey_fourth_app_store_offer.sql` 및 verifier의 원격 배포, 실제 가격 조회는 별도 확인한다.
+
+## 2026-09-12 최신 main 통합 및 App Store build 30
+
+- 사용자가 실행 중인 Xcode 앱과 번들에서 원숭이 `character_monkey_solo_4`를 확인했다. 제공한 로그는 `StoreKit returned 24 products; unavailable IDs:`이며 미조회 ID가 없어 24종 조회 완료 근거로 기록한다. 실제 구매·복원 성공을 뜻하지 않는다.
+- App Store판만 1.2.1 build 30으로 준비하며 직배포 1.2.1 build 29와 공개 appcast는 유지한다. 판매 ID 24개·복원 포함 검증 ID 34개를 사용한다.
+- Cloud Run verifier는 최신 main의 코드를 Sandbox·Production에 각각 배포해야 한다. 원숭이 `_4`를 포함한 DB migration은 사용자 적용 완료 보고와 실제 서버 확인을 구분한다. 이번 준비는 Connect 업로드 또는 심사 제출 완료를 뜻하지 않는다.
