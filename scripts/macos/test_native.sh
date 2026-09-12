@@ -4,6 +4,8 @@ set -eu
 SIDEY_REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && /bin/pwd -P)
 SIDEY_CREATED_TEST_DIR=false
 
+python3 -m unittest discover -s "$SIDEY_REPO_ROOT/scripts/macos/tests"
+
 if [ -n "${SIDEY_TEST_DERIVED_DATA:-}" ]; then
 	SIDEY_TEST_DIR=$SIDEY_TEST_DERIVED_DATA
 else
