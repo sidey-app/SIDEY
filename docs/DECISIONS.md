@@ -10,6 +10,8 @@
 
 2026-09-12 App Store 1.2.1 build 30은 전송 후 Apple 처리 단계에서 오류 91109로 실패했다. 업로드한 아카이브의 `pixel_hamster.png`에 `com.apple.quarantine` 1건이 남았고 원본과 파일 해시는 일치했다. App Store 타깃의 리소스 복사 후 서명 전 단계에서 격리 속성을 제거하고 CLI archive 검사에서 잔존 속성을 거부한다. 동등 기능 마케팅 버전 1.2.1을 유지하며 재빌드 후보 번호는 31로 올린다. 직배포 build 29·Windows·공개 릴리스 메타데이터는 유지한다. 새 아카이브 검증과 Apple 재업로드·처리 성공·심사 제출은 구분한다.
 
+2026-09-12 랜딩 첫 화면의 기존 macOS 다운로드 버튼은 원래 배경·플랫폼 아이콘·크기를 유지하고 문구만 `App Store 다운로드`로 교체한다. 사용자의 후속 정정에 따라 파란 배경과 별도 App Store 아이콘을 사용하지 않는다. 연결 주소는 `https://apps.apple.com/kr/app/sidey/id6808528060?mt=12`다. 사용자 정정에 따라 버튼을 추가하거나 두 줄로 만들지 않으며 OS 감지·Windows 다운로드 선택과 기존 버튼 크기를 유지한다. 언어별 문구를 제공하고 main 반영·Pages 즉시 배포를 승인했다.
+
 2026-09-12 사용자가 상품 적용 완료를 보고하고 최신 App Store판의 main 반영·Xcode 열기와 Google Cloud Console 배포 명령을 요청했다. 실행 중인 Xcode 작업 폴더와 앱 번들에서 원숭이 현재 ID `character_monkey_solo_4`를 확인했고, 제공 로그는 미조회 ID 없이 24개 StoreKit 상품 반환을 보여준다. 조회 성공을 실제 결제·복원 성공으로 확대 해석하지 않는다. App Store 후보는 동등 기능의 직배포와 같은 1.2.1이며, Xcode 성공 업로드 27 및 공개 직배포 29 다음 build 30을 사용한다. 직배포 1.2.1 build 29와 공개 appcast는 유지한다. 서버 명령 제공·Archive 열기와 실제 Cloud Run 배포·Connect 업로드·심사 제출은 구분한다.
 
 2026-09-12 사용자 요청으로 원숭이 현재 Apple 판매 ID를 `character_monkey_solo_4`로 변경해 비교한다. `_solo_2` 재연결 결정을 대체하며 `_solo_3`·`_solo_2`·`_solo`·`character_monkey`는 복원·거래 검증용으로 유지한다. 다른 상품·가격·권리는 유지하며 판매 상품 24종, Apple 검증 ID 34개다. 기존 브랜치에서 로컬 후보를 준비하고 Connect 등록·원격 서버 배포·실제 조회 결과는 별도로 확인한다. 재등록은 미조회 원인의 확정이나 해결 보장이 아니다.

@@ -97,9 +97,10 @@ foreach ($relativePath in @('ko/index.html', 'en/index.html', 'ja/index.html')) 
         throw "Localized landing page is missing: $relativePath"
     }
     $html = [IO.File]::ReadAllText($path)
+    $appStoreUrl = "https://apps.apple.com/kr/app/sidey/id6808528060?mt=12"
     $heroLinkPattern = '<a(?=[^>]*\bid="primary-download-action")' +
-        '(?=[^>]*\bhref="' + [regex]::Escape($macOSDmgUrl) + '")' +
-        '(?=[^>]*\bdata-macos-url="' + [regex]::Escape($macOSDmgUrl) + '")' +
+        '(?=[^>]*\bhref="' + [regex]::Escape($appStoreUrl) + '")' +
+        '(?=[^>]*\bdata-macos-url="' + [regex]::Escape($appStoreUrl) + '")' +
         '(?=[^>]*\bdata-windows-url="' + [regex]::Escape($windowsInstallerUrl) + '")[^>]*>'
     if (-not [regex]::IsMatch($html, $heroLinkPattern)) {
         throw "Verified OS-aware download link is missing: $relativePath / primary-download-action"

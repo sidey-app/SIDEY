@@ -1,7 +1,7 @@
 ---
 import type { Locale } from "../i18n/landing";
 import { getLandingCopy } from "../i18n/landing";
-import { releases } from "../data/releases";
+import { releases, appStoreURL } from "../data/releases";
 import DownloadLegalNotice from "./DownloadLegalNotice.astro";
 import PhraseText from "./PhraseText.astro";
 
@@ -18,9 +18,9 @@ const base = import.meta.env.BASE_URL;
     <p>{copy.description}</p>
     <div class="hero-actions" aria-label={copy.downloadsLabel}>
       <div class="download-selector" data-download-selector>
-        <a class="button download-button download-button-simple primary-download-action" id="primary-download-action" href={releases.macos.url} data-auto-download data-macos-url={releases.macos.url} data-windows-url={releases.windows.url} data-macos-label={copy.macDownload} data-windows-label={copy.windowsDownload} data-choose-label={copy.choosePlatform} aria-describedby="hero-download-license">
+        <a class="button download-button download-button-simple primary-download-action" id="primary-download-action" href={appStoreURL} data-auto-download data-macos-url={appStoreURL} data-windows-url={releases.windows.url} data-macos-label={copy.appStoreDownload} data-windows-label={copy.windowsDownload} data-choose-label={copy.choosePlatform} aria-describedby="hero-download-license">
           <img class="download-platform-logo download-platform-logo-macos" data-download-logo src={`${base}assets/platforms/macos-light.svg`} data-macos-logo={`${base}assets/platforms/macos-light.svg`} data-windows-logo={`${base}assets/platforms/windows-light.svg`} alt="" width="18" height="18">
-          <span class="download-button-label" data-download-label>{copy.macDownload}</span>
+          <span class="download-button-label" data-download-label>{copy.appStoreDownload}</span>
         </a>
         <button class="download-selector-toggle" type="button" data-download-toggle aria-expanded="false" aria-controls="hero-platform-menu" aria-label={copy.menuToggle} aria-describedby="hero-download-license">
           <span class="download-chevron" aria-hidden="true">
@@ -29,7 +29,7 @@ const base = import.meta.env.BASE_URL;
           </span>
         </button>
         <div class="download-platform-menu" id="hero-platform-menu" data-download-menu hidden aria-label={copy.platformMenu}>
-          <a href={releases.macos.url}><img class="download-platform-logo download-platform-logo-macos" src={`${base}assets/platforms/macos-light.svg`} alt="" width="18" height="18"><span>{copy.macDownload}</span></a>
+          <a href={appStoreURL}><img class="download-platform-logo download-platform-logo-macos" src={`${base}assets/platforms/macos-light.svg`} alt="" width="18" height="18"><span>{copy.appStoreDownload}</span></a>
           <a href={releases.windows.url}><img class="download-platform-logo download-platform-logo-windows" src={`${base}assets/platforms/windows-light.svg`} alt="" width="18" height="18"><span>{copy.windowsDownload}</span></a>
         </div>
         <DownloadLegalNotice id="hero-download-license" locale={locale} />

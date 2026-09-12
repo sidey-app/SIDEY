@@ -79,7 +79,8 @@ public sealed class InstallerLanguageTests
     public void AllInstallerLanguagesHaveEveryCustomStringAndPreserveRuntimePlaceholders()
     {
         string source = File.ReadAllText(RepositoryPath("windows", "installer", "Sidey.Setup", "Sidey.Setup.nsi"))
-            + Environment.NewLine + File.ReadAllText(RepositoryPath("windows", "installer", "Sidey.Setup", "Languages.nsh"));
+            + Environment.NewLine + File.ReadAllText(RepositoryPath("windows", "installer", "Sidey.Setup", "Languages.nsh"))
+            + Environment.NewLine + File.ReadAllText(RepositoryPath("windows", "installer", "Sidey.Setup", "InstallerErrors.nsh"));
         (string Key, string Language, string Value)[] strings = [.. Regex.Matches(source, "^LangString (\\w+) \\$\\{LANG_(\\w+)\\} \\\"(.*)\\\"\\r?$", RegexOptions.Multiline).Select(match => (Key: match.Groups[1].Value, Language: match.Groups[2].Value, match.Groups[3].Value))];
         var english = strings.Where(value => value.Language == "ENGLISH").ToDictionary(value => value.Key, value => value.Value);
         Assert.True(english.Count >= 25);

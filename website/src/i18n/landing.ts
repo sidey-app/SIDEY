@@ -19,7 +19,7 @@ const ui = {
     hero: {
       title: "화면에 친구가 총총.",
       description: "친구들이 조그만 픽셀 캐릭터가 되어 화면 가장자리를 돌아다녀요. 일하다 슬쩍 보고, 생각나면 짧게 한마디 건네 보세요.",
-      downloadsLabel: "다운로드 선택", macDownload: "macOS 다운로드", windowsDownload: "Windows 다운로드",
+      downloadsLabel: "다운로드 선택", appStoreDownload: "App Store 다운로드", macDownload: "macOS 다운로드", windowsDownload: "Windows 다운로드",
       choosePlatform: "운영체제 선택", platformMenu: "운영체제 직접 선택", menuToggle: "다른 운영체제 선택",
       windowsStatus: "Windows 11 25H2 이상 · x64", browserTitle: "오늘 할 일 | 메모", browserNote: "오늘 할 일",
       message: "저녁 7시에 볼까?", typingLabel: "토리 입력 중",
@@ -86,7 +86,7 @@ const ui = {
     hero: {
       title: "Friends at the edge of your screen.",
       description: "Your friends become tiny pixel characters wandering along the edge of your screen. Glance over while you work, and send a quick note when they cross your mind.",
-      downloadsLabel: "Download options", macDownload: "Download for macOS", windowsDownload: "Download for Windows",
+      downloadsLabel: "Download options", appStoreDownload: "Download on App Store", macDownload: "Download for macOS", windowsDownload: "Download for Windows",
       choosePlatform: "Choose your platform", platformMenu: "Choose a platform manually", menuToggle: "Choose another platform",
       windowsStatus: "Windows 11 25H2 or later · x64", browserTitle: "Today’s tasks | Notes", browserNote: "Today's list",
       message: "Meet at seven?", typingLabel: "Rosie is typing",
@@ -154,7 +154,7 @@ const ui = {
       title: "画面の端を、友だちがトコトコ。",
       titleParts: ["画面の端を、", "友だちが", "トコトコ。"],
       description: "友だちが小さなピクセルキャラクターになって、画面の端を歩き回ります。作業の合間にちらっと眺めたり、思い立ったときに短いひと言を送ったり。",
-      downloadsLabel: "ダウンロードを選択", macDownload: "macOS版をダウンロード", windowsDownload: "Windows版をダウンロード",
+      downloadsLabel: "ダウンロードを選択", appStoreDownload: "App Storeでダウンロード", macDownload: "macOS版をダウンロード", windowsDownload: "Windows版をダウンロード",
       choosePlatform: "OSを選択", platformMenu: "OSを選択してください", menuToggle: "別のOSを選ぶ",
       windowsStatus: "Windows 11 25H2以降 · x64", browserTitle: "今日やること | メモ", browserNote: "今日やること",
       message: "7時に会う？", typingLabel: "おもちが入力中",

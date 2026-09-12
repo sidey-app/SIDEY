@@ -1,6 +1,8 @@
 import macOSRelease from "../../../release/macos.json";
 import windowsRelease from "../../../release/windows.json";
 
+export const appStoreURL = "https://apps.apple.com/kr/app/sidey/id6808528060?mt=12";
+
 export const releases = {
   macos: {
     version: macOSRelease.version,
