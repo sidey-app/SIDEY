@@ -33,6 +33,8 @@ jobs:
         with:
           persist-credentials: false
       - run: python3 -m unittest discover -s scripts/tests
+      - run: python3 scripts/commerce_catalog.py --target shared --check
+      - run: python3 scripts/commerce_catalog.py --target macos --check
       - run: python3 scripts/validate_pixel_assets.py
       - run: python3 scripts/verify_release_consistency.py --allow-pending-appcast --allow-unreleased-source
 

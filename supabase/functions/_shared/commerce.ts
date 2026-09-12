@@ -1,30 +1,5 @@
-export const SUPPORTED_PRODUCT_IDS = new Set([
-  "character_otter",
-  "character_pig",
-  "character_tree",
-  "throwable_snowflake",
-  "throwable_baseball",
-  "throwable_wakkuball",
-  "throwable_dujjonku",
-  "throwable_mini_paprika",
-  "throwable_banana",
-  "throwable_dust_bath_pouch",
-  "throwable_starlight_orb",
-  "throwable_clam",
-  "throwable_pork",
-  "throwable_timber",
-
-  "character_starlight_upalupa",
-  "character_guinea_pig",
-  "character_monkey",
-  "character_chinchilla",
-  "bubble_bunny_pink",
-  "bubble_butter_chick",
-  "bubble_starry_cat",
-  "throwable_bouncy_heart",
-  "throwable_toy_cannon",
-  "throwable_squeaky_duck",
-]);
+import { SUPPORTED_PRODUCT_IDS } from "./commerce-products.ts";
+export { SUPPORTED_PRODUCT_IDS };
 export const PORTONE_API_BASE = "https://api.portone.io";
 
 export const corsHeaders = {
