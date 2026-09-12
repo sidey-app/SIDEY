@@ -17,6 +17,7 @@
 
 ## 설치
 
+<!-- sidey-release:macos:start -->
 ### macOS
 
 macOS 26 이상 Apple Silicon Mac을 지원합니다. Intel Mac은 지원하지 않습니다.
@@ -31,6 +32,9 @@ brew install --cask sidey-app/tap/sidey
 
 현재 공개 버전은 `v1.2.1`(build 29)입니다. 직배포판의 실행 표시 이름은 `SIDEY-DIRECT`이며, 설치 파일 안의 `SIDEY.app`을 기존 앱과 같은 위치에 옮기면 됩니다. App Store판은 `SIDEY`로 표시됩니다.
 
+<!-- sidey-release:macos:end -->
+
+<!-- sidey-release:windows:start -->
 ### Windows
 
 Windows 11 25H2 이상 x64 PC를 지원합니다.
@@ -38,6 +42,8 @@ Windows 11 25H2 이상 x64 PC를 지원합니다.
 [SIDEY Releases](https://github.com/sidey-app/SIDEY/releases)에서 `SIDEY-Windows-x64-v1.2.1-Setup.exe`를 받아 실행합니다.
 
 Windows v1.0.3 또는 v1.0.4는 앱 안에서 업데이트 파일을 내려받지 못하므로, 최신 Setup EXE를 직접 받아 설치해야 합니다. 기존 정식 MSI에서 업데이트하면 설정과 로그인 정보는 유지됩니다.
+
+<!-- sidey-release:windows:end -->
 
 ## 최신 업데이트
 
