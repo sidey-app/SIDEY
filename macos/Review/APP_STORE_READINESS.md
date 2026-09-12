@@ -111,3 +111,8 @@ Xcode 프로젝트: `_workspace/direct-name-release/macos/SIDEY.xcodeproj`
 
 - 원숭이 현재 판매 ID를 `character_monkey_solo_2`로 되돌려 조회한다. `_solo_3`도 과거 거래 검증용으로 유지한다. 다른 상품 ID와 버전·build는 유지한다.
 - 신규 DB migration `20260912123000_restore_monkey_second_app_store_offer.sql`로 서버 현재 판매 ID도 일치시킬 수 있다. 이번 작업은 로컬 변경이며 원격 배포·Connect 업로드·실제 가격 조회 성공을 뜻하지 않는다.
+
+## 2026-09-12 원숭이 단품 4 비교
+
+- 현재 원숭이 ID는 `character_monkey_solo_4`이며 앞선 `_solo_2` 재연결 후보를 대체한다. 기존 원숭이 ID는 모두 거래 검증용으로 보존한다. 판매 상품 24종·Apple 검증 ID 34개다. 다른 상품과 버전·build는 유지한다.
+- 로컬 후보이며 Connect 신규 상품 등록, migration `20260912130000_monkey_fourth_app_store_offer.sql` 및 verifier의 원격 배포, 실제 가격 조회는 별도 확인한다.
