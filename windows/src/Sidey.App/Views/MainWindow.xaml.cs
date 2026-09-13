@@ -37,7 +37,6 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     private bool _navigatingBack;
     private bool _storeSearchUpdateQueued;
     private bool _storePreviewDialogOpen;
-    private TaskCompletionSource? _storePreviewClosed;
     private Task _storeFilterTransition = Task.CompletedTask;
     private readonly HashSet<Guid> _roomExpansionAnimations = [];
     private bool _hideQueued;
@@ -120,6 +119,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         SideyWindowTheme.Apply(
             MainRoot,
             (AppThemePreference)ViewModel.SelectedThemeIndex);
+        ApplyStoreFilterToggleSurface(StoreFilterPanel.Visibility == Visibility.Visible);
     }
 
     private void OnAnimationsChanged()
@@ -328,9 +328,18 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     internal async Task VerifyStoreFilterToggleSmokeAsync()
     {
         string originalSearchText = ViewModel.StoreSearchText;
+        int originalKindIndex = ViewModel.SelectedStoreKindIndex;
+        int originalSortIndex = ViewModel.SelectedStoreSortIndex;
+        bool originallyHidesOwned = ViewModel.HidesOwnedStoreProducts;
         try
         {
             ShowPage("store");
+            if (StoreCharacterKindChip.IsChecked != true)
+            {
+                throw new InvalidOperationException(
+                    "Store filter smoke: character was not the default product kind.");
+            }
+
             StoreFilterToggle.IsChecked = false;
             SetStoreFilterPanelExpanded(false);
             StoreFilterToggle.UpdateLayout();
@@ -349,6 +358,10 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
             StoreFilterToggle.IsChecked = true;
             OnStoreFilterToggleClick(StoreFilterToggle, new RoutedEventArgs());
             await _storeFilterTransition;
+            StoreFilterToggle.UpdateLayout();
+            filterPresenter = FindNamedDescendant<ContentPresenter>(
+                StoreFilterToggle,
+                "FilterTogglePresenter");
             if (StoreFilterPanel.Visibility != Visibility.Visible)
             {
                 throw new InvalidOperationException("Store filter smoke: panel did not open.");
@@ -357,12 +370,20 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
             {
                 throw new InvalidOperationException("Store filter smoke: chevron did not rotate open.");
             }
-            if (IsTransparentBrush(filterPresenter.Background)
+            if (filterPresenter is null
+                || IsTransparentBrush(filterPresenter.Background)
                 || filterPresenter.BorderThickness.Left == 0)
             {
                 throw new InvalidOperationException(
                     "Store filter smoke: open filter did not use a neutral surface.");
             }
+
+            StorePage.UpdateLayout();
+            double initialContentWidth = StorePageContent.ActualWidth;
+            double initialContentOffset = StorePageContent
+                .TransformToVisual(StorePage)
+                .TransformPoint(new Windows.Foundation.Point())
+                .X;
 
             await WaitForLoadedAsync(StoreSearchTextBox);
             if (!StoreSearchTextBox.Focus(FocusState.Programmatic))
@@ -370,45 +391,63 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
                 throw new InvalidOperationException("Store filter smoke: search input did not receive focus.");
             }
 
-            StoreSearchTextBox.Text = "c";
+            StoreSearchTextBox.Text = "x";
             QueueStoreSearchUpdate();
-            StoreSearchTextBox.Text = "ca";
+            StoreSearchTextBox.Text = "xz";
             QueueStoreSearchUpdate();
-            StoreSearchTextBox.Text = "cat";
+            StoreSearchTextBox.Text = "xz-no-sidey-product";
             QueueStoreSearchUpdate();
             await WaitForDispatcherTurnAsync();
-            if (!StringComparer.Ordinal.Equals(ViewModel.StoreSearchText, "cat")
+            StorePage.UpdateLayout();
+            double emptyContentOffset = StorePageContent
+                .TransformToVisual(StorePage)
+                .TransformPoint(new Windows.Foundation.Point())
+                .X;
+            if (!StringComparer.Ordinal.Equals(ViewModel.StoreSearchText, "xz-no-sidey-product")
+                || ViewModel.HasVisibleStoreProducts
+                || Math.Abs(StorePageContent.ActualWidth - initialContentWidth) > 0.5
+                || Math.Abs(emptyContentOffset - initialContentOffset) > 0.5
                 || StoreFilterPanel.Visibility != Visibility.Visible)
             {
                 throw new InvalidOperationException(
-                    "Store filter smoke: rapid search input did not apply while the panel remained open.");
+                    "Store filter smoke: empty search results changed the content frame.");
             }
 
             ViewModel.SelectedStoreSortIndex = 2;
             ViewModel.HidesOwnedStoreProducts = true;
+            StoreThrowableKindChip.IsChecked = true;
             OnResetStoreFiltersClick(StoreResetFiltersButton, new RoutedEventArgs());
             if (StoreSearchTextBox.Text.Length != 0
                 || ViewModel.StoreSearchText.Length != 0
-                || ViewModel.SelectedStoreKindIndex != 0
+                || ViewModel.SelectedStoreKindIndex != (int)CommerceProductKind.Throwable
+                || StoreThrowableKindChip.IsChecked != true
                 || ViewModel.SelectedStoreSortIndex != 0
                 || ViewModel.HidesOwnedStoreProducts)
             {
-                throw new InvalidOperationException("Store filter smoke: reset did not restore defaults.");
+                throw new InvalidOperationException(
+                    "Store filter smoke: reset did not restore filters while preserving product kind.");
             }
-            StoreSearchTextBox.Text = "cat";
+            StoreSearchTextBox.Text = "xz-no-sidey-product";
             QueueStoreSearchUpdate();
             await WaitForDispatcherTurnAsync();
 
             StoreFilterToggle.IsChecked = false;
             OnStoreFilterToggleClick(StoreFilterToggle, new RoutedEventArgs());
             await _storeFilterTransition;
+            StoreFilterToggle.UpdateLayout();
+            filterPresenter = FindNamedDescendant<ContentPresenter>(
+                StoreFilterToggle,
+                "FilterTogglePresenter");
             if (StoreFilterPanel.Visibility != Visibility.Collapsed
-                || !StringComparer.Ordinal.Equals(StoreSearchTextBox.Text, "cat")
-                || !StringComparer.Ordinal.Equals(ViewModel.StoreSearchText, "cat")
-                || StoreFilterChevron.RenderTransform is not RotateTransform { Angle: 0 })
+                || !StringComparer.Ordinal.Equals(StoreSearchTextBox.Text, "xz-no-sidey-product")
+                || !StringComparer.Ordinal.Equals(ViewModel.StoreSearchText, "xz-no-sidey-product")
+                || StoreFilterChevron.RenderTransform is not RotateTransform { Angle: 0 }
+                || filterPresenter is null
+                || !IsTransparentBrush(filterPresenter.Background)
+                || filterPresenter.BorderThickness.Left != 0)
             {
                 StartupDiagnostics.Stage(
-                    $"store-filter-toggle-smoke-failed visibility={StoreFilterPanel.Visibility} query-retained={StringComparer.Ordinal.Equals(StoreSearchTextBox.Text, "cat")} query-applied={StringComparer.Ordinal.Equals(ViewModel.StoreSearchText, "cat")}");
+                    $"store-filter-toggle-smoke-failed visibility={StoreFilterPanel.Visibility} query-retained={StringComparer.Ordinal.Equals(StoreSearchTextBox.Text, "xz-no-sidey-product")} query-applied={StringComparer.Ordinal.Equals(ViewModel.StoreSearchText, "xz-no-sidey-product")}");
                 throw new InvalidOperationException(
                     "Store filter smoke: focused search did not close while preserving its query.");
             }
@@ -419,6 +458,15 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         finally
         {
             ViewModel.StoreSearchText = originalSearchText;
+            ViewModel.SelectedStoreSortIndex = originalSortIndex;
+            ViewModel.HidesOwnedStoreProducts = originallyHidesOwned;
+            RadioButton originalKindChip = originalKindIndex switch
+            {
+                (int)CommerceProductKind.Bubble => StoreBubbleKindChip,
+                (int)CommerceProductKind.Throwable => StoreThrowableKindChip,
+                _ => StoreCharacterKindChip,
+            };
+            originalKindChip.IsChecked = true;
             StoreFilterToggle.IsChecked = false;
             SetStoreFilterPanelExpanded(false);
         }
@@ -562,7 +610,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
             previewStage.SetAnimationsEnabled(_coordinator.AnimationsEnabled);
             previewStage.CharacterImpact += _coordinator.PlayImpactSound;
             previewStage.StopSounds += scope => _coordinator.StopImpactSounds(scope);
-            if (ActiveXamlRoot() is null)
+            if (ActiveXamlRoot() is not { } xamlRoot)
             {
                 return;
             }
@@ -584,19 +632,20 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
                 TextAlignment = TextAlignment.Center,
                 TextWrapping = TextWrapping.Wrap,
             });
-            StorePreviewContent.Content = content;
-            StorePreviewActionButton.Content = product.IsOwned
-                ? I18n.Get("store.owned")
-                : I18n.Format("store.purchase", product.FormattedPrice);
-            _storePreviewClosed = new TaskCompletionSource(
-                TaskCreationOptions.RunContinuationsAsynchronously);
-            AppTitleBar.IsEnabled = false;
-            RootNavigation.IsEnabled = false;
-            StorePreviewOverlay.Visibility = Visibility.Visible;
+            var dialog = new ContentDialog
+            {
+                XamlRoot = xamlRoot,
+                Content = content,
+                PrimaryButtonText = product.IsOwned
+                    ? I18n.Get("store.owned")
+                    : I18n.Format("store.purchase", product.FormattedPrice),
+                IsPrimaryButtonEnabled = false,
+                CloseButtonText = I18n.Get("common.close"),
+                DefaultButton = ContentDialogButton.Close,
+            };
+            dialog.Closing += (_, _) => previewStage.EndPresentation();
             previewStage.BeginPresentation();
-            await WaitForLoadedAsync(StorePreviewCloseButton);
-            StorePreviewCloseButton.Focus(FocusState.Programmatic);
-            await _storePreviewClosed.Task;
+            await dialog.ShowAsync();
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
         {
@@ -611,91 +660,10 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
         finally
         {
-            DismissStorePreview();
             previewStage?.EndPresentation();
             _activePreview = null;
-            _storePreviewClosed = null;
             _storePreviewDialogOpen = false;
         }
-    }
-
-    internal async Task VerifyStorePreviewLightDismissSmokeAsync()
-    {
-        ShowPage("store");
-        ViewModel.StoreProducts[0].PreviewCommand.Execute(null);
-        DateTimeOffset deadline = DateTimeOffset.UtcNow.AddSeconds(5);
-        while (StorePreviewOverlay.Visibility != Visibility.Visible
-            && DateTimeOffset.UtcNow < deadline)
-        {
-            await Task.Delay(10);
-        }
-
-        if (StorePreviewOverlay.Visibility != Visibility.Visible
-            || StorePreviewContent.Content is null
-            || RootNavigation.IsEnabled)
-        {
-            throw new InvalidOperationException(
-                "Store preview smoke: the light-dismiss overlay did not open.");
-        }
-
-        DismissStorePreview();
-        while (_storePreviewDialogOpen && DateTimeOffset.UtcNow < deadline)
-        {
-            await Task.Delay(10);
-        }
-
-        if (_storePreviewDialogOpen
-            || StorePreviewOverlay.Visibility != Visibility.Collapsed
-            || StorePreviewContent.Content is not null
-            || !RootNavigation.IsEnabled)
-        {
-            throw new InvalidOperationException(
-                "Store preview smoke: outside dismissal did not release the preview.");
-        }
-
-        StartupDiagnostics.Stage("store-preview-light-dismiss-smoke-complete");
-    }
-
-    private void OnStorePreviewOverlayTapped(object sender, TappedRoutedEventArgs args)
-    {
-        _ = sender;
-        args.Handled = true;
-        DismissStorePreview();
-    }
-
-    private void OnStorePreviewSurfaceTapped(object sender, TappedRoutedEventArgs args)
-    {
-        _ = sender;
-        args.Handled = true;
-    }
-
-    private void OnStorePreviewCloseClick(object sender, RoutedEventArgs args)
-    {
-        _ = sender;
-        _ = args;
-        DismissStorePreview();
-    }
-
-    private void OnStorePreviewSurfaceKeyDown(object sender, KeyRoutedEventArgs args)
-    {
-        _ = sender;
-        if (args.Key != Windows.System.VirtualKey.Escape)
-        {
-            return;
-        }
-
-        args.Handled = true;
-        DismissStorePreview();
-    }
-
-    private void DismissStorePreview()
-    {
-        _activePreview?.EndPresentation();
-        StorePreviewOverlay.Visibility = Visibility.Collapsed;
-        StorePreviewContent.Content = null;
-        AppTitleBar.IsEnabled = true;
-        RootNavigation.IsEnabled = true;
-        _storePreviewClosed?.TrySetResult();
     }
 
     public async Task<string?> PromptForRoomNameAsync(string currentName)
@@ -900,7 +868,6 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
 
         _isClosed = true;
-        DismissStorePreview();
         ViewModel.StopSoundVolumeFeedback();
         _lifetime.Cancel();
         MainRoot.DataContext = null;
@@ -953,19 +920,18 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
     }
 
-    private void OnStoreKindSelectionChanged(
-        SelectorBar sender,
-        SelectorBarSelectionChangedEventArgs args)
+    private void OnStoreKindChipChecked(object sender, RoutedEventArgs args)
     {
         _ = args;
-        if (sender.SelectedItem is null
+        if (sender is not RadioButton { Tag: string tag }
+            || !int.TryParse(tag, out int selectedIndex)
             || MainRoot.DataContext is not MainWindowViewModel viewModel)
         {
             return;
         }
 
-        int selectedIndex = sender.Items.IndexOf(sender.SelectedItem);
         int previousIndex = viewModel.SelectedStoreKindIndex;
+        ApplyStoreKindChipStyles(selectedIndex);
         if (selectedIndex < 0 || selectedIndex == previousIndex)
         {
             return;
@@ -975,6 +941,29 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         AnimateSiblingPage(
             StoreResultsHost,
             selectedIndex > previousIndex ? 24d : -24d);
+    }
+
+    private void ApplyStoreKindChipStyles(int selectedIndex)
+    {
+        if (StoreCharacterKindChip is null
+            || StoreBubbleKindChip is null
+            || StoreThrowableKindChip is null)
+        {
+            return;
+        }
+
+        var defaultStyle = (Style)Application.Current.Resources["SideyStoreKindChipStyle"];
+        var selectedStyle = (Style)Application.Current.Resources["SideyStoreKindChipSelectedStyle"];
+        RadioButton[] chips =
+        [
+            StoreCharacterKindChip,
+            StoreBubbleKindChip,
+            StoreThrowableKindChip,
+        ];
+        for (int index = 0; index < chips.Length; index++)
+        {
+            chips[index].Style = index == selectedIndex ? selectedStyle : defaultStyle;
+        }
     }
 
     private static void AnimatePageRefresh(FrameworkElement element) =>
@@ -1296,11 +1285,15 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         _ = args;
         if (!_storeFilterTransition.IsCompleted)
         {
+            bool isExpanded = StoreFilterPanel.Visibility == Visibility.Visible;
+            StoreFilterToggle.IsChecked = isExpanded;
+            ApplyStoreFilterToggleSurface(isExpanded);
             return;
         }
 
-        _storeFilterTransition = TransitionStoreFilterPanelAsync(
-            StoreFilterToggle.IsChecked == true);
+        bool requestedExpanded = StoreFilterToggle.IsChecked == true;
+        ApplyStoreFilterToggleSurface(requestedExpanded);
+        _storeFilterTransition = TransitionStoreFilterPanelAsync(requestedExpanded);
     }
 
     private void OnStoreSearchTextChanged(object sender, TextChangedEventArgs args)
@@ -1341,10 +1334,6 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         _ = args;
         ViewModel.ResetStoreFiltersCommand.Execute(null);
         StoreSearchTextBox.Text = string.Empty;
-        if (StoreKindSelector.Items.Count > 0)
-        {
-            StoreKindSelector.SelectedItem = StoreKindSelector.Items[0];
-        }
     }
 
     private async Task TransitionStoreFilterPanelAsync(bool isExpanded)
@@ -1443,6 +1432,8 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
 
     private void SetStoreFilterPanelExpanded(bool isExpanded)
     {
+        StoreFilterToggle.IsChecked = isExpanded;
+        ApplyStoreFilterToggleSurface(isExpanded);
         StoreFilterPanel.Visibility = isExpanded ? Visibility.Visible : Visibility.Collapsed;
         StoreFilterPanel.Height = double.NaN;
         StoreFilterPanel.Opacity = 1;
@@ -1451,6 +1442,14 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
             transform.Y = 0;
         }
         SetChevronAngle(StoreFilterChevron, isExpanded ? 180 : 0);
+    }
+
+    private void ApplyStoreFilterToggleSurface(bool isExpanded)
+    {
+        string styleKey = isExpanded
+            ? "SideyStoreFilterToggleExpandedStyle"
+            : "SideyStoreFilterToggleStyle";
+        StoreFilterToggle.Style = (Style)Application.Current.Resources[styleKey];
     }
 
     private async Task WaitForDispatcherTurnAsync()

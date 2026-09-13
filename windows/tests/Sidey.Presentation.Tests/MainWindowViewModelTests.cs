@@ -799,7 +799,7 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
-    public void ResetStoreFiltersRestoresTheCatalogDefaults()
+    public void ResetStoreFiltersPreservesProductKindAndRestoresFilters()
     {
         (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
         coordinator.State = state;
@@ -816,13 +816,13 @@ public sealed class MainWindowViewModelTests
 
         viewModel.ResetStoreFiltersCommand.Execute(null);
 
-        Assert.Equal(0, viewModel.SelectedStoreKindIndex);
+        Assert.Equal((int)CommerceProductKind.Throwable, viewModel.SelectedStoreKindIndex);
         Assert.Equal(0, viewModel.SelectedStoreSortIndex);
         Assert.False(viewModel.HidesOwnedStoreProducts);
         Assert.Empty(viewModel.StoreSearchText);
-        Assert.Equal(4, viewModel.VisibleStoreProducts.Count);
+        Assert.Equal(3, viewModel.VisibleStoreProducts.Count);
         Assert.All(viewModel.VisibleStoreProducts, product =>
-            Assert.Equal(CommerceProductKind.Character, product.Kind));
+            Assert.Equal(CommerceProductKind.Throwable, product.Kind));
     }
 
     [Fact]

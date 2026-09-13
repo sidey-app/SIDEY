@@ -161,7 +161,6 @@ public partial class App : Application
             await EnsureMainWindow().VerifyExternalAssetsSmokeAsync();
             EnsureMainWindow().VerifyLocalCatalogLoadingSmoke();
             await EnsureMainWindow().VerifyStoreFilterToggleSmokeAsync();
-            await EnsureMainWindow().VerifyStorePreviewLightDismissSmokeAsync();
         }
         await RunStorePreviewStartupSmokeIfRequestedAsync();
         if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1"

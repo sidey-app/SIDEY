@@ -879,7 +879,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [RelayCommand]
     private void ResetStoreFilters()
     {
-        SelectedStoreKindIndex = 0;
         SelectedStoreSortIndex = 0;
         HidesOwnedStoreProducts = false;
         StoreSearchText = string.Empty;
