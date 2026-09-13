@@ -38,4 +38,21 @@ public sealed class TrayMenuStateTests
     {
         Assert.Equal(expected, TrayIconService.PreferredAppModeValue(theme));
     }
+
+    [Theory]
+    [InlineData((int)TrayUpdateNotification.Latest, "", "최신 버전입니다.")]
+    [InlineData((int)TrayUpdateNotification.Available, "1.2.2", "업데이트가 있습니다. 1.2.2")]
+    [InlineData(
+        (int)TrayUpdateNotification.Failed,
+        "",
+        "업데이트 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.")]
+    public void UpdateNotificationsDescribeTheCompletedCheck(
+        int notification,
+        string version,
+        string expected)
+    {
+        Assert.Equal(
+            expected,
+            TrayIconService.UpdateNotificationBody((TrayUpdateNotification)notification, version));
+    }
 }

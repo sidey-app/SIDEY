@@ -6,6 +6,13 @@ using Sidey.Core.Localization;
 
 namespace Sidey.Platform.Windows.Shell;
 
+internal enum TrayUpdateNotification
+{
+    Available = 1,
+    Latest = 2,
+    Failed = 3,
+}
+
 public enum TrayCommand
 {
     Open = 1000,
@@ -40,7 +47,6 @@ public sealed class TrayIconService : IDisposable
     private const uint TrayMessage = 0x8000 + 51;
     private const uint RefreshMessage = 0x8000 + 52;
     private const uint NotificationMessage = 0x8000 + 53;
-    private const nuint UpdateNotification = 1;
     private const uint IconId = 1;
     private const uint NotifyIconMessage = 0x1;
     private const uint NotifyIconIcon = 0x2;
@@ -122,15 +128,42 @@ public sealed class TrayIconService : IDisposable
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(version);
         _availableUpdateVersion = version;
+        PostUpdateNotification(TrayUpdateNotification.Available);
+    }
+
+    public void NotifyLatestVersion()
+    {
+        PostUpdateNotification(TrayUpdateNotification.Latest);
+    }
+
+    public void NotifyUpdateCheckFailed()
+    {
+        PostUpdateNotification(TrayUpdateNotification.Failed);
+    }
+
+    private void PostUpdateNotification(TrayUpdateNotification notification)
+    {
         if (_window != nint.Zero)
         {
             NativeMethods.PostMessage(
                 _window,
                 NotificationMessage,
-                (nint)UpdateNotification,
+                (nint)notification,
                 nint.Zero);
         }
     }
+
+    internal static string UpdateNotificationBody(
+        TrayUpdateNotification notification,
+        string availableVersion = "") => notification switch
+        {
+            TrayUpdateNotification.Available => I18n.Format(
+                "tray.updateAvailable",
+                availableVersion),
+            TrayUpdateNotification.Latest => I18n.Get("tray.updateLatest"),
+            TrayUpdateNotification.Failed => I18n.Get("tray.updateCheckFailed"),
+            _ => throw new ArgumentOutOfRangeException(nameof(notification)),
+        };
 
     public void Dispose()
     {
@@ -600,11 +633,20 @@ public sealed class TrayIconService : IDisposable
             {
                 NotifyIconData data = service.CreateIconData();
                 data.Flags |= NotifyIconInfo;
-                if ((nuint)wParam == UpdateNotification)
+                if ((nuint)wParam != 0)
                 {
-                    data.InfoTitle = I18n.Get("dialogs.updateTitle");
-                    data.Info = I18n.Format(
-                        "update.available",
+                    var notification =
+                        (TrayUpdateNotification)(nuint)wParam;
+                    if (notification is not TrayUpdateNotification.Available
+                        and not TrayUpdateNotification.Latest
+                        and not TrayUpdateNotification.Failed)
+                    {
+                        return NativeMethods.DefWindowProc(window, message, wParam, lParam);
+                    }
+
+                    data.InfoTitle = "SIDEY";
+                    data.Info = UpdateNotificationBody(
+                        notification,
                         service._availableUpdateVersion);
                     data.InfoFlags = NotifyInfoInfo;
                 }

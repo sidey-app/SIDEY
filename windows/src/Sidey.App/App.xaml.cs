@@ -30,6 +30,7 @@ public partial class App : Application
     private DevelopmentUpdateService? _developmentUpdate;
 #endif
     private bool _startupUpdateCheckStarted;
+    private bool _trayUpdateCheckInProgress;
     private bool _monitorConnectionFailures;
     private bool _connectionFailureNotificationArmed = true;
     private DateTimeOffset? _lastConnectionFailureNotificationAt;
@@ -337,6 +338,47 @@ public partial class App : Application
         _pendingUpdateNotificationVersion = null;
         _tray.NotifyUpdateAvailable(version);
         StartupDiagnostics.Stage("update-available-notification-posted");
+    }
+
+    private async Task CheckForUpdatesFromTrayAsync()
+    {
+        if (_shuttingDown || _trayUpdateCheckInProgress)
+        {
+            return;
+        }
+
+        _trayUpdateCheckInProgress = true;
+        try
+        {
+            AvailableUpdate? update = await _updateService.CheckAsync();
+            if (_shuttingDown)
+            {
+                return;
+            }
+
+            if (update is null)
+            {
+                _tray?.NotifyLatestVersion();
+                StartupDiagnostics.Stage("tray-update-notification-posted result=latest");
+            }
+            else
+            {
+                _tray?.NotifyUpdateAvailable(update.Version);
+                StartupDiagnostics.Stage("tray-update-notification-posted result=available");
+            }
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal("tray-update-check", exception);
+            if (!_shuttingDown)
+            {
+                _tray?.NotifyUpdateCheckFailed();
+            }
+        }
+        finally
+        {
+            _trayUpdateCheckInProgress = false;
+        }
     }
 
     private async Task DisposeAfterFailedLaunchAsync()
@@ -1061,7 +1103,7 @@ public partial class App : Application
                         !_coordinator.State.Preferences.StartAtLogin));
                 break;
             case TrayCommand.CheckUpdates:
-                EnsureMainWindow().ShowUpdatesAndCheck();
+                _ = CheckForUpdatesFromTrayAsync();
                 break;
             case TrayCommand.Settings:
                 EnsureMainWindow().ShowPage("settings");

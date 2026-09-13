@@ -206,7 +206,7 @@ public sealed class RoomCardViewModel : ObservableObject, IDisposable
         JoinActionText = joinActionText;
         IsJoinEnabled = isJoinEnabled;
         IsSwitching = isSwitching;
-        ExpansionGlyph = isExpanded ? "\uE70D" : "\uE76C";
+        ExpansionGlyph = isExpanded ? "\uE70E" : "\uE70D";
         ExpansionActionText = isExpanded
             ? I18n.Get("groups.collapse")
             : I18n.Get("groups.expand");

@@ -951,7 +951,7 @@ public sealed class MainWindowViewModelTests
         await room.InviteCommand.ExecuteAsync(null);
 
         Assert.True(room.IsInviteCopyConfirmed);
-        Assert.Equal("복사 완료", room.InviteActionText);
+        Assert.Equal("복사됨", room.InviteActionText);
         room.Dispose();
     }
 
@@ -1102,6 +1102,8 @@ public sealed class MainWindowViewModelTests
         Assert.Same(secondRoom, viewModel.Rooms[1]);
         Assert.False(firstRoom.IsExpanded);
         Assert.True(secondRoom.IsExpanded);
+        Assert.Equal("\uE70D", firstRoom.ExpansionGlyph);
+        Assert.Equal("\uE70E", secondRoom.ExpansionGlyph);
     }
 
     [Fact]
