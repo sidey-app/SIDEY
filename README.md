@@ -73,17 +73,17 @@ SIDEY를 함께 만들어 주신 분들께 감사드립니다.
 
 <table>
   <tr>
-    <td align="center" width="120">
+    <td align="center" width="160">
       <a href="https://github.com/patulus">
         <img src="https://avatars.githubusercontent.com/u/7178737?v=4" width="80" height="80" alt="@patulus"><br>
         <sub><strong>@patulus</strong></sub>
       </a><br>
       <sub>Windows 개발</sub>
     </td>
-    <td align="center" width="120">
+    <td align="center" width="160">
       <a href="https://github.com/jungjiyu">
-        <img src="https://avatars.githubusercontent.com/u/142137932?v=4" width="80" height="80" alt="정지유 (@jungjiyu)"><br>
-        <sub><strong>정지유 (@jungjiyu)</strong></sub>
+        <img src="https://avatars.githubusercontent.com/u/142137932?v=4" width="80" height="80" alt="@jungjiyu"><br>
+        <sub><strong>@jungjiyu</strong></sub>
       </a><br>
       <sub>캐릭터 5종 에셋 제공</sub>
     </td>
