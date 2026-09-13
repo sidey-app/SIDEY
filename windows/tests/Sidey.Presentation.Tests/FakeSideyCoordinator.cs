@@ -10,6 +10,7 @@ internal sealed class FakeSideyCoordinator : IMainWindowCoordinator, IHistoryCoo
     public List<Uri> OpenedExternalUris { get; } = [];
     public Func<Task<string>>? DiagnosticExportHandler { get; set; }
     public Task RetryConnectionAsync(bool userInitiated = true) { ConnectionRetryCount++; return Task.CompletedTask; }
+    public bool IsRemoteContentLoading { get; set; }
     public bool AnimationsEnabled { get; set; } = true;
     public Func<bool, Task>? SoundSettingHandler { get; set; }
     public List<string> PreviewedSounds { get; } = [];

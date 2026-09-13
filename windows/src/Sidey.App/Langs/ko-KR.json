@@ -178,6 +178,7 @@
       "filter": "정렬 및 필터",
       "search": "검색",
       "searchPlaceholder": "상품 이름 또는 설명 검색",
+      "resetAll": "모두 다시 설정",
       "sort": "정렬",
       "sortCatalog": "기본순",
       "sortPriceAscending": "가격 낮은순",

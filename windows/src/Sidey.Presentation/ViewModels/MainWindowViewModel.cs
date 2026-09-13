@@ -220,6 +220,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial bool HasVisibleStoreProducts { get; set; }
 
     [ObservableProperty]
+    public partial bool IsRemoteContentLoading { get; set; }
+
+    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RetryConnectionCommand))]
     public partial bool IsConnected { get; set; }
 
@@ -307,6 +310,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _updates = updates ?? throw new ArgumentNullException(nameof(updates));
+        IsRemoteContentLoading = coordinator.IsRemoteContentLoading;
         StoreProducts = [.. WindowsCommerceCatalog.Products.Select(CreateStorePreview)];
         RefreshVisibleStoreProducts();
         RefreshMonitors();
@@ -394,6 +398,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public void ApplyState(CoordinatorState state)
     {
+        IsRemoteContentLoading = _coordinator.IsRemoteContentLoading;
         if (_selectionUserId != state.Profile?.Id)
         {
             _selectionUserId = state.Profile?.Id;
@@ -869,6 +874,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         _ = value;
         RefreshVisibleStoreProducts();
+    }
+
+    [RelayCommand]
+    private void ResetStoreFilters()
+    {
+        SelectedStoreKindIndex = 0;
+        SelectedStoreSortIndex = 0;
+        HidesOwnedStoreProducts = false;
+        StoreSearchText = string.Empty;
     }
 
     partial void OnSelectedEdgeIndexChanged(int value) => ApplyRegionPreference();

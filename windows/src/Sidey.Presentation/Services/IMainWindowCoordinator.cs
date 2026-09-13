@@ -5,6 +5,7 @@ namespace Sidey.Presentation.Services;
 public interface IMainWindowCoordinator : IOnboardingCoordinator
 {
     public Task RetryConnectionAsync(bool userInitiated = true);
+    public bool IsRemoteContentLoading { get; }
     public bool AnimationsEnabled { get; }
     public void ApplyCharacterSoundEffects(bool enabled, int volume);
     public Task SaveCharacterSoundEffectsAsync(bool enabled, int volume, CancellationToken cancellationToken = default);

@@ -49,6 +49,51 @@
         <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1" />
       </Style>
+      <Style x:Key="SideyStoreFilterToggleStyle" TargetType="ToggleButton">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="ToggleButton">
+              <ContentPresenter
+                  x:Name="FilterTogglePresenter"
+                  Padding="{TemplateBinding Padding}"
+                  HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                  VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  Content="{TemplateBinding Content}"
+                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                  CornerRadius="{TemplateBinding CornerRadius}">
+                <VisualStateManager.VisualStateGroups>
+                  <VisualStateGroup x:Name="CheckStates">
+                    <VisualState x:Name="Unchecked">
+                      <VisualState.Setters>
+                        <Setter Target="FilterTogglePresenter.Background" Value="Transparent" />
+                        <Setter Target="FilterTogglePresenter.BorderBrush" Value="Transparent" />
+                        <Setter Target="FilterTogglePresenter.BorderThickness" Value="0" />
+                      </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Checked">
+                      <VisualState.Setters>
+                        <Setter Target="FilterTogglePresenter.Background" Value="{ThemeResource ControlFillColorDefaultBrush}" />
+                        <Setter Target="FilterTogglePresenter.BorderBrush" Value="{ThemeResource ControlStrokeColorDefaultBrush}" />
+                        <Setter Target="FilterTogglePresenter.BorderThickness" Value="1" />
+                      </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Indeterminate" />
+                  </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
+              </ContentPresenter>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Style>
     </ResourceDictionary>
   </Application.Resources>
 </Application>

@@ -799,6 +799,104 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void ResetStoreFiltersRestoresTheCatalogDefaults()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        coordinator.State = state;
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService())
+        {
+            SelectedStoreKindIndex = (int)CommerceProductKind.Throwable,
+            SelectedStoreSortIndex = 2,
+            HidesOwnedStoreProducts = true,
+            StoreSearchText = "오리",
+        };
+
+        viewModel.ResetStoreFiltersCommand.Execute(null);
+
+        Assert.Equal(0, viewModel.SelectedStoreKindIndex);
+        Assert.Equal(0, viewModel.SelectedStoreSortIndex);
+        Assert.False(viewModel.HidesOwnedStoreProducts);
+        Assert.Empty(viewModel.StoreSearchText);
+        Assert.Equal(4, viewModel.VisibleStoreProducts.Count);
+        Assert.All(viewModel.VisibleStoreProducts, product =>
+            Assert.Equal(CommerceProductKind.Character, product.Kind));
+    }
+
+    [Fact]
+    public void RemoteContentLoadingTracksTheCoordinatorLifecycle()
+    {
+        var coordinator = new FakeSideyCoordinator { IsRemoteContentLoading = true };
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        Assert.True(viewModel.IsRemoteContentLoading);
+
+        coordinator.IsRemoteContentLoading = false;
+        viewModel.ApplyState(coordinator.State);
+
+        Assert.False(viewModel.IsRemoteContentLoading);
+    }
+
+    [Fact]
+    public void RemoteLoadingKeepsLocalCatalogDefaultsAndCachedFreeSelectionAvailable()
+    {
+        CoordinatorState state = CoordinatorState.Initial with
+        {
+            Preferences = AppPreferences.Default with { CachedCharacterId = "pixel_cat" },
+        };
+        var coordinator = new FakeSideyCoordinator
+        {
+            IsRemoteContentLoading = true,
+            State = state,
+        };
+
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        Assert.Equal(
+            PixelCharacterCatalog.Selectable.Select(character => character.Id),
+            viewModel.CharacterSelections.Select(character => character.Id));
+        Assert.True(viewModel.CharacterSelections.Single(character =>
+            character.Id == "pixel_cat").IsSelected);
+        Assert.True(Assert.Single(viewModel.BubbleSelections).IsSelected);
+        Assert.True(Assert.Single(viewModel.ThrowableSelections).IsSelected);
+    }
+
+    [Fact]
+    public void RemoteLoadingDoesNotGuessPaidSelectionWithoutEntitlements()
+    {
+        CoordinatorState state = CoordinatorState.Initial with
+        {
+            Preferences = AppPreferences.Default with
+            {
+                CachedCharacterId = "pixel_starlight_upalupa",
+            },
+        };
+        var coordinator = new FakeSideyCoordinator
+        {
+            IsRemoteContentLoading = true,
+            State = state,
+        };
+
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        Assert.DoesNotContain(
+            viewModel.CharacterSelections,
+            character => character.Id == "pixel_starlight_upalupa");
+        Assert.DoesNotContain(viewModel.CharacterSelections, character => character.IsSelected);
+    }
+
+    [Fact]
     public void StoreSearchReplacesTheVisibleResultListOnce()
     {
         (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();

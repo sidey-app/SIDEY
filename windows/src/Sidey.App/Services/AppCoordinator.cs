@@ -204,6 +204,8 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 
     public CoordinatorState State => _state;
 
+    public bool IsRemoteContentLoading { get; private set; } = true;
+
     public bool IsValidationMode => _validationMode;
 
     public string? ValidationMetricsPath => _overlay?.ValidationMetricsPath;
@@ -294,6 +296,19 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     }
 
     private async Task InitializeCoreAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await LoadRemoteContentAsync(cancellationToken);
+        }
+        finally
+        {
+            IsRemoteContentLoading = false;
+            PublishState();
+        }
+    }
+
+    private async Task LoadRemoteContentAsync(CancellationToken cancellationToken)
     {
         await LoadCachedStateAsync(cancellationToken);
         ShowStartupOverlay();
