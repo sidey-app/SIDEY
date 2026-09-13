@@ -52,6 +52,8 @@ public interface IMainWindowCoordinator : IOnboardingCoordinator
 
     public Task SetLanguageAsync(string language, CancellationToken cancellationToken = default);
 
+    public Task SetThemeAsync(AppThemePreference theme, CancellationToken cancellationToken = default);
+
     public Task SetRegionAsync(
         OverlayRegionPreference preference,
         CancellationToken cancellationToken = default);
@@ -74,4 +76,8 @@ public interface IMainWindowCoordinator : IOnboardingCoordinator
     public void RequestComposer();
 
     public Task<string?> ExportValidationMetricsAsync(CancellationToken cancellationToken = default);
+
+    public Task<string> ExportDiagnosticDataAsync(CancellationToken cancellationToken = default);
+
+    public Task OpenExternalUriAsync(Uri uri);
 }

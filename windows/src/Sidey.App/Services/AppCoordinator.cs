@@ -8,6 +8,7 @@ using Sidey.Core.Realtime;
 using Sidey.Infrastructure;
 using Sidey.Overlay;
 using Sidey.Platform.Windows;
+using Sidey.Platform.Windows.Diagnostics;
 using Sidey.Presentation.Services;
 using Windows.ApplicationModel.DataTransfer;
 
@@ -33,6 +34,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     private readonly ICredentialStore _credentialStore;
     private readonly RoomSessionLifetime _roomSession = new();
     private readonly WindowsStartupService _startup = new();
+    private readonly DiagnosticDataExporter _diagnosticDataExporter = new();
     private readonly IActivityMonitor _activityMonitor = new WindowsActivityMonitor();
     private readonly MessageLedger _messages = new();
     private readonly ActiveBubbleLedger _bubbles = new();
@@ -978,6 +980,26 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         LanguageChanged?.Invoke(language);
     }
 
+    public async Task SetThemeAsync(
+        AppThemePreference theme,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Enum.IsDefined(theme))
+            throw new ArgumentOutOfRangeException(nameof(theme));
+
+        AppThemePreference previousTheme = _state.Preferences.Theme;
+        SetState(_state with { Preferences = _state.Preferences with { Theme = theme } });
+        try
+        {
+            await PersistPreferencesAsync(cancellationToken);
+        }
+        catch
+        {
+            SetState(_state with { Preferences = _state.Preferences with { Theme = previousTheme } });
+            throw;
+        }
+    }
+
     public void RefreshDisplayTopology()
     {
         IReadOnlyList<MonitorOption> monitors = GetMonitors();
@@ -1175,6 +1197,19 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         CancellationToken cancellationToken = default) =>
         _overlay?.ExportValidationMetricsAsync(cancellationToken)
         ?? Task.FromResult<string?>(null);
+
+    public Task<string> ExportDiagnosticDataAsync(
+        CancellationToken cancellationToken = default) =>
+        _diagnosticDataExporter.ExportAsync(cancellationToken);
+
+    public async Task OpenExternalUriAsync(Uri uri)
+    {
+        ArgumentNullException.ThrowIfNull(uri);
+        if (!await Windows.System.Launcher.LaunchUriAsync(uri))
+        {
+            throw new InvalidOperationException("The default browser could not be opened.");
+        }
+    }
 
     public async ValueTask DisposeAsync()
     {

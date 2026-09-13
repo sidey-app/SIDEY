@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Sidey.App.Controls;
+using Sidey.Core.Domain;
 using Sidey.Core.Localization;
 using Sidey.Platform.Windows;
 using Sidey.Presentation.Services;
@@ -34,7 +35,9 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     private bool _allowClose;
     private bool _trayAvailable;
     private bool _navigatingBack;
+    private bool _storeSearchUpdateQueued;
     private bool _storePreviewDialogOpen;
+    private readonly HashSet<Guid> _roomExpansionAnimations = [];
     private bool _hideQueued;
     private bool _isClosed;
     private string _currentNavigationTag = "profile";
@@ -77,6 +80,8 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
         catch (Exception exception) { StartupDiagnostics.NonFatal("feedback-system-notifications", exception); }
         MainRoot.DataContext = ViewModel;
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        ApplyRequestedTheme();
         ViewModel.PrepareGroupsForPresentation();
         Title = "SIDEY";
         SideyWindowIcon.Apply(AppWindow);
@@ -100,6 +105,20 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     }
 
     public MainWindowViewModel ViewModel { get; }
+
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+    {
+        _ = sender;
+        if (args.PropertyName == nameof(MainWindowViewModel.SelectedThemeIndex))
+            ApplyRequestedTheme();
+    }
+
+    private void ApplyRequestedTheme()
+    {
+        SideyWindowTheme.Apply(
+            MainRoot,
+            (AppThemePreference)ViewModel.SelectedThemeIndex);
+    }
 
     private void OnAnimationsChanged()
     {
@@ -218,7 +237,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
 
     internal async Task VerifyLiveLanguageSmokeAsync()
     {
-        ShowPage("settings");
+        ShowPage("about");
         ViewModel.Nickname = "draft";
         ViewModel.InviteCode = "ABCDEF";
         ViewModel.CreateRoomName = "room draft";
@@ -269,6 +288,63 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         StartupDiagnostics.Stage("live-language-smoke-complete changes=6 drafts-preserved=true");
     }
 
+    internal async Task VerifyStoreFilterToggleSmokeAsync()
+    {
+        string originalSearchText = ViewModel.StoreSearchText;
+        try
+        {
+            ShowPage("store");
+            StoreFilterToggle.IsChecked = true;
+            OnStoreFilterToggleClick(StoreFilterToggle, new RoutedEventArgs());
+            if (StoreFilterPanel.Visibility != Visibility.Visible)
+            {
+                throw new InvalidOperationException("Store filter smoke: panel did not open.");
+            }
+
+            await WaitForLoadedAsync(StoreSearchTextBox);
+            if (!StoreSearchTextBox.Focus(FocusState.Programmatic))
+            {
+                throw new InvalidOperationException("Store filter smoke: search input did not receive focus.");
+            }
+
+            StoreSearchTextBox.Text = "c";
+            QueueStoreSearchUpdate();
+            StoreSearchTextBox.Text = "ca";
+            QueueStoreSearchUpdate();
+            StoreSearchTextBox.Text = "cat";
+            QueueStoreSearchUpdate();
+            await WaitForDispatcherTurnAsync();
+            if (!StringComparer.Ordinal.Equals(ViewModel.StoreSearchText, "cat")
+                || StoreFilterPanel.Visibility != Visibility.Visible)
+            {
+                throw new InvalidOperationException(
+                    "Store filter smoke: rapid search input did not apply while the panel remained open.");
+            }
+
+            StoreFilterToggle.IsChecked = false;
+            OnStoreFilterToggleClick(StoreFilterToggle, new RoutedEventArgs());
+            await WaitForDispatcherTurnAsync();
+            if (StoreFilterPanel.Visibility != Visibility.Collapsed
+                || !StringComparer.Ordinal.Equals(StoreSearchTextBox.Text, "cat")
+                || !StringComparer.Ordinal.Equals(ViewModel.StoreSearchText, "cat"))
+            {
+                StartupDiagnostics.Stage(
+                    $"store-filter-toggle-smoke-failed visibility={StoreFilterPanel.Visibility} query-retained={StringComparer.Ordinal.Equals(StoreSearchTextBox.Text, "cat")} query-applied={StringComparer.Ordinal.Equals(ViewModel.StoreSearchText, "cat")}");
+                throw new InvalidOperationException(
+                    "Store filter smoke: focused search did not close while preserving its query.");
+            }
+
+            StartupDiagnostics.Stage(
+                "store-filter-toggle-smoke-complete focused-search=true query-preserved=true");
+        }
+        finally
+        {
+            ViewModel.StoreSearchText = originalSearchText;
+            StoreFilterToggle.IsChecked = false;
+            SetStoreFilterPanelExpanded(false);
+        }
+    }
+
     public void ApplyState(CoordinatorState state)
     {
         if (!_isClosed)
@@ -301,10 +377,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
 
         ViewModel.PrepareGroupsForPresentation();
-        NavigationViewItem? item = RootNavigation.MenuItems
-            .OfType<NavigationViewItem>()
-            .FirstOrDefault(candidate =>
-                StringComparer.Ordinal.Equals(candidate.Tag as string, tag));
+        NavigationViewItem? item = FindNavigationItem(tag);
         if (item is not null)
         {
             RootNavigation.SelectedItem = item;
@@ -334,9 +407,30 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
     }
 
-    public void CheckForUpdates()
+    public void ShowUpdatesAndCheck()
     {
-        if (!_isClosed && ViewModel.CheckForUpdatesCommand.CanExecute(null))
+        if (_isClosed)
+        {
+            return;
+        }
+
+        ShowPage("about");
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_isClosed)
+            {
+                return;
+            }
+
+            AboutPage.UpdateLayout();
+            UpdateSection.StartBringIntoView(new BringIntoViewOptions
+            {
+                AnimationDesired = _coordinator.AnimationsEnabled,
+                VerticalAlignmentRatio = 0,
+            });
+        });
+
+        if (ViewModel.CheckForUpdatesCommand.CanExecute(null))
         {
             ViewModel.CheckForUpdatesCommand.Execute(null);
         }
@@ -681,15 +775,21 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         GroupsPage.Visibility = tag == "groups" ? Visibility.Visible : Visibility.Collapsed;
         StorePage.Visibility = tag == "store" ? Visibility.Visible : Visibility.Collapsed;
         SettingsPage.Visibility = tag == "settings" ? Visibility.Visible : Visibility.Collapsed;
+        AboutPage.Visibility = tag == "about" ? Visibility.Visible : Visibility.Collapsed;
         if (navigationChanged)
         {
-            AnimatePageRefresh(tag switch
+            ScrollViewer selectedPage = tag switch
             {
                 "groups" => GroupsPage,
                 "store" => StorePage,
                 "settings" => SettingsPage,
+                "about" => AboutPage,
                 _ => HomePage,
-            });
+            };
+            selectedPage.ChangeView(null, 0, null, disableAnimation: true);
+            DispatcherQueue.TryEnqueue(() =>
+                selectedPage.ChangeView(null, 0, null, disableAnimation: true));
+            AnimatePageRefresh(selectedPage);
         }
     }
 
@@ -722,6 +822,143 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
 
     private static void AnimateSiblingPage(FrameworkElement element, double horizontalOffset) =>
         AnimateElement(element, horizontalOffset, verticalOffset: 0, durationMilliseconds: 180);
+
+    private async void OnRoomHeaderTapped(object sender, TappedRoutedEventArgs args)
+    {
+        if (sender is not Grid header
+            || header.DataContext is not RoomCardViewModel room
+            || header.Tag is not FrameworkElement body
+            || args.OriginalSource is DependencyObject source && HasButtonAncestor(source, header)
+            || !_roomExpansionAnimations.Add(room.Room.Id))
+        {
+            return;
+        }
+
+        args.Handled = true;
+        try
+        {
+            if (!_coordinator.AnimationsEnabled)
+            {
+                room.ToggleCommand.Execute(null);
+                return;
+            }
+
+            if (room.IsExpanded)
+            {
+                await AnimateRoomBodyAsync(body, expanding: false);
+                room.ToggleCommand.Execute(null);
+                body.Height = double.NaN;
+                body.Opacity = 1;
+            }
+            else
+            {
+                room.ToggleCommand.Execute(null);
+                body.Height = double.NaN;
+                body.UpdateLayout();
+                await AnimateRoomBodyAsync(body, expanding: true);
+                body.Height = double.NaN;
+                body.Opacity = 1;
+            }
+        }
+        finally
+        {
+            _roomExpansionAnimations.Remove(room.Room.Id);
+        }
+    }
+
+    private void OnRoomHeaderPointerEntered(object sender, PointerRoutedEventArgs args)
+    {
+        _ = args;
+        SetRoomHeaderHoverOpacity(sender, 1);
+    }
+
+    private void OnRoomHeaderPointerExited(object sender, PointerRoutedEventArgs args)
+    {
+        _ = args;
+        SetRoomHeaderHoverOpacity(sender, 0);
+    }
+
+    private static void SetRoomHeaderHoverOpacity(object sender, double opacity)
+    {
+        if (sender is Grid header
+            && header.Children
+                .OfType<Border>()
+                .FirstOrDefault(child => child.Name == "RoomHeaderHoverBackground") is { } hoverBackground)
+        {
+            hoverBackground.Opacity = opacity;
+        }
+    }
+
+    private static bool HasButtonAncestor(DependencyObject source, DependencyObject boundary)
+    {
+        for (DependencyObject? current = source;
+             current is not null && !ReferenceEquals(current, boundary);
+             current = VisualTreeHelper.GetParent(current))
+        {
+            if (current is Button)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static Task AnimateRoomBodyAsync(FrameworkElement body, bool expanding)
+    {
+        double expandedHeight = Math.Max(1, body.ActualHeight);
+        body.Height = expanding ? 0 : expandedHeight;
+        body.Opacity = expanding ? 0 : 1;
+        if (body.RenderTransform is not TranslateTransform transform)
+        {
+            transform = new TranslateTransform();
+            body.RenderTransform = transform;
+        }
+        transform.Y = expanding ? -8 : 0;
+
+        var duration = new Duration(TimeSpan.FromMilliseconds(expanding ? 180 : 150));
+        var easing = new CubicEase { EasingMode = EasingMode.EaseInOut };
+        var height = new DoubleAnimation
+        {
+            From = expanding ? 0 : expandedHeight,
+            To = expanding ? expandedHeight : 0,
+            Duration = duration,
+            EasingFunction = easing,
+            EnableDependentAnimation = true,
+        };
+        Storyboard.SetTarget(height, body);
+        Storyboard.SetTargetProperty(height, "Height");
+
+        var opacity = new DoubleAnimation
+        {
+            From = expanding ? 0 : 1,
+            To = expanding ? 1 : 0,
+            Duration = duration,
+            EasingFunction = easing,
+        };
+        Storyboard.SetTarget(opacity, body);
+        Storyboard.SetTargetProperty(opacity, "Opacity");
+
+        var translation = new DoubleAnimation
+        {
+            From = expanding ? -8 : 0,
+            To = expanding ? 0 : -8,
+            Duration = duration,
+            EasingFunction = easing,
+            EnableDependentAnimation = true,
+        };
+        Storyboard.SetTarget(translation, body);
+        Storyboard.SetTargetProperty(
+            translation,
+            "(UIElement.RenderTransform).(TranslateTransform.Y)");
+
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var storyboard = new Storyboard();
+        storyboard.Children.Add(height);
+        storyboard.Children.Add(opacity);
+        storyboard.Children.Add(translation);
+        storyboard.Completed += (_, _) => completion.TrySetResult();
+        storyboard.Begin();
+        return completion.Task;
+    }
 
     private static void AnimateElement(
         FrameworkElement element,
@@ -783,10 +1020,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
 
         string tag = _navigationHistory.Pop();
-        NavigationViewItem? item = RootNavigation.MenuItems
-            .OfType<NavigationViewItem>()
-            .FirstOrDefault(candidate =>
-                StringComparer.Ordinal.Equals(candidate.Tag as string, tag));
+        NavigationViewItem? item = FindNavigationItem(tag);
         if (item is null)
         {
             AppTitleBar.IsBackButtonEnabled = _navigationHistory.Count > 0;
@@ -811,57 +1045,102 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         RootNavigation.IsPaneOpen = !RootNavigation.IsPaneOpen;
     }
 
-    private void OnNavigationPaneOpening(NavigationView sender, object args)
-    {
-        _ = sender;
-        _ = args;
-        ShowExpandedConnectionStatus();
-    }
-
-    private void OnNavigationPaneOpened(NavigationView sender, object args)
-    {
-        _ = sender;
-        _ = args;
-        ShowExpandedConnectionStatus();
-    }
-
-    private void OnNavigationPaneClosing(
-        NavigationView sender,
-        NavigationViewPaneClosingEventArgs args)
-    {
-        _ = sender;
-        _ = args;
-        ShowCompactConnectionStatus();
-    }
-
-    private void OnNavigationPaneClosed(NavigationView sender, object args)
-    {
-        _ = sender;
-        _ = args;
-        ShowCompactConnectionStatus();
-    }
-
-    private void ShowCompactConnectionStatus()
-    {
-        ConnectionStatusRoot.Width = RootNavigation.CompactPaneLength;
-        ExpandedConnectionStatus.Opacity = 0;
-        CompactConnectionStatus.Opacity = 1;
-    }
-
-    private void ShowExpandedConnectionStatus()
-    {
-        ConnectionStatusRoot.Width = RootNavigation.OpenPaneLength;
-        CompactConnectionStatus.Opacity = 0;
-        ExpandedConnectionStatus.Opacity = 1;
-    }
+    private NavigationViewItem? FindNavigationItem(string tag) =>
+        RootNavigation.MenuItems
+            .Concat(RootNavigation.FooterMenuItems)
+            .OfType<NavigationViewItem>()
+            .FirstOrDefault(candidate =>
+                StringComparer.Ordinal.Equals(candidate.Tag as string, tag));
 
     private void OnStoreFilterToggleClick(object sender, RoutedEventArgs args)
     {
         _ = sender;
         _ = args;
         bool isExpanded = StoreFilterToggle.IsChecked == true;
+        if (isExpanded)
+        {
+            SetStoreFilterPanelExpanded(true);
+            return;
+        }
+
+        // Let TextBox focus and IME composition finish before removing its visual tree.
+        StoreFilterToggle.Focus(FocusState.Programmatic);
+        if (!DispatcherQueue.TryEnqueue(() =>
+                SetStoreFilterPanelExpanded(StoreFilterToggle.IsChecked == true)))
+        {
+            SetStoreFilterPanelExpanded(false);
+        }
+    }
+
+    private void OnStoreSearchTextChanged(object sender, TextChangedEventArgs args)
+    {
+        _ = args;
+        if (sender is not TextBox)
+        {
+            return;
+        }
+
+        QueueStoreSearchUpdate();
+    }
+
+    private void QueueStoreSearchUpdate()
+    {
+        if (_storeSearchUpdateQueued)
+        {
+            return;
+        }
+
+        _storeSearchUpdateQueued = true;
+        if (!DispatcherQueue.TryEnqueue(() =>
+            {
+                _storeSearchUpdateQueued = false;
+                if (!_isClosed)
+                {
+                    ViewModel.StoreSearchText = StoreSearchTextBox.Text;
+                }
+            }))
+        {
+            _storeSearchUpdateQueued = false;
+        }
+    }
+
+    private void SetStoreFilterPanelExpanded(bool isExpanded)
+    {
         StoreFilterPanel.Visibility = isExpanded ? Visibility.Visible : Visibility.Collapsed;
         StoreFilterChevron.Glyph = isExpanded ? "\uE70E" : "\uE70D";
+    }
+
+    private async Task WaitForDispatcherTurnAsync()
+    {
+        var completion = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!DispatcherQueue.TryEnqueue(() => completion.TrySetResult()))
+        {
+            throw new InvalidOperationException("The UI dispatcher is unavailable.");
+        }
+
+        await completion.Task.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    private static async Task WaitForLoadedAsync(FrameworkElement element)
+    {
+        if (element.IsLoaded)
+        {
+            return;
+        }
+
+        var completion = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        RoutedEventHandler onLoaded = (_, _) => completion.TrySetResult();
+        element.Loaded += onLoaded;
+        try
+        {
+            await completion.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally
+        {
+            element.Loaded -= onLoaded;
+        }
     }
 
     private void OnNoticeRaised(NoticeMessage notice)
@@ -932,6 +1211,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         Closed -= OnWindowClosed;
         ViewModel.NoticeRaised -= OnNoticeRaised;
         ViewModel.StorePreviewRequested -= OnStorePreviewRequested;
+        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _minimumSizeController.Dispose();
         _feedbackMonitor?.Dispose();
         if (_coordinator is AppCoordinator appCoordinator)

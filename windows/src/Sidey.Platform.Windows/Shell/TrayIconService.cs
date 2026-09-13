@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using Sidey.Core.Domain;
 using Sidey.Core.Localization;
 
 namespace Sidey.Platform.Windows.Shell;
@@ -26,7 +27,10 @@ public sealed record TrayMenuState(
     bool StartAtLogin,
     int UnreadCount,
     IReadOnlyList<TrayRoomMenuItem> Rooms,
-    Guid? ActiveRoomId);
+    Guid? ActiveRoomId)
+{
+    public AppThemePreference Theme { get; init; } = AppThemePreference.System;
+}
 
 public sealed record TrayRoomMenuItem(Guid Id, string Name, int UnreadCount);
 
@@ -406,6 +410,7 @@ public sealed class TrayIconService : IDisposable
 
     private void ShowMenu()
     {
+        ApplyMenuTheme(_state.Theme);
         nint menu = NativeMethods.CreatePopupMenu();
         if (menu == nint.Zero)
         {
@@ -534,6 +539,33 @@ public sealed class TrayIconService : IDisposable
         (isChecked ? 0x0008u : 0u) | (isEnabled ? 0u : 0x0001u);
 
     internal static bool OverlayHiddenCheckState(bool overlayVisible) => !overlayVisible;
+
+    internal static int PreferredAppModeValue(AppThemePreference theme) => theme switch
+    {
+        AppThemePreference.Dark => 2,
+        AppThemePreference.Light => 3,
+        _ => 1,
+    };
+
+    private static void ApplyMenuTheme(AppThemePreference theme)
+    {
+        if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 18362))
+            return;
+
+        try
+        {
+            NativeMethods.SetPreferredAppMode(PreferredAppModeValue(theme));
+            NativeMethods.FlushMenuThemes();
+        }
+        catch (EntryPointNotFoundException)
+        {
+            // Older Windows builds do not expose the menu-theme ordinals.
+        }
+        catch (DllNotFoundException)
+        {
+            // Keep the native menu usable when uxtheme is unavailable.
+        }
+    }
 
     private static nint WndProc(nint window, uint message, nint wParam, nint lParam)
     {
@@ -782,5 +814,9 @@ public sealed class TrayIconService : IDisposable
             byte[] bits,
             ref BitmapInfo bitmapInfo,
             uint usage);
+        [DllImport("uxtheme.dll", EntryPoint = "#135")]
+        public static extern int SetPreferredAppMode(int preferredAppMode);
+        [DllImport("uxtheme.dll", EntryPoint = "#136")]
+        public static extern void FlushMenuThemes();
     }
 }

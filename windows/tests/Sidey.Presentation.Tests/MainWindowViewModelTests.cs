@@ -21,6 +21,46 @@ public sealed class MainWindowViewModelTests
         model.IsConnected = true;
         Assert.False(model.RetryConnectionCommand.CanExecute(null));
     }
+
+    [Theory]
+    [InlineData("https://github.com/sidey-app/SIDEY/issues/new/choose")]
+    [InlineData("ms-settings:colors")]
+    public async Task InformationLinksOpenTheExactRequestedAddress(string address)
+    {
+        var coordinator = new FakeSideyCoordinator();
+        var model = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+
+        await model.OpenExternalLinkCommand.ExecuteAsync(address);
+
+        Assert.Equal(
+            new Uri(address),
+            Assert.Single(coordinator.OpenedExternalUris));
+    }
+
+    [Fact]
+    public async Task DiagnosticExportFailureReportsAStableErrorAndAllowsRetry()
+    {
+        var coordinator = new FakeSideyCoordinator
+        {
+            DiagnosticExportHandler = () => Task.FromException<string>(
+                new IOException("private path must not be shown")),
+        };
+        var model = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+        NoticeMessage? notice = null;
+        model.NoticeRaised += value => notice = value;
+
+        await model.ExportDiagnosticDataCommand.ExecuteAsync(null);
+
+        Assert.Equal(NoticeKind.Error, notice?.Kind);
+        Assert.Equal("진단 데이터를 내보내지 못했습니다.", notice?.Message);
+        Assert.True(model.ExportDiagnosticDataCommand.CanExecute(null));
+    }
     [Fact]
     public async Task MuteButtonPreservesVolumeAndRestoresItAfterZero()
     {
@@ -364,6 +404,31 @@ public sealed class MainWindowViewModelTests
         Assert.Equal(next, viewModel.SelectedLanguageIndex);
     }
 
+    [Theory]
+    [InlineData(AppThemePreference.System, 0)]
+    [InlineData(AppThemePreference.Light, 1)]
+    [InlineData(AppThemePreference.Dark, 2)]
+    public void ThemeSelectionIsRestoredWithoutSavingAndPersistsUserChoice(
+        AppThemePreference theme,
+        int index)
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        coordinator.State = state with { Preferences = state.Preferences with { Theme = theme } };
+        var viewModel = new MainWindowViewModel(
+            coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+
+        Assert.Equal(index, viewModel.SelectedThemeIndex);
+        Assert.Equal(0, coordinator.SetThemeCallCount);
+
+        int next = (index + 1) % 3;
+        viewModel.SelectedThemeIndex = next;
+
+        Assert.Equal(1, coordinator.SetThemeCallCount);
+        Assert.Equal((AppThemePreference)next, coordinator.State.Preferences.Theme);
+        Assert.True(viewModel.IsThemeSelectionEnabled);
+        Assert.Equal(next, viewModel.SelectedThemeIndex);
+    }
+
     [Fact]
     public void CharacterPickerKeepsTheFiveFreeWindowsSelections()
     {
@@ -520,7 +585,7 @@ public sealed class MainWindowViewModelTests
 
         Assert.Same(firstCard, Assert.Single(viewModel.Rooms));
         Assert.True(viewModel.IsConnected);
-        Assert.Equal("연결됨", viewModel.ConnectionText);
+        Assert.Equal("서버와 연결됨", viewModel.ConnectionText);
     }
 
     [Fact]
@@ -548,14 +613,20 @@ public sealed class MainWindowViewModelTests
             coordinator,
             new FakeMainWindowDialogService(),
             new FakeUpdateService());
-        StoreProductPreviewViewModel[] initialProducts = [.. viewModel.VisibleStoreProducts];
-        int collectionChanges = 0;
-        viewModel.VisibleStoreProducts.CollectionChanged += (_, _) => collectionChanges++;
+        IReadOnlyList<StoreProductPreviewViewModel> initialProducts = viewModel.VisibleStoreProducts;
+        int resultListChanges = 0;
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(MainWindowViewModel.VisibleStoreProducts))
+            {
+                resultListChanges++;
+            }
+        };
 
         viewModel.ApplyState(state with { RealtimeConnection = ConnectedStatus() });
 
-        Assert.Equal(0, collectionChanges);
-        Assert.Equal(initialProducts, viewModel.VisibleStoreProducts);
+        Assert.Equal(0, resultListChanges);
+        Assert.Same(initialProducts, viewModel.VisibleStoreProducts);
     }
 
     [Fact]
@@ -585,7 +656,7 @@ public sealed class MainWindowViewModelTests
             new FakeUpdateService());
 
         Assert.False(viewModel.IsConnected);
-        Assert.Equal("연결 안 됨", viewModel.ConnectionText);
+        Assert.Equal("서버와 연결 안 됨", viewModel.ConnectionText);
     }
 
     [Fact]
@@ -725,6 +796,31 @@ public sealed class MainWindowViewModelTests
         viewModel.StoreSearchText = "진주빛";
         StoreProductPreviewViewModel character = Assert.Single(viewModel.VisibleStoreProducts);
         Assert.Equal("character_starlight_upalupa", character.ProductId);
+    }
+
+    [Fact]
+    public void StoreSearchReplacesTheVisibleResultListOnce()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        coordinator.State = state;
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new FakeMainWindowDialogService(),
+            new FakeUpdateService());
+        int resultListChanges = 0;
+        viewModel.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(MainWindowViewModel.VisibleStoreProducts))
+            {
+                resultListChanges++;
+            }
+        };
+
+        viewModel.StoreSearchText = "별빛";
+
+        StoreProductPreviewViewModel result = Assert.Single(viewModel.VisibleStoreProducts);
+        Assert.Equal("character_starlight_upalupa", result.ProductId);
+        Assert.Equal(1, resultListChanges);
     }
 
     [Fact]

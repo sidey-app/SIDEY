@@ -158,6 +158,7 @@ public partial class App : Application
         {
             _startupUpdateCheckStarted = true;
             await EnsureMainWindow().VerifyExternalAssetsSmokeAsync();
+            await EnsureMainWindow().VerifyStoreFilterToggleSmokeAsync();
         }
         await RunStorePreviewStartupSmokeIfRequestedAsync();
         if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1"
@@ -428,6 +429,7 @@ public partial class App : Application
             {
                 StartupDiagnostics.Stage("composer-window-create-started");
                 _composer = new ComposerWindow(viewModel);
+                _composer.ApplyTheme(_coordinator.State.Preferences.Theme);
                 StartupDiagnostics.Stage("composer-window-created");
             }
             catch (Exception exception)
@@ -861,6 +863,7 @@ public partial class App : Application
             UpdateConnectionFailureNotification(state.Connected);
             _mainWindow?.ApplyState(state);
             _onboardingWindow?.ApplyState(state);
+            _composer?.ApplyTheme(state.Preferences.Theme);
             _historyWindow?.ApplyState(state);
             _tray?.SetState(new TrayMenuState(
                 state.Preferences.OverlayVisible,
@@ -871,7 +874,10 @@ public partial class App : Application
                     room.Id,
                     room.Name,
                     coordinator?.UnreadCount(room.Id) ?? 0))],
-                state.ActiveRoomId));
+                state.ActiveRoomId)
+            {
+                Theme = state.Preferences.Theme,
+            });
         });
     }
 
@@ -1055,8 +1061,7 @@ public partial class App : Application
                         !_coordinator.State.Preferences.StartAtLogin));
                 break;
             case TrayCommand.CheckUpdates:
-                EnsureMainWindow().ShowPage("settings");
-                _mainWindow!.CheckForUpdates();
+                EnsureMainWindow().ShowUpdatesAndCheck();
                 break;
             case TrayCommand.Settings:
                 EnsureMainWindow().ShowPage("settings");

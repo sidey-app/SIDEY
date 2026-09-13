@@ -3,6 +3,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
+using Sidey.Core.Domain;
 using Sidey.Core.Localization;
 using Sidey.Platform.Windows;
 using Sidey.Presentation.ViewModels;
@@ -53,6 +54,14 @@ public sealed partial class ComposerWindow : Window
     }
 
     public ComposerViewModel ViewModel { get; }
+
+    public void ApplyTheme(AppThemePreference theme)
+    {
+        if (!_isClosed)
+        {
+            SideyWindowTheme.Apply(ComposerRoot, theme);
+        }
+    }
 
     public void ShowAndFocus(string? monitorIdentifier)
     {

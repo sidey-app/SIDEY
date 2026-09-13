@@ -1,3 +1,4 @@
+using Sidey.Core.Domain;
 using Sidey.Platform.Windows;
 
 namespace Sidey.Platform.Windows.Tests;
@@ -25,5 +26,16 @@ public sealed class TrayMenuStateTests
         bool expected)
     {
         Assert.Equal(expected, TrayIconService.OverlayHiddenCheckState(overlayVisible));
+    }
+
+    [Theory]
+    [InlineData(AppThemePreference.System, 1)]
+    [InlineData(AppThemePreference.Dark, 2)]
+    [InlineData(AppThemePreference.Light, 3)]
+    public void TrayMenuThemeMapsToTheRequestedWindowsAppMode(
+        AppThemePreference theme,
+        int expected)
+    {
+        Assert.Equal(expected, TrayIconService.PreferredAppModeValue(theme));
     }
 }
