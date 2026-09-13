@@ -8,21 +8,6 @@
       Width="400"
       Height="56"
       Background="{ThemeResource SideyComposerBackgroundBrush}">
-    <Grid.Resources>
-      <ResourceDictionary>
-        <ResourceDictionary.ThemeDictionaries>
-          <ResourceDictionary x:Key="Default">
-            <StaticResource x:Key="SideyComposerBackgroundBrush" ResourceKey="AcrylicInAppFillColorDefaultBrush" />
-          </ResourceDictionary>
-          <ResourceDictionary x:Key="Light">
-            <SolidColorBrush x:Key="SideyComposerBackgroundBrush" Color="#F9F9F9" />
-          </ResourceDictionary>
-          <ResourceDictionary x:Key="HighContrast">
-            <StaticResource x:Key="SideyComposerBackgroundBrush" ResourceKey="AcrylicInAppFillColorDefaultBrush" />
-          </ResourceDictionary>
-        </ResourceDictionary.ThemeDictionaries>
-      </ResourceDictionary>
-    </Grid.Resources>
     <Border
         Padding="14,10"
         Background="Transparent">

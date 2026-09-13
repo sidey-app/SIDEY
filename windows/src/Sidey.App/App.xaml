@@ -8,6 +8,29 @@
       <ResourceDictionary.MergedDictionaries>
         <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
       </ResourceDictionary.MergedDictionaries>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Default">
+          <AcrylicBrush
+              x:Key="SideyComposerBackgroundBrush"
+              FallbackColor="#2C2C2C"
+              TintColor="#2C2C2C"
+              TintLuminosityOpacity="0.96"
+              TintOpacity="0.15" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Light">
+          <AcrylicBrush
+              x:Key="SideyComposerBackgroundBrush"
+              FallbackColor="#F9F9F9"
+              TintColor="#F9F9F9"
+              TintLuminosityOpacity="0.96"
+              TintOpacity="0.15" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="HighContrast">
+          <SolidColorBrush
+              x:Key="SideyComposerBackgroundBrush"
+              Color="{ThemeResource SystemColorWindowColor}" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
       <Color x:Key="SideyPeriwinkle">#FF8587E8</Color>
       <Color x:Key="SideyOrange">#FFFF9A52</Color>
       <SolidColorBrush x:Key="SideyAccentForegroundBrush" Color="{ThemeResource SystemAccentColor}" />

@@ -136,45 +136,46 @@ public sealed class MvvmArchitectureTests
         XElement inset = Assert.Single(
             root.Elements(),
             element => element.Name.LocalName == "Border");
-        XElement resources = Assert.Single(
-            root.Elements(),
-            element => element.Name.LocalName == "Grid.Resources");
-        XElement themeDictionaries = Assert.Single(
-            resources.Descendants(),
-            element => element.Name.LocalName == "ResourceDictionary.ThemeDictionaries");
-        XElement lightDictionary = Assert.Single(
-            themeDictionaries.Elements(),
-            element => element.Attributes().Any(attribute =>
-                attribute.Name.LocalName == "Key"
-                && attribute.Value == "Light"));
-        XElement lightBackground = Assert.Single(
-            lightDictionary.Elements(),
-            element => element.Name.LocalName == "SolidColorBrush"
-                && element.Attributes().Any(attribute =>
-                    attribute.Name.LocalName == "Key"
-                    && attribute.Value == "SideyComposerBackgroundBrush"));
-        XElement defaultDictionary = Assert.Single(
-            themeDictionaries.Elements(),
-            element => element.Attributes().Any(attribute =>
-                attribute.Name.LocalName == "Key"
-                && attribute.Value == "Default"));
-        XElement defaultBackground = Assert.Single(
-            defaultDictionary.Elements(),
-            element => element.Name.LocalName == "StaticResource"
-                && element.Attributes().Any(attribute =>
-                    attribute.Name.LocalName == "Key"
-                    && attribute.Value == "SideyComposerBackgroundBrush"));
 
         Assert.Equal(
             "{ThemeResource SideyComposerBackgroundBrush}",
             root.Attribute("Background")?.Value);
-        Assert.Equal("#F9F9F9", lightBackground.Attribute("Color")?.Value);
-        Assert.Equal(
-            "AcrylicInAppFillColorDefaultBrush",
-            defaultBackground.Attribute("ResourceKey")?.Value);
+        Assert.DoesNotContain(
+            root.Elements(),
+            element => element.Name.LocalName == "Grid.Resources");
         Assert.Equal("Transparent", inset.Attribute("Background")?.Value);
         Assert.Null(inset.Attribute("Margin"));
         Assert.Equal("14,10", inset.Attribute("Padding")?.Value);
+    }
+
+    [Fact]
+    public void ComposerSurfaceDefinesLightDarkAndHighContrastThemeBrushes()
+    {
+        var app = XDocument.Load(RepositoryPath(
+            "windows",
+            "src",
+            "Sidey.App",
+            "App.xaml"));
+        XElement themeDictionaries = Assert.Single(
+            app.Descendants(),
+            element => element.Name.LocalName == "ResourceDictionary.ThemeDictionaries");
+        var dictionaries = themeDictionaries
+            .Elements()
+            .ToDictionary(
+                element => element.Attributes().Single(attribute => attribute.Name.LocalName == "Key").Value,
+                element => element);
+
+        Assert.Equal(["Default", "HighContrast", "Light"], dictionaries.Keys.Order(StringComparer.Ordinal));
+        AssertComposerAcrylic(dictionaries["Default"], "#2C2C2C");
+        AssertComposerAcrylic(dictionaries["Light"], "#F9F9F9");
+
+        XElement highContrast = Assert.Single(
+            dictionaries["HighContrast"].Elements(),
+            element => element.Name.LocalName == "SolidColorBrush"
+                && element.Attributes().Any(attribute =>
+                    attribute.Name.LocalName == "Key"
+                    && attribute.Value == "SideyComposerBackgroundBrush"));
+        Assert.Equal("{ThemeResource SystemColorWindowColor}", highContrast.Attribute("Color")?.Value);
     }
 
     [Fact]
@@ -329,4 +330,19 @@ public sealed class MvvmArchitectureTests
         "Sidey.App",
         "Views",
         "MainWindow.xaml"));
+
+    private static void AssertComposerAcrylic(XElement dictionary, string expectedColor)
+    {
+        XElement brush = Assert.Single(
+            dictionary.Elements(),
+            element => element.Name.LocalName == "AcrylicBrush"
+                && element.Attributes().Any(attribute =>
+                    attribute.Name.LocalName == "Key"
+                    && attribute.Value == "SideyComposerBackgroundBrush"));
+
+        Assert.Equal(expectedColor, brush.Attribute("FallbackColor")?.Value);
+        Assert.Equal(expectedColor, brush.Attribute("TintColor")?.Value);
+        Assert.Equal("0.96", brush.Attribute("TintLuminosityOpacity")?.Value);
+        Assert.Equal("0.15", brush.Attribute("TintOpacity")?.Value);
+    }
 }
