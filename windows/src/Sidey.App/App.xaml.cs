@@ -30,6 +30,7 @@ public partial class App : Application
     private DevelopmentUpdateService? _developmentUpdate;
 #endif
     private bool _startupUpdateCheckStarted;
+    private bool _trayUpdateCheckInProgress;
     private bool _monitorConnectionFailures;
     private bool _connectionFailureNotificationArmed = true;
     private DateTimeOffset? _lastConnectionFailureNotificationAt;
@@ -158,6 +159,8 @@ public partial class App : Application
         {
             _startupUpdateCheckStarted = true;
             await EnsureMainWindow().VerifyExternalAssetsSmokeAsync();
+            EnsureMainWindow().VerifyLocalCatalogLoadingSmoke();
+            await EnsureMainWindow().VerifyStoreFilterToggleSmokeAsync();
         }
         await RunStorePreviewStartupSmokeIfRequestedAsync();
         if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1"
@@ -338,6 +341,47 @@ public partial class App : Application
         StartupDiagnostics.Stage("update-available-notification-posted");
     }
 
+    private async Task CheckForUpdatesFromTrayAsync()
+    {
+        if (_shuttingDown || _trayUpdateCheckInProgress)
+        {
+            return;
+        }
+
+        _trayUpdateCheckInProgress = true;
+        try
+        {
+            AvailableUpdate? update = await _updateService.CheckAsync();
+            if (_shuttingDown)
+            {
+                return;
+            }
+
+            if (update is null)
+            {
+                _tray?.NotifyLatestVersion();
+                StartupDiagnostics.Stage("tray-update-notification-posted result=latest");
+            }
+            else
+            {
+                _tray?.NotifyUpdateAvailable(update.Version);
+                StartupDiagnostics.Stage("tray-update-notification-posted result=available");
+            }
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal("tray-update-check", exception);
+            if (!_shuttingDown)
+            {
+                _tray?.NotifyUpdateCheckFailed();
+            }
+        }
+        finally
+        {
+            _trayUpdateCheckInProgress = false;
+        }
+    }
+
     private async Task DisposeAfterFailedLaunchAsync()
     {
 #if DEBUG
@@ -428,6 +472,7 @@ public partial class App : Application
             {
                 StartupDiagnostics.Stage("composer-window-create-started");
                 _composer = new ComposerWindow(viewModel);
+                _composer.ApplyTheme(_coordinator.State.Preferences.Theme);
                 StartupDiagnostics.Stage("composer-window-created");
             }
             catch (Exception exception)
@@ -861,6 +906,7 @@ public partial class App : Application
             UpdateConnectionFailureNotification(state.Connected);
             _mainWindow?.ApplyState(state);
             _onboardingWindow?.ApplyState(state);
+            _composer?.ApplyTheme(state.Preferences.Theme);
             _historyWindow?.ApplyState(state);
             _tray?.SetState(new TrayMenuState(
                 state.Preferences.OverlayVisible,
@@ -871,7 +917,10 @@ public partial class App : Application
                     room.Id,
                     room.Name,
                     coordinator?.UnreadCount(room.Id) ?? 0))],
-                state.ActiveRoomId));
+                state.ActiveRoomId)
+            {
+                Theme = state.Preferences.Theme,
+            });
         });
     }
 
@@ -1055,8 +1104,7 @@ public partial class App : Application
                         !_coordinator.State.Preferences.StartAtLogin));
                 break;
             case TrayCommand.CheckUpdates:
-                EnsureMainWindow().ShowPage("settings");
-                _mainWindow!.CheckForUpdates();
+                _ = CheckForUpdatesFromTrayAsync();
                 break;
             case TrayCommand.Settings:
                 EnsureMainWindow().ShowPage("settings");

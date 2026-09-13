@@ -21,6 +21,7 @@ internal sealed record RealtimePresenceIntent(
 internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 {
     private static readonly TimeSpan s_unhealthyAfter = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan s_authorizationRefreshInterval = TimeSpan.FromSeconds(30);
     private static readonly JsonSerializerOptions s_jsonOptions = new(JsonSerializerDefaults.Web);
 
     private readonly SupabaseRuntimeConfiguration _configuration;
@@ -33,6 +34,8 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
     private readonly CoalescingPublicationQueue<RealtimePresenceIntent> _presenceQueue;
     private readonly ExpiringLeaseRegistry<(Guid RoomId, Guid UserId)> _typingExpiries;
     private readonly INetworkAvailabilityMonitor _networkMonitor;
+    private readonly TimeSpan _watchdogInterval;
+    private readonly TimeSpan _authorizationRefreshInterval;
     private readonly ConcurrentDictionary<string, TaskCompletionSource<bool>> _pendingReplies = [];
     private readonly ConcurrentDictionary<string, string> _joinReferences = [];
     private readonly ConcurrentDictionary<Guid, IReadOnlySet<Guid>> _presentUsersByRoom = [];
@@ -48,6 +51,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
     private long _connectionGeneration;
     private long _lastReceiveTimestamp = Stopwatch.GetTimestamp();
     private long _lastConnectionHealthTimestamp = Stopwatch.GetTimestamp();
+    private long _lastAuthorizationRefreshTimestamp = Stopwatch.GetTimestamp();
     private int _networkAvailable;
     private RealtimeConnectionStatus _lastEmittedConnectionStatus =
         RealtimeConnectionStatus.Disconnected;
@@ -56,12 +60,16 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
     private int _recoveryPaused;
     private int _authorizationFailures;
     private long _lastRecoveryHint;
+    private string? _socketAccessToken;
+    private long _socketAccessTokenExpiresAtUtcTicks;
 
     public SupabaseRealtimeTransport(
         SupabaseRuntimeConfiguration configuration,
         IAuthSessionAccessor sessions,
         INetworkAvailabilityMonitor? networkMonitor = null,
-        Func<Uri, CancellationToken, Task<ClientWebSocket>>? connectSocket = null)
+        Func<Uri, CancellationToken, Task<ClientWebSocket>>? connectSocket = null,
+        TimeSpan? watchdogInterval = null,
+        TimeSpan? authorizationRefreshInterval = null)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
@@ -71,6 +79,8 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             TypingLease.RemoteExpiry,
             key => Emit(new BackendEvent.TypingChanged(key.RoomId, key.UserId, false)));
         _networkMonitor = networkMonitor ?? new SystemNetworkAvailabilityMonitor();
+        _watchdogInterval = watchdogInterval ?? RealtimeRecoveryPolicy.WatchdogInterval;
+        _authorizationRefreshInterval = authorizationRefreshInterval ?? s_authorizationRefreshInterval;
         _networkAvailable = _networkMonitor.IsAvailable ? 1 : 0;
         _networkMonitor.AvailabilityChanged += OnNetworkAvailabilityChanged;
         _networkMonitor.PathChanged += OnNetworkPathChanged;
@@ -382,6 +392,8 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
     private async Task DisconnectSocketWithinGateAsync()
     {
         RealtimeSocketSession? session = Interlocked.Exchange(ref _socketSession, null);
+        Volatile.Write(ref _socketAccessToken, null);
+        Volatile.Write(ref _socketAccessTokenExpiresAtUtcTicks, 0);
         Interlocked.Increment(ref _connectionGeneration);
         if (session is not null)
         {
@@ -481,6 +493,36 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         }
         Emit(new BackendEvent.Diagnostic(
             $"realtime-topic-subscribe-completed kind={topicKind}"));
+        Volatile.Write(ref _socketAccessToken, session.AccessToken);
+        Volatile.Write(ref _socketAccessTokenExpiresAtUtcTicks, session.ExpiresAt.UtcTicks);
+    }
+
+    private async Task RefreshChannelAuthorizationAsync(
+        StoredSupabaseSession session,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(
+            Volatile.Read(ref _socketAccessToken),
+            session.AccessToken,
+            StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        string[] joinedTopics = [.. _joinReferences.Keys.Order(StringComparer.Ordinal)];
+        foreach (string topic in joinedTopics)
+        {
+            await SendAsync(
+                topic,
+                "access_token",
+                new { access_token = session.AccessToken },
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        Volatile.Write(ref _socketAccessToken, session.AccessToken);
+        Volatile.Write(ref _socketAccessTokenExpiresAtUtcTicks, session.ExpiresAt.UtcTicks);
+        Emit(new BackendEvent.Diagnostic(
+            $"realtime-channel-authorization-refreshed topics={joinedTopics.Length}"));
     }
 
     private async Task PublishPresenceBatchAsync(
@@ -642,7 +684,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 
     private async Task WatchdogLoopAsync()
     {
-        using var timer = new PeriodicTimer(RealtimeRecoveryPolicy.WatchdogInterval);
+        using var timer = new PeriodicTimer(_watchdogInterval);
         while (await timer.WaitForNextTickAsync(_shutdown.Token).ConfigureAwait(false))
         {
             if (!IsNetworkAvailable || IsRecoveryPaused)
@@ -676,6 +718,49 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 Emit(new BackendEvent.Diagnostic(
                     $"realtime-health silence-ms={(long)silence.TotalMilliseconds} "
                     + $"event-queue-size={_events.Count}"));
+            }
+
+            if (Stopwatch.GetElapsedTime(Volatile.Read(ref _lastAuthorizationRefreshTimestamp))
+                >= _authorizationRefreshInterval)
+            {
+                try
+                {
+                    StoredSupabaseSession session = await _sessions.GetStoredSessionAsync(_shutdown.Token)
+                        .ConfigureAwait(false)
+                        ?? throw new UnauthorizedAccessException(I18n.Get("auth.sessionMissing"));
+                    await RefreshChannelAuthorizationAsync(session, _shutdown.Token).ConfigureAwait(false);
+                    Volatile.Write(ref _lastAuthorizationRefreshTimestamp, Stopwatch.GetTimestamp());
+                }
+                catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+                {
+                    return;
+                }
+                catch (Exception exception) when (exception is HttpRequestException
+                    or TaskCanceledException
+                    or UnauthorizedAccessException)
+                {
+                    if (PauseForAuthorizationFailure(exception))
+                    {
+                        continue;
+                    }
+
+                    Emit(new BackendEvent.Diagnostic(
+                        $"realtime-channel-authorization-refresh-deferred {ConnectionFailureMessage(exception)}"));
+                    if (Volatile.Read(ref _socketAccessTokenExpiresAtUtcTicks) <= DateTimeOffset.UtcNow.UtcTicks)
+                    {
+                        Emit(new BackendEvent.TechnicalError(ConnectionFailureMessage(exception)));
+                        socket.Abort();
+                        EmitDisconnected();
+                        ScheduleRecovery();
+                        continue;
+                    }
+                }
+                catch (Exception exception)
+                {
+                    Emit(new BackendEvent.TechnicalError(ConnectionFailureMessage(exception)));
+                    socket.Abort();
+                    continue;
+                }
             }
 
             try
@@ -828,7 +913,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             else
             {
                 completion.TrySetException(
-                    RealtimeSubscriptionException.FromReply(replyPayload));
+                    RealtimeSubscriptionException.FromServerPayload(replyPayload));
             }
             return;
         }
@@ -846,6 +931,15 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 
         string? eventName = eventElement.GetString();
         JsonElement payload = root.TryGetProperty("payload", out JsonElement value) ? value : default;
+        bool systemFailure = eventName == "system"
+            && payload.ValueKind == JsonValueKind.Object
+            && payload.TryGetProperty("status", out JsonElement systemStatus)
+            && systemStatus.GetString() == "error";
+        if (eventName is "phx_close" or "phx_error" || systemFailure)
+        {
+            HandleChannelTermination(descriptor, eventName, payload);
+            return;
+        }
         if (eventName == "presence_diff" && descriptor.Kind == RealtimeTopicKind.Ephemeral)
         {
             HandlePresence(descriptor.RoomId, payload);
@@ -917,6 +1011,28 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 }
                 break;
         }
+    }
+
+    private void HandleChannelTermination(
+        RealtimeRoomDescriptor descriptor,
+        string? eventName,
+        JsonElement payload)
+    {
+        if (!_joinReferences.TryRemove(descriptor.PhoenixTopic, out _))
+        {
+            return;
+        }
+
+        Emit(new BackendEvent.Diagnostic(
+            $"realtime-channel-terminated kind={descriptor.Kind.ToString().ToLowerInvariant()} event={eventName}"));
+        EmitConnectionStatus(CurrentTransportStatus());
+        if (eventName == "system"
+            && PauseForAuthorizationFailure(RealtimeSubscriptionException.FromServerPayload(payload)))
+        {
+            return;
+        }
+
+        ScheduleRecovery();
     }
 
     private static bool IsValidCharacterId(string value)

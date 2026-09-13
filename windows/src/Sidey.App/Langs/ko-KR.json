@@ -31,7 +31,9 @@
     "profile": "내 프로필",
     "groups": "그룹",
     "store": "꾸미기·상점",
-    "settings": "앱 설정"
+    "connection": "연결 상태",
+    "settings": "설정",
+    "about": "정보"
   },
   "onboarding": {
     "tagline": "친구들이 화면 곁에 도착했습니다.",
@@ -108,7 +110,7 @@
     "joinTooltip": "이 그룹을 활성 그룹으로 전환합니다.",
     "invite": "초대",
     "copyInvite": "초대 코드 복사",
-    "inviteCopyComplete": "복사 완료",
+    "inviteCopyComplete": "복사됨",
     "copyInviteTooltip": "그룹 초대 코드를 클립보드에 복사합니다.",
     "upgrade": "인원 확장",
     "upgradeTooltip": "그룹 최대 인원을 확장합니다.",
@@ -176,6 +178,7 @@
       "filter": "정렬 및 필터",
       "search": "검색",
       "searchPlaceholder": "상품 이름 또는 설명 검색",
+      "resetAll": "모두 다시 설정",
       "sort": "정렬",
       "sortCatalog": "기본순",
       "sortPriceAscending": "가격 낮은순",
@@ -232,6 +235,24 @@
     "price1900": "1,900원",
     "price990": "990원"
   },
+  "about": {
+    "title": "정보",
+    "description": "SIDEY 버전과 지원 정보를 확인할 수 있습니다.",
+    "diagnosticsTitle": "진단 데이터 내보내기",
+    "diagnosticsDescription": "로그 파일이 압축돼 바탕화면에 저장됩니다. 저희와 공유하여 오류를 수정하는 데 도움을 줄 수 있습니다.",
+    "exportDiagnostics": "내보내기",
+    "diagnosticsExported": "진단 데이터가 바탕화면에 저장되었습니다.",
+    "diagnosticsExportFailed": "진단 데이터를 내보내지 못했습니다.",
+    "feedbackTitle": "피드백",
+    "feedbackDescription": "문제가 있거나 도움이 필요하시면 GitHub 이슈를 남겨 문의하실 수 있습니다.",
+    "sendFeedback": "피드백 보내기",
+    "policiesTitle": "정책",
+    "policiesDescription": "SIDEY 이용에 적용되는 약관과 정책을 확인할 수 있습니다.",
+    "terms": "이용약관 보기",
+    "privacy": "개인정보 처리방침 보기",
+    "refund": "청약철회 및 환불 정책 보기",
+    "linkOpenFailed": "기본 브라우저에서 페이지를 열지 못했습니다."
+  },
   "settings": {
     "soundTitle": "소리",
     "soundDescription": "캐릭터 효과음 재생을 설정합니다.",
@@ -242,6 +263,11 @@
     "unmuteSound": "음소거 해제",
     "language": "언어 / Language",
     "languageDescription": "앱에서 사용할 언어를 선택하세요. 선택한 언어는 바로 적용됩니다.",
+    "theme": "테마",
+    "themeDescription": "Windows 색 설정",
+    "themeSystem": "Windows 기본값",
+    "themeLight": "밝게",
+    "themeDark": "어둡게",
     "generalTitle": "일반",
     "generalDescription": "SIDEY의 기본 표시와 실행 방식을 설정할 수 있습니다.",
     "overlay": "픽셀 월드 표시",
@@ -300,7 +326,7 @@
     "activeRoomRequired": "활성 그룹과 프로필이 필요합니다."
   },
   "tray": {
-    "open": "열기", "hideOverlay": "오버레이 숨기기", "showOverlay": "오버레이 보이기", "compose": "메시지 작성…", "noGroups": "연결된 그룹 없음", "activeGroup": "활성 그룹", "quietMode": "조용히 모드", "history": "최근 기록…", "store": "상점…", "groups": "그룹 설정…", "startup": "로그인 시 자동 실행", "checkUpdates": "업데이트 확인…", "settings": "설정…", "exit": "종료", "unreadTooltip": "SIDEY · 미확인 메시지 {0}개", "connectionFailedTitle": "SIDEY 연결 안 됨", "connectionFailedBody": "SIDEY 서버와 연결할 수 없습니다. 네트워크 상태를 확인해 주세요."
+    "open": "열기", "hideOverlay": "오버레이 숨기기", "showOverlay": "오버레이 보이기", "compose": "메시지 작성…", "noGroups": "연결된 그룹 없음", "activeGroup": "활성 그룹", "quietMode": "조용히 모드", "history": "최근 기록…", "store": "상점…", "groups": "그룹 설정…", "startup": "로그인 시 자동 실행", "checkUpdates": "업데이트 확인…", "settings": "설정…", "exit": "종료", "unreadTooltip": "SIDEY · 미확인 메시지 {0}개", "connectionFailedTitle": "SIDEY 연결 안 됨", "connectionFailedBody": "SIDEY 서버와 연결할 수 없습니다. 네트워크 상태를 확인해 주세요.", "updateLatest": "최신 버전입니다.", "updateAvailable": "업데이트가 있습니다. {0}", "updateCheckFailed": "업데이트 확인에 실패했습니다. 잠시 후 다시 시도해 주세요."
   },
   "history": {
     "retentionNotice": "메시지는 서버에서 3일 후 자동 삭제됩니다.",
@@ -357,10 +383,12 @@
     "later": "나중에"
   },
   "connection": {
-    "retry": "지금 다시 연결",
+    "retry": "재연결",
+    "pageTitle": "연결 상태",
+    "pageDescription": "SIDEY 서버 연결 상태를 확인하고 문제가 있을 때 다시 연결할 수 있습니다.",
     "accessRequired": "인증 또는 그룹 접근 권한을 확인할 수 없어 자동 재연결을 멈췄습니다. 연결 상태를 눌러 다시 시도할 수 있습니다.",
-    "connected": "연결됨",
-    "disconnected": "연결 안 됨",
+    "connected": "서버와 연결됨",
+    "disconnected": "서버와 연결 안 됨",
     "reconnecting": "연결 중",
     "offline": "오프라인",
     "serverConnected": "SIDEY 서버와 연결되었습니다.",

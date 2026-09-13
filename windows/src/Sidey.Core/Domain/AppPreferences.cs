@@ -2,6 +2,13 @@ using Sidey.Core.Localization;
 
 namespace Sidey.Core.Domain;
 
+public enum AppThemePreference
+{
+    System = 0,
+    Light = 1,
+    Dark = 2,
+}
+
 public sealed record AppPreferences(
     int SchemaVersion,
     bool OnboardingCompleted,
@@ -18,10 +25,12 @@ public sealed record AppPreferences(
 {
     public string? Language { get; init; }
 
+    public AppThemePreference Theme { get; init; } = AppThemePreference.System;
+
     public bool CharacterSoundEffectsEnabled { get; init; } = true;
     public int CharacterSoundEffectsVolume { get; init; } = 100;
 
-    public const int CurrentSchemaVersion = 4;
+    public const int CurrentSchemaVersion = 5;
 
     public static AppPreferences CreateDefault(long? installationSeed = null) => new(
         SchemaVersion: CurrentSchemaVersion,
@@ -45,6 +54,7 @@ public sealed record AppPreferences(
         CharacterSoundEffectsVolume = Math.Clamp(CharacterSoundEffectsVolume, 0, 100),
         CharacterSoundEffectsEnabled = CharacterSoundEffectsEnabled && CharacterSoundEffectsVolume > 0,
         Language = I18n.IsSupportedLanguage(Language) ? Language : null,
+        Theme = Enum.IsDefined(Theme) ? Theme : AppThemePreference.System,
         InstallationSeed = InstallationSeed == 0 ? Random.Shared.NextInt64() : InstallationSeed,
         CachedNickname = CachedNickname is not null && ProfileValidator.IsValidNickname(CachedNickname)
             ? ProfileValidator.NormalizeNickname(CachedNickname)

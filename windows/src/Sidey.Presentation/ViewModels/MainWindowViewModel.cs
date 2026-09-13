@@ -220,6 +220,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial bool HasVisibleStoreProducts { get; set; }
 
     [ObservableProperty]
+    public partial bool IsRemoteContentLoading { get; set; }
+
+    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RetryConnectionCommand))]
     public partial bool IsConnected { get; set; }
 
@@ -259,6 +262,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial bool IsLanguageSelectionEnabled { get; set; } = true;
 
     [ObservableProperty]
+    public partial int SelectedThemeIndex { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsThemeSelectionEnabled { get; set; } = true;
+
+    [ObservableProperty]
     public partial int SelectedEdgeIndex { get; set; }
 
     [ObservableProperty]
@@ -289,6 +298,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty]
     public partial string ValidationMetricsText { get; set; } = I18n.Get("metrics.noSamples");
 
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ExportDiagnosticDataCommand))]
+    public partial bool IsExportingDiagnosticData { get; set; }
+
     public MainWindowViewModel(
         IMainWindowCoordinator coordinator,
         IMainWindowDialogService dialogs,
@@ -297,6 +310,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         _coordinator = coordinator ?? throw new ArgumentNullException(nameof(coordinator));
         _dialogs = dialogs ?? throw new ArgumentNullException(nameof(dialogs));
         _updates = updates ?? throw new ArgumentNullException(nameof(updates));
+        IsRemoteContentLoading = coordinator.IsRemoteContentLoading;
         StoreProducts = [.. WindowsCommerceCatalog.Products.Select(CreateStorePreview)];
         RefreshVisibleStoreProducts();
         RefreshMonitors();
@@ -316,7 +330,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public IReadOnlyList<StoreProductPreviewViewModel> StoreProducts { get; }
 
-    public ObservableCollection<StoreProductPreviewViewModel> VisibleStoreProducts { get; } = [];
+    [ObservableProperty]
+    public partial IReadOnlyList<StoreProductPreviewViewModel> VisibleStoreProducts { get; set; } = [];
 
     public ObservableCollection<MonitorOption> Monitors { get; } = [];
 
@@ -383,6 +398,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public void ApplyState(CoordinatorState state)
     {
+        IsRemoteContentLoading = _coordinator.IsRemoteContentLoading;
         if (_selectionUserId != state.Profile?.Id)
         {
             _selectionUserId = state.Profile?.Id;
@@ -457,6 +473,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 s_supportedLanguages,
                 language => string.Equals(language, selectedLanguage, StringComparison.OrdinalIgnoreCase));
             SelectedLanguageIndex = Math.Max(0, selectedLanguageIndex);
+            SelectedThemeIndex = (int)state.Preferences.Theme;
             SelectedEdgeIndex = (int)state.Preferences.OverlayRegion.Edge;
             SelectedSpanIndex = (int)state.Preferences.OverlayRegion.Span;
             string? preferredMonitor = state.Preferences.OverlayRegion.MonitorIdentifier;
@@ -716,6 +733,40 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
+    private bool CanExportDiagnosticData() => !IsExportingDiagnosticData;
+
+    [RelayCommand(CanExecute = nameof(CanExportDiagnosticData))]
+    private async Task ExportDiagnosticDataAsync()
+    {
+        IsExportingDiagnosticData = true;
+        try
+        {
+            await _coordinator.ExportDiagnosticDataAsync();
+            RaiseNotice(I18n.Get("about.diagnosticsExported"), NoticeKind.Success);
+        }
+        catch (Exception)
+        {
+            RaiseNotice(I18n.Get("about.diagnosticsExportFailed"), NoticeKind.Error);
+        }
+        finally
+        {
+            IsExportingDiagnosticData = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task OpenExternalLinkAsync(string url)
+    {
+        try
+        {
+            await _coordinator.OpenExternalUriAsync(new Uri(url, UriKind.Absolute));
+        }
+        catch (Exception)
+        {
+            RaiseNotice(I18n.Get("about.linkOpenFailed"), NoticeKind.Error);
+        }
+    }
+
     partial void OnIsOverlayVisibleChanged(bool value)
     {
         if (!_isApplyingState)
@@ -771,6 +822,20 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IsLanguageSelectionEnabled = true;
     }
 
+    partial void OnSelectedThemeIndexChanged(int value)
+    {
+        if (!_isApplyingState && IsThemeSelectionEnabled && Enum.IsDefined((AppThemePreference)value))
+            _ = SaveThemeAsync((AppThemePreference)value);
+    }
+
+    private async Task SaveThemeAsync(AppThemePreference theme)
+    {
+        IsThemeSelectionEnabled = false;
+        await RunCommandAsync(() => _coordinator.SetThemeAsync(theme), null);
+        ApplyState(_coordinator.State);
+        IsThemeSelectionEnabled = true;
+    }
+
     partial void OnNicknameChanged(string value)
     {
         _ = value;
@@ -809,6 +874,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         _ = value;
         RefreshVisibleStoreProducts();
+    }
+
+    [RelayCommand]
+    private void ResetStoreFilters()
+    {
+        SelectedStoreSortIndex = 0;
+        HidesOwnedStoreProducts = false;
+        StoreSearchText = string.Empty;
     }
 
     partial void OnSelectedEdgeIndexChanged(int value) => ApplyRegionPreference();
@@ -919,33 +992,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
         };
 
         StoreProductPreviewViewModel[] desiredProducts = [.. products];
-        for (int index = VisibleStoreProducts.Count - 1; index >= 0; index--)
+        if (!VisibleStoreProducts.SequenceEqual(desiredProducts))
         {
-            if (!desiredProducts.Contains(VisibleStoreProducts[index]))
-            {
-                VisibleStoreProducts.RemoveAt(index);
-            }
+            VisibleStoreProducts = desiredProducts;
         }
-        for (int index = 0; index < desiredProducts.Length; index++)
-        {
-            StoreProductPreviewViewModel product = desiredProducts[index];
-            if (index < VisibleStoreProducts.Count
-                && ReferenceEquals(VisibleStoreProducts[index], product))
-            {
-                continue;
-            }
 
-            int existingIndex = VisibleStoreProducts.IndexOf(product);
-            if (existingIndex >= 0)
-            {
-                VisibleStoreProducts.Move(existingIndex, index);
-            }
-            else
-            {
-                VisibleStoreProducts.Insert(index, product);
-            }
-        }
-        HasVisibleStoreProducts = VisibleStoreProducts.Count > 0;
+        HasVisibleStoreProducts = desiredProducts.Length > 0;
     }
 
     private void RefreshNicknameChangeState()

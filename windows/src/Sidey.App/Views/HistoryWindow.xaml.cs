@@ -2,6 +2,7 @@ using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Sidey.Core.Domain;
 using Sidey.Core.Localization;
 using Sidey.Platform.Windows;
 using Sidey.Presentation.Services;
@@ -20,6 +21,7 @@ public sealed partial class HistoryWindow : Window
         _initialState = viewModel.CurrentState;
         InitializeComponent();
         HistoryRoot.DataContext = ViewModel;
+        ApplyTheme(_initialState.Preferences.Theme);
         Title = I18n.Get("window.historyTitle");
         SideyWindowIcon.Apply(AppWindow);
         ApplyResponsiveSize();
@@ -34,7 +36,16 @@ public sealed partial class HistoryWindow : Window
     {
         if (!_isClosed)
         {
+            ApplyTheme(state.Preferences.Theme);
             ViewModel.ApplyState(state);
+        }
+    }
+
+    public void ApplyTheme(AppThemePreference theme)
+    {
+        if (!_isClosed)
+        {
+            SideyWindowTheme.Apply(HistoryRoot, theme);
         }
     }
 

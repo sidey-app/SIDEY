@@ -67,6 +67,200 @@ public sealed class RealtimeStartupTests
     }
 
     [Fact]
+    public async Task RefreshedSessionTokenIsAppliedToEveryJoinedChannel()
+    {
+        var authorizationUpdated = new TaskCompletionSource<string[]>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var server = new LocalServer(async (socket, _, token) =>
+        {
+            JsonElement[] joins = [await ReadAsync(socket, token), await ReadAsync(socket, token)];
+            foreach (JsonElement join in joins)
+            {
+                await ReplyAsync(socket, join, token);
+            }
+
+            var updatedTopics = new HashSet<string>(StringComparer.Ordinal);
+            while (updatedTopics.Count < joins.Length)
+            {
+                JsonElement message = await ReadAsync(socket, token);
+                if (message.GetProperty("event").GetString() != "access_token")
+                {
+                    continue;
+                }
+
+                Assert.Equal(
+                    "refreshed-token",
+                    message.GetProperty("payload").GetProperty("access_token").GetString());
+                updatedTopics.Add(message.GetProperty("topic").GetString()!);
+            }
+
+            authorizationUpdated.SetResult([.. updatedTopics.Order(StringComparer.Ordinal)]);
+        });
+        var sessions = new RotatingSessions("initial-token");
+        await using SupabaseRealtimeTransport transport = CreateTransport(
+            server,
+            sessions: sessions,
+            watchdogInterval: TimeSpan.FromMilliseconds(20),
+            authorizationRefreshInterval: TimeSpan.FromMilliseconds(20));
+        var roomId = Guid.NewGuid();
+
+        await transport.SynchronizeAsync(
+            new Dictionary<Guid, long> { [roomId] = 1 },
+            roomId,
+            PresenceState.Online,
+            server.Token);
+        sessions.SetAccessToken("refreshed-token");
+        string[] topics = await authorizationUpdated.Task.WaitAsync(TimeSpan.FromSeconds(3));
+
+        Assert.Equal(2, topics.Length);
+        Assert.Contains(topics, topic => topic.EndsWith(":db", StringComparison.Ordinal));
+        Assert.Contains(topics, topic => topic.EndsWith(":ephemeral", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ChannelAuthorizationFailureDisconnectsAndRecoversTheWholeSubscriptionSet()
+    {
+        await using var server = new LocalServer(async (socket, connection, token) =>
+        {
+            JsonElement[] joins = [await ReadAsync(socket, token), await ReadAsync(socket, token)];
+            foreach (JsonElement join in joins)
+            {
+                await ReplyAsync(socket, join, token);
+            }
+
+            if (connection != 1)
+            {
+                return;
+            }
+
+            var updatedTopics = new HashSet<string>(StringComparer.Ordinal);
+            while (updatedTopics.Count < joins.Length)
+            {
+                JsonElement message = await ReadAsync(socket, token);
+                if (message.GetProperty("event").GetString() == "access_token")
+                {
+                    updatedTopics.Add(message.GetProperty("topic").GetString()!);
+                }
+            }
+
+            string databaseTopic = Assert.Single(
+                updatedTopics,
+                topic => topic.EndsWith(":db", StringComparison.Ordinal));
+            await SendEventAsync(
+                socket,
+                databaseTopic,
+                "system",
+                new { status = "error", message = "Unauthorized: denied" },
+                token);
+        });
+        var sessions = new RotatingSessions("initial-token");
+        await using SupabaseRealtimeTransport transport = CreateTransport(
+            server,
+            sessions: sessions,
+            watchdogInterval: TimeSpan.FromMilliseconds(20),
+            authorizationRefreshInterval: TimeSpan.FromMilliseconds(20));
+        var roomId = Guid.NewGuid();
+        await transport.SynchronizeAsync(
+            new Dictionary<Guid, long> { [roomId] = 1 },
+            roomId,
+            PresenceState.Online,
+            server.Token);
+
+        sessions.SetAccessToken("refreshed-token");
+        await WaitForEventAsync(
+            transport,
+            item => item is BackendEvent.ConnectionChanged { Status.TransportConnected: false });
+        await WaitForEventAsync(
+            transport,
+            item => item is BackendEvent.ConnectionChanged { Status.ActiveRoomTransportConnected: true });
+
+        Assert.Equal(2, server.ConnectionCount);
+        Assert.True(transport.ConnectionStatus.ActiveRoomTransportConnected);
+    }
+
+    [Fact]
+    public async Task TransientSessionRefreshFailureKeepsTheHealthySocketConnected()
+    {
+        var sessions = new OneTimeFailingSessions(
+            new HttpRequestException("Injected transient session refresh failure."));
+        var heartbeatAfterFailure = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        await using var server = new LocalServer(async (socket, _, token) =>
+        {
+            JsonElement[] joins = [await ReadAsync(socket, token), await ReadAsync(socket, token)];
+            foreach (JsonElement join in joins)
+            {
+                await ReplyAsync(socket, join, token);
+            }
+
+            while (!heartbeatAfterFailure.Task.IsCompleted)
+            {
+                JsonElement message = await ReadAsync(socket, token);
+                if (message.GetProperty("event").GetString() == "heartbeat"
+                    && sessions.FailureObserved.IsCompleted)
+                {
+                    heartbeatAfterFailure.TrySetResult();
+                }
+            }
+        });
+        await using SupabaseRealtimeTransport transport = CreateTransport(
+            server,
+            sessions: sessions,
+            watchdogInterval: TimeSpan.FromMilliseconds(20),
+            authorizationRefreshInterval: TimeSpan.FromMilliseconds(20));
+        var roomId = Guid.NewGuid();
+        await transport.SynchronizeAsync(
+            new Dictionary<Guid, long> { [roomId] = 1 },
+            roomId,
+            PresenceState.Online,
+            server.Token);
+
+        sessions.FailNextRequest();
+        await sessions.FailureObserved.WaitAsync(TimeSpan.FromSeconds(3));
+        await heartbeatAfterFailure.Task.WaitAsync(TimeSpan.FromSeconds(3));
+
+        Assert.Equal(1, server.ConnectionCount);
+        Assert.True(transport.ConnectionStatus.ActiveRoomTransportConnected);
+    }
+
+    [Fact]
+    public async Task UnexpectedSessionRefreshFailureRecoversTheWholeSubscriptionSet()
+    {
+        var sessions = new OneTimeFailingSessions(
+            new InvalidDataException("Injected malformed session response."));
+        await using var server = new LocalServer(async (socket, _, token) =>
+        {
+            JsonElement[] joins = [await ReadAsync(socket, token), await ReadAsync(socket, token)];
+            foreach (JsonElement join in joins)
+            {
+                await ReplyAsync(socket, join, token);
+            }
+        });
+        await using SupabaseRealtimeTransport transport = CreateTransport(
+            server,
+            sessions: sessions,
+            watchdogInterval: TimeSpan.FromMilliseconds(20),
+            authorizationRefreshInterval: TimeSpan.FromMilliseconds(20));
+        var roomId = Guid.NewGuid();
+        await transport.SynchronizeAsync(
+            new Dictionary<Guid, long> { [roomId] = 1 },
+            roomId,
+            PresenceState.Online,
+            server.Token);
+
+        sessions.FailNextRequest();
+        await sessions.FailureObserved.WaitAsync(TimeSpan.FromSeconds(3));
+        await WaitForEventAsync(
+            transport,
+            item => item is BackendEvent.ConnectionChanged { Status.TransportConnected: false });
+        await WaitForEventAsync(
+            transport,
+            item => item is BackendEvent.ConnectionChanged { Status.ActiveRoomTransportConnected: true });
+
+        Assert.Equal(2, server.ConnectionCount);
+        Assert.True(transport.ConnectionStatus.ActiveRoomTransportConnected);
+    }
+
+    [Fact]
     public async Task DatabaseBroadcastEmitsMessageIdentityWithoutTrustingMessageBody()
     {
         var roomId = Guid.Parse("20000000-0000-0000-0000-000000000001");
@@ -362,7 +556,7 @@ public sealed class RealtimeStartupTests
     public void OnlyRecognizedAccessFailuresPauseRetries(string reason, bool expected)
     {
         using var payload = JsonDocument.Parse(JsonSerializer.Serialize(new { response = new { reason } }));
-        var exception = RealtimeSubscriptionException.FromReply(payload.RootElement);
+        var exception = RealtimeSubscriptionException.FromServerPayload(payload.RootElement);
         Assert.Equal(expected, exception.AuthorizationFailure);
         Assert.DoesNotContain(reason, exception.Message);
     }
@@ -462,9 +656,18 @@ public sealed class RealtimeStartupTests
         throw new Xunit.Sdk.XunitException($"Expected {typeof(TEvent).Name} was not emitted.");
     }
 
-    private static SupabaseRealtimeTransport CreateTransport(LocalServer server, Network? network = null) => new(
-        new SupabaseRuntimeConfiguration(new Uri("https://unused.invalid"), "test-key"),
-        new Sessions(), network ?? new Network(), server.ConnectAsync);
+    private static SupabaseRealtimeTransport CreateTransport(
+        LocalServer server,
+        Network? network = null,
+        IAuthSessionAccessor? sessions = null,
+        TimeSpan? watchdogInterval = null,
+        TimeSpan? authorizationRefreshInterval = null) => new(
+            new SupabaseRuntimeConfiguration(new Uri("https://unused.invalid"), "test-key"),
+            sessions ?? new Sessions(),
+            network ?? new Network(),
+            server.ConnectAsync,
+            watchdogInterval,
+            authorizationRefreshInterval);
 
     private static async Task<JsonElement> ReadAsync(WebSocket socket, CancellationToken token)
     {
@@ -516,6 +719,53 @@ public sealed class RealtimeStartupTests
                 "test-refresh",
                 s_userId,
                 DateTimeOffset.MaxValue));
+    }
+
+    private sealed class RotatingSessions(string accessToken) : IAuthSessionAccessor
+    {
+        private string _accessToken = accessToken;
+
+        public void SetAccessToken(string accessToken) => Volatile.Write(ref _accessToken, accessToken);
+
+        public ValueTask<StoredSupabaseSession?> GetStoredSessionAsync(
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return ValueTask.FromResult<StoredSupabaseSession?>(new(
+                Volatile.Read(ref _accessToken),
+                "test-refresh",
+                s_userId,
+                DateTimeOffset.MaxValue));
+        }
+    }
+
+    private sealed class OneTimeFailingSessions(Exception failure) : IAuthSessionAccessor
+    {
+        private readonly TaskCompletionSource _failureObserved = new(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _failNextRequest;
+
+        public Task FailureObserved => _failureObserved.Task;
+
+        public void FailNextRequest() => Interlocked.Exchange(ref _failNextRequest, 1);
+
+        public ValueTask<StoredSupabaseSession?> GetStoredSessionAsync(
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (Interlocked.Exchange(ref _failNextRequest, 0) != 0)
+            {
+                _failureObserved.TrySetResult();
+                return ValueTask.FromException<StoredSupabaseSession?>(
+                    failure);
+            }
+
+            return ValueTask.FromResult<StoredSupabaseSession?>(new(
+                "test-token",
+                "test-refresh",
+                s_userId,
+                DateTimeOffset.UtcNow.AddMinutes(5)));
+        }
     }
 
     private sealed class Network : INetworkAvailabilityMonitor

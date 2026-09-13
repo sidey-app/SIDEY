@@ -7,7 +7,10 @@ namespace Sidey.Presentation.Tests;
 internal sealed class FakeSideyCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 {
     public int ConnectionRetryCount { get; private set; }
+    public List<Uri> OpenedExternalUris { get; } = [];
+    public Func<Task<string>>? DiagnosticExportHandler { get; set; }
     public Task RetryConnectionAsync(bool userInitiated = true) { ConnectionRetryCount++; return Task.CompletedTask; }
+    public bool IsRemoteContentLoading { get; set; }
     public bool AnimationsEnabled { get; set; } = true;
     public Func<bool, Task>? SoundSettingHandler { get; set; }
     public List<string> PreviewedSounds { get; } = [];
@@ -177,6 +180,14 @@ internal sealed class FakeSideyCoordinator : IMainWindowCoordinator, IHistoryCoo
         return Task.CompletedTask;
     }
 
+    public int SetThemeCallCount { get; private set; }
+    public Task SetThemeAsync(AppThemePreference theme, CancellationToken cancellationToken = default)
+    {
+        SetThemeCallCount++;
+        State = State with { Preferences = State.Preferences with { Theme = theme } };
+        return Task.CompletedTask;
+    }
+
     public Task SetRegionAsync(
         OverlayRegionPreference preference,
         CancellationToken cancellationToken = default) => Task.CompletedTask;
@@ -223,6 +234,15 @@ internal sealed class FakeSideyCoordinator : IMainWindowCoordinator, IHistoryCoo
 
     public Task<string?> ExportValidationMetricsAsync(CancellationToken cancellationToken = default) =>
         Task.FromResult<string?>(null);
+
+    public Task<string> ExportDiagnosticDataAsync(CancellationToken cancellationToken = default) =>
+        DiagnosticExportHandler?.Invoke() ?? Task.FromResult("C:\\Desktop\\SIDEY-Diagnostics.zip");
+
+    public Task OpenExternalUriAsync(Uri uri)
+    {
+        OpenedExternalUris.Add(uri);
+        return Task.CompletedTask;
+    }
 }
 
 internal sealed class FakeMainWindowDialogService : IMainWindowDialogService

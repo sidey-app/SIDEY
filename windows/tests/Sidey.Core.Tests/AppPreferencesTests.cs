@@ -33,9 +33,22 @@ public sealed class AppPreferencesTests
         Assert.False(preferences.RequiresRightClickToThrow);
         Assert.False(preferences.StartAtLogin);
         Assert.Null(preferences.Language);
+        Assert.Equal(AppThemePreference.System, preferences.Theme);
         Assert.Null(preferences.CachedNickname);
         Assert.Null(preferences.CachedCharacterId);
         Assert.Null(preferences.ActiveRoomId);
         Assert.Equal(OverlayRegionPreference.Default, preferences.OverlayRegion);
+    }
+
+    [Theory]
+    [InlineData(AppThemePreference.System, AppThemePreference.System)]
+    [InlineData(AppThemePreference.Light, AppThemePreference.Light)]
+    [InlineData(AppThemePreference.Dark, AppThemePreference.Dark)]
+    [InlineData((AppThemePreference)99, AppThemePreference.System)]
+    public void ThemePreferenceOnlyKeepsSupportedValues(
+        AppThemePreference requested,
+        AppThemePreference expected)
+    {
+        Assert.Equal(expected, (AppPreferences.Default with { Theme = requested }).Normalize().Theme);
     }
 }

@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Sidey.App.Controls;
+using Sidey.Core.Domain;
 using Sidey.Core.Localization;
 using Sidey.Platform.Windows;
 using Sidey.Presentation.Services;
@@ -34,7 +35,10 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     private bool _allowClose;
     private bool _trayAvailable;
     private bool _navigatingBack;
+    private bool _storeSearchUpdateQueued;
     private bool _storePreviewDialogOpen;
+    private Task _storeFilterTransition = Task.CompletedTask;
+    private readonly HashSet<Guid> _roomExpansionAnimations = [];
     private bool _hideQueued;
     private bool _isClosed;
     private string _currentNavigationTag = "profile";
@@ -77,6 +81,8 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
         catch (Exception exception) { StartupDiagnostics.NonFatal("feedback-system-notifications", exception); }
         MainRoot.DataContext = ViewModel;
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        ApplyRequestedTheme();
         ViewModel.PrepareGroupsForPresentation();
         Title = "SIDEY";
         SideyWindowIcon.Apply(AppWindow);
@@ -100,6 +106,21 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     }
 
     public MainWindowViewModel ViewModel { get; }
+
+    private void OnViewModelPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+    {
+        _ = sender;
+        if (args.PropertyName == nameof(MainWindowViewModel.SelectedThemeIndex))
+            ApplyRequestedTheme();
+    }
+
+    private void ApplyRequestedTheme()
+    {
+        SideyWindowTheme.Apply(
+            MainRoot,
+            (AppThemePreference)ViewModel.SelectedThemeIndex);
+        ApplyStoreFilterToggleSurface(StoreFilterPanel.Visibility == Visibility.Visible);
+    }
 
     private void OnAnimationsChanged()
     {
@@ -138,6 +159,41 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
             throw new InvalidOperationException("The external title bar icon did not decode for display.");
         }
         StartupDiagnostics.Stage("external-assets-smoke-complete titlebar-icon=20x20");
+    }
+
+    internal void VerifyLocalCatalogLoadingSmoke()
+    {
+        if (!ViewModel.IsRemoteContentLoading
+            || CharacterSelector.Visibility != Visibility.Visible
+            || BubbleSelector.Visibility != Visibility.Visible
+            || ThrowableSelector.Visibility != Visibility.Visible
+            || !ViewModel.CharacterSelections.Select(character => character.Id)
+                .SequenceEqual(
+                    PixelCharacterCatalog.Selectable.Select(character => character.Id),
+                    StringComparer.Ordinal)
+            || ViewModel.BubbleSelections.Count != 1
+            || ViewModel.ThrowableSelections.Count != 1)
+        {
+            throw new InvalidOperationException(
+                "Local catalog smoke: default selections were hidden during remote loading.");
+        }
+
+        string cachedCharacterId = PixelCharacterCatalog.NormalizeId(
+            _coordinator.State.Preferences.CachedCharacterId);
+        bool cachedCharacterIsFree = PixelCharacterCatalog.Selectable.Any(character =>
+            StringComparer.Ordinal.Equals(character.Id, cachedCharacterId));
+        CharacterSelectionItemViewModel[] selectedCharacters = [.. ViewModel.CharacterSelections.Where(
+            character => character.IsSelected)];
+        if (cachedCharacterIsFree
+            ? selectedCharacters.Length != 1
+                || !StringComparer.Ordinal.Equals(selectedCharacters[0].Id, cachedCharacterId)
+            : selectedCharacters.Length != 0)
+        {
+            throw new InvalidOperationException(
+                "Local catalog smoke: cached character selection was guessed incorrectly.");
+        }
+
+        StartupDiagnostics.Stage("local-catalog-loading-smoke-complete");
     }
 
     internal async Task VerifySoundControlsSmokeAsync()
@@ -218,7 +274,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
 
     internal async Task VerifyLiveLanguageSmokeAsync()
     {
-        ShowPage("settings");
+        ShowPage("about");
         ViewModel.Nickname = "draft";
         ViewModel.InviteCode = "ABCDEF";
         ViewModel.CreateRoomName = "room draft";
@@ -269,6 +325,153 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         StartupDiagnostics.Stage("live-language-smoke-complete changes=6 drafts-preserved=true");
     }
 
+    internal async Task VerifyStoreFilterToggleSmokeAsync()
+    {
+        string originalSearchText = ViewModel.StoreSearchText;
+        int originalKindIndex = ViewModel.SelectedStoreKindIndex;
+        int originalSortIndex = ViewModel.SelectedStoreSortIndex;
+        bool originallyHidesOwned = ViewModel.HidesOwnedStoreProducts;
+        try
+        {
+            ShowPage("store");
+            if (StoreCharacterKindChip.IsChecked != true)
+            {
+                throw new InvalidOperationException(
+                    "Store filter smoke: character was not the default product kind.");
+            }
+
+            StoreFilterToggle.IsChecked = false;
+            SetStoreFilterPanelExpanded(false);
+            StoreFilterToggle.UpdateLayout();
+            ContentPresenter? filterPresenter = FindNamedDescendant<ContentPresenter>(
+                StoreFilterToggle,
+                "FilterTogglePresenter");
+            if (filterPresenter is null
+                || !IsTransparentBrush(filterPresenter.Background)
+                || filterPresenter.BorderThickness.Left != 0
+                || StoreResetFiltersButton.BorderThickness.Left == 0)
+            {
+                throw new InvalidOperationException(
+                    "Store filter smoke: closed and reset button surfaces are incorrect.");
+            }
+
+            StoreFilterToggle.IsChecked = true;
+            OnStoreFilterToggleClick(StoreFilterToggle, new RoutedEventArgs());
+            await _storeFilterTransition;
+            StoreFilterToggle.UpdateLayout();
+            filterPresenter = FindNamedDescendant<ContentPresenter>(
+                StoreFilterToggle,
+                "FilterTogglePresenter");
+            if (StoreFilterPanel.Visibility != Visibility.Visible)
+            {
+                throw new InvalidOperationException("Store filter smoke: panel did not open.");
+            }
+            if (StoreFilterChevron.RenderTransform is not RotateTransform { Angle: 180 })
+            {
+                throw new InvalidOperationException("Store filter smoke: chevron did not rotate open.");
+            }
+            if (filterPresenter is null
+                || IsTransparentBrush(filterPresenter.Background)
+                || filterPresenter.BorderThickness.Left == 0)
+            {
+                throw new InvalidOperationException(
+                    "Store filter smoke: open filter did not use a neutral surface.");
+            }
+
+            StorePage.UpdateLayout();
+            double initialContentWidth = StorePageContent.ActualWidth;
+            double initialContentOffset = StorePageContent
+                .TransformToVisual(StorePage)
+                .TransformPoint(new Windows.Foundation.Point())
+                .X;
+
+            await WaitForLoadedAsync(StoreSearchTextBox);
+            if (!StoreSearchTextBox.Focus(FocusState.Programmatic))
+            {
+                throw new InvalidOperationException("Store filter smoke: search input did not receive focus.");
+            }
+
+            StoreSearchTextBox.Text = "x";
+            QueueStoreSearchUpdate();
+            StoreSearchTextBox.Text = "xz";
+            QueueStoreSearchUpdate();
+            StoreSearchTextBox.Text = "xz-no-sidey-product";
+            QueueStoreSearchUpdate();
+            await WaitForDispatcherTurnAsync();
+            StorePage.UpdateLayout();
+            double emptyContentOffset = StorePageContent
+                .TransformToVisual(StorePage)
+                .TransformPoint(new Windows.Foundation.Point())
+                .X;
+            if (!StringComparer.Ordinal.Equals(ViewModel.StoreSearchText, "xz-no-sidey-product")
+                || ViewModel.HasVisibleStoreProducts
+                || Math.Abs(StorePageContent.ActualWidth - initialContentWidth) > 0.5
+                || Math.Abs(emptyContentOffset - initialContentOffset) > 0.5
+                || StoreFilterPanel.Visibility != Visibility.Visible)
+            {
+                throw new InvalidOperationException(
+                    "Store filter smoke: empty search results changed the content frame.");
+            }
+
+            ViewModel.SelectedStoreSortIndex = 2;
+            ViewModel.HidesOwnedStoreProducts = true;
+            StoreThrowableKindChip.IsChecked = true;
+            OnResetStoreFiltersClick(StoreResetFiltersButton, new RoutedEventArgs());
+            if (StoreSearchTextBox.Text.Length != 0
+                || ViewModel.StoreSearchText.Length != 0
+                || ViewModel.SelectedStoreKindIndex != (int)CommerceProductKind.Throwable
+                || StoreThrowableKindChip.IsChecked != true
+                || ViewModel.SelectedStoreSortIndex != 0
+                || ViewModel.HidesOwnedStoreProducts)
+            {
+                throw new InvalidOperationException(
+                    "Store filter smoke: reset did not restore filters while preserving product kind.");
+            }
+            StoreSearchTextBox.Text = "xz-no-sidey-product";
+            QueueStoreSearchUpdate();
+            await WaitForDispatcherTurnAsync();
+
+            StoreFilterToggle.IsChecked = false;
+            OnStoreFilterToggleClick(StoreFilterToggle, new RoutedEventArgs());
+            await _storeFilterTransition;
+            StoreFilterToggle.UpdateLayout();
+            filterPresenter = FindNamedDescendant<ContentPresenter>(
+                StoreFilterToggle,
+                "FilterTogglePresenter");
+            if (StoreFilterPanel.Visibility != Visibility.Collapsed
+                || !StringComparer.Ordinal.Equals(StoreSearchTextBox.Text, "xz-no-sidey-product")
+                || !StringComparer.Ordinal.Equals(ViewModel.StoreSearchText, "xz-no-sidey-product")
+                || StoreFilterChevron.RenderTransform is not RotateTransform { Angle: 0 }
+                || filterPresenter is null
+                || !IsTransparentBrush(filterPresenter.Background)
+                || filterPresenter.BorderThickness.Left != 0)
+            {
+                StartupDiagnostics.Stage(
+                    $"store-filter-toggle-smoke-failed visibility={StoreFilterPanel.Visibility} query-retained={StringComparer.Ordinal.Equals(StoreSearchTextBox.Text, "xz-no-sidey-product")} query-applied={StringComparer.Ordinal.Equals(ViewModel.StoreSearchText, "xz-no-sidey-product")}");
+                throw new InvalidOperationException(
+                    "Store filter smoke: focused search did not close while preserving its query.");
+            }
+
+            StartupDiagnostics.Stage(
+                "store-filter-toggle-smoke-complete focused-search=true query-preserved=true");
+        }
+        finally
+        {
+            ViewModel.StoreSearchText = originalSearchText;
+            ViewModel.SelectedStoreSortIndex = originalSortIndex;
+            ViewModel.HidesOwnedStoreProducts = originallyHidesOwned;
+            RadioButton originalKindChip = originalKindIndex switch
+            {
+                (int)CommerceProductKind.Bubble => StoreBubbleKindChip,
+                (int)CommerceProductKind.Throwable => StoreThrowableKindChip,
+                _ => StoreCharacterKindChip,
+            };
+            originalKindChip.IsChecked = true;
+            StoreFilterToggle.IsChecked = false;
+            SetStoreFilterPanelExpanded(false);
+        }
+    }
+
     public void ApplyState(CoordinatorState state)
     {
         if (!_isClosed)
@@ -301,10 +504,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
 
         ViewModel.PrepareGroupsForPresentation();
-        NavigationViewItem? item = RootNavigation.MenuItems
-            .OfType<NavigationViewItem>()
-            .FirstOrDefault(candidate =>
-                StringComparer.Ordinal.Equals(candidate.Tag as string, tag));
+        NavigationViewItem? item = FindNavigationItem(tag);
         if (item is not null)
         {
             RootNavigation.SelectedItem = item;
@@ -334,9 +534,30 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
     }
 
-    public void CheckForUpdates()
+    public void ShowUpdatesAndCheck()
     {
-        if (!_isClosed && ViewModel.CheckForUpdatesCommand.CanExecute(null))
+        if (_isClosed)
+        {
+            return;
+        }
+
+        ShowPage("about");
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            if (_isClosed)
+            {
+                return;
+            }
+
+            AboutPage.UpdateLayout();
+            UpdateSection.StartBringIntoView(new BringIntoViewOptions
+            {
+                AnimationDesired = _coordinator.AnimationsEnabled,
+                VerticalAlignmentRatio = 0,
+            });
+        });
+
+        if (ViewModel.CheckForUpdatesCommand.CanExecute(null))
         {
             ViewModel.CheckForUpdatesCommand.Execute(null);
         }
@@ -681,31 +902,36 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         GroupsPage.Visibility = tag == "groups" ? Visibility.Visible : Visibility.Collapsed;
         StorePage.Visibility = tag == "store" ? Visibility.Visible : Visibility.Collapsed;
         SettingsPage.Visibility = tag == "settings" ? Visibility.Visible : Visibility.Collapsed;
+        AboutPage.Visibility = tag == "about" ? Visibility.Visible : Visibility.Collapsed;
         if (navigationChanged)
         {
-            AnimatePageRefresh(tag switch
+            ScrollViewer selectedPage = tag switch
             {
                 "groups" => GroupsPage,
                 "store" => StorePage,
                 "settings" => SettingsPage,
+                "about" => AboutPage,
                 _ => HomePage,
-            });
+            };
+            selectedPage.ChangeView(null, 0, null, disableAnimation: true);
+            DispatcherQueue.TryEnqueue(() =>
+                selectedPage.ChangeView(null, 0, null, disableAnimation: true));
+            AnimatePageRefresh(selectedPage);
         }
     }
 
-    private void OnStoreKindSelectionChanged(
-        SelectorBar sender,
-        SelectorBarSelectionChangedEventArgs args)
+    private void OnStoreKindChipChecked(object sender, RoutedEventArgs args)
     {
         _ = args;
-        if (sender.SelectedItem is null
+        if (sender is not RadioButton { Tag: string tag }
+            || !int.TryParse(tag, out int selectedIndex)
             || MainRoot.DataContext is not MainWindowViewModel viewModel)
         {
             return;
         }
 
-        int selectedIndex = sender.Items.IndexOf(sender.SelectedItem);
         int previousIndex = viewModel.SelectedStoreKindIndex;
+        ApplyStoreKindChipStyles(selectedIndex);
         if (selectedIndex < 0 || selectedIndex == previousIndex)
         {
             return;
@@ -717,11 +943,249 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
             selectedIndex > previousIndex ? 24d : -24d);
     }
 
+    private void ApplyStoreKindChipStyles(int selectedIndex)
+    {
+        if (StoreCharacterKindChip is null
+            || StoreBubbleKindChip is null
+            || StoreThrowableKindChip is null)
+        {
+            return;
+        }
+
+        var defaultStyle = (Style)Application.Current.Resources["SideyStoreKindChipStyle"];
+        var selectedStyle = (Style)Application.Current.Resources["SideyStoreKindChipSelectedStyle"];
+        RadioButton[] chips =
+        [
+            StoreCharacterKindChip,
+            StoreBubbleKindChip,
+            StoreThrowableKindChip,
+        ];
+        for (int index = 0; index < chips.Length; index++)
+        {
+            chips[index].Style = index == selectedIndex ? selectedStyle : defaultStyle;
+        }
+    }
+
     private static void AnimatePageRefresh(FrameworkElement element) =>
         AnimateElement(element, horizontalOffset: 0, verticalOffset: 18, durationMilliseconds: 220);
 
     private static void AnimateSiblingPage(FrameworkElement element, double horizontalOffset) =>
         AnimateElement(element, horizontalOffset, verticalOffset: 0, durationMilliseconds: 180);
+
+    private async void OnRoomHeaderTapped(object sender, TappedRoutedEventArgs args)
+    {
+        if (sender is not Grid header
+            || header.DataContext is not RoomCardViewModel room
+            || header.Tag is not FrameworkElement body
+            || args.OriginalSource is DependencyObject source && HasButtonAncestor(source, header)
+            || !_roomExpansionAnimations.Add(room.Room.Id))
+        {
+            return;
+        }
+
+        args.Handled = true;
+        FontIcon? chevron = FindNamedDescendant<FontIcon>(header, "RoomExpansionChevron");
+        try
+        {
+            if (!_coordinator.AnimationsEnabled)
+            {
+                room.ToggleCommand.Execute(null);
+                SetChevronAngle(chevron, room.IsExpanded ? 180 : 0);
+                return;
+            }
+
+            if (room.IsExpanded)
+            {
+                await Task.WhenAll(
+                    AnimateRoomBodyAsync(body, expanding: false),
+                    AnimateChevronAsync(chevron, expanding: false));
+                room.ToggleCommand.Execute(null);
+                body.Height = double.NaN;
+                body.Opacity = 1;
+            }
+            else
+            {
+                room.ToggleCommand.Execute(null);
+                body.Height = double.NaN;
+                body.UpdateLayout();
+                await Task.WhenAll(
+                    AnimateRoomBodyAsync(body, expanding: true),
+                    AnimateChevronAsync(chevron, expanding: true));
+                body.Height = double.NaN;
+                body.Opacity = 1;
+            }
+        }
+        finally
+        {
+            _roomExpansionAnimations.Remove(room.Room.Id);
+        }
+    }
+
+    private void OnRoomExpansionChevronLoaded(object sender, RoutedEventArgs args)
+    {
+        _ = args;
+        if (sender is FontIcon chevron && chevron.DataContext is RoomCardViewModel room)
+        {
+            SetChevronAngle(chevron, room.IsExpanded ? 180 : 0);
+        }
+    }
+
+    private void OnRoomHeaderPointerEntered(object sender, PointerRoutedEventArgs args)
+    {
+        _ = args;
+        SetRoomHeaderHoverOpacity(sender, 1);
+    }
+
+    private void OnRoomHeaderPointerExited(object sender, PointerRoutedEventArgs args)
+    {
+        _ = args;
+        SetRoomHeaderHoverOpacity(sender, 0);
+    }
+
+    private static void SetRoomHeaderHoverOpacity(object sender, double opacity)
+    {
+        if (sender is Grid header
+            && header.Children
+                .OfType<Border>()
+                .FirstOrDefault(child => child.Name == "RoomHeaderHoverBackground") is { } hoverBackground)
+        {
+            hoverBackground.Opacity = opacity;
+        }
+    }
+
+    private static bool HasButtonAncestor(DependencyObject source, DependencyObject boundary)
+    {
+        for (DependencyObject? current = source;
+             current is not null && !ReferenceEquals(current, boundary);
+             current = VisualTreeHelper.GetParent(current))
+        {
+            if (current is Button)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static T? FindNamedDescendant<T>(DependencyObject parent, string name)
+        where T : FrameworkElement
+    {
+        int childCount = VisualTreeHelper.GetChildrenCount(parent);
+        for (int index = 0; index < childCount; index++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(parent, index);
+            if (child is T element && StringComparer.Ordinal.Equals(element.Name, name))
+            {
+                return element;
+            }
+
+            if (FindNamedDescendant<T>(child, name) is { } descendant)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool IsTransparentBrush(Brush? brush) =>
+        brush is null
+        || brush.Opacity <= 0
+        || brush is SolidColorBrush { Color.A: 0 };
+
+    private static Task AnimateChevronAsync(FontIcon? chevron, bool expanding)
+    {
+        if (chevron is null)
+        {
+            return Task.CompletedTask;
+        }
+
+        SetChevronAngle(chevron, expanding ? 0 : 180);
+        var angle = new DoubleAnimation
+        {
+            From = expanding ? 0 : 180,
+            To = expanding ? 180 : 0,
+            Duration = TimeSpan.FromMilliseconds(180),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut },
+            EnableDependentAnimation = true,
+        };
+        Storyboard.SetTarget(angle, chevron);
+        Storyboard.SetTargetProperty(
+            angle,
+            "(UIElement.RenderTransform).(RotateTransform.Angle)");
+
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var storyboard = new Storyboard();
+        storyboard.Children.Add(angle);
+        storyboard.Completed += (_, _) => completion.TrySetResult();
+        storyboard.Begin();
+        return completion.Task;
+    }
+
+    private static void SetChevronAngle(FontIcon? chevron, double angle)
+    {
+        if (chevron?.RenderTransform is RotateTransform transform)
+        {
+            transform.Angle = angle;
+        }
+    }
+
+    private static Task AnimateRoomBodyAsync(FrameworkElement body, bool expanding)
+    {
+        double expandedHeight = Math.Max(1, body.ActualHeight);
+        body.Height = expanding ? 0 : expandedHeight;
+        body.Opacity = expanding ? 0 : 1;
+        if (body.RenderTransform is not TranslateTransform transform)
+        {
+            transform = new TranslateTransform();
+            body.RenderTransform = transform;
+        }
+        transform.Y = expanding ? -8 : 0;
+
+        var duration = new Duration(TimeSpan.FromMilliseconds(expanding ? 180 : 150));
+        var easing = new CubicEase { EasingMode = EasingMode.EaseInOut };
+        var height = new DoubleAnimation
+        {
+            From = expanding ? 0 : expandedHeight,
+            To = expanding ? expandedHeight : 0,
+            Duration = duration,
+            EasingFunction = easing,
+            EnableDependentAnimation = true,
+        };
+        Storyboard.SetTarget(height, body);
+        Storyboard.SetTargetProperty(height, "Height");
+
+        var opacity = new DoubleAnimation
+        {
+            From = expanding ? 0 : 1,
+            To = expanding ? 1 : 0,
+            Duration = duration,
+            EasingFunction = easing,
+        };
+        Storyboard.SetTarget(opacity, body);
+        Storyboard.SetTargetProperty(opacity, "Opacity");
+
+        var translation = new DoubleAnimation
+        {
+            From = expanding ? -8 : 0,
+            To = expanding ? 0 : -8,
+            Duration = duration,
+            EasingFunction = easing,
+            EnableDependentAnimation = true,
+        };
+        Storyboard.SetTarget(translation, body);
+        Storyboard.SetTargetProperty(
+            translation,
+            "(UIElement.RenderTransform).(TranslateTransform.Y)");
+
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var storyboard = new Storyboard();
+        storyboard.Children.Add(height);
+        storyboard.Children.Add(opacity);
+        storyboard.Children.Add(translation);
+        storyboard.Completed += (_, _) => completion.TrySetResult();
+        storyboard.Begin();
+        return completion.Task;
+    }
 
     private static void AnimateElement(
         FrameworkElement element,
@@ -783,10 +1247,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
 
         string tag = _navigationHistory.Pop();
-        NavigationViewItem? item = RootNavigation.MenuItems
-            .OfType<NavigationViewItem>()
-            .FirstOrDefault(candidate =>
-                StringComparer.Ordinal.Equals(candidate.Tag as string, tag));
+        NavigationViewItem? item = FindNavigationItem(tag);
         if (item is null)
         {
             AppTitleBar.IsBackButtonEnabled = _navigationHistory.Count > 0;
@@ -811,57 +1272,217 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         RootNavigation.IsPaneOpen = !RootNavigation.IsPaneOpen;
     }
 
-    private void OnNavigationPaneOpening(NavigationView sender, object args)
-    {
-        _ = sender;
-        _ = args;
-        ShowExpandedConnectionStatus();
-    }
-
-    private void OnNavigationPaneOpened(NavigationView sender, object args)
-    {
-        _ = sender;
-        _ = args;
-        ShowExpandedConnectionStatus();
-    }
-
-    private void OnNavigationPaneClosing(
-        NavigationView sender,
-        NavigationViewPaneClosingEventArgs args)
-    {
-        _ = sender;
-        _ = args;
-        ShowCompactConnectionStatus();
-    }
-
-    private void OnNavigationPaneClosed(NavigationView sender, object args)
-    {
-        _ = sender;
-        _ = args;
-        ShowCompactConnectionStatus();
-    }
-
-    private void ShowCompactConnectionStatus()
-    {
-        ConnectionStatusRoot.Width = RootNavigation.CompactPaneLength;
-        ExpandedConnectionStatus.Opacity = 0;
-        CompactConnectionStatus.Opacity = 1;
-    }
-
-    private void ShowExpandedConnectionStatus()
-    {
-        ConnectionStatusRoot.Width = RootNavigation.OpenPaneLength;
-        CompactConnectionStatus.Opacity = 0;
-        ExpandedConnectionStatus.Opacity = 1;
-    }
+    private NavigationViewItem? FindNavigationItem(string tag) =>
+        RootNavigation.MenuItems
+            .Concat(RootNavigation.FooterMenuItems)
+            .OfType<NavigationViewItem>()
+            .FirstOrDefault(candidate =>
+                StringComparer.Ordinal.Equals(candidate.Tag as string, tag));
 
     private void OnStoreFilterToggleClick(object sender, RoutedEventArgs args)
     {
         _ = sender;
         _ = args;
-        bool isExpanded = StoreFilterToggle.IsChecked == true;
+        if (!_storeFilterTransition.IsCompleted)
+        {
+            bool isExpanded = StoreFilterPanel.Visibility == Visibility.Visible;
+            StoreFilterToggle.IsChecked = isExpanded;
+            ApplyStoreFilterToggleSurface(isExpanded);
+            return;
+        }
+
+        bool requestedExpanded = StoreFilterToggle.IsChecked == true;
+        ApplyStoreFilterToggleSurface(requestedExpanded);
+        _storeFilterTransition = TransitionStoreFilterPanelAsync(requestedExpanded);
+    }
+
+    private void OnStoreSearchTextChanged(object sender, TextChangedEventArgs args)
+    {
+        _ = args;
+        if (sender is not TextBox)
+        {
+            return;
+        }
+
+        QueueStoreSearchUpdate();
+    }
+
+    private void QueueStoreSearchUpdate()
+    {
+        if (_storeSearchUpdateQueued)
+        {
+            return;
+        }
+
+        _storeSearchUpdateQueued = true;
+        if (!DispatcherQueue.TryEnqueue(() =>
+            {
+                _storeSearchUpdateQueued = false;
+                if (!_isClosed)
+                {
+                    ViewModel.StoreSearchText = StoreSearchTextBox.Text;
+                }
+            }))
+        {
+            _storeSearchUpdateQueued = false;
+        }
+    }
+
+    private void OnResetStoreFiltersClick(object sender, RoutedEventArgs args)
+    {
+        _ = sender;
+        _ = args;
+        ViewModel.ResetStoreFiltersCommand.Execute(null);
+        StoreSearchTextBox.Text = string.Empty;
+    }
+
+    private async Task TransitionStoreFilterPanelAsync(bool isExpanded)
+    {
+        StoreFilterToggle.IsEnabled = false;
+        try
+        {
+            if (!isExpanded)
+            {
+                // Let TextBox focus and IME composition finish before hiding its visual tree.
+                StoreFilterToggle.Focus(FocusState.Programmatic);
+                await WaitForDispatcherTurnAsync();
+            }
+
+            if (!_coordinator.AnimationsEnabled)
+            {
+                SetStoreFilterPanelExpanded(isExpanded);
+                return;
+            }
+
+            if (isExpanded)
+            {
+                StoreFilterPanel.Visibility = Visibility.Visible;
+                StoreFilterPanel.Height = double.NaN;
+                StoreFilterPanel.UpdateLayout();
+            }
+
+            await Task.WhenAll(
+                AnimateFilterPanelAsync(StoreFilterPanel, isExpanded),
+                AnimateChevronAsync(StoreFilterChevron, isExpanded));
+            SetStoreFilterPanelExpanded(isExpanded);
+        }
+        finally
+        {
+            StoreFilterToggle.IsEnabled = true;
+        }
+    }
+
+    private static Task AnimateFilterPanelAsync(FrameworkElement panel, bool expanding)
+    {
+        double expandedHeight = Math.Max(1, panel.ActualHeight);
+        panel.Height = expanding ? 0 : expandedHeight;
+        panel.Opacity = expanding ? 0 : 1;
+        if (panel.RenderTransform is not TranslateTransform transform)
+        {
+            transform = new TranslateTransform();
+            panel.RenderTransform = transform;
+        }
+        transform.Y = expanding ? -8 : 0;
+
+        var duration = new Duration(TimeSpan.FromMilliseconds(180));
+        var easing = new CubicEase { EasingMode = EasingMode.EaseInOut };
+        var height = new DoubleAnimation
+        {
+            From = expanding ? 0 : expandedHeight,
+            To = expanding ? expandedHeight : 0,
+            Duration = duration,
+            EasingFunction = easing,
+            EnableDependentAnimation = true,
+        };
+        Storyboard.SetTarget(height, panel);
+        Storyboard.SetTargetProperty(height, "Height");
+
+        var opacity = new DoubleAnimation
+        {
+            From = expanding ? 0 : 1,
+            To = expanding ? 1 : 0,
+            Duration = duration,
+            EasingFunction = easing,
+        };
+        Storyboard.SetTarget(opacity, panel);
+        Storyboard.SetTargetProperty(opacity, "Opacity");
+
+        var translation = new DoubleAnimation
+        {
+            From = expanding ? -8 : 0,
+            To = expanding ? 0 : -8,
+            Duration = duration,
+            EasingFunction = easing,
+            EnableDependentAnimation = true,
+        };
+        Storyboard.SetTarget(translation, panel);
+        Storyboard.SetTargetProperty(
+            translation,
+            "(UIElement.RenderTransform).(TranslateTransform.Y)");
+
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var storyboard = new Storyboard();
+        storyboard.Children.Add(height);
+        storyboard.Children.Add(opacity);
+        storyboard.Children.Add(translation);
+        storyboard.Completed += (_, _) => completion.TrySetResult();
+        storyboard.Begin();
+        return completion.Task;
+    }
+
+    private void SetStoreFilterPanelExpanded(bool isExpanded)
+    {
+        StoreFilterToggle.IsChecked = isExpanded;
+        ApplyStoreFilterToggleSurface(isExpanded);
         StoreFilterPanel.Visibility = isExpanded ? Visibility.Visible : Visibility.Collapsed;
-        StoreFilterChevron.Glyph = isExpanded ? "\uE70E" : "\uE70D";
+        StoreFilterPanel.Height = double.NaN;
+        StoreFilterPanel.Opacity = 1;
+        if (StoreFilterPanel.RenderTransform is TranslateTransform transform)
+        {
+            transform.Y = 0;
+        }
+        SetChevronAngle(StoreFilterChevron, isExpanded ? 180 : 0);
+    }
+
+    private void ApplyStoreFilterToggleSurface(bool isExpanded)
+    {
+        string styleKey = isExpanded
+            ? "SideyStoreFilterToggleExpandedStyle"
+            : "SideyStoreFilterToggleStyle";
+        StoreFilterToggle.Style = (Style)Application.Current.Resources[styleKey];
+    }
+
+    private async Task WaitForDispatcherTurnAsync()
+    {
+        var completion = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!DispatcherQueue.TryEnqueue(() => completion.TrySetResult()))
+        {
+            throw new InvalidOperationException("The UI dispatcher is unavailable.");
+        }
+
+        await completion.Task.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    private static async Task WaitForLoadedAsync(FrameworkElement element)
+    {
+        if (element.IsLoaded)
+        {
+            return;
+        }
+
+        var completion = new TaskCompletionSource(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        RoutedEventHandler onLoaded = (_, _) => completion.TrySetResult();
+        element.Loaded += onLoaded;
+        try
+        {
+            await completion.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        finally
+        {
+            element.Loaded -= onLoaded;
+        }
     }
 
     private void OnNoticeRaised(NoticeMessage notice)
@@ -932,6 +1553,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         Closed -= OnWindowClosed;
         ViewModel.NoticeRaised -= OnNoticeRaised;
         ViewModel.StorePreviewRequested -= OnStorePreviewRequested;
+        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _minimumSizeController.Dispose();
         _feedbackMonitor?.Dispose();
         if (_coordinator is AppCoordinator appCoordinator)

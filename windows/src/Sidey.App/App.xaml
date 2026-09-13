@@ -8,6 +8,29 @@
       <ResourceDictionary.MergedDictionaries>
         <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
       </ResourceDictionary.MergedDictionaries>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Default">
+          <AcrylicBrush
+              x:Key="SideyComposerBackgroundBrush"
+              FallbackColor="#2C2C2C"
+              TintColor="#2C2C2C"
+              TintLuminosityOpacity="0.96"
+              TintOpacity="0.15" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Light">
+          <AcrylicBrush
+              x:Key="SideyComposerBackgroundBrush"
+              FallbackColor="#F9F9F9"
+              TintColor="#F9F9F9"
+              TintLuminosityOpacity="0.96"
+              TintOpacity="0.15" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="HighContrast">
+          <SolidColorBrush
+              x:Key="SideyComposerBackgroundBrush"
+              Color="{ThemeResource SystemColorWindowColor}" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
       <Color x:Key="SideyPeriwinkle">#FF8587E8</Color>
       <Color x:Key="SideyOrange">#FFFF9A52</Color>
       <SolidColorBrush x:Key="SideyAccentForegroundBrush" Color="{ThemeResource SystemAccentColor}" />
@@ -20,11 +43,98 @@
       <converters:OneToVisibilityConverter x:Key="OneToVisibilityConverter" />
       <converters:ZeroToVisibilityConverter x:Key="ZeroToVisibilityConverter" />
       <Style x:Key="SideySettingsCardStyle" TargetType="Border">
-        <Setter Property="Padding" Value="24" />
-        <Setter Property="CornerRadius" Value="14" />
+        <Setter Property="Padding" Value="20" />
+        <Setter Property="CornerRadius" Value="8" />
         <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
         <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
         <Setter Property="BorderThickness" Value="1" />
+      </Style>
+      <Style x:Key="SideyStoreFilterToggleStyle" TargetType="ToggleButton">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="12,8" />
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="ToggleButton">
+              <ContentPresenter
+                  x:Name="FilterTogglePresenter"
+                  Padding="{TemplateBinding Padding}"
+                  HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                  VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  Content="{TemplateBinding Content}"
+                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                  CornerRadius="{TemplateBinding CornerRadius}" />
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Style>
+      <Style
+          x:Key="SideyStoreFilterToggleExpandedStyle"
+          BasedOn="{StaticResource SideyStoreFilterToggleStyle}"
+          TargetType="ToggleButton">
+        <Setter Property="Background" Value="{ThemeResource ControlFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource ControlStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+      </Style>
+      <Style x:Key="SideyStoreKindChipStyle" TargetType="RadioButton">
+        <Setter Property="MinWidth" Value="96" />
+        <Setter Property="Padding" Value="18,7" />
+        <Setter Property="Foreground" Value="{ThemeResource TextFillColorPrimaryBrush}" />
+        <Setter Property="Background" Value="{ThemeResource ControlFillColorDefaultBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource ControlStrokeColorDefaultBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="UseSystemFocusVisuals" Value="True" />
+        <Setter Property="Template">
+          <Setter.Value>
+            <ControlTemplate TargetType="RadioButton">
+              <Border
+                  x:Name="ChipRoot"
+                  Padding="{TemplateBinding Padding}"
+                  Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="18">
+                <VisualStateManager.VisualStateGroups>
+                  <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="PointerOver">
+                      <VisualState.Setters>
+                        <Setter Target="ChipRoot.Background" Value="{ThemeResource ControlFillColorSecondaryBrush}" />
+                      </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Pressed">
+                      <VisualState.Setters>
+                        <Setter Target="ChipRoot.Background" Value="{ThemeResource ControlFillColorTertiaryBrush}" />
+                      </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Disabled" />
+                  </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
+                <ContentPresenter
+                    HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                    VerticalAlignment="Center"
+                    Content="{TemplateBinding Content}"
+                    ContentTemplate="{TemplateBinding ContentTemplate}"
+                    Foreground="{TemplateBinding Foreground}" />
+              </Border>
+            </ControlTemplate>
+          </Setter.Value>
+        </Setter>
+      </Style>
+      <Style
+          x:Key="SideyStoreKindChipSelectedStyle"
+          BasedOn="{StaticResource SideyStoreKindChipStyle}"
+          TargetType="RadioButton">
+        <Setter Property="Foreground" Value="{ThemeResource AccentFillColorDefaultBrush}" />
+        <Setter Property="Background" Value="{ThemeResource SubtleFillColorTransparentBrush}" />
+        <Setter Property="BorderBrush" Value="{ThemeResource AccentFillColorDefaultBrush}" />
       </Style>
     </ResourceDictionary>
   </Application.Resources>

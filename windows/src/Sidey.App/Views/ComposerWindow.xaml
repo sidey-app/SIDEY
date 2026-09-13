@@ -7,12 +7,10 @@
       x:Name="ComposerRoot"
       Width="400"
       Height="56"
-      Background="Transparent">
+      Background="{ThemeResource SideyComposerBackgroundBrush}">
     <Border
-        Margin="5"
-        Padding="9,5"
-        Background="{ThemeResource AcrylicInAppFillColorDefaultBrush}"
-        CornerRadius="15">
+        Padding="14,10"
+        Background="Transparent">
       <Grid ColumnSpacing="8">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="28" />
@@ -47,7 +45,14 @@
             Text="{Binding Draft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
             TextWrapping="Wrap"
             VerticalAlignment="Center"
-            VerticalContentAlignment="Center" />
+            VerticalContentAlignment="Center">
+          <TextBox.Resources>
+            <SolidColorBrush x:Key="TextControlBackground" Color="Transparent" />
+            <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="Transparent" />
+            <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="Transparent" />
+            <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="Transparent" />
+          </TextBox.Resources>
+        </TextBox>
 
         <Button
             x:Name="SendButton"
