@@ -1,5 +1,6 @@
 using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Sidey.Core.Localization;
 using Sidey.Platform.Windows;
@@ -11,15 +12,25 @@ namespace Sidey.App.Views;
 public sealed partial class OnboardingWindow : Window
 {
     private bool _isClosed;
+    private readonly WindowsMinimumSizeController _minimumSizeController;
 
     public OnboardingWindow(AppCoordinator coordinator)
     {
         InitializeComponent();
         ViewModel = new OnboardingViewModel(coordinator);
         OnboardingRoot.DataContext = ViewModel;
+        SideyWindowTheme.Apply(OnboardingRoot, coordinator.State.Preferences.Theme);
         ViewModel.Completed += OnCompleted;
         Closed += OnWindowClosed;
         Title = I18n.Get("window.settingsTitle");
+        AppTitleBar.IconSource = new ImageIconSource
+        {
+            ImageSource = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(Path.Combine(
+                SideyDeploymentPaths.DeploymentRoot(),
+                "Assets",
+                "Icons",
+                "SideyAppIcon-20.png"))),
+        };
         LandingIcon.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(Path.Combine(
             SideyDeploymentPaths.DeploymentRoot(),
             "Assets",
@@ -27,9 +38,12 @@ public sealed partial class OnboardingWindow : Window
             "SideyAppIcon.png")));
         SideyWindowIcon.Apply(AppWindow);
         ExtendsContentIntoTitleBar = true;
-        SetTitleBar(DragRegion);
+        SetTitleBar(AppTitleBar);
         ApplyBackdrop();
-        ApplyResponsiveSize();
+        ResponsiveWindowSize minimumWindowSize = ApplyResponsiveSize();
+        _minimumSizeController = new WindowsMinimumSizeController(
+            WinRT.Interop.WindowNative.GetWindowHandle(this),
+            minimumWindowSize);
         AppWindow.Closing += OnAppWindowClosing;
     }
 
@@ -41,6 +55,7 @@ public sealed partial class OnboardingWindow : Window
     {
         if (!_isClosed)
         {
+            SideyWindowTheme.Apply(OnboardingRoot, state.Preferences.Theme);
             ViewModel.ApplyState(state);
         }
     }
@@ -97,16 +112,20 @@ public sealed partial class OnboardingWindow : Window
         }
     }
 
-    private void ApplyResponsiveSize()
+    private ResponsiveWindowSize ApplyResponsiveSize()
     {
         WindowsMonitorInfo monitor = WindowsMonitorService.Select(identifier: null);
         ResponsiveWindowSize size = ResponsiveWindowSizePolicy.Calculate(
+            monitor,
+            SideyWindowKind.Onboarding);
+        ResponsiveWindowSize minimumWindowSize = ResponsiveWindowSizePolicy.Minimum(
             monitor,
             SideyWindowKind.Onboarding);
         AppWindow.Resize(new Windows.Graphics.SizeInt32(size.Width, size.Height));
         AppWindow.Move(new Windows.Graphics.PointInt32(
             monitor.WorkAreaPixels.X + ((monitor.WorkAreaPixels.Width - size.Width) / 2),
             monitor.WorkAreaPixels.Y + ((monitor.WorkAreaPixels.Height - size.Height) / 2)));
+        return minimumWindowSize;
     }
 
     private void OnWindowClosed(object sender, WindowEventArgs args)
@@ -116,5 +135,6 @@ public sealed partial class OnboardingWindow : Window
         PrepareForClose();
         AppWindow.Closing -= OnAppWindowClosing;
         ViewModel.Completed -= OnCompleted;
+        _minimumSizeController.Dispose();
     }
 }

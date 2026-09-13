@@ -199,27 +199,167 @@ public sealed class MvvmArchitectureTests
     }
 
     [Fact]
-    public void GroupHeaderDefinesAFullWidthPointerOverSurface()
+    public void GroupHeaderUsesAKeyboardAccessibleFullWidthHoverSurface()
     {
         XDocument view = MainWindowView();
         XElement header = Assert.Single(
             view.Descendants(),
-            element => element.Name.LocalName == "Grid"
-                && element.Attribute("Tapped")?.Value == "OnRoomHeaderTapped");
+            element => element.Name.LocalName == "Button"
+                && element.Attribute("Click")?.Value == "OnRoomHeaderClick");
+
+        Assert.Equal("Stretch", header.Attribute("HorizontalAlignment")?.Value);
+        Assert.Equal("Stretch", header.Attribute("VerticalAlignment")?.Value);
+        Assert.Equal("3", header.Attribute("Grid.ColumnSpan")?.Value);
+        Assert.Equal("-20", header.Attribute("Margin")?.Value);
+        Assert.Equal(
+            "{Binding ExpansionActionText}",
+            header.Attribute("AutomationProperties.Name")?.Value);
+        Assert.Equal("{Binding ElementName=RoomExpandedBody}", header.Attribute("Tag")?.Value);
+        Assert.DoesNotContain(
+            header.Descendants(),
+            element => element.Name.LocalName == "Button");
+
+        XElement headerLayout = Assert.IsType<XElement>(header.Parent);
+        Assert.Equal("OnRoomHeaderPointerEntered", headerLayout.Attribute("PointerEntered")?.Value);
+        Assert.Equal("OnRoomHeaderPointerExited", headerLayout.Attribute("PointerExited")?.Value);
         XElement hoverSurface = Assert.Single(
-            header.Elements(),
+            headerLayout.Elements(),
             element => element.Name.LocalName == "Border"
                 && element.Attributes().Any(attribute =>
                     attribute.Name.LocalName == "Name"
                     && attribute.Value == "RoomHeaderHoverBackground"));
-
-        Assert.Equal("OnRoomHeaderPointerEntered", header.Attribute("PointerEntered")?.Value);
-        Assert.Equal("OnRoomHeaderPointerExited", header.Attribute("PointerExited")?.Value);
         Assert.Equal("3", hoverSurface.Attribute("Grid.ColumnSpan")?.Value);
-        Assert.Equal("False", hoverSurface.Attribute("IsHitTestVisible")?.Value);
         Assert.Equal("-20", hoverSurface.Attribute("Margin")?.Value);
-        Assert.Equal("8", hoverSurface.Attribute("CornerRadius")?.Value);
-        Assert.Equal("0", hoverSurface.Attribute("Opacity")?.Value);
+        Assert.Equal("False", hoverSurface.Attribute("IsHitTestVisible")?.Value);
+
+        XElement chevron = Assert.Single(
+            headerLayout.Descendants(),
+            element => element.Name.LocalName == "FontIcon"
+                && element.Attributes().Any(attribute =>
+                    attribute.Name.LocalName == "Name"
+                    && attribute.Value == "RoomExpansionChevron"));
+        XElement inviteButton = Assert.Single(
+            headerLayout.Descendants(),
+            element => element.Name.LocalName == "Button"
+                && element.Attribute("Command")?.Value == "{Binding InviteCommand}");
+        Assert.Same(inviteButton.Parent, chevron.Parent);
+    }
+
+    [Fact]
+    public void SoundSettingsUseStandardTitleWeightWithoutWideOnlyRowSpacing()
+    {
+        XDocument view = MainWindowView();
+        XElement layout = Assert.Single(
+            view.Descendants(),
+            element => element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "Name"
+                && attribute.Value == "SoundSettingsLayout"));
+        XElement title = Assert.Single(
+            layout.Descendants(),
+            element => element.Name.LocalName == "TextBlock"
+                && element.Attribute("Text")?.Value
+                    == "{Binding Value, Source={i18n:I18n Key=settings.characterSounds}, Mode=OneWay}");
+
+        Assert.Equal("SemiBold", title.Attribute("FontWeight")?.Value);
+        Assert.Equal("0", layout.Attribute("RowSpacing")?.Value);
+
+        XElement narrow = Assert.Single(
+            view.Descendants(),
+            element => element.Name.LocalName == "VisualState"
+                && element.Attributes().Any(attribute =>
+                    attribute.Name.LocalName == "Name"
+                    && attribute.Value == "Narrow"));
+        XElement narrowSpacing = Assert.Single(
+            narrow.Descendants(),
+            element => element.Name.LocalName == "Setter"
+                && element.Attribute("Target")?.Value == "SoundSettingsLayout.RowSpacing");
+        Assert.Equal("12", narrowSpacing.Attribute("Value")?.Value);
+    }
+
+    [Fact]
+    public void MainPagesExposeLevelOneAutomationHeadings()
+    {
+        XDocument view = MainWindowView();
+        string[] expectedTitleKeys =
+        [
+            "profile.title",
+            "groups.title",
+            "store.title",
+            "settings.generalTitle",
+            "about.title",
+        ];
+
+        foreach (string key in expectedTitleKeys)
+        {
+            XElement title = Assert.Single(
+                view.Descendants(),
+                element => element.Name.LocalName == "TextBlock"
+                    && element.Attribute("Text")?.Value.Contains($"Key={key}", StringComparison.Ordinal) == true);
+            Assert.Equal(
+                "Level1",
+                title.Attribute("AutomationProperties.HeadingLevel")?.Value);
+        }
+    }
+
+    [Fact]
+    public void MainWindowDefinesNarrowReflowForFixedControlGroups()
+    {
+        XDocument view = MainWindowView();
+        XElement narrow = Assert.Single(
+            view.Descendants(),
+            element => element.Name.LocalName == "VisualState"
+                && element.Attributes().Any(attribute =>
+                    attribute.Name.LocalName == "Name"
+                    && attribute.Value == "Narrow"));
+        string[] setterTargets =
+        [
+            "ProfileNameEditor.(Grid.Row)",
+            "StoreFilterPanel.(Grid.Row)",
+            "StoreSortStack.(Grid.Row)",
+            "SoundControlsGrid.(Grid.Row)",
+            "EdgeComboBox.(Grid.Row)",
+            "LanguageComboBox.(Grid.Row)",
+        ];
+
+        XElement trigger = Assert.Single(
+            narrow.Descendants(),
+            element => element.Name.LocalName == "AdaptiveTrigger");
+        Assert.Equal("0", trigger.Attribute("MinWindowWidth")?.Value);
+        foreach (string target in setterTargets)
+        {
+            Assert.Contains(
+                narrow.Descendants(),
+                element => element.Name.LocalName == "Setter"
+                    && element.Attribute("Target")?.Value == target);
+        }
+    }
+
+    [Fact]
+    public void OnboardingLandingUsesThemeAwareFluentResources()
+    {
+        var view = XDocument.Load(RepositoryPath(
+            "windows",
+            "src",
+            "Sidey.App",
+            "Views",
+            "OnboardingWindow.xaml"));
+        XElement landing = Assert.Single(
+            view.Descendants(),
+            element => element.Attribute("Background")?.Value
+                == "{ThemeResource SideyOnboardingLandingBackgroundBrush}");
+        XElement description = Assert.Single(
+            landing.Descendants(),
+            element => element.Attribute("Text")?.Value.Contains(
+                "Key=onboarding.landingDescription",
+                StringComparison.Ordinal) == true);
+
+        Assert.Equal(
+            "{ThemeResource TextFillColorSecondaryBrush}",
+            description.Attribute("Foreground")?.Value);
+        Assert.DoesNotContain(
+            landing.DescendantsAndSelf().Attributes(),
+            attribute => attribute.Name.LocalName is "Background" or "Fill" or "Foreground"
+                && attribute.Value.StartsWith('#'));
     }
 
     [Fact]

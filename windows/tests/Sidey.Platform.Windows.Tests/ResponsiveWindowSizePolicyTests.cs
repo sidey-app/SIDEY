@@ -66,22 +66,35 @@ public sealed class ResponsiveWindowSizePolicyTests
     {
         ResponsiveWindowSize size = ResponsiveWindowSizePolicy.Minimum(s_qhd125Percent, SideyWindowKind.Settings);
 
-        Assert.Equal(1075, size.Width);
-        Assert.Equal(800, size.Height);
+        Assert.Equal(700, size.Width);
+        Assert.Equal(650, size.Height);
+    }
+
+    [Fact]
+    public void OnboardingUsesTheSameNarrowLayoutFloorAsSettings()
+    {
+        ResponsiveWindowSize settings = ResponsiveWindowSizePolicy.Minimum(
+            s_qhd125Percent,
+            SideyWindowKind.Settings);
+        ResponsiveWindowSize onboarding = ResponsiveWindowSizePolicy.Minimum(
+            s_qhd125Percent,
+            SideyWindowKind.Onboarding);
+
+        Assert.Equal(settings, onboarding);
     }
 
     [Fact]
     public void NativeTrackingConstraintClampsEachDimensionWithoutShrinkingTheOther()
     {
-        var minimum = new ResponsiveWindowSize(1075, 800);
+        var minimum = new ResponsiveWindowSize(700, 650);
 
         Assert.Equal(
-            new ResponsiveWindowSize(1075, 900),
+            new ResponsiveWindowSize(900, 900),
             WindowsMinimumSizeController.ClampMinimumTrackSize(
                 new ResponsiveWindowSize(900, 900),
                 minimum));
         Assert.Equal(
-            new ResponsiveWindowSize(1200, 800),
+            new ResponsiveWindowSize(1200, 700),
             WindowsMinimumSizeController.ClampMinimumTrackSize(
                 new ResponsiveWindowSize(1200, 700),
                 minimum));

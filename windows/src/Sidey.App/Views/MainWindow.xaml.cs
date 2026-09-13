@@ -967,24 +967,26 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
     }
 
     private static void AnimatePageRefresh(FrameworkElement element) =>
-        AnimateElement(element, horizontalOffset: 0, verticalOffset: 18, durationMilliseconds: 220);
+        AnimateElement(element, horizontalOffset: 0, verticalOffset: 16, durationMilliseconds: 250);
 
     private static void AnimateSiblingPage(FrameworkElement element, double horizontalOffset) =>
-        AnimateElement(element, horizontalOffset, verticalOffset: 0, durationMilliseconds: 180);
+        AnimateElement(element, horizontalOffset, verticalOffset: 0, durationMilliseconds: 167);
 
-    private async void OnRoomHeaderTapped(object sender, TappedRoutedEventArgs args)
+    private async void OnRoomHeaderClick(object sender, RoutedEventArgs args)
     {
-        if (sender is not Grid header
+        _ = args;
+        if (sender is not Button header
             || header.DataContext is not RoomCardViewModel room
             || header.Tag is not FrameworkElement body
-            || args.OriginalSource is DependencyObject source && HasButtonAncestor(source, header)
             || !_roomExpansionAnimations.Add(room.Room.Id))
         {
             return;
         }
 
-        args.Handled = true;
-        FontIcon? chevron = FindNamedDescendant<FontIcon>(header, "RoomExpansionChevron");
+        var headerLayout = VisualTreeHelper.GetParent(header) as Grid;
+        FontIcon? chevron = headerLayout is null
+            ? null
+            : FindNamedDescendant<FontIcon>(headerLayout, "RoomExpansionChevron");
         try
         {
             if (!_coordinator.AnimationsEnabled)
@@ -1053,19 +1055,6 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
     }
 
-    private static bool HasButtonAncestor(DependencyObject source, DependencyObject boundary)
-    {
-        for (DependencyObject? current = source;
-             current is not null && !ReferenceEquals(current, boundary);
-             current = VisualTreeHelper.GetParent(current))
-        {
-            if (current is Button)
-                return true;
-        }
-
-        return false;
-    }
-
     private static T? FindNamedDescendant<T>(DependencyObject parent, string name)
         where T : FrameworkElement
     {
@@ -1104,8 +1093,8 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         {
             From = expanding ? 0 : 180,
             To = expanding ? 180 : 0,
-            Duration = TimeSpan.FromMilliseconds(180),
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseInOut },
+            Duration = TimeSpan.FromMilliseconds(167),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
             EnableDependentAnimation = true,
         };
         Storyboard.SetTarget(angle, chevron);
@@ -1141,8 +1130,8 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
         transform.Y = expanding ? -8 : 0;
 
-        var duration = new Duration(TimeSpan.FromMilliseconds(expanding ? 180 : 150));
-        var easing = new CubicEase { EasingMode = EasingMode.EaseInOut };
+        var duration = new Duration(TimeSpan.FromMilliseconds(167));
+        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
         var height = new DoubleAnimation
         {
             From = expanding ? 0 : expandedHeight,
@@ -1384,8 +1373,8 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
         transform.Y = expanding ? -8 : 0;
 
-        var duration = new Duration(TimeSpan.FromMilliseconds(180));
-        var easing = new CubicEase { EasingMode = EasingMode.EaseInOut };
+        var duration = new Duration(TimeSpan.FromMilliseconds(167));
+        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
         var height = new DoubleAnimation
         {
             From = expanding ? 0 : expandedHeight,

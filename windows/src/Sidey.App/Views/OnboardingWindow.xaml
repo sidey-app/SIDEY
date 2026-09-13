@@ -5,81 +5,108 @@
     xmlns:controls="using:Sidey.App.Controls"
     xmlns:i18n="using:Sidey.App.Localization">
   <Grid x:Name="OnboardingRoot" Background="Transparent">
+    <VisualStateManager.VisualStateGroups>
+      <VisualStateGroup x:Name="ResponsiveStates">
+        <VisualState x:Name="Narrow">
+          <VisualState.StateTriggers>
+            <AdaptiveTrigger MinWindowWidth="0" />
+          </VisualState.StateTriggers>
+          <VisualState.Setters>
+            <Setter Target="SetupProgress.Margin" Value="24,16" />
+            <Setter Target="SetupContent.Margin" Value="24,0" />
+            <Setter Target="SetupFooter.Margin" Value="24,16,24,24" />
+            <Setter Target="StepProfileLabel.Visibility" Value="Collapsed" />
+            <Setter Target="StepGroupLabel.Visibility" Value="Collapsed" />
+            <Setter Target="StepCompleteLabel.Visibility" Value="Collapsed" />
+            <Setter Target="StepSeparatorOne.Width" Value="32" />
+            <Setter Target="StepSeparatorOne.Margin" Value="8,0" />
+            <Setter Target="StepSeparatorTwo.Width" Value="32" />
+            <Setter Target="StepSeparatorTwo.Margin" Value="8,0" />
+            <Setter Target="SetupConnectionStatus.(Grid.Row)" Value="1" />
+          </VisualState.Setters>
+        </VisualState>
+        <VisualState x:Name="Standard">
+          <VisualState.StateTriggers>
+            <AdaptiveTrigger MinWindowWidth="640" />
+          </VisualState.StateTriggers>
+        </VisualState>
+      </VisualStateGroup>
+    </VisualStateManager.VisualStateGroups>
     <Grid.RowDefinitions>
       <RowDefinition Height="48" />
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
 
-    <Grid x:Name="DragRegion" Grid.Row="0" Canvas.ZIndex="10" Background="Transparent">
-      <TextBlock
-          Margin="20,0,0,0"
-          VerticalAlignment="Center"
-          FontWeight="SemiBold"
-          Text="{Binding Value, Source={i18n:I18n Key=window.settingsTitle}, Mode=OneWay}" />
-    </Grid>
+    <TitleBar
+        x:Name="AppTitleBar"
+        Grid.Row="0"
+        Canvas.ZIndex="10"
+        IsBackButtonVisible="False"
+        IsPaneToggleButtonVisible="False"
+        Title="{Binding Value, Source={i18n:I18n Key=window.settingsTitle}, Mode=OneWay}" />
 
     <Grid
         Grid.RowSpan="2"
+        Background="{ThemeResource SideyOnboardingLandingBackgroundBrush}"
         Visibility="{Binding IsLanding, Converter={StaticResource BooleanToVisibilityConverter}}">
-      <Grid.Background>
-        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-          <GradientStop Offset="0" Color="#FFE2FBF2" />
-          <GradientStop Offset="0.52" Color="#FFF9FBFF" />
-          <GradientStop Offset="1" Color="#FFE1E8FF" />
-        </LinearGradientBrush>
-      </Grid.Background>
       <Ellipse
           Width="360"
           Height="360"
-          Margin="-160,-170,0,0"
+          Margin="-160,-168,0,0"
           HorizontalAlignment="Left"
           VerticalAlignment="Top"
-          Fill="#49A8F3D5" />
+          Fill="{ThemeResource SideyOnboardingDecorationPrimaryBrush}" />
       <Ellipse
           Width="320"
           Height="320"
-          Margin="0,0,-130,-150"
+          Margin="0,0,-128,-152"
           HorizontalAlignment="Right"
           VerticalAlignment="Bottom"
-          Fill="#3A9FB5FF" />
+          Fill="{ThemeResource SideyOnboardingDecorationSecondaryBrush}" />
       <StackPanel
-          Width="560"
-          HorizontalAlignment="Center"
+          MaxWidth="560"
+          Margin="32"
+          HorizontalAlignment="Stretch"
           VerticalAlignment="Center"
-          Spacing="14">
+          Spacing="16">
         <Border
             Width="132"
             Height="132"
             HorizontalAlignment="Center"
-            Background="#BFFFFFFF"
-            BorderBrush="#16000000"
+            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
             BorderThickness="1"
             CornerRadius="32">
-          <Image x:Name="LandingIcon" Margin="14" Stretch="Uniform" />
+          <Image x:Name="LandingIcon" Margin="16" Stretch="Uniform" />
         </Border>
         <TextBlock
             Margin="0,8,0,0"
             HorizontalAlignment="Center"
+            AutomationProperties.HeadingLevel="Level1"
             FontFamily="Segoe UI Variable Display"
-            FontSize="52"
-            FontWeight="Bold"
-            CharacterSpacing="70"
-            Foreground="#E51B1B1F"
+            FontSize="40"
+            FontWeight="SemiBold"
+            CharacterSpacing="64"
+            Foreground="{ThemeResource TextFillColorPrimaryBrush}"
             Text="SIDEY" />
         <TextBlock
             HorizontalAlignment="Center"
             FontFamily="Segoe UI Variable Display"
-            FontSize="22"
+            FontSize="20"
             FontWeight="SemiBold"
-            Foreground="#A6202024"
+            Foreground="{ThemeResource TextFillColorPrimaryBrush}"
+            TextAlignment="Center"
+            TextWrapping="Wrap"
             Text="{Binding Value, Source={i18n:I18n Key=onboarding.tagline}, Mode=OneWay}" />
         <TextBlock
             Margin="0,0,0,16"
             HorizontalAlignment="Center"
-            Foreground="#8A202024"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            TextAlignment="Center"
+            TextWrapping="Wrap"
             Text="{Binding Value, Source={i18n:I18n Key=onboarding.landingDescription}, Mode=OneWay}" />
         <Button
-            MinWidth="150"
+            MinWidth="152"
             HorizontalAlignment="Center"
             AutomationProperties.Name="{Binding Value, Source={i18n:I18n Key=onboarding.getStarted}, Mode=OneWay}"
             Command="{Binding BeginCommand}"
@@ -97,7 +124,7 @@
         <RowDefinition Height="Auto" />
       </Grid.RowDefinitions>
 
-      <Grid Margin="48,18,48,22">
+      <Grid x:Name="SetupProgress" Margin="48,16,48,24">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*" />
           <ColumnDefinition Width="Auto" />
@@ -107,30 +134,34 @@
         </Grid.ColumnDefinitions>
         <StackPanel Grid.Column="0" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
           <Border Width="28" Height="28" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="14">
-            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontWeight="SemiBold" Text="1" />
+            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" FontWeight="SemiBold" Text="1" />
           </Border>
-          <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=onboarding.stepProfile}, Mode=OneWay}" />
+          <TextBlock x:Name="StepProfileLabel" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=onboarding.stepProfile}, Mode=OneWay}" />
         </StackPanel>
-        <Rectangle Grid.Column="1" Width="70" Height="1" Margin="14,0" VerticalAlignment="Center" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+        <Rectangle x:Name="StepSeparatorOne" Grid.Column="1" Width="72" Height="1" Margin="16,0" VerticalAlignment="Center" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
         <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="8">
           <Border Width="28" Height="28" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="14">
-            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontWeight="SemiBold" Text="2" />
+            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" FontWeight="SemiBold" Text="2" />
           </Border>
-          <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=onboarding.stepGroup}, Mode=OneWay}" />
+          <TextBlock x:Name="StepGroupLabel" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=onboarding.stepGroup}, Mode=OneWay}" />
         </StackPanel>
-        <Rectangle Grid.Column="3" Width="70" Height="1" Margin="14,0" VerticalAlignment="Center" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
+        <Rectangle x:Name="StepSeparatorTwo" Grid.Column="3" Width="72" Height="1" Margin="16,0" VerticalAlignment="Center" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
         <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Left" Spacing="8">
           <Border Width="28" Height="28" Background="{ThemeResource AccentFillColorDefaultBrush}" CornerRadius="14">
-            <FontIcon HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12" Foreground="White" Glyph="&#xE73E;" />
+            <FontIcon HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="12" Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}" Glyph="&#xE73E;" />
           </Border>
-          <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=onboarding.stepComplete}, Mode=OneWay}" />
+          <TextBlock x:Name="StepCompleteLabel" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=onboarding.stepComplete}, Mode=OneWay}" />
         </StackPanel>
       </Grid>
 
-      <Grid Grid.Row="1" Margin="42,0">
-        <ScrollViewer Visibility="{Binding IsProfileStep, Converter={StaticResource BooleanToVisibilityConverter}}">
-          <StackPanel Width="650" HorizontalAlignment="Center" Spacing="20">
-            <StackPanel Spacing="6">
+      <Grid x:Name="SetupContent" Grid.Row="1" Margin="40,0">
+        <ScrollViewer
+            HorizontalContentAlignment="Stretch"
+            HorizontalScrollBarVisibility="Disabled"
+            HorizontalScrollMode="Disabled"
+            Visibility="{Binding IsProfileStep, Converter={StaticResource BooleanToVisibilityConverter}}">
+          <StackPanel MaxWidth="648" HorizontalAlignment="Stretch" Spacing="20">
+            <StackPanel Spacing="8">
               <TextBlock
                   AutomationProperties.HeadingLevel="Level1"
                   FontFamily="Segoe UI Variable Display"
@@ -161,8 +192,8 @@
                   </GridView.ItemContainerStyle>
                   <GridView.ItemTemplate>
                     <DataTemplate>
-                      <Grid MinHeight="94">
-                        <StackPanel Padding="8" Spacing="6">
+                      <Grid MinHeight="96">
+                        <StackPanel Padding="8" Spacing="8">
                           <Border Width="48" Height="48" HorizontalAlignment="Center">
                             <controls:PixelCharacterPreview CharacterId="{Binding CharacterId}" />
                           </Border>
@@ -189,9 +220,13 @@
           </StackPanel>
         </ScrollViewer>
 
-        <ScrollViewer Visibility="{Binding IsGroupStep, Converter={StaticResource BooleanToVisibilityConverter}}">
-          <StackPanel Width="650" HorizontalAlignment="Center" Spacing="20">
-            <StackPanel Spacing="6">
+        <ScrollViewer
+            HorizontalContentAlignment="Stretch"
+            HorizontalScrollBarVisibility="Disabled"
+            HorizontalScrollMode="Disabled"
+            Visibility="{Binding IsGroupStep, Converter={StaticResource BooleanToVisibilityConverter}}">
+          <StackPanel MaxWidth="648" HorizontalAlignment="Stretch" Spacing="20">
+            <StackPanel Spacing="8">
               <TextBlock
                   AutomationProperties.HeadingLevel="Level1"
                   FontFamily="Segoe UI Variable Display"
@@ -222,10 +257,10 @@
         </ScrollViewer>
 
         <StackPanel
-            Width="600"
-            HorizontalAlignment="Center"
+            MaxWidth="600"
+            HorizontalAlignment="Stretch"
             VerticalAlignment="Center"
-            Spacing="18"
+            Spacing="16"
             Visibility="{Binding IsReadyStep, Converter={StaticResource BooleanToVisibilityConverter}}">
           <Border Width="92" Height="92" HorizontalAlignment="Center" Background="{ThemeResource AccentFillColorSecondaryBrush}" CornerRadius="46">
             <FontIcon HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="40" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" Glyph="&#xE73E;" />
@@ -234,12 +269,12 @@
               HorizontalAlignment="Center"
               AutomationProperties.HeadingLevel="Level1"
               FontFamily="Segoe UI Variable Display"
-              FontSize="34"
+              FontSize="32"
               FontWeight="SemiBold"
               Text="{Binding Value, Source={i18n:I18n Key=onboarding.completeTitle}, Mode=OneWay}" />
-          <TextBlock HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=onboarding.completeDescription}, Mode=OneWay}" />
+          <TextBlock HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=onboarding.completeDescription}, Mode=OneWay}" TextAlignment="Center" TextWrapping="Wrap" />
           <Button
-              MinWidth="170"
+              MinWidth="168"
               Margin="0,8,0,0"
               HorizontalAlignment="Center"
               Command="{Binding FinishCommand}"
@@ -248,13 +283,14 @@
         </StackPanel>
       </Grid>
 
-      <Grid Grid.Row="2" Margin="42,16,42,26">
+      <Grid x:Name="SetupFooter" Grid.Row="2" Margin="40,16,40,24">
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
         <Button
             HorizontalAlignment="Left"
             Command="{Binding BackCommand}"
             Content="{Binding Value, Source={i18n:I18n Key=common.back}, Mode=OneWay}"
             Visibility="{Binding CanGoBack, Converter={StaticResource BooleanToVisibilityConverter}}" />
-        <StackPanel HorizontalAlignment="Center" Orientation="Horizontal" Spacing="8">
+        <StackPanel x:Name="SetupConnectionStatus" HorizontalAlignment="Center" Orientation="Horizontal" Spacing="8">
           <ProgressRing Width="16" Height="16" IsActive="True" Visibility="{Binding IsConnected, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
           <Ellipse Width="8" Height="8" Fill="{ThemeResource SystemFillColorSuccessBrush}" Visibility="{Binding IsConnected, Converter={StaticResource BooleanToVisibilityConverter}}" />
           <TextBlock VerticalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding ConnectionText}" />

@@ -4,10 +4,10 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:i18n="using:Sidey.App.Localization"
     AutomationProperties.Name="{Binding Value, Source={i18n:I18n Key=profile.applying}, Mode=OneWay}">
-  <Border x:Name="Surface" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="4" Padding="3" Visibility="Collapsed" IsHitTestVisible="False">
-    <StackPanel Orientation="Horizontal" Spacing="3">
-      <ProgressRing x:Name="Ring" Width="18" Height="18" />
-      <TextBlock x:Name="Label" Text="{Binding Value, Source={i18n:I18n Key=profile.applying}, Mode=OneWay}" FontSize="11" VerticalAlignment="Center" />
+  <Border x:Name="Surface" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="4" Padding="4" Visibility="Collapsed" IsHitTestVisible="False">
+    <StackPanel Orientation="Horizontal" Spacing="4">
+      <ProgressRing x:Name="Ring" Width="20" Height="20" />
+      <TextBlock x:Name="Label" Text="{Binding Value, Source={i18n:I18n Key=profile.applying}, Mode=OneWay}" FontSize="12" VerticalAlignment="Center" />
     </StackPanel>
   </Border>
 </UserControl>

@@ -16,6 +16,22 @@
               TintColor="#2C2C2C"
               TintLuminosityOpacity="0.96"
               TintOpacity="0.15" />
+          <LinearGradientBrush
+              x:Key="SideyOnboardingLandingBackgroundBrush"
+              StartPoint="0,0"
+              EndPoint="1,1">
+            <GradientStop Offset="0" Color="#FF17251F" />
+            <GradientStop Offset="0.52" Color="#FF1D2029" />
+            <GradientStop Offset="1" Color="#FF1C2435" />
+          </LinearGradientBrush>
+          <SolidColorBrush
+              x:Key="SideyOnboardingDecorationPrimaryBrush"
+              Color="{ThemeResource SystemAccentColorLight2}"
+              Opacity="0.20" />
+          <SolidColorBrush
+              x:Key="SideyOnboardingDecorationSecondaryBrush"
+              Color="{ThemeResource SystemAccentColorLight1}"
+              Opacity="0.16" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Light">
           <AcrylicBrush
@@ -24,11 +40,36 @@
               TintColor="#F9F9F9"
               TintLuminosityOpacity="0.96"
               TintOpacity="0.15" />
+          <LinearGradientBrush
+              x:Key="SideyOnboardingLandingBackgroundBrush"
+              StartPoint="0,0"
+              EndPoint="1,1">
+            <GradientStop Offset="0" Color="#FFE2FBF2" />
+            <GradientStop Offset="0.52" Color="#FFF9FBFF" />
+            <GradientStop Offset="1" Color="#FFE1E8FF" />
+          </LinearGradientBrush>
+          <SolidColorBrush
+              x:Key="SideyOnboardingDecorationPrimaryBrush"
+              Color="{ThemeResource SystemAccentColorDark1}"
+              Opacity="0.20" />
+          <SolidColorBrush
+              x:Key="SideyOnboardingDecorationSecondaryBrush"
+              Color="{ThemeResource SystemAccentColor}"
+              Opacity="0.16" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="HighContrast">
           <SolidColorBrush
               x:Key="SideyComposerBackgroundBrush"
               Color="{ThemeResource SystemColorWindowColor}" />
+          <SolidColorBrush
+              x:Key="SideyOnboardingLandingBackgroundBrush"
+              Color="{ThemeResource SystemColorWindowColor}" />
+          <SolidColorBrush
+              x:Key="SideyOnboardingDecorationPrimaryBrush"
+              Color="Transparent" />
+          <SolidColorBrush
+              x:Key="SideyOnboardingDecorationSecondaryBrush"
+              Color="Transparent" />
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>
       <Color x:Key="SideyPeriwinkle">#FF8587E8</Color>
@@ -69,7 +110,28 @@
                   BorderThickness="{TemplateBinding BorderThickness}"
                   Content="{TemplateBinding Content}"
                   ContentTemplate="{TemplateBinding ContentTemplate}"
-                  CornerRadius="{TemplateBinding CornerRadius}" />
+                  CornerRadius="{TemplateBinding CornerRadius}">
+                <VisualStateManager.VisualStateGroups>
+                  <VisualStateGroup x:Name="CommonStates">
+                    <VisualState x:Name="Normal" />
+                    <VisualState x:Name="PointerOver">
+                      <VisualState.Setters>
+                        <Setter Target="FilterTogglePresenter.Background" Value="{ThemeResource SubtleFillColorSecondaryBrush}" />
+                      </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Pressed">
+                      <VisualState.Setters>
+                        <Setter Target="FilterTogglePresenter.Background" Value="{ThemeResource SubtleFillColorTertiaryBrush}" />
+                      </VisualState.Setters>
+                    </VisualState>
+                    <VisualState x:Name="Disabled">
+                      <VisualState.Setters>
+                        <Setter Target="FilterTogglePresenter.Opacity" Value="0.4" />
+                      </VisualState.Setters>
+                    </VisualState>
+                  </VisualStateGroup>
+                </VisualStateManager.VisualStateGroups>
+              </ContentPresenter>
             </ControlTemplate>
           </Setter.Value>
         </Setter>

@@ -73,8 +73,8 @@ public static class ResponsiveWindowSizePolicy
         SideyWindowKind.Settings => new WindowSizeSpecification(
             WidthFraction: 0.50,
             HeightFraction: 0.60,
-            MinimumWidthDips: 860,
-            MinimumHeightDips: 640,
+            MinimumWidthDips: 560,
+            MinimumHeightDips: 520,
             MaximumWidthDips: 1120,
             MaximumHeightDips: 900),
         SideyWindowKind.History => new WindowSizeSpecification(
@@ -87,8 +87,8 @@ public static class ResponsiveWindowSizePolicy
         SideyWindowKind.Onboarding => new WindowSizeSpecification(
             WidthFraction: 0.62,
             HeightFraction: 0.78,
-            MinimumWidthDips: 760,
-            MinimumHeightDips: 600,
+            MinimumWidthDips: 560,
+            MinimumHeightDips: 520,
             MaximumWidthDips: 1040,
             MaximumHeightDips: 800),
         _ => throw new ArgumentOutOfRangeException(nameof(kind)),

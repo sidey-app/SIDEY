@@ -4,14 +4,14 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Sidey.App.Controls"
     xmlns:i18n="using:Sidey.App.Localization">
-    <Grid x:Name="HistoryRoot" Padding="20" RowSpacing="14" Background="Transparent">
+    <Grid x:Name="HistoryRoot" Padding="20" RowSpacing="16" Background="Transparent">
       <Grid.RowDefinitions>
         <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
 
-      <StackPanel Spacing="3">
-        <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}" Text="{Binding Title}" />
+      <StackPanel Spacing="4">
+        <TextBlock AutomationProperties.HeadingLevel="Level1" Style="{ThemeResource SubtitleTextBlockStyle}" Text="{Binding Title}" />
         <TextBlock
             Text="{Binding Value, Source={i18n:I18n Key=history.retentionNotice}, Mode=OneWay}"
             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
@@ -33,7 +33,7 @@
                 Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                 BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
                 BorderThickness="1"
-                CornerRadius="10">
+                CornerRadius="12">
               <Grid ColumnSpacing="12">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="40" />
@@ -44,7 +44,7 @@
                     <controls:PixelCharacterPreview CharacterId="{Binding CharacterId}" />
                   </Border>
                 </Border>
-                <StackPanel Grid.Column="1" Spacing="5">
+                <StackPanel Grid.Column="1" Spacing="4">
                   <Grid ColumnSpacing="8">
                     <Grid.ColumnDefinitions>
                       <ColumnDefinition Width="Auto" />
@@ -59,7 +59,7 @@
                         Background="{ThemeResource SideyAccentBackground12Brush}"
                         CornerRadius="8"
                         Visibility="{Binding IsCurrentUser, Converter={StaticResource BooleanToVisibilityConverter}}">
-                      <TextBlock FontSize="11" FontWeight="Bold" Foreground="{ThemeResource SideyAccentForegroundBrush}" Text="{Binding Value, Source={i18n:I18n Key=common.me}, Mode=OneWay}" />
+                      <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource SideyAccentForegroundBrush}" Text="{Binding Value, Source={i18n:I18n Key=common.me}, Mode=OneWay}" />
                     </Border>
                     <TextBlock
                         Grid.Column="3"
@@ -92,7 +92,7 @@
             </StackPanel>
             <StackPanel
                 HorizontalAlignment="Center"
-                Spacing="5"
+                Spacing="4"
                 Visibility="{Binding IsLoadMoreFailureVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
               <TextBlock HorizontalAlignment="Center" FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=history.loadMoreFailed}, Mode=OneWay}" />
               <TextBlock HorizontalAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding LoadMoreErrorMessage}" TextWrapping="Wrap" />

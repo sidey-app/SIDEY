@@ -10,21 +10,21 @@
       Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
       BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
       BorderThickness="1"
-      CornerRadius="18">
+      CornerRadius="20">
     <Grid>
       <Canvas x:Name="SceneCanvas" Width="540" Height="280" Visibility="Collapsed">
         <Canvas x:Name="PlatformCanvas" Width="540" Height="24" Canvas.Top="256" IsHitTestVisible="False" />
 
-        <StackPanel x:Name="LeftNameplate" Canvas.Top="181" Canvas.ZIndex="20" Orientation="Horizontal" Spacing="5">
-          <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="#00C853" />
-          <Border Height="20" Padding="4,0" Background="#9E050609" CornerRadius="6">
-            <TextBlock Foreground="White" FontSize="11" Text="{Binding Value, Source={i18n:I18n Key=preview.moka}, Mode=OneWay}" />
+        <StackPanel x:Name="LeftNameplate" Canvas.Top="180" Canvas.ZIndex="20" Orientation="Horizontal" Spacing="4">
+          <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{ThemeResource SystemFillColorSuccessBrush}" />
+          <Border Height="20" Padding="4,0" Background="#9E050609" CornerRadius="8">
+            <TextBlock Foreground="White" FontSize="12" Text="{Binding Value, Source={i18n:I18n Key=preview.moka}, Mode=OneWay}" />
           </Border>
         </StackPanel>
-        <StackPanel x:Name="RightNameplate" Canvas.Top="181" Canvas.ZIndex="20" Orientation="Horizontal" Spacing="5">
-          <Ellipse Width="6" Height="6" VerticalAlignment="Center" Fill="#00C853" />
-          <Border Height="20" Padding="4,0" Background="#9E050609" CornerRadius="6">
-            <TextBlock Foreground="White" FontSize="11" Text="{Binding Value, Source={i18n:I18n Key=preview.dubu}, Mode=OneWay}" />
+        <StackPanel x:Name="RightNameplate" Canvas.Top="180" Canvas.ZIndex="20" Orientation="Horizontal" Spacing="4">
+          <Ellipse Width="8" Height="8" VerticalAlignment="Center" Fill="{ThemeResource SystemFillColorSuccessBrush}" />
+          <Border Height="20" Padding="4,0" Background="#9E050609" CornerRadius="8">
+            <TextBlock Foreground="White" FontSize="12" Text="{Binding Value, Source={i18n:I18n Key=preview.dubu}, Mode=OneWay}" />
           </Border>
         </StackPanel>
 
@@ -38,14 +38,14 @@
               Height="28"
               BorderBrush="#2914171F"
               BorderThickness="1"
-              CornerRadius="9">
+              CornerRadius="8">
             <Grid>
               <TextBlock
                   x:Name="BubbleText"
                   Margin="8,7"
                   HorizontalAlignment="Center"
                   VerticalAlignment="Center"
-                  FontSize="11"
+                  FontSize="12"
                   TextAlignment="Center"
                   TextWrapping="NoWrap" />
             </Grid>
