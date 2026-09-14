@@ -220,6 +220,13 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         {
             throw new ArgumentException(I18n.Get("validation.nicknameLength"), nameof(nickname));
         }
+        // Rendering may fall back for unknown IDs; a profile mutation must never
+        // turn a cleared UI selection into a saved hamster.
+        if (!PixelCharacterCatalog.All.Any(character => character.Id == characterId
+            || character.CompatibleAliases.Contains(characterId, StringComparer.Ordinal)))
+        {
+            throw new ArgumentException("A known character selection is required.", nameof(characterId));
+        }
 
         DatabaseProfile row = await RpcSingleAsync<DatabaseProfile>(
             "upsert_profile",

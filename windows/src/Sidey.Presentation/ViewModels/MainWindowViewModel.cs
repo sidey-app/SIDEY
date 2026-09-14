@@ -831,6 +831,24 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     partial void OnSelectedCharacterIdChanged(string value)
     {
+        // GridView can clear SelectedValue while its items are being replaced.
+        // A cleared or unavailable selection is not a request to save the fallback.
+        if (!_isApplyingState
+            && (string.IsNullOrEmpty(value)
+                || !CharacterSelections.Any(character => StringComparer.Ordinal.Equals(character.Id, value))))
+        {
+            _isApplyingState = true;
+            try
+            {
+                SelectedCharacterId = _syncedProfileCharacterId;
+            }
+            finally
+            {
+                _isApplyingState = false;
+            }
+            return;
+        }
+
         UpdateCharacterSelectionState();
         if (!_isApplyingState
             && !StringComparer.Ordinal.Equals(value, _syncedProfileCharacterId))

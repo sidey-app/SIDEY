@@ -10,6 +10,29 @@ namespace Sidey.Platform.Windows.Tests;
 
 public sealed class OnboardingGroupIntegrationTests
 {
+    [Fact]
+    public async Task SavedCharacterImmediatelyUpdatesRoomsAndTheRestartCache()
+    {
+        var preferences = new MemoryPreferences();
+        await using var coordinator = new AppCoordinator(preferences);
+        IBackendGateway backend = DispatchProxy.Create<IBackendGateway, GroupBackend>();
+        var server = (GroupBackend)backend;
+        Room room = server.NewRoom("Friends");
+        SetField(coordinator, "_backend", backend);
+        SetField(coordinator, "_state", CoordinatorState.Initial with
+        {
+            Profile = server.Profile,
+            Rooms = [room],
+            Preferences = AppPreferences.Default with { OverlayVisible = false },
+        });
+
+        await coordinator.SaveProfileAsync("Friend", "pixel_penguin");
+
+        Assert.Equal("pixel_penguin", coordinator.State.Profile!.CharacterId);
+        Assert.Equal("pixel_penguin", Assert.Single(Assert.Single(coordinator.State.Rooms).Members).CharacterId);
+        Assert.Equal("pixel_penguin", (await preferences.LoadAsync()).CachedCharacterId);
+    }
+
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
@@ -93,10 +116,14 @@ public sealed class OnboardingGroupIntegrationTests
 
     private sealed class MemoryPreferences : IPreferencesStore
     {
+        private AppPreferences _saved = AppPreferences.Default;
         public ValueTask<AppPreferences> LoadAsync(CancellationToken cancellationToken = default) =>
-            ValueTask.FromResult(AppPreferences.Default);
-        public ValueTask SaveAsync(AppPreferences preferences, CancellationToken cancellationToken = default) =>
-            ValueTask.CompletedTask;
+            ValueTask.FromResult(_saved);
+        public ValueTask SaveAsync(AppPreferences preferences, CancellationToken cancellationToken = default)
+        {
+            _saved = preferences;
+            return ValueTask.CompletedTask;
+        }
     }
 
     public class GroupBackend : DispatchProxy
@@ -113,6 +140,8 @@ public sealed class OnboardingGroupIntegrationTests
         {
             switch (targetMethod!.Name)
             {
+                case nameof(IBackendGateway.SaveProfileAsync):
+                    return Task.FromResult(Profile with { Nickname = (string)args![0]!, CharacterId = (string)args[1]! });
                 case nameof(IBackendGateway.CreateRoomAsync):
                 case nameof(IBackendGateway.JoinRoomAsync):
                     Mutations++;

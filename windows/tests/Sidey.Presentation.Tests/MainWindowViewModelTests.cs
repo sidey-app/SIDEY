@@ -1153,6 +1153,41 @@ public sealed class MainWindowViewModelTests
         Assert.True(viewModel.CharacterSelections.Single(item => item.Id == "pixel_cat").IsSelected);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("unknown_character")]
+    [InlineData("pixel_pig")]
+    public void UnavailableCharacterSelectionPreservesConfirmedCharacterWithoutSaving(string? selection)
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        coordinator.State = state with { Profile = state.Profile! with { CharacterId = "pixel_penguin" } };
+        var viewModel = new MainWindowViewModel(
+            coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+
+        viewModel.SelectedCharacterId = selection!;
+
+        Assert.Equal(0, coordinator.SaveProfileCallCount);
+        Assert.Equal("pixel_penguin", viewModel.SelectedCharacterId);
+        Assert.Equal("pixel_penguin", Assert.Single(viewModel.CharacterSelections, item => item.IsSelected).Id);
+    }
+
+    [Fact]
+    public void ExplicitHamsterSelectionStillSavesTheChosenCharacter()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        coordinator.State = state with { Profile = state.Profile! with { CharacterId = "pixel_penguin" } };
+        var viewModel = new MainWindowViewModel(
+            coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+
+        viewModel.SelectedCharacterId = "pixel_hamster";
+
+        Assert.Equal(1, coordinator.SaveProfileCallCount);
+        Assert.Equal("pixel_hamster", coordinator.LastSavedCharacterId);
+        Assert.Equal("pixel_hamster", viewModel.SelectedCharacterId);
+        Assert.Equal("pixel_hamster", Assert.Single(viewModel.CharacterSelections, item => item.IsSelected).Id);
+    }
+
     [Fact]
     public void ServerProfileChangeUpdatesAnUneditedProfileDraft()
     {

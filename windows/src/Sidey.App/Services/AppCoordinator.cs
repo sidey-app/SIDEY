@@ -448,6 +448,12 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         SetState(_state with
         {
             Profile = profile,
+            Rooms = [.. _state.Rooms.Select(room => room with
+            {
+                Members = [.. room.Members.Select(member => member.UserId == profile.Id
+                    ? member with { Nickname = profile.Nickname, CharacterId = profile.CharacterId }
+                    : member)],
+            })],
             Preferences = _state.Preferences with
             {
                 OnboardingCompleted = _state.Preferences.OnboardingCompleted,

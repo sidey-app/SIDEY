@@ -1007,7 +1007,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                         actorUserId,
                         targetUserId,
                         sourceCharacterId,
-                        TryOptionalCatalogId(inner, "throwable_id", "throwable_"))));
+                        ParseThrowableAssetId(inner))));
                 }
                 break;
         }
@@ -1049,23 +1049,17 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         return true;
     }
 
-    private static string? TryOptionalCatalogId(JsonElement element, string propertyName, string prefix)
+    internal static string? ParseThrowableAssetId(JsonElement element)
     {
-        if (!element.TryGetProperty(propertyName, out JsonElement value)
-            || value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+        if (!element.TryGetProperty("throwable_id", out JsonElement value)
+            || value.ValueKind != JsonValueKind.String)
         {
             return null;
         }
-        string? id = value.ValueKind == JsonValueKind.String ? value.GetString() : null;
-        if (id is null || id.Length > 72 || !id.StartsWith(prefix, StringComparison.Ordinal))
-        {
-            return null;
-        }
-        return id.All(character => character == '_'
-            || (character >= 'a' && character <= 'z')
-            || (character >= '0' && character <= '9'))
-            ? id
-            : null;
+        // Current broadcasts contain render asset IDs (for example "pork");
+        // older broadcasts contain catalog IDs ("throwable_pork"). Only bundled
+        // catalog/asset mappings are used, with the common ball for unknown IDs.
+        return CosmeticCatalog.ResolveThrowableAssetId(value.GetString());
     }
 
     private void HandleDatabaseBroadcast(
