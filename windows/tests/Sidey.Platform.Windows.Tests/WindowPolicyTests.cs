@@ -39,9 +39,9 @@ public sealed class WindowPolicyTests
     }
 
     [Fact]
-    public void ProductMinimumOsIsWindowsElevenTwentyFiveH2()
+    public void ProductMinimumOsIsWindowsTen1809()
     {
-        Assert.Equal(26200, WindowsVersionGuard.MinimumBuild);
+        Assert.Equal(17763, WindowsVersionGuard.MinimumBuild);
     }
 
     [Theory]

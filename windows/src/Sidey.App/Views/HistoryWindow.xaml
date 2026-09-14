@@ -9,6 +9,8 @@
         <RowDefinition Height="Auto" />
         <RowDefinition Height="*" />
       </Grid.RowDefinitions>
+      <Border x:Name="HistoryFallbackBackground" Grid.RowSpan="2" Margin="-20" Canvas.ZIndex="-1"
+          Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" IsHitTestVisible="False" />
 
       <StackPanel Spacing="4">
         <TextBlock AutomationProperties.HeadingLevel="Level1" Style="{ThemeResource SubtitleTextBlockStyle}" Text="{Binding Title}" />

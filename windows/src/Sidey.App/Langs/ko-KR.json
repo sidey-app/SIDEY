@@ -402,7 +402,7 @@
   "overlay": { "currentUser": "{0} · 나" },
   "unsupported": {
     "title": "지원되지 않는 Windows 버전",
-    "description": "SIDEY는 Windows 11 25H2(build 26200) 이상 x64가 필요합니다.",
+    "description": "SIDEY는 Windows 10 1809(build 17763) 이상 x64가 필요합니다.",
     "windowTitle": "SIDEY — 지원되지 않는 Windows"
   },
   "dialogs": {

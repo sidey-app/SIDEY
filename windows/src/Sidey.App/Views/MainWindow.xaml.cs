@@ -1,4 +1,3 @@
-using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -86,8 +85,11 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         ViewModel.PrepareGroupsForPresentation();
         Title = "SIDEY";
         SideyWindowIcon.Apply(AppWindow);
-        ExtendsContentIntoTitleBar = true;
-        SetTitleBar(AppTitleBar);
+        if (Microsoft.UI.Windowing.AppWindowTitleBar.IsCustomizationSupported())
+        {
+            ExtendsContentIntoTitleBar = true;
+            SetTitleBar(AppTitleBar);
+        }
         SideyWindowTheme.FollowTitleBarTheme(this, MainRoot);
         MainRoot.Loaded += OnResponsiveRootLoaded;
         RootNavigation.SelectedItem = RootNavigation.MenuItems[0];
@@ -1979,11 +1981,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
 
     private void ApplyBackdrop()
     {
-        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)
-            && MicaController.IsSupported())
-        {
-            SystemBackdrop = new MicaBackdrop { Kind = MicaKind.Base };
-        }
+        SideyWindowTheme.ApplyBackdrop(this, MainFallbackBackground);
     }
 
     private ResponsiveWindowSize ApplyResponsiveSize()

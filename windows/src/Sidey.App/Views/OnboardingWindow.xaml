@@ -36,6 +36,8 @@
       <RowDefinition Height="48" />
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
+    <Border x:Name="OnboardingFallbackBackground" Grid.RowSpan="2" Canvas.ZIndex="-1"
+        Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" IsHitTestVisible="False" />
 
     <TitleBar
         x:Name="AppTitleBar"
@@ -83,7 +85,7 @@
             Margin="0,8,0,0"
             HorizontalAlignment="Center"
             AutomationProperties.HeadingLevel="Level1"
-            FontFamily="Segoe UI Variable Display"
+            FontFamily="Segoe UI Variable Display, Segoe UI"
             FontSize="40"
             FontWeight="SemiBold"
             CharacterSpacing="64"
@@ -91,7 +93,7 @@
             Text="SIDEY" />
         <TextBlock
             HorizontalAlignment="Center"
-            FontFamily="Segoe UI Variable Display"
+            FontFamily="Segoe UI Variable Display, Segoe UI"
             FontSize="20"
             FontWeight="SemiBold"
             Foreground="{ThemeResource TextFillColorPrimaryBrush}"
@@ -164,7 +166,7 @@
             <StackPanel Spacing="8">
               <TextBlock
                   AutomationProperties.HeadingLevel="Level1"
-                  FontFamily="Segoe UI Variable Display"
+                  FontFamily="Segoe UI Variable Display, Segoe UI"
                   FontSize="32"
                   FontWeight="SemiBold"
                   Text="{Binding Value, Source={i18n:I18n Key=onboarding.profileTitle}, Mode=OneWay}" />
@@ -229,7 +231,7 @@
             <StackPanel Spacing="8">
               <TextBlock
                   AutomationProperties.HeadingLevel="Level1"
-                  FontFamily="Segoe UI Variable Display"
+                  FontFamily="Segoe UI Variable Display, Segoe UI"
                   FontSize="32"
                   FontWeight="SemiBold"
                   Text="{Binding Value, Source={i18n:I18n Key=onboarding.groupTitle}, Mode=OneWay}" />
@@ -268,7 +270,7 @@
           <TextBlock
               HorizontalAlignment="Center"
               AutomationProperties.HeadingLevel="Level1"
-              FontFamily="Segoe UI Variable Display"
+              FontFamily="Segoe UI Variable Display, Segoe UI"
               FontSize="32"
               FontWeight="SemiBold"
               Text="{Binding Value, Source={i18n:I18n Key=onboarding.completeTitle}, Mode=OneWay}" />

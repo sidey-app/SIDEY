@@ -1,4 +1,3 @@
-using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -37,8 +36,11 @@ public sealed partial class OnboardingWindow : Window
             "Icons",
             "SideyAppIcon.png")));
         SideyWindowIcon.Apply(AppWindow);
-        ExtendsContentIntoTitleBar = true;
-        SetTitleBar(AppTitleBar);
+        if (Microsoft.UI.Windowing.AppWindowTitleBar.IsCustomizationSupported())
+        {
+            ExtendsContentIntoTitleBar = true;
+            SetTitleBar(AppTitleBar);
+        }
         SideyWindowTheme.FollowTitleBarTheme(this, OnboardingRoot);
         ApplyBackdrop();
         ResponsiveWindowSize minimumWindowSize = ApplyResponsiveSize();
@@ -106,11 +108,7 @@ public sealed partial class OnboardingWindow : Window
 
     private void ApplyBackdrop()
     {
-        if (OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000)
-            && MicaController.IsSupported())
-        {
-            SystemBackdrop = new MicaBackdrop { Kind = MicaKind.Base };
-        }
+        SideyWindowTheme.ApplyBackdrop(this, OnboardingFallbackBackground);
     }
 
     private ResponsiveWindowSize ApplyResponsiveSize()

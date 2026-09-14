@@ -67,6 +67,8 @@
       <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
+    <Border x:Name="MainFallbackBackground" Grid.RowSpan="2" Canvas.ZIndex="-1"
+        Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" IsHitTestVisible="False" />
     <TitleBar
         x:Name="AppTitleBar"
         Grid.Row="0"
@@ -201,7 +203,7 @@
                               IsHitTestVisible="False"
                               Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
                             <FontIcon
-                                FontFamily="Segoe Fluent Icons"
+                                FontFamily="{ThemeResource SymbolThemeFontFamily}"
                                 FontSize="12"
                                 Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
                                 Glyph="&#xE73E;" />
@@ -272,7 +274,7 @@
                                 IsHitTestVisible="False"
                                 Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
                               <FontIcon
-                                  FontFamily="Segoe Fluent Icons"
+                                  FontFamily="{ThemeResource SymbolThemeFontFamily}"
                                   FontSize="12"
                                   Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
                                   Glyph="&#xE73E;" />
@@ -341,7 +343,7 @@
                                 IsHitTestVisible="False"
                                 Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}">
                               <FontIcon
-                                  FontFamily="Segoe Fluent Icons"
+                                  FontFamily="{ThemeResource SymbolThemeFontFamily}"
                                     FontSize="12"
                                   Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
                                   Glyph="&#xE73E;" />
@@ -1009,7 +1011,7 @@
                 <Grid x:Name="LanguageSettingsLayout" ColumnSpacing="16" RowSpacing="0" VerticalAlignment="Center">
                   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                   <Grid.ColumnDefinitions><ColumnDefinition Width="32" /><ColumnDefinition Width="*" /><ColumnDefinition x:Name="LanguageControlColumn" Width="220" /></Grid.ColumnDefinitions>
-                  <FontIcon FontFamily="Segoe Fluent Icons" FontSize="24" Glyph="&#xF2B7;" VerticalAlignment="Center" />
+                  <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" FontSize="24" Glyph="&#xF2B7;" VerticalAlignment="Center" />
                   <StackPanel x:Name="LanguageDescription" Grid.Column="1" Spacing="4" VerticalAlignment="Center">
                     <TextBlock FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=settings.language}, Mode=OneWay}" />
                     <TextBlock x:Name="LanguageDescriptionText" Text="{Binding Value, Source={i18n:I18n Key=settings.languageDescription}, Mode=OneWay}" TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
