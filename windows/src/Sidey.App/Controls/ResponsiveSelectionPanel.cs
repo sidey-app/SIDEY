@@ -26,7 +26,7 @@ public sealed class ResponsiveSelectionPanel : Panel
     {
         get => ChildrenTransitions is { Count: > 0 };
         set => ChildrenTransitions = value
-            ? [new RepositionThemeTransition()]
+            ? [new RepositionThemeTransition { IsStaggeringEnabled = false }]
             : null;
     }
 

@@ -150,9 +150,7 @@
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                       ScrollViewer.VerticalScrollBarVisibility="Disabled"
                       ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.VerticalScrollMode="Disabled" HorizontalAlignment="Stretch">
-                    <GridView.Transitions>
-                      <TransitionCollection><EntranceThemeTransition FromVerticalOffset="8" /></TransitionCollection>
-                    </GridView.Transitions>
+                    <GridView.ItemContainerTransitions><TransitionCollection /></GridView.ItemContainerTransitions>
                     <GridView.Resources>
                       <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />
                       <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="Transparent" />
@@ -235,9 +233,7 @@
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                       ScrollViewer.VerticalScrollBarVisibility="Disabled"
                       ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.VerticalScrollMode="Disabled" HorizontalAlignment="Stretch">
-                    <GridView.Transitions>
-                      <TransitionCollection><EntranceThemeTransition FromVerticalOffset="8" /></TransitionCollection>
-                    </GridView.Transitions>
+                    <GridView.ItemContainerTransitions><TransitionCollection /></GridView.ItemContainerTransitions>
                     <GridView.Resources>
                       <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />
                       <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="Transparent" />
@@ -306,9 +302,7 @@
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                       ScrollViewer.VerticalScrollBarVisibility="Disabled"
                       ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.VerticalScrollMode="Disabled" HorizontalAlignment="Stretch">
-                    <GridView.Transitions>
-                      <TransitionCollection><EntranceThemeTransition FromVerticalOffset="8" /></TransitionCollection>
-                    </GridView.Transitions>
+                    <GridView.ItemContainerTransitions><TransitionCollection /></GridView.ItemContainerTransitions>
                     <GridView.Resources>
                       <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />
                       <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="Transparent" />

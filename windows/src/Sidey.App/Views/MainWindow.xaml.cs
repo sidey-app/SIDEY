@@ -163,7 +163,8 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
                 SpanComboBox, MonitorComboBox, LanguageComboBox, ThemeComboBox];
             foreach (FrameworkElement control in controls)
             {
-                control.Transitions = _coordinator.AnimationsEnabled ? [new RepositionThemeTransition()] : null;
+                control.Transitions = _coordinator.AnimationsEnabled
+                    ? [new RepositionThemeTransition { IsStaggeringEnabled = false }] : null;
             }
         }
         if (root is ResponsiveFormPanel form)
@@ -1381,7 +1382,10 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
             selectedPage.ChangeView(null, 0, null, disableAnimation: true);
             DispatcherQueue.TryEnqueue(() =>
                 selectedPage.ChangeView(null, 0, null, disableAnimation: true));
-            AnimatePageRefresh(selectedPage);
+            if (tag != "profile")
+            {
+                AnimatePageRefresh(selectedPage);
+            }
         }
     }
 

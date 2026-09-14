@@ -34,11 +34,21 @@ public sealed partial class MainWindow
                 ShowPage(page);
                 foreach (int width in new[] { 1040, 720, 560, 1040 })
                 {
+                    if (page == "profile")
+                    {
+                        ShowPage("settings");
+                    }
                     double scale = MainRoot.XamlRoot.RasterizationScale;
                     AppWindow.ResizeClient(new SizeInt32((int)Math.Round(width * scale), (int)Math.Round(700 * scale)));
                     await WaitForNextFrameAsync();
+                    ShowPage(page);
                     await WaitForNextFrameAsync();
                     MainRoot.UpdateLayout();
+                    if (page == "profile" && (HomePage.Opacity != 1
+                        || FindVisualChild<Image>(CharacterSelector)?.Source is null))
+                    {
+                        throw new InvalidOperationException("Returning to the profile after resizing delayed its content.");
+                    }
                     string expectedState = PageViewport.ActualWidth < 680 ? "Narrow" : "Standard";
                     if (ResponsiveStates.CurrentState?.Name != expectedState)
                     {
