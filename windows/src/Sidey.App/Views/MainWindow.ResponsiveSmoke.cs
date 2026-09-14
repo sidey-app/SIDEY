@@ -172,7 +172,7 @@ public sealed partial class MainWindow
             var tile = (FrameworkElement)child;
             Rect current = tile.TransformToVisual(panel).TransformBounds(
                 new Rect(0, 0, tile.ActualWidth, tile.ActualHeight));
-            if (current.Width <= 0 || current.Width > 144.01
+            if (current.Width <= 0 || (selector.Name == "CharacterSelector" && current.Width > 144.01)
                 || current.Left < -1 || current.Right > panel.ActualWidth + 1
                 || current.Top < -1 || current.Bottom > panel.ActualHeight + 1
                 || (bounds.Count > 0 && Math.Abs(current.Width - bounds[0].Width) > 1))
@@ -184,6 +184,13 @@ public sealed partial class MainWindow
                 && current.Top < previous.Bottom - 1 && current.Bottom > previous.Top + 1))
                 throw new InvalidOperationException("Compact profile choices overlapped.");
             bounds.Add(current);
+        }
+
+        if (selector.Name != "CharacterSelector" && panel.ActualWidth >= 672
+            && Math.Abs(bounds[0].Width * 4 + 24 - panel.ActualWidth) > 3)
+        {
+            StartupDiagnostics.Stage($"full-width-grid-smoke-failed selector={selector.Name} item-width={bounds[0].Width} available={panel.ActualWidth}");
+            throw new InvalidOperationException("The four cosmetic columns did not fill the available width.");
         }
 
         int columns = bounds.Count(item => Math.Abs(item.Top - bounds[0].Top) <= 1);

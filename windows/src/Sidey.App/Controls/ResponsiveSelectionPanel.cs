@@ -20,6 +20,7 @@ public sealed class ResponsiveSelectionPanel : Panel
     private double _itemWidth;
     private double[] _rowHeights = [];
 
+    public bool FillAvailableWidth { get; set; }
     public int MaximumColumns { get; set; } = 5;
     public double MinimumItemWidth { get; set; } = 128;
     public double MinimumItemHeight { get; set; } = 116;
@@ -39,10 +40,9 @@ public sealed class ResponsiveSelectionPanel : Panel
             : Math.Max(1, MaximumColumns) * (MinimumItemWidth + Spacing) - Spacing;
         _columns = (int)Math.Clamp(Math.Floor((width + Spacing) / (MinimumItemWidth + Spacing)),
             1, Math.Max(1, MaximumColumns));
-        // Keep choices compact when a column breakpoint leaves spare space.
         // Cache the measured width so arrange cannot resize wrapped captions.
-        _itemWidth = Math.Floor(Math.Clamp(
-            (width - Spacing * (_columns - 1)) / _columns, 0, MaximumItemWidth));
+        double fittedWidth = Math.Max(0, (width - Spacing * (_columns - 1)) / _columns);
+        _itemWidth = FillAvailableWidth ? fittedWidth : Math.Floor(Math.Min(fittedWidth, MaximumItemWidth));
         _rowHeights = new double[(Children.Count + _columns - 1) / _columns];
         for (int index = 0; index < Children.Count; index++)
         {

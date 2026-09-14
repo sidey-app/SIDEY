@@ -246,7 +246,7 @@
                     <GridView.ItemContainerTransitions><TransitionCollection /></GridView.ItemContainerTransitions>
                     <GridView.ItemsPanel>
                       <ItemsPanelTemplate>
-                        <controls:ResponsiveSelectionPanel MaximumColumns="4" MinimumItemWidth="128" />
+                        <controls:ResponsiveSelectionPanel MaximumColumns="4" MinimumItemWidth="128" FillAvailableWidth="True" />
                       </ItemsPanelTemplate>
                     </GridView.ItemsPanel>
                     <GridView.ItemContainerStyle>
@@ -297,7 +297,7 @@
                       </DataTemplate>
                     </GridView.ItemTemplate>
                     </GridView>
-                    <controls:ResponsiveSelectionPanel x:Name="BubbleSkeleton" MaximumColumns="4" MinimumItemWidth="128" IsHitTestVisible="False" Visibility="{Binding IsBubbleSelectionsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <controls:ResponsiveSelectionPanel x:Name="BubbleSkeleton" MaximumColumns="4" MinimumItemWidth="128" FillAvailableWidth="True" IsHitTestVisible="False" Visibility="{Binding IsBubbleSelectionsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
                       <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="70" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="58" Height="12" HorizontalAlignment="Center" /></StackPanel>
                       <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="70" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="72" Height="12" HorizontalAlignment="Center" /></StackPanel>
                       <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="70" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="62" Height="12" HorizontalAlignment="Center" /></StackPanel>
@@ -319,7 +319,7 @@
                     <GridView.ItemContainerTransitions><TransitionCollection /></GridView.ItemContainerTransitions>
                     <GridView.ItemsPanel>
                       <ItemsPanelTemplate>
-                        <controls:ResponsiveSelectionPanel MaximumColumns="4" MinimumItemWidth="128" />
+                        <controls:ResponsiveSelectionPanel MaximumColumns="4" MinimumItemWidth="128" FillAvailableWidth="True" />
                       </ItemsPanelTemplate>
                     </GridView.ItemsPanel>
                     <GridView.ItemContainerStyle>
@@ -370,7 +370,7 @@
                       </DataTemplate>
                     </GridView.ItemTemplate>
                     </GridView>
-                    <controls:ResponsiveSelectionPanel x:Name="ThrowableSkeleton" MaximumColumns="4" MinimumItemWidth="128" IsHitTestVisible="False" Visibility="{Binding IsThrowableSelectionsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <controls:ResponsiveSelectionPanel x:Name="ThrowableSkeleton" MaximumColumns="4" MinimumItemWidth="128" FillAvailableWidth="True" IsHitTestVisible="False" Visibility="{Binding IsThrowableSelectionsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
                       <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="58" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="58" Height="12" HorizontalAlignment="Center" /></StackPanel>
                       <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="58" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="72" Height="12" HorizontalAlignment="Center" /></StackPanel>
                       <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="58" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="62" Height="12" HorizontalAlignment="Center" /></StackPanel>
