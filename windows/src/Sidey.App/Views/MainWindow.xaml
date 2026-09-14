@@ -4,22 +4,17 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:controls="using:Sidey.App.Controls"
     xmlns:i18n="using:Sidey.App.Localization">
-  <Grid x:Name="MainRoot" Background="Transparent">
+  <UserControl x:Name="MainRoot">
+  <Grid Background="Transparent">
     <VisualStateManager.VisualStateGroups>
       <VisualStateGroup x:Name="ResponsiveStates">
         <VisualState x:Name="Narrow">
-          <VisualState.StateTriggers>
-            <AdaptiveTrigger MinWindowWidth="0" />
-          </VisualState.StateTriggers>
           <VisualState.Setters>
             <Setter Target="HomePageContent.Padding" Value="24,20" />
             <Setter Target="GroupsPageContent.Padding" Value="24,20" />
             <Setter Target="StorePageContent.Padding" Value="24,20" />
             <Setter Target="SettingsPageContent.Padding" Value="24,20" />
             <Setter Target="AboutPageContent.Padding" Value="24,20" />
-            <Setter Target="ProfileEditorColumn.Width" Value="0" />
-            <Setter Target="ProfileNameEditor.(Grid.Row)" Value="1" />
-            <Setter Target="ProfileNameEditor.(Grid.Column)" Value="0" />
             <Setter Target="GroupCreateAction.(Grid.Row)" Value="1" />
             <Setter Target="GroupCreateAction.(Grid.Column)" Value="0" />
             <Setter Target="GroupCreateAction.HorizontalAlignment" Value="Right" />
@@ -65,11 +60,7 @@
             <Setter Target="ThemeComboBox.(Grid.Column)" Value="1" />
           </VisualState.Setters>
         </VisualState>
-        <VisualState x:Name="Standard">
-          <VisualState.StateTriggers>
-            <AdaptiveTrigger MinWindowWidth="720" />
-          </VisualState.StateTriggers>
-        </VisualState>
+        <VisualState x:Name="Standard" />
       </VisualStateGroup>
     </VisualStateManager.VisualStateGroups>
     <Grid.RowDefinitions>
@@ -117,24 +108,22 @@
         </NavigationViewItem>
       </NavigationView.FooterMenuItems>
 
-      <Grid>
+      <Grid x:Name="PageViewport" SizeChanged="OnPageViewportSizeChanged">
         <Grid>
           <ScrollViewer x:Name="HomePage" HorizontalContentAlignment="Stretch" HorizontalScrollBarVisibility="Disabled" HorizontalScrollMode="Disabled">
             <StackPanel x:Name="HomePageContent" Padding="32,24" MaxWidth="820" HorizontalAlignment="Stretch" Spacing="24">
               <StackPanel Spacing="4">
                 <TextBlock AutomationProperties.HeadingLevel="Level1" Style="{ThemeResource TitleTextBlockStyle}" Text="{Binding Value, Source={i18n:I18n Key=profile.title}, Mode=OneWay}" />
-                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=profile.description}, Mode=OneWay}" />
+                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=profile.description}, Mode=OneWay}" TextWrapping="Wrap" />
               </StackPanel>
               <Border Style="{StaticResource SideySettingsCardStyle}">
                 <StackPanel x:Name="ProfileCardContent" Spacing="20">
-                  <Grid x:Name="ProfileNameLayout" ColumnSpacing="24" RowSpacing="12">
-                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition x:Name="ProfileEditorColumn" Width="320" /></Grid.ColumnDefinitions>
+                  <controls:ResponsiveFormPanel x:Name="ProfileNameLayout">
                     <StackPanel Spacing="4">
                       <TextBlock FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=profile.nickname}, Mode=OneWay}" />
                       <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=profile.nicknameDescription}, Mode=OneWay}" TextWrapping="Wrap" />
                     </StackPanel>
-                    <StackPanel x:Name="ProfileNameEditor" Grid.Column="1" Spacing="8">
+                    <StackPanel x:Name="ProfileNameEditor" Spacing="8">
                       <TextBox MaxLength="8" PlaceholderText="{Binding Value, Source={i18n:I18n Key=onboarding.nicknamePlaceholder}, Mode=OneWay}" Text="{Binding Nickname, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                       <Button
                           Command="{Binding SaveProfileCommand}"
@@ -144,11 +133,11 @@
                           ToolTipService.ToolTip="{Binding Value, Source={i18n:I18n Key=profile.changeNicknameTooltip}, Mode=OneWay}"
                           Visibility="{Binding HasNicknameChanges, Converter={StaticResource BooleanToVisibilityConverter}}" />
                     </StackPanel>
-                  </Grid>
+                  </controls:ResponsiveFormPanel>
                   <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
                   <StackPanel Spacing="4">
                     <TextBlock FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=profile.character}, Mode=OneWay}" />
-                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=profile.characterDescription}, Mode=OneWay}" />
+                    <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=profile.characterDescription}, Mode=OneWay}" TextWrapping="Wrap" />
                   </StackPanel>
                   <StackPanel>
                     <GridView
@@ -160,7 +149,7 @@
                       SelectionMode="Single"
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                       ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                      Width="{Binding ActualWidth, ElementName=ProfileCardContent}">
+                      ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.VerticalScrollMode="Disabled" HorizontalAlignment="Stretch">
                     <GridView.Transitions>
                       <TransitionCollection><EntranceThemeTransition FromVerticalOffset="8" /></TransitionCollection>
                     </GridView.Transitions>
@@ -173,7 +162,7 @@
                     </GridView.Resources>
                     <GridView.ItemsPanel>
                       <ItemsPanelTemplate>
-                        <controls:FixedColumnPanel ColumnCount="5" ItemHeight="116" />
+                        <controls:ResponsiveSelectionPanel MaximumColumns="5" MinimumItemWidth="150" />
                       </ItemsPanelTemplate>
                     </GridView.ItemsPanel>
                     <GridView.ItemContainerStyle>
@@ -189,7 +178,7 @@
                     </GridView.ItemContainerStyle>
                     <GridView.ItemTemplate>
                       <DataTemplate>
-                        <Grid Height="116" HorizontalAlignment="Stretch">
+                        <Grid MinHeight="116" HorizontalAlignment="Stretch">
                           <controls:SelectionProgress Canvas.ZIndex="10" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" IsPending="{Binding IsPending}" AnimationsEnabled="{Binding AnimationsEnabled}" />
                           <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" Padding="8" Spacing="8">
                             <Border Width="48" Height="48" HorizontalAlignment="Center">
@@ -245,7 +234,7 @@
                       SelectionMode="None"
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                       ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                      Width="{Binding ActualWidth, ElementName=ProfileCardContent}">
+                      ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.VerticalScrollMode="Disabled" HorizontalAlignment="Stretch">
                     <GridView.Transitions>
                       <TransitionCollection><EntranceThemeTransition FromVerticalOffset="8" /></TransitionCollection>
                     </GridView.Transitions>
@@ -255,7 +244,7 @@
                     </GridView.Resources>
                     <GridView.ItemsPanel>
                       <ItemsPanelTemplate>
-                        <controls:FixedColumnPanel ColumnCount="4" ItemHeight="116" />
+                        <controls:ResponsiveSelectionPanel MaximumColumns="4" MinimumItemWidth="150" />
                       </ItemsPanelTemplate>
                     </GridView.ItemsPanel>
                     <GridView.ItemContainerStyle>
@@ -268,12 +257,12 @@
                     </GridView.ItemContainerStyle>
                     <GridView.ItemTemplate>
                       <DataTemplate>
-                        <Button Height="116" HorizontalAlignment="Stretch" Padding="2" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}" AutomationProperties.Name="{Binding DisplayName}" AutomationProperties.ItemStatus="{Binding SelectionStatus}" Style="{StaticResource SubtleButtonStyle}" CornerRadius="8">
+                        <Button MinHeight="116" HorizontalAlignment="Stretch" Padding="8" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}" AutomationProperties.Name="{Binding DisplayName}" AutomationProperties.ItemStatus="{Binding SelectionStatus}" Style="{StaticResource SubtleButtonStyle}" CornerRadius="8">
                           <Grid MinHeight="96">
                             <controls:SelectionProgress Canvas.ZIndex="10" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" IsPending="{Binding IsPending}" AnimationsEnabled="{Binding AnimationsEnabled}" />
                             <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" Spacing="8">
                               <controls:StoreProductArtwork Height="58" ProductKind="{Binding Kind}" CatalogItemId="{Binding CatalogItemId}" CharacterId="{Binding CharacterId}" />
-                              <TextBlock MinHeight="32" HorizontalAlignment="Center" Text="{Binding DisplayName}" TextAlignment="Center" TextWrapping="Wrap" />
+                              <TextBlock MinHeight="32" HorizontalAlignment="Stretch" Text="{Binding DisplayName}" TextAlignment="Center" TextWrapping="Wrap" />
                             </StackPanel>
                             <Border BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="1.5" CornerRadius="8" IsHitTestVisible="False" Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                             <Border
@@ -316,7 +305,7 @@
                       SelectionMode="None"
                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                       ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                      Width="{Binding ActualWidth, ElementName=ProfileCardContent}">
+                      ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.VerticalScrollMode="Disabled" HorizontalAlignment="Stretch">
                     <GridView.Transitions>
                       <TransitionCollection><EntranceThemeTransition FromVerticalOffset="8" /></TransitionCollection>
                     </GridView.Transitions>
@@ -326,7 +315,7 @@
                     </GridView.Resources>
                     <GridView.ItemsPanel>
                       <ItemsPanelTemplate>
-                        <controls:FixedColumnPanel ColumnCount="4" ItemHeight="116" />
+                        <controls:ResponsiveSelectionPanel MaximumColumns="4" MinimumItemWidth="150" />
                       </ItemsPanelTemplate>
                     </GridView.ItemsPanel>
                     <GridView.ItemContainerStyle>
@@ -339,12 +328,12 @@
                     </GridView.ItemContainerStyle>
                     <GridView.ItemTemplate>
                       <DataTemplate>
-                        <Button Height="116" HorizontalAlignment="Stretch" Padding="2" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}" AutomationProperties.Name="{Binding DisplayName}" AutomationProperties.ItemStatus="{Binding SelectionStatus}" Style="{StaticResource SubtleButtonStyle}" CornerRadius="8">
+                        <Button MinHeight="116" HorizontalAlignment="Stretch" Padding="8" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}" AutomationProperties.Name="{Binding DisplayName}" AutomationProperties.ItemStatus="{Binding SelectionStatus}" Style="{StaticResource SubtleButtonStyle}" CornerRadius="8">
                           <Grid MinHeight="96">
                             <controls:SelectionProgress Canvas.ZIndex="10" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" IsPending="{Binding IsPending}" AnimationsEnabled="{Binding AnimationsEnabled}" />
                             <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" Spacing="8">
                               <controls:StoreProductArtwork Height="58" ProductKind="{Binding Kind}" CatalogItemId="{Binding CatalogItemId}" CharacterId="{Binding CharacterId}" />
-                              <TextBlock MinHeight="32" HorizontalAlignment="Center" Text="{Binding DisplayName}" TextAlignment="Center" TextWrapping="Wrap" />
+                              <TextBlock MinHeight="32" HorizontalAlignment="Stretch" Text="{Binding DisplayName}" TextAlignment="Center" TextWrapping="Wrap" />
                             </StackPanel>
                             <Border BorderBrush="{ThemeResource AccentFillColorDefaultBrush}" BorderThickness="1.5" CornerRadius="8" IsHitTestVisible="False" Visibility="{Binding IsSelected, Converter={StaticResource BooleanToVisibilityConverter}}" />
                             <Border
@@ -375,7 +364,7 @@
                       <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="58" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="62" Height="12" HorizontalAlignment="Center" /></StackPanel>
                     </Grid>
                   </Grid>
-                  <TextBlock Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=profile.duplicateNotice}, Mode=OneWay}" />
+                  <TextBlock Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=profile.duplicateNotice}, Mode=OneWay}" TextWrapping="Wrap" />
                 </StackPanel>
               </Border>
             </StackPanel>
@@ -867,7 +856,7 @@
             <StackPanel x:Name="SettingsPageContent" Padding="32,24" MaxWidth="820" HorizontalAlignment="Stretch" Spacing="20">
               <StackPanel Spacing="4">
                 <TextBlock AutomationProperties.HeadingLevel="Level1" Style="{ThemeResource TitleTextBlockStyle}" Text="{Binding Value, Source={i18n:I18n Key=settings.generalTitle}, Mode=OneWay}" />
-                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=settings.generalDescription}, Mode=OneWay}" />
+                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=settings.generalDescription}, Mode=OneWay}" TextWrapping="Wrap" />
               </StackPanel>
               <Border Style="{StaticResource SideySettingsCardStyle}">
                 <StackPanel Spacing="16">
@@ -1146,4 +1135,5 @@
       </Grid>
     </NavigationView>
   </Grid>
+  </UserControl>
 </Window>

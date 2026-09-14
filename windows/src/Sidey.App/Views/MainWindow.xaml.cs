@@ -88,6 +88,8 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         SideyWindowIcon.Apply(AppWindow);
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
+        SideyWindowTheme.FollowTitleBarTheme(this, MainRoot);
+        MainRoot.Loaded += OnResponsiveRootLoaded;
         RootNavigation.SelectedItem = RootNavigation.MenuItems[0];
         ResponsiveWindowSize minimumWindowSize = ApplyResponsiveSize();
         _minimumSizeController = new WindowsMinimumSizeController(
@@ -130,7 +132,52 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
                 return;
             ViewModel.RefreshFeedbackPresentation();
             _activePreview?.SetAnimationsEnabled(_coordinator.AnimationsEnabled);
+            UpdateResponsiveAnimations(MainRoot);
         });
+    }
+
+    private void OnResponsiveRootLoaded(object sender, RoutedEventArgs args)
+    {
+        UpdateResponsiveState();
+        UpdateResponsiveAnimations(MainRoot);
+    }
+
+    private void OnPageViewportSizeChanged(object sender, SizeChangedEventArgs args) => UpdateResponsiveState();
+
+    private void UpdateResponsiveState()
+    {
+        if (_isClosed || _coordinator is null || PageViewport.ActualWidth <= 0)
+        {
+            return;
+        }
+        VisualStateManager.GoToState(MainRoot,
+            PageViewport.ActualWidth < 680 ? "Narrow" : "Standard", _coordinator.AnimationsEnabled);
+    }
+
+    private void UpdateResponsiveAnimations(DependencyObject root)
+    {
+        if (ReferenceEquals(root, MainRoot))
+        {
+            FrameworkElement[] controls = [GroupCreateAction, GroupJoinAction, StoreFilterToggle,
+                StoreSortStack, StoreHideOwnedCheckBox, SoundControlsGrid, EdgeComboBox,
+                SpanComboBox, MonitorComboBox, LanguageComboBox, ThemeComboBox];
+            foreach (FrameworkElement control in controls)
+            {
+                control.Transitions = _coordinator.AnimationsEnabled ? [new RepositionThemeTransition()] : null;
+            }
+        }
+        if (root is ResponsiveFormPanel form)
+        {
+            form.AnimationsEnabled = _coordinator.AnimationsEnabled;
+        }
+        if (root is ResponsiveSelectionPanel selection)
+        {
+            selection.AnimationsEnabled = _coordinator.AnimationsEnabled;
+        }
+        for (int index = 0; index < VisualTreeHelper.GetChildrenCount(root); index++)
+        {
+            UpdateResponsiveAnimations(VisualTreeHelper.GetChild(root, index));
+        }
     }
 
     public bool ShouldExitOnClose => _allowClose || !_trayAvailable;
@@ -1961,6 +2008,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         ViewModel.NoticeRaised -= OnNoticeRaised;
         ViewModel.StorePreviewRequested -= OnStorePreviewRequested;
         ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        MainRoot.Loaded -= OnResponsiveRootLoaded;
         _minimumSizeController.Dispose();
         _feedbackMonitor?.Dispose();
         if (_coordinator is AppCoordinator appCoordinator)

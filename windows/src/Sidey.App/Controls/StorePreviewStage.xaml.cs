@@ -86,6 +86,9 @@ public sealed partial class StorePreviewStage : UserControl
     private IReadOnlyList<ImageSource> _emitterFrames = [];
     private double _manualThrowStarted = -10;
     private double _manualThrowFlightDuration = 0.55;
+    private bool _manualThrowPending;
+    private double ManualThrowSequenceSeconds => ThrowReleaseSeconds + _manualThrowFlightDuration
+        + Math.Max(HitActionSeconds, ImpactSeconds);
     private double _lastSceneElapsed;
     private bool _resourcesLoaded;
     private bool _loadFailed;
@@ -185,6 +188,7 @@ public sealed partial class StorePreviewStage : UserControl
         _stun.Reset();
         _pulseStarted = double.NegativeInfinity;
         _manualThrowStarted = -10;
+        _manualThrowPending = false;
         _lastImpactStart = double.NegativeInfinity;
         _automaticSequence = -1;
         _lastSceneElapsed = 0;
@@ -221,6 +225,9 @@ public sealed partial class StorePreviewStage : UserControl
         }
 
         _isPresented = false;
+        _manualThrowPending = false;
+        _manualThrowStarted = -10;
+        _lastImpactStart = double.NegativeInfinity;
         StopSounds?.Invoke(_audioScope);
         _stun.Reset();
         Interlocked.Increment(ref _presentationGeneration);
@@ -554,6 +561,7 @@ public sealed partial class StorePreviewStage : UserControl
         }
 
         double elapsed = _clock.IsRunning ? _clock.Elapsed.TotalSeconds : 0;
+        StartPendingPreviewThrow(elapsed);
         string leftId = ProductKind == CommerceProductKind.Character
             ? CharacterId
             : PixelCharacterCatalog.FallbackId;
@@ -1006,7 +1014,7 @@ public sealed partial class StorePreviewStage : UserControl
         ImpactImage.Opacity = 0;
         double sequenceEnd = ProductKind == CommerceProductKind.Throwable
             ? ThrowCycleSeconds
-            : ThrowReleaseSeconds + flightDuration + HitActionSeconds;
+            : ThrowReleaseSeconds + flightDuration + Math.Max(HitActionSeconds, ImpactSeconds);
         if (!_animationsEnabled || local < 0 || local >= sequenceEnd || _projectileFrames.Count < 12)
         {
             ProjectileImage.Opacity = 0;
@@ -1261,16 +1269,32 @@ public sealed partial class StorePreviewStage : UserControl
             return false;
         if (ProductKind == CommerceProductKind.Character && _resourcesLoaded && _isPresented)
         {
-            _manualThrowStartX = _movementAgents[0].TrackPosition;
-            _manualThrowTrajectory = new CharacterThrowTrajectory(
-                (_manualThrowStartX, ProjectilePathY),
-                (_movementAgents[1].TrackPosition, ProjectilePathY), PreviewScale);
-            _manualThrowFlightDuration = _manualThrowTrajectory.DurationSeconds;
-            _manualThrowStarted = _clock.Elapsed.TotalSeconds;
+            // Coalesce rapid taps into one follow-up. Never replace a projectile or
+            // truncate its hit/impact animation while the current throw is active.
+            _manualThrowPending = true;
             UpdateScene();
             return true;
         }
         return false;
+    }
+
+    private void StartPendingPreviewThrow(double elapsed)
+    {
+        if (!_manualThrowPending || !_animationsEnabled || !_isPresented
+            || ProductKind != CommerceProductKind.Character
+            || elapsed - _manualThrowStarted < ManualThrowSequenceSeconds)
+            return;
+
+        _manualThrowPending = false;
+        if (_stun.IsStunned(_movementAgents[0].Id))
+            return;
+
+        _manualThrowStartX = _movementAgents[0].TrackPosition;
+        _manualThrowTrajectory = new CharacterThrowTrajectory(
+            (_manualThrowStartX, ProjectilePathY),
+            (_movementAgents[1].TrackPosition, ProjectilePathY), PreviewScale);
+        _manualThrowFlightDuration = _manualThrowTrajectory.DurationSeconds;
+        _manualThrowStarted = elapsed;
     }
 
     private void OnCharacterDoubleTapped(object sender, DoubleTappedRoutedEventArgs args)
@@ -1359,6 +1383,8 @@ public sealed partial class StorePreviewStage : UserControl
         UpdateScene();
         if (ProjectileImage.Opacity != 1)
             throw new InvalidOperationException("Store preview smoke: projectile missing.");
+        if (!TriggerPreviewThrow() || ProjectileImage.Opacity != 1)
+            throw new InvalidOperationException("Store preview smoke: repeat tap interrupted the flying projectile.");
         await Task.Delay(50);
         if (!ProjectileImage.IsFrameReady)
             throw new InvalidOperationException("Store preview smoke: projectile image not ready.");
@@ -1370,8 +1396,14 @@ public sealed partial class StorePreviewStage : UserControl
         if (!_stoppedIds.Contains(target.Id) || target.Velocity != 0 || target.Target != destination
             || ImpactImage.Opacity != 1)
             throw new InvalidOperationException("Store preview smoke: hit stop or impact missing.");
+        if (!TriggerPreviewThrow() || ImpactImage.Opacity != 1)
+            throw new InvalidOperationException("Store preview smoke: repeat tap interrupted the impact.");
         await Task.Delay(20);
         await VerifyRenderedEffectAsync(ImpactImage);
+        _manualThrowStarted = _clock.Elapsed.TotalSeconds - ManualThrowSequenceSeconds - 0.05;
+        UpdateScene();
+        if (_leftVisibleCharacterLayer != 10 || ImpactImage.Opacity != 0)
+            throw new InvalidOperationException("Store preview smoke: queued throw did not start after the hit.");
         _pulseStarted = _clock.Elapsed.TotalSeconds - 1;
         UpdateScene();
         if (LeftCharacterScale.ScaleY != 1 || _pulseSparkles.Any(star => star.Opacity > 0))

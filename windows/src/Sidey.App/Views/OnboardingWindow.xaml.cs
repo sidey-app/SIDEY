@@ -39,6 +39,7 @@ public sealed partial class OnboardingWindow : Window
         SideyWindowIcon.Apply(AppWindow);
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
+        SideyWindowTheme.FollowTitleBarTheme(this, OnboardingRoot);
         ApplyBackdrop();
         ResponsiveWindowSize minimumWindowSize = ApplyResponsiveSize();
         _minimumSizeController = new WindowsMinimumSizeController(

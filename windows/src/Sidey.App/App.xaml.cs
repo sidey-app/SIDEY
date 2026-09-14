@@ -165,6 +165,7 @@ public partial class App : Application
             await EnsureMainWindow().VerifyStoreFilterToggleSmokeAsync();
             await EnsureMainWindow().VerifyStoreScrollingSmokeAsync();
             await EnsureMainWindow().VerifySkeletonLoadingSmokeAsync();
+            await EnsureMainWindow().VerifyResponsiveWindowSmokeAsync();
         }
         await RunStorePreviewStartupSmokeIfRequestedAsync();
         if (Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1"

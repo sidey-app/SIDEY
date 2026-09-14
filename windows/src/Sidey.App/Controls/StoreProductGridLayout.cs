@@ -23,12 +23,11 @@ public sealed class StoreProductGridLayout : NonVirtualizingLayout
 
     protected override Size ArrangeOverride(NonVirtualizingLayoutContext context, Size finalSize)
     {
-        double width = ResolveWidth(finalSize.Width, context.Children.Count);
-        LayoutMetrics metrics = context.LayoutState as LayoutMetrics
-            ?? MeasureItems(context, width);
-        if (metrics.ItemCount != context.Children.Count || Math.Abs(metrics.Width - width) > 0.01)
-            metrics = MeasureItems(context, width);
-        context.LayoutState = metrics;
+        // Arrange must consume the preceding measure pass. Remeasuring here at
+        // the rounded final width can invalidate the repeater's parent while
+        // it is arranging, repeatedly alternating widths during a resize.
+        if (context.LayoutState is not LayoutMetrics metrics)
+            return finalSize;
 
         double top = 0;
         for (int row = 0; row < metrics.RowHeights.Length; row++)
@@ -36,7 +35,7 @@ public sealed class StoreProductGridLayout : NonVirtualizingLayout
             for (int column = 0; column < metrics.Columns; column++)
             {
                 int index = row * metrics.Columns + column;
-                if (index >= metrics.ItemCount)
+                if (index >= Math.Min(metrics.ItemCount, context.Children.Count))
                     break;
                 context.Children[index].Arrange(new Rect(
                     column * (metrics.ItemWidth + Spacing), top,
@@ -45,7 +44,7 @@ public sealed class StoreProductGridLayout : NonVirtualizingLayout
             top += metrics.RowHeights[row] + Spacing;
         }
 
-        return new Size(metrics.Width, metrics.Height);
+        return finalSize;
     }
 
     private static LayoutMetrics MeasureItems(NonVirtualizingLayoutContext context, double availableWidth)

@@ -307,39 +307,6 @@ public sealed class MvvmArchitectureTests
     }
 
     [Fact]
-    public void MainWindowDefinesNarrowReflowForFixedControlGroups()
-    {
-        XDocument view = MainWindowView();
-        XElement narrow = Assert.Single(
-            view.Descendants(),
-            element => element.Name.LocalName == "VisualState"
-                && element.Attributes().Any(attribute =>
-                    attribute.Name.LocalName == "Name"
-                    && attribute.Value == "Narrow"));
-        string[] setterTargets =
-        [
-            "ProfileNameEditor.(Grid.Row)",
-            "StoreFilterPanel.(Grid.Row)",
-            "StoreSortStack.(Grid.Row)",
-            "SoundControlsGrid.(Grid.Row)",
-            "EdgeComboBox.(Grid.Row)",
-            "LanguageComboBox.(Grid.Row)",
-        ];
-
-        XElement trigger = Assert.Single(
-            narrow.Descendants(),
-            element => element.Name.LocalName == "AdaptiveTrigger");
-        Assert.Equal("0", trigger.Attribute("MinWindowWidth")?.Value);
-        foreach (string target in setterTargets)
-        {
-            Assert.Contains(
-                narrow.Descendants(),
-                element => element.Name.LocalName == "Setter"
-                    && element.Attribute("Target")?.Value == target);
-        }
-    }
-
-    [Fact]
     public void OnboardingLandingUsesThemeAwareFluentResources()
     {
         var view = XDocument.Load(RepositoryPath(

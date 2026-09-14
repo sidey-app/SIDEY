@@ -22,6 +22,7 @@ public sealed partial class HistoryWindow : Window
         InitializeComponent();
         HistoryRoot.DataContext = ViewModel;
         ApplyTheme(_initialState.Preferences.Theme);
+        SideyWindowTheme.FollowTitleBarTheme(this, HistoryRoot);
         Title = I18n.Get("window.historyTitle");
         SideyWindowIcon.Apply(AppWindow);
         ApplyResponsiveSize();
