@@ -12,6 +12,23 @@ public enum GroupOperation
     Mutating,
 }
 
+public sealed record RemoteDataLoadState(bool HasValue, bool IsLoading)
+{
+    public static RemoteDataLoadState Initial { get; } = new(false, true);
+    public static RemoteDataLoadState Ready { get; } = new(true, false);
+    public bool NeedsSkeleton => IsLoading && !HasValue;
+    public RemoteDataLoadState Begin() => this with { IsLoading = true };
+    public RemoteDataLoadState EndAttempt() => this with { IsLoading = false };
+}
+
+// Profile, equipment entitlements and rooms arrive in one atomic BackendSnapshot.
+// Development commerce has its own request and can finish after that snapshot.
+public sealed record RemoteContentLoadingState(RemoteDataLoadState Snapshot, RemoteDataLoadState Store)
+{
+    public static RemoteContentLoadingState Initial { get; } = new(
+        RemoteDataLoadState.Initial, RemoteDataLoadState.Initial);
+}
+
 public sealed record CoordinatorState(
     Profile? Profile,
     IReadOnlyList<Room> Rooms,
@@ -26,6 +43,8 @@ public sealed record CoordinatorState(
     Guid? SwitchingRoomId,
     string? ErrorMessage)
 {
+    public RemoteContentLoadingState ContentLoading { get; init; } = RemoteContentLoadingState.Initial;
+
     public bool Connected => RealtimeConnection.IsReady;
 
     public bool ActiveRoomConnected => RealtimeConnection.ActiveRoomTransportConnected;

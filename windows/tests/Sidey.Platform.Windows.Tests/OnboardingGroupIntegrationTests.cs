@@ -10,6 +10,37 @@ namespace Sidey.Platform.Windows.Tests;
 
 public sealed class OnboardingGroupIntegrationTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SnapshotContentFinishesBeforeRealtimeAndIndependentCommerce(bool developmentCommerce)
+    {
+        await using var coordinator = new AppCoordinator(new MemoryPreferences());
+        IBackendGateway backend = DispatchProxy.Create<IBackendGateway, GroupBackend>();
+        var server = (GroupBackend)backend;
+        SetField(coordinator, "_backend", backend);
+        SetField(coordinator, "_state", CoordinatorState.Initial with
+        {
+            DevelopmentCommerceEnabled = developmentCommerce,
+            Preferences = AppPreferences.Default with { OverlayVisible = false },
+        });
+        var syncing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        server.Synchronize = () => { syncing.TrySetResult(); return release.Task; };
+        Task reconciliation = Bind<Func<BackendSnapshot, CancellationToken, Task>>(coordinator, "ReconcileSnapshotAsync")(
+            new BackendSnapshot(server.Profile, [], server.Profile.Id, new HashSet<string>()), CancellationToken.None);
+        try
+        {
+            await syncing.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.False(reconciliation.IsCompleted);
+            Assert.True(coordinator.IsRemoteContentLoading);
+            Assert.False(coordinator.State.ContentLoading.Snapshot.NeedsSkeleton);
+            Assert.Equal(developmentCommerce, coordinator.State.ContentLoading.Store.NeedsSkeleton);
+        }
+        finally { release.TrySetResult(); }
+        await reconciliation.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
     [Fact]
     public async Task SavedCharacterImmediatelyUpdatesRoomsAndTheRestartCache()
     {

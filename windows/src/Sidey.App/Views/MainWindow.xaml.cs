@@ -377,7 +377,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
 
     internal async Task VerifyStoreScrollingSmokeAsync()
     {
-        bool wasLoading = ViewModel.IsRemoteContentLoading;
+        bool wasLoading = ViewModel.IsStoreLoading;
         int originalKind = ViewModel.SelectedStoreKindIndex;
         double originalWidth = StorePage.Width;
         double originalHeight = StorePage.Height;
@@ -387,7 +387,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         try
         {
             ShowPage("store");
-            ViewModel.IsRemoteContentLoading = false;
+            ViewModel.IsStoreLoading = false;
             ViewModel.SelectedStoreKindIndex = (int)CommerceProductKind.Throwable;
             longNameProduct.DisplayName = string.Concat(Enumerable.Repeat("긴 상품 이름 ", 12));
             StorePage.Height = 360;
@@ -476,68 +476,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
             StorePage.Height = originalHeight;
             longNameProduct.DisplayName = originalName;
             ViewModel.SelectedStoreKindIndex = originalKind;
-            ViewModel.IsRemoteContentLoading = wasLoading;
-            StorePage.ChangeView(null, 0, null, disableAnimation: true);
-        }
-    }
-
-    internal async Task VerifySkeletonLoadingSmokeAsync()
-    {
-        bool wasLoading = ViewModel.IsRemoteContentLoading;
-        int originalKind = ViewModel.SelectedStoreKindIndex;
-        ElementTheme originalTheme = MainRoot.RequestedTheme;
-        double originalWidth = StorePage.Width;
-        double originalHeight = StorePage.Height;
-        try
-        {
-            ShowPage("store");
-            ViewModel.SelectedStoreKindIndex = (int)CommerceProductKind.Throwable;
-            StorePage.Width = 620;
-            StorePage.Height = 360;
-            foreach (ElementTheme theme in new[] { ElementTheme.Light, ElementTheme.Dark })
-            {
-                MainRoot.RequestedTheme = theme;
-                ViewModel.IsRemoteContentLoading = true;
-                StorePage.ChangeView(null, 0, null, disableAnimation: true);
-                StorePage.UpdateLayout();
-                await WaitForNextFrameAsync();
-                await WaitForNextFrameAsync();
-                StorePage.UpdateLayout();
-                double loadingExtent = StorePage.ExtentHeight;
-                SkeletonBar bar = FindVisualChild<SkeletonBar>(StoreSkeletonRepeater)
-                    ?? throw new InvalidOperationException("Loading skeleton is missing.");
-                if (bar.Content is not FrameworkElement fill
-                    || fill.ActualWidth < bar.ActualWidth - 1 || fill.ActualHeight < bar.ActualHeight - 1
-                    || bar.ActualWidth <= 0 || bar.ActualHeight <= 0)
-                    throw new InvalidOperationException("Skeleton fill does not occupy its reserved space.");
-                var rendered = new RenderTargetBitmap();
-                await rendered.RenderAsync(bar);
-                byte[] pixels = System.Runtime.InteropServices.WindowsRuntime.WindowsRuntimeBufferExtensions.ToArray(
-                    await rendered.GetPixelsAsync());
-                int visiblePixels = 0;
-                for (int offset = 3; offset < pixels.Length; offset += 4)
-                {
-                    if (pixels[offset] >= 32)
-                        visiblePixels++;
-                }
-                if (pixels.Length == 0 || visiblePixels < pixels.Length / 8)
-                    throw new InvalidOperationException("Skeleton loading indicator is empty or too faint.");
-                ViewModel.IsRemoteContentLoading = false;
-                await WaitForNextFrameAsync();
-                await WaitForNextFrameAsync();
-                StorePage.UpdateLayout();
-                if (bar.IsPulseRunning || Math.Abs(StorePage.ExtentHeight - loadingExtent) > 1)
-                    throw new InvalidOperationException("Loading completion changed store height or left a hidden pulse running.");
-                StartupDiagnostics.Stage($"skeleton-loading-smoke-complete theme={theme} visible-pixels={visiblePixels} extent={loadingExtent}");
-            }
-        }
-        finally
-        {
-            MainRoot.RequestedTheme = originalTheme;
-            StorePage.Width = originalWidth;
-            StorePage.Height = originalHeight;
-            ViewModel.SelectedStoreKindIndex = originalKind;
-            ViewModel.IsRemoteContentLoading = wasLoading;
+            ViewModel.IsStoreLoading = wasLoading;
             StorePage.ChangeView(null, 0, null, disableAnimation: true);
         }
     }

@@ -298,6 +298,15 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 
     private async Task InitializeCoreAsync(CancellationToken cancellationToken)
     {
+        IsRemoteContentLoading = true;
+        SetState(_state with
+        {
+            ContentLoading = _state.ContentLoading with
+            {
+                Snapshot = _state.ContentLoading.Snapshot.Begin(),
+                Store = _state.ContentLoading.Store.Begin(),
+            },
+        });
         try
         {
             await LoadRemoteContentAsync(cancellationToken);
@@ -305,7 +314,14 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         finally
         {
             IsRemoteContentLoading = false;
-            PublishState();
+            SetState(_state with
+            {
+                ContentLoading = _state.ContentLoading with
+                {
+                    Snapshot = _state.ContentLoading.Snapshot.EndAttempt(),
+                    Store = _state.ContentLoading.Store.EndAttempt(),
+                },
+            });
         }
     }
 
@@ -1622,6 +1638,13 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             Profile = profile,
             Rooms = projectedRooms,
             ActiveEntitlementKeys = snapshot.ActiveEntitlementKeys,
+            ContentLoading = _state.ContentLoading with
+            {
+                Snapshot = RemoteDataLoadState.Ready,
+                Store = _state.DevelopmentCommerceEnabled
+                    ? _state.ContentLoading.Store
+                    : RemoteDataLoadState.Ready,
+            },
             ActiveRoomId = activeRoomId,
             Preferences = _state.Preferences with
             {
@@ -1643,8 +1666,34 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 
     private async Task RefreshSnapshotAsync(CancellationToken cancellationToken)
     {
-        BackendSnapshot snapshot = await RequiredBackend().FetchSnapshotAsync(cancellationToken);
-        await ReconcileSnapshotAsync(snapshot, cancellationToken);
+        SetState(_state with
+        {
+            ContentLoading = _state.ContentLoading with
+            {
+                Snapshot = _state.ContentLoading.Snapshot.Begin(),
+                Store = _state.DevelopmentCommerceEnabled
+                    ? _state.ContentLoading.Store
+                    : _state.ContentLoading.Store.Begin(),
+            },
+        });
+        try
+        {
+            BackendSnapshot snapshot = await RequiredBackend().FetchSnapshotAsync(cancellationToken);
+            await ReconcileSnapshotAsync(snapshot, cancellationToken);
+        }
+        finally
+        {
+            SetState(_state with
+            {
+                ContentLoading = _state.ContentLoading with
+                {
+                    Snapshot = _state.ContentLoading.Snapshot.EndAttempt(),
+                    Store = _state.DevelopmentCommerceEnabled
+                        ? _state.ContentLoading.Store
+                        : _state.ContentLoading.Store.EndAttempt(),
+                },
+            });
+        }
     }
 
     private async Task ReconcileSnapshotAsync(
@@ -2010,8 +2059,23 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         {
             return _state.CommerceProducts;
         }
-        IReadOnlyList<CommerceProductState> products =
-            await backend.GetWindowsCommerceStateAsync(cancellationToken);
+        SetState(_state with
+        {
+            ContentLoading = _state.ContentLoading with { Store = _state.ContentLoading.Store.Begin() },
+        });
+        IReadOnlyList<CommerceProductState> products;
+        try
+        {
+            products = await backend.GetWindowsCommerceStateAsync(cancellationToken);
+        }
+        catch
+        {
+            SetState(_state with
+            {
+                ContentLoading = _state.ContentLoading with { Store = _state.ContentLoading.Store.EndAttempt() },
+            });
+            throw;
+        }
         IReadOnlyList<CommerceProductState> presentedProducts = workingProductId is null
             ? products
             : products.Select(product =>
@@ -2023,7 +2087,12 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                         IsWorking = true,
                     }
                     : product).ToArray();
-        SetState(_state with { CommerceProducts = presentedProducts, ErrorMessage = null });
+        SetState(_state with
+        {
+            CommerceProducts = presentedProducts,
+            ContentLoading = _state.ContentLoading with { Store = RemoteDataLoadState.Ready },
+            ErrorMessage = null,
+        });
         return products;
     }
 

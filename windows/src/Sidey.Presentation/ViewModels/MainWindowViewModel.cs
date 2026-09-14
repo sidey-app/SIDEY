@@ -223,6 +223,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial bool IsRemoteContentLoading { get; set; }
 
     [ObservableProperty]
+    public partial bool IsCharacterSelectionsLoading { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsBubbleSelectionsLoading { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsThrowableSelectionsLoading { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsRoomsLoading { get; set; }
+
+    [ObservableProperty]
+    public partial bool IsStoreLoading { get; set; }
+
+    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RetryConnectionCommand))]
     public partial bool IsConnected { get; set; }
 
@@ -386,6 +401,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public void ApplyState(CoordinatorState state)
     {
         IsRemoteContentLoading = _coordinator.IsRemoteContentLoading;
+        IsCharacterSelectionsLoading = state.ContentLoading.Snapshot.NeedsSkeleton;
+        IsBubbleSelectionsLoading = state.ContentLoading.Snapshot.NeedsSkeleton;
+        IsThrowableSelectionsLoading = state.ContentLoading.Snapshot.NeedsSkeleton;
+        IsRoomsLoading = state.ContentLoading.Snapshot.NeedsSkeleton;
+        IsStoreLoading = state.ContentLoading.Store.NeedsSkeleton;
         if (_selectionUserId != state.Profile?.Id)
         {
             _selectionUserId = state.Profile?.Id;

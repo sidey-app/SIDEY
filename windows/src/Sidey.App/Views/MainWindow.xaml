@@ -162,7 +162,7 @@
                     </GridView.Resources>
                     <GridView.ItemsPanel>
                       <ItemsPanelTemplate>
-                        <controls:ResponsiveSelectionPanel MaximumColumns="5" MinimumItemWidth="150" />
+                        <controls:ResponsiveSelectionPanel MaximumColumns="5" MinimumItemWidth="128" />
                       </ItemsPanelTemplate>
                     </GridView.ItemsPanel>
                     <GridView.ItemContainerStyle>
@@ -212,22 +212,19 @@
                       </DataTemplate>
                     </GridView.ItemTemplate>
                     </GridView>
-                    <Grid Height="92" ColumnSpacing="12" Visibility="{Binding IsRemoteContentLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
-                      <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
-                      </Grid.ColumnDefinitions>
-                      <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="48" Height="48" HorizontalAlignment="Center" /><controls:SkeletonBar Width="58" Height="12" HorizontalAlignment="Center" /></StackPanel>
-                      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="48" Height="48" HorizontalAlignment="Center" /><controls:SkeletonBar Width="68" Height="12" HorizontalAlignment="Center" /></StackPanel>
-                      <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="48" Height="48" HorizontalAlignment="Center" /><controls:SkeletonBar Width="52" Height="12" HorizontalAlignment="Center" /></StackPanel>
-                      <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="48" Height="48" HorizontalAlignment="Center" /><controls:SkeletonBar Width="64" Height="12" HorizontalAlignment="Center" /></StackPanel>
-                    </Grid>
+                    <controls:ResponsiveSelectionPanel x:Name="CharacterSkeleton" MaximumColumns="5" MinimumItemWidth="128" IsHitTestVisible="False" Visibility="{Binding IsCharacterSelectionsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                      <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="48" Height="48" HorizontalAlignment="Center" /><controls:SkeletonBar Width="58" Height="12" HorizontalAlignment="Center" /></StackPanel>
+                      <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="48" Height="48" HorizontalAlignment="Center" /><controls:SkeletonBar Width="68" Height="12" HorizontalAlignment="Center" /></StackPanel>
+                      <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="48" Height="48" HorizontalAlignment="Center" /><controls:SkeletonBar Width="52" Height="12" HorizontalAlignment="Center" /></StackPanel>
+                      <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="48" Height="48" HorizontalAlignment="Center" /><controls:SkeletonBar Width="64" Height="12" HorizontalAlignment="Center" /></StackPanel>
+                    </controls:ResponsiveSelectionPanel>
                   </StackPanel>
                   <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
                   <StackPanel Spacing="4">
                     <TextBlock FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=profile.bubble}, Mode=OneWay}" />
                     <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=profile.bubbleDescription}, Mode=OneWay}" TextWrapping="Wrap" />
                   </StackPanel>
-                  <Grid>
+                  <StackPanel>
                     <GridView
                       x:Name="BubbleSelector"
                       ItemsSource="{Binding BubbleSelections}"
@@ -242,7 +239,7 @@
                     </GridView.Resources>
                     <GridView.ItemsPanel>
                       <ItemsPanelTemplate>
-                        <controls:ResponsiveSelectionPanel MaximumColumns="4" MinimumItemWidth="150" />
+                        <controls:ResponsiveSelectionPanel MaximumColumns="5" MinimumItemWidth="128" />
                       </ItemsPanelTemplate>
                     </GridView.ItemsPanel>
                     <GridView.ItemContainerStyle>
@@ -284,19 +281,18 @@
                       </DataTemplate>
                     </GridView.ItemTemplate>
                     </GridView>
-                    <Grid Height="116" ColumnSpacing="12" Visibility="{Binding IsRemoteContentLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
-                      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="70" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="58" Height="12" HorizontalAlignment="Center" /></StackPanel>
-                      <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="70" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="72" Height="12" HorizontalAlignment="Center" /></StackPanel>
-                      <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="70" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="62" Height="12" HorizontalAlignment="Center" /></StackPanel>
-                    </Grid>
-                  </Grid>
+                    <controls:ResponsiveSelectionPanel x:Name="BubbleSkeleton" MaximumColumns="5" MinimumItemWidth="128" IsHitTestVisible="False" Visibility="{Binding IsBubbleSelectionsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                      <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="70" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="58" Height="12" HorizontalAlignment="Center" /></StackPanel>
+                      <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="70" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="72" Height="12" HorizontalAlignment="Center" /></StackPanel>
+                      <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="70" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="62" Height="12" HorizontalAlignment="Center" /></StackPanel>
+                    </controls:ResponsiveSelectionPanel>
+                  </StackPanel>
                   <Rectangle Height="1" Fill="{ThemeResource DividerStrokeColorDefaultBrush}" />
                   <StackPanel Spacing="4">
                     <TextBlock FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=profile.throwable}, Mode=OneWay}" />
                     <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=profile.throwableDescription}, Mode=OneWay}" TextWrapping="Wrap" />
                   </StackPanel>
-                  <Grid>
+                  <StackPanel>
                     <GridView
                       x:Name="ThrowableSelector"
                       ItemsSource="{Binding ThrowableSelections}"
@@ -311,7 +307,7 @@
                     </GridView.Resources>
                     <GridView.ItemsPanel>
                       <ItemsPanelTemplate>
-                        <controls:ResponsiveSelectionPanel MaximumColumns="4" MinimumItemWidth="150" />
+                        <controls:ResponsiveSelectionPanel MaximumColumns="5" MinimumItemWidth="128" />
                       </ItemsPanelTemplate>
                     </GridView.ItemsPanel>
                     <GridView.ItemContainerStyle>
@@ -353,13 +349,12 @@
                       </DataTemplate>
                     </GridView.ItemTemplate>
                     </GridView>
-                    <Grid Height="116" ColumnSpacing="12" Visibility="{Binding IsRemoteContentLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
-                      <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="58" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="58" Height="12" HorizontalAlignment="Center" /></StackPanel>
-                      <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="58" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="72" Height="12" HorizontalAlignment="Center" /></StackPanel>
-                      <StackPanel Grid.Column="3" VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="58" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="62" Height="12" HorizontalAlignment="Center" /></StackPanel>
-                    </Grid>
-                  </Grid>
+                    <controls:ResponsiveSelectionPanel x:Name="ThrowableSkeleton" MaximumColumns="5" MinimumItemWidth="128" IsHitTestVisible="False" Visibility="{Binding IsThrowableSelectionsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                      <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="58" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="58" Height="12" HorizontalAlignment="Center" /></StackPanel>
+                      <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="58" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="72" Height="12" HorizontalAlignment="Center" /></StackPanel>
+                      <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="58" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="62" Height="12" HorizontalAlignment="Center" /></StackPanel>
+                    </controls:ResponsiveSelectionPanel>
+                  </StackPanel>
                   <TextBlock Foreground="{ThemeResource TextFillColorTertiaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=profile.duplicateNotice}, Mode=OneWay}" TextWrapping="Wrap" />
                 </StackPanel>
               </Border>
@@ -374,7 +369,7 @@
                 <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=groups.description}, Mode=OneWay}" TextWrapping="Wrap" />
               </StackPanel>
               <Grid>
-                <Grid Visibility="{Binding IsRemoteContentLoading, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                <Grid Visibility="{Binding IsRoomsLoading, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                   <Grid.Transitions>
                     <TransitionCollection><EntranceThemeTransition FromVerticalOffset="8" /></TransitionCollection>
                   </Grid.Transitions>
@@ -561,20 +556,20 @@
                     </ListView.ItemTemplate>
                   </ListView>
                 </Grid>
-                <StackPanel Spacing="12" Visibility="{Binding IsRemoteContentLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <StackPanel x:Name="RoomsSkeleton" Spacing="12" Visibility="{Binding IsRoomsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
                   <Border Height="86" Style="{StaticResource SideySettingsCardStyle}">
                     <Grid ColumnSpacing="12">
-                      <Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition Width="*" /><ColumnDefinition Width="150" /></Grid.ColumnDefinitions>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="32" /><ColumnDefinition Width="*" /><ColumnDefinition Width="64" /></Grid.ColumnDefinitions>
                       <controls:SkeletonBar Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="8"><controls:SkeletonBar Width="120" Height="14" /><controls:SkeletonBar Width="190" Height="12" /></StackPanel>
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="8"><controls:SkeletonBar MaxWidth="120" Height="14" /><controls:SkeletonBar MaxWidth="190" Height="12" /></StackPanel>
                       <controls:SkeletonBar Grid.Column="2" Height="32" VerticalAlignment="Center" />
                     </Grid>
                   </Border>
                   <Border Height="86" Style="{StaticResource SideySettingsCardStyle}">
                     <Grid ColumnSpacing="12">
-                      <Grid.ColumnDefinitions><ColumnDefinition Width="42" /><ColumnDefinition Width="*" /><ColumnDefinition Width="150" /></Grid.ColumnDefinitions>
+                      <Grid.ColumnDefinitions><ColumnDefinition Width="32" /><ColumnDefinition Width="*" /><ColumnDefinition Width="64" /></Grid.ColumnDefinitions>
                       <controls:SkeletonBar Width="24" Height="24" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="8"><controls:SkeletonBar Width="104" Height="14" /><controls:SkeletonBar Width="176" Height="12" /></StackPanel>
+                      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="8"><controls:SkeletonBar MaxWidth="104" Height="14" /><controls:SkeletonBar MaxWidth="176" Height="12" /></StackPanel>
                       <controls:SkeletonBar Grid.Column="2" Height="32" VerticalAlignment="Center" />
                     </Grid>
                   </Border>
@@ -724,7 +719,7 @@
                 </Border>
               </Grid>
               <Grid x:Name="StoreResultsHost" MinHeight="220">
-                <Grid Visibility="{Binding IsRemoteContentLoading, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                <Grid Visibility="{Binding IsStoreLoading, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                   <Grid.Transitions>
                     <TransitionCollection><EntranceThemeTransition FromVerticalOffset="8" /></TransitionCollection>
                   </Grid.Transitions>
@@ -817,7 +812,7 @@
                 </Grid>
                 <ItemsRepeater x:Name="StoreSkeletonRepeater"
                     ItemsSource="{Binding VisibleStoreProducts}"
-                    Visibility="{Binding IsRemoteContentLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    Visibility="{Binding IsStoreLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
                   <ItemsRepeater.Layout><controls:StoreProductGridLayout /></ItemsRepeater.Layout>
                   <ItemsRepeater.ItemTemplate>
                     <DataTemplate>

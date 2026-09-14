@@ -2,6 +2,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Sidey.App.Controls;
 using Sidey.Platform.Windows;
 using Windows.Foundation;
 using Windows.Graphics;
@@ -14,12 +15,12 @@ public sealed partial class MainWindow
     {
         SizeInt32 originalSize = AppWindow.Size;
         ElementTheme originalTheme = MainRoot.RequestedTheme;
-        bool wasLoading = ViewModel.IsRemoteContentLoading;
+        bool wasLoading = ViewModel.IsStoreLoading;
         try
         {
             // Exercise the Windows 10 path even when this smoke runs on Windows 11.
             SideyWindowTheme.ApplyBackdrop(this, MainFallbackBackground, allowMica: false);
-            ViewModel.IsRemoteContentLoading = false;
+            ViewModel.IsStoreLoading = false;
             Windows.UI.Color? darkBackgroundColor = null;
             foreach (ElementTheme theme in new[] { ElementTheme.Dark, ElementTheme.Light, ElementTheme.Default })
             {
@@ -86,19 +87,11 @@ public sealed partial class MainWindow
                             StartupDiagnostics.Stage($"responsive-form-smoke-failed top={editorTop} label-height={description.ActualHeight} editor-width={ProfileNameEditor.ActualWidth} form-width={ProfileNameLayout.ActualWidth}");
                             throw new InvalidOperationException("Narrow profile editor was not stacked at full width.");
                         }
-                        var first = (GridViewItem)CharacterSelector.ContainerFromIndex(0);
-                        var second = (GridViewItem)CharacterSelector.ContainerFromIndex(1);
-                        var third = (GridViewItem)CharacterSelector.ContainerFromIndex(2);
-                        Point firstPosition = first.TransformToVisual(CharacterSelector).TransformPoint(new Point());
-                        Point secondPosition = second.TransformToVisual(CharacterSelector).TransformPoint(new Point());
-                        Point thirdPosition = third.TransformToVisual(CharacterSelector).TransformPoint(new Point());
-                        if (Math.Abs(firstPosition.Y - secondPosition.Y) > 1
-                            || thirdPosition.Y < firstPosition.Y + first.ActualHeight - 1
-                            || secondPosition.X + second.ActualWidth > CharacterSelector.ActualWidth + 1)
-                        {
-                            StartupDiagnostics.Stage($"responsive-grid-smoke-failed first={firstPosition} second={secondPosition} third={thirdPosition} width={CharacterSelector.ActualWidth}");
-                            throw new InvalidOperationException("Narrow profile choices were clipped or did not wrap into two columns.");
-                        }
+                    }
+                    if (page == "profile")
+                    {
+                        foreach (GridView selector in new[] { CharacterSelector, BubbleSelector, ThrowableSelector })
+                            VerifyCompactSelectionGrid(selector);
                     }
                 }
             }
@@ -122,9 +115,50 @@ public sealed partial class MainWindow
         {
             MainRoot.RequestedTheme = originalTheme;
             ApplyBackdrop();
-            ViewModel.IsRemoteContentLoading = wasLoading;
+            ViewModel.IsStoreLoading = wasLoading;
             AppWindow.Resize(originalSize);
             ShowPage("profile");
+        }
+    }
+
+    private static void VerifyCompactSelectionGrid(GridView selector)
+    {
+        ResponsiveSelectionPanel? panel = FindVisualChild<ResponsiveSelectionPanel>(selector);
+        if (panel is null || panel.Children.Count != selector.Items.Count || panel.Children.Count == 0)
+            throw new InvalidOperationException("Profile choices were not realized for the compact-grid check.");
+
+        var bounds = new List<Rect>();
+        foreach (UIElement child in panel.Children)
+        {
+            var tile = (FrameworkElement)child;
+            Rect current = tile.TransformToVisual(panel).TransformBounds(
+                new Rect(0, 0, tile.ActualWidth, tile.ActualHeight));
+            if (current.Width <= 0 || current.Width > 144.01
+                || current.Left < -1 || current.Right > panel.ActualWidth + 1
+                || current.Top < -1 || current.Bottom > panel.ActualHeight + 1
+                || (bounds.Count > 0 && Math.Abs(current.Width - bounds[0].Width) > 1))
+            {
+                StartupDiagnostics.Stage($"compact-grid-smoke-failed selector={selector.Name} tile={current} panel={panel.ActualWidth}x{panel.ActualHeight}");
+                throw new InvalidOperationException("Profile choices were stretched or clipped, including the last row.");
+            }
+            if (bounds.Any(previous => current.Left < previous.Right - 1 && current.Right > previous.Left + 1
+                && current.Top < previous.Bottom - 1 && current.Bottom > previous.Top + 1))
+                throw new InvalidOperationException("Compact profile choices overlapped.");
+            bounds.Add(current);
+        }
+
+        int columns = bounds.Count(item => Math.Abs(item.Top - bounds[0].Top) <= 1);
+        int? expectedColumns = panel.ActualWidth >= 672 ? 5
+            : panel.ActualWidth is >= 264 and < 400 ? 2 : null;
+        if (expectedColumns is { } expected && columns != Math.Min(expected, bounds.Count))
+        {
+            StartupDiagnostics.Stage($"compact-grid-column-smoke-failed selector={selector.Name} width={panel.ActualWidth} expected={expected} actual={columns}");
+            throw new InvalidOperationException("Profile choices did not use the expected wide or narrow column count.");
+        }
+        for (int index = 0; index < bounds.Count; index++)
+        {
+            if (Math.Abs(bounds[index].Left - bounds[index % columns].Left) > 1)
+                throw new InvalidOperationException("The last profile row did not retain the shared column positions.");
         }
     }
 }
