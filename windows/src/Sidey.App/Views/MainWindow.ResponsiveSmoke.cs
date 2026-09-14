@@ -1,6 +1,7 @@
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Sidey.App.Controls;
 using Sidey.Platform.Windows;
@@ -27,6 +28,7 @@ public sealed partial class MainWindow
                 MainRoot.RequestedTheme = theme;
                 await WaitForNextFrameAsync();
                 await WaitForNextFrameAsync();
+                await VerifySelectionHoverSmokeAsync();
                 TitleBarTheme expected = MainRoot.ActualTheme == ElementTheme.Dark ? TitleBarTheme.Dark : TitleBarTheme.Light;
                 if (AppWindowTitleBar.IsCustomizationSupported() && AppWindow.TitleBar.PreferredTheme != expected)
                 {
@@ -121,6 +123,43 @@ public sealed partial class MainWindow
         }
     }
 
+    private async Task VerifySelectionHoverSmokeAsync()
+    {
+        ShowPage("profile");
+        HomePage.UpdateLayout();
+        ListViewItemPresenter character = FindVisualChild<ListViewItemPresenter>(CharacterSelector)
+            ?? throw new InvalidOperationException("Character selection presenter is missing.");
+        foreach (GridView selector in new[] { BubbleSelector, ThrowableSelector })
+        {
+            Button button = FindVisualChild<Button>(selector)
+                ?? throw new InvalidOperationException("Cosmetic selection button is missing.");
+            ContentPresenter surface = FindVisualChild<ContentPresenter>(button)
+                ?? throw new InvalidOperationException("Cosmetic selection surface is missing.");
+            try
+            {
+                foreach (string state in new[] { "PointerOver", "Pressed" })
+                {
+                    if (!VisualStateManager.GoToState(button, state, false))
+                        throw new InvalidOperationException("The selection interaction state is missing.");
+                    await WaitForNextFrameAsync();
+                    Brush normal = state == "PointerOver" ? character.PointerOverBackground : character.PressedBackground;
+                    Brush selected = state == "PointerOver" ? character.SelectedPointerOverBackground : character.SelectedPressedBackground;
+                    if (surface.Background is not SolidColorBrush actual
+                        || normal is not SolidColorBrush expected || selected is not SolidColorBrush selectedBrush
+                        || actual.Color != expected.Color || actual.Color != selectedBrush.Color
+                        || character.CornerRadius != new CornerRadius(8) || surface.CornerRadius != character.CornerRadius
+                        || button.Padding != new Thickness(0) || Math.Abs(surface.ActualWidth - button.ActualWidth) > 1)
+                    {
+                        StartupDiagnostics.Stage($"selection-hover-smoke-failed theme={MainRoot.ActualTheme} selector={selector.Name} state={state} enabled={button.IsEnabled} actual={(surface.Background as SolidColorBrush)?.Color} normal={(normal as SolidColorBrush)?.Color} selected={(selected as SolidColorBrush)?.Color} corner={character.CornerRadius}/{surface.CornerRadius} padding={button.Padding} width={surface.ActualWidth}/{button.ActualWidth}");
+                        throw new InvalidOperationException("Selection hover surfaces do not match.");
+                    }
+                }
+            }
+            finally { VisualStateManager.GoToState(button, "Normal", false); }
+        }
+        StartupDiagnostics.Stage($"selection-hover-smoke-complete theme={MainRoot.ActualTheme}");
+    }
+
     private static void VerifyCompactSelectionGrid(GridView selector)
     {
         ResponsiveSelectionPanel? panel = FindVisualChild<ResponsiveSelectionPanel>(selector);
@@ -148,7 +187,8 @@ public sealed partial class MainWindow
         }
 
         int columns = bounds.Count(item => Math.Abs(item.Top - bounds[0].Top) <= 1);
-        int? expectedColumns = panel.ActualWidth >= 672 ? 5
+        int maximumColumns = selector.Name == "CharacterSelector" ? 5 : 4;
+        int? expectedColumns = panel.ActualWidth >= 672 ? maximumColumns
             : panel.ActualWidth is >= 264 and < 400 ? 2 : null;
         if (expectedColumns is { } expected && columns != Math.Min(expected, bounds.Count))
         {

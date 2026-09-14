@@ -153,13 +153,6 @@
                       ScrollViewer.VerticalScrollBarVisibility="Disabled"
                       ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.VerticalScrollMode="Disabled" HorizontalAlignment="Stretch">
                     <GridView.ItemContainerTransitions><TransitionCollection /></GridView.ItemContainerTransitions>
-                    <GridView.Resources>
-                      <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />
-                      <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="Transparent" />
-                      <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="Transparent" />
-                      <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="Transparent" />
-                      <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPressed" Color="Transparent" />
-                    </GridView.Resources>
                     <GridView.ItemsPanel>
                       <ItemsPanelTemplate>
                         <controls:ResponsiveSelectionPanel MaximumColumns="5" MinimumItemWidth="128" />
@@ -174,6 +167,24 @@
                         <Setter Property="VerticalContentAlignment" Value="Stretch" />
                         <Setter Property="Margin" Value="0" />
                         <Setter Property="Padding" Value="0" />
+                        <Setter Property="Template">
+                          <Setter.Value>
+                            <ControlTemplate TargetType="GridViewItem">
+                              <ListViewItemPresenter CornerRadius="8" ContentMargin="{TemplateBinding Padding}"
+                                  HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"
+                                  Control.IsTemplateFocusTarget="True" FocusVisualMargin="{TemplateBinding FocusVisualMargin}"
+                                  FocusVisualPrimaryBrush="{TemplateBinding FocusVisualPrimaryBrush}" FocusVisualPrimaryThickness="{TemplateBinding FocusVisualPrimaryThickness}"
+                                  FocusVisualSecondaryBrush="{TemplateBinding FocusVisualSecondaryBrush}" FocusVisualSecondaryThickness="{TemplateBinding FocusVisualSecondaryThickness}"
+                                  SelectionCheckMarkVisualEnabled="False" SelectedBorderThickness="0"
+                                  PointerOverBackground="{ThemeResource SubtleButtonBackgroundPointerOver}" SelectedPointerOverBackground="{ThemeResource SubtleButtonBackgroundPointerOver}"
+                                  PressedBackground="{ThemeResource SubtleButtonBackgroundPressed}" SelectedPressedBackground="{ThemeResource SubtleButtonBackgroundPressed}"
+                                  SelectedBackground="Transparent" SelectedDisabledBackground="Transparent"
+                                  PointerOverBorderBrush="Transparent" SelectedBorderBrush="Transparent" SelectedPointerOverBorderBrush="Transparent"
+                                  SelectedPressedBorderBrush="Transparent" SelectedDisabledBorderBrush="Transparent" SelectedInnerBorderBrush="Transparent"
+                                  DisabledOpacity="{ThemeResource ListViewItemDisabledThemeOpacity}" />
+                            </ControlTemplate>
+                          </Setter.Value>
+                        </Setter>
                       </Style>
                     </GridView.ItemContainerStyle>
                     <GridView.ItemTemplate>
@@ -233,13 +244,9 @@
                       ScrollViewer.VerticalScrollBarVisibility="Disabled"
                       ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.VerticalScrollMode="Disabled" HorizontalAlignment="Stretch">
                     <GridView.ItemContainerTransitions><TransitionCollection /></GridView.ItemContainerTransitions>
-                    <GridView.Resources>
-                      <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />
-                      <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="Transparent" />
-                    </GridView.Resources>
                     <GridView.ItemsPanel>
                       <ItemsPanelTemplate>
-                        <controls:ResponsiveSelectionPanel MaximumColumns="5" MinimumItemWidth="128" />
+                        <controls:ResponsiveSelectionPanel MaximumColumns="4" MinimumItemWidth="128" />
                       </ItemsPanelTemplate>
                     </GridView.ItemsPanel>
                     <GridView.ItemContainerStyle>
@@ -248,14 +255,23 @@
                         <Setter Property="VerticalContentAlignment" Value="Stretch" />
                         <Setter Property="Margin" Value="0" />
                         <Setter Property="Padding" Value="0" />
+                        <Setter Property="IsTabStop" Value="False" />
+                        <Setter Property="Template">
+                          <Setter.Value>
+                            <ControlTemplate TargetType="GridViewItem">
+                              <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                            </ControlTemplate>
+                          </Setter.Value>
+                        </Setter>
                       </Style>
                     </GridView.ItemContainerStyle>
                     <GridView.ItemTemplate>
                       <DataTemplate>
-                        <Button MinHeight="116" HorizontalAlignment="Stretch" Padding="8" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}" AutomationProperties.Name="{Binding DisplayName}" AutomationProperties.ItemStatus="{Binding SelectionStatus}" Style="{StaticResource SubtleButtonStyle}" CornerRadius="8">
-                          <Grid MinHeight="96">
+                        <Button MinHeight="116" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Padding="0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}" AutomationProperties.Name="{Binding DisplayName}" AutomationProperties.ItemStatus="{Binding SelectionStatus}" Style="{StaticResource SubtleButtonStyle}" CornerRadius="8">
+                          <Grid MinHeight="116">
                             <controls:SelectionProgress Canvas.ZIndex="10" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" IsPending="{Binding IsPending}" AnimationsEnabled="{Binding AnimationsEnabled}" />
-                            <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" Spacing="8">
+                            <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" Padding="8" Spacing="8">
                               <controls:StoreProductArtwork Height="58" ProductKind="{Binding Kind}" CatalogItemId="{Binding CatalogItemId}" CharacterId="{Binding CharacterId}" />
                               <TextBlock MinHeight="32" HorizontalAlignment="Stretch" Text="{Binding DisplayName}" TextAlignment="Center" TextWrapping="Wrap" />
                             </StackPanel>
@@ -281,7 +297,7 @@
                       </DataTemplate>
                     </GridView.ItemTemplate>
                     </GridView>
-                    <controls:ResponsiveSelectionPanel x:Name="BubbleSkeleton" MaximumColumns="5" MinimumItemWidth="128" IsHitTestVisible="False" Visibility="{Binding IsBubbleSelectionsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <controls:ResponsiveSelectionPanel x:Name="BubbleSkeleton" MaximumColumns="4" MinimumItemWidth="128" IsHitTestVisible="False" Visibility="{Binding IsBubbleSelectionsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
                       <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="70" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="58" Height="12" HorizontalAlignment="Center" /></StackPanel>
                       <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="70" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="72" Height="12" HorizontalAlignment="Center" /></StackPanel>
                       <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="70" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="62" Height="12" HorizontalAlignment="Center" /></StackPanel>
@@ -301,13 +317,9 @@
                       ScrollViewer.VerticalScrollBarVisibility="Disabled"
                       ScrollViewer.HorizontalScrollMode="Disabled" ScrollViewer.VerticalScrollMode="Disabled" HorizontalAlignment="Stretch">
                     <GridView.ItemContainerTransitions><TransitionCollection /></GridView.ItemContainerTransitions>
-                    <GridView.Resources>
-                      <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="Transparent" />
-                      <SolidColorBrush x:Key="ListViewItemBackgroundPressed" Color="Transparent" />
-                    </GridView.Resources>
                     <GridView.ItemsPanel>
                       <ItemsPanelTemplate>
-                        <controls:ResponsiveSelectionPanel MaximumColumns="5" MinimumItemWidth="128" />
+                        <controls:ResponsiveSelectionPanel MaximumColumns="4" MinimumItemWidth="128" />
                       </ItemsPanelTemplate>
                     </GridView.ItemsPanel>
                     <GridView.ItemContainerStyle>
@@ -316,14 +328,23 @@
                         <Setter Property="VerticalContentAlignment" Value="Stretch" />
                         <Setter Property="Margin" Value="0" />
                         <Setter Property="Padding" Value="0" />
+                        <Setter Property="IsTabStop" Value="False" />
+                        <Setter Property="Template">
+                          <Setter.Value>
+                            <ControlTemplate TargetType="GridViewItem">
+                              <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+                            </ControlTemplate>
+                          </Setter.Value>
+                        </Setter>
                       </Style>
                     </GridView.ItemContainerStyle>
                     <GridView.ItemTemplate>
                       <DataTemplate>
-                        <Button MinHeight="116" HorizontalAlignment="Stretch" Padding="8" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}" AutomationProperties.Name="{Binding DisplayName}" AutomationProperties.ItemStatus="{Binding SelectionStatus}" Style="{StaticResource SubtleButtonStyle}" CornerRadius="8">
-                          <Grid MinHeight="96">
+                        <Button MinHeight="116" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Padding="0" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Command="{Binding SelectCommand}" IsEnabled="{Binding IsEnabled}" AutomationProperties.Name="{Binding DisplayName}" AutomationProperties.ItemStatus="{Binding SelectionStatus}" Style="{StaticResource SubtleButtonStyle}" CornerRadius="8">
+                          <Grid MinHeight="116">
                             <controls:SelectionProgress Canvas.ZIndex="10" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="8" IsPending="{Binding IsPending}" AnimationsEnabled="{Binding AnimationsEnabled}" />
-                            <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" Spacing="8">
+                            <StackPanel HorizontalAlignment="Stretch" VerticalAlignment="Center" Padding="8" Spacing="8">
                               <controls:StoreProductArtwork Height="58" ProductKind="{Binding Kind}" CatalogItemId="{Binding CatalogItemId}" CharacterId="{Binding CharacterId}" />
                               <TextBlock MinHeight="32" HorizontalAlignment="Stretch" Text="{Binding DisplayName}" TextAlignment="Center" TextWrapping="Wrap" />
                             </StackPanel>
@@ -349,7 +370,7 @@
                       </DataTemplate>
                     </GridView.ItemTemplate>
                     </GridView>
-                    <controls:ResponsiveSelectionPanel x:Name="ThrowableSkeleton" MaximumColumns="5" MinimumItemWidth="128" IsHitTestVisible="False" Visibility="{Binding IsThrowableSelectionsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <controls:ResponsiveSelectionPanel x:Name="ThrowableSkeleton" MaximumColumns="4" MinimumItemWidth="128" IsHitTestVisible="False" Visibility="{Binding IsThrowableSelectionsLoading, Converter={StaticResource BooleanToVisibilityConverter}}">
                       <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="58" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="58" Height="12" HorizontalAlignment="Center" /></StackPanel>
                       <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="58" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="72" Height="12" HorizontalAlignment="Center" /></StackPanel>
                       <StackPanel VerticalAlignment="Center" Spacing="12"><controls:SkeletonBar Width="58" Height="50" HorizontalAlignment="Center" /><controls:SkeletonBar Width="62" Height="12" HorizontalAlignment="Center" /></StackPanel>
