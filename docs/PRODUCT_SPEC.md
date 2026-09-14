@@ -4,7 +4,7 @@
 - 최종 갱신: 2026-09-14
 - 상태: macOS `v1.2.1`(build 29) 정식 공개·production 상점 판매 잠금, Windows 네이티브 배포 버전은 [Windows manifest](../release/windows.json)와 [공개 릴리스](https://github.com/sidey-app/SIDEY/releases)를 참조
 - 비공개 후보 기준: Mac App Store 타깃의 버전·build는 [Xcode 프로젝트 설정](../macos/SIDEY.xcodeproj/project.pbxproj)의 `MARKETING_VERSION`·`CURRENT_PROJECT_VERSION`을 참조한다; 공개 manifest와 다운로드 페이지는 실제 출시 전까지 기존 버전을 유지
-- 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 11 25H2 이상 x64
+- 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 10 1809(build 17763) 이상 x64
 - 통합 브랜치: `main`; 작업 브랜치: `macos/*`, `windows/*`, `shared/*`
 
 ## 1. 제품 정의
@@ -78,7 +78,7 @@
 - Windows 공개 런처는 64-bit `HKLM\Software\SIDEY\Installer\Language`에 저장된 NSIS 언어 ID를 앱 catalog 코드로 변환해 `SIDEY_LANGUAGE` process 환경으로 host에 전달한다. 앱 preferences에 사용자가 선택해 저장한 언어가 있으면 이를 우선하고, 저장된 앱 언어가 없으면 설치 언어를 첫 실행 기본값으로 사용한다. 설치 언어가 없거나 읽을 수 없을 때만 Windows UI 언어를 감지한다.
 - Windows 일반 제거는 설치 언어·설치 위치·설치 버전을 담은 머신 단위 설치 키, 제거 등록, `sidey:` protocol 등록과 현재 사용자의 자동 실행 값을 항상 삭제한다. `%LOCALAPPDATA%\SIDEY` 설정·로그와 Credential Manager 로그인 자격 증명은 제거 화면에서 각각 선택한 경우에만 삭제한다.
 
-- Windows 11 25H2(build 26200) 이상 x64 네이티브 클라이언트를 C#/.NET 10 LTS·WinUI 3·Win32로 구현한다.
+- Windows 10 1809(build 17763) 이상 x64 네이티브 클라이언트를 C#/.NET 10 LTS·WinUI 3·Win32로 구현한다. 이 실행 호환 하한은 기존 Windows 11 25H2 최소 정책을 대체하며 OS·런타임의 공식 지원 범위나 실기 검증 완료를 뜻하지 않는다. Windows 10 1809 실기 검증은 별도로 수행한다. Mica 미지원 환경에서는 앱 테마에 맞는 단색 배경을 사용하고 사용할 수 없는 아이콘은 기본 시스템 아이콘으로 대체한다. OS 전용 API는 지원 여부를 확인한 뒤 호출한다.
 - 일반 창은 SIDEY 브랜드의 Windows Fluent UI로 만들고, 투명 월드는 전용 Win32 HWND가 소유한다. `PixelCharacterCatalog`와 하나의 `UpdateLayeredWindow` 렌더러가 무료 5종과 다른 사용자가 선택한 유료 7종의 사전 생성 BGRA frame을 표시한다. Windows 프로필은 무료 5종·활성 entitlement 캐릭터와 기본값·보유 말풍선·보유 투척물의 장착을 제공한다. 상점은 캐릭터 7종·말풍선 3종·투척물 14종의 구매 없는 상세 미리보기 무대를 제공한다.
 - 햄스터 1종 실기 계측은 같은 5종 렌더러의 입력 snapshot을 제한하는 Debug 전용 내부 모드로 수행한다. 햄스터 전용 제품 구현을 만들거나 이 모드를 Release에 노출하지 않으며, 나머지 4종 구현을 계측 뒤로 미루지 않는다.
 - 최종 목표는 macOS와 서버 계약·제품 행동이 동등한 Windows 판이며, 플랫폼 창·설정 UI는 Windows 관례를 따른다.
