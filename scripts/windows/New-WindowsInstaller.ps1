@@ -315,9 +315,13 @@ $helperIconPath = Join-Path $repositoryRootPath 'windows/src/Sidey.App/Assets/Ic
     -NsisDirectory (Split-Path -Parent $resolvedMakensisPath)
 & (Join-Path $PSScriptRoot 'tests/Test-InstallTransaction.ps1') `
     -HelperPath $installTransactionExecutablePath
-& (Join-Path $PSScriptRoot 'tests/Test-PrerequisiteInstaller.ps1') `
+& powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+    -File (Join-Path $PSScriptRoot 'tests/Test-PrerequisiteInstaller.ps1') `
     -HelperPath $prerequisiteInstallerExecutablePath `
     -Version $Version -FileVersion "$Version.0"
+if ($LASTEXITCODE -ne 0) {
+    throw "Prerequisite helper verification failed with exit code $LASTEXITCODE."
+}
 
 $runtimeInstallerSources = @(Get-ChildItem `
     -LiteralPath (Split-Path -Parent $setupScriptPath) -File |
