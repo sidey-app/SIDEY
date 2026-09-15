@@ -2,6 +2,7 @@
 set -eu
 
 SIDEY_REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && /bin/pwd -P)
+python3 "$SIDEY_REPO_ROOT/scripts/macos/verify_content_assets.py"
 SIDEY_CREATED_TEST_DIR=false
 
 python3 -m unittest discover -s "$SIDEY_REPO_ROOT/scripts/macos/tests"

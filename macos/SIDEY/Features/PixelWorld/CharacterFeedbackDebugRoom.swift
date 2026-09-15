@@ -31,6 +31,8 @@ final class CharacterFeedbackDebugRoom: NSWindowController, NSWindowDelegate {
         ("조개 · 수달", "clam"), ("돼지고기 · 촵", "pork"), ("작은 나무", "timber"),
         ("눈송이", "throwable_snowflake"), ("야구공", "throwable_baseball"),
         ("왁뿌볼 A", "throwable_wakkuball"), ("두쫀쿠", "throwable_dujjonku"),
+        ("테니스공", "tennis_ball"), ("휴지 뭉치", "tissue_ball"),
+        ("어묵꼬치", "fish_cake_skewer"), ("잎사귀", "leaf"),
         ("말랑공 A", "patch_soft_ball"), ("파프리카 C", "mini_paprika"),
         ("바나나 B", "banana"), ("모래주머니 C", "dust_bath_pouch"),
         ("별빛 구슬 B", "starlight_orb"), ("하트 B · 팝 한 번", "throwable_bouncy_heart"),
