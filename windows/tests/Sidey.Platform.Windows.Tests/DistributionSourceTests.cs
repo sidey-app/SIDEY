@@ -431,6 +431,10 @@ public sealed class DistributionSourceTests
         Assert.Contains("[switch]$ProvisionAllUsers", prerequisiteSetup, StringComparison.Ordinal);
         Assert.Contains("if ($ProvisionAllUsers)", prerequisiteSetup, StringComparison.Ordinal);
         Assert.Contains("@('--provision-all-users') + $helperArguments", prerequisiteSetup, StringComparison.Ordinal);
+        Assert.Contains("Start-Process -FilePath $helperPath", prerequisiteSetup, StringComparison.Ordinal);
+        Assert.Contains("-WindowStyle Hidden -Wait -PassThru", prerequisiteSetup, StringComparison.Ordinal);
+        Assert.Contains("$exitCode = $process.ExitCode", prerequisiteSetup, StringComparison.Ordinal);
+        Assert.DoesNotContain("& $helperPath @helperArguments", prerequisiteSetup, StringComparison.Ordinal);
         Assert.DoesNotContain("& $helperPath `\n    --provision-all-users", prerequisiteSetup, StringComparison.Ordinal);
         foreach (string source in new[] { setup, errors })
         {
