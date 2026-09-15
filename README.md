@@ -1,3 +1,9 @@
+<p align="center">
+    <picture>
+      <img src="website/public/assets/app-icon.png" width="128" height="128" alt="SIDEY">
+  </picture>
+</p>
+
 ```text
 ███████╗██╗██████╗ ███████╗██╗   ██╗        /\_/\
 ██╔════╝██║██╔══██╗██╔════╝╚██╗ ██╔╝       ( •.• )
@@ -7,95 +13,130 @@
 ╚══════╝╚═╝╚═════╝ ╚══════╝   ╚═╝                      / \          ●  your friends, beside you.
 ```
 
-# SIDEY
+<h1 align="center">
+  <span>SIDEY</span>
+</h1>
+<p align="center">
+  <b>화면에 친구가 총총.</b>
+</p>
 
-화면 가장자리의 2D 픽셀 동물로 친구들과 대화하는 데스크톱 오버레이 메신저입니다.
+<p align="center">
+  <a href="https://sidey-app.github.io/SIDEY/">공식 웹사이트</a>
+  <span> · </span>
+  <a href="#설치">설치</a>
+  <span> · </span>
+  <a href="https://github.com/sidey-app/SIDEY/releases">릴리스 노트</a>
+  <span> · </span>
+  <a href="https://github.com/sidey-app/SIDEY/issues">문제 신고 및 제안</a>
+</p>
 
-공식 웹사이트: [sidey-app.github.io/SIDEY](https://sidey-app.github.io/SIDEY/)
+<p align="center">
+  <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
+    <img src="docs/assets/mac-app-store-badge-ko.svg" height="48" alt="Mac App Store에서 SIDEY 다운로드">
+  </a>
+  <img src="docs/assets/microsoft-store-badge.svg" height="48" alt="Microsoft Store에서 SIDEY 다운로드 (준비 중)">
+</p>
 
-![SIDEY 하단 오버레이 사용 예시 — 작업 화면 아래에서 상태와 짧은 메시지를 보여주는 픽셀 동물 친구들](docs/assets/sidey-overlay-preview.png)
+<p align="center">
+  다른 언어로 읽어요: <a href="README.md">한국어</a> | <a href="docs/readme/README.en.md">English</a> | <a href="docs/readme/README.ja.md">日本語</a> | <a href="docs/readme/README.zh-Hans.md">简体中文</a> | <a href="docs/readme/README.zh-Hant.md">繁體中文</a> | <a href="docs/readme/README.ru.md">Русский</a> | <a href="docs/readme/README.uk.md">Українська</a>
+</p>
+
+## 소개
+
+SIDEY는 macOS·Windows 데스크톱 메신저예요. 화면 가장자리의 2D 픽셀 동물로 친구들과 대화해요. 캐릭터 하나하나가 실제 친구를 나타내요. 작업하거나 쉬는 동안 친구의 상태와 짧은 메시지를 볼 수 있어요.
+
+![macOS에서 SIDEY가 보이는 화면 예시 — 작업 화면 아래에서 픽셀 동물 친구들이 메시지를 주고 받고 있어요.](docs/assets/sidey-overlay-preview.png)
+
+- **하던 일은 그대로:** SIDEY가 떠 있어도 뒤에 있는 앱을 평소처럼 클릭하고 쓸 수 있어요.
+- **친구의 지금을 슬쩍:** 걷고 졸고 잠드는 모습만 봐도 친구가 지금 접속해 있는지 알 수 있어요.
+- **생각나면 한마디:** SIDEY를 열어 짧은 메시지를 보내거나 작은 장난을 주고받을 수 있어요.
 
 ## 설치
 
-<!-- sidey-release:macos:start -->
 ### macOS
 
-macOS 26 이상 Apple Silicon Mac을 지원합니다. Intel Mac은 지원하지 않습니다.
+**설치 환경:** macOS 26 이상 · Apple Silicon. Intel Mac은 지원하지 않아요.
 
-Homebrew로 설치하려면 다음 명령을 실행합니다.
+<details>
+  <summary><strong>Mac용 App Store에서 다운로드</strong></summary>
+  <br/>
+  <p>Mac용 App Store에서 쉽게 설치할 수 있어요:</p>
+  <p>
+    <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
+      <img src="docs/assets/mac-app-store-badge-ko.svg" height="48" alt="Mac App Store에서 SIDEY 다운로드">
+    </a>
+  </p>
+  <p>Apple의 심사를 거치므로 업데이트가 느릴 수 있어요.</p>
+</details>
 
-```sh
-brew install --cask sidey-app/tap/sidey
-```
+<details>
+  <summary><strong>GitHub에서 .dmg로 다운로드</strong></summary>
+  <br/>
 
-직접 설치하려면 [SIDEY Releases](https://github.com/sidey-app/SIDEY/releases)에서 최신 `SIDEY-macOS-arm64-<version>.dmg`를 받은 뒤 `SIDEY.app`을 Applications 폴더로 옮깁니다. 새로 설치할 때는 ZIP이 아닌 DMG를 사용하세요.
+  [SIDEY GitHub 릴리스](https://github.com/sidey-app/SIDEY/releases) 페이지로 이동해 아래로 스크롤하면 **Assets**에 설치 파일이 있어요. 사용 환경에 적합한 파일을 내려 받아 설치할 수 있어요.
 
-현재 공개 버전은 `v1.2.1`(build 29)입니다. 직배포판의 실행 표시 이름은 `SIDEY-DIRECT`이며, 설치 파일 안의 `SIDEY.app`을 기존 앱과 같은 위치에 옮기면 됩니다. App Store판은 `SIDEY`로 표시됩니다.
+</details>
 
-<!-- sidey-release:macos:end -->
+<details>
+  <summary><strong>Homebrew로 설치</strong></summary>
+  <br/>
 
-<!-- sidey-release:windows:start -->
+  [Homebrew](https://brew.sh/)에서 SIDEY를 다운로드할 수 있어요:
+
+  ```sh
+  brew install --cask sidey-app/tap/sidey
+  ```
+
+</details>
+
 ### Windows
 
-설치 대상은 Windows 10 1809 이상 x64 PC입니다.
+**설치 환경:** Windows 10 1809 이상 · x64.
 
-[SIDEY Releases](https://github.com/sidey-app/SIDEY/releases)에서 `SIDEY-Windows-x64-v1.3.1-Setup.exe`를 받아 실행합니다.
+<details>
+  <summary><strong>Microsoft Store에서 다운로드</strong></summary>
+  <br/>
+  <p>Microsoft Store 배포는 준비 중이에요:</p>
+  <p>
+    <img src="docs/assets/microsoft-store-badge.svg" height="48" alt="Microsoft Store에서 SIDEY 다운로드 (준비 중)">
+  </p>
+  <p>출시 후에는 Microsoft의 심사를 거치므로 업데이트가 느릴 수 있어요.</p>
+</details>
 
-기존 버전 위에 설치하면 설정과 로그인 정보가 유지됩니다.
+<details>
+  <summary><strong>GitHub에서 .exe 다운로드</strong></summary>
+  <br/>
 
-공인 코드 서명 전 정식판으로, SmartScreen 경고가 표시되거나 일부 보안 설정에서 실행이 차단될 수 있습니다. Windows 앱에서는 구매를 지원하지 않으며, 유료 상품은 연결한 계정의 보유 내역을 확인한 뒤 사용할 수 있습니다.
+  [SIDEY GitHub 릴리스](https://github.com/sidey-app/SIDEY/releases) 페이지로 이동해 아래로 스크롤하면 **Assets**에 설치 파일이 있어요. 사용 환경에 적합한 파일을 내려 받아 설치할 수 있어요.
 
-<!-- sidey-release:windows:end -->
+</details>
 
-## 최신 업데이트
+## 문제 신고 및 제안
 
-### macOS · 2026년 9월 12일 · v1.2.1
+오류를 발견했거나 제안하고 싶은 기능이 있다면 [GitHub Issues](https://github.com/sidey-app/SIDEY/issues)에 남겨 주세요.
 
-- 상점 캐릭터 7종에 짧은 이야기가 담긴 소개를 추가했습니다.
-- 캐릭터 소개를 구매 카드 안으로 옮겨 애착 물건 설명과 함께 읽기 편하게 정리했습니다.
-- 나무의 우클릭 조작 안내를 미리보기 안에 배치했습니다.
+## 기여하기
 
-### Windows · 2026년 9월 15일 · v1.3.1
+버그 수정, 문서 개선, 번역, 캐릭터 제작 등 다양한 기여를 환영해요.
 
-- Windows 10 1809 이상 x64로 실행 호환 범위를 넓혔습니다.
-- 창 크기를 바꿀 때의 안정성과 프로필·상점의 배치, 로딩 표시를 개선했습니다.
-- 프로필 갱신 중 캐릭터 선택이 바뀌는 문제와 투척물 표시 오류를 수정했습니다.
-- 상점에서 연속으로 물건을 던질 때 동작이 끊기는 문제를 수정하고 내부 안정성을 개선했습니다.
+- 새 기능을 제안할 때는 먼저 [이슈](https://github.com/sidey-app/SIDEY/issues)에서 사용 목적과 동작을 함께 논의해 주세요.
+- 코드와 문서 변경은 [일반 PR 양식](.github/PULL_REQUEST_TEMPLATE/general.md)에 따라 변경 이유와 확인한 내용을 적어 주세요.
+- 캐릭터를 제작하려면 [에셋 제작 안내](assets/README.md)와 [캐릭터 에셋 PR 양식](.github/PULL_REQUEST_TEMPLATE/character_asset.md)을 확인해 주세요. 유료 에셋은 제출 전에 판매·정산 조건 협의가 필요해요.
 
-[Windows v1.3.1 변경 사항](docs/releases/windows-v1.3.1.md)
+## 감사한 분들
 
-## 추후 개선 및 개발 예정
+SIDEY의 개발과 캐릭터 제작에 참여해 주신 분들께 감사드려요.
 
-- **Windows:** 기능 안정화
-- 캐릭터 드래그 앤 드롭 기능
+<a href="https://github.com/sidey-app/SIDEY/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=sidey-app/SIDEY" alt="SIDEY 기여자" />
+</a>
 
-위 항목은 개발 예정 내용이며 일정과 제공 순서는 변경될 수 있습니다.
-
-## Contributors
-
-SIDEY를 함께 만들어 주신 분들께 감사드립니다.
-
-<table>
-  <tr>
-    <td align="center" width="160">
-      <a href="https://github.com/patulus">
-        <img src="https://avatars.githubusercontent.com/u/7178737?v=4" width="80" height="80" alt="@patulus"><br>
-        <sub><strong>@patulus</strong></sub>
-      </a><br>
-      <sub>Windows 개발</sub>
-    </td>
-    <td align="center" width="160">
-      <a href="https://github.com/jungjiyu">
-        <img src="https://avatars.githubusercontent.com/u/142137932?v=4" width="80" height="80" alt="@jungjiyu"><br>
-        <sub><strong>@jungjiyu</strong></sub>
-      </a><br>
-      <sub>캐릭터 5종 에셋 제공</sub>
-    </td>
-  </tr>
-</table>
+오류를 알려 주시고 문구를 다듬고 사용 경험을 나눠 주시는 모든 분들께도 감사드려요.
 
 ## 라이선스
 
-유료 캐릭터와 전용 투척물은 공개 저장소에서 열람할 수 있지만 오픈소스 에셋은 아닙니다.
-복제·수정·재배포·상업 이용 조건은
-[SIDEY Paid Asset License 1.0](assets/PAID_ASSET_LICENSE.md)을 확인해 주세요.
+에셋의 복제·수정·재배포·상업 이용 조건은 [SIDEY Paid Asset License 1.0](assets/PAID_ASSET_LICENSE.md)을 확인해 주세요.
+
+---
+
+[이용약관](https://sidey-app.github.io/SIDEY/terms/) · [개인정보 처리방침](https://sidey-app.github.io/SIDEY/privacy/) · [청약철회 및 환불 정책](https://sidey-app.github.io/SIDEY/refund/)

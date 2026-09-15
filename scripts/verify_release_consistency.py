@@ -14,6 +14,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SEMVER = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 SPARKLE = "http://www.andymatuschak.org/xml-namespaces/sparkle"
+RELEASES_URL = "https://github.com/sidey-app/SIDEY/releases"
+README_PATHS = ("README.md",) + tuple(
+    f"docs/readme/README.{language}.md"
+    for language in ("en", "ja", "ru", "uk", "zh-Hans", "zh-Hant")
+)
 
 
 class ConsistencyError(RuntimeError):
@@ -29,14 +34,30 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
-def release_display(platform: str) -> str:
-    source = read("README.md")
-    start = f"<!-- sidey-release:{platform}:start -->"
-    end = f"<!-- sidey-release:{platform}:end -->"
-    require(source.count(start) == 1 and source.count(end) == 1,
-            f"README must have one {platform} release display region")
-    require(source.index(start) < source.index(end), "release display markers are reversed")
-    return source.split(start, 1)[1].split(end, 1)[0]
+def release_display(platform: str, path: str = "README.md") -> str:
+    source = read(path)
+    heading = {"macos": "macOS", "windows": "Windows"}[platform]
+    sections = list(re.finditer(rf"^### {heading}[ \t]*$", source, re.MULTILINE))
+    require(len(sections) == 1,
+            f"{path} must have exactly one ### {heading} installation section")
+    following = source[sections[0].end():]
+    return re.split(r"^#{1,3} ", following, maxsplit=1, flags=re.MULTILINE)[0]
+
+
+def validate_readme_release_links(platform: str) -> None:
+    for path in README_PATHS:
+        require((ROOT / path).is_file(), f"README translation is missing: {path}")
+        display = release_display(platform, path)
+        official_link = re.escape(RELEASES_URL)
+        require(re.search(rf'\]\({official_link}\)|href=[\"\']{official_link}[\"\']',
+                          display) is not None,
+                f"{path} {platform} installation must link to {RELEASES_URL}")
+        urls = re.findall(r'https?://[^\s<>\"\'`)\]]+', display)
+        require(all(url == RELEASES_URL for url in urls if "/releases" in url),
+                f"{path} {platform} installation has a noncanonical or versioned release URL")
+        require(re.search(r"SIDEY-(?:macOS|Windows)-[^\s/<>]*v[0-9]+\.[0-9]+\.[0-9]+",
+                          display) is None,
+                f"{path} {platform} installation must not pin an installer version")
 
 
 def load_manifest(platform: str) -> dict[str, object]:
@@ -160,11 +181,7 @@ def validate_macos(allow_pending_appcast: bool = False) -> dict[str, str]:
     require("releases/tag/v${macOSRelease.version}" in release_data,
             "website release data has the wrong macOS release URL template")
 
-    display = release_display("macos")
-    require(re.findall(r"`v([0-9]+\.[0-9]+\.[0-9]+)`", display) == [version],
-            "README macOS release display has the wrong version")
-    require(re.findall(r"\bbuild\s+([0-9]+)\b", display) == [build],
-            "README macOS release display has the wrong build")
+    validate_readme_release_links("macos")
 
     return {
         "version": version,
@@ -216,9 +233,7 @@ def validate_windows(allow_unreleased_source: bool = False) -> dict[str, str]:
             "Windows updater version does not match the project version")
     require((ROOT / notes).is_file(), f"Windows release notes are missing: {notes}")
 
-    require(re.findall(r"SIDEY-Windows-x64-v[0-9]+\.[0-9]+\.[0-9]+-Setup\.exe",
-                       release_display("windows")) == [installer_name],
-            "README Windows release display has the wrong installer")
+    validate_readme_release_links("windows")
     release_data = read("website/src/data/releases.ts")
     require("version: windowsRelease.version" in release_data,
             "website release data must derive the Windows version from release/windows.json")

@@ -1,6 +1,6 @@
 ---
 name: sidey-release-docs
-description: Write or update SIDEY README update sections, release-note files, and public GitHub release copy for a new macOS or Windows version. Use when preparing, publishing, or revising a SIDEY release, changelog, latest-update summary, or future roadmap. Keep wording concise and user-facing, verify claims against repository and release evidence, and enforce SIDEY platform branch isolation.
+description: Write or update SIDEY public README files, release-note files, and public GitHub release copy. Use when preparing, publishing, or revising a SIDEY release, changelog, public README, or future roadmap. Keep wording concise and user-facing, verify claims against repository and release evidence, and enforce SIDEY platform branch isolation.
 ---
 
 # SIDEY Release Docs
@@ -38,8 +38,10 @@ Use [sidey-workflow](../sidey-workflow/SKILL.md) and `scripts/workflow.py` for f
 
 - Preserve the short product introduction, official website, and preview image.
 - Keep installation instructions separated into `macOS` and `Windows`.
-- Under `최신 업데이트`, maintain independent platform blocks with date, version, and concise user-visible changes.
-- Under `추후 개선 및 개발 예정`, use one common list. Add a platform label only when an item is platform-specific.
+- Keep the root `README.md` in Korean with 해요체. Keep English, Japanese, Simplified Chinese, Traditional Chinese, Russian, and Ukrainian translations under `docs/readme/README.<locale>.md`, with working relative links between all seven languages.
+- Link each platform's installation section to the official GitHub Releases page. Keep release versions, build numbers, versioned installer filenames, and update history in release manifests and release notes rather than duplicating them in README files.
+- Preserve the user's introduction, collapsible installation options, contribution guidance, credits, and policy links. Do not restore removed update-history or roadmap sections.
+- Use official SVG store badges. Keep Microsoft Store badges unlinked and describe the release as coming soon until a published SIDEY product URL is confirmed.
 - Do not add technical-stack, architecture, backend, development, or build instructions to the public README.
 
 ## Release-note contract
@@ -56,6 +58,6 @@ Use [sidey-workflow](../sidey-workflow/SKILL.md) and `scripts/workflow.py` for f
 
 ## Validation
 
-- Verify version and date consistency across README, release file, and public release.
+- Verify version and date consistency across release manifests, release files, and public releases. Validate official release links in every README installation section and check translated documents' relative links.
 - Search the final public copy for unnecessary implementation jargon.
 - Run the skill validator and inspect the final branch diff before handoff.
