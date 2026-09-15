@@ -10,6 +10,7 @@ param(
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'Sidey.PowerShell.psm1') -Force
 $repositoryRootPath = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $probeRoot = Join-Path ([IO.Path]::GetTempPath()) (
     'SIDEY prerequisite setup ' + [Guid]::NewGuid().ToString('N'))
@@ -38,29 +39,7 @@ if ($ProvisionAllUsers) {
     $helperArguments = @('--provision-all-users') + $helperArguments
 }
 
-function ConvertTo-SideyWindowsArgument([string]$Value) {
-    if ($Value.Length -gt 0 -and $Value -notmatch '[\s"]') {
-        return $Value
-    }
-
-    # Start-Process accepts one native command-line string on Windows. Quote
-    # embedded quotes and trailing backslashes using CommandLineToArgvW rules.
-    $escaped = [regex]::Replace($Value, '(\\*)"', '$1$1\"')
-    $escaped = [regex]::Replace($escaped, '(\\+)$', '$1$1')
-    return '"' + $escaped + '"'
-}
-
-$helperArgumentLine = ($helperArguments | ForEach-Object {
-    ConvertTo-SideyWindowsArgument $_
-}) -join ' '
-$process = Start-Process -FilePath $helperPath -ArgumentList $helperArgumentLine `
-    -WindowStyle Hidden -Wait -PassThru
-try {
-    $exitCode = $process.ExitCode
-}
-finally {
-    $process.Dispose()
-}
+$exitCode = Invoke-SideyWindowsProcess -FilePath $helperPath -ArgumentList $helperArguments
 if ($exitCode -ne 0) {
     $result = if (Test-Path -LiteralPath $resultPath -PathType Leaf) {
         Get-Content -LiteralPath $resultPath -Raw -Encoding Unicode

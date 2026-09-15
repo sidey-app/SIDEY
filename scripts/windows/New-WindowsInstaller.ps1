@@ -322,6 +322,16 @@ $helperIconPath = Join-Path $repositoryRootPath 'windows/src/Sidey.App/Assets/Ic
 if ($LASTEXITCODE -ne 0) {
     throw "Prerequisite helper verification failed with exit code $LASTEXITCODE."
 }
+& (Join-Path $PSScriptRoot 'tests/Test-PowerShellSupport.ps1') `
+    -HelperPath $prerequisiteInstallerExecutablePath `
+    -Version $Version -FileVersion "$Version.0"
+& powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+    -File (Join-Path $PSScriptRoot 'tests/Test-PowerShellSupport.ps1') `
+    -HelperPath $prerequisiteInstallerExecutablePath `
+    -Version $Version -FileVersion "$Version.0"
+if ($LASTEXITCODE -ne 0) {
+    throw "Windows PowerShell process verification failed with exit code $LASTEXITCODE."
+}
 
 $runtimeInstallerSources = @(Get-ChildItem `
     -LiteralPath (Split-Path -Parent $setupScriptPath) -File |
