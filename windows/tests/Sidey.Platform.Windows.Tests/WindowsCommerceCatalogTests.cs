@@ -6,8 +6,9 @@ namespace Sidey.Platform.Windows.Tests;
 public sealed class WindowsCommerceCatalogTests
 {
     [Fact]
-    public void BundledProductsMatchTheApprovedSharedCatalog()
+    public void BundledProductsDecodeThePinnedPlatformCatalog()
     {
+        // The generator separately verifies this platform snapshot against its pinned Git source.
         using var approved = JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAssets", "commerce-catalog.json")));
         Assert.Equal(approved.RootElement.GetArrayLength(), WindowsCommerceCatalog.Products.Count);
         foreach (JsonElement entry in approved.RootElement.EnumerateArray())
