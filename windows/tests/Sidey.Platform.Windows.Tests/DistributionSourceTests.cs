@@ -271,7 +271,10 @@ public sealed class DistributionSourceTests
         string organizer = File.ReadAllText(RepositoryPath(
             "scripts", "windows", "ConvertTo-PublishLayout.ps1"));
         Assert.Contains("Uninstall.exe", organizer, StringComparison.Ordinal);
-        Assert.Contains("/win32icon", organizer, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("-IconPath $iconPath", organizer, StringComparison.Ordinal);
+        string helperBuilder = File.ReadAllText(RepositoryPath(
+            "scripts", "windows", "New-SideyHelperExecutable.ps1"));
+        Assert.Contains("ApplicationIcon = $iconFilePath", helperBuilder, StringComparison.Ordinal);
     }
 
     [Fact]

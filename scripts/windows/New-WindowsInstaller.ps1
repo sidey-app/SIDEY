@@ -283,9 +283,16 @@ Invoke-SideyNativeCommand `
         '-ExecutionPolicy', 'Bypass',
         '-File', (Join-Path $PSScriptRoot 'New-InstallerLanguageSelector.ps1'),
         '-OutputPath', $languageSelectorPath,
+        '-Version', $Version,
+        '-FileVersion', "$Version.0",
         '-NsisDirectory', (Split-Path -Parent $resolvedMakensisPath)
     ) `
     -Description 'Installer language selector build'
+
+& (Join-Path $PSScriptRoot 'tests/Test-HelperExecutables.ps1') `
+    -PublishDirectory $publishDirectoryPath -SelectorExecutablePath $languageSelectorPath `
+    -Version $Version -FileVersion "$Version.0" `
+    -NsisDirectory (Split-Path -Parent $resolvedMakensisPath)
 
 function ConvertTo-NsisLiteral {
     param([Parameter(Mandatory = $true)][string]$Value)

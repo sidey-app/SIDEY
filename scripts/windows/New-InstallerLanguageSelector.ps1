@@ -3,6 +3,8 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)][string]$OutputPath,
+    [Parameter(Mandatory = $true)][string]$Version,
+    [Parameter(Mandatory = $true)][string]$FileVersion,
     [string]$NsisDirectory
 )
 Set-StrictMode -Version 3.0
@@ -11,10 +13,6 @@ Import-Module (Join-Path $PSScriptRoot 'Sidey.PowerShell.psm1') -Force
 $repositoryRootPath = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $outputFilePath = [IO.Path]::GetFullPath($OutputPath)
 [IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($outputFilePath)) | Out-Null
-$compilerPath = Join-Path ([Runtime.InteropServices.RuntimeEnvironment]::GetRuntimeDirectory()) 'csc.exe'
-if (-not (Test-Path -LiteralPath $compilerPath -PathType Leaf)) {
-    throw 'Build the language selector with Windows PowerShell / the OS .NET Framework compiler.'
-}
 $installerSourceDirectory = Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup'
 $iconPath = Join-Path $repositoryRootPath 'windows/src/Sidey.App/Assets/Icons/SideyAppIcon.ico'
 if (-not $NsisDirectory) { $NsisDirectory = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'NSIS' }
@@ -51,22 +49,16 @@ public static class NsisLanguageDialogResource {
 '@
 $dialogResourcePath = Join-Path ([IO.Path]::GetDirectoryName($outputFilePath)) 'LanguageDialog.bin'
 [IO.File]::WriteAllBytes($dialogResourcePath, [NsisLanguageDialogResource]::Read($languagePluginPath))
-Invoke-SideyNativeCommand `
-    -FilePath $compilerPath `
-    -ArgumentList @(
-        '/nologo',
-        '/target:winexe',
-        '/optimize+',
-        '/utf8output',
-        '/codepage:65001',
-        '/reference:System.dll',
-        '/reference:System.Core.dll',
-        '/reference:System.Drawing.dll',
-        "/resource:$dialogResourcePath,Sidey.Installer.LanguageDialog",
-        "/win32manifest:$(Join-Path $installerSourceDirectory 'LanguageSelector.manifest')",
-        "/win32icon:$iconPath",
-        "/out:$outputFilePath",
+$manifest = [xml](Get-Content -LiteralPath (Join-Path $installerSourceDirectory 'LanguageSelector.manifest') -Raw)
+$manifest.assembly.assemblyIdentity.version = ([Version]$FileVersion).ToString(4)
+$manifestPath = Join-Path ([IO.Path]::GetDirectoryName($outputFilePath)) 'LanguageSelector.manifest'
+$manifest.Save($manifestPath)
+& (Join-Path $PSScriptRoot 'New-SideyHelperExecutable.ps1') `
+    -SourcePath @(
         (Join-Path $installerSourceDirectory 'InstallerLanguages.cs'),
         (Join-Path $installerSourceDirectory 'LanguageSelector.cs')
     ) `
-    -Description 'Installer language selector compilation'
+    -OutputPath $outputFilePath -Version $Version -FileVersion $FileVersion `
+    -Title 'SIDEY Installer Language' -Description 'SIDEY installer language selection' `
+    -IconPath $iconPath -ManifestPath $manifestPath `
+    -ResourcePath $dialogResourcePath -ResourceName 'Sidey.Installer.LanguageDialog'
