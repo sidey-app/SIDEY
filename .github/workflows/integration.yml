@@ -26,7 +26,6 @@ jobs:
         run: python3 scripts/workflow_ci.py
 
   shared:
-    needs: scope
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -114,6 +113,9 @@ jobs:
 
       - name: Validate central pixel assets and mirrors
         run: python ./scripts/validate_pixel_assets.py
+
+      - name: Verify Windows product catalog and assets
+        run: python -X utf8 ./windows/tools/sync_product_assets.py --check
 
       - uses: actions/setup-dotnet@v5
         with:

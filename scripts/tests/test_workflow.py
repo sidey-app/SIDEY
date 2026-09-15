@@ -187,6 +187,24 @@ class WorkflowTests(unittest.TestCase):
                          {'shared', 'macos', 'windows', 'web', 'server', 'database'})
         self.assertIn('windows', w.required_scopes(['website/src/pages/ko/terms.md']))
 
+    def test_workflow_scopes_only_run_affected_platforms(self):
+        self.assertEqual(w.required_scopes(['.github/workflows/macos.yml']),
+                         ['macos', 'shared'])
+        self.assertEqual(w.required_scopes(['.github/workflows/windows-release.yml']),
+                         ['shared', 'windows'])
+        self.assertEqual(w.required_scopes(['.github/workflows/database.yml']),
+                         ['database', 'shared'])
+        self.assertEqual(w.required_scopes(['.github/workflows/pages.yml']),
+                         ['shared', 'web'])
+        self.assertEqual(w.required_scopes(['.github/workflows/download-metrics.yml']),
+                         ['shared'])
+
+    def test_integration_and_scope_logic_changes_run_every_check(self):
+        every_scope = {'shared', 'macos', 'windows', 'web', 'server', 'database'}
+        self.assertEqual(set(w.required_scopes(['.github/workflows/integration.yml'])),
+                         every_scope)
+        self.assertEqual(set(w.required_scopes(['scripts/workflow_ci.py'])), every_scope)
+
 
 if __name__ == '__main__':
     unittest.main()

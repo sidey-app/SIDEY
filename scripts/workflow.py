@@ -180,8 +180,12 @@ def required_scopes(paths):
             result.add('server')
         if path == 'assets/v1/commerce-catalog.json':
             result.add('database')
-        if path.startswith(('.github/workflows/', 'scripts/workflow')):
+        if path == '.github/workflows/integration.yml' or path.startswith('scripts/workflow'):
             result.update(('macos', 'windows', 'web', 'server', 'database'))
+        elif path == '.github/workflows/database.yml':
+            result.add('database')
+        elif path == '.github/workflows/pages.yml':
+            result.add('web')
     return sorted(result)
 
 

@@ -37,21 +37,8 @@ jobs:
       - name: Verify asset classification
         run: node --test scripts/download-metrics/*.test.mjs
 
-  collect:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    needs: test
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-
       - name: Record stable installation asset counters
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           DOWNLOAD_METRICS_INGEST_URL: ${{ secrets.DOWNLOAD_METRICS_INGEST_URL }}

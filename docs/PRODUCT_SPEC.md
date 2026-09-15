@@ -1,7 +1,7 @@
 # SIDEY 제품 기획서
 
 - 문서 버전: 0.8
-- 최종 갱신: 2026-09-14
+- 최종 갱신: 2026-09-15
 - 상태: macOS `v1.2.1`(build 29) 정식 공개·production 상점 판매 잠금, Windows 네이티브 배포 버전은 [Windows manifest](../release/windows.json)와 [공개 릴리스](https://github.com/sidey-app/SIDEY/releases)를 참조
 - 비공개 후보 기준: Mac App Store 타깃의 버전·build는 [Xcode 프로젝트 설정](../macos/SIDEY.xcodeproj/project.pbxproj)의 `MARKETING_VERSION`·`CURRENT_PROJECT_VERSION`을 참조한다; 공개 manifest와 다운로드 페이지는 실제 출시 전까지 기존 버전을 유지
 - 현재 대상 플랫폼: macOS 26 이상 Apple Silicon, Windows 10 1809(build 17763) 이상 x64
@@ -682,7 +682,7 @@ v1.0.3·v1.0.4의 앱 내 업데이트는 파일 잠금 오류로 실패하므�
 
 일반 제거 화면은 설정·로그와 저장된 로그인 자격 증명을 별도 항목으로 제공하며 둘 다 기본 미선택이다. 선택한 항목만 현재 사용자 프로필에서 삭제한다. CI는 게시 런처 스모크, 전체 자동 테스트, NSIS 컴파일, 단일 Setup EXE 자산명과 SHA-256을 검증한다. 실제 Windows 검증에서는 신규 설치·선택 위치·동일 버전 복구/제거·실행 중 업데이트·downgrade 차단·v1.0.5 MSI 전환·각 데이터 삭제 선택을 확인한다.
 
-Windows CI는 PR과 `main` 검증만 담당하며 태그 push로 배포하지 않는다. 정식 배포는 `main`에서 `release/windows.json`의 버전을 다시 입력하는 수동 `Windows Release` 워크플로 하나만 사용한다. 이 워크플로가 전체 검사와 패키징을 다시 수행하고 draft Release의 단일 Setup EXE를 내려받아 후보 SHA-256과 대조한 뒤 공개하며, 성공한 경우에만 Pages 재사용 워크플로를 호출한다.
+PR과 `main`의 Windows 자동 검증은 diff 기반 `SIDEY integration` 게이트가 담당하며, 별도 `Windows CI`는 수동 진단에만 사용하고 태그 push로 배포하지 않는다. 정식 배포는 `main`에서 `release/windows.json`의 버전을 다시 입력하는 수동 `Windows Release` 워크플로 하나만 사용한다. 이 워크플로가 한 Windows runner에서 전체 검사 뒤 패키징을 수행하고 draft Release의 단일 Setup EXE를 내려받아 후보 SHA-256과 대조한 뒤 공개하며, 성공한 경우에만 Pages 재사용 워크플로를 호출한다.
 
 ### 10.6 공개 웹 탐색·미리보기·정책 보정
 
