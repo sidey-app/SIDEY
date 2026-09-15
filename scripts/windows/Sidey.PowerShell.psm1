@@ -17,6 +17,9 @@ function Invoke-SideyNativeCommand {
         [string]$Description
     )
 
+    # PowerShell 7 callers may opt into native-command error records globally.
+    # Keep this helper's explicit, stable exit-code contract in both hosts.
+    $PSNativeCommandUseErrorActionPreference = $false
     & $FilePath @ArgumentList
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0) {
