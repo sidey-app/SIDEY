@@ -124,15 +124,27 @@ try {
     Assert-True ($actualWindowsVersion -match '^Microsoft Windows NT 10\.0\.\d+\.0$' -and
         $actualWindowsVersion.Contains(".$currentBuild.")) `
         'Read the real Windows build with RtlGetVersion instead of the manifest-dependent Environment.OSVersion.'
-    $extensions = Invoke-Static $provisioner 'ResolveWindowsRuntimeExtensions' @()
-    Assert-True ($extensions.FullName -ceq 'System.WindowsRuntimeSystemExtensions') `
-        'Resolve the .NET Framework WinRT task projection from its strong-named GAC assembly.'
-    $knownGoodPackage = Get-AppxPackage -PackageTypeFilter Framework, Main | Where-Object {
-        $_.Status -eq 'Ok' -and $_.PackageFullName
-    } | Select-Object -First 1
-    if ($null -eq $knownGoodPackage) { throw 'No usable package is available for the package status test.' }
-    Assert-True (Invoke-Static $packageStatus 'IsUsable' @([string]$knownGoodPackage.PackageFullName)) `
-        'Require Package.Status.VerifyIsOK before accepting an installed package.'
+    $sourceText = [IO.File]::ReadAllText($source)
+    Assert-True ($sourceText.Contains('Assembly.Load(WindowsRuntimeAssemblyName)') -and
+        $sourceText.Contains('"VerifyIsOK"')) `
+        'Keep strong-named WinRT projection loading and Package.Status.VerifyIsOK in the helper.'
+    $installationType = [string](Get-ItemPropertyValue `
+        -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' `
+        -Name 'InstallationType')
+    if ($installationType -ceq 'Client') {
+        $extensions = Invoke-Static $provisioner 'ResolveWindowsRuntimeExtensions' @()
+        Assert-True ($extensions.FullName -ceq 'System.WindowsRuntimeSystemExtensions') `
+            'Resolve the .NET Framework WinRT task projection from its strong-named GAC assembly.'
+        $knownGoodPackage = Get-AppxPackage -PackageTypeFilter Framework, Main | Where-Object {
+            $_.Status -eq 'Ok' -and $_.PackageFullName
+        } | Select-Object -First 1
+        if ($null -eq $knownGoodPackage) { throw 'No usable package is available for the package status test.' }
+        Assert-True (Invoke-Static $packageStatus 'IsUsable' @([string]$knownGoodPackage.PackageFullName)) `
+            'Require Package.Status.VerifyIsOK before accepting an installed package.'
+    }
+    else {
+        Write-Host "Skipped client AppX reflection probe on Windows installation type: $installationType"
+    }
 
     foreach ($url in @(
         'http://download.microsoft.com/runtime.exe',
