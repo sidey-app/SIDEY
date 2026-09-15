@@ -60,4 +60,4 @@ Use [sidey-workflow](../sidey-workflow/SKILL.md) and `scripts/workflow.py` for f
 
 - Verify version and date consistency across release manifests, release files, and public releases. Validate official release links in every README installation section and check translated documents' relative links.
 - Search the final public copy for unnecessary implementation jargon.
-- Run the skill validator and inspect the final branch diff before handoff.
+- Run `python3 scripts/validate_contributor_architecture.py` and inspect the final branch diff before handoff.
