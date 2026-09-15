@@ -657,8 +657,12 @@ def main(argv=None):
         if args.offline:
             command.append('--offline')
         task = read_state(root).get(args.task) if args.task else None
-        if args.task and (not task or task['status'] != 'main-updated' or task['platform'] != 'macos'
-                          or task['app'] != args.scheme or not is_ancestor(root, task['checked']['head'], remote)):
+        # Squash integration preserves the checked tree, not the branch head's ancestry.
+        if args.task and (not task or task.get('status') != 'main-updated' or task.get('platform') != 'macos'
+                          or task.get('app') != args.scheme or not task.get('merge')
+                          or not task.get('checked', {}).get('head')
+                          or not is_ancestor(root, task['merge'], remote)
+                          or not same_tree(root, task['checked']['head'], task['merge'])):
             raise WorkflowError('Task must be integrated and awaiting its selected macOS app review')
         run(target, *command, capture=False)
         if task:

@@ -106,6 +106,77 @@ class WorkflowTests(unittest.TestCase):
         with patch.object(w, 'run', side_effect=response):
             self.assertIsNone(w.recover_merged_task(path, task, remote))
 
+    def squashed_macos_task(self):
+        opener = self.primary / 'scripts/macos/open_current.sh'
+        opener.parent.mkdir(parents=True)
+        opener.write_text('#!/bin/sh\nexit 0\n')
+        self.commit(self.primary, 'opener fixture')
+        w.git(self.primary, 'push', 'origin', 'main')
+        path = self.start(platform='macos')
+        (path / 'macos').mkdir()
+        (path / 'macos/source.swift').write_text('reviewed native change\n')
+        self.commit(path, 'native task change')
+        task = w.read_state(path)['task']
+        task['checked'] = {'head': w.head(path), 'snapshot': w.snapshot(path), 'base': task['base']}
+        w.git(self.primary, 'merge', '--squash', 'macos/task')
+        self.commit(self.primary, 'squashed native change')
+        task.update(status='main-updated', merge=w.head(self.primary))
+        w.git(self.primary, 'push', 'origin', 'main')
+        w.update_task(path, 'task', task)
+        self.assertFalse(w.is_ancestor(path, task['checked']['head'], task['merge']))
+        self.assertTrue(w.same_tree(path, task['checked']['head'], task['merge']))
+        return path, task
+
+    def test_open_accepts_squashed_checked_tree_after_main_advances(self):
+        path, task = self.squashed_macos_task()
+        (self.primary / 'later.md').write_text('subsequent reviewed change\n')
+        self.commit(self.primary, 'advance after squash')
+        w.git(self.primary, 'push', 'origin', 'main')
+        remote = w.head(self.primary)
+        self.assertFalse(w.same_tree(path, task['merge'], remote))
+        real_run = w.run
+        opened = []
+        def response(root, *args, **kwargs):
+            if args[0].endswith('/scripts/macos/open_current.sh'):
+                opened.append((root, args))
+                return ''
+            return real_run(root, *args, **kwargs)
+        with patch.object(w, 'run', side_effect=response), contextlib.redirect_stdout(io.StringIO()):
+            w.main(['--repo', str(path), 'open', '--task', 'task'])
+        primary = self.primary.resolve()
+        self.assertEqual(opened, [(primary, (str(primary / 'scripts/macos/open_current.sh'),
+            '--worktree', str(primary), '--scheme', 'SIDEYAppStore'))])
+        completed = w.read_state(path)['task']
+        self.assertEqual(completed['status'], 'complete')
+        self.assertEqual(completed['app_review']['main'], remote)
+        self.assertEqual(completed['app_review']['source'], str(primary))
+
+    def test_open_rejects_unverified_squash_and_wrong_app_without_launching(self):
+        path, task = self.squashed_macos_task()
+        invalid = [
+            ('not integrated', {**task, 'status': 'started'}),
+            ('wrong platform', {**task, 'platform': 'windows'}),
+            ('wrong app', {**task, 'app': 'SIDEY'}),
+            ('missing merge', {key: value for key, value in task.items() if key != 'merge'}),
+            ('missing check', {key: value for key, value in task.items() if key != 'checked'}),
+            ('missing checked head', {**task, 'checked': {}}),
+            ('merge outside main', {**task, 'merge': task['checked']['head']}),
+            ('different tree', {**task, 'merge': task['base']}),
+            ('missing task', None),
+        ]
+        real_run = w.run
+        def response(root, *args, **kwargs):
+            if args[0].endswith('/scripts/macos/open_current.sh'):
+                self.fail('Unverified task must not launch the app')
+            return real_run(root, *args, **kwargs)
+        for reason, state in invalid:
+            with self.subTest(reason=reason):
+                w.update_task(path, 'task', state)
+                with patch.object(w, 'run', side_effect=response), self.assertRaisesRegex(
+                        w.WorkflowError, 'integrated and awaiting'):
+                    w.main(['--repo', str(path), 'open', '--task', 'task'])
+                self.assertEqual(w.read_state(path)['task'], state)
+
     def test_coauthors_come_from_real_trailer_blocks_and_deduplicate_email(self):
         messages = [
             'Example\nCo-authored-by: Not A Trailer <fake@example.test>\nMore text',
