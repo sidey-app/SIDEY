@@ -186,7 +186,7 @@ final class CharacterImpactAudioTests: XCTestCase {
         defer { room.close() }
         let view = try XCTUnwrap(room.window?.contentView)
         let pickers = view.subviews.compactMap { $0 as? NSPopUpButton }
-        XCTAssertEqual(pickers.first?.numberOfItems, 16)
+        XCTAssertEqual(pickers.first?.numberOfItems, 20)
         let buttons = view.subviews.compactMap { $0 as? NSButton }
         try XCTUnwrap(buttons.first { $0.title == "친구 때리기 (Space)" }).performClick(nil)
         XCTAssertEqual(room.world.activeProjectileCount, 1)

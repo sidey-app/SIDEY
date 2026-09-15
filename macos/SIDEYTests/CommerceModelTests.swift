@@ -12,6 +12,7 @@ final class CommerceModelTests: XCTestCase {
                 CommerceCatalog.monkeyProductID,
                 CommerceCatalog.chinchillaProductID,
                 "character_otter", "character_pig", "character_tree",
+                "character_shiba", "character_duck", "character_poop", "character_tteokbokki", "character_quokka",
                 "bubble_bunny_pink",
                 "bubble_butter_chick",
                 "bubble_starry_cat",
@@ -20,6 +21,7 @@ final class CommerceModelTests: XCTestCase {
                 "throwable_squeaky_duck",
             "throwable_snowflake", "throwable_baseball", "throwable_wakkuball", "throwable_dujjonku",
             "throwable_mini_paprika", "throwable_banana", "throwable_dust_bath_pouch", "throwable_starlight_orb", "throwable_clam", "throwable_pork", "throwable_timber",
+            "throwable_tennis_ball", "throwable_tissue_ball", "throwable_fish_cake_skewer", "throwable_leaf",
             ]
         )
         for product in CommerceCatalog.characterProducts {
@@ -37,6 +39,7 @@ final class CommerceModelTests: XCTestCase {
             .bubble, .bubble, .bubble, .throwable, .throwable, .throwable,
             .throwable, .throwable, .throwable, .throwable,
             .throwable, .throwable, .throwable, .throwable, .throwable, .throwable, .throwable,
+            .throwable, .throwable, .throwable, .throwable,
         ])
         XCTAssertEqual(CommerceCatalog.cosmeticProducts.map(\.catalogItemID), [
             "bubble_bunny_pink",
@@ -47,6 +50,7 @@ final class CommerceModelTests: XCTestCase {
             "throwable_squeaky_duck",
             "throwable_snowflake", "throwable_baseball", "throwable_wakkuball", "throwable_dujjonku",
             "throwable_mini_paprika", "throwable_banana", "throwable_dust_bath_pouch", "throwable_starlight_orb", "throwable_clam", "throwable_pork", "throwable_timber",
+            "throwable_tennis_ball", "throwable_tissue_ball", "throwable_fish_cake_skewer", "throwable_leaf",
         ])
         XCTAssertEqual(CommerceProduct.bunnyPinkBubble.amountKRW, 2_200)
         XCTAssertEqual(CommerceProduct.butterChickBubble.amountKRW, 2_200)

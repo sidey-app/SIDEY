@@ -2,6 +2,7 @@
 set -eu
 
 SIDEY_REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && /bin/pwd -P)
+python3 "$SIDEY_REPO_ROOT/scripts/macos/verify_content_assets.py"
 SIDEY_APP_STORE_VERIFIER_URL=${SIDEY_APP_STORE_VERIFIER_URL:-}
 SIDEY_DEVELOPMENT_TEAM=${SIDEY_DEVELOPMENT_TEAM:-}
 SIDEY_SOURCE_VERSIONS=$(python3 - "$SIDEY_REPO_ROOT/macos/SIDEY.xcodeproj/project.pbxproj" <<'PYVERSIONS'
