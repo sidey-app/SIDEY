@@ -10,6 +10,9 @@
       </ResourceDictionary.MergedDictionaries>
       <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Default">
+          <SolidColorBrush
+              x:Key="SideyInAppNoticeBackgroundBrush"
+              Color="#FF2C2C2C" />
           <AcrylicBrush
               x:Key="SideyComposerBackgroundBrush"
               FallbackColor="#2C2C2C"
@@ -34,6 +37,9 @@
               Opacity="0.16" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Light">
+          <SolidColorBrush
+              x:Key="SideyInAppNoticeBackgroundBrush"
+              Color="#FFF9F9F9" />
           <AcrylicBrush
               x:Key="SideyComposerBackgroundBrush"
               FallbackColor="#F9F9F9"
@@ -58,6 +64,9 @@
               Opacity="0.16" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="HighContrast">
+          <SolidColorBrush
+              x:Key="SideyInAppNoticeBackgroundBrush"
+              Color="{ThemeResource SystemColorWindowColor}" />
           <SolidColorBrush
               x:Key="SideyComposerBackgroundBrush"
               Color="{ThemeResource SystemColorWindowColor}" />
