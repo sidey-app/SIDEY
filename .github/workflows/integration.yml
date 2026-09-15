@@ -30,6 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          fetch-depth: 0
           persist-credentials: false
       - run: python3 -m unittest discover -s scripts/tests
       - run: python3 scripts/commerce_catalog.py --target shared --check
@@ -46,6 +47,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Validate central pixel assets and mirrors
@@ -85,6 +87,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          fetch-depth: 0
           persist-credentials: false
 
       - name: Validate Windows release metadata
