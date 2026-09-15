@@ -31,7 +31,7 @@
     <ProjectReference Include="../../src/Sidey.Platform.Windows/Sidey.Platform.Windows.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="../../../assets/v1/commerce-catalog.json" Link="TestAssets/commerce-catalog.json">
+    <None Include="../../src/Sidey.Core/Domain/commerce-catalog.json" Link="TestAssets/commerce-catalog.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="../../src/Sidey.App/Langs/*.json" Link="Langs/%(Filename)%(Extension)">
