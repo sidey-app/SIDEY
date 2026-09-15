@@ -2,7 +2,9 @@ import {
   AppStoreServerAPIClient,
   Environment,
   SignedDataVerifier,
+  type JWSTransactionDecodedPayload,
 } from "@apple/app-store-server-library";
+import nodeFetch, { type RequestInit } from "node-fetch";
 import { createHash } from "node:crypto";
 import { createRemoteJWKSet, importPKCS8, jwtVerify, SignJWT } from "jose";
 import type { ServiceConfig } from "./config.js";
@@ -19,6 +21,29 @@ export interface VerifiedTransaction {
   revocationDate: number | null;
   signedDate: number;
   signedTransactionInfo: string;
+  priceMilliunits: number | null;
+  currency: string | null;
+}
+
+/** Abort covers fetching headers AND reading a stalled response body. */
+export function fetchAppleBackfill(url: string, init: RequestInit, timeoutMS = 15_000) {
+  // node-fetch v2 accepts native AbortSignal; its legacy optional event types differ.
+  const signal = AbortSignal.timeout(timeoutMS) as unknown as NonNullable<RequestInit["signal"]>;
+  return nodeFetch(url, { ...init, signal });
+}
+
+class BackfillAppleClient extends AppStoreServerAPIClient {
+  constructor(config: ServiceConfig, private readonly targetEnvironment: "Production" | "Sandbox") {
+    super(config.appleIAPPrivateKey, config.appleIAPKeyID, config.appleIAPIssuerID,
+      config.appleBundleID, targetEnvironment === "Production" ? Environment.PRODUCTION : Environment.SANDBOX);
+  }
+
+  protected override makeFetchRequest(path: string, query: URLSearchParams, method: string,
+    body: string | Buffer | undefined, headers: Record<string, string>) {
+    const origin = this.targetEnvironment === "Production"
+      ? "https://api.storekit.itunes.apple.com" : "https://api.storekit-sandbox.itunes.apple.com";
+    return fetchAppleBackfill(`${origin}${path}?${query}`, { method, headers, ...(body === undefined ? {} : { body }) });
+  }
 }
 
 export class AppleGateway {
@@ -128,21 +153,19 @@ export class AppleGateway {
       ? this.productionVerifier
       : this.sandboxVerifier;
     const decoded = await verifier.verifyAndDecodeTransaction(signedTransactionInfo);
-    if (!decoded.transactionId || !decoded.originalTransactionId || !decoded.productId
-        || !decoded.purchaseDate || !decoded.signedDate) {
-      throw new Error("invalid_apple_transaction");
-    }
-    return {
-      transactionID: decoded.transactionId,
-      originalTransactionID: decoded.originalTransactionId,
-      productID: decoded.productId,
-      appAccountToken: decoded.appAccountToken ?? null,
-      environment,
-      purchaseDate: decoded.purchaseDate,
-      revocationDate: decoded.revocationDate ?? null,
-      signedDate: decoded.signedDate,
-      signedTransactionInfo,
-    };
+    return mapVerifiedTransaction(decoded, signedTransactionInfo, environment);
+  }
+
+  async getVerifiedTransaction(
+    transactionID: string,
+    environment: "Sandbox" | "Production",
+  ): Promise<VerifiedTransaction> {
+    const client = new BackfillAppleClient(this.config, environment);
+    const response = await client.getTransactionInfo(transactionID);
+    if (!response.signedTransactionInfo) throw new Error("apple_transaction_missing");
+    const transaction = await this.verifyTransaction(response.signedTransactionInfo, environment);
+    if (transaction.transactionID !== transactionID) throw new Error("apple_transaction_mismatch");
+    return transaction;
   }
 
   async verifyAppleIdentity(
@@ -214,4 +237,34 @@ export class AppleGateway {
 
 export function sha256Hex(value: string): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+/** Call only after Apple's signature, bundle and environment verification succeeds. */
+export function mapVerifiedTransaction(
+  decoded: JWSTransactionDecodedPayload,
+  signedTransactionInfo: string,
+  environment: "Sandbox" | "Production",
+): VerifiedTransaction {
+  if (!decoded.transactionId || !decoded.originalTransactionId || !decoded.productId
+      || !decoded.purchaseDate || !decoded.signedDate) {
+    throw new Error("invalid_apple_transaction");
+  }
+  // Optional financial fields must not block valid purchases. Preserve unknown as null,
+  // including malformed or incomplete pairs, rather than inventing catalog prices.
+  const validPrice = typeof decoded.price === "number"
+    && Number.isSafeInteger(decoded.price) && decoded.price >= 0
+    && typeof decoded.currency === "string" && /^[A-Z]{3}$/.test(decoded.currency);
+  return {
+    transactionID: decoded.transactionId,
+    originalTransactionID: decoded.originalTransactionId,
+    productID: decoded.productId,
+    appAccountToken: decoded.appAccountToken ?? null,
+    environment,
+    purchaseDate: decoded.purchaseDate,
+    revocationDate: decoded.revocationDate ?? null,
+    signedDate: decoded.signedDate,
+    signedTransactionInfo,
+    priceMilliunits: validPrice ? decoded.price! : null,
+    currency: validPrice ? decoded.currency! : null,
+  };
 }

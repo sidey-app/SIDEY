@@ -9,6 +9,7 @@ import argparse
 from contextlib import contextmanager
 import hashlib
 import json
+import locale
 import os
 from pathlib import Path
 import re
@@ -71,7 +72,7 @@ def lock(root, name='state'):
 def atomic_json(path, value):
     descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=path.name + '.')
     try:
-        with os.fdopen(descriptor, 'w') as stream:
+        with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
             json.dump(value, stream, indent=2, ensure_ascii=False)
             stream.write('\n')
         os.replace(temporary, path)
@@ -79,16 +80,30 @@ def atomic_json(path, value):
         Path(temporary).unlink(missing_ok=True)
 
 
+def read_state_file(path):
+    raw = path.read_bytes()
+    try:
+        return json.loads(raw.decode('utf-8'))
+    except UnicodeDecodeError:
+        # getencoding() reports the real locale code page even when Python UTF-8 mode is enabled.
+        legacy_encoding = locale.getencoding()
+        if legacy_encoding.lower().replace('-', '') == 'utf8':
+            raise
+        value = json.loads(raw.decode(legacy_encoding))
+        atomic_json(path, value)
+        return value
+
+
 def read_state(root):
     with lock(root) as directory:
         path = directory / 'tasks.json'
-        return json.loads(path.read_text()) if path.exists() else {}
+        return read_state_file(path) if path.exists() else {}
 
 
 def update_task(root, task_id, value):
     with lock(root) as directory:
         path = directory / 'tasks.json'
-        data = json.loads(path.read_text()) if path.exists() else {}
+        data = read_state_file(path) if path.exists() else {}
         data[task_id] = value
         atomic_json(path, data)
 
@@ -197,6 +212,13 @@ def required_scopes(paths):
     return sorted(result)
 
 
+def app_review_required(platform, paths):
+    if platform == 'shared':
+        return False
+    validation_workflow = f'.github/workflows/{platform}.yml'
+    return any(path != validation_workflow for path in paths)
+
+
 def snapshot(root):
     digest = hashlib.sha256()
     digest.update(head(root).encode())
@@ -245,7 +267,9 @@ def check_task(root, task_id):
     if fetch_main(root) != remote or head(root) != checked_head or snapshot(root) != before:
         raise WorkflowError('Source or remote main changed during checks; results invalidated')
     task.update(base=remote, checked={'head': checked_head, 'snapshot': before,
-                'base': remote, 'scopes': required_scopes(paths), 'time': time.time()}, status='checked')
+                'base': remote, 'scopes': required_scopes(paths),
+                'app_review_required': app_review_required(task['platform'], paths),
+                'time': time.time()}, status='checked')
     update_task(root, task_id, task)
     return task
 
@@ -396,7 +420,9 @@ def finish(root, args):
             update_task(root, args.task, task)
     if task.get('status') in ('integrated', 'main-updated'):
         primary = update_main(root, remote)
-        task['status'] = 'complete' if task['platform'] == 'shared' else 'main-updated'
+        needs_app_review = task.get('checked', {}).get(
+            'app_review_required', task['platform'] != 'shared')
+        task['status'] = 'main-updated' if needs_app_review else 'complete'
         if args.windows_run:
             if task['platform'] != 'windows':
                 raise WorkflowError('--windows-run applies only to an integrated Windows task')
@@ -474,10 +500,14 @@ def finish(root, args):
             primary = update_main(root, remote, already_locked=True)
     finally:
         Path(body_path).unlink(missing_ok=True)
-    task['status'] = 'complete' if task['platform'] == 'shared' else 'main-updated'
+    needs_app_review = task.get('checked', {}).get(
+        'app_review_required', task['platform'] != 'shared')
+    task['status'] = 'main-updated' if needs_app_review else 'complete'
     update_task(root, args.task, task)
-    return {'status': task['status'], 'pr': number, 'main': str(primary), 'sha': remote,
-            'app': 'App verification is a separate required step when app inputs changed'}
+    result = {'status': task['status'], 'pr': number, 'main': str(primary), 'sha': remote}
+    if needs_app_review:
+        result['app'] = 'App verification is a separate required step because app inputs changed'
+    return result
 
 
 def main(argv=None):
@@ -532,7 +562,7 @@ def main(argv=None):
         name = f'{args.platform}/{args.task}'
         with lock(root) as directory:
             path = directory / 'tasks.json'
-            data = json.loads(path.read_text()) if path.exists() else {}
+            data = read_state_file(path) if path.exists() else {}
             if args.task in data or any(t['worktree'] == str(destination) for t in data.values()):
                 raise WorkflowError('Task/worktree already registered; resume using sync/check')
             if destination.exists():
