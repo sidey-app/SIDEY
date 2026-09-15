@@ -8,7 +8,7 @@
       "type": "NonConsumable",
       "productID": "character_starlight_upalupa_solo",
       "referenceName": "별빛 우파루파",
-      "displayPrice": "1900",
+      "displayPrice": "1100",
       "localizations": [
         {
           "description": "진주빛 몸과 별빛 아가미를 가진 우파루파 캐릭터",
@@ -18,7 +18,7 @@
       ]
     },
     {
-      "displayPrice": "1900",
+      "displayPrice": "1100",
       "familyShareable": false,
       "internalID": "01000000-0000-4000-8000-000000000001",
       "localizations": [
@@ -228,7 +228,7 @@
       "type": "NonConsumable"
     },
     {
-      "displayPrice": "2900",
+      "displayPrice": "3300",
       "familyShareable": false,
       "internalID": "03000000-0000-4000-8000-000000000002",
       "localizations": [
@@ -288,7 +288,7 @@
       "type": "NonConsumable"
     },
     {
-      "displayPrice": "2200",
+      "displayPrice": "1100",
       "familyShareable": false,
       "internalID": "C4478E77-6BC7-4D27-861A-0D8819307D63",
       "localizations": [
@@ -303,7 +303,7 @@
       "type": "NonConsumable"
     },
     {
-      "displayPrice": "2200",
+      "displayPrice": "1100",
       "familyShareable": false,
       "internalID": "01000000-0000-4000-8000-000000000013",
       "localizations": [

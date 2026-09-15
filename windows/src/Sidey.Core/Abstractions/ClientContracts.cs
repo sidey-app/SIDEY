@@ -106,6 +106,8 @@ public abstract record BackendEvent
 public interface IBackendGateway
 {
     public Task<BackendSnapshot> FetchSnapshotAsync(CancellationToken cancellationToken = default);
+    public Task<Profile> SetTreeMovementPausedAsync(
+        bool paused, long expectedRevision, CancellationToken cancellationToken = default);
     public Task<Profile> SaveProfileAsync(string nickname, string characterId, CancellationToken cancellationToken = default);
     public Task<Profile> SetEquippedCosmeticAsync(
         CommerceProductKind kind,

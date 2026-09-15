@@ -1,4 +1,3 @@
-#if !APP_STORE
 import AppKit
 import SpriteKit
 
@@ -44,10 +43,9 @@ final class PixelCharacterStunEffect: SKNode {
     private static func texture(named name: String) -> SKTexture {
         guard let url = Bundle.main.url(forResource: name, withExtension: "png"),
               let image = NSImage(contentsOf: url)
-        else { preconditionFailure("Missing direct-distribution stun asset: \(name)") }
+        else { preconditionFailure("Missing stun asset: \(name)") }
         let result = SKTexture(image: image)
         result.filteringMode = .nearest
         return result
     }
 }
-#endif

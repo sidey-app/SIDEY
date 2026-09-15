@@ -4,21 +4,28 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / 'assets/v1'
 WINDOWS = ROOT / 'windows'
+sys.path.insert(0, str(ROOT / 'scripts'))
+from catalog_source import load_source, supported_catalog, SOURCES
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true')
+    parser.add_argument('--source-commit', help='Reviewed public commit to pin when synchronizing')
     args = parser.parse_args()
     spec = importlib.util.spec_from_file_location('pixel_assets', ROOT / 'scripts/validate_pixel_assets.py')
     pixels = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(pixels)
-    manifest = json.loads((SOURCE / 'manifest.json').read_text(encoding='utf-8'))
+    catalog, manifest, source_metadata = load_source(ROOT, 'windows', args.source_commit)
+    if not args.check and not args.source_commit:
+        parser.error('--source-commit is required when synchronizing')
+    catalog = supported_catalog(catalog, manifest, 'windows')
     outputs = {}
     overlay = WINDOWS / 'src/Sidey.Overlay/Assets'
 
@@ -38,6 +45,8 @@ def main():
         return bgra
 
     for character in manifest['characters']:
+        if 'windows' not in character.get('supported_platforms', []):
+            continue
         directory = overlay / 'Characters' / character['id']
         bgra = sheet(character['base'], directory / 'base', bottom_up=False)
         sheet(character['throw_hit'], directory / 'throw_hit')
@@ -57,15 +66,20 @@ def main():
                                  'sha256': hashlib.sha256(bgra).hexdigest()},
             }
             outputs[path] = (json.dumps(metadata, ensure_ascii=False, indent=2) + '\n').encode()
-    for throwable in manifest['throwables']:
+    supported_throwables = [entry for entry in manifest['throwables']
+                            if 'windows' in entry.get('supported_platforms', [])]
+    for throwable in supported_throwables:
         directory = overlay / 'Throwables' / throwable['id']
         sheet(throwable['sprite'], directory / 'sprite')
         if 'emitter' in throwable:
             sheet(throwable['emitter'], directory / 'emitter')
     audio_root = WINDOWS / 'src/Sidey.App/Assets/Impacts'
     audio_manifest = json.loads((audio_root / 'manifest.json').read_text(encoding='utf-8'))
+    sound_ids = {entry.get('impact_sound_id', entry['id']) for entry in supported_throwables}
     for source in sorted((SOURCE / 'audio').glob('impact-*.wav')):
         sound_id = source.stem.removeprefix('impact-')
+        if sound_id not in sound_ids:
+            continue
         data = source.read_bytes()
         relative = f'{sound_id}/{sound_id}.wav'
         outputs[audio_root / relative] = data
@@ -78,7 +92,9 @@ def main():
     outputs[audio_root / 'manifest.json'] = (json.dumps(audio_manifest, indent=2) + '\n').encode()
     # The shared source can be checked out as CRLF; Windows JSON is explicitly LF.
     outputs[WINDOWS / 'src/Sidey.Core/Domain/commerce-catalog.json'] = (
-        SOURCE / 'commerce-catalog.json').read_text(encoding='utf-8').encode('utf-8')
+        json.dumps(catalog, ensure_ascii=False, indent=2) + '\n').encode('utf-8')
+    outputs[ROOT / SOURCES['windows']] = (
+        json.dumps(source_metadata, indent=2) + '\n').encode('utf-8')
     mismatches = []
     for destination, data in outputs.items():
         assert destination.resolve().is_relative_to(WINDOWS.resolve())

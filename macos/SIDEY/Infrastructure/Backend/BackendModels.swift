@@ -117,12 +117,16 @@ struct DatabaseProfile: Codable, Sendable {
     let characterID: String
     let equippedBubbleStyleID: String?
     let equippedThrowableID: String?
+    var treeMovementPaused: Bool? = nil
+    var treeMovementRevision: Int64? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, nickname
         case characterID = "character_id"
         case equippedBubbleStyleID = "equipped_bubble_style_id"
         case equippedThrowableID = "equipped_throwable_id"
+        case treeMovementPaused = "tree_movement_paused"
+        case treeMovementRevision = "tree_movement_revision"
     }
 
     var domain: Profile {
@@ -131,7 +135,9 @@ struct DatabaseProfile: Codable, Sendable {
             nickname: nickname,
             characterID: PixelCharacterCatalog.canonicalID(for: characterID),
             equippedBubbleStyleID: equippedBubbleStyleID,
-            equippedThrowableID: equippedThrowableID
+            equippedThrowableID: equippedThrowableID,
+            treeMovementPaused: treeMovementPaused ?? false,
+            treeMovementRevision: treeMovementRevision
         )
     }
 }
