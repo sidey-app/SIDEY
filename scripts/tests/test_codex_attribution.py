@@ -34,7 +34,7 @@ class AttributionTests(unittest.TestCase):
 
     def install(self, check=True):
         return subprocess.run([sys.executable, str(self.repo / 'scripts/setup_codex_attribution.py')],
-                              cwd=self.repo, env=self.env, capture_output=True, text=True, check=check)
+                              cwd=self.repo, env=self.env, capture_output=True, check=check)
 
     def commit(self, body='test: change', *args):
         self.git('add', '.')
