@@ -23,6 +23,7 @@ namespace Sidey.Uninstaller
         private const string LaunchSideyAsDesktopUserArgument =
             "--launch-sidey-as-desktop-user";
         private const string LegacyMsiDetectArgument = "--detect-legacy-msi";
+        private const string StopSideyProcessesArgument = "--stop-sidey-processes";
         private const string CredentialFilter = "SIDEY/*";
         private const string StartupRegistryPath =
             @"Software\Microsoft\Windows\CurrentVersion\Run";
@@ -122,6 +123,14 @@ namespace Sidey.Uninstaller
                     StringComparison.OrdinalIgnoreCase))
             {
                 return DetectLegacyMsi();
+            }
+            if (arguments.Length == 1
+                && string.Equals(
+                    arguments[0],
+                    StopSideyProcessesArgument,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return StopSideyProcesses();
             }
             if (arguments.Length != 0)
             {
@@ -225,6 +234,70 @@ namespace Sidey.Uninstaller
             catch
             {
                 return 1;
+            }
+        }
+
+        private static int StopSideyProcesses()
+        {
+            bool failed = false;
+            foreach (string processName in new[] { "SIDEY", "SIDEY.Host" })
+            {
+                Process[] processes;
+                try
+                {
+                    processes = Process.GetProcessesByName(processName);
+                }
+                catch
+                {
+                    failed = true;
+                    continue;
+                }
+
+                foreach (Process process in processes)
+                {
+                    using (process)
+                    {
+                        try
+                        {
+                            if (process.HasExited)
+                            {
+                                continue;
+                            }
+                            process.Kill();
+                            if (!process.WaitForExit(30000))
+                            {
+                                failed = true;
+                            }
+                        }
+                        catch (InvalidOperationException)
+                        {
+                            // The process can exit between enumeration and Kill.
+                            // Treat that race as success, but keep genuine failures.
+                            if (!HasExited(process))
+                            {
+                                failed = true;
+                            }
+                        }
+                        catch
+                        {
+                            failed = true;
+                        }
+                    }
+                }
+            }
+
+            return failed ? 5 : 0;
+        }
+
+        private static bool HasExited(Process process)
+        {
+            try
+            {
+                return process.HasExited;
+            }
+            catch
+            {
+                return false;
             }
         }
 

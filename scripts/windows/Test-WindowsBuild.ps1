@@ -57,18 +57,10 @@ try {
         ) `
         -Description 'Windows smoke publish'
     & (Join-Path $PSScriptRoot 'tests/Test-PowerShellSupport.ps1')
-    & (Join-Path $PSScriptRoot 'tests/Test-RuntimePrerequisites.ps1')
+    & (Join-Path $PSScriptRoot 'tests/Test-PrerequisiteInstaller.ps1')
     & (Join-Path $PSScriptRoot 'Test-FrameworkDependentPublish.ps1') `
         -PublishDirectory $publishDirectory
-    Invoke-SideyNativeCommand `
-        -FilePath 'powershell.exe' `
-        -ArgumentList @(
-            '-NoProfile',
-            '-NonInteractive',
-            '-ExecutionPolicy', 'Bypass',
-            '-File', (Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup/SetupRuntime.ps1')
-        ) `
-        -Description 'Runtime prerequisite setup'
+    & (Join-Path $PSScriptRoot 'Install-WindowsPrerequisites.ps1') -Version $Version
     & (Join-Path $PSScriptRoot 'Test-PublishedApplication.ps1') `
         -PublishDirectory $publishDirectory
 }

@@ -51,6 +51,8 @@ Source assets live in the App and Overlay projects. Publishing gathers them in f
 
 The installer checks these requirements first and downloads only missing runtimes from Microsoft URLs. After the runtimes are ready, it extracts and validates the full new payload in a protected staging directory on the same volume as the live install. Setup rejects a parent directory that is writable by an unprivileged identity or contains a reparse point, because such a location cannot safely contain elevated extraction against path-swap races. A prerequisite or staging failure must leave the previous SIDEY runnable.
 
+The distributed Setup performs prerequisite installation, error normalization, install transactions, and process shutdown through compiled .NET Framework 4.7.2 helpers. It does not run PowerShell scripts or `ExecutionPolicy Bypass` on the user's PC, and packaging checks prevent those calls from returning to the NSIS runtime path. Repository build and verification scripts are outside this runtime restriction.
+
 WiX MSI and NSIS cannot share one atomic rollback boundary. When Setup detects a previous MSI, it stops without removing or changing that installation. The user must remove the MSI from Windows Settings > Apps and then run Setup again.
 
 ## Keep user data separate from program files

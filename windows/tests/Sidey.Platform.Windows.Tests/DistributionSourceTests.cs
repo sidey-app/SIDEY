@@ -247,7 +247,7 @@ public sealed class DistributionSourceTests
         Assert.Contains("LEGACY_MSI_UPGRADE_CODE", setup, StringComparison.Ordinal);
         Assert.Contains("--detect-legacy-msi", setup, StringComparison.Ordinal);
         Assert.DoesNotContain("--uninstall-legacy-msi", setup, StringComparison.Ordinal);
-        Assert.Contains("SideyLegacyMsiHelper.exe", setup, StringComparison.Ordinal);
+        Assert.Contains("Sidey.SetupSupport.exe", setup, StringComparison.Ordinal);
         Assert.DoesNotContain("--cleanup", setup[..setup.IndexOf("Section \"Uninstall\"", StringComparison.Ordinal)], StringComparison.Ordinal);
         Assert.Contains("$(LegacyMigrationManual)", setup, StringComparison.Ordinal);
     }
@@ -348,7 +348,8 @@ public sealed class DistributionSourceTests
 
         int start = setup.IndexOf("Function EnsurePrerequisites", StringComparison.Ordinal);
         string prerequisiteFunction = setup[start..setup.IndexOf("FunctionEnd", start, StringComparison.Ordinal)];
-        Assert.Contains("-ProvisionAllUsers", prerequisiteFunction, StringComparison.Ordinal);
+        Assert.Contains("--provision-all-users", prerequisiteFunction, StringComparison.Ordinal);
+        Assert.Contains("Sidey.PrerequisiteInstaller.exe", prerequisiteFunction, StringComparison.Ordinal);
         Assert.Contains("SUCCESS_REBOOT_REQUIRED", prerequisiteFunction, StringComparison.Ordinal);
         Assert.Contains("$InstallerErrorStatus == \"SUCCESS\"", prerequisiteFunction, StringComparison.Ordinal);
         Assert.Contains("Call ShowInstallerError", prerequisiteFunction, StringComparison.Ordinal);
@@ -366,7 +367,7 @@ public sealed class DistributionSourceTests
     {
         string setup = ReadSetupScript();
         string transaction = File.ReadAllText(RepositoryPath(
-            "windows", "installer", "Sidey.Setup", "InstallTransaction.ps1"));
+            "windows", "installer", "Sidey.Setup", "InstallTransaction.cs"));
 
         Assert.Contains("RunInstallTransaction \"Prepare\"", setup, StringComparison.Ordinal);
         Assert.Contains("$StagingDirectory\\Runtime", setup, StringComparison.Ordinal);
@@ -375,7 +376,7 @@ public sealed class DistributionSourceTests
         Assert.Contains("RunInstallTransaction \"BeginRegistration\"", setup, StringComparison.Ordinal);
         Assert.Contains("RunInstallTransaction \"Commit\"", setup, StringComparison.Ordinal);
         Assert.Contains("IfErrors registration_failed", setup, StringComparison.Ordinal);
-        Assert.Contains("Restore-PreviousRegistration", transaction, StringComparison.Ordinal);
+        Assert.Contains("RestorePreviousRegistration", transaction, StringComparison.Ordinal);
         Assert.Contains("Call RollbackInstallTransaction", setup, StringComparison.Ordinal);
         Assert.Contains("RunInstallTransaction \"Complete\"", setup, StringComparison.Ordinal);
         Assert.Contains("Global\\SIDEY.Setup.InstallTransaction", setup, StringComparison.Ordinal);
@@ -390,13 +391,49 @@ public sealed class DistributionSourceTests
                 < onInit.IndexOf("\"InstalledVersion\"", StringComparison.Ordinal),
             "Interrupted installation recovery must precede version classification.");
 
-        Assert.Contains("Move-Item -LiteralPath $installPath -Destination $rollbackPath", transaction, StringComparison.Ordinal);
-        Assert.Contains("Move-Item -LiteralPath $stagingPath -Destination $installPath", transaction, StringComparison.Ordinal);
-        Assert.Contains("Undo-Transaction", transaction, StringComparison.Ordinal);
-        Assert.Contains("[IO.FileAttributes]::ReparsePoint", transaction, StringComparison.Ordinal);
-        Assert.Contains("Assert-SecureTransactionParent", transaction, StringComparison.Ordinal);
-        Assert.Contains("Protect-StagingDirectory", transaction, StringComparison.Ordinal);
+        Assert.Contains("Directory.Move(installPath, rollbackPath)", transaction, StringComparison.Ordinal);
+        Assert.Contains("Directory.Move(stagingPath, installPath)", transaction, StringComparison.Ordinal);
+        Assert.Contains("UndoTransaction", transaction, StringComparison.Ordinal);
+        Assert.Contains("FileAttributes.ReparsePoint", transaction, StringComparison.Ordinal);
+        Assert.Contains("AssertSecureTransactionParent", transaction, StringComparison.Ordinal);
+        Assert.Contains("ProtectStagingDirectory", transaction, StringComparison.Ordinal);
         Assert.Contains("previousRegistration", transaction, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InstallerRuntimeUsesCompiledHelpersWithoutPowerShellOrTaskkill()
+    {
+        string setup = ReadSetupScript();
+        string errors = File.ReadAllText(RepositoryPath(
+            "windows", "installer", "Sidey.Setup", "InstallerErrors.nsh"));
+        string package = File.ReadAllText(RepositoryPath(
+            "scripts", "windows", "New-WindowsInstaller.ps1"));
+
+        Assert.Contains("Sidey.InstallTransaction.exe", setup, StringComparison.Ordinal);
+        Assert.Contains("Sidey.PrerequisiteInstaller.exe", setup, StringComparison.Ordinal);
+        Assert.Contains("Sidey.SetupSupport.exe", setup, StringComparison.Ordinal);
+        Assert.Contains("--stop-sidey-processes", setup, StringComparison.Ordinal);
+        Assert.Contains("ExecWait '\"$INSTDIR\\Runtime\\SIDEY.UninstallHelper.exe\" --stop-sidey-processes' $0", setup, StringComparison.Ordinal);
+        int stopStart = setup.IndexOf("Call StopSideyProcesses", StringComparison.Ordinal);
+        string stopBlock = setup[stopStart..setup.IndexOf(
+            "!insertmacro RunInstallTransaction \"Activate\"",
+            stopStart,
+            StringComparison.Ordinal)];
+        Assert.Contains("${If} $0 != 0", stopBlock, StringComparison.Ordinal);
+        Assert.Contains("--normalize-error", errors, StringComparison.Ordinal);
+        Assert.Contains("/DINSTALL_TRANSACTION_EXE=", package, StringComparison.Ordinal);
+        Assert.Contains("/DPREREQUISITE_INSTALLER_EXE=", package, StringComparison.Ordinal);
+        Assert.Contains("-HelperPath $installTransactionExecutablePath", package, StringComparison.Ordinal);
+        Assert.Contains("-HelperPath $prerequisiteInstallerExecutablePath", package, StringComparison.Ordinal);
+        Assert.Contains("forbiddenRuntimeToken", package, StringComparison.Ordinal);
+        foreach (string source in new[] { setup, errors })
+        {
+            Assert.DoesNotContain("powershell.exe", source, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("ExecutionPolicy", source, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(".ps1", source, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("nsExec::ExecToLog", source, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("taskkill.exe", source, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Fact]
@@ -431,7 +468,7 @@ public sealed class DistributionSourceTests
         Assert.Contains("--self-contained false", workflow, StringComparison.Ordinal);
         Assert.Contains("-p:WindowsAppSDKSelfContained=false", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("--self-contained true", workflow, StringComparison.Ordinal);
-        Assert.Contains("Test-RuntimePrerequisites.ps1", workflow, StringComparison.Ordinal);
+        Assert.Contains("Test-PrerequisiteInstaller.ps1", workflow, StringComparison.Ordinal);
         Assert.Contains("Test-FrameworkDependentPublish.ps1", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("SetupRuntime.ps1", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("Test-PublishedApplication.ps1", workflow, StringComparison.Ordinal);
