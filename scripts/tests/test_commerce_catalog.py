@@ -10,8 +10,10 @@ from workflow import validate_paths, WorkflowError
 
 class CatalogTests(unittest.TestCase):
     def setUp(self):
-        self.products = json.loads((c.ROOT / c.CATALOG).read_text())
-        self.manifest = json.loads((c.ROOT / 'assets/v1/manifest.json').read_text())
+        self.products = json.loads((c.ROOT / c.CATALOG).read_text(encoding='utf-8'))
+        self.manifest = json.loads(
+            (c.ROOT / 'assets/v1/manifest.json').read_text(encoding='utf-8')
+        )
 
     def test_duplicate_id_offer_and_unknown_asset_fail(self):
         for mutate in [lambda p: p.append(copy.deepcopy(p[0])),
@@ -34,11 +36,15 @@ class CatalogTests(unittest.TestCase):
     def test_shared_generation_only_owns_the_public_website_mirror(self):
         output = c.generated(self.products, 'shared')
         self.assertEqual(set(output), {'website/public/assets/commerce-products.js'})
-        self.assertEqual(output['website/public/assets/commerce-products.js'],
-                         (c.ROOT / 'website/public/assets/commerce-products.js').read_bytes())
+        checked_in = (c.ROOT / 'website/public/assets/commerce-products.js').read_text(
+            encoding='utf-8'
+        ).encode('utf-8')
+        self.assertEqual(output['website/public/assets/commerce-products.js'], checked_in)
 
     def test_storekit_current_offer_missing_or_wrong_price_is_rejected(self):
-        original = json.loads((c.ROOT / 'macos/SIDEYAppStore.storekit').read_text())
+        original = json.loads(
+            (c.ROOT / 'macos/SIDEYAppStore.storekit').read_text(encoding='utf-8')
+        )
         pinned, _, _ = c.load_source(c.ROOT, 'macos')
         c.check_storekit(pinned, original)
         for config in [dict(original, products=original['products'][1:]), copy.deepcopy(original)]:

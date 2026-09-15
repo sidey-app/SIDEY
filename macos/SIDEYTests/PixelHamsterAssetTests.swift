@@ -1,7 +1,11 @@
 import CryptoKit
 import ImageIO
 import XCTest
+#if APP_STORE
+@testable import SIDEYAppStore
+#else
 @testable import SIDEY
+#endif
 
 final class PixelHamsterAssetTests: XCTestCase {
     private let expectedHashes = [
@@ -16,11 +20,16 @@ final class PixelHamsterAssetTests: XCTestCase {
         "pixel_starlight_upalupa": "d180810a8796280077f3f70f6da681888c583c2f8d74776d0f5d300e943a079a",
         "pixel_otter": "38ebed0f4588e4f776df44872c2e81e96d70056fb8c97b19c812433584e4b5db",
         "pixel_pig": "b383c07699cc40fe21c05f18aaf21730888685f9b0874a16b95cd82bebcd6f98",
-        "pixel_tree": "ddf40aa115034c2c4fb3046673f6e20d2ca208d0b5a9ffa5737fb79c2e6cc97f"
+        "pixel_tree": "ddf40aa115034c2c4fb3046673f6e20d2ca208d0b5a9ffa5737fb79c2e6cc97f",
+        "pixel_shiba": "011ae19b2882a18869666641681a33c9dc41b42cf30d1404ecb08e20b9acb928",
+        "pixel_duck": "09c0c4160cf143dd4a1859fe20fdbab1167d08c5b072f6cd1b7906bed429b97c",
+        "pixel_poop": "99ac0e9eb8c055f5663e3109d3e7cbbf95a0137f2920c8cde41fa265854188c1",
+        "pixel_tteokbokki": "0a7400c8d7019602147994a75c8e0171441f7c151629cb0f5948bb75e1b7b655",
+        "pixel_quokka": "e301cb83b48761c1bb5b83f82a6525638d973eb7e337ebe378dea88d370e2a7c"
     ]
 
     func testAllRuntimeSheetsAreTen24PixelFramesWithAlphaAndStableHashes() throws {
-        XCTAssertEqual(PixelCharacterCatalog.all.count, 12)
+        XCTAssertEqual(PixelCharacterCatalog.all.count, 17)
         for character in PixelCharacterCatalog.all {
             let url = try XCTUnwrap(character.assetURL(), character.id)
             let data = try Data(contentsOf: url)
@@ -131,7 +140,8 @@ final class PixelHamsterAssetTests: XCTestCase {
         XCTAssertEqual(PixelCharacterCatalog.all.map(\.id), [
             "pixel_hamster", "pixel_cat", "pixel_puppy", "pixel_rabbit", "pixel_penguin",
             "pixel_guinea_pig", "pixel_monkey", "pixel_chinchilla",
-            "pixel_starlight_upalupa", "pixel_otter", "pixel_pig", "pixel_tree"
+            "pixel_starlight_upalupa", "pixel_otter", "pixel_pig", "pixel_tree",
+            "pixel_shiba", "pixel_duck", "pixel_poop", "pixel_tteokbokki", "pixel_quokka"
         ])
         XCTAssertEqual(PixelCharacterCatalog.free.count, 5)
         for character in PixelCharacterCatalog.all where character.entitlementKey != nil {

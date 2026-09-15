@@ -105,7 +105,8 @@ def main():
     before = provenance.source_state()
     run('xcodebuild', '-project', str(project), '-scheme', args.scheme, '-configuration', 'Debug',
         '-destination', 'platform=macOS,arch=arm64', '-derivedDataPath', str(derived), 'build')
-    app = derived / f'Build/Products/Debug/{args.scheme}.app'
+    product = 'sidey-reals' if args.scheme == 'sidey-reals' else 'SIDEY'
+    app = derived / f'Build/Products/Debug/{product}.app'
     stamp, _ = provenance.verify(app, target=args.scheme, configuration='Debug')
     if before != provenance.source_state():
         raise RuntimeError('Source changed during the requested build; rebuild required')

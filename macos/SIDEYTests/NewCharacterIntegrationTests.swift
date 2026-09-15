@@ -1,7 +1,11 @@
 import AppKit
 import SpriteKit
 import XCTest
+#if APP_STORE
+@testable import SIDEYAppStore
+#else
 @testable import SIDEY
+#endif
 
 @MainActor
 final class NewCharacterIntegrationTests: XCTestCase {
@@ -13,12 +17,61 @@ final class NewCharacterIntegrationTests: XCTestCase {
             XCTAssertTrue(PixelCharacterCatalog.canSelect(character, entitlementKeys: ["character:\(character)"]))
             XCTAssertTrue(PixelCharacterThrowCatalog.supports(objectID: item))
         }
-        XCTAssertEqual(CommerceProduct.otter.amountKRW, 990)
-        XCTAssertEqual(CommerceProduct.pig.amountKRW, 990)
-        XCTAssertEqual(CommerceProduct.tree.amountKRW, 1900)
+        XCTAssertEqual(CommerceProduct.otter.amountKRW, 1_100)
+        XCTAssertEqual(CommerceProduct.pig.amountKRW, 1_100)
+        XCTAssertEqual(CommerceProduct.tree.amountKRW, 1_100)
         for product in [CommerceProduct.snowflake, .baseball, .wakkuball, .dujjonku] {
             XCTAssertTrue(PixelCharacterThrowCatalog.purchasableObjectIDs.contains(product.catalogItemID))
             XCTAssertNotNil(product.automaticEquipmentAfterFreshPurchase)
+        }
+    }
+
+    func testApprovedFivePreserveIndependentOwnershipAndRemoteCharacters() throws {
+        XCTAssertEqual(PixelCharacterCatalog.all.count, 17)
+        XCTAssertEqual(CharacterImpactAudio.objectIDs.count, 19)
+        XCTAssertEqual(CommerceCatalog.products.count, 33)
+        XCTAssertEqual(CommerceCatalog.products.filter { $0.id == "throwable_squeaky_duck" }.count, 1)
+        for (name, object) in [("shiba", "tennis_ball"), ("duck", "throwable_squeaky_duck"),
+                               ("poop", "tissue_ball"), ("tteokbokki", "fish_cake_skewer"), ("quokka", "leaf")] {
+            let character = try XCTUnwrap(CommerceCatalog.product(id: "character_" + name))
+            let characterID = try XCTUnwrap(character.characterID)
+            let item = try XCTUnwrap(CommerceCatalog.keepsake(for: character.id))
+            XCTAssertEqual(item.renderAssetID, object)
+            XCTAssertNotEqual(character.entitlementKey, item.entitlementKey)
+            XCTAssertFalse(PixelCharacterCatalog.canSelect(characterID, entitlementKeys: [item.entitlementKey]))
+            XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: characterID), "patch_soft_ball")
+            let preview = StorePreviewScenario.make(product: character)
+            XCTAssertEqual(preview.members.first?.characterID, characterID)
+            XCTAssertEqual(preview.characterThrowInteraction?.throwableID, object)
+
+            let user = UUID(), friend = UUID(), room = UUID()
+            var preferences = AppPreferences.defaults
+            preferences.activeRoomID = room
+            let model = AppModel(preferences: preferences)
+            model.apply(snapshot: BackendSnapshot(
+                profile: Profile(id: user, nickname: "나", characterID: characterID),
+                rooms: [Room(id: room, name: "방", ownerID: user, members: [
+                    RoomMember(userID: user, nickname: "나", characterID: characterID, presence: .online),
+                    RoomMember(userID: friend, nickname: "친구", characterID: characterID, presence: .online)
+                ], inviteCodeHint: "AB••••")], activeEntitlementKeys: [character.entitlementKey]), currentUserID: user)
+            XCTAssertEqual(model.pixelWorldMembers.map(\.characterID), [characterID, characterID])
+            XCTAssertTrue(model.selectableCharacters.contains { $0.id == characterID })
+            XCTAssertNil(model.equippedThrowableID)
+            model.apply(commerceState: CommerceState(product: character, googleConnected: true,
+                entitlementStatus: "refunded", latestOrderStatus: "refunded"))
+            XCTAssertEqual(model.selectedCharacterID, PixelCharacterCatalog.pixelHamsterID)
+            XCTAssertEqual(model.pixelWorldMembers.first { $0.id == friend }?.characterID, characterID)
+            XCTAssertFalse(model.selectableCharacters.contains { $0.id == characterID })
+        }
+    }
+
+    func testAllCatalogPricesUseApprovedKoreanTiers() {
+        let premium: Set<String> = ["bubble_bunny_pink", "bubble_butter_chick", "bubble_starry_cat",
+                                    "throwable_dujjonku", "throwable_wakkuball"]
+        for product in CommerceCatalog.products {
+            let expected = product.id == "throwable_toy_cannon" ? 3_300
+                : premium.contains(product.id) ? 2_200 : 1_100
+            XCTAssertEqual(product.amountKRW, expected, product.id)
         }
     }
 

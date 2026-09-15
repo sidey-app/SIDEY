@@ -1,7 +1,11 @@
 import CryptoKit
 import ImageIO
 import XCTest
+#if APP_STORE
+@testable import SIDEYAppStore
+#else
 @testable import SIDEY
+#endif
 
 final class CharacterThrowAssetTests: XCTestCase {
     private let actionHashes = [
@@ -16,7 +20,12 @@ final class CharacterThrowAssetTests: XCTestCase {
         "pixel_starlight_upalupa": "7a9bae8b1359f432857e026c972e3bc99777539ce7cfff89bc01e95d1938de75",
         "pixel_otter": "ad7d076f4c63910c2c97f6e6ed03c27b47642a825d002d64b8c9dc86c11c2716",
         "pixel_pig": "045344ec128ed34cfe2e6a641cf90c1a04b3ac639045dc200bc996c0089da85b",
-        "pixel_tree": "af22b750129b813d0affd8fa572604837f6bf67acfa14bda68074abf45a11f15"
+        "pixel_tree": "af22b750129b813d0affd8fa572604837f6bf67acfa14bda68074abf45a11f15",
+        "pixel_shiba": "a88e049275de5059d880cb7ff1c478a2e8204d9decc0c7bf461ff9255d6dc24f",
+        "pixel_duck": "a8fab6aebc7f6260e8f470e26365a45cac1a493144da36ab0665d54a38d0fc67",
+        "pixel_poop": "3611e29ca3a6b1efcd9533a9d56494eb8daee31bef973e7ae2c69c0f115f7e8b",
+        "pixel_tteokbokki": "b5084af74609db432e21bea117da0253aac94197e2a2ded157f7cec04465851c",
+        "pixel_quokka": "fc01c484c98651c5da3e32888122070af04091d57a514199da6019ca73b753a7"
     ]
     private let objectHashes = [
         "patch_soft_ball": "cdde7f417c5d8d82d0f4df6b03fa8e7d494d98a37d75aa66699505d7c87c53fe",
@@ -33,7 +42,11 @@ final class CharacterThrowAssetTests: XCTestCase {
         "throwable_snowflake": "35ede7107f668d193c272773441215427da267e1f27b2beaab47d8c88ae37cd2",
         "throwable_baseball": "73f3dc8d86a9f8f76f07494df5ee48a8ff5380feec55a718eed8aad6940b94e5",
         "throwable_wakkuball": "4627c3538efcdaae3deda1ee390fbac92f96cf6e199dceb58a60f7917b7de295",
-        "throwable_dujjonku": "bb2468a5a9f3a692c294c7546c2b20cd4bfdfc903e6779304b2bfeccaea50b32"
+        "throwable_dujjonku": "bb2468a5a9f3a692c294c7546c2b20cd4bfdfc903e6779304b2bfeccaea50b32",
+        "tennis_ball": "19c1a71275fd2e5be5be0b39ebd7be95d960f80ac65dd629aedd885b64f89fc3",
+        "tissue_ball": "ae0a3d483f6a606b4dc35bdac173044720668679f6462e36ff19720334dea975",
+        "fish_cake_skewer": "bdcfc04e33f3cf4f45305aa9fbf6c6fed70b515fe826823c890ccbb5e28340fd",
+        "leaf": "b0a419e6659ded829130ec7d0be92d0b693ccd1cdc158aa8aabbd8b24936173e"
     ]
     private let bubbleDecorationHashes = [
         "bubble_bunny_pink": "3013d02224fe98befdc18f065f706c98cc412ab30c77a6a6c83723fc3366d117",

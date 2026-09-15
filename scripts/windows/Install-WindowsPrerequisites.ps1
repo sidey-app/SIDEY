@@ -10,6 +10,7 @@ param(
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'Sidey.PowerShell.psm1') -Force
 $repositoryRootPath = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $probeRoot = Join-Path ([IO.Path]::GetTempPath()) (
     'SIDEY prerequisite setup ' + [Guid]::NewGuid().ToString('N'))
@@ -38,8 +39,7 @@ if ($ProvisionAllUsers) {
     $helperArguments = @('--provision-all-users') + $helperArguments
 }
 
-& $helperPath @helperArguments
-$exitCode = $LASTEXITCODE
+$exitCode = Invoke-SideyWindowsProcess -FilePath $helperPath -ArgumentList $helperArguments
 if ($exitCode -ne 0) {
     $result = if (Test-Path -LiteralPath $resultPath -PathType Leaf) {
         Get-Content -LiteralPath $resultPath -Raw -Encoding Unicode

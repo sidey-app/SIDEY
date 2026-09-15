@@ -251,6 +251,36 @@ enum PixelCharacterCatalog {
             resourceName: "pixel_tree", resourceDirectory: "Characters/PixelTree",
             previewFrame: 0, frames: .standard, paletteDescription: "초록 · 브라운 · 보라",
             entitlementKey: "character:pixel_tree", mirrorsToMovementDirection: false, sparkleEffect: nil
+        ),
+        PixelCharacterDefinition(
+            id: "pixel_shiba", displayName: "시바견",
+            resourceName: "pixel_shiba", resourceDirectory: "Characters/PixelShiba",
+            previewFrame: 0, frames: .standard, paletteDescription: "",
+            entitlementKey: "character:pixel_shiba", mirrorsToMovementDirection: false, sparkleEffect: nil
+        ),
+        PixelCharacterDefinition(
+            id: "pixel_duck", displayName: "오리",
+            resourceName: "pixel_duck", resourceDirectory: "Characters/PixelDuck",
+            previewFrame: 0, frames: .standard, paletteDescription: "",
+            entitlementKey: "character:pixel_duck", mirrorsToMovementDirection: false, sparkleEffect: nil
+        ),
+        PixelCharacterDefinition(
+            id: "pixel_poop", displayName: "똥",
+            resourceName: "pixel_poop", resourceDirectory: "Characters/PixelPoop",
+            previewFrame: 0, frames: .standard, paletteDescription: "",
+            entitlementKey: "character:pixel_poop", mirrorsToMovementDirection: false, sparkleEffect: nil
+        ),
+        PixelCharacterDefinition(
+            id: "pixel_tteokbokki", displayName: "떡볶이",
+            resourceName: "pixel_tteokbokki", resourceDirectory: "Characters/PixelTteokbokki",
+            previewFrame: 0, frames: .standard, paletteDescription: "",
+            entitlementKey: "character:pixel_tteokbokki", mirrorsToMovementDirection: false, sparkleEffect: nil
+        ),
+        PixelCharacterDefinition(
+            id: "pixel_quokka", displayName: "쿼카",
+            resourceName: "pixel_quokka", resourceDirectory: "Characters/PixelQuokka",
+            previewFrame: 0, frames: .standard, paletteDescription: "",
+            entitlementKey: "character:pixel_quokka", mirrorsToMovementDirection: false, sparkleEffect: nil
         )
     ]
 

@@ -33,7 +33,7 @@ extension AppCoordinator {
                 let snapshot = try await backend.boot(requireExistingSession: requireExistingSession)
                 let userID = await backend.currentUserID()
                 guard !Task.isCancelled else { return }
-                model.apply(snapshot: snapshot, currentUserID: userID)
+                applyBackendSnapshot(snapshot, currentUserID: userID)
                 if releaseChannel == .appStore, userID != nil {
                     await configureAppStoreCommerce(backend: backend)
                 }
@@ -414,6 +414,7 @@ extension AppCoordinator {
             model.clearBubbles()
         }
         model.apply(snapshot: snapshot, currentUserID: currentUserID)
+        migrateTreeMovementIfNeeded()
     }
 
     func handleBackendEvent(_ event: BackendEvent) {
@@ -550,9 +551,7 @@ extension AppCoordinator {
     }
 
     func characterDoubleClicked() {
-        #if !APP_STORE
         if let id = model.currentUserID, model.characterStunState.isStunned(id) { return }
-        #endif
         guard let room = model.activeRoom,
               let userID = model.currentUserID,
               room.members.contains(where: { $0.userID == userID }),
@@ -570,9 +569,7 @@ extension AppCoordinator {
     }
 
     func characterThrowRequested(targetUserID: UUID) {
-        #if !APP_STORE
         if let id = model.currentUserID, model.characterStunState.isStunned(id) { return }
-        #endif
         guard model.activeRoomRealtimeAvailable,
               let room = model.activeRoom,
               let actorUserID = model.currentUserID,

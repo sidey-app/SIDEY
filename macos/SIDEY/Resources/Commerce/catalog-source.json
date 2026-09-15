@@ -1,0 +1,7 @@
+{
+  "source_commit": "57ac0ff65824103c19b62f2da31391e2d341a7d6",
+  "sha256": {
+    "assets/v1/commerce-catalog.json": "7c54ef45a9b22599b49327c343bfda6dbe3357504f8a46e03037e85e9d68a6d2",
+    "assets/v1/manifest.json": "0b43ebf068279c44e8f312d502aca36ed749baebd3da34d4978310c91bd33f17"
+  }
+}

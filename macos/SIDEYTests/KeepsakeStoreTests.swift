@@ -7,13 +7,13 @@ import XCTest
 @MainActor
 final class KeepsakeStoreTests: XCTestCase {
     func testIndependentOwnershipAndLegacyOfferIdentity() throws {
-        XCTAssertEqual(CommerceCatalog.products.count, 24)
+        XCTAssertEqual(CommerceCatalog.products.count, 33)
         let keepsakes = CommerceCatalog.products.filter(\.isKeepsake)
-        XCTAssertEqual(keepsakes.count, 7)
+        XCTAssertEqual(keepsakes.count, 12)
         for product in CommerceCatalog.characterProducts {
             let item = try XCTUnwrap(CommerceCatalog.keepsake(for: product.id))
             XCTAssertNotEqual(product.entitlementKey, item.entitlementKey)
-            XCTAssertEqual(item.amountKRW, 990)
+            XCTAssertEqual(item.amountKRW, 1_100)
             XCTAssertEqual(PixelCharacterThrowCatalog.objectID(for: try XCTUnwrap(product.characterID)), "patch_soft_ball")
             // A free hamster can render any independently equipped keepsake.
             XCTAssertEqual(PixelCharacterThrowCatalog.resolvedObjectID(for: "pixel_hamster", equippedObjectID: item.catalogItemID), item.renderAssetID)
