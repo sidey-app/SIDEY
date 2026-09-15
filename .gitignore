@@ -29,3 +29,7 @@ website/.astro/
 /_workspace/
 **/xcuserdata/
 *.xcuserstate
+
+# Backend sources moved to sidey-backend; preserve ignored local CLI/build state.
+/supabase/
+/services/app-store-verifier/
