@@ -1,12 +1,21 @@
 import sys
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from workflow import WorkflowError
-from workflow_ci import verify_commit_contract, verify_gate
+from workflow_ci import commit_subjects, verify_commit_contract, verify_gate
 
 
 class GateTests(unittest.TestCase):
+    def test_commit_subjects_remove_only_git_record_newlines(self):
+        output = 'fix(Shared): 첫 번째 변경  \x00\nMerge branch \'main\' into shared/task\x00\n'
+        with patch('workflow_ci.git', return_value=output):
+            self.assertEqual(
+                commit_subjects(Path('.'), 'base', 'head'),
+                ['fix(Shared): 첫 번째 변경  ', "Merge branch 'main' into shared/task"],
+            )
+
     def test_new_commit_range_and_pr_title_follow_policy(self):
         verify_commit_contract(
             [

@@ -32,9 +32,9 @@ def verify_commit_contract(subjects, pr_title=None):
 
 def commit_subjects(root, base, revision):
     return [
-        subject
+        subject.strip('\r\n')
         for subject in git(root, 'log', '--format=%s%x00', f'{base}..{revision}').split('\0')
-        if subject
+        if subject.strip('\r\n')
     ]
 
 
