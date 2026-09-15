@@ -2,9 +2,7 @@
 
 [CmdletBinding()]
 param(
-    [string]$HelperPath,
-    [string]$Version = '1.3.1',
-    [string]$FileVersion = '1.3.1.0'
+    [string]$HelperPath
 )
 
 Set-StrictMode -Version 3.0
@@ -37,6 +35,13 @@ if ($failure.Exception.Message -cne 'Expected native command test failure failed
 }
 
 $repositoryRootPath = (Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path
+$releaseManifestPath = Join-Path $repositoryRootPath 'release/windows.json'
+$version = [string]((Get-Content -LiteralPath $releaseManifestPath -Raw -Encoding UTF8 |
+    ConvertFrom-Json).version)
+if ($version -notmatch '^\d+\.\d+\.\d+$') {
+    throw "Windows release version must contain three numeric parts: $version"
+}
+$fileVersion = "$version.0"
 $testRoot = Join-Path ([IO.Path]::GetTempPath()) (
     'SIDEY PowerShell process tests ' + [Guid]::NewGuid().ToString('N'))
 $resultPath = Join-Path $testRoot 'process result with spaces.ini'
@@ -48,7 +53,7 @@ try {
         & (Join-Path $repositoryRootPath 'scripts/windows/New-SideyHelperExecutable.ps1') `
             -SourcePath (Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup/PrerequisiteInstaller.cs') `
             -OutputPath $HelperPath `
-            -Version $Version -FileVersion $FileVersion `
+            -Version $version -FileVersion $fileVersion `
             -Title 'SIDEY Prerequisite Installer' `
             -Description 'SIDEY prerequisite installer process probe' `
             -IconPath (Join-Path $repositoryRootPath 'windows/src/Sidey.App/Assets/Icons/SideyAppIcon.ico')
@@ -61,7 +66,7 @@ try {
             '--normalize-error', '--native-code', '0', '--source', 'TEST', '--stage', 'CHECK',
             '--target', 'target with spaces', '--command-description', $commandDescription,
             '--result-path', $resultPath, '--log-path', $logPath,
-            '--installer-version', $Version)
+            '--installer-version', $version)
     if ($exitCode -ne 0) {
         throw "WinExe process success code was not preserved: $exitCode"
     }
