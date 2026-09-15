@@ -41,6 +41,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(w.decode_output('기여자'.encode('utf-8')), '기여자')
         with patch.object(w.locale, 'getencoding', return_value='cp949'):
             self.assertEqual(w.decode_output('검증'.encode('cp949')), '검증')
+        self.assertEqual(w.decode_output(b'first\r\nsecond\rthird'), 'first\nsecond\nthird')
 
     def configure(self, root):
         w.git(root, 'config', 'user.email', 'workflow@example.test')

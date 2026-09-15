@@ -215,11 +215,11 @@
       "web_directory": "store",
       "base": {
         "path": "characters/pixel_shiba/base.png",
-        "sha256": "011ae19b2882a18869666641681a33c9dc41b42cf30d1404ecb08e20b9acb928"
+        "sha256": "f0fbdc42e774c4fc005b6712d7361f1032864c71f1dae6a62d4f631483de647f"
       },
       "throw_hit": {
         "path": "characters/pixel_shiba/throw_hit.png",
-        "sha256": "a88e049275de5059d880cb7ff1c478a2e8204d9decc0c7bf461ff9255d6dc24f"
+        "sha256": "0e2a54c5d53dd827526afca86ab3ec073f860da21ade1b1289b864c30f5a0e87"
       },
       "throwable_id": "tennis_ball",
       "renderer_effects": []
@@ -235,11 +235,11 @@
       "web_directory": "store",
       "base": {
         "path": "characters/pixel_duck/base.png",
-        "sha256": "09c0c4160cf143dd4a1859fe20fdbab1167d08c5b072f6cd1b7906bed429b97c"
+        "sha256": "007e181fc7546b5346fc52746daf60985fe6113f366795a8c90f21d1b084e559"
       },
       "throw_hit": {
         "path": "characters/pixel_duck/throw_hit.png",
-        "sha256": "a8fab6aebc7f6260e8f470e26365a45cac1a493144da36ab0665d54a38d0fc67"
+        "sha256": "ad802bb86d51eed5e2e5a1208da93503ff30c3886c5e21e8e40b86494a78881f"
       },
       "throwable_id": "throwable_squeaky_duck",
       "renderer_effects": []
@@ -255,11 +255,11 @@
       "web_directory": "store",
       "base": {
         "path": "characters/pixel_poop/base.png",
-        "sha256": "99ac0e9eb8c055f5663e3109d3e7cbbf95a0137f2920c8cde41fa265854188c1"
+        "sha256": "0f2853654e953abe92fbfbd8894df1396f28fc32fe06db9b5c3db60197da1c43"
       },
       "throw_hit": {
         "path": "characters/pixel_poop/throw_hit.png",
-        "sha256": "3611e29ca3a6b1efcd9533a9d56494eb8daee31bef973e7ae2c69c0f115f7e8b"
+        "sha256": "2dfe350847ee18096f9e14431d573bf840f1445a4cef459622d77ca97760fc50"
       },
       "throwable_id": "tissue_ball",
       "renderer_effects": []
@@ -275,11 +275,11 @@
       "web_directory": "store",
       "base": {
         "path": "characters/pixel_tteokbokki/base.png",
-        "sha256": "0a7400c8d7019602147994a75c8e0171441f7c151629cb0f5948bb75e1b7b655"
+        "sha256": "1da9b6df95412bfc52df6dc21157d2708a40f508de48cb3f9c8764ca7a378b92"
       },
       "throw_hit": {
         "path": "characters/pixel_tteokbokki/throw_hit.png",
-        "sha256": "b5084af74609db432e21bea117da0253aac94197e2a2ded157f7cec04465851c"
+        "sha256": "f0f71c0d3843662a7ba80faf8c6476257adda33547e325ceea2031885ff5c5fc"
       },
       "throwable_id": "fish_cake_skewer",
       "renderer_effects": []
@@ -295,11 +295,11 @@
       "web_directory": "store",
       "base": {
         "path": "characters/pixel_quokka/base.png",
-        "sha256": "e301cb83b48761c1bb5b83f82a6525638d973eb7e337ebe378dea88d370e2a7c"
+        "sha256": "55965cec0be9ac26787c255c92dd6ca5300164a505e12e506be2f87c010dcf3a"
       },
       "throw_hit": {
         "path": "characters/pixel_quokka/throw_hit.png",
-        "sha256": "fc01c484c98651c5da3e32888122070af04091d57a514199da6019ca73b753a7"
+        "sha256": "ab43e2997d6e869ee6256a22a42f13ff76fc7b4f6a411f940319d7e98ab7a6f9"
       },
       "throwable_id": "leaf",
       "renderer_effects": []

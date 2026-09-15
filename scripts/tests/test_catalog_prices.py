@@ -8,7 +8,7 @@ class CatalogPriceTests(unittest.TestCase):
         catalog = json.loads(
             (Path(__file__).parents[2] / 'assets/v1/commerce-catalog.json').read_text(encoding='utf-8')
         )
-        premium = {'throwable_dujjonku', 'throwable_wakkuball'}
+        premium = {'character_starlight_upalupa', 'throwable_dujjonku', 'throwable_wakkuball'}
         for entry in catalog:
             with self.subTest(product=entry['id']):
                 expected = 3300 if entry['id'] == 'throwable_toy_cannon' else (
