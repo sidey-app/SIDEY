@@ -187,6 +187,10 @@ class WorkflowTests(unittest.TestCase):
                          {'shared', 'macos', 'windows', 'web', 'server', 'database'})
         self.assertIn('windows', w.required_scopes(['website/src/pages/ko/terms.md']))
 
+    def test_release_manifests_run_the_matching_native_checks(self):
+        self.assertEqual(w.required_scopes(['release/macos.json']), ['macos', 'shared'])
+        self.assertEqual(w.required_scopes(['release/windows.json']), ['shared', 'windows'])
+
     def test_workflow_scopes_only_run_affected_platforms(self):
         self.assertEqual(w.required_scopes(['.github/workflows/macos.yml']),
                          ['macos', 'shared'])

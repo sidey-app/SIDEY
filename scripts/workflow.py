@@ -170,6 +170,10 @@ def required_scopes(paths):
             result.add(platform)
         if path.startswith(('assets/', 'shared/character-throw/')) or path == 'scripts/validate_pixel_assets.py':
             result.update(('macos', 'windows', 'web', 'server'))
+        if path == 'release/macos.json':
+            result.add('macos')
+        elif path == 'release/windows.json':
+            result.add('windows')
         if path.startswith(('website/', 'scripts/website/')):
             result.add('web')
         if path == 'website/src/pages/ko/terms.md':
