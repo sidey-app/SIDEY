@@ -1149,8 +1149,6 @@
             HorizontalAlignment="Stretch"
             VerticalAlignment="Bottom"
             Background="{ThemeResource SideyInAppNoticeBackgroundBrush}"
-            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
-            BorderThickness="1"
             IsClosable="True"
             IsOpen="False" />
       </Grid>

@@ -192,8 +192,8 @@ public sealed class MvvmArchitectureTests
         Assert.Equal(
             "{ThemeResource SideyInAppNoticeBackgroundBrush}",
             notice.Attribute("Background")?.Value);
-        Assert.Equal("{ThemeResource CardStrokeColorDefaultBrush}", notice.Attribute("BorderBrush")?.Value);
-        Assert.Equal("1", notice.Attribute("BorderThickness")?.Value);
+        Assert.Null(notice.Attribute("BorderBrush"));
+        Assert.Null(notice.Attribute("BorderThickness"));
 
         var app = XDocument.Load(RepositoryPath(
             "windows",
