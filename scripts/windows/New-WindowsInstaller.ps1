@@ -293,6 +293,7 @@ Invoke-SideyNativeCommand `
     -PublishDirectory $publishDirectoryPath -SelectorExecutablePath $languageSelectorPath `
     -Version $Version -FileVersion "$Version.0" `
     -NsisDirectory (Split-Path -Parent $resolvedMakensisPath)
+& (Join-Path $PSScriptRoot 'tests/Test-InstallTransaction.ps1')
 
 function ConvertTo-NsisLiteral {
     param([Parameter(Mandatory = $true)][string]$Value)
@@ -313,14 +314,16 @@ $payloadDirectories = [Collections.Generic.HashSet[string]]::new(
 foreach ($file in $payloadFiles) {
     $relativePath = Get-SideyRelativePath $publishDirectoryPath $file.FullName
     $relativeDirectory = Split-Path $relativePath -Parent
-    $destination = '$INSTDIR'
+    $destination = '$StagingDirectory'
     if (-not [string]::IsNullOrWhiteSpace($relativeDirectory)) {
         $destination += "\$(ConvertTo-NsisLiteral $relativeDirectory)"
         [void]$payloadDirectories.Add($relativeDirectory)
     }
 
     $installLines.Add("SetOutPath `"$destination`"")
+    $installLines.Add('ClearErrors')
     $installLines.Add("File `"$(ConvertTo-NsisLiteral $file.FullName)`"")
+    $installLines.Add('IfErrors payload_stage_failed')
     $uninstallLines.Add(
         "Delete `"`$INSTDIR\$(ConvertTo-NsisLiteral $relativePath)`"")
 }
@@ -331,10 +334,13 @@ foreach ($directory in @($payloadDirectories) |
         "RMDir `"`$INSTDIR\$(ConvertTo-NsisLiteral $directory)`"")
 }
 
-if (@($installLines + $uninstallLines | Where-Object {
+if (@($installLines | Where-Object {
+    $_.IndexOf('$$StagingDirectory', [StringComparison]::Ordinal) -ge 0 -or
+    $_.IndexOf('$INSTDIR', [StringComparison]::Ordinal) -ge 0
+}).Count -gt 0 -or @($uninstallLines | Where-Object {
     $_.IndexOf('$$INSTDIR', [StringComparison]::Ordinal) -ge 0
 }).Count -gt 0) {
-    throw 'Generated NSIS payload paths must expand $INSTDIR at runtime.'
+    throw 'Generated NSIS payload paths must use runtime transaction variables.'
 }
 
 $utf8WithoutBom = [Text.UTF8Encoding]::new($false)

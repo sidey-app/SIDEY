@@ -49,22 +49,27 @@ Source assets live in the App and Overlay projects. Publishing gathers them in f
 - .NET Runtime x64
 - Windows App Runtime package set
 
-The installer checks these requirements first and downloads only missing runtimes from Microsoft URLs. It cleans up the existing SIDEY files only after runtime installation succeeds. Deleting the application before a prerequisite failure would leave the user unable to run the previous version.
+The installer checks these requirements first and downloads only missing runtimes from Microsoft URLs. After the runtimes are ready, it extracts and validates the full new payload in a protected staging directory on the same volume as the live install. Setup rejects a parent directory that is writable by an unprivileged identity or contains a reparse point, because such a location cannot safely contain elevated extraction against path-swap races. A prerequisite or staging failure must leave the previous SIDEY runnable.
 
-Exit code `3010` from removing a previous MSI means that Windows must restart. When it appears, leave the new files untouched, show restart guidance, and exit. The user can run Setup again after the restart to complete the migration safely.
+WiX MSI and NSIS cannot share one atomic rollback boundary. When Setup detects a previous MSI, it stops without removing or changing that installation. The user must remove the MSI from Windows Settings > Apps and then run Setup again.
 
 ## Keep user data separate from program files
 
 Updates and removal may replace the installation directory. They preserve user data. Cleanup for an existing NSIS or MSI installation must never target the paths that hold messages and settings.
 
+Setup and the uninstaller run elevated to modify Program Files, HKLM, and the all-users Start menu. Post-install launch and cleanup of `%LOCALAPPDATA%`, Credential Manager, and HKCU startup registration instead run with the desktop shell user's token. When a standard user enters another administrator's credentials at UAC, the administrator's data and credentials must not be treated as the current user's. If the desktop token cannot be acquired, the installer fails safely instead of launching SIDEY elevated or deleting the administrator's data.
+
+Setup and the uninstaller are serialized by one global mutex. An update does not uninstall the existing NSIS package first. After the complete staging payload is ready, Setup stops the app, renames the live install to a rollback sibling, and renames staging to the live path. It also records the pre-install machine registration. A file activation or registration failure restores the files, machine registration, and all-users shortcuts. The old directory is removed only after registration succeeds and the transaction is committed. The next Setup run recovers interrupted state, and uninstall also finishes any deferred rollback cleanup.
+
 Follow this order when changing installation or update code:
 
-1. Shut down running SIDEY processes safely.
-2. Confirm that the required runtimes are ready.
-3. Select the removal path for the previous installation type.
-4. Clean up program files only.
-5. Copy the new published output and update registration data.
-6. Verify an actual start through the Launcher.
+1. Confirm that the required runtimes are ready.
+2. Extract and validate the full published output in same-volume staging.
+3. Shut down running SIDEY processes.
+4. Preserve live as rollback and activate staging as live.
+5. Update all-users shortcuts and machine registration.
+6. Restore the previous live install on failure, or remove rollback on success.
+7. Run the Launcher with the desktop user's token only when the user selects it.
 
 ## Test the published layout itself
 
@@ -91,7 +96,7 @@ The checks cover:
 - no self-contained .NET or Windows App Runtime files are mixed into the output; and
 - the Launcher can start the actual Host.
 
-If the installer changed, also run the runtime prerequisite checks and deployment contract tests. An installation check can change installed runtimes and the machine's installation state, so review the inputs and scope of the relevant scripts first.
+If the installer changed, also run the runtime prerequisite checks, `Test-InstallTransaction.ps1`, and deployment contract tests. An installation check can change installed runtimes and the machine's installation state, so review the inputs and scope of the relevant scripts first.
 
 ## Fix the stage that dropped a deployment file
 

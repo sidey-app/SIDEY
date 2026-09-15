@@ -87,11 +87,10 @@ public sealed class DistributionSourceTests
         Assert.Contains("MUI_PAGE_DIRECTORY", setup, StringComparison.Ordinal);
         Assert.Contains("StrCpy $InstallState \"upgrade\"", setup, StringComparison.Ordinal);
         Assert.Contains("$InstallState == \"repair\"", setup, StringComparison.Ordinal);
-        Assert.Contains("StrCpy $HasNsisInstall \"true\"", setup, StringComparison.Ordinal);
-        Assert.Contains(
-            "ExecWait '\"$INSTDIR\\Uninstall.exe\" /S _?=$INSTDIR'",
-            setup,
-            StringComparison.Ordinal);
+        Assert.Contains("ExecWait '\"$INSTDIR\\Uninstall.exe\"' $0", setup, StringComparison.Ordinal);
+        Assert.Contains("$INSTDIR.sidey-staging-$0", setup, StringComparison.Ordinal);
+        Assert.Contains("$INSTDIR.sidey-rollback", setup, StringComparison.Ordinal);
+        Assert.DoesNotContain("Uninstall.exe\" /S _?=$INSTDIR", setup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -219,8 +218,10 @@ public sealed class DistributionSourceTests
         Assert.Contains("${NSD_Uncheck} $DeleteLocalDataCheckbox", setup, StringComparison.Ordinal);
         Assert.Contains("${NSD_Uncheck} $DeleteCredentialsCheckbox", setup, StringComparison.Ordinal);
         Assert.Contains("--cleanup-local-data", setup, StringComparison.Ordinal);
+        Assert.Contains("--cleanup-local-data-as-desktop-user", setup, StringComparison.Ordinal);
         Assert.Contains("$DeleteLocalData == ${BST_CHECKED}", setup, StringComparison.Ordinal);
         Assert.Contains("--cleanup-credentials", setup, StringComparison.Ordinal);
+        Assert.Contains("--cleanup-credentials-as-desktop-user", setup, StringComparison.Ordinal);
         Assert.Contains("$DeleteCredentials == ${BST_CHECKED}", setup, StringComparison.Ordinal);
         Assert.DoesNotContain("RMDir /r \"$LOCALAPPDATA", setup, StringComparison.OrdinalIgnoreCase);
     }
@@ -231,26 +232,24 @@ public sealed class DistributionSourceTests
         string setup = ReadSetupScript();
         string uninstall = setup[setup.IndexOf("Section \"Uninstall\"", StringComparison.Ordinal)..];
 
-        Assert.Contains(
-            "DeleteRegValue HKCU \"Software\\Microsoft\\Windows\\CurrentVersion\\Run\" \"SIDEY\"",
-            uninstall,
-            StringComparison.Ordinal);
+        Assert.Contains("--cleanup-startup-as-desktop-user", uninstall, StringComparison.Ordinal);
+        Assert.DoesNotContain("DeleteRegValue HKCU", uninstall, StringComparison.Ordinal);
         Assert.Contains("DeleteRegKey HKLM \"${PRODUCT_UNINSTALL_KEY}\"", uninstall, StringComparison.Ordinal);
         Assert.Contains("DeleteRegKey HKLM \"${PRODUCT_PROTOCOL_KEY}\"", uninstall, StringComparison.Ordinal);
         Assert.Contains("DeleteRegKey HKLM \"${PRODUCT_REGISTRY_KEY}\"", uninstall, StringComparison.Ordinal);
     }
 
     [Fact]
-    public void SetupMigratesTheLegacyMsiWithoutDeletingUserData()
+    public void SetupLeavesTheLegacyMsiIntactUntilTheUserRemovesIt()
     {
         string setup = ReadSetupScript();
 
         Assert.Contains("LEGACY_MSI_UPGRADE_CODE", setup, StringComparison.Ordinal);
-        Assert.Contains("--uninstall-legacy-msi", setup, StringComparison.Ordinal);
+        Assert.Contains("--detect-legacy-msi", setup, StringComparison.Ordinal);
+        Assert.DoesNotContain("--uninstall-legacy-msi", setup, StringComparison.Ordinal);
         Assert.Contains("SideyLegacyMsiHelper.exe", setup, StringComparison.Ordinal);
         Assert.DoesNotContain("--cleanup", setup[..setup.IndexOf("Section \"Uninstall\"", StringComparison.Ordinal)], StringComparison.Ordinal);
-        Assert.Contains("$0 == 3010", setup, StringComparison.Ordinal);
-        Assert.Contains("$(LegacyMigrationRestart)", setup, StringComparison.Ordinal);
+        Assert.Contains("$(LegacyMigrationManual)", setup, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -266,7 +265,7 @@ public sealed class DistributionSourceTests
             "UninstallIcon \"${PUBLISH_DIR}\\Assets\\Icons\\SideyAppIcon.ico\"",
             setup,
             StringComparison.Ordinal);
-        Assert.Contains("WriteUninstaller \"$INSTDIR\\Uninstall.exe\"", setup, StringComparison.Ordinal);
+        Assert.Contains("WriteUninstaller \"$StagingDirectory\\Uninstall.exe\"", setup, StringComparison.Ordinal);
 
         string organizer = File.ReadAllText(RepositoryPath(
             "scripts", "windows", "ConvertTo-PublishLayout.ps1"));
@@ -292,7 +291,9 @@ public sealed class DistributionSourceTests
         Assert.Contains("/VERSION", package, StringComparison.Ordinal);
         Assert.Contains("SideyPayloadInstall.nsh", package, StringComparison.Ordinal);
         Assert.Contains("SideyPayloadUninstall.nsh", package, StringComparison.Ordinal);
-        Assert.Contains("Generated NSIS payload paths must expand $INSTDIR", package, StringComparison.Ordinal);
+        Assert.Contains("Generated NSIS payload paths must use runtime transaction variables", package, StringComparison.Ordinal);
+        Assert.Contains("$destination = '$StagingDirectory'", package, StringComparison.Ordinal);
+        Assert.Contains("IfErrors payload_stage_failed", package, StringComparison.Ordinal);
         Assert.DoesNotContain("ConvertTo-NsisLiteral $destination", package, StringComparison.Ordinal);
         Assert.Contains("Get-FileHash", package, StringComparison.Ordinal);
         Assert.Contains("SHA256=$hash", package, StringComparison.Ordinal);
@@ -329,11 +330,13 @@ public sealed class DistributionSourceTests
         string[] operations =
         [
             "Call EnsurePrerequisites",
-            "Call StopSideyProcesses",
-            "ExecWait '\"$INSTDIR\\Uninstall.exe\" /S _?=$INSTDIR'",
-            "--uninstall-legacy-msi",
-            "-InstallDirectory \"$INSTDIR\"",
             "!include \"${PAYLOAD_INSTALL_INCLUDE}\"",
+            "--detect-legacy-msi",
+            "Call StopSideyProcesses",
+            "!insertmacro RunInstallTransaction \"Activate\"",
+            "!insertmacro RunInstallTransaction \"BeginRegistration\"",
+            "WriteRegStr HKLM \"${PRODUCT_REGISTRY_KEY}\" \"InstalledVersion\"",
+            "!insertmacro RunInstallTransaction \"Commit\"",
         ];
         int previous = -1;
         foreach (string operation in operations)
@@ -356,6 +359,67 @@ public sealed class DistributionSourceTests
         Assert.DoesNotContain("EnsurePrerequisites", uninstall, StringComparison.Ordinal);
         Assert.DoesNotContain("Remove-AppxPackage", uninstall, StringComparison.Ordinal);
         Assert.DoesNotContain("$PROGRAMFILES64\\dotnet", uninstall, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SetupStagesAndRollsBackBeforeReplacingTheLiveInstall()
+    {
+        string setup = ReadSetupScript();
+        string transaction = File.ReadAllText(RepositoryPath(
+            "windows", "installer", "Sidey.Setup", "InstallTransaction.ps1"));
+
+        Assert.Contains("RunInstallTransaction \"Prepare\"", setup, StringComparison.Ordinal);
+        Assert.Contains("$StagingDirectory\\Runtime", setup, StringComparison.Ordinal);
+        Assert.Contains("WriteUninstaller \"$StagingDirectory\\Uninstall.exe\"", setup, StringComparison.Ordinal);
+        Assert.Contains("RunInstallTransaction \"Activate\"", setup, StringComparison.Ordinal);
+        Assert.Contains("RunInstallTransaction \"BeginRegistration\"", setup, StringComparison.Ordinal);
+        Assert.Contains("RunInstallTransaction \"Commit\"", setup, StringComparison.Ordinal);
+        Assert.Contains("IfErrors registration_failed", setup, StringComparison.Ordinal);
+        Assert.Contains("Restore-PreviousRegistration", transaction, StringComparison.Ordinal);
+        Assert.Contains("Call RollbackInstallTransaction", setup, StringComparison.Ordinal);
+        Assert.Contains("RunInstallTransaction \"Complete\"", setup, StringComparison.Ordinal);
+        Assert.Contains("Global\\SIDEY.Setup.InstallTransaction", setup, StringComparison.Ordinal);
+        Assert.Contains("CleanupForUninstall", setup, StringComparison.Ordinal);
+        Assert.Contains("PRODUCT_TRANSACTION_KEY", setup, StringComparison.Ordinal);
+        Assert.DoesNotContain("ExecWait '\"$INSTDIR\\Uninstall.exe\" /S", setup, StringComparison.Ordinal);
+
+        int onInitStart = setup.IndexOf("Function .onInit", StringComparison.Ordinal);
+        string onInit = setup[onInitStart..setup.IndexOf("FunctionEnd", onInitStart, StringComparison.Ordinal)];
+        Assert.True(
+            onInit.IndexOf("RunInstallTransaction \"Recover\"", StringComparison.Ordinal)
+                < onInit.IndexOf("\"InstalledVersion\"", StringComparison.Ordinal),
+            "Interrupted installation recovery must precede version classification.");
+
+        Assert.Contains("Move-Item -LiteralPath $installPath -Destination $rollbackPath", transaction, StringComparison.Ordinal);
+        Assert.Contains("Move-Item -LiteralPath $stagingPath -Destination $installPath", transaction, StringComparison.Ordinal);
+        Assert.Contains("Undo-Transaction", transaction, StringComparison.Ordinal);
+        Assert.Contains("[IO.FileAttributes]::ReparsePoint", transaction, StringComparison.Ordinal);
+        Assert.Contains("Assert-SecureTransactionParent", transaction, StringComparison.Ordinal);
+        Assert.Contains("Protect-StagingDirectory", transaction, StringComparison.Ordinal);
+        Assert.Contains("previousRegistration", transaction, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ElevatedInstallerDelegatesUserWorkToTheDesktopToken()
+    {
+        string setup = ReadSetupScript();
+        string helper = File.ReadAllText(RepositoryPath(
+            "windows", "src", "Sidey.Uninstaller", "Program.cs"));
+
+        Assert.Contains("MUI_FINISHPAGE_RUN_FUNCTION LaunchSideyAsDesktopUser", setup, StringComparison.Ordinal);
+        Assert.DoesNotContain("MUI_FINISHPAGE_RUN \"$INSTDIR\\SIDEY.exe\"", setup, StringComparison.Ordinal);
+        Assert.Contains("--launch-sidey-as-desktop-user", setup, StringComparison.Ordinal);
+        Assert.Contains("--cleanup-startup-as-desktop-user", setup, StringComparison.Ordinal);
+
+        Assert.Contains("GetShellWindow", helper, StringComparison.Ordinal);
+        Assert.Contains("GetWindowThreadProcessId", helper, StringComparison.Ordinal);
+        Assert.Contains("DuplicateTokenEx", helper, StringComparison.Ordinal);
+        Assert.Contains("CreateProcessWithTokenW", helper, StringComparison.Ordinal);
+        Assert.Contains("CreateEnvironmentBlock", helper, StringComparison.Ordinal);
+        Assert.Contains("TryIsCurrentProcessElevated", helper, StringComparison.Ordinal);
+        Assert.Contains("IsCurrentDesktopUser", helper, StringComparison.Ordinal);
+        Assert.Contains("WindowsIdentity", helper, StringComparison.Ordinal);
+        Assert.Contains("Registry.CurrentUser", helper, StringComparison.Ordinal);
     }
 
     [Theory]

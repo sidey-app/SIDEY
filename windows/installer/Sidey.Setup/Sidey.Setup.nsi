@@ -28,6 +28,7 @@ Unicode true
 !define PRODUCT_NAME "SIDEY"
 !define PRODUCT_PUBLISHER "SIDEY"
 !define PRODUCT_REGISTRY_KEY "Software\SIDEY\Installer"
+!define PRODUCT_TRANSACTION_KEY "Software\SIDEY\InstallerTransaction"
 !define PRODUCT_UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\SIDEY"
 !define PRODUCT_PROTOCOL_KEY "Software\Classes\sidey"
 !define LEGACY_MSI_UPGRADE_CODE "{E744D02B-C3CF-41CE-A4C9-9BA1EB10C6B9}"
@@ -69,8 +70,9 @@ VIAddVersionKey /LANG=1033 "FileVersion" "${APP_FILE_VERSION}"
 !define MUI_UNICON "${PUBLISH_DIR}\Assets\Icons\SideyAppIcon.ico"
 !define MUI_WELCOMEFINISHPAGE_BITMAP "${__FILEDIR__}\SideyWelcome.bmp"
 !define MUI_WELCOMEFINISHPAGE_BITMAP_STRETCH "FitControl"
-!define MUI_FINISHPAGE_RUN "$INSTDIR\SIDEY.exe"
+!define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_TEXT "$(LaunchSidey)"
+!define MUI_FINISHPAGE_RUN_FUNCTION LaunchSideyAsDesktopUser
 !define MUI_LANGDLL_REGISTRY_ROOT "HKLM"
 !define MUI_LANGDLL_REGISTRY_KEY "${PRODUCT_REGISTRY_KEY}"
 !define MUI_LANGDLL_REGISTRY_VALUENAME "Language"
@@ -134,10 +136,8 @@ LangString CloseAction ${LANG_ENGLISH} "Close"
 LangString CloseAction ${LANG_KOREAN} "닫기"
 LangString DowngradeBlocked ${LANG_ENGLISH} "A newer version of SIDEY is already installed. Uninstall it before installing ${APP_VERSION}."
 LangString DowngradeBlocked ${LANG_KOREAN} "더 새로운 버전의 SIDEY가 이미 설치되어 있습니다. ${APP_VERSION} 버전을 설치하려면 먼저 삭제해 주세요."
-LangString LegacyMigrationFailed ${LANG_ENGLISH} "The previous SIDEY MSI could not be removed. Setup cannot continue. Error code: $0"
-LangString LegacyMigrationFailed ${LANG_KOREAN} "이전 SIDEY MSI를 삭제하지 못해 설치를 계속할 수 없습니다. 오류 코드: $0"
-LangString LegacyMigrationRestart ${LANG_ENGLISH} "Windows must restart to finish removing the previous SIDEY MSI. Restart Windows, then run Setup again."
-LangString LegacyMigrationRestart ${LANG_KOREAN} "이전 SIDEY MSI 삭제를 마치려면 Windows를 다시 시작해야 합니다. 다시 시작한 뒤 설치 프로그램을 다시 실행해 주세요."
+LangString LegacyMigrationManual ${LANG_ENGLISH} "A previous SIDEY MSI is installed. Uninstall it from Windows Settings > Apps, then run this Setup again. The previous installation was not changed."
+LangString LegacyMigrationManual ${LANG_KOREAN} "이전 SIDEY MSI가 설치되어 있습니다. Windows 설정 > 앱에서 제거한 뒤 이 설치 프로그램을 다시 실행해 주세요. 기존 설치는 변경하지 않았습니다."
 LangString ExistingRemovalFailed ${LANG_ENGLISH} "The existing SIDEY installation could not be prepared for this installation. Error code: $0"
 LangString ExistingRemovalFailed ${LANG_KOREAN} "기존 SIDEY 설치를 새 설치용으로 정리하지 못했습니다. 오류 코드: $0"
 LangString PrerequisitesStatus ${LANG_ENGLISH} "Checking required runtimes; missing runtimes will be downloaded from Microsoft..."
@@ -158,6 +158,14 @@ LangString DeleteCredentials ${LANG_ENGLISH} "Delete saved SIDEY sign-in credent
 LangString DeleteCredentials ${LANG_KOREAN} "저장된 SIDEY 로그인 자격 증명 삭제"
 LangString CleanupFailed ${LANG_ENGLISH} "Some selected current-user data could not be removed. Error code: $0"
 LangString CleanupFailed ${LANG_KOREAN} "선택한 현재 사용자 데이터 일부를 삭제하지 못했습니다. 오류 코드: $0"
+LangString LaunchFailed ${LANG_ENGLISH} "SIDEY was installed, but it could not be started as the desktop user. Start SIDEY from the Start menu. Error code: $0"
+LangString LaunchFailed ${LANG_KOREAN} "SIDEY를 설치했지만 데스크톱 사용자 권한으로 실행하지 못했습니다. 시작 메뉴에서 SIDEY를 실행해 주세요. 오류 코드: $0"
+LangString TransactionFailed ${LANG_ENGLISH} "SIDEY could not safely replace the installation. The previous version was kept or restored. Error code: $0"
+LangString TransactionFailed ${LANG_KOREAN} "SIDEY 설치를 안전하게 교체하지 못했습니다. 이전 버전을 유지하거나 복원했습니다. 오류 코드: $0"
+LangString SetupAlreadyRunning ${LANG_ENGLISH} "Another SIDEY Setup or uninstaller is already running. Close it before continuing."
+LangString SetupAlreadyRunning ${LANG_KOREAN} "다른 SIDEY 설치 프로그램 또는 제거 프로그램이 실행 중입니다. 먼저 종료한 뒤 다시 시도해 주세요."
+LangString CleanupPending ${LANG_ENGLISH} "SIDEY was installed, but the previous-version backup could not be removed. Setup will retry cleanup next time."
+LangString CleanupPending ${LANG_KOREAN} "SIDEY를 설치했지만 이전 버전 백업을 정리하지 못했습니다. 다음 설치 실행 때 정리를 다시 시도합니다."
 
 !include "${__FILEDIR__}\Languages.nsh"
 !include "${__FILEDIR__}\InstallerErrors.nsh"
@@ -173,22 +181,63 @@ Var DeleteLocalDataCheckbox
 Var DeleteCredentialsCheckbox
 Var DeleteLocalData
 Var DeleteCredentials
-Var HasNsisInstall
-Var HasPrivateRuntime
+Var StagingDirectory
+Var RollbackDirectory
+Var SetupMutexHandle
+
+!macro AcquireSetupMutex HANDLE
+  System::Call 'kernel32::CreateMutexW(p0, i0, w "Global\SIDEY.Setup.InstallTransaction") p.r0 ?e'
+  Pop $1
+  StrCpy ${HANDLE} $0
+  ${If} ${HANDLE} == 0
+  ${OrIf} $1 == 183
+    ${If} ${HANDLE} != 0
+      System::Call 'kernel32::CloseHandle(p ${HANDLE})'
+      StrCpy ${HANDLE} 0
+    ${EndIf}
+    MessageBox MB_OK|MB_ICONSTOP "$(SetupAlreadyRunning)" /SD IDOK
+    Abort
+  ${EndIf}
+!macroend
+
+!macro RunInstallTransaction ACTION RESULT
+  ${DisableX64FSRedirection}
+  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\InstallTransaction.ps1" -Action ${ACTION} -InstallDirectory "$INSTDIR" -StagingDirectory "$StagingDirectory" -RollbackDirectory "$RollbackDirectory" -Version "${APP_VERSION}"'
+  Pop ${RESULT}
+  ${EnableX64FSRedirection}
+!macroend
 
 Function .onInit
   SetRegView 64
   SetShellVarContext all
   Call SelectInstallerLanguage
+  !insertmacro AcquireSetupMutex $SetupMutexHandle
   Call InitializeInstallerErrorHandling
 
   StrCpy $InstallState "fresh"
-  StrCpy $HasNsisInstall "false"
+  ReadRegStr $0 HKLM "${PRODUCT_TRANSACTION_KEY}" "InstallLocation"
+  ${If} $0 == ""
+    ReadRegStr $0 HKLM "${PRODUCT_REGISTRY_KEY}" "InstallLocation"
+  ${EndIf}
+  ${If} $0 != ""
+    StrCpy $INSTDIR $0
+  ${EndIf}
+
+  ; Recovery must precede installed-version classification. A process can stop
+  ; after writing the new version but before committing its payload.
+  Call InitializeInstallTransaction
+  Call PrepareRuntimeHelper
+  !insertmacro RunInstallTransaction "Recover" $0
+  ${If} $0 != 0
+    SetErrorLevel 1
+    MessageBox MB_OK|MB_ICONSTOP "$(TransactionFailed)" /SD IDOK
+    Abort
+  ${EndIf}
+
   ReadRegStr $InstalledVersion HKLM "${PRODUCT_REGISTRY_KEY}" "InstalledVersion"
   ReadRegStr $0 HKLM "${PRODUCT_REGISTRY_KEY}" "InstallLocation"
   ${If} $0 != ""
     StrCpy $INSTDIR $0
-    StrCpy $HasNsisInstall "true"
   ${EndIf}
 
   ${If} $InstalledVersion != ""
@@ -265,10 +314,27 @@ Function SelectClose
   SendMessage $HWNDPARENT ${WM_COMMAND} 1 0
 FunctionEnd
 
+Function ReleaseSetupMutex
+  ${If} $SetupMutexHandle != 0
+    System::Call 'kernel32::CloseHandle(p $SetupMutexHandle)'
+    StrCpy $SetupMutexHandle 0
+  ${EndIf}
+FunctionEnd
+
 Function TermsPagePre
   ${If} $InstallState == "remove"
     HideWindow
-    ExecWait '"$INSTDIR\Uninstall.exe"'
+    ; Hand ownership to the installed uninstaller, which acquires the same
+    ; machine-wide mutex before it changes transaction or installation state.
+    Call ReleaseSetupMutex
+    ClearErrors
+    ExecWait '"$INSTDIR\Uninstall.exe"' $0
+    ${If} ${Errors}
+      StrCpy $0 5
+    ${EndIf}
+    ${If} $0 != 0
+      MessageBox MB_OK|MB_ICONSTOP "$(ExistingRemovalFailed)" /SD IDOK
+    ${EndIf}
     Quit
   ${ElseIf} $InstallState == "close"
     HideWindow
@@ -290,6 +356,31 @@ Function StopSideyProcesses
   Pop $0
   nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /IM SIDEY.Host.exe /F'
   Pop $0
+FunctionEnd
+
+Function InitializeInstallTransaction
+  System::Call 'kernel32::GetCurrentProcessId() i.r0'
+  StrCpy $StagingDirectory "$INSTDIR.sidey-staging-$0"
+  StrCpy $RollbackDirectory "$INSTDIR.sidey-rollback"
+FunctionEnd
+
+Function RollbackInstallTransaction
+  ${If} $StagingDirectory == ""
+    StrCpy $0 0
+    Return
+  ${EndIf}
+  !insertmacro RunInstallTransaction "Rollback" $0
+FunctionEnd
+
+Function LaunchSideyAsDesktopUser
+  ClearErrors
+  ExecWait '"$INSTDIR\Runtime\SIDEY.UninstallHelper.exe" --launch-sidey-as-desktop-user' $0
+  ${If} ${Errors}
+    StrCpy $0 5
+  ${EndIf}
+  ${If} $0 != 0
+    MessageBox MB_OK|MB_ICONEXCLAMATION "$(LaunchFailed)" /SD IDOK
+  ${EndIf}
 FunctionEnd
 
 Function SelectInstallerLanguage
@@ -331,6 +422,7 @@ Function PrepareRuntimeHelper
   File /oname=$PLUGINSDIR\SetupRuntime.ps1 "${__FILEDIR__}\SetupRuntime.ps1"
   File /oname=$PLUGINSDIR\Prerequisites.ps1 "${__FILEDIR__}\Prerequisites.ps1"
   File /oname=$PLUGINSDIR\InstallerErrors.ps1 "${__FILEDIR__}\InstallerErrors.ps1"
+  File /oname=$PLUGINSDIR\InstallTransaction.ps1 "${__FILEDIR__}\InstallTransaction.ps1"
   File /oname=$PLUGINSDIR\prerequisites.json "${__FILEDIR__}\prerequisites.json"
 FunctionEnd
 
@@ -368,84 +460,60 @@ Section "SIDEY" MainSection
   SetShellVarContext all
   SetOverwrite on
   Call EnsurePrerequisites
-  StrCpy $HasPrivateRuntime "false"
-  IfFileExists "$INSTDIR\Runtime\SIDEY.Host.exe" 0 +2
-    StrCpy $HasPrivateRuntime "true"
-  Call StopSideyProcesses
-
-  ${If} $HasNsisInstall == "true"
-    StrCpy $0 2
-    IfFileExists "$INSTDIR\Uninstall.exe" 0 existing_uninstall_failed
-    ExecWait '"$INSTDIR\Uninstall.exe" /S _?=$INSTDIR' $0
-    ${If} $0 != 0
-      Goto existing_uninstall_failed
-    ${EndIf}
-  ${EndIf}
-  Goto existing_uninstall_done
-
-  existing_uninstall_failed:
-    Call ResetInstallerError
-    StrCpy $InstallerErrorNativeCode $0
-    StrCpy $InstallerErrorExitCode $0
-    StrCpy $InstallerErrorSource "NSIS"
-    StrCpy $InstallerErrorStage "UNINSTALL"
-    StrCpy $InstallerErrorTarget "Existing SIDEY installation"
-    StrCpy $InstallerErrorCommand "Uninstall.exe /S"
-    Call NormalizeInstallerError
-    Call ShowInstallerError
-    Abort
-
-  existing_uninstall_done:
-
-  InitPluginsDir
-  File /oname=$PLUGINSDIR\SideyLegacyMsiHelper.exe "${PUBLISH_DIR}\Uninstall.exe"
-  ExecWait '"$PLUGINSDIR\SideyLegacyMsiHelper.exe" --uninstall-legacy-msi' $0
-  ${If} $0 == 3010
-    SetErrorLevel 3010
-    MessageBox MB_OK|MB_ICONEXCLAMATION "$(LegacyMigrationRestart)"
-    Abort
-  ${ElseIf} $0 != 0
-  ${AndIf} $0 != 1605
-    Call ResetInstallerError
-    StrCpy $InstallerErrorNativeCode $0
-    StrCpy $InstallerErrorExitCode $0
-    StrCpy $InstallerErrorSource "MSI"
-    StrCpy $InstallerErrorStage "UNINSTALL"
-    StrCpy $InstallerErrorTarget "Legacy SIDEY MSI"
-    StrCpy $InstallerErrorCommand "SideyLegacyMsiHelper.exe --uninstall-legacy-msi"
-    Call NormalizeInstallerError
-    Call ShowInstallerError
-    Abort
-  ${EndIf}
-
-  ; The previous uninstaller removes its recorded payload. Also remove leftover
-  ; self-contained files in SIDEY's private Runtime tree before copying new files.
-  ${If} $HasPrivateRuntime == "true"
-  ${OrIf} $HasNsisInstall == "true"
-    Call ResetInstallerError
-    StrCpy $InstallerErrorSource "FILESYSTEM"
-    StrCpy $InstallerErrorStage "CLEANUP"
-    StrCpy $InstallerErrorTarget "SIDEY private Runtime"
-    StrCpy $InstallerErrorCommand "Remove-SideyPrivateRuntime"
-    ${DisableX64FSRedirection}
-    nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\SetupRuntime.ps1" -InstallDirectory "$INSTDIR" -ResultPath "$InstallerErrorResultPath" -LogPath "$InstallerErrorLogPath" -InstallerVersion "${APP_VERSION}"'
-    Pop $0
-    ${EnableX64FSRedirection}
-    StrCpy $InstallerErrorExitCode $0
-    StrCpy $InstallerErrorNativeCode $0
-    Call LoadInstallerResult
-    ${If} $InstallerErrorStatus != "SUCCESS"
-      SetErrorLevel 1
-      Call ShowInstallerError
-      Abort
-    ${EndIf}
+  Call InitializeInstallTransaction
+  !insertmacro RunInstallTransaction "Prepare" $0
+  ${If} $0 != 0
+    Goto transaction_failed
   ${EndIf}
 
   !include "${PAYLOAD_INSTALL_INCLUDE}"
-  SetOutPath "$INSTDIR\Runtime"
+  SetOutPath "$StagingDirectory\Runtime"
+  ClearErrors
   File /oname=SIDEY.UninstallHelper.exe "${PUBLISH_DIR}\Uninstall.exe"
-  WriteUninstaller "$INSTDIR\Uninstall.exe"
+  IfErrors payload_stage_failed
+  ClearErrors
+  WriteUninstaller "$StagingDirectory\Uninstall.exe"
+  IfErrors payload_stage_failed
+  ; Release the staging tree as this process's working directory before rename.
+  SetOutPath "$PLUGINSDIR"
 
+  ; Keep the previous live install available until the full replacement payload
+  ; is staged and validated. Downtime starts only after staging succeeds.
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  ClearErrors
+  File /oname=$PLUGINSDIR\SideyLegacyMsiHelper.exe "${PUBLISH_DIR}\Uninstall.exe"
+  IfErrors payload_stage_failed
+  ClearErrors
+  ExecWait '"$PLUGINSDIR\SideyLegacyMsiHelper.exe" --detect-legacy-msi' $0
+  ${If} ${Errors}
+    StrCpy $0 5
+    Goto legacy_detection_failed
+  ${ElseIf} $0 == 0
+    Call RollbackInstallTransaction
+    ${If} $0 != 0
+      Goto transaction_failed
+    ${EndIf}
+    MessageBox MB_OK|MB_ICONEXCLAMATION "$(LegacyMigrationManual)" /SD IDOK
+    Abort
+  ${ElseIf} $0 != 0
+  ${AndIf} $0 != 1605
+    Goto legacy_detection_failed
+  ${EndIf}
+
+  Call StopSideyProcesses
+
+  !insertmacro RunInstallTransaction "Activate" $0
+  ${If} $0 != 0
+    Goto transaction_failed
+  ${EndIf}
+
+  !insertmacro RunInstallTransaction "BeginRegistration" $0
+  ${If} $0 != 0
+    Goto registration_rollback_failed
+  ${EndIf}
+
+  ClearErrors
   CreateDirectory "$SMPROGRAMS\SIDEY"
   CreateShortcut "$SMPROGRAMS\SIDEY\SIDEY.lnk" "$INSTDIR\SIDEY.exe" "" "$INSTDIR\Assets\Icons\SideyAppIcon.ico"
   CreateShortcut "$SMPROGRAMS\SIDEY\Uninstall SIDEY.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Assets\Icons\SideyAppIcon.ico"
@@ -455,11 +523,9 @@ Section "SIDEY" MainSection
   WriteRegStr HKLM "${PRODUCT_PROTOCOL_KEY}\DefaultIcon" "" "$INSTDIR\Assets\Icons\SideyAppIcon.ico"
   WriteRegStr HKLM "${PRODUCT_PROTOCOL_KEY}\shell\open\command" "" '$\"$INSTDIR\SIDEY.exe$\" $\"%1$\"'
 
-  WriteRegStr HKLM "${PRODUCT_REGISTRY_KEY}" "InstalledVersion" "${APP_VERSION}"
   WriteRegStr HKLM "${PRODUCT_REGISTRY_KEY}" "Language" $LANGUAGE
   WriteRegStr HKLM "${PRODUCT_REGISTRY_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKLM "${PRODUCT_UNINSTALL_KEY}" "DisplayName" "SIDEY"
-  WriteRegStr HKLM "${PRODUCT_UNINSTALL_KEY}" "DisplayVersion" "${APP_VERSION}"
   WriteRegStr HKLM "${PRODUCT_UNINSTALL_KEY}" "Publisher" "${PRODUCT_PUBLISHER}"
   WriteRegStr HKLM "${PRODUCT_UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKLM "${PRODUCT_UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\Assets\Icons\SideyAppIcon.ico"
@@ -467,17 +533,96 @@ Section "SIDEY" MainSection
   WriteRegStr HKLM "${PRODUCT_UNINSTALL_KEY}" "QuietUninstallString" '$\"$INSTDIR\Uninstall.exe$\" /S'
   WriteRegDWORD HKLM "${PRODUCT_UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKLM "${PRODUCT_UNINSTALL_KEY}" "NoRepair" 1
+  WriteRegStr HKLM "${PRODUCT_UNINSTALL_KEY}" "DisplayVersion" "${APP_VERSION}"
+  WriteRegStr HKLM "${PRODUCT_REGISTRY_KEY}" "InstalledVersion" "${APP_VERSION}"
+  IfErrors registration_failed
+
+  !insertmacro RunInstallTransaction "Commit" $0
+  ${If} $0 != 0
+    Goto registration_rollback_failed
+  ${EndIf}
+
+  !insertmacro RunInstallTransaction "Complete" $0
+  ${If} $0 != 0
+    MessageBox MB_OK|MB_ICONEXCLAMATION "$(CleanupPending)" /SD IDOK
+  ${EndIf}
+  Goto install_complete
+
+  payload_stage_failed:
+    StrCpy $1 5
+    Call RollbackInstallTransaction
+    ${If} $0 != 0
+      Goto transaction_failed
+    ${EndIf}
+    StrCpy $0 $1
+    Goto transaction_failed
+
+  registration_failed:
+    StrCpy $0 5
+
+  registration_rollback_failed:
+    StrCpy $1 $0
+    Call RollbackInstallTransaction
+    ${If} $0 != 0
+      Goto transaction_failed
+    ${EndIf}
+    StrCpy $0 $1
+    Goto transaction_failed
+
+  legacy_detection_failed:
+    StrCpy $1 $0
+    Call RollbackInstallTransaction
+    ${If} $0 != 0
+      Goto transaction_failed
+    ${EndIf}
+    StrCpy $0 $1
+    Call ResetInstallerError
+    StrCpy $InstallerErrorNativeCode $0
+    StrCpy $InstallerErrorExitCode $0
+    StrCpy $InstallerErrorSource "MSI"
+    StrCpy $InstallerErrorStage "DETECT"
+    StrCpy $InstallerErrorTarget "Legacy SIDEY MSI"
+    StrCpy $InstallerErrorCommand "SideyLegacyMsiHelper.exe --detect-legacy-msi"
+    Call NormalizeInstallerError
+    Call ShowInstallerError
+    Abort
+
+  transaction_failed:
+    SetErrorLevel 1
+    MessageBox MB_OK|MB_ICONSTOP "$(TransactionFailed)" /SD IDOK
+    Abort
+
+  install_complete:
 SectionEnd
+
+Function .onInstFailed
+  Call RollbackInstallTransaction
+  ${If} $0 != 0
+    SetErrorLevel 1
+    MessageBox MB_OK|MB_ICONSTOP "$(TransactionFailed)" /SD IDOK
+  ${EndIf}
+FunctionEnd
+
+Function .onGUIEnd
+  Call ReleaseSetupMutex
+FunctionEnd
 
 Function un.onInit
   SetRegView 64
   SetShellVarContext all
+  !insertmacro AcquireSetupMutex $SetupMutexHandle
   ReadRegStr $0 HKLM "${PRODUCT_REGISTRY_KEY}" "Language"
   ${If} $0 != ""
     StrCpy $LANGUAGE $0
   ${EndIf}
   StrCpy $DeleteLocalData 0
   StrCpy $DeleteCredentials 0
+FunctionEnd
+
+Function un.onGUIEnd
+  ${If} $SetupMutexHandle != 0
+    System::Call 'kernel32::CloseHandle(p $SetupMutexHandle)'
+  ${EndIf}
 FunctionEnd
 
 Function un.CleanupPageCreate
@@ -512,20 +657,53 @@ Section "Uninstall"
   nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /IM SIDEY.Host.exe /F'
   Pop $0
 
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  ClearErrors
+  File /oname=$PLUGINSDIR\InstallTransaction.ps1 "${__FILEDIR__}\InstallTransaction.ps1"
+  IfErrors uninstall_transaction_failed
+  System::Call 'kernel32::GetCurrentProcessId() i.r0'
+  StrCpy $StagingDirectory "$INSTDIR.sidey-staging-$0"
+  StrCpy $RollbackDirectory "$INSTDIR.sidey-rollback"
+  ${DisableX64FSRedirection}
+  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\InstallTransaction.ps1" -Action CleanupForUninstall -InstallDirectory "$INSTDIR" -StagingDirectory "$StagingDirectory" -RollbackDirectory "$RollbackDirectory" -Version "${APP_VERSION}"'
+  Pop $0
+  ${EnableX64FSRedirection}
+  ${If} $0 != 0
+    Goto uninstall_transaction_failed
+  ${EndIf}
+
   ${If} $DeleteLocalData == ${BST_CHECKED}
-    ExecWait '"$INSTDIR\Runtime\SIDEY.UninstallHelper.exe" --cleanup-local-data' $0
+    ClearErrors
+    ExecWait '"$INSTDIR\Runtime\SIDEY.UninstallHelper.exe" --cleanup-local-data-as-desktop-user' $0
+    ${If} ${Errors}
+      StrCpy $0 5
+    ${EndIf}
     ${If} $0 != 0
       MessageBox MB_OK|MB_ICONEXCLAMATION "$(CleanupFailed)"
     ${EndIf}
   ${EndIf}
   ${If} $DeleteCredentials == ${BST_CHECKED}
-    ExecWait '"$INSTDIR\Runtime\SIDEY.UninstallHelper.exe" --cleanup-credentials' $0
+    ClearErrors
+    ExecWait '"$INSTDIR\Runtime\SIDEY.UninstallHelper.exe" --cleanup-credentials-as-desktop-user' $0
+    ${If} ${Errors}
+      StrCpy $0 5
+    ${EndIf}
     ${If} $0 != 0
       MessageBox MB_OK|MB_ICONEXCLAMATION "$(CleanupFailed)"
     ${EndIf}
   ${EndIf}
 
-  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "SIDEY"
+  ; HKCU, LocalAppData and Credential Manager must resolve through the desktop
+  ; user's token, including over-the-shoulder UAC with another admin account.
+  ClearErrors
+  ExecWait '"$INSTDIR\Runtime\SIDEY.UninstallHelper.exe" --cleanup-startup-as-desktop-user' $0
+  ${If} ${Errors}
+    StrCpy $0 5
+  ${EndIf}
+  ${If} $0 != 0
+    MessageBox MB_OK|MB_ICONEXCLAMATION "$(CleanupFailed)" /SD IDOK
+  ${EndIf}
   Delete "$SMPROGRAMS\SIDEY\SIDEY.lnk"
   Delete "$SMPROGRAMS\SIDEY\Uninstall SIDEY.lnk"
   RMDir "$SMPROGRAMS\SIDEY"
@@ -537,4 +715,12 @@ Section "Uninstall"
   DeleteRegKey HKLM "${PRODUCT_UNINSTALL_KEY}"
   DeleteRegKey HKLM "${PRODUCT_PROTOCOL_KEY}"
   DeleteRegKey HKLM "${PRODUCT_REGISTRY_KEY}"
+  Goto uninstall_complete
+
+  uninstall_transaction_failed:
+    SetErrorLevel 1
+    MessageBox MB_OK|MB_ICONSTOP "$(TransactionFailed)" /SD IDOK
+    Abort
+
+  uninstall_complete:
 SectionEnd
