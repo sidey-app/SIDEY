@@ -1,0 +1,26 @@
+# SIDEY Documentation and Release Instructions
+
+These instructions apply to `docs/**`. They also govern the root `README.md` when the repository-root routing sends a task here.
+
+## Document boundaries
+
+- `docs/DECISIONS.md` is the authority for confirmed product and technical decisions; `docs/PRODUCT_SPEC.md` carries detailed scope and direction. Preserve the distinction between confirmed, planned and unresolved behavior. Update both in the same change when their respective product contracts change.
+- Public README and release writing is for users. Internal architecture, review evidence, operational history and contributor procedures may retain the technical detail needed for their audience; do not force public marketing style onto them.
+- Windows contributor documentation under `windows/docs/**` follows `windows/docs/AGENTS.md`, not this directory's location and language layout.
+
+## Public README contract
+
+- Keep `README.md` as the Korean entry point in its established polite conversational style. Keep English, Japanese, Simplified Chinese, Traditional Chinese, Russian and Ukrainian translations at `docs/readme/README.<locale>.md`, with valid links among all seven editions.
+- Preserve the durable introduction, official website, preview, separate macOS and Windows installation sections, contribution guidance, credits and policy links.
+- Installation sections link to the official GitHub Releases page. Do not duplicate version numbers, build numbers, versioned artifact filenames, update histories or roadmaps in README files.
+- Store badges use the repository's official SVG assets. A store badge or availability statement must match a confirmed public product URL and shipped state.
+- Keep development setup, backend architecture, build instructions and internal rollout language out of the public README.
+
+## Release documentation contract
+
+- `release/macos.json` and `release/windows.json` are the stable public version sources. Platform source files and update feeds are validated mirrors, not alternative prose-owned authorities.
+- `docs/releases/v<version>.md` is the canonical macOS release body and `docs/releases/windows-v<version>.md` is the canonical Windows release body. Keep platform releases independent and do not copy an unverified change between them.
+- Release notes lead with verified user-visible results, installation steps and required warnings. Keep implementation details only when users must act on them.
+- Use the official website and GitHub Releases URLs. Do not claim signing, testing, compatibility, availability or release completion without evidence from the exact target commit and artifact.
+
+Use `.agents/skills/sidey-release-docs/SKILL.md` when researching or drafting README, release-note or public GitHub Release copy. Validate versions and links with `scripts/verify_release_consistency.py`, resolve changed relative Markdown links, inspect translations affected by the change and run `git diff --check`. Drafting documentation does not authorize tags, uploads, publication or deployment.
