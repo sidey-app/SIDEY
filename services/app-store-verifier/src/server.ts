@@ -1,8 +1,9 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createClient, type User } from "@supabase/supabase-js";
 import { AppleGateway, sha256Hex, type VerifiedTransaction } from "./apple.js";
-import { isSideyProductID, transactionStatus } from "./catalog.js";
+import { isSideyProductID } from "./catalog.js";
 import { loadConfig } from "./config.js";
+import { transactionRPCParameters } from "./transaction-parameters.js";
 
 const config = loadConfig();
 const apple = new AppleGateway(config);
@@ -45,21 +46,9 @@ async function applyTransaction(transaction: VerifiedTransaction, userID: string
   if (!isSideyProductID(transaction.productID)) {
     throw new HTTPError(400, "unknown_app_store_product");
   }
-  const { data, error } = await supabase.rpc("admin_apply_app_store_transaction", {
-    p_user_id: userID,
-    p_transaction_id: transaction.transactionID,
-    p_original_transaction_id: transaction.originalTransactionID,
-    p_product_id: transaction.productID,
-    p_app_account_token: transaction.appAccountToken,
-    p_environment: transaction.environment,
-    p_status: transactionStatus(transaction.revocationDate),
-    p_purchased_at: new Date(transaction.purchaseDate).toISOString(),
-    p_revoked_at: transaction.revocationDate == null
-      ? null
-      : new Date(transaction.revocationDate).toISOString(),
-    p_signed_at: new Date(transaction.signedDate).toISOString(),
-    p_signed_data_sha256_hex: sha256Hex(transaction.signedTransactionInfo),
-  });
+  const { data, error } = await supabase.rpc(
+    "admin_apply_app_store_transaction", transactionRPCParameters(transaction, userID),
+  );
   if (error) throw new Error(`database_transaction_rejected:${error.code ?? "unknown"}`);
   return Array.isArray(data) ? data[0] : data;
 }

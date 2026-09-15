@@ -127,6 +127,10 @@
 - 메시지 본문, 초대 코드·hash, checkout token, 카드 정보, PortOne Store·Channel·payment 식별자는 RPC가 반환하지 않는다. 어드민에는 mutation endpoint나 삭제·환불·지급 action을 두지 않는다.
 - 라이트·다크 테마를 지원하고 SIDEY 앱 아이콘과 기존 24×24 캐릭터 sprite의 첫 frame을 정수 nearest-neighbor로 사용한다.
 
+- App Store 결제는 개요의 별도 금액 요약과 결제 메뉴의 App Store 경로에서 조회한다. 기본 환경은 Production이며 Sandbox는 명시적으로 선택한다. 구매일 KST 기간·상태·사용자/상품 검색과 25건 페이지를 제공하고 통화별 구매액·환불/회수 대상 원구매액·유효 거래 금액을 집계한다. 금액 미확인은 0원과 구분하여 합계에서 제외한다. 실제 정산·회계는 App Store Connect 보고서를 기준으로 한다.
+- 검증 서버는 서명 검증한 Apple `price`(통화 단위 × 1000)·`currency`를 기존 거래 적용과 한 RPC 트랜잭션으로 저장한다. 구형 11인자 RPC 호환을 유지하고 과거 미확인 금액 보완은 service role 전용 제한 조회·금액 갱신과 순차 CLI를 사용한다. 원본 Apple transaction ID·account token·서명 본문은 브라우저 조회에 포함하지 않는다.
+- 새 App Store 목록 조회는 자동 폴링·자동 재시도 없이 동작하며 같은 요청을 서버에서 합치고 30초/최대32개 결과 캐시·동시2개·8초 upstream 제한을 둔다. 개요의 App Store 요약은 기존 RPC 응답에 포함해 브라우저 요청 수를 늘리지 않는다.
+
 ## 3. 그룹과 계정
 
 - 그룹은 초대 전용 비공개 방이다.
