@@ -427,10 +427,13 @@ public sealed class DistributionSourceTests
         Assert.Contains("/DPREREQUISITE_INSTALLER_EXE=", package, StringComparison.Ordinal);
         Assert.Contains("-HelperPath $installTransactionExecutablePath", package, StringComparison.Ordinal);
         Assert.Contains("-HelperPath $prerequisiteInstallerExecutablePath", package, StringComparison.Ordinal);
+        Assert.Contains("tests/Test-PowerShellSupport.ps1", package, StringComparison.Ordinal);
         Assert.Contains("forbiddenRuntimeToken", package, StringComparison.Ordinal);
         Assert.Contains("[switch]$ProvisionAllUsers", prerequisiteSetup, StringComparison.Ordinal);
         Assert.Contains("if ($ProvisionAllUsers)", prerequisiteSetup, StringComparison.Ordinal);
         Assert.Contains("@('--provision-all-users') + $helperArguments", prerequisiteSetup, StringComparison.Ordinal);
+        Assert.Contains("Invoke-SideyWindowsProcess", prerequisiteSetup, StringComparison.Ordinal);
+        Assert.DoesNotContain("& $helperPath @helperArguments", prerequisiteSetup, StringComparison.Ordinal);
         Assert.DoesNotContain("& $helperPath `\n    --provision-all-users", prerequisiteSetup, StringComparison.Ordinal);
         foreach (string source in new[] { setup, errors })
         {
