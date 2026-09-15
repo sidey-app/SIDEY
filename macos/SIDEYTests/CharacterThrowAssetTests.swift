@@ -21,11 +21,11 @@ final class CharacterThrowAssetTests: XCTestCase {
         "pixel_otter": "ad7d076f4c63910c2c97f6e6ed03c27b47642a825d002d64b8c9dc86c11c2716",
         "pixel_pig": "045344ec128ed34cfe2e6a641cf90c1a04b3ac639045dc200bc996c0089da85b",
         "pixel_tree": "af22b750129b813d0affd8fa572604837f6bf67acfa14bda68074abf45a11f15",
-        "pixel_shiba": "a88e049275de5059d880cb7ff1c478a2e8204d9decc0c7bf461ff9255d6dc24f",
-        "pixel_duck": "a8fab6aebc7f6260e8f470e26365a45cac1a493144da36ab0665d54a38d0fc67",
-        "pixel_poop": "3611e29ca3a6b1efcd9533a9d56494eb8daee31bef973e7ae2c69c0f115f7e8b",
-        "pixel_tteokbokki": "b5084af74609db432e21bea117da0253aac94197e2a2ded157f7cec04465851c",
-        "pixel_quokka": "fc01c484c98651c5da3e32888122070af04091d57a514199da6019ca73b753a7"
+        "pixel_shiba": "0e2a54c5d53dd827526afca86ab3ec073f860da21ade1b1289b864c30f5a0e87",
+        "pixel_duck": "ad802bb86d51eed5e2e5a1208da93503ff30c3886c5e21e8e40b86494a78881f",
+        "pixel_poop": "2dfe350847ee18096f9e14431d573bf840f1445a4cef459622d77ca97760fc50",
+        "pixel_tteokbokki": "f0f71c0d3843662a7ba80faf8c6476257adda33547e325ceea2031885ff5c5fc",
+        "pixel_quokka": "ab43e2997d6e869ee6256a22a42f13ff76fc7b4f6a411f940319d7e98ab7a6f9"
     ]
     private let objectHashes = [
         "patch_soft_ball": "cdde7f417c5d8d82d0f4df6b03fa8e7d494d98a37d75aa66699505d7c87c53fe",
