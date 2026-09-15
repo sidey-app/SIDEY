@@ -17,12 +17,22 @@ final class NewCharacterIntegrationTests: XCTestCase {
             XCTAssertTrue(PixelCharacterCatalog.canSelect(character, entitlementKeys: ["character:\(character)"]))
             XCTAssertTrue(PixelCharacterThrowCatalog.supports(objectID: item))
         }
-        XCTAssertEqual(CommerceProduct.otter.amountKRW, 990)
-        XCTAssertEqual(CommerceProduct.pig.amountKRW, 990)
-        XCTAssertEqual(CommerceProduct.tree.amountKRW, 1900)
+        XCTAssertEqual(CommerceProduct.otter.amountKRW, 1_100)
+        XCTAssertEqual(CommerceProduct.pig.amountKRW, 1_100)
+        XCTAssertEqual(CommerceProduct.tree.amountKRW, 1_100)
         for product in [CommerceProduct.snowflake, .baseball, .wakkuball, .dujjonku] {
             XCTAssertTrue(PixelCharacterThrowCatalog.purchasableObjectIDs.contains(product.catalogItemID))
             XCTAssertNotNil(product.automaticEquipmentAfterFreshPurchase)
+        }
+    }
+
+    func testAllCatalogPricesUseApprovedKoreanTiers() {
+        let premium: Set<String> = ["bubble_bunny_pink", "bubble_butter_chick", "bubble_starry_cat",
+                                    "throwable_dujjonku", "throwable_wakkuball"]
+        for product in CommerceCatalog.products {
+            let expected = product.id == "throwable_toy_cannon" ? 3_300
+                : premium.contains(product.id) ? 2_200 : 1_100
+            XCTAssertEqual(product.amountKRW, expected, product.id)
         }
     }
 
