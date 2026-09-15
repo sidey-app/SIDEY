@@ -27,6 +27,7 @@
 ## 확인한 검증
 
 - macOS 로컬 신규 콘텐츠: 직배포 301개(기존 backend 연동 1개 제외)·App Store 37개·Recording 10개·Python 6개 통과. 양쪽 Debug·Release·archive 6개 산출물의 이름·bundle·카탈로그·원본 자산·빌드 출처와 두 archive의 dSYM UUID 일치를 확인했다. 로컬 ad-hoc 서명이며 제출용 서명 검증은 아니다.
+- macOS 신규 콘텐츠 PR #150은 최신 기준 [CI](https://github.com/sidey-app/SIDEY/actions/runs/34991096814)를 통과하고 `e31eca8609fba7b2dc4602e1d2a21a9131711fe3`으로 병합됐다.
 - 신규 macOS 지원 선언은 공용 manifest와 각 플랫폼 작업 디렉터리의 실제 PNG/BGRA를 함께 읽어 모든 선언 미러의 byte 일치를 사전 확인했다. 한 Git head의 통합 CI는 선행 PR 통합 후 별도로 확인한다.
 
 - 신규 공용 콘텐츠 PR #146의 Python 검사 86개, 17개 base·17개 action·19개 투척물·3개 말풍선의 원본 및 선언된 미러 검사 통과.
