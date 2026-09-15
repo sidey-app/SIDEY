@@ -1512,6 +1512,9 @@ namespace Sidey.Setup.Prerequisites
             Type storageFolderType = Type.GetType(
                 "Windows.Storage.StorageFolder, Windows, ContentType=WindowsRuntime",
                 true);
+            Type statusType = Type.GetType(
+                "Windows.ApplicationModel.PackageStatus, Windows, ContentType=WindowsRuntime",
+                true);
             MethodInfo findPackages = null;
             foreach (MethodInfo method in managerType.GetMethods())
             {
@@ -1545,15 +1548,21 @@ namespace Sidey.Setup.Prerequisites
 
             PropertyInfo idProperty = packageType.GetProperty("Id");
             PropertyInfo installedLocationProperty = packageType.GetProperty("InstalledLocation");
+            PropertyInfo statusProperty = packageType.GetProperty("Status");
             PropertyInfo familyNameProperty = identityType.GetProperty("FamilyName");
-            PropertyInfo fullNameProperty = identityType.GetProperty("FullName");
             PropertyInfo architectureProperty = identityType.GetProperty("Architecture");
             PropertyInfo versionProperty = identityType.GetProperty("Version");
             PropertyInfo pathProperty = storageFolderType.GetProperty("Path");
+            MethodInfo verifyIsOk = statusType.GetMethod(
+                "VerifyIsOK",
+                BindingFlags.Public | BindingFlags.Instance,
+                null,
+                Type.EmptyTypes,
+                null);
             if (idProperty == null || installedLocationProperty == null
-                || familyNameProperty == null || fullNameProperty == null
+                || statusProperty == null || familyNameProperty == null
                 || architectureProperty == null || versionProperty == null
-                || pathProperty == null)
+                || pathProperty == null || verifyIsOk == null)
             {
                 throw new MissingMemberException("Windows package identity API is unavailable.");
             }
@@ -1564,10 +1573,10 @@ namespace Sidey.Setup.Prerequisites
                 {
                     object identity = idProperty.GetValue(package, null);
                     string packageFamily = (string)familyNameProperty.GetValue(identity, null);
-                    string fullName = (string)fullNameProperty.GetValue(identity, null);
                     object architecture = architectureProperty.GetValue(identity, null);
                     object packageVersion = versionProperty.GetValue(identity, null);
                     object installedLocation = installedLocationProperty.GetValue(package, null);
+                    object status = statusProperty.GetValue(package, null);
                     string installedPath = installedLocation == null
                         ? null
                         : (string)pathProperty.GetValue(installedLocation, null);
@@ -1576,7 +1585,8 @@ namespace Sidey.Setup.Prerequisites
                         && ReadVersion(versionType, packageVersion) >= minimumVersion
                         && !string.IsNullOrWhiteSpace(installedPath)
                         && Directory.Exists(installedPath)
-                        && WindowsPackageStatus.IsUsable(fullName))
+                        && status != null
+                        && (bool)verifyIsOk.Invoke(status, null))
                     {
                         return true;
                     }

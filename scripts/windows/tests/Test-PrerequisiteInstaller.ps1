@@ -129,8 +129,12 @@ try {
     Assert-True ($sourceText.Contains('Assembly.Load(WindowsRuntimeAssemblyName)') -and
         $sourceText.Contains('"VerifyIsOK"') -and
         $sourceText.Contains('"FindPackagesForUserWithPackageTypes"') -and
-        $sourceText.Contains('1 | 2')) `
+        $sourceText.Contains('1 | 2') -and
+        -not $sourceText.Contains('FindPackagesByPackageFamily')) `
         'Query current-user Main and Framework packages and require Package.Status.VerifyIsOK.'
+    Assert-True (-not (Invoke-Static $packageQuery 'HasPackage' `
+        @('Sidey.Does.Not.Exist_8wekyb3d8bbwe', [version]'1.0.0.0'))) `
+        'Reject an unregistered package family.'
     $installationType = [string](Get-ItemPropertyValue `
         -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' `
         -Name 'InstallationType')
