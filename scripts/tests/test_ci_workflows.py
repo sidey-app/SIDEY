@@ -13,6 +13,7 @@ class CiWorkflowTests(unittest.TestCase):
 
     def test_integration_is_the_automatic_shared_validation_entrypoint(self):
         integration = self.read('integration.yml')
+        self.assertIn('python3 scripts/validate_contributor_architecture.py', integration)
         self.assertIn("python -X utf8 ./windows/tools/sync_product_assets.py --check", integration)
         self.assertIn('Run Windows app smoke', integration)
         for name in ('release-metadata.yml',):
