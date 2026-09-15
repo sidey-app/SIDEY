@@ -137,7 +137,7 @@ class WorkflowTests(unittest.TestCase):
         real_run = w.run
         opened = []
         def response(root, *args, **kwargs):
-            if args[0].endswith('/scripts/macos/open_current.sh'):
+            if Path(args[0]).as_posix().endswith('/scripts/macos/open_current.sh'):
                 opened.append((root, args))
                 return ''
             return real_run(root, *args, **kwargs)
