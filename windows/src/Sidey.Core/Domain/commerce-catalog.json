@@ -8,8 +8,8 @@
     "character_id": "pixel_starlight_upalupa",
     "entitlement": "character:pixel_starlight_upalupa",
     "sort_order": 10,
-    "direct_price": 1100,
-    "app_store_price": 1100,
+    "direct_price": 2200,
+    "app_store_price": 2200,
     "app_store_product_id": "character_starlight_upalupa_solo",
     "legacy_app_store_product_ids": [
       "character_starlight_upalupa"
@@ -207,7 +207,7 @@
   {
     "id": "throwable_squeaky_duck",
     "name": "삑삑 오리",
-    "description": "노란 오리가 빙글빙글 날아가는 투척물",
+    "description": "오리가 오리를 던져요. 가족 문제는 아닌 것 같아요.",
     "kind": "throwable",
     "item_id": "throwable_squeaky_duck",
     "character_id": null,
@@ -217,7 +217,7 @@
     "app_store_price": 1100,
     "app_store_product_id": "throwable_squeaky_duck",
     "legacy_app_store_product_ids": [],
-    "related_character_product_id": null,
+    "related_character_product_id": "character_duck",
     "render_asset_id": "throwable_squeaky_duck"
   },
   {
