@@ -206,6 +206,17 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(w.squash_body(self.primary, body, []), body)
         self.assertEqual(w.coauthor_trailers(self.primary, [w.pr_body_message(body)]), [body])
 
+    def test_squash_subject_adds_pr_number_once(self):
+        title = 'fix(window): 창 크기 변경 문제 수정'
+        self.assertEqual(
+            w.squash_subject(title, 108),
+            f'{title} (#108)',
+        )
+        with self.assertRaisesRegex(w.WorkflowError, 'must not include'):
+            w.squash_subject(f'{title} (#108)', 108)
+        with self.assertRaisesRegex(w.WorkflowError, 'Invalid pull request'):
+            w.squash_subject(title, 'not-a-number')
+
     def advance(self):
         (self.other / 'advance.md').write_text('remote update\n')
         self.commit(self.other, 'advance main')

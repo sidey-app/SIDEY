@@ -481,6 +481,17 @@ def squash_body(root, body, messages):
     return clean_body
 
 
+def squash_subject(title, number):
+    number = str(number)
+    if not re.fullmatch(r'[1-9]\d*', number):
+        raise WorkflowError(f'Invalid pull request number: {number!r}')
+    if re.search(r' \(#\d+\)$', title):
+        raise WorkflowError(
+            'PR title must not include a generated pull request number suffix'
+        )
+    return f'{title} (#{number})'
+
+
 def squash_intent_matches(root, intent, merge_commit):
     subject = git(root, 'show', '-s', '--format=%s', merge_commit)
     body = git(root, 'show', '-s', '--format=%b', merge_commit)
@@ -558,10 +569,19 @@ def finish(root, args):
     checked_base = task['checked']['base']
     details = json.loads(run(root, 'gh', 'pr', 'view', number, '--json', 'title,body'))
     require_valid_commit_text('PR title', details['title'], subject_only=True)
-    require_general_pr_body(root, details.get('body') or '')
+    pr_body = details.get('body') or ''
+    require_general_pr_body(root, pr_body)
+    pr_message = details['title'] + ('\n\n' + pr_body if pr_body else '')
+    require_valid_commit_text('PR title and body', pr_message)
     messages = commit_messages(root, checked_base, checked_head)
-    body = squash_body(root, details.get('body') or '', messages)
-    expected_coauthors = coauthor_trailers(root, [pr_body_message(details.get('body') or '')] + messages)
+    body = squash_body(root, pr_body, messages)
+    subject = squash_subject(details['title'], number)
+    squash_message = subject + ('\n\n' + body if body else '')
+    require_valid_commit_text('Squash commit message', squash_message)
+    expected_coauthors = coauthor_trailers(
+        root,
+        [pr_body_message(pr_body)] + messages,
+    )
     descriptor, body_path = tempfile.mkstemp(prefix='sidey-squash-', suffix='.txt')
     try:
         with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
@@ -578,14 +598,14 @@ def finish(root, args):
             task['merge_intent'] = {
                 'head': checked_head,
                 'base': checked_base,
-                'subject': details['title'],
+                'subject': subject,
                 'body_sha256': hashlib.sha256(body.encode()).hexdigest(),
                 'coauthors': expected_coauthors,
                 'time': time.time(),
             }
             update_task(root, args.task, task)
             run(root, 'gh', 'pr', 'merge', number, '--squash', '--match-head-commit', checked_head,
-                '--subject', details['title'], '--body-file', body_path)
+                '--subject', subject, '--body-file', body_path)
             info = json.loads(run(root, 'gh', 'pr', 'view', number, '--json', 'state,mergeCommit,headRefOid'))
             if info['state'] != 'MERGED' or info['headRefOid'] != checked_head:
                 raise WorkflowError('Exact checked head was not confirmed merged')

@@ -4,7 +4,7 @@ import json
 import os
 from pathlib import Path
 import sys
-from validate_commit_message import validate_subject
+from validate_commit_message import validate_message, validate_subject
 from workflow import WorkflowError, changed_paths, git, required_scopes, root_at, validate_paths
 
 
@@ -16,25 +16,33 @@ def verify_gate(scopes, needs):
         raise WorkflowError(f'Required checks did not succeed: {failures}')
 
 
-def verify_commit_contract(subjects, pr_title=None):
+def verify_commit_contract(messages, pr_title=None):
     failures = []
     if pr_title is not None:
         violations = validate_subject(pr_title)
         if violations:
             failures.append(f"PR title {pr_title!r}: {'; '.join(violations)}")
-    for subject in subjects:
-        violations = validate_subject(subject)
+    for message in messages:
+        violations = validate_message(message)
         if violations:
-            failures.append(f"commit subject {subject!r}: {'; '.join(violations)}")
+            subject = message.splitlines()[0] if message.splitlines() else ""
+            failures.append(
+                f"commit message {subject!r}: {'; '.join(violations)}"
+            )
     if failures:
         raise WorkflowError('Commit policy validation failed: ' + ' | '.join(failures))
 
 
-def commit_subjects(root, base, revision):
+def commit_messages(root, base, revision):
     return [
-        subject.strip('\r\n')
-        for subject in git(root, 'log', '--format=%s%x00', f'{base}..{revision}').split('\0')
-        if subject.strip('\r\n')
+        message.strip('\r\n')
+        for message in git(
+            root,
+            'log',
+            '--format=%B%x00',
+            f'{base}..{revision}',
+        ).split('\0')
+        if message.strip('\r\n')
     ]
 
 
@@ -50,7 +58,10 @@ def main():
     base = pr['base']['sha'] if pr else event['before']
     revision = pr['head']['sha'] if pr else event['after']
     root = root_at('.')
-    verify_commit_contract(commit_subjects(root, base, revision), pr.get('title') if pr else None)
+    verify_commit_contract(
+        commit_messages(root, base, revision),
+        pr.get('title') if pr else None,
+    )
     paths = changed_paths(root, base, revision)
     if pr:
         validate_paths(pr['head']['ref'], paths)

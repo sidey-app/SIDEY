@@ -37,14 +37,18 @@ Use an isolated, task-owned worktree on a branch whose platform prefix matches t
 
 ## Commit and pull request policy
 
-Directly authored commit subjects, and pull request titles that will become squash commit subjects, use `type(scope): 한국어 설명`.
+Directly authored commits and pull request titles follow [Conventional Commits 1.0.0](https://www.conventionalcommits.org/ko/v1.0.0/) using the form `type(optional-scope): 한국어 설명`.
 
-- Allowed types: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `build`, `ci`, `chore`, `revert`.
-- Allowed scopes: `macOS-Direct`, `AppStore`, `macOS-Direct / AppStore`, `Windows`, `Shared`.
-- The description and optional prose body are Korean. Identifiers, paths, product names, and machine-readable trailers may retain their required spelling.
-- Git- or GitHub-generated merge subjects may remain generated; a human- or agent-supplied title must follow this contract.
+- Allowed types are `feat`, `fix`, `docs`, `test`, `perf`, `chore`, `style`, `comment`, `ci`, `init`, `refactor`, `build` and `revert`. Use the standard spellings `feat`, `perf` and `ci`, not `feature`, `preformance` or `cicd`.
+- The scope is optional. When used, name the affected domain with an identifier such as `release` or `commerce`; tests use `test/<domain>`. Platform path isolation remains enforced separately by `scripts/workflow.py`.
+- Keep the Korean description within 50 characters, do not end it with a period, end it with a word or noun phrase, and avoid past tense.
+- The optional Korean body explains why the change is needed and how behavior differs from before. Keep every body line within 72 characters and use imperative or present-tense sentences. Identifiers, paths and product names may retain their required spelling.
+- Optional issue footers use `Resolves`, `Closes` or `Fixes` for resolved issues and `See also`, `Ref` or `Related to` for related issues. Machine-readable trailers such as `Co-authored-by` retain their required spelling.
+- Git- or GitHub-generated merge subjects may remain generated. A human- or agent-supplied title must follow this contract.
 
-`scripts/validate_commit_message.py` is the deterministic format checker. `scripts/workflow.py` rejects invalid authored commit and squash-PR subjects before mutation or merge, and the integration scope check validates only the new commit range plus the current PR title.
+`scripts/validate_commit_message.py` is the deterministic format checker. Semantic rules such as tense, word choice and whether the body explains the reason remain review requirements. `scripts/workflow.py` rejects invalid authored commits and pull request titles before mutation, validates the complete intended squash message before merge, and checks only the new commit range plus the current pull request title in CI.
+
+Pull requests are squash-merged with the exact subject `PR 제목 (#PR번호)`. The squash body is the pull request body with required `Co-authored-by` trailers preserved from the squashed commits. Pull request titles do not include the generated number suffix themselves.
 
 Agent-created and task-workflow pull requests in this repository must start from [the general pull request template](.github/PULL_REQUEST_TEMPLATE/general.md), preserve its hidden marker and required sections, and fill in the relevant type, change, validation and checklist details. The character asset template remains for manual external asset submissions and is not a substitute for the task-workflow template.
 
