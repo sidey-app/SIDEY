@@ -39,9 +39,10 @@ class CatalogTests(unittest.TestCase):
 
     def test_storekit_current_offer_missing_or_wrong_price_is_rejected(self):
         original = json.loads((c.ROOT / 'macos/SIDEYAppStore.storekit').read_text())
-        c.check_storekit(self.products, original)
+        pinned, _, _ = c.load_source(c.ROOT, 'macos')
+        c.check_storekit(pinned, original)
         for config in [dict(original, products=original['products'][1:]), copy.deepcopy(original)]:
             if len(config['products']) == len(original['products']):
                 config['products'][0]['displayPrice'] = '1'
             with self.assertRaises(ValueError):
-                c.check_storekit(self.products, config)
+                c.check_storekit(pinned, config)
