@@ -184,6 +184,7 @@ struct PixelWorldMember: Equatable, Identifiable, Sendable {
     let isTyping: Bool
     let isCurrentUser: Bool
     let equippedBubbleStyleID: String?
+    let treeMovementPaused: Bool
 
     init(
         id: UUID,
@@ -192,7 +193,8 @@ struct PixelWorldMember: Equatable, Identifiable, Sendable {
         presence: PresenceState,
         isTyping: Bool,
         isCurrentUser: Bool,
-        equippedBubbleStyleID: String? = nil
+        equippedBubbleStyleID: String? = nil,
+        treeMovementPaused: Bool = false
     ) {
         self.id = id
         self.nickname = nickname
@@ -201,6 +203,7 @@ struct PixelWorldMember: Equatable, Identifiable, Sendable {
         self.isTyping = isTyping
         self.isCurrentUser = isCurrentUser
         self.equippedBubbleStyleID = equippedBubbleStyleID
+        self.treeMovementPaused = treeMovementPaused
     }
 }
 

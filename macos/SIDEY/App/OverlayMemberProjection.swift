@@ -19,7 +19,8 @@ enum OverlayMemberProjection {
                 presence: baseState,
                 isTyping: isTyping,
                 isCurrentUser: isCurrentUser,
-                equippedBubbleStyleID: member.equippedBubbleStyleID
+                equippedBubbleStyleID: member.equippedBubbleStyleID,
+                treeMovementPaused: member.treeMovementPaused
             )
         }
     }

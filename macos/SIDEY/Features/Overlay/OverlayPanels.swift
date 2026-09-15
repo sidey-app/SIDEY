@@ -170,10 +170,8 @@ final class PixelWorldWindowController {
     }
 
     func orderOut() {
-        #if !APP_STORE
         model.characterStunState.reset()
         model.characterImpactAudio.stopAll()
-        #endif
         panel.orderOut(nil)
         panel.contentView = nil
         hostingView = nil
