@@ -10,14 +10,16 @@ class CiWorkflowTests(unittest.TestCase):
     def read(self, name):
         return (WORKFLOWS / name).read_text(encoding='utf-8')
 
-    def test_integration_is_the_automatic_database_entrypoint(self):
+    def test_integration_is_the_automatic_shared_validation_entrypoint(self):
         integration = self.read('integration.yml')
         self.assertIn("python -X utf8 ./windows/tools/sync_product_assets.py --check", integration)
         self.assertIn('Run Windows app smoke', integration)
-        workflow = self.read('database.yml')
-        self.assertIn('  workflow_dispatch:', workflow)
-        self.assertNotIn('  pull_request:', workflow)
-        self.assertNotIn('  push:', workflow)
+        for name in ('database.yml', 'release-metadata.yml'):
+            with self.subTest(workflow=name):
+                workflow = self.read(name)
+                self.assertIn('  workflow_dispatch:', workflow)
+                self.assertNotIn('  pull_request:', workflow)
+                self.assertNotIn('  push:', workflow)
 
     def test_pages_reuses_the_tested_build_for_deployment(self):
         workflow = self.read('pages.yml')

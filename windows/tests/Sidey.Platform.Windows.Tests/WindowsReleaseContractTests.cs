@@ -42,7 +42,9 @@ public sealed class WindowsReleaseContractTests
         string ciWorkflow = Read(".github", "workflows", "windows.yml");
         string releaseWorkflow = Read(".github", "workflows", "windows-release.yml");
 
-        Assert.DoesNotContain("workflow_dispatch:", ciWorkflow, StringComparison.Ordinal);
+        Assert.Contains("workflow_dispatch:", ciWorkflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("  push:", ciWorkflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("  pull_request:", ciWorkflow, StringComparison.Ordinal);
         Assert.Contains("workflow_dispatch:", releaseWorkflow, StringComparison.Ordinal);
         Assert.Contains("confirm_version:", releaseWorkflow, StringComparison.Ordinal);
         Assert.Contains("validate:", releaseWorkflow, StringComparison.Ordinal);

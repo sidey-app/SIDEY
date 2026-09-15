@@ -114,6 +114,10 @@ def is_ancestor(root, ancestor, descendant='HEAD'):
     return result.returncode == 0
 
 
+def same_tree(root, left, right):
+    return git(root, 'rev-parse', f'{left}^{{tree}}') == git(root, 'rev-parse', f'{right}^{{tree}}')
+
+
 def worktrees(root):
     records = []
     for record in git(root, 'worktree', 'list', '--porcelain').split('\n\n'):
@@ -170,6 +174,10 @@ def required_scopes(paths):
             result.add(platform)
         if path.startswith(('assets/', 'shared/character-throw/')) or path == 'scripts/validate_pixel_assets.py':
             result.update(('macos', 'windows', 'web', 'server'))
+        if path == 'release/macos.json':
+            result.add('macos')
+        elif path == 'release/windows.json':
+            result.add('windows')
         if path.startswith(('website/', 'scripts/website/')):
             result.add('web')
         if path == 'website/src/pages/ko/terms.md':
@@ -249,14 +257,20 @@ def attest(root, task, remote):
         raise WorkflowError('Checks do not match current source/head/base; run check again')
 
 
-def update_main(root, remote):
+def update_main(root, remote, already_locked=False):
     primary = primary_root(root)
-    with lock(root, 'integration'):
+
+    def apply():
         if branch(primary) != 'main' or dirty_paths(primary):
             raise WorkflowError(f'PR integrated, but primary main is not clean: {primary}; completion pending')
         git(primary, 'merge', '--ff-only', remote)
         if head(primary) != remote:
             raise WorkflowError('Primary main differs from fetched remote main; completion pending')
+    if already_locked:
+        apply()
+    else:
+        with lock(root, 'integration'):
+            apply()
     return primary
 
 
@@ -278,16 +292,84 @@ def recover_merged_task(root, task, remote):
     # The server may merge successfully even if the client receives a timeout/503.
     checked = task.get('checked', {})
     if (checked.get('head') != head(root) or checked.get('snapshot') != snapshot(root)
-            or not is_ancestor(root, head(root), remote)):
+            or not checked.get('head')):
+        return None
+    intent = task.get('merge_intent', {})
+    if intent.get('head') != checked['head'] or intent.get('base') != checked.get('base'):
         return None
     prs = json.loads(run(root, 'gh', 'pr', 'list', '--head', branch(root), '--base', 'main',
                          '--state', 'merged', '--json', 'number,headRefOid,mergeCommit,isCrossRepository'))
     matches = [pr for pr in prs if pr['headRefOid'] == checked['head'] and not pr['isCrossRepository']
-               and pr.get('mergeCommit') and is_ancestor(root, pr['mergeCommit']['oid'], remote)]
+               and pr.get('mergeCommit') and is_ancestor(root, pr['mergeCommit']['oid'], remote)
+               and same_tree(root, checked['head'], pr['mergeCommit']['oid'])
+               and squash_intent_matches(root, intent, pr['mergeCommit']['oid'])]
     if len(matches) != 1:
         return None
     pr = matches[0]
     return {**task, 'status': 'integrated', 'pr': str(pr['number']), 'merge': pr['mergeCommit']['oid']}
+
+
+def parsed_trailers(root, message):
+    parsed = subprocess.run(['git', 'interpret-trailers', '--parse'], cwd=root, input=message,
+                            text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if parsed.returncode:
+        raise WorkflowError(f'Cannot parse commit trailers: {(parsed.stderr or "").strip()}')
+    return parsed.stdout.splitlines()
+
+
+def parsed_coauthors(root, message):
+    result = []
+    for line in parsed_trailers(root, message):
+        match = re.fullmatch(r'Co-authored-by:\s*(.+?)\s*<([^>]+)>', line, re.IGNORECASE)
+        if match:
+            result.append(f'Co-authored-by: {match[1]} <{match[2]}>')
+    return result
+
+
+def coauthor_trailers(root, messages):
+    result = []
+    seen = set()
+    for message in messages:
+        for line in parsed_coauthors(root, message):
+            email = re.search(r'<([^>]+)>$', line)[1].casefold()
+            if email not in seen:
+                seen.add(email)
+                result.append(line)
+    return result
+
+
+def commit_messages(root, base, checked_head):
+    return [message for message in git(root, 'log', '--format=%B%x00',
+                                       f'{base}..{checked_head}').split('\0') if message.strip()]
+
+
+def pr_body_message(body):
+    return f'Squash commit\n\n{body}'
+
+
+def squash_body(root, body, messages):
+    body_message = pr_body_message(body)
+    trailers = parsed_trailers(root, body_message)
+    clean_body = body.rstrip()
+    if trailers:
+        lines = clean_body.splitlines()
+        separator = max((index for index, line in enumerate(lines) if not line.strip()), default=-1)
+        clean_body = '\n'.join(lines[:separator + 1]).rstrip()
+    other_trailers = [line for line in trailers
+                      if not re.match(r'Co-authored-by:', line, re.IGNORECASE)]
+    final_trailers = other_trailers + coauthor_trailers(root, [body_message] + messages)
+    if final_trailers:
+        return (clean_body + '\n\n' if clean_body else '') + '\n'.join(final_trailers)
+    return clean_body
+
+
+def squash_intent_matches(root, intent, merge_commit):
+    subject = git(root, 'show', '-s', '--format=%s', merge_commit)
+    body = git(root, 'show', '-s', '--format=%b', merge_commit)
+    message = git(root, 'show', '-s', '--format=%B', merge_commit)
+    return (subject == intent.get('subject')
+            and hashlib.sha256(body.encode()).hexdigest() == intent.get('body_sha256')
+            and parsed_coauthors(root, message) == intent.get('coauthors', []))
 
 
 def finish(root, args):
@@ -348,17 +430,50 @@ def finish(root, args):
     if len(gate) != 1 or gate[0]['bucket'] != 'pass':
         raise WorkflowError(f'PR #{number} created; integration gate pending/failed. Rerun finish after CI passes')
     run(root, 'gh', 'pr', 'checks', number, '--required')
-    attest(root, task, fetch_main(root))
-    run(root, 'gh', 'pr', 'merge', number, '--merge', '--match-head-commit', head(root))
-    info = json.loads(run(root, 'gh', 'pr', 'view', number, '--json', 'state,mergeCommit,headRefOid'))
-    if info['state'] != 'MERGED' or info['headRefOid'] != task['checked']['head']:
-        raise WorkflowError('Exact checked head was not confirmed merged')
-    remote = fetch_main(root)
-    if not is_ancestor(root, head(root), remote):
-        raise WorkflowError('Merged task head is not an ancestor of remote main')
-    task.update(status='integrated', pr=number, merge=info['mergeCommit']['oid'])
-    update_task(root, args.task, task)
-    primary = update_main(root, remote)
+    checked_head = task['checked']['head']
+    checked_base = task['checked']['base']
+    details = json.loads(run(root, 'gh', 'pr', 'view', number, '--json', 'title,body'))
+    messages = commit_messages(root, checked_base, checked_head)
+    body = squash_body(root, details.get('body') or '', messages)
+    expected_coauthors = coauthor_trailers(root, [pr_body_message(details.get('body') or '')] + messages)
+    descriptor, body_path = tempfile.mkstemp(prefix='sidey-squash-', suffix='.txt')
+    try:
+        with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
+            stream.write(body)
+        with lock(root, 'integration'):
+            remote = fetch_main(root)
+            source = json.loads(run(root, 'gh', 'pr', 'view', number,
+                                    '--json', 'title,body,headRefOid,baseRefOid,mergeStateStatus'))
+            attest(root, task, remote)
+            if (source['headRefOid'] != checked_head or source['baseRefOid'] != remote
+                    or source['mergeStateStatus'] != 'CLEAN'
+                    or source['title'] != details['title'] or source.get('body') != details.get('body')):
+                raise WorkflowError('PR head/base/content is not the exact checked and mergeable source')
+            task['merge_intent'] = {
+                'head': checked_head,
+                'base': checked_base,
+                'subject': details['title'],
+                'body_sha256': hashlib.sha256(body.encode()).hexdigest(),
+                'coauthors': expected_coauthors,
+                'time': time.time(),
+            }
+            update_task(root, args.task, task)
+            run(root, 'gh', 'pr', 'merge', number, '--squash', '--match-head-commit', checked_head,
+                '--subject', details['title'], '--body-file', body_path)
+            info = json.loads(run(root, 'gh', 'pr', 'view', number, '--json', 'state,mergeCommit,headRefOid'))
+            if info['state'] != 'MERGED' or info['headRefOid'] != checked_head:
+                raise WorkflowError('Exact checked head was not confirmed merged')
+            remote = fetch_main(root)
+            merge_commit = info['mergeCommit']['oid']
+            if not is_ancestor(root, merge_commit, remote) or not same_tree(root, checked_head, merge_commit):
+                raise WorkflowError('Merged commit does not match the exact checked task tree')
+            if not squash_intent_matches(root, task['merge_intent'], merge_commit):
+                raise WorkflowError('Squash commit message or co-author attribution differs from the merge intent')
+            task.update(status='integrated', pr=number, merge=info['mergeCommit']['oid'])
+            update_task(root, args.task, task)
+            primary = update_main(root, remote, already_locked=True)
+    finally:
+        Path(body_path).unlink(missing_ok=True)
     task['status'] = 'complete' if task['platform'] == 'shared' else 'main-updated'
     update_task(root, args.task, task)
     return {'status': task['status'], 'pr': number, 'main': str(primary), 'sha': remote,

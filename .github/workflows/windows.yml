@@ -1,31 +1,8 @@
 name: Windows CI
 
+# PR and main validation is owned by integration.yml to avoid duplicate native runs.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'assets/**'
-      - 'release/windows.json'
-      - 'windows/**'
-      - 'scripts/windows/**'
-      - 'scripts/validate_pixel_assets.py'
-      - 'scripts/verify_release_consistency.py'
-      - 'website/src/pages/ko/terms.md'
-      - 'shared/character-throw/**'
-      - '.github/workflows/windows.yml'
-      - '.github/workflows/windows-release.yml'
-  pull_request:
-    paths:
-      - 'assets/**'
-      - 'release/windows.json'
-      - 'windows/**'
-      - 'scripts/windows/**'
-      - 'scripts/validate_pixel_assets.py'
-      - 'scripts/verify_release_consistency.py'
-      - 'website/src/pages/ko/terms.md'
-      - 'shared/character-throw/**'
-      - '.github/workflows/windows.yml'
-      - '.github/workflows/windows-release.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
