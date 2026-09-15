@@ -1,0 +1,7 @@
+interface:
+  display_name: "Web Verification"
+  short_description: "Verify public claims and responsive web presentation"
+  default_prompt: "Use $web-verification to check the changed SIDEY public pages against shipped behavior, tests, and desktop/mobile rendering."
+
+policy:
+  allow_implicit_invocation: true

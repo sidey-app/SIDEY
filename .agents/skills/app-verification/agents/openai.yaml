@@ -1,0 +1,7 @@
+interface:
+  display_name: "App Verification"
+  short_description: "Verify exact-source SIDEY app runtime evidence"
+  default_prompt: "Use $app-verification to verify the integrated SIDEY app against exact current-main provenance and report runtime evidence and limitations."
+
+policy:
+  allow_implicit_invocation: true
