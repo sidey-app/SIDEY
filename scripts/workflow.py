@@ -243,7 +243,8 @@ def required_scopes(paths):
             result.add('web')
         if path == 'website/src/pages/ko/terms.md':
             result.add('windows')
-        if path == '.github/workflows/integration.yml' or path.startswith('scripts/workflow'):
+        # Checkout attributes can change asset bytes on every build host.
+        if path in ('.gitattributes', '.github/workflows/integration.yml') or path.startswith('scripts/workflow'):
             result.update(('macos', 'windows', 'web'))
         elif path == '.github/workflows/pages.yml':
             result.add('web')
