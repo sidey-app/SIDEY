@@ -18,33 +18,6 @@ from typing import Iterable, Sequence
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# Remove these exact entries after their skills have moved to the canonical
-# repository-level directory.  This list is intentionally not a glob: a new
-# nested skill must fail the audit instead of silently expanding the migration.
-TRANSITIONAL_NESTED_SKILL_DIRS = frozenset(
-    {
-        "windows/.agents/skills/code-review",
-        "windows/.agents/skills/write-docs",
-        "windows/.agents/skills/write-powershell",
-        "windows/.agents/skills/write-tests",
-    }
-)
-
-# The existing write-docs metadata predates an explicit invocation policy.
-# Keep the exception path-specific so it can be deleted independently when the
-# Windows skills are migrated or their metadata is corrected.
-TRANSITIONAL_MISSING_IMPLICIT_POLICY = frozenset(
-    {"windows/.agents/skills/write-docs/agents/openai.yaml"}
-)
-
-# The shared foundation branch links to path instructions delivered on a
-# separate Windows-owned branch.  Per-branch audits may allow only these two
-# pending targets.  A combined tree must be checked with
-# --require-all-routing-targets before integration.
-TRANSITIONAL_PENDING_ROUTING_TARGETS = frozenset(
-    {"windows/AGENTS.md", "windows/docs/AGENTS.md"}
-)
-
 # This is a user-installed, non-project skill referenced only as an optional
 # follow-up.  Project-local skill references must otherwise resolve locally.
 EXTERNAL_SKILL_REFERENCES = frozenset({"humanize-korean"})
@@ -154,13 +127,12 @@ def _discover_skills(root: Path) -> tuple[list[Skill], list[Violation]]:
             and path.relative_to(root).parts[:2] == (".agents", "skills")
             and path.name == "SKILL.md"
         )
-        if not canonical_location and relative_directory not in TRANSITIONAL_NESTED_SKILL_DIRS:
+        if not canonical_location:
             violations.append(
                 Violation(
                     "unexpected-skill-location",
                     relative_path,
-                    "repository-local skills must be under .agents/skills; only the four exact "
-                    "Windows migration paths are temporarily allowed",
+                    "repository-local skills must be direct children of .agents/skills",
                 )
             )
 
@@ -211,8 +183,6 @@ def _yaml_scalar(source: str, key: str) -> str | None:
 def _validate_openai_metadata(
     root: Path,
     skills: Iterable[Skill],
-    *,
-    allow_pending_windows_instructions: bool,
 ) -> list[Violation]:
     violations: list[Violation] = []
     for skill in skills:
@@ -236,11 +206,7 @@ def _validate_openai_metadata(
             )
 
         policy = _yaml_scalar(source, "allow_implicit_invocation")
-        policy_is_transitionally_pending = (
-            allow_pending_windows_instructions
-            and relative in TRANSITIONAL_MISSING_IMPLICIT_POLICY
-        )
-        if policy not in {"true", "false"} and not policy_is_transitionally_pending:
+        if policy not in {"true", "false"}:
             violations.append(
                 Violation(
                     "missing-implicit-invocation-policy",
@@ -261,8 +227,6 @@ def _markdown_target(raw_target: str) -> str:
 def _relative_link_violations(
     path: Path,
     root: Path,
-    *,
-    allow_pending_windows_instructions: bool,
 ) -> list[Violation]:
     relative_source = path.relative_to(root).as_posix()
     source = path.read_text(encoding="utf-8")
@@ -278,7 +242,7 @@ def _relative_link_violations(
             continue
         resolved = (path.parent / target_without_suffix).resolve()
         try:
-            target_relative = resolved.relative_to(root.resolve()).as_posix()
+            resolved.relative_to(root.resolve())
         except ValueError:
             violations.append(
                 Violation(
@@ -289,12 +253,6 @@ def _relative_link_violations(
             )
             continue
         if not resolved.exists():
-            if (
-                allow_pending_windows_instructions
-                and path.name == "AGENTS.md"
-                and target_relative in TRANSITIONAL_PENDING_ROUTING_TARGETS
-            ):
-                continue
             violations.append(
                 Violation(
                     "missing-relative-link",
@@ -319,8 +277,6 @@ def _source_documents(root: Path, skills: Iterable[Skill]) -> list[Path]:
 def _validate_references(
     root: Path,
     skills: Iterable[Skill],
-    *,
-    allow_pending_windows_instructions: bool,
 ) -> list[Violation]:
     violations: list[Violation] = []
     skill_names = {skill.name for skill in skills if skill.name}
@@ -328,13 +284,7 @@ def _validate_references(
     for path in _source_documents(root, skills):
         relative = path.relative_to(root).as_posix()
         source = path.read_text(encoding="utf-8")
-        violations.extend(
-            _relative_link_violations(
-                path,
-                root,
-                allow_pending_windows_instructions=allow_pending_windows_instructions,
-            )
-        )
+        violations.extend(_relative_link_violations(path, root))
 
         for script in sorted(set(SCRIPT_REFERENCE_PATTERN.findall(source))):
             normalized = script[2:] if script.startswith("./") else script
@@ -361,27 +311,13 @@ def _validate_references(
 
 def validate_repository(
     root: Path | str = ROOT,
-    *,
-    allow_pending_windows_instructions: bool = True,
 ) -> list[Violation]:
     """Return every structural violation found below *root*."""
 
     repository_root = Path(root).resolve()
     skills, violations = _discover_skills(repository_root)
-    violations.extend(
-        _validate_openai_metadata(
-            repository_root,
-            skills,
-            allow_pending_windows_instructions=allow_pending_windows_instructions,
-        )
-    )
-    violations.extend(
-        _validate_references(
-            repository_root,
-            skills,
-            allow_pending_windows_instructions=allow_pending_windows_instructions,
-        )
-    )
+    violations.extend(_validate_openai_metadata(repository_root, skills))
+    violations.extend(_validate_references(repository_root, skills))
     return sorted(set(violations))
 
 
@@ -393,20 +329,12 @@ def _parser() -> argparse.ArgumentParser:
         default=ROOT,
         help="repository root to audit (defaults to this script's repository)",
     )
-    parser.add_argument(
-        "--require-windows-instruction-foundation",
-        action="store_true",
-        help="disable pending Windows AGENTS and write-docs metadata allowances",
-    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
-    violations = validate_repository(
-        arguments.root,
-        allow_pending_windows_instructions=not arguments.require_windows_instruction_foundation,
-    )
+    violations = validate_repository(arguments.root)
     if violations:
         for violation in violations:
             print(violation, file=sys.stderr)
