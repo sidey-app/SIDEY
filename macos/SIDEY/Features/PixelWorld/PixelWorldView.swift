@@ -10,11 +10,17 @@ struct PixelWorldView: View {
     let onCharacterFramesChanged: ([UUID: CGRect]) -> Void
 
     var body: some View {
+        let members = model.pixelWorldMembers
         PixelWorldRepresentable(
             model: model,
             realtimeAvailable: model.activeRoomTransportConnected,
             roomID: model.activeRoom?.id,
-            members: model.pixelWorldMembers,
+            members: members,
+            pausedTreeUserIDs: Set(members.filter {
+                $0.characterID == PixelCharacterCatalog.pixelTreeID && model.treeMovement.effectivePaused(
+                    userID: $0.id, currentUserID: model.currentUserID,
+                    legacyPaused: model.preferences.treeMovementPaused)
+            }.map(\.id)),
             bubbles: model.activeBubbles,
             edge: model.preferences.overlayRegion.edge,
             activityFrame: activityFrame,
@@ -32,6 +38,7 @@ private struct PixelWorldRepresentable: NSViewRepresentable {
     let realtimeAvailable: Bool
     let roomID: UUID?
     let members: [PixelWorldMember]
+    let pausedTreeUserIDs: Set<UUID>
     let bubbles: [ActiveBubble]
     let edge: OverlayEdge
     let activityFrame: CGRect
@@ -58,18 +65,14 @@ private struct PixelWorldRepresentable: NSViewRepresentable {
     }
 
     static func dismantleNSView(_ view: SKView, coordinator: Void) {
-        #if !APP_STORE
         (view.scene as? PixelWorldScene)?.resetStunState()
-        #endif
         (view.scene as? PixelWorldScene)?.onStopCharacterSounds?()
         view.isPaused = true
         view.presentScene(nil)
     }
 
     private func apply(to scene: PixelWorldScene) {
-        #if !APP_STORE
         scene.useStunState(model.characterStunState, realtimeAvailable: realtimeAvailable)
-        #endif
         model.characterImpactAudio.isEnabled = model.preferences.characterSoundEffectsEnabled
         scene.onCharacterImpact = { [weak model] id, time in
             model?.characterImpactAudio.play(objectID: id, at: time)
@@ -86,7 +89,7 @@ private struct PixelWorldRepresentable: NSViewRepresentable {
             characterPulse: characterPulse,
             characterThrow: characterThrow,
             onCharacterFramesChanged: onCharacterFramesChanged,
-            pausedTreeUserIDs: Set(members.filter { $0.isCurrentUser && $0.characterID == PixelCharacterCatalog.pixelTreeID && model.preferences.treeMovementPaused }.map(\.id))
+            pausedTreeUserIDs: pausedTreeUserIDs
         )
     }
 }

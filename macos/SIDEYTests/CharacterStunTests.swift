@@ -1,8 +1,11 @@
-#if !APP_STORE
 import AppKit
 import SpriteKit
 import XCTest
+#if APP_STORE
+@testable import SIDEYAppStore
+#else
 @testable import SIDEY
+#endif
 
 @MainActor
 final class CharacterStunTests: XCTestCase {
@@ -186,7 +189,7 @@ final class CharacterStunTests: XCTestCase {
         let attachment = XCTAttachment(data: png, uniformTypeIdentifier: "public.png")
         attachment.name = "native-stun-scene"; attachment.lifetime = .keepAlways
         add(attachment)
-        try png.write(to: URL(fileURLWithPath: "/private/tmp/sidey-stun-native.png"))
+        try png.write(to: FileManager.default.temporaryDirectory.appendingPathComponent("sidey-stun-native.png"))
         view.presentScene(nil)
     }
 
@@ -204,4 +207,3 @@ final class CharacterStunTests: XCTestCase {
         ], bubbles: [], edge: edge, activityFrame: CGRect(x: 30, y: 30, width: 480, height: 180), installationSeed: 1)
     }
 }
-#endif

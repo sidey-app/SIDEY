@@ -253,11 +253,14 @@ extension AppCoordinator {
         guard releaseChannel.requiresAppleAuthentication, let backend,
               !model.accountOperationInProgress else { return }
         model.accountOperationInProgress = true
+        let previousTreeTask = cancelTreeMovementRequests()
         model.errorMessage = nil
         Task { [weak self] in
             guard let self else { return }
             defer { model.accountOperationInProgress = false }
             do {
+                // Finish cancellation before replacing the session used by the RPC transport.
+                await previousTreeTask?.value
                 try await backend.signInWithApple(
                     identityToken: payload.identityToken,
                     nonce: payload.nonce
@@ -297,11 +300,14 @@ extension AppCoordinator {
         guard releaseChannel == .appStore, let backend,
               !model.accountOperationInProgress else { return }
         model.accountOperationInProgress = true
+        let previousTreeTask = cancelTreeMovementRequests()
         model.errorMessage = nil
         Task { [weak self] in
             guard let self else { return }
             defer { model.accountOperationInProgress = false }
             do {
+                // Finish cancellation before replacing the session used by the RPC transport.
+                await previousTreeTask?.value
                 try await commerceSession.accountClient.deleteAccount(
                     payload: payload,
                     accessToken: try await backend.currentAccessToken()

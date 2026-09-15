@@ -1,10 +1,13 @@
-#if !APP_STORE
 import AppKit
 import AVFoundation
 import CryptoKit
 import SpriteKit
 import XCTest
+#if APP_STORE
+@testable import SIDEYAppStore
+#else
 @testable import SIDEY
+#endif
 
 @MainActor
 final class CharacterImpactAudioTests: XCTestCase {
@@ -86,6 +89,41 @@ final class CharacterImpactAudioTests: XCTestCase {
         XCTAssertEqual(scene.renderedHitCount(for: target), 9)
     }
 
+    func testEveryReceivedProductAndAssetIDResolvesSheetAndCollisionSound() throws {
+        let products = CommerceCatalog.products.filter { $0.kind == .throwable }
+        var cases: [(String?, String)] = [(nil, "patch_soft_ball"), ("unregistered-object", "patch_soft_ball")]
+        for product in products {
+            cases.append((product.catalogItemID, product.renderAssetID))
+            cases.append((product.renderAssetID, product.renderAssetID))
+        }
+        for (receivedID, expectedID) in cases {
+            var now: TimeInterval = 100
+            let actor = UUID(), target = UUID(), room = UUID()
+            var raw: [String: Any] = ["schema_version": 1, "room_id": room.uuidString,
+                "event_id": UUID().uuidString, "actor_user_id": actor.uuidString,
+                "target_user_id": target.uuidString, "source_character_id": "pixel_hamster"]
+            if let receivedID { raw["throwable_id"] = receivedID }
+            let payload = try JSONDecoder().decode(CharacterThrowPayload.self,
+                from: JSONSerialization.data(withJSONObject: raw))
+            let event = CharacterThrowEvent(id: payload.eventID, roomID: payload.roomID,
+                actorUserID: payload.actorUserID, targetUserID: payload.targetUserID,
+                sourceCharacterID: payload.sourceCharacterID, throwableID: payload.throwableID)
+            let textures = PixelCharacterThrowTextureStore.shared.textures(
+                for: event.sourceCharacterID, throwableID: event.throwableID)
+            XCTAssertEqual(textures.objectID, expectedID, receivedID ?? "missing")
+            XCTAssertEqual(PixelCharacterThrowCatalog.objectAssetURL(for: receivedID ?? ""),
+                           PixelCharacterThrowCatalog.objectAssetURL(for: expectedID))
+            XCTAssertTrue(CharacterImpactAudio.objectIDs.contains(expectedID))
+            let scene = makeScene(actor: actor, target: target, room: room, now: { now })
+            var sounds: [String] = []
+            scene.onCharacterImpact = { id, _ in sounds.append(id) }
+            scene.playLocalPreviewThrow(event)
+            now += 0.8
+            scene.update(now)
+            XCTAssertEqual(sounds, [expectedID], receivedID ?? "missing")
+        }
+    }
+
     func testStoreAutomaticSequenceAndManualHitBothPlaySound() async throws {
         var now: TimeInterval = 100
         let scenario = StorePreviewScenario.make(product: .bouncyHeart)
@@ -142,7 +180,7 @@ final class CharacterImpactAudioTests: XCTestCase {
         XCTAssertEqual(plays, 1, "Overdue frames must not replay stale sounds")
     }
 
-    #if DEBUG
+    #if DEBUG && !APP_STORE
     func testDebugRoomProvidesRealProjectileControlsAndAllChoices() throws {
         let room = CharacterFeedbackDebugRoom()
         defer { room.close() }
@@ -173,4 +211,3 @@ final class CharacterImpactAudioTests: XCTestCase {
         return scene
     }
 }
-#endif
