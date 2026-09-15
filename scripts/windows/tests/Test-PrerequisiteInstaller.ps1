@@ -89,6 +89,7 @@ try {
     $errors = $assembly.GetType('Sidey.Setup.Prerequisites.InstallerErrors', $true)
     $platform = $assembly.GetType('Sidey.Setup.Prerequisites.PlatformSupport', $true)
     $provisioner = $assembly.GetType('Sidey.Setup.Prerequisites.WindowsPackageProvisioner', $true)
+    $packageQuery = $assembly.GetType('Sidey.Setup.Prerequisites.WindowsPackageQuery', $true)
     $packageStatus = $assembly.GetType('Sidey.Setup.Prerequisites.WindowsPackageStatus', $true)
     $configType = $assembly.GetType('Sidey.Setup.Prerequisites.PrerequisiteConfiguration', $true)
 
@@ -126,8 +127,10 @@ try {
         'Read the real Windows build with RtlGetVersion instead of the manifest-dependent Environment.OSVersion.'
     $sourceText = [IO.File]::ReadAllText($source)
     Assert-True ($sourceText.Contains('Assembly.Load(WindowsRuntimeAssemblyName)') -and
-        $sourceText.Contains('"VerifyIsOK"')) `
-        'Keep strong-named WinRT projection loading and Package.Status.VerifyIsOK in the helper.'
+        $sourceText.Contains('"VerifyIsOK"') -and
+        $sourceText.Contains('"FindPackagesForUserWithPackageTypes"') -and
+        $sourceText.Contains('1 | 2')) `
+        'Query current-user Main and Framework packages and require Package.Status.VerifyIsOK.'
     $installationType = [string](Get-ItemPropertyValue `
         -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' `
         -Name 'InstallationType')
@@ -136,11 +139,14 @@ try {
         Assert-True ($extensions.FullName -ceq 'System.WindowsRuntimeSystemExtensions') `
             'Resolve the .NET Framework WinRT task projection from its strong-named GAC assembly.'
         $knownGoodPackage = Get-AppxPackage -PackageTypeFilter Framework, Main | Where-Object {
-            $_.Status -eq 'Ok' -and $_.PackageFullName
+            $_.Status -eq 'Ok' -and [string]$_.Architecture -eq 'X64' -and $_.PackageFullName
         } | Select-Object -First 1
         if ($null -eq $knownGoodPackage) { throw 'No usable package is available for the package status test.' }
         Assert-True (Invoke-Static $packageStatus 'IsUsable' @([string]$knownGoodPackage.PackageFullName)) `
             'Require Package.Status.VerifyIsOK before accepting an installed package.'
+        Assert-True (Invoke-Static $packageQuery 'HasPackage' `
+            @([string]$knownGoodPackage.PackageFamilyName, [version]$knownGoodPackage.Version)) `
+            'Find a usable current-user Main or Framework package through the compiled query path.'
     }
     else {
         Write-Host "Skipped client AppX reflection probe on Windows installation type: $installationType"
@@ -175,6 +181,22 @@ try {
 
     $loadedConfiguration = Invoke-Static $configType 'Load' @($configuration)
     Assert-True ($null -ne $loadedConfiguration) 'Load the shipped prerequisite configuration.'
+    $requiredPackages = @((Get-Content -LiteralPath $configuration -Raw -Encoding UTF8 |
+        ConvertFrom-Json).windowsAppRuntime.packages)
+    $currentUserPackages = @(Get-AppxPackage -PackageTypeFilter Framework, Main -ErrorAction Stop)
+    foreach ($requiredPackage in $requiredPackages) {
+        $minimumVersion = [version]$requiredPackage.minimumVersion
+        $expectedAvailable = @($currentUserPackages | Where-Object {
+            $_.PackageFamilyName -ceq $requiredPackage.family -and
+            [string]$_.Architecture -ceq 'X64' -and
+            [version]$_.Version -ge $minimumVersion -and
+            [string]$_.Status -ceq 'Ok'
+        }).Count -gt 0
+        $actualAvailable = Invoke-Static $packageQuery 'HasPackage' `
+            @([string]$requiredPackage.family, $minimumVersion)
+        Assert-True ($actualAvailable -eq $expectedAvailable) `
+            "Match current-user Main/Framework package inventory for $($requiredPackage.family)."
+    }
     $invalidConfiguration = Join-Path $testRoot 'invalid.json'
     [IO.File]::WriteAllText($invalidConfiguration, '{"visualCpp":{}}', [Text.UTF8Encoding]::new($false))
     Assert-Throws { Invoke-Static $configType 'Load' @($invalidConfiguration) } 'Reject incomplete configuration.'
