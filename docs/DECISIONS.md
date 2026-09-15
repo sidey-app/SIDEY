@@ -8,6 +8,8 @@
 
 ## 확정된 결정
 
+2026-09-15 로컬 어드민 App Store 결제 금액: 사용자 요청으로 개요와 결제 메뉴에 App Store의 검증된 앱 내 구매 금액을 추가한다. Apple 서명 거래의 `price` milliunits·`currency`를 거래 원장에 저장하고 Production과 Sandbox를 분리하며 통화별로 합산한다. 상품 정가로 과거 금액을 추정하지 않고 미확인 건수를 표시한다. 환불·회수 대상 구매액은 원래 구매 금액이며 실제 부분 환불액·수수료·세금 차감 후 정산액으로 부르지 않는다. 복원·재검증은 같은 transaction을 중복 집계하지 않으며 계정 연결이 삭제된 보존 거래도 포함한다. 과거 금액 보완은 검증 서버의 제한된 순차 도구로 수행하고 어드민에는 변경 기능을 추가하지 않는다. 이번 코드 통합과 운영 DB migration·검증 서버 배포·과거 거래 보완 실행은 구분한다.
+
 2026-09-15 GitHub Actions 실행 시간 단축: 사용자는 동일 커밋의 플랫폼·데이터베이스 검증을 여러 워크플로가 반복하지 않도록 CI를 정리하라고 지시했다. PR과 `main` push의 자동 검증은 diff 기반 `SIDEY integration`을 단일 진입점으로 사용하고, 기존 macOS·Windows·Database 전용 CI는 수동 진단용으로만 남긴다. 통합 게이트는 기존 네이티브 테스트·Windows 상품 카탈로그·framework-dependent publish·prerequisite·앱 smoke·NSIS·Supabase 검증을 유지한다. Pages는 같은 실행에서 검증한 웹 빌드 산출물을 배포 job이 재사용하고, 다운로드 지표 수집은 테스트와 수집이 한 runner에서 순서대로 실행된다. Windows 정식 릴리스는 같은 runner에서 전체 검사 뒤 후보 설치 파일을 만들되 공개 전 asset·SHA-256 검증과 성공 후 Pages 호출을 유지한다.
 
 2026-09-15 PR 통합 방식 정합화: 사용자의 최근 전체 작업 squash 통합 지시와 GitHub 저장소의 squash-only 설정을 따른다. `finish`는 정확히 검사한 PR head를 squash merge하고 결과 commit tree가 검사한 task tree와 같은지 확인한 뒤 primary main을 fast-forward한다. 응답 유실 뒤 복구도 PR head·결과 tree·현재 main 포함 여부가 모두 일치할 때만 허용한다. 기존 merge commit 기본 정책은 이 결정으로 대체한다.
