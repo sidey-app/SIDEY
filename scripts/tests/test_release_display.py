@@ -1,19 +1,108 @@
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
+
 sys.path.insert(0, str(Path(__file__).parents[1]))
 import verify_release_consistency as v
 
 
-class ReleaseDisplayTests(unittest.TestCase):
-    def test_missing_duplicate_and_reversed_markers_fail(self):
-        for content in ('no region', '<!-- sidey-release:macos:start -->' * 2,
-                        '<!-- sidey-release:macos:end --><!-- sidey-release:macos:start -->'):
-            with patch.object(v, 'read', return_value=content), self.assertRaises(v.ConsistencyError):
-                v.release_display('macos')
+VALID_README = f"""# SIDEY
 
-    def test_history_and_copy_outside_display_are_not_version_mirrors(self):
-        content = 'Historical v0.1.0\n<!-- sidey-release:macos:start -->\n현재 `v1.2.1`(build 29)\n<!-- sidey-release:macos:end -->\nFuture plans'
-        with patch.object(v, 'read', return_value=content):
-            self.assertEqual(v.release_display('macos').strip(), '현재 `v1.2.1`(build 29)')
+## Installation
+
+### macOS
+
+[Download SIDEY]({v.RELEASES_URL})
+
+#### Homebrew
+
+brew install --cask sidey-app/tap/sidey
+
+### Windows
+
+<a href="{v.RELEASES_URL}">Download SIDEY</a>
+
+## Contribute
+"""
+
+
+class ReleaseDisplayTests(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        for path in v.README_PATHS:
+            target = self.root / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(VALID_README, encoding="utf-8")
+        root_patch = patch.object(v, "ROOT", self.root)
+        root_patch.start()
+        self.addCleanup(root_patch.stop)
+
+    def write_readme(self, content, path="README.md"):
+        (self.root / path).write_text(content, encoding="utf-8")
+
+    def test_version_free_markdown_and_html_links_pass_for_all_languages(self):
+        for platform in ("macos", "windows"):
+            v.validate_readme_release_links(platform)
+
+    def test_installation_section_includes_subheadings_but_stops_at_next_peer(self):
+        macos = v.release_display("macos")
+        self.assertIn("#### Homebrew", macos)
+        self.assertNotIn("### Windows", macos)
+        self.assertNotIn("## Contribute", v.release_display("windows"))
+
+    def test_missing_and_duplicate_platform_sections_fail(self):
+        for platform, heading in (("macos", "macOS"), ("windows", "Windows")):
+            for content in (VALID_README.replace(f"### {heading}", "### Other"),
+                            VALID_README + f"\n### {heading}\n"):
+                with self.subTest(platform=platform, content=content):
+                    self.write_readme(content)
+                    with self.assertRaisesRegex(v.ConsistencyError, "exactly one"):
+                        v.validate_readme_release_links(platform)
+
+    def test_link_in_other_section_does_not_satisfy_installation_section(self):
+        self.write_readme(VALID_README.replace(f"[Download SIDEY]({v.RELEASES_URL})", ""))
+        with self.assertRaisesRegex(v.ConsistencyError, "must link to"):
+            v.validate_readme_release_links("macos")
+
+    def test_plain_url_without_clickable_link_fails(self):
+        self.write_readme(VALID_README.replace(
+            f"[Download SIDEY]({v.RELEASES_URL})", v.RELEASES_URL))
+        with self.assertRaisesRegex(v.ConsistencyError, "must link to"):
+            v.validate_readme_release_links("macos")
+
+    def test_wrong_or_pinned_release_links_fail_even_with_official_link(self):
+        for url in (
+            "https://github.com/another-owner/SIDEY/releases",
+            f"{v.RELEASES_URL}/tag/v1.2.1",
+            f"{v.RELEASES_URL}/download/windows-v1.3.0/SIDEY-Windows-x64-v1.3.0-Setup.exe",
+            f"{v.RELEASES_URL}/latest",
+        ):
+            with self.subTest(url=url):
+                self.write_readme(VALID_README.replace(
+                    "### Windows\n", f"### Windows\n\n[Other download]({url})\n"))
+                with self.assertRaisesRegex(v.ConsistencyError, "release URL"):
+                    v.validate_readme_release_links("windows")
+
+    def test_versioned_installer_names_fail(self):
+        for name in ("SIDEY-macOS-arm64-v1.2.1.dmg", "SIDEY-Windows-x64-v1.3.0-Setup.exe"):
+            with self.subTest(name=name):
+                self.write_readme(VALID_README.replace("### Windows\n", f"### Windows\n\n`{name}`\n"))
+                with self.assertRaisesRegex(v.ConsistencyError, "pin an installer"):
+                    v.validate_readme_release_links("windows")
+
+    def test_each_translation_is_checked(self):
+        for path in v.README_PATHS[1:]:
+            with self.subTest(path=path):
+                self.write_readme(VALID_README.replace(v.RELEASES_URL, "https://example.com"), path)
+                with self.assertRaisesRegex(v.ConsistencyError, "must link to"):
+                    v.validate_readme_release_links("macos")
+                self.write_readme(VALID_README, path)
+
+    def test_missing_translation_fails(self):
+        (self.root / v.README_PATHS[-1]).unlink()
+        with self.assertRaisesRegex(v.ConsistencyError, "translation is missing"):
+            v.validate_readme_release_links("windows")
