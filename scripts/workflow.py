@@ -31,10 +31,12 @@ def decode_output(value):
     encodings = ('utf-8', locale.getencoding())
     for encoding in dict.fromkeys(encodings):
         try:
-            return value.decode(encoding)
+            decoded = value.decode(encoding)
+            return decoded.replace('\r\n', '\n').replace('\r', '\n')
         except UnicodeDecodeError:
             continue
-    return value.decode('utf-8', errors='replace')
+    decoded = value.decode('utf-8', errors='replace')
+    return decoded.replace('\r\n', '\n').replace('\r', '\n')
 
 
 def run(root, *args, capture=True):
