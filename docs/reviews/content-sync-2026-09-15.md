@@ -31,6 +31,7 @@
 
 - 신규 공용 콘텐츠 PR #146의 Python 검사 86개, 17개 base·17개 action·19개 투척물·3개 말풍선의 원본 및 선언된 미러 검사 통과.
 - 신규 공용 콘텐츠의 [최종 통합 CI](https://github.com/sidey-app/SIDEY/actions/runs/34988174572)는 macOS·Windows·공용·웹 모두 통과했다. 웹 47개 페이지 빌드와 테스트 15개 통과. 브라우저 연결 부재로 실제 데스크톱·모바일 화면 검사는 미완료다.
+- 공개 [Pages 배포](https://github.com/sidey-app/SIDEY/actions/runs/34989113680)는 신규 공용 원본 `57ac0ff`로 성공했다. 한·영·일 상점 12페이지의 상품 33개·가격·지원 안내와 총 26개 URL HTTP 200을 확인했고, PNG 9개·WAV 4개 및 상품 JS는 승인 원본과 일치했다. 최종 지원 선언 배포 후 같은 HTTP 검사를 다시 확인한다.
 - Windows Core 199개·Presentation 146개 통과. 새 가격에서 화면 생성이 실패하던 고정 가격 분기를 수정했고 7개 언어 원화 표시를 검증했다. Windows PR head `6ad05eaf075ebbbfd47ec6c99d7c1a1ffa312647`의 전체 Release·플랫폼 테스트·패키징·앱 smoke가 [CI](https://github.com/sidey-app/SIDEY/actions/runs/34983219991)에서 통과했다.
 - backend verifier/PGlite 29개·Python 2개·수집기 5개와 [전체 Supabase reset·pgTAP·동시성 CI](https://github.com/sidey-app/sidey-backend/actions/runs/34989392191) 통과. 상품 PR #3을 `25a5b5dcf32be04ea522e9632d8340282a09a26e`로 병합하고 private primary main의 트리 일치를 확인했다. migration 재실행·이전 주문/Apple 금액·복원 권리·독립 소유권·18개 유료 투척물 경로를 검증했다. 운영 DB는 변경하지 않았다.
 
