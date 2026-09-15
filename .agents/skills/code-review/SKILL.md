@@ -1,9 +1,9 @@
 ---
-name: native-code-review
+name: code-review
 description: Review substantive SIDEY macOS or Windows application and distribution changes for actionable correctness, privacy, lifecycle, concurrency, native-resource, packaging and test defects. Use for native diffs, commits, branches or pull requests; do not use for prose-only review, website or backend review, or ordinary implementation work.
 ---
 
-# Native Code Review
+# Code Review
 
 Review the complete requested range and report only defects supported by a concrete trigger and execution path. Stay read-only unless the user also asks for fixes.
 
@@ -14,7 +14,7 @@ Read only the platform references needed by the range:
 - For macOS, read [references/macos.md](references/macos.md).
 - For Windows, read [references/windows.md](references/windows.md).
 
-If a range crosses platforms or a shared-file boundary, review each affected contract but identify any prohibited implementation mix and the safe split. When Windows-owned PowerShell is present, also apply `$windows-powershell` without leaving read-only review mode. When authorized test changes are part of the task, use `$native-tests` to select the boundary.
+If a range crosses platforms or a shared-file boundary, review each affected contract but identify any prohibited implementation mix and the safe split. When Windows-owned PowerShell is present, also apply `$windows-powershell` without leaving read-only review mode. When authorized test changes are part of the task, use `$write-tests` to select the boundary.
 
 ## Review common risks
 

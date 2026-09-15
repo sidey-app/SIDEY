@@ -31,6 +31,9 @@ RETIRED_SKILL_NAMES = frozenset(
         "windows-code-review",
         "windows-dev-docs",
         "windows-tests",
+        "native-code-review",
+        "native-dev-docs",
+        "native-tests",
     }
 )
 

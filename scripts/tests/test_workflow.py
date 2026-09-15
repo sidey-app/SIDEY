@@ -348,7 +348,7 @@ class WorkflowTests(unittest.TestCase):
             'windows/docs/AGENTS.md',
             'website/AGENTS.md',
             '.agents/skills/version-audit/SKILL.md',
-            '.agents/skills/native-tests/agents/openai.yaml',
+            '.agents/skills/write-tests/agents/openai.yaml',
             'scripts/validate_contributor_architecture.py',
             'scripts/tests/test_contributor_architecture.py',
             'scripts/validate_commit_message.py',

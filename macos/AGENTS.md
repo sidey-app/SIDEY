@@ -27,8 +27,8 @@ Keep general macOS contributor guides under `macos/docs/**`. Preserve purpose-sp
 
 Use the narrowest applicable repository-local skill:
 
-- [`native-code-review`](../.agents/skills/native-code-review/SKILL.md) for a substantive macOS application or distribution review;
-- [`native-tests`](../.agents/skills/native-tests/SKILL.md) for choosing and implementing a macOS test boundary;
-- [`native-dev-docs`](../.agents/skills/native-dev-docs/SKILL.md) for evidence-based macOS developer documentation.
+- [`code-review`](../.agents/skills/code-review/SKILL.md) for a substantive macOS application or distribution review;
+- [`write-tests`](../.agents/skills/write-tests/SKILL.md) for choosing and implementing a macOS test boundary;
+- [`write-docs`](../.agents/skills/write-docs/SKILL.md) for evidence-based macOS developer documentation.
 
 These skills add task-specific judgment and do not replace the always-on repository and path rules.

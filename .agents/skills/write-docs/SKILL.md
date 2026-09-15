@@ -1,9 +1,9 @@
 ---
-name: native-dev-docs
+name: write-docs
 description: Create or revise evidence-based SIDEY macOS or Windows developer documentation. Use for native implementation, contributor, debugging, deployment, localization, logging or code-style guides; do not use for public README or release copy, website or policy copy, repository-wide product documents, backend documentation, review-only requests or implementation-only work.
 ---
 
-# Native Developer Documentation
+# Write Developer Documentation
 
 Write native developer guides whose claims, commands and links a contributor can verify against the current repository.
 

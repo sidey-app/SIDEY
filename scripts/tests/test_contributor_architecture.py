@@ -207,11 +207,11 @@ class ContributorArchitectureTests(unittest.TestCase):
         )
         self.assertIn("missing-implicit-invocation-policy", self.codes())
 
-    def test_canonical_native_skill_set_is_valid(self):
+    def test_canonical_cross_platform_skill_set_is_valid(self):
         for name in (
-            "native-code-review",
-            "native-dev-docs",
-            "native-tests",
+            "code-review",
+            "write-docs",
+            "write-tests",
             "windows-powershell",
         ):
             self.add_skill(name)
@@ -223,17 +223,22 @@ class ContributorArchitectureTests(unittest.TestCase):
             "web-verification",
             "release-notes",
             "app-verification",
-            "native-code-review",
-            "native-dev-docs",
-            "native-tests",
+            "code-review",
+            "write-docs",
+            "write-tests",
             "windows-powershell",
         ):
             self.add_skill(name)
         self.assertEqual(validate_repository(self.root), [])
 
     def test_retired_windows_specialist_names_are_reported(self):
-        self.add_skill("native-tests")
+        self.add_skill("write-tests")
         self.write("AGENTS.md", "Use $windows-tests for this task.\n")
+        self.assertIn("retired-skill-reference", self.codes())
+
+    def test_retired_native_prefixed_names_are_reported(self):
+        self.add_skill("write-tests")
+        self.write("AGENTS.md", "Use $native-tests for this task.\n")
         self.assertIn("retired-skill-reference", self.codes())
 
 

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Code Review"
+  short_description: "Review SIDEY native changes for real defects"
+  default_prompt: "Use $code-review to review this SIDEY macOS or Windows diff and report actionable findings."
+
+policy:
+  allow_implicit_invocation: true

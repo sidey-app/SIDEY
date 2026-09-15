@@ -1,7 +1,0 @@
-interface:
-  display_name: "Native Developer Docs"
-  short_description: "Write and verify native developer guides"
-  default_prompt: "Use $native-dev-docs to revise this SIDEY macOS or Windows guide from current repository evidence."
-
-policy:
-  allow_implicit_invocation: true

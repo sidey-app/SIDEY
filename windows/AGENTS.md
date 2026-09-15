@@ -27,9 +27,9 @@ Run the affected asset, PowerShell, publish-layout, prerequisite, installer, or 
 
 Repository-local skills have one canonical source under the root `.agents/skills` directory. Use the narrowest applicable Windows skill:
 
-- [`native-code-review`](../.agents/skills/native-code-review/SKILL.md) for a substantive Windows code or distribution review;
-- [`native-tests`](../.agents/skills/native-tests/SKILL.md) for choosing and implementing a Windows test boundary;
+- [`code-review`](../.agents/skills/code-review/SKILL.md) for a substantive Windows code or distribution review;
+- [`write-tests`](../.agents/skills/write-tests/SKILL.md) for choosing and implementing a Windows test boundary;
 - [`windows-powershell`](../.agents/skills/windows-powershell/SKILL.md) for Windows-owned PowerShell changes;
-- [`native-dev-docs`](../.agents/skills/native-dev-docs/SKILL.md) for evidence-based Windows developer documentation.
+- [`write-docs`](../.agents/skills/write-docs/SKILL.md) for evidence-based Windows developer documentation.
 
 These skills supply expert workflows; they do not replace the always-on repository and path rules in `AGENTS.md`. For files under `windows/docs/**`, also follow [`docs/AGENTS.md`](docs/AGENTS.md).

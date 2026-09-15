@@ -1,9 +1,9 @@
 ---
-name: native-tests
+name: write-tests
 description: Design, create, revise or remove automated tests for SIDEY macOS or Windows code and distribution contracts. Use when changing native tests, repairing test reliability or explicitly deciding a native test boundary; do not use merely to run existing checks, review a diff, or change production code or prose without test work.
 ---
 
-# Native Tests
+# Write Tests
 
 Write the smallest reliable test that proves the requested native behavior at the narrowest useful boundary.
 
