@@ -408,6 +408,8 @@ public sealed class DistributionSourceTests
             "windows", "installer", "Sidey.Setup", "InstallerErrors.nsh"));
         string package = File.ReadAllText(RepositoryPath(
             "scripts", "windows", "New-WindowsInstaller.ps1"));
+        string prerequisiteSetup = File.ReadAllText(RepositoryPath(
+            "scripts", "windows", "Install-WindowsPrerequisites.ps1"));
 
         Assert.Contains("Sidey.InstallTransaction.exe", setup, StringComparison.Ordinal);
         Assert.Contains("Sidey.PrerequisiteInstaller.exe", setup, StringComparison.Ordinal);
@@ -426,6 +428,10 @@ public sealed class DistributionSourceTests
         Assert.Contains("-HelperPath $installTransactionExecutablePath", package, StringComparison.Ordinal);
         Assert.Contains("-HelperPath $prerequisiteInstallerExecutablePath", package, StringComparison.Ordinal);
         Assert.Contains("forbiddenRuntimeToken", package, StringComparison.Ordinal);
+        Assert.Contains("[switch]$ProvisionAllUsers", prerequisiteSetup, StringComparison.Ordinal);
+        Assert.Contains("if ($ProvisionAllUsers)", prerequisiteSetup, StringComparison.Ordinal);
+        Assert.Contains("@('--provision-all-users') + $helperArguments", prerequisiteSetup, StringComparison.Ordinal);
+        Assert.DoesNotContain("& $helperPath `\n    --provision-all-users", prerequisiteSetup, StringComparison.Ordinal);
         foreach (string source in new[] { setup, errors })
         {
             Assert.DoesNotContain("powershell.exe", source, StringComparison.OrdinalIgnoreCase);

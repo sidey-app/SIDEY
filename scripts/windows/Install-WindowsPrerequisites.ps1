@@ -3,7 +3,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [string]$Version
+    [string]$Version,
+
+    [switch]$ProvisionAllUsers
 )
 
 Set-StrictMode -Version 3.0
@@ -25,13 +27,18 @@ $configPath = Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup/prere
     -Description 'SIDEY prerequisite detection and installation helper' `
     -IconPath (Join-Path $repositoryRootPath 'windows/src/Sidey.App/Assets/Icons/SideyAppIcon.ico')
 
-& $helperPath `
-    --provision-all-users `
-    --config $configPath `
-    --download-directory $probeRoot `
-    --result-path $resultPath `
-    --log-path $logPath `
-    --installer-version $Version
+$helperArguments = @(
+    '--config', $configPath,
+    '--download-directory', $probeRoot,
+    '--result-path', $resultPath,
+    '--log-path', $logPath,
+    '--installer-version', $Version
+)
+if ($ProvisionAllUsers) {
+    $helperArguments = @('--provision-all-users') + $helperArguments
+}
+
+& $helperPath @helperArguments
 $exitCode = $LASTEXITCODE
 if ($exitCode -ne 0) {
     $result = if (Test-Path -LiteralPath $resultPath -PathType Leaf) {
