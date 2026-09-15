@@ -23,13 +23,13 @@ dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no
 
 Run the affected asset, PowerShell, publish-layout, prerequisite, installer, or startup checks used by the integration job when those contracts change. Read a script before executing it: `scripts/windows/Test-WindowsBuild.ps1` publishes an application, can install missing runtimes, and starts the built executables, so it is an extended machine-level check rather than the default local command. Release, installation, GUI, elevation, network, or machine-state validation must remain within the user's authorized scope. Never integrate a Windows commit while a required check is failing or while the commit under review differs from the commit that produced the evidence.
 
-## Specialist guidance during migration
+## Specialist skills
 
-The four Windows skills still live in `windows/.agents/skills`. A Codex session started at the repository root does not reliably discover that nested skill directory, so do not describe these skills as automatically available there. Until they move to the root canonical skill directory, open the relevant file explicitly before the specialist task:
+Repository-local skills have one canonical source under the root `.agents/skills` directory. Use the narrowest applicable Windows skill:
 
-- [`code-review/SKILL.md`](.agents/skills/code-review/SKILL.md) for a substantive Windows code or distribution review;
-- [`write-tests/SKILL.md`](.agents/skills/write-tests/SKILL.md) for choosing and implementing a Windows test boundary;
-- [`write-powershell/SKILL.md`](.agents/skills/write-powershell/SKILL.md) for PowerShell or PowerShell workflow changes, including those reviewed through another skill;
-- [`write-docs/SKILL.md`](.agents/skills/write-docs/SKILL.md) for evidence-based Windows developer documentation work.
+- [`windows-code-review`](../.agents/skills/windows-code-review/SKILL.md) for a substantive Windows code or distribution review;
+- [`windows-tests`](../.agents/skills/windows-tests/SKILL.md) for choosing and implementing a Windows test boundary;
+- [`windows-powershell`](../.agents/skills/windows-powershell/SKILL.md) for Windows-owned PowerShell changes;
+- [`windows-dev-docs`](../.agents/skills/windows-dev-docs/SKILL.md) for evidence-based Windows developer documentation.
 
 These skills supply expert workflows; they do not replace the always-on repository and path rules in `AGENTS.md`. For files under `windows/docs/**`, also follow [`docs/AGENTS.md`](docs/AGENTS.md).
