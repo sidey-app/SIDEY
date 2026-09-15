@@ -370,13 +370,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             product,
             displayName,
             description,
-            product.AmountKrw switch
-            {
-                1_900 => I18n.Get("store.price1900"),
-                2_900 => I18n.Get("store.price2900"),
-                990 => I18n.Get("store.price990"),
-                _ => throw new InvalidOperationException("Unknown Windows commerce price."),
-            },
+            I18n.Format("store.priceKrw", product.AmountKrw),
             () => ActivateStoreProductAsync(product.Id),
             () => StorePreviewRequested?.Invoke(StoreProducts.FirstOrDefault(candidate =>
                 StringComparer.Ordinal.Equals(candidate.ProductId, product.Id))!));
