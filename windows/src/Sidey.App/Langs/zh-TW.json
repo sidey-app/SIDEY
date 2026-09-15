@@ -157,9 +157,7 @@
       "pixel_monkey": "按一下朋友的角色，投出一根熟透的香蕉。",
       "pixel_chinchilla": "按一下朋友的角色，投出一小袋浴沙。"
     },
-    "price2900": "2,900 韓元",
-    "price1900": "1,900 韓元",
-    "price990": "990 韓元",
+    "priceKrw": "{0:N0} 韓元",
     "productDescriptions": {
       "bubble_bunny_pink": "粉紅色泡泡配有兔兔裝飾和清楚的深色文字。",
       "bubble_butter_chick": "奶油黃色泡泡配有小雞裝飾和清楚的深色文字。",

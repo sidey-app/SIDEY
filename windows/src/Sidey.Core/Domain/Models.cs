@@ -40,14 +40,18 @@ public sealed record Profile(
     string Nickname,
     string CharacterId,
     string? EquippedBubbleStyleId = null,
-    string? EquippedThrowableId = null);
+    string? EquippedThrowableId = null,
+    bool TreeMovementPaused = false,
+    long? TreeMovementRevision = null);
 
 public sealed record RoomMember(
     Guid UserId,
     string Nickname,
     string CharacterId,
     PresenceState Presence,
-    string? EquippedBubbleStyleId = null);
+    string? EquippedBubbleStyleId = null,
+    bool TreeMovementPaused = false,
+    long? TreeMovementRevision = null);
 
 public sealed record Room(
     Guid Id,
@@ -73,7 +77,9 @@ public sealed record PixelWorldMember(
     PresenceState Presence,
     bool IsTyping,
     bool IsCurrentUser,
-    string? EquippedBubbleStyleId = null);
+    string? EquippedBubbleStyleId = null,
+    bool TreeMovementPaused = false,
+    long? TreeMovementRevision = null);
 
 public sealed record CharacterPulseEvent(Guid Id, Guid RoomId, Guid UserId);
 

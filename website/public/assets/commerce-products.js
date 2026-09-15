@@ -167,5 +167,68 @@ export const commerceProducts = Object.freeze({
     "kind": "throwable",
     "asset": "assets/store/timber.png",
     "mode": "throwable"
+  },
+  "character_shiba": {
+    "name": "시바견",
+    "image": "assets/store/pixel_shiba.png",
+    "kind": "character",
+    "asset": "assets/store/pixel_shiba.png",
+    "mode": "character"
+  },
+  "throwable_tennis_ball": {
+    "name": "테니스공",
+    "image": "assets/store/tennis_ball.png",
+    "kind": "throwable",
+    "asset": "assets/store/tennis_ball.png",
+    "mode": "throwable"
+  },
+  "character_duck": {
+    "name": "오리",
+    "image": "assets/store/pixel_duck.png",
+    "kind": "character",
+    "asset": "assets/store/pixel_duck.png",
+    "mode": "character"
+  },
+  "character_poop": {
+    "name": "똥",
+    "image": "assets/store/pixel_poop.png",
+    "kind": "character",
+    "asset": "assets/store/pixel_poop.png",
+    "mode": "character"
+  },
+  "throwable_tissue_ball": {
+    "name": "휴지 뭉치",
+    "image": "assets/store/tissue_ball.png",
+    "kind": "throwable",
+    "asset": "assets/store/tissue_ball.png",
+    "mode": "throwable"
+  },
+  "character_tteokbokki": {
+    "name": "떡볶이",
+    "image": "assets/store/pixel_tteokbokki.png",
+    "kind": "character",
+    "asset": "assets/store/pixel_tteokbokki.png",
+    "mode": "character"
+  },
+  "throwable_fish_cake_skewer": {
+    "name": "어묵꼬치",
+    "image": "assets/store/fish_cake_skewer.png",
+    "kind": "throwable",
+    "asset": "assets/store/fish_cake_skewer.png",
+    "mode": "throwable"
+  },
+  "character_quokka": {
+    "name": "쿼카",
+    "image": "assets/store/pixel_quokka.png",
+    "kind": "character",
+    "asset": "assets/store/pixel_quokka.png",
+    "mode": "character"
+  },
+  "throwable_leaf": {
+    "name": "잎사귀",
+    "image": "assets/store/leaf.png",
+    "kind": "throwable",
+    "asset": "assets/store/leaf.png",
+    "mode": "throwable"
   }
 });
