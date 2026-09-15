@@ -5,9 +5,7 @@ import Observation
 @MainActor
 @Observable
 final class AppModel {
-    #if !APP_STORE
     @ObservationIgnored let characterStunState = CharacterStunState()
-    #endif
     @ObservationIgnored lazy var characterImpactAudio = CharacterImpactAudio()
     var preferences: AppPreferences
     var overlayVisibility: OverlayVisibility
@@ -37,7 +35,10 @@ final class AppModel {
     var activeRoomTransportConnected: Bool { realtime.activeRoomTransportConnected }
     var rooms: [Room] = []
     var hasProfile = false
-    var currentUserID: UUID?
+    let treeMovement = TreeMovementState()
+    var currentUserID: UUID? {
+        didSet { if oldValue != currentUserID { treeMovement.reset() } }
+    }
     var errorMessage: String?
     private var successFeedback = SuccessFeedbackState()
     var successMessage: String? { successFeedback.message }
@@ -133,7 +134,29 @@ final class AppModel {
         activeEntitlementKeys = snapshot.activeEntitlementKeys
         snapshotActiveEntitlementKeys = snapshot.activeEntitlementKeys
         hasProfile = snapshot.profile != nil
-        let updatedRooms = realtime.reconcile(snapshot.rooms)
+        // Fold every profile before projection so response ordering cannot undo a confirmed revision.
+        if let profile = snapshot.profile {
+            treeMovement.accept(userID: profile.id, paused: profile.treeMovementPaused,
+                                revision: profile.treeMovementRevision)
+        }
+        for room in snapshot.rooms {
+            for member in room.members {
+                treeMovement.accept(userID: member.userID, paused: member.treeMovementPaused,
+                                    revision: member.treeMovementRevision)
+            }
+        }
+        let updatedRooms = realtime.reconcile(snapshot.rooms.map { room in
+            var room = room
+            room.members = room.members.map { member in
+                var member = member
+                if let value = treeMovement.confirmed[member.userID] {
+                    member.treeMovementPaused = value.paused
+                    member.treeMovementRevision = value.revision
+                }
+                return member
+            }
+            return room
+        })
         rooms = updatedRooms
         messages.retain(roomIDs: Set(updatedRooms.map(\.id)))
         if let profile = snapshot.profile {
@@ -161,6 +184,7 @@ final class AppModel {
     func apply(profile: Profile) {
         guard currentUserID == profile.id else { return }
         hasProfile = true
+        applyTreeMovement(profile: profile)
         let shouldAdoptNickname = confirmedNickname.map {
             normalizedNicknameDraft == $0
         } ?? true
@@ -181,6 +205,18 @@ final class AppModel {
         }
         enforceSelectableCurrentCharacter()
         enforceOwnedCosmetics()
+    }
+
+    func applyTreeMovement(profile: Profile) {
+        let value = treeMovement.accept(userID: profile.id, paused: profile.treeMovementPaused,
+                                        revision: profile.treeMovementRevision)
+        for roomIndex in rooms.indices {
+            for memberIndex in rooms[roomIndex].members.indices
+                where rooms[roomIndex].members[memberIndex].userID == profile.id {
+                rooms[roomIndex].members[memberIndex].treeMovementPaused = value.paused
+                rooms[roomIndex].members[memberIndex].treeMovementRevision = value.revision
+            }
+        }
     }
 
     var selectableCharacters: [PixelCharacterDefinition] {
@@ -383,9 +419,7 @@ final class AppModel {
 
     func setActiveRoomRealtimeConnected(_ connected: Bool) {
         if activeRoomTransportConnected != connected {
-            #if !APP_STORE
             characterStunState.reset()
-            #endif
             characterImpactAudio.stopAll()
         }
         realtime.setConnected(connected, activeRoomID: activeRoom?.id, currentUserID: currentUserID, rooms: &rooms)

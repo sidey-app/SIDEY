@@ -48,12 +48,12 @@ final class CommerceModelTests: XCTestCase {
             "throwable_snowflake", "throwable_baseball", "throwable_wakkuball", "throwable_dujjonku",
             "throwable_mini_paprika", "throwable_banana", "throwable_dust_bath_pouch", "throwable_starlight_orb", "throwable_clam", "throwable_pork", "throwable_timber",
         ])
-        XCTAssertEqual(CommerceProduct.bunnyPinkBubble.amountKRW, 1_900)
-        XCTAssertEqual(CommerceProduct.butterChickBubble.amountKRW, 1_900)
-        XCTAssertEqual(CommerceProduct.starryCatBubble.amountKRW, 1_900)
-        XCTAssertEqual(CommerceProduct.bouncyHeart.amountKRW, 990)
-        XCTAssertEqual(CommerceProduct.toyCannon.amountKRW, 2_900)
-        XCTAssertEqual(CommerceProduct.squeakyDuck.amountKRW, 990)
+        XCTAssertEqual(CommerceProduct.bunnyPinkBubble.amountKRW, 2_200)
+        XCTAssertEqual(CommerceProduct.butterChickBubble.amountKRW, 2_200)
+        XCTAssertEqual(CommerceProduct.starryCatBubble.amountKRW, 2_200)
+        XCTAssertEqual(CommerceProduct.bouncyHeart.amountKRW, 1_100)
+        XCTAssertEqual(CommerceProduct.toyCannon.amountKRW, 3_300)
+        XCTAssertEqual(CommerceProduct.squeakyDuck.amountKRW, 1_100)
         XCTAssertTrue(CommerceCatalog.products.map(\.sortOrder).elementsEqual(
             CommerceCatalog.products.map(\.sortOrder).sorted()
         ))

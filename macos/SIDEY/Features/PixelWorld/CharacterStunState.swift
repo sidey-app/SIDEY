@@ -1,4 +1,3 @@
-#if !APP_STORE
 import Foundation
 
 /// Scene-owned transient state, shared with the local input gate. Never persisted or broadcast.
@@ -59,4 +58,3 @@ final class CharacterStunState {
         startedAt.removeAll()
     }
 }
-#endif
