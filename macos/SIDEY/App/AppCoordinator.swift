@@ -21,7 +21,8 @@ final class AppCoordinator {
         onTypingChanged: { [weak self] active in self?.typingChanged(active) },
         onCharacterDoubleClick: { [weak self] in self?.characterDoubleClicked() },
         onTargetCharacterClick: { [weak self] userID in self?.characterThrowRequested(targetUserID: userID) },
-        onRegionChanged: { [weak self] in self?.persistPreferences() }
+        onRegionChanged: { [weak self] in self?.persistPreferences() },
+        onTreeMovementToggle: { [weak self] in self?.toggleTreeMovement() }
     )
     private lazy var historyWindow = makeHistoryWindow()
     lazy var settingsWindow = SettingsWindowController(
@@ -97,6 +98,7 @@ final class AppCoordinator {
     )
     let commerceSession = CommerceSession()
     let roomSession = RoomSessionLifetime()
+    var treeMovementTask: Task<Void, Never>?
     private var landingTask: Task<Void, Never>?
     private var landingDidComplete = false
     private var didCompleteFirstRunTransition = false
@@ -221,6 +223,8 @@ final class AppCoordinator {
     }
 
     func shutdown() {
+        cancelTreeMovementRequests()
+        model.treeMovement.reset()
         landingTask?.cancel()
         roomSession.cancel()
         commerceSession.cancel(model: model)
@@ -309,6 +313,7 @@ final class AppCoordinator {
         else { return false }
         showStore()
         commerceSession.authenticationTask?.cancel()
+        let previousTreeTask = cancelTreeMovementRequests()
         let targetProductID = commerceSession.googleConnectionProductID
         commerceSession.authenticationTask = Task { [weak self] in
             guard let self else { return }
@@ -317,6 +322,7 @@ final class AppCoordinator {
                 commerceSession.authenticationTask = nil
             }
             do {
+                await previousTreeTask?.value
                 try await backend.handleAuthCallback(url)
                 refreshCommerceState()
                 model.presentSuccess("Google 계정을 연결했습니다.")

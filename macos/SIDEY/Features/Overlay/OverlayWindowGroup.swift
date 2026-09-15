@@ -163,6 +163,7 @@ final class OverlayWindowGroup {
     private let onCharacterDoubleClick: () -> Void
     private let onTargetCharacterClick: (UUID) -> Void
     private let onRegionChanged: () -> Void
+    private let onTreeMovementToggle: () -> Void
     private lazy var worldWindow = PixelWorldWindowController(
         model: model,
         frame: .zero,
@@ -179,8 +180,7 @@ final class OverlayWindowGroup {
         onClick: { [weak self] clickCount in self?.handleCharacterClick(clickCount: clickCount) },
         onRightClick: { [weak self] in
             guard let self, self.model.selectedCharacterID == PixelCharacterCatalog.pixelTreeID else { return }
-            self.model.preferences.treeMovementPaused.toggle()
-            self.onRegionChanged()
+            self.onTreeMovementToggle()
         },
         onDoubleRightClick: { [weak self] in self?.activateThrowTargeting() }
     )
@@ -206,6 +206,7 @@ final class OverlayWindowGroup {
         onCharacterDoubleClick: @escaping () -> Void = {},
         onTargetCharacterClick: @escaping (UUID) -> Void = { _ in },
         onRegionChanged: @escaping () -> Void = {},
+        onTreeMovementToggle: @escaping () -> Void = {},
         composerAutoDismissDelay: Duration = OverlayWindowGroup.defaultComposerAutoDismissDelay,
         composerAutoDismissScheduler: (any ComposerAutoDismissScheduling)? = nil
     ) {
@@ -215,6 +216,7 @@ final class OverlayWindowGroup {
         self.onCharacterDoubleClick = onCharacterDoubleClick
         self.onTargetCharacterClick = onTargetCharacterClick
         self.onRegionChanged = onRegionChanged
+        self.onTreeMovementToggle = onTreeMovementToggle
         self.composerAutoDismissDelay = composerAutoDismissDelay
         self.composerAutoDismissScheduler = composerAutoDismissScheduler ?? TaskComposerAutoDismissScheduler()
         screenObserver = ScreenObserverToken(NotificationCenter.default.addObserver(
