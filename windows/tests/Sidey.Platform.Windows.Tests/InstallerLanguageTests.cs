@@ -96,6 +96,30 @@ public sealed class InstallerLanguageTests
         }
     }
 
+    [Fact]
+    public void ExistingRemovalFailureExplainsRecoveryBeforeSupportContact()
+    {
+        string source = File.ReadAllText(RepositoryPath(
+            "windows", "installer", "Sidey.Setup", "Sidey.Setup.nsi"));
+        Match match = Regex.Match(
+            source,
+            "^LangString ExistingRemovalFailed \\${LANG_KOREAN} \\\"(?<message>.*)\\\"\\r?$",
+            RegexOptions.Multiline);
+
+        Assert.True(match.Success);
+        string message = match.Groups["message"].Value;
+        Assert.Contains("설치 파일이 없거나 사용 중일 수 있어", message, StringComparison.Ordinal);
+        Assert.Contains("다시 실행하여 삭제", message, StringComparison.Ordinal);
+        Assert.Contains("Windows를 다시 시작", message, StringComparison.Ordinal);
+        Assert.Contains("오류 코드 $0", message, StringComparison.Ordinal);
+        Assert.True(
+            message.IndexOf("복구", StringComparison.Ordinal)
+                < message.IndexOf("Windows를 다시 시작", StringComparison.Ordinal));
+        Assert.True(
+            message.IndexOf("Windows를 다시 시작", StringComparison.Ordinal)
+                < message.IndexOf("문의", StringComparison.Ordinal));
+    }
+
     private static string[] Placeholders(string text) =>
         [.. Regex.Matches(text, @"\$\{[A-Z_]+\}|\$[0-9]|%LOCALAPPDATA%")
             .Select(match => match.Value).Order(StringComparer.Ordinal)];
