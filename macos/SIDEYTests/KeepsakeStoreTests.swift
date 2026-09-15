@@ -7,9 +7,9 @@ import XCTest
 @MainActor
 final class KeepsakeStoreTests: XCTestCase {
     func testIndependentOwnershipAndLegacyOfferIdentity() throws {
-        XCTAssertEqual(CommerceCatalog.products.count, 24)
+        XCTAssertEqual(CommerceCatalog.products.count, 33)
         let keepsakes = CommerceCatalog.products.filter(\.isKeepsake)
-        XCTAssertEqual(keepsakes.count, 7)
+        XCTAssertEqual(keepsakes.count, 12)
         for product in CommerceCatalog.characterProducts {
             let item = try XCTUnwrap(CommerceCatalog.keepsake(for: product.id))
             XCTAssertNotEqual(product.entitlementKey, item.entitlementKey)

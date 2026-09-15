@@ -58,5 +58,21 @@
   {
     "object_id": "throwable_baseball",
     "sha256": "f1d696062f945f5bd47e5c7d94f65ff7c46c26e69a2d14a6d76f7532b989f35c"
+  },
+  {
+    "object_id": "tennis_ball",
+    "sha256": "19e7236673dafa5ce57f0d6c5959ed8179210aaedffdc421f3139982666a2d67"
+  },
+  {
+    "object_id": "tissue_ball",
+    "sha256": "0c9c04c4ea096358598dd9cf24744b369249947a1c35a856a51a52d6fd2762c7"
+  },
+  {
+    "object_id": "fish_cake_skewer",
+    "sha256": "468a9111c759ac37a0676040427cb40ee93456aacb740f4b766808fb4f0717e2"
+  },
+  {
+    "object_id": "leaf",
+    "sha256": "99e72647b9bec270e1183bde9aa00b737ea7f164b16109930b475badc2a82dd2"
   }
 ]

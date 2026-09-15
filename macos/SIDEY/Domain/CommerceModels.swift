@@ -13,7 +13,7 @@ enum CommerceCatalog {
     static let chinchillaProductID = "character_chinchilla"
     static let chinchillaEntitlementKey = "character:pixel_chinchilla"
 
-    static let products: [CommerceProduct] = definitions.map { $0.product }
+    static let products: [CommerceProduct] = definitions.map { $0.product }.sorted { $0.sortOrder < $1.sortOrder }
     static var characterProducts: [CommerceProduct] { products.filter { $0.kind == .character } }
     static var cosmeticProducts: [CommerceProduct] { products.filter { $0.kind != .character } }
 

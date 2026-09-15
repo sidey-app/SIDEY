@@ -96,16 +96,17 @@ gh workflow run pages.yml --repo sidey-app/SIDEY --ref main
 SIDEY_APPCAST_CLONE="$SIDEY_TEMP_DIR/sidey-appcast"
 gh repo clone sidey-app/SIDEY "$SIDEY_APPCAST_CLONE" -- --branch main --single-branch
 SIDEY_APPCAST_BRANCH="shared/macos-$SIDEY_VERSION-appcast"
+SIDEY_APPCAST_SUBJECT="build(Shared): macOS $SIDEY_TAG Sparkle appcast 갱신"
 git -C "$SIDEY_APPCAST_CLONE" switch -c "$SIDEY_APPCAST_BRANCH"
 SIDEY_APPCAST_OUTPUT="$SIDEY_APPCAST_CLONE/updates/appcast.xml" \
 SIDEY_RELEASE_NOTES="$SIDEY_RELEASE_NOTES" \
 	./scripts/macos/prepare_sparkle_appcast.sh "$SIDEY_TAG" "$SIDEY_ZIP"
 python3 "$SIDEY_APPCAST_CLONE/scripts/verify_release_consistency.py" --platform macos
 git -C "$SIDEY_APPCAST_CLONE" add updates/appcast.xml
-git -C "$SIDEY_APPCAST_CLONE" commit -m "Publish Sparkle appcast for $SIDEY_TAG"
+git -C "$SIDEY_APPCAST_CLONE" commit -m "$SIDEY_APPCAST_SUBJECT"
 git -C "$SIDEY_APPCAST_CLONE" push -u origin "$SIDEY_APPCAST_BRANCH"
 gh pr create --repo sidey-app/SIDEY --base main --head "$SIDEY_APPCAST_BRANCH" \
-	--title "Publish Sparkle appcast for $SIDEY_TAG" \
+	--title "$SIDEY_APPCAST_SUBJECT" \
 	--body "Publishes the signed Sparkle appcast generated from the verified $SIDEY_TAG release ZIP."
 
 SIDEY_DMG_HASH=$(shasum -a 256 "$SIDEY_DMG" | awk '{print $1}')

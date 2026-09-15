@@ -16,7 +16,8 @@ struct CharacterImpactAdmission {
 final class CharacterImpactAudio {
     static let objectIDs = ["patch_soft_ball", "mini_paprika", "banana", "dust_bath_pouch",
                             "starlight_orb", "throwable_bouncy_heart", "throwable_squeaky_duck", "throwable_toy_cannon", "clam", "pork", "timber",
-                            "throwable_snowflake", "throwable_baseball", "throwable_wakkuball", "throwable_dujjonku"]
+                            "throwable_snowflake", "throwable_baseball", "throwable_wakkuball", "throwable_dujjonku",
+                            "tennis_ball", "tissue_ball", "fish_cake_skewer", "leaf"]
     var isEnabled = true { didSet { if !isEnabled { stopAll() } } }
     private var players: [String: [AVAudioPlayer]] = [:]
     private var admission = CharacterImpactAdmission()

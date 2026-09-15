@@ -511,6 +511,141 @@
           "locale": "ko_KR"
         }
       ]
+    },
+    {
+      "familyShareable": false,
+      "internalID": "9E112FDC-1AC8-5223-9BA6-D88E6248A8F9",
+      "type": "NonConsumable",
+      "productID": "character_shiba",
+      "referenceName": "시바견",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "산책은 다녀왔어요. 시바는 그 사실을 인정하지 않아요.",
+          "displayName": "시바견",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
+      "internalID": "C887FE6E-0651-58F6-84E5-CDA9132C1DEC",
+      "type": "NonConsumable",
+      "productID": "throwable_tennis_ball",
+      "referenceName": "테니스공",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "던질 사람은 정했어요. 주워 올 사람은 아직이요.",
+          "displayName": "테니스공",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
+      "internalID": "7893B6B6-1A46-5762-B27B-E0F74B7BD2E6",
+      "type": "NonConsumable",
+      "productID": "character_duck",
+      "referenceName": "오리",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "오리발 내미는 데는 자신 있어요. 진짜 오리발이거든요.",
+          "displayName": "오리",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
+      "internalID": "63AAABB0-EF26-5A4C-94DE-A38E91F720B2",
+      "type": "NonConsumable",
+      "productID": "character_poop",
+      "referenceName": "똥",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "누가 불렀는지는 모르겠지만, 일단 나왔어요.",
+          "displayName": "똥",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
+      "internalID": "596ED1FE-D143-5614-92F1-EE58F1C920FC",
+      "type": "NonConsumable",
+      "productID": "throwable_tissue_ball",
+      "referenceName": "휴지 뭉치",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "똥휴지인지 아닌지는 모르겠어요. 일단 피하세요!",
+          "displayName": "휴지 뭉치",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
+      "internalID": "040F216E-EAD2-55B6-841B-27ACFC89E060",
+      "type": "NonConsumable",
+      "productID": "character_tteokbokki",
+      "referenceName": "떡볶이",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "순한맛이라더니요. 누구 기준인지는 안 알려줬어요.",
+          "displayName": "떡볶이",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
+      "internalID": "7EF2BD9A-9F8A-5531-9717-512E0ABF225A",
+      "type": "NonConsumable",
+      "productID": "throwable_fish_cake_skewer",
+      "referenceName": "어묵꼬치",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "드시라고 드린 건데 왜 휘두르세요?",
+          "displayName": "어묵꼬치",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
+      "internalID": "51A425A5-9D10-59A8-8AD7-90552D610DA5",
+      "type": "NonConsumable",
+      "productID": "character_quokka",
+      "referenceName": "쿼카",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "항상 웃고 있어요. 방금 잎사귀를 던진 것도 얘예요.",
+          "displayName": "쿼카",
+          "locale": "ko_KR"
+        }
+      ]
+    },
+    {
+      "familyShareable": false,
+      "internalID": "A1937E87-3CC2-59E7-A10F-B32C8D8526DB",
+      "type": "NonConsumable",
+      "productID": "throwable_leaf",
+      "referenceName": "잎사귀",
+      "displayPrice": "1100",
+      "localizations": [
+        {
+          "description": "쿼카의 도시락이에요. 던져도 되는지는 안 물어봤어요.",
+          "displayName": "잎사귀",
+          "locale": "ko_KR"
+        }
+      ]
     }
   ],
   "settings": {

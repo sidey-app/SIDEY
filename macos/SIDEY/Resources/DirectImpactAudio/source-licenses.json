@@ -134,5 +134,13 @@
       "decoded_sha256": "3e0fb9607eecb7c2f886fbe8b09ac1d53a89183e2259d01efd80e5dfa6aefa63",
       "conversion": "Public HQ MP3 preview decoded to mono PCM16 48kHz; not original master."
     }
-  ]
+  ],
+  "character_five": {
+    "approval": "../../../../docs/reviews/character-five/approvals.json",
+    "sources": [
+      "../../../../docs/reviews/character-five/audio-v2-review.json",
+      "../../../../docs/reviews/character-five/sources/audio-v3/manifest.json"
+    ],
+    "note": "Approved selections are copied without changing their audio. Underlying CC0 recordings retain CC0; see the review package source records."
+  }
 }

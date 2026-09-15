@@ -5,7 +5,9 @@ import unittest
 
 class CatalogPriceTests(unittest.TestCase):
     def test_confirmed_vat_inclusive_price_tiers(self):
-        catalog = json.loads((Path(__file__).parents[2] / 'assets/v1/commerce-catalog.json').read_text())
+        catalog = json.loads(
+            (Path(__file__).parents[2] / 'assets/v1/commerce-catalog.json').read_text(encoding='utf-8')
+        )
         premium = {'throwable_dujjonku', 'throwable_wakkuball'}
         for entry in catalog:
             with self.subTest(product=entry['id']):
