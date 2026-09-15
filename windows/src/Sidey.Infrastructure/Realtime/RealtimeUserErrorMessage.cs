@@ -24,16 +24,23 @@ internal static class RealtimeUserErrorMessage
                     FailureKind: RealtimeSubscriptionFailureKind.Capacity,
                 }:
                     return I18n.Get("connection.busy");
+                case RealtimeSubscriptionException
+                {
+                    FailureKind: RealtimeSubscriptionFailureKind.Configuration,
+                }:
+                    return I18n.Get("connection.configurationUnavailable");
                 case RealtimeSubscriptionException:
                     return I18n.Get("connection.serviceUnavailable");
                 case HttpRequestException { StatusCode: HttpStatusCode.TooManyRequests }:
                     return I18n.Get("connection.busy");
+                case HttpRequestException { StatusCode: HttpStatusCode.Unauthorized }:
+                    return I18n.Get("connection.accessRequired");
                 case HttpRequestException
                 {
-                    StatusCode: HttpStatusCode.BadRequest
-                        or HttpStatusCode.Unauthorized
-                        or HttpStatusCode.Forbidden,
+                    StatusCode: HttpStatusCode.BadRequest or HttpStatusCode.Forbidden,
                 }:
+                    return I18n.Get("connection.configurationUnavailable");
+                case UnauthorizedAccessException:
                     return I18n.Get("connection.accessRequired");
                 case SocketException socketException
                     when IsLocalNetworkFailure(socketException.SocketErrorCode):

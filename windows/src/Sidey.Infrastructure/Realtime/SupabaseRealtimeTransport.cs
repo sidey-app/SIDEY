@@ -177,7 +177,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 && !cancellationToken.IsCancellationRequested
                 && !_shutdown.IsCancellationRequested)
             {
-                if (PauseForAuthorizationFailure(exception))
+                if (PauseForNonRetryableFailure(exception))
                     return;
                 Emit(new BackendEvent.TechnicalError(RealtimeUserErrorMessage.From(exception)));
                 EmitDisconnected();
@@ -210,7 +210,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 or RealtimeSubscriptionException or HttpRequestException or UnauthorizedAccessException
                 && !cancellationToken.IsCancellationRequested && !_shutdown.IsCancellationRequested)
             {
-                if (PauseForAuthorizationFailure(exception))
+                if (PauseForNonRetryableFailure(exception))
                     return;
                 Emit(new BackendEvent.Diagnostic($"realtime-initial-subscription-failed {ConnectionFailureMessage(exception)}"));
                 Emit(new BackendEvent.TechnicalError(RealtimeUserErrorMessage.From(exception)));
@@ -746,7 +746,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                     or TaskCanceledException
                     or UnauthorizedAccessException)
                 {
-                    if (PauseForAuthorizationFailure(exception))
+                    if (PauseForNonRetryableFailure(exception))
                     {
                         continue;
                     }
@@ -823,7 +823,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 }
                 catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
                 {
-                    if (PauseForAuthorizationFailure(exception))
+                    if (PauseForNonRetryableFailure(exception))
                         return;
                     Emit(new BackendEvent.Diagnostic(
                         $"realtime-reconnect-failed attempt={attempt} {ConnectionFailureMessage(exception)}"));
@@ -845,7 +845,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 }
                 catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
                 {
-                    if (PauseForAuthorizationFailure(exception))
+                    if (PauseForNonRetryableFailure(exception))
                         return;
                     Emit(new BackendEvent.Diagnostic(
                         $"realtime-reconnect-failed attempt={attempt} stage=presence {ConnectionFailureMessage(exception)}"));
@@ -1034,7 +1034,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             $"realtime-channel-terminated kind={descriptor.Kind.ToString().ToLowerInvariant()} event={eventName}"));
         EmitConnectionStatus(CurrentTransportStatus());
         var failure = RealtimeSubscriptionException.FromServerPayload(payload);
-        if (eventName == "system" && PauseForAuthorizationFailure(failure))
+        if (PauseForNonRetryableFailure(failure))
         {
             return;
         }
@@ -1241,17 +1241,35 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
 
     private bool IsNetworkAvailable => Volatile.Read(ref _networkAvailable) != 0;
 
-    private bool PauseForAuthorizationFailure(Exception exception)
+    private bool PauseForNonRetryableFailure(Exception exception)
     {
-        bool pause = exception is UnauthorizedAccessException;
-        if (exception is RealtimeSubscriptionException { AuthorizationFailure: true })
-            pause = Interlocked.Increment(ref _authorizationFailures) >= 2;
+        bool authorizationFailure = exception is UnauthorizedAccessException;
+        bool configurationFailure = false;
+        bool subscriptionAuthorizationFailure = false;
         for (Exception? current = exception; current is not null; current = current.InnerException)
-            pause |= current is HttpRequestException
+        {
+            subscriptionAuthorizationFailure |= current is RealtimeSubscriptionException
             {
-                StatusCode: HttpStatusCode.BadRequest
-                or HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
+                FailureKind: RealtimeSubscriptionFailureKind.Authorization,
             };
+            configurationFailure |= current is RealtimeSubscriptionException
+            {
+                FailureKind: RealtimeSubscriptionFailureKind.Configuration,
+            } or HttpRequestException
+            {
+                StatusCode: HttpStatusCode.BadRequest or HttpStatusCode.Forbidden,
+            };
+            authorizationFailure |= current is HttpRequestException
+            {
+                StatusCode: HttpStatusCode.Unauthorized,
+            };
+        }
+
+        bool pause = configurationFailure || authorizationFailure;
+        if (!pause && subscriptionAuthorizationFailure)
+        {
+            pause = Interlocked.Increment(ref _authorizationFailures) >= 2;
+        }
         if (!pause)
             return false;
 
@@ -1260,8 +1278,9 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         try
         { _socketSession?.Socket.Abort(); }
         catch (ObjectDisposedException) { }
-        Emit(new BackendEvent.Diagnostic("realtime-reconnect-paused reason=authorization"));
-        Emit(new BackendEvent.TechnicalError(I18n.Get("connection.accessRequired")));
+        string reason = configurationFailure ? "configuration" : "authorization";
+        Emit(new BackendEvent.Diagnostic($"realtime-reconnect-paused reason={reason}"));
+        Emit(new BackendEvent.TechnicalError(RealtimeUserErrorMessage.From(exception)));
         return true;
     }
 

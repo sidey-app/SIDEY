@@ -33,12 +33,13 @@ internal sealed class RealtimeSubscriptionException(RealtimeSubscriptionFailureK
                 or "IncreaseConnectionPool" or "IncreaseSubscriptionConnectionPool"
                 or "JoinsRateLimitReached" or "MessagePerSecondRateLimitReached"
                 or "PresenceRateLimitReached" or "ProjectConnectionLimitReached"
-                or "RealtimeDisabledForTenant" or "ReplicationMaxWalSendersReached"
-                or "UnableCheckoutConnection" => RealtimeSubscriptionFailureKind.Capacity,
+                or "ReplicationMaxWalSendersReached" or "UnableCheckoutConnection" =>
+                RealtimeSubscriptionFailureKind.Capacity,
 
             "InvalidJoinPayload" or "MissingAPIKey" or "PrivateOnly"
-                or "RealtimeDisabledForConfiguration" or "TenantNotFound"
-                or "TopicNameRequired" => RealtimeSubscriptionFailureKind.Configuration,
+                or "RealtimeDisabledForConfiguration" or "RealtimeDisabledForTenant"
+                or "TenantNotFound" or "TopicNameRequired" =>
+                RealtimeSubscriptionFailureKind.Configuration,
 
             _ => RealtimeSubscriptionFailureKind.Transient,
         };

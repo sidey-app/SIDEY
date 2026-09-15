@@ -557,7 +557,7 @@ public sealed class RealtimeStartupTests
     [InlineData("ClientJoinRateLimitReached: too many joins", "Capacity")]
     [InlineData("ConnectionRateLimitReached: too many connections", "Capacity")]
     [InlineData("DatabaseLackOfConnections: unavailable", "Capacity")]
-    [InlineData("RealtimeDisabledForTenant: quota reached", "Capacity")]
+    [InlineData("RealtimeDisabledForTenant: quota reached", "Configuration")]
     [InlineData("Too many messages per second", "Capacity")]
     [InlineData("Client presence rate limit exceeded", "Capacity")]
     [InlineData("TopicNameRequired: missing", "Configuration")]
@@ -576,7 +576,7 @@ public sealed class RealtimeStartupTests
 
     [Theory]
     [InlineData("ConnectionRateLimitReached: quota reached", "connection.busy")]
-    [InlineData("RealtimeDisabledForTenant: upgrade required", "connection.busy")]
+    [InlineData("RealtimeDisabledForTenant: upgrade required", "connection.configurationUnavailable")]
     [InlineData("Unauthorized: denied", "connection.accessRequired")]
     [InlineData("Unknown Error on Channel", "connection.serviceUnavailable")]
     public void ServerRejectionsUseActionableMessagesWithoutProviderDetails(string reason, string messageKey)
@@ -592,6 +592,30 @@ public sealed class RealtimeStartupTests
         Assert.DoesNotContain("quota", message, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("upgrade", message, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(reason.Split(':', 2)[0], message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(400, "connection.configurationUnavailable")]
+    [InlineData(403, "connection.configurationUnavailable")]
+    [InlineData(401, "connection.accessRequired")]
+    public void HandshakeHttpFailuresAvoidUnsupportedAccountAdvice(int statusCode, string messageKey)
+    {
+        var exception = new HttpRequestException(
+            "Handshake failed.",
+            null,
+            (HttpStatusCode)statusCode);
+
+        Assert.Equal(I18n.Get(messageKey), RealtimeUserErrorMessage.From(exception));
+    }
+
+    [Fact]
+    public void TrayConnectionFailureOffersManualRecoveryWithoutPromisingAutomaticRetry()
+    {
+        string message = I18n.Get("tray.connectionFailedBody");
+
+        Assert.Contains(I18n.Get("connection.retry"), message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("automatically", message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("자동", message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -628,6 +652,117 @@ public sealed class RealtimeStartupTests
         Assert.Equal(I18n.Get("connection.busy"), error.Message);
         Assert.DoesNotContain("ConnectionRateLimitReached", error.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("quota", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ConfigurationRejectionPausesUntilTheUserRequestsReconnect()
+    {
+        await using var server = new LocalServer(async (socket, connection, token) =>
+        {
+            JsonElement[] joins = [await ReadAsync(socket, token), await ReadAsync(socket, token)];
+            if (connection == 1)
+            {
+                foreach (JsonElement request in joins)
+                {
+                    await socket.SendAsync(JsonSerializer.SerializeToUtf8Bytes(new
+                    {
+                        topic = request.GetProperty("topic").GetString(),
+                        @event = "phx_reply",
+                        @ref = request.GetProperty("ref").GetString(),
+                        payload = new
+                        {
+                            status = "error",
+                            response = new { reason = "RealtimeDisabledForTenant: upgrade required" },
+                        },
+                    }), WebSocketMessageType.Text, true, token);
+                }
+                return;
+            }
+
+            foreach (JsonElement request in joins)
+            {
+                await ReplyAsync(socket, request, token);
+            }
+        });
+        var network = new Network();
+        await using SupabaseRealtimeTransport transport = CreateTransport(server, network);
+        var room = Guid.NewGuid();
+
+        await transport.SynchronizeAsync(
+            new Dictionary<Guid, long> { [room] = 1 },
+            room,
+            PresenceState.Online,
+            server.Token);
+        await WaitForEventAsync(
+            transport,
+            item => item is BackendEvent.Diagnostic
+            {
+                Stage: "realtime-reconnect-paused reason=configuration",
+            });
+        BackendEvent.TechnicalError error = await WaitForEventAsync<BackendEvent.TechnicalError>(transport);
+        Assert.Equal(I18n.Get("connection.configurationUnavailable"), error.Message);
+
+        network.ChangePath();
+        transport.RequestReconnect();
+        await Task.Delay(700, server.Token);
+        Assert.Equal(1, server.ConnectionCount);
+
+        transport.RequestReconnect(userInitiated: true);
+        await WaitForEventAsync(
+            transport,
+            item => item is BackendEvent.ConnectionChanged { Status.ActiveRoomTransportConnected: true });
+        Assert.Equal(2, server.ConnectionCount);
+    }
+
+    [Fact]
+    public async Task ForbiddenHandshakePausesUntilTheUserRequestsReconnect()
+    {
+        await using var server = new LocalServer(async (socket, _, token) =>
+        {
+            JsonElement[] joins = [await ReadAsync(socket, token), await ReadAsync(socket, token)];
+            foreach (JsonElement request in joins)
+            {
+                await ReplyAsync(socket, request, token);
+            }
+        });
+        var network = new Network();
+        int attempts = 0;
+        await using var transport = new SupabaseRealtimeTransport(
+            new SupabaseRuntimeConfiguration(new Uri("https://unused.invalid"), "test-key"),
+            new Sessions(),
+            network,
+            (uri, token) => ++attempts == 1
+                ? Task.FromException<ClientWebSocket>(new HttpRequestException(
+                    "Handshake forbidden.",
+                    null,
+                    HttpStatusCode.Forbidden))
+                : server.ConnectAsync(uri, token));
+        var room = Guid.NewGuid();
+
+        await transport.SynchronizeAsync(
+            new Dictionary<Guid, long> { [room] = 1 },
+            room,
+            PresenceState.Online,
+            server.Token);
+        await WaitForEventAsync(
+            transport,
+            item => item is BackendEvent.Diagnostic
+            {
+                Stage: "realtime-reconnect-paused reason=configuration",
+            });
+        BackendEvent.TechnicalError error = await WaitForEventAsync<BackendEvent.TechnicalError>(transport);
+        Assert.Equal(I18n.Get("connection.configurationUnavailable"), error.Message);
+
+        network.ChangePath();
+        transport.RequestReconnect();
+        await Task.Delay(700, server.Token);
+        Assert.Equal(1, attempts);
+
+        transport.RequestReconnect(userInitiated: true);
+        await WaitForEventAsync(
+            transport,
+            item => item is BackendEvent.ConnectionChanged { Status.ActiveRoomTransportConnected: true });
+        Assert.Equal(2, attempts);
     }
 
     [Fact]
