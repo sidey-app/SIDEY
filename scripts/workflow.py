@@ -25,13 +25,27 @@ class WorkflowError(RuntimeError):
     pass
 
 
+def decode_output(value):
+    if value is None:
+        return ''
+    encodings = ('utf-8', locale.getencoding())
+    for encoding in dict.fromkeys(encodings):
+        try:
+            return value.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return value.decode('utf-8', errors='replace')
+
+
 def run(root, *args, capture=True):
-    result = subprocess.run(args, cwd=root, text=True,
+    result = subprocess.run(args, cwd=root,
                             stdout=subprocess.PIPE if capture else None,
                             stderr=subprocess.PIPE if capture else None)
+    stdout = decode_output(result.stdout)
+    stderr = decode_output(result.stderr)
     if result.returncode:
-        raise WorkflowError(f"{' '.join(args[:4])} failed: {(result.stderr or '').strip()}")
-    return (result.stdout or '').rstrip('\n')
+        raise WorkflowError(f"{' '.join(args[:4])} failed: {stderr.strip()}")
+    return stdout.rstrip('\n')
 
 
 def git(root, *args):
