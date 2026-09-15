@@ -110,7 +110,17 @@ if (-not (Test-Path -LiteralPath $builtExecutablePath -PathType Leaf)) {
 }
 
 function Get-InputEvidence([string]$Path) {
-    return [ordered]@{ path = $Path; sha256 = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
+    # Publishing can start Windows PowerShell from pwsh with its module path.
+    # Use the runtime directly instead of relying on Get-FileHash autoloading.
+    $stream = [IO.File]::OpenRead($Path)
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try {
+        $hash = [BitConverter]::ToString($algorithm.ComputeHash($stream)).Replace('-', '').ToLowerInvariant()
+        return [ordered]@{ path = $Path; sha256 = $hash }
+    } finally {
+        $algorithm.Dispose()
+        $stream.Dispose()
+    }
 }
 $referencePaths = @(Get-Content -LiteralPath (Join-Path $intermediatePath 'references.txt') | Sort-Object -Unique)
 $buildEvidence = [ordered]@{
