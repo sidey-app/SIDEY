@@ -120,8 +120,8 @@ jobs:
         id: tests
         run: dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build --logger trx --collect:"XPlat Code Coverage" --settings windows/coverlet.runsettings --results-directory artifacts/coverage
 
-      - name: Test runtime prerequisites and migration cleanup
-        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./scripts/windows/tests/Test-RuntimePrerequisites.ps1
+      - name: Test compiled prerequisite installer
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./scripts/windows/tests/Test-PrerequisiteInstaller.ps1
 
       - name: Publish and verify framework-dependent payload
         run: |
@@ -139,7 +139,8 @@ jobs:
           SIDEY_OVERLAY_STARTUP_SMOKE: '1'
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./windows/installer/Sidey.Setup/SetupRuntime.ps1
+          $version = ([xml](Get-Content ./windows/src/Sidey.App/Sidey.App.csproj -Raw)).Project.PropertyGroup.Version | Where-Object { $_ }
+          ./scripts/windows/Install-WindowsPrerequisites.ps1 -Version $version
           ./scripts/windows/Test-PublishedApplication.ps1 -PublishDirectory ./build/windows/publish -TimeoutSeconds 120
 
       - name: Compile NSIS installer
