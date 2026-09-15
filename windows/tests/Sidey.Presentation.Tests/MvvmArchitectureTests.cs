@@ -179,6 +179,42 @@ public sealed class MvvmArchitectureTests
     }
 
     [Fact]
+    public void InAppNoticeUsesOpaqueLightDarkAndHighContrastBackgrounds()
+    {
+        XDocument view = MainWindowView();
+        XElement notice = Assert.Single(
+            view.Descendants(),
+            element => element.Name.LocalName == "InfoBar"
+                && element.Attributes().Any(attribute =>
+                    attribute.Name.LocalName == "Name"
+                    && attribute.Value == "StatusInfoBar"));
+
+        Assert.Equal(
+            "{ThemeResource SideyInAppNoticeBackgroundBrush}",
+            notice.Attribute("Background")?.Value);
+        Assert.Null(notice.Attribute("BorderBrush"));
+        Assert.Null(notice.Attribute("BorderThickness"));
+
+        var app = XDocument.Load(RepositoryPath(
+            "windows",
+            "src",
+            "Sidey.App",
+            "App.xaml"));
+        XElement themeDictionaries = Assert.Single(
+            app.Descendants(),
+            element => element.Name.LocalName == "ResourceDictionary.ThemeDictionaries");
+        var dictionaries = themeDictionaries
+            .Elements()
+            .ToDictionary(
+                element => element.Attributes().Single(attribute => attribute.Name.LocalName == "Key").Value,
+                element => element);
+
+        AssertNoticeBackground(dictionaries["Default"], "#FF2C2C2C");
+        AssertNoticeBackground(dictionaries["Light"], "#FFF9F9F9");
+        AssertNoticeBackground(dictionaries["HighContrast"], "{ThemeResource SystemColorWindowColor}");
+    }
+
+    [Fact]
     public void StoreCardsReserveTwoLineNamesAndStretchToFitColumns()
     {
         XDocument view = MainWindowView();
@@ -456,5 +492,17 @@ public sealed class MvvmArchitectureTests
         Assert.Equal(expectedColor, brush.Attribute("TintColor")?.Value);
         Assert.Equal("0.96", brush.Attribute("TintLuminosityOpacity")?.Value);
         Assert.Equal("0.15", brush.Attribute("TintOpacity")?.Value);
+    }
+
+    private static void AssertNoticeBackground(XElement dictionary, string expectedColor)
+    {
+        XElement brush = Assert.Single(
+            dictionary.Elements(),
+            element => element.Name.LocalName == "SolidColorBrush"
+                && element.Attributes().Any(attribute =>
+                    attribute.Name.LocalName == "Key"
+                    && attribute.Value == "SideyInAppNoticeBackgroundBrush"));
+
+        Assert.Equal(expectedColor, brush.Attribute("Color")?.Value);
     }
 }

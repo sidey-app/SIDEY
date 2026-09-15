@@ -1143,7 +1143,14 @@
           </ScrollViewer>
         </Grid>
 
-        <InfoBar x:Name="StatusInfoBar" Margin="20" HorizontalAlignment="Stretch" VerticalAlignment="Bottom" IsClosable="True" IsOpen="False" />
+        <InfoBar
+            x:Name="StatusInfoBar"
+            Margin="20"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Bottom"
+            Background="{ThemeResource SideyInAppNoticeBackgroundBrush}"
+            IsClosable="True"
+            IsOpen="False" />
       </Grid>
     </NavigationView>
   </Grid>
