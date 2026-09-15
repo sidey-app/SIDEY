@@ -37,7 +37,7 @@ Explain which tool enforces a mechanical rule. Reserve prose and review guidance
 
 Keep one guide focused on one subject and one reason to change. Discover the current documentation set before deciding whether to extend an existing guide, replace stale material, or add a new guide. Keep contributor entry points concise and link to detailed guidance instead of duplicating it.
 
-Place Korean guides at `docs/{topic}.md`, without a language directory or filename suffix. Place guides in other languages at `docs/{lang}/{topic}-{lang}.md`, using the same lowercase language code for both the directory and filename suffix. For example, use `docs/architecture.md` for Korean, `docs/en/architecture-en.md` for English, or `docs/ja/architecture-ja.md` for Japanese. When a region is needed, separate it from the language with an underscore in both positions, as in `docs/zh_cn/architecture-zh_cn.md`. Add a new guide only when its subject cannot fit an existing guide without mixing unrelated reasons to change.
+Follow [`windows/docs/AGENTS.md`](../../../docs/AGENTS.md) for the repository's actual Windows developer-document locations and language pairs. Add a new guide only when its subject cannot fit an existing guide without mixing unrelated reasons to change.
 
 When a product decision or shared scope must change, apply the repository's current ownership and branch rules instead of assuming the target belongs in the active platform change.
 
@@ -58,7 +58,7 @@ Complete and validate the document without depending on a separate polishing ski
 - Resolve every relative Markdown link and confirm renamed files have no stale references.
 - Verify code examples are valid code or clearly marked pseudocode.
 - Check commands from the working directory stated by the document.
-- Search for stale product names, paths, counts, platform promises, and incorrect documentation paths. Korean guides use `docs/{topic}.md`; other language editions use `docs/{lang}/{topic}-{lang}.md`.
+- Search for stale product names, paths, counts, platform promises, and incorrect documentation paths. Validate locations and language pairs against `windows/docs/AGENTS.md`.
 - Check that headings describe the reader's concern and that lists are used for real sets or procedures, not to fragment ordinary explanation.
 - Run `git diff --check` and inspect every changed path. Documentation-only work does not require an application build unless the claims can be verified only by running one.
 

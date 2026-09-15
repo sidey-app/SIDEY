@@ -65,15 +65,7 @@ if ($BuildOnly) {
     return
 }
 
-Invoke-SideyNativeCommand `
-    -FilePath 'powershell.exe' `
-    -ArgumentList @(
-        '-NoProfile',
-        '-NonInteractive',
-        '-ExecutionPolicy', 'Bypass',
-        '-File', (Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup/SetupRuntime.ps1')
-    ) `
-    -Description 'Runtime prerequisite setup'
+& (Join-Path $PSScriptRoot 'Install-WindowsPrerequisites.ps1') -Version $TestVersion
 
 $firstLaunch = Start-Process `
     -FilePath $launcherExecutablePath `
