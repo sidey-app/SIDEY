@@ -1,0 +1,56 @@
+name: 🪲 버그 리포트
+description: Report an issue
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        새 이슈를 등록하기 전에, 이미 동일한 문제가 보고되었는지 기존 이슈를 먼저 검색해 주세요.
+        이미 등록된 이슈가 있다면, 새로 이슈를 만드는 대신 기존 이슈에 👍 리액션을 남겨주세요. (댓글은 작성하지 않으셔도 돼요!)
+
+  - type: input
+    id: platform
+    attributes:
+      label: 컴퓨터의 운영체제는 무엇인가요?
+      description: |
+        macOS: 터미널에서 `uname -mprs` 명령어의 실행 결과를 복사해 붙여넣어 주세요.
+        Windows: 터미널의 PowerShell에서 `"$([Environment]::OSVersion | ForEach-Object VersionString) $(if ([Environment]::Is64BitOperatingSystem) { "x64" } else { "x86" })"` 명령어의 실행 결과를 복사해 붙여넣어 주세요.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 사용 중인 애플리케이션 버전이 무엇인가요?
+      description: |
+        macOS: Finder → SIDEY.app 우클릭 → `⌘I`(정보 가져오기)
+        Windows: `설정 → 정보 → 업데이트`
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 어떤 문제가 발생하고 있나요?
+      description: |
+        알기 쉽고 간결하게 발생하는 버그에 대한 내용을 알려주세요. 로그와 동영상이나 스크린샷을 첨부해 주시면 더욱 도움이 됩니다.
+        macOS: 터미널에서 `log show⠄--last 30m --style⠈compact⠂--predicate 'subsystem == "app.sidey.desktop"' > ~/Desktop/SIDEY-Diagnostics-$(date +%Y%m%d-%H%M%S).log` 명령어를 실행 후 바탕화면에 생성되는 로그 파일을 첨부해 주세요.
+        Windows: `설정 → 정보 → 진단 정보 내보내기` 이후 바탕화면에 생성되는 로그 파일을 첨부해 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 버그를 어떻게 재현할 수 있나요?
+      description: 구체적으로 해당 증상을 재현하는 방법을 단계별로 최대한 상세하게 알려주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 원래 예상했던 동작은 무엇인가요?
+      description: 버그가 발생하지 않았다면, 원래 어떻게 동작해야 하는지 간단하고 명확하게 알려주세요.
+  - type: textarea
+    id: notes
+    attributes:
+      label: 참고 사항
+      description: 문제와 관련해 다른 사항이 있다면 알려주세요.
