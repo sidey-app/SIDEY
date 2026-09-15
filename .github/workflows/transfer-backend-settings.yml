@@ -1,0 +1,48 @@
+name: Transfer backend settings
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seal:
+    if: github.repository == 'sidey-app/SIDEY' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install sealed-box encryption library
+        run: python -m pip install PyNaCl==1.5.0
+      - name: Encrypt existing settings for the private repository
+        env:
+          DOWNLOAD_METRICS_INGEST_URL: ${{ secrets.DOWNLOAD_METRICS_INGEST_URL }}
+          DOWNLOAD_METRICS_INGEST_KEY: ${{ secrets.DOWNLOAD_METRICS_INGEST_KEY }}
+        run: |
+          python - <<'PY'
+          import base64, json, os
+          from pathlib import Path
+          from nacl import encoding, public
+          # GitHub's public encryption key for sidey-app/sidey-backend.
+          key = public.PublicKey('wK2/oWoQ4bwKHgiRs9iPfp81THSNEyH6Otek60wC3AI=', encoding.Base64Encoder())
+          box = public.SealedBox(key)
+          encrypted = {}
+          for name in ('DOWNLOAD_METRICS_INGEST_URL', 'DOWNLOAD_METRICS_INGEST_KEY'):
+              value = os.environ.get(name)
+              if not value:
+                  raise SystemExit('A required source setting is missing')
+              encrypted[name] = base64.b64encode(box.encrypt(value.encode())).decode()
+          destination = Path(os.environ['RUNNER_TEMP']) / 'backend-settings-encrypted.json'
+          destination.write_text(json.dumps({'repository': 'sidey-app/sidey-backend',
+              'key_id': '3380204578043523366', 'encrypted': encrypted}))
+          print('Encrypted two settings for the private repository. No plaintext exported.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: backend-settings-encrypted
+          path: ${{ runner.temp }}/backend-settings-encrypted.json
+          retention-days: 1
+          if-no-files-found: error

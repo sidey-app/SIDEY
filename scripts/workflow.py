@@ -173,7 +173,7 @@ def required_scopes(paths):
         if platform != 'shared':
             result.add(platform)
         if path.startswith(('assets/', 'shared/character-throw/')) or path == 'scripts/validate_pixel_assets.py':
-            result.update(('macos', 'windows', 'web', 'server'))
+            result.update(('macos', 'windows', 'web'))
         if path == 'release/macos.json':
             result.add('macos')
         elif path == 'release/windows.json':
@@ -182,16 +182,8 @@ def required_scopes(paths):
             result.add('web')
         if path == 'website/src/pages/ko/terms.md':
             result.add('windows')
-        if path.startswith(('supabase/', 'scripts/supabase/')):
-            result.update(('database', 'server'))
-        if path.startswith('services/'):
-            result.add('server')
-        if path == 'assets/v1/commerce-catalog.json':
-            result.add('database')
         if path == '.github/workflows/integration.yml' or path.startswith('scripts/workflow'):
-            result.update(('macos', 'windows', 'web', 'server', 'database'))
-        elif path == '.github/workflows/database.yml':
-            result.add('database')
+            result.update(('macos', 'windows', 'web'))
         elif path == '.github/workflows/pages.yml':
             result.add('web')
     return sorted(result)

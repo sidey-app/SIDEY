@@ -37,24 +37,6 @@ jobs:
       - run: python3 scripts/validate_pixel_assets.py
       - run: python3 scripts/verify_release_consistency.py --allow-pending-appcast --allow-unreleased-source
 
-  server:
-    needs: scope
-    if: contains(fromJSON(needs.scope.outputs.scopes), 'server')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v6
-        with:
-          node-version: '24'
-          cache: npm
-          cache-dependency-path: services/app-store-verifier/package-lock.json
-      - run: npm ci
-        working-directory: services/app-store-verifier
-      - run: npm test
-        working-directory: services/app-store-verifier
-
   macos:
     needs: scope
     if: contains(fromJSON(needs.scope.outputs.scopes), 'macos')
@@ -173,37 +155,6 @@ jobs:
           path: artifacts/coverage/**/coverage.cobertura.xml
           if-no-files-found: error
 
-  database:
-    needs: scope
-    if: contains(fromJSON(needs.scope.outputs.scopes), 'database')
-    name: Supabase reset and pgTAP
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - uses: supabase/setup-cli@v1
-        with:
-          version: 2.116.0
-
-      - name: Start local Supabase
-        run: supabase start
-
-      - name: Reset migrations from scratch
-        run: supabase db reset --local
-
-      - name: Run database tests
-        run: supabase test db
-
-      - name: Run concurrent transaction tests
-        run: ./scripts/supabase/test_concurrency.sh
-
-      - name: Stop local Supabase
-        if: always()
-        run: supabase stop --no-backup
-
   web:
     needs: scope
     if: contains(fromJSON(needs.scope.outputs.scopes), 'web')
@@ -289,7 +240,7 @@ jobs:
   gate:
     name: SIDEY integration gate
     if: always()
-    needs: [scope, shared, macos, windows, database, web, server]
+    needs: [scope, shared, macos, windows, web]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

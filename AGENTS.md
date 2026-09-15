@@ -13,6 +13,12 @@ Before editing public landing, store, policy, or checkout pages under `website/`
 
 If the documents conflict, confirmed decisions in `docs/DECISIONS.md` win.
 
+## Backend ownership
+
+Backend implementation lives in the private [sidey-app/sidey-backend](https://github.com/sidey-app/sidey-backend) repository. Supabase migrations, RLS, Edge Functions, App Store verification, database tests, operational metrics and backend deployment tools must be changed and verified in a current checkout of that repository under its own `AGENTS.md` and CI. Do not recreate backend implementation here or deploy from historical SIDEY copies.
+
+Keep native Supabase clients, the public website and client-facing product contracts here. The canonical product and asset definitions remain `assets/v1/commerce-catalog.json` and `assets/v1/manifest.json`; backend catalog updates use a reviewed public commit snapshot with recorded provenance. This repository generates only public web and native mirrors. See [docs/BACKEND.md](docs/BACKEND.md) for repository boundaries and catalog handoff. Repository migration does not itself deploy backend changes or remove previously public Git history.
+
 ## Work lifecycle
 
 Before creating a commit, use [.agents/skills/sidey-commit/SKILL.md](.agents/skills/sidey-commit/SKILL.md). Write commit subjects as `type(scope): 한국어 설명`, using the skill's distribution scopes; descriptions and optional bodies must be in Korean.
@@ -30,7 +36,7 @@ Codex-assisted new commits must include `Co-authored-by: codex <codex@openai.com
 
 ## Branch and platform isolation
 
-- Use `macos/<topic>` for macOS implementation, `windows/<topic>` for Windows implementation, and `shared/<topic>` for shared documentation, backend, website, protocol, or repository-wide work.
+- Use `macos/<topic>` for macOS implementation, `windows/<topic>` for Windows implementation, and `shared/<topic>` for shared documentation, website, client protocol, or repository-wide work.
 - Treat `main` as an integration and release branch. Do not implement features directly on `main`.
 - Before editing, verify the current branch and working tree. Before committing or pushing, inspect every changed path relative to the branch base.
 - A `macos/*` branch must not edit, move, delete, format, generate, build, test, or release Windows implementation files. This includes `windows/**` and Windows-specific workflows, installers, assets, and documentation.

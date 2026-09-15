@@ -120,16 +120,10 @@
 
 ### 2.6 로컬 운영 어드민
 
-- `/Users/aryu/Documents/sidey-admin`은 배포 제품이나 웹 클라이언트가 아닌 독립 로컬 운영 도구다. 운영 Supabase 하나만 조회하며 `개요 / 채팅방 / 사용자 / 다운로드 / 결제` 메뉴를 제공한다.
-- Vite·React·TypeScript와 React Query를 사용하고 route는 주소 연결만 담당한다. 메뉴별 feature가 API query, loading·empty·error·background refresh 상태와 화면 구성을 소유한다.
-- Node API만 `SUPABASE_SECRET_KEY`를 읽고 브라우저 번들에는 Supabase URL·Secret Key를 포함하지 않는다. 서버는 production project ref `whtejsviizgejauasqqt`를 고정 검증하며 `127.0.0.1`에만 bind하고 Host·Origin·production CSP를 강제한다.
-- 이메일은 운영 식별을 위해 전체 표시하되 값이 없는 익명 계정은 `이메일 없음`으로 표시한다. UUID는 축약 표시하고 복사할 때 전체 값을 사용한다.
-- 메시지 본문, 초대 코드·hash, checkout token, 카드 정보, PortOne Store·Channel·payment 식별자는 RPC가 반환하지 않는다. 어드민에는 mutation endpoint나 삭제·환불·지급 action을 두지 않는다.
-- 라이트·다크 테마를 지원하고 SIDEY 앱 아이콘과 기존 24×24 캐릭터 sprite의 첫 frame을 정수 nearest-neighbor로 사용한다.
-
-- App Store 결제는 개요의 별도 금액 요약과 결제 메뉴의 App Store 경로에서 조회한다. 기본 환경은 Production이며 Sandbox는 명시적으로 선택한다. 구매일 KST 기간·상태·사용자/상품 검색과 25건 페이지를 제공하고 통화별 구매액·환불/회수 대상 원구매액·유효 거래 금액을 집계한다. 금액 미확인은 0원과 구분하여 합계에서 제외한다. 실제 정산·회계는 App Store Connect 보고서를 기준으로 한다.
-- 검증 서버는 서명 검증한 Apple `price`(통화 단위 × 1000)·`currency`를 기존 거래 적용과 한 RPC 트랜잭션으로 저장한다. 구형 11인자 RPC 호환을 유지하고 과거 미확인 금액 보완은 service role 전용 제한 조회·금액 갱신과 순차 CLI를 사용한다. 원본 Apple transaction ID·account token·서명 본문은 브라우저 조회에 포함하지 않는다.
-- 새 App Store 목록 조회는 자동 폴링·자동 재시도 없이 동작하며 같은 요청을 서버에서 합치고 30초/최대32개 결과 캐시·동시2개·8초 upstream 제한을 둔다. 개요의 App Store 요약은 기존 RPC 응답에 포함해 브라우저 요청 수를 늘리지 않는다.
+- SIDEY 어드민은 배포 제품이나 웹 클라이언트가 아닌 독립 로컬 운영 도구다. `개요 / 채팅방 / 사용자 / 다운로드 / 결제`를 조회하며 사용자 데이터의 삭제·환불·지급 기능은 제공하지 않는다.
+- 메시지 본문·초대 비밀정보·결제 인증정보는 운영 화면에 표시하지 않는다. 이메일이 없는 계정은 `이메일 없음`으로 구분하고 라이트·다크 테마를 지원한다.
+- App Store 결제는 기본적으로 Production 거래를 보여 주고 Sandbox는 별도로 선택한다. 구매 기간·상태·사용자·상품으로 조회하며 금액은 통화별로 구분한다. 미확인 금액은 0원과 구분하고, 환불·회수 표시는 해당 거래의 원구매액을 기준으로 한다. 실제 정산·회계는 App Store Connect 보고서를 기준으로 한다.
+- 어드민 구현은 독립 `sidey-admin` 저장소, 서버 권한·집계·가격 검증은 [비공개 backend 저장소](https://github.com/sidey-app/sidey-backend)가 소유한다. 내부 데이터 계약과 검증 기준은 backend의 [운영 문서](https://github.com/sidey-app/sidey-backend/blob/main/docs/ADMIN_OPERATIONS.md)에서 관리한다.
 
 ## 3. 그룹과 계정
 
@@ -502,58 +496,19 @@ OverlayRegionPreference(
 - Windows 일반 설정은 `%LOCALAPPDATA%\SIDEY\preferences.json`에 atomic replace로 저장하고, Supabase 익명 세션과 평문 초대 코드는 Windows Credential Manager에만 저장한다.
 - 24px sprite는 물리 픽셀 기준 `max(2, round-away-from-zero(2 × dpi / 96))` 정수 배율로 렌더한다.
 
-## 8. 서버 변경
+## 8. 서버와 클라이언트 계약
 
-`20260831030000_expand_room_capacity_and_reduce_message_retention.sql`은 방 정원 12명과 당시 메시지 7일 보관을 적용했다. `20260901000000_security_hardening.sql`은 적용된 migration을 수정하지 않는 forward-only 보정이며 다음 계약을 추가했다.
+서버 구현과 운영은 [sidey-app/sidey-backend](https://github.com/sidey-app/sidey-backend) 비공개 저장소에서 관리한다. Supabase migration·권한 정책·Edge Functions·App Store 검증·운영 조회·수집 및 배포 도구는 해당 저장소의 책임이다. 자세한 변경 이력은 backend의 [서버 계약](https://github.com/sidey-app/sidey-backend/blob/main/docs/SERVER_CONTRACT.md), 저장소별 작업 경계는 [백엔드 개발 안내](BACKEND.md)를 따른다.
 
-- 사용자당 최대 5개 방
-- private invite HMAC 비교, 128-bit 코드와 사용자 단위 직렬 rate limit
-- 방 및 사용자 단위 transaction advisory lock
-- RLS와 함수 실행 권한
-- 중복 닉네임과 중복 캐릭터 선택 허용
-- 닉네임 2~8자 제한과 기존 9~12자 닉네임의 앞 8자 migration
-- membership 변경 시 증가하는 `realtime_epoch`, 서버 전용 DB event와 RPC 검증 transient event
-- 메시지 UUID 멱등성과 서버 rate limit, 보관 정리 시 방별 단일 invalidation event
-- 7일 초과·프로필 없음·방 없음인 미완성 익명 가입만 삭제
-- `rename_room(uuid,text)`, `remove_room_member(uuid,uuid)`, 방장 전용 `delete_room(uuid) returns void`; 삭제는 기존 FK cascade로 방 멤버십과 메시지를 함께 제거
+공개 클라이언트가 지켜야 할 계약은 다음과 같다.
 
-commerce는 다음 현행 계약을 유지한다. 적용된 migration과 과거 결제·가격·정책 동의 원문은 감사 이력으로 보존하고 변경은 forward-only로 적용한다.
+- 방은 최대 12명, 사용자당 최대 5개이며 참여·관리 권한은 서버에서 확인한다. 닉네임·캐릭터 중복은 허용한다.
+- 메시지는 서버 저장 결과를 기준으로 하며 같은 메시지 UUID의 재시도는 중복 발송을 만들지 않는다. 메시지 보관 기간은 3일이다.
+- 실시간 채널은 현재 방 권한과 일치해야 한다. 클라이언트는 멤버십·채널 정보가 바뀌면 최신 방 상태를 조회하고 재접속한다. Presence와 일시 이벤트를 영구 메시지 기록으로 취급하지 않는다.
+- 상품·소유·장착 상태는 서버의 확인 결과를 따른다. 구매 당시의 메시지 꾸미기 표현을 보존하고, 다른 출처의 유효한 소유권이 남아 있으면 한 거래의 환불만으로 전체 소유권을 회수하지 않는다.
+- App Store 구매·복원은 검증 결과에 따라 반영하며 Production과 Sandbox를 구분한다. 계정 삭제는 자동 환불을 뜻하지 않는다. 판매 잠금 중에도 이미 보유한 상품의 사용은 유지한다.
 
-- production은 `sales_enabled=false`와 PortOne 시크릿 미설정에서 실패 폐쇄한다. 판매 잠금은 이미 보유한 상품의 선택·장착을 막지 않는다.
-- 주문 가격은 서버의 활성 catalog 가격을 사용한다. `upsert_profile`과 꾸미기 장착 RPC는 현재 계정의 활성 entitlement를 검사한다.
-- PortOne·App Store·complimentary 지급은 출처별 원장에 기록하고, 클라이언트는 RLS가 적용된 유효 소유권 projection을 읽는다. 주문 없는 지급도 출처와 지급 근거를 보존하며 한 출처의 환불이 다른 활성 지급을 회수하지 않는다.
-- PortOne V2 결제 상태에는 payment ID, Store ID, Channel Key, V2, TEST/LIVE, 상태, KRW, 서버 주문 금액, `EASY_PAY` 일치를 요구한다. event ID와 payload hash를 함께 저장해 중복 웹훅과 상충 payload를 분리한다.
-- 새 checkout은 현행 정책 버전과 제공 시작·환불 조건에 대한 동의를 기록하며 기존 주문에 저장된 결제 당시 동의 원문은 바꾸지 않는다.
-
-forward-only `20260903010000_character_throw.sql`은 `broadcast_character_throw(p_room_id, p_realtime_epoch, p_event_id, p_target_user_id)` 전용 RPC를 추가한다. 서버는 인증, 최신 room epoch, 송신자·대상 멤버십, 자기 자신 대상 금지와 필수 UUID를 검증하고 송신자 프로필에서 `source_character_id`를 읽는다. 송신자당 10초 20회 제한을 적용한 뒤 schema version, room/event/actor/target UUID와 source character ID만 현재 private ephemeral topic의 `character_throw`로 발행한다. 이벤트는 Postgres 메시지나 기록에 저장하지 않고 재접속 뒤 재생하지 않는다.
-
-forward-only `20260904000000_app_store_foundation.sql`은 다음 계약을 추가한다.
-
-- `private.commerce_grants`가 PortOne·App Store·complimentary 지급을 출처별로 보존하고 `public.commerce_entitlements`는 활성 grant 존재 여부를 보여주는 RLS projection으로 바뀐다.
-- `private.app_store_transactions`와 `private.app_store_notification_events`가 transaction·notification 멱등성, 환불, 삭제 후 unbind와 복원을 기록한다. 일반 사용자는 이 원장을 읽거나 변경할 수 없다.
-- service role 전용 `admin_apply_app_store_transaction`은 검증 서비스가 전달한 bundle 고정 상품, environment, transaction ID, app account token과 서명 시각을 적용한다. 신규 구매의 app account token은 현재 Supabase UUID와 일치해야 하며 활성 계정에 묶인 transaction은 다른 계정에 지급하지 않는다.
-- 유료 계정을 삭제할 수 있도록 order 감사 기록은 사용자 연결을 끊어 보존하고, auth 사용자 삭제 trigger가 모든 방의 소유권 이전·빈 방 삭제와 App Store transaction unbind를 같은 DB 삭제 흐름에서 수행한다.
-
-forward-only `20260905000000_cosmetics_catalog_and_equipment.sql`은 상품을 `character / bubble / throwable`, `catalog_item_id`, `sort_order`의 범용 catalog로 확장하고 말풍선 3종·투척물 3종과 활성 가격을 추가한다. 신규 주문의 정책 버전은 `2026-09-05-cosmetics-v1`이며 기존 주문 고지는 보존하고 `디지털 꾸미기 사용권`으로 일반화한다. `get_store_state()`는 한 번에 전체 catalog·소유·장착 상태를 반환한다. 프로필에는 nullable `equipped_bubble_style_id`와 `equipped_throwable_id`, 메시지에는 발송 당시 nullable `bubble_style_id`를 저장한다. `set_equipped_cosmetic`은 활성 entitlement를 서버에서 검사하며 환불·회수된 장착 상품은 즉시 null로 되돌린다. PortOne 승인 상품은 즉시 자동 장착한다.
-
-forward-only `20260905010000_settings_retention_contract.sql`은 미니 대포의 기존 3,900원 가격 이력을 보존·비활성화하고 2,900원 활성 가격을 추가한다. `set_equipped_cosmetic(text, text default null)`로 기본 꾸미기 복귀의 생략·명시적 null 호출을 함께 지원하고 PostgREST schema cache를 갱신한다. 메시지 보관 함수는 3일 기준으로 교체하며 적용 즉시 기존 3일 초과 메시지를 영구 삭제한다. 변경된 방마다 기존 `messages_pruned` invalidation event 하나만 발행하는 계약은 유지한다.
-
-기존 `send_message(p_id,p_room_id,p_body)`와 `broadcast_character_throw(p_room_id,p_realtime_epoch,p_event_id,p_target_user_id)` 인자는 바꾸지 않는다. `send_message`는 최초 insert에서 서버가 확인한 말풍선 스타일을 snapshot하고 같은 UUID 재시도는 저장된 행을 그대로 반환한다. throw RPC는 기존 인증·membership·epoch·rate limit 검증 뒤 서버가 확인한 장착 투척물만 optional `throwable_id`로 추가한다. 미장착·미소유·알 수 없는 값은 기존 캐릭터 시그니처로 fallback한다. App Store transaction 원장은 상품 원본에서 생성한 현재 판매 및 과거 복원용 Apple ID만 받는다.
-
-`services/app-store-verifier`는 Apple 공식 Node App Store Server Library로 기기 JWS와 Server Notifications V2를 검증하고 App Store Server API에서 transaction을 다시 조회한다. Production과 Sandbox 서비스·키를 분리하며 bundle ID, app Apple ID, product ID, environment와 서명을 모두 확인한다. 계정 삭제 endpoint는 새 Sign in with Apple token의 subject를 현재 Supabase Apple identity와 비교하고 Apple token 철회 뒤 Auth 사용자를 삭제한다.
-
-Edge Functions는 책임을 다음처럼 분리한다.
-
-- `commerce-order`: 인증·Google 연결·상품·소유 여부를 확인하고 서버 가격의 PortOne `paymentId`와 256-bit checkout token hash를 생성한다.
-- `commerce-checkout`: token과 정책 동의를 확인한 뒤 `store_id`, `channel_key`, `payment_id`, 서버 가격, `CURRENCY_KRW`, `EASY_PAY`, redirect URL을 반환한다.
-- `commerce-complete`: PortOne API에서 결제를 재조회하고 모든 결제 사실이 일치할 때만 entitlement를 지급한다.
-- `commerce-webhook`: `jsr:@portone/server-sdk@0.19.0`으로 raw body 서명을 검증한 뒤 PortOne API를 다시 조회한다.
-- `commerce-refund`: 별도 운영 키와 멱등키를 요구하고 PortOne 전액 취소·재조회가 확인된 뒤 purchase entitlement만 회수한다.
-- `download-metrics-ingest`: GitHub Actions 전용 ingest key를 검사한 뒤 service role로 누적 asset snapshot을 기록한다. 15분 수집 실패는 GitHub 설치 자산 제공과 완전히 분리한다.
-
-`20260903010000_admin_observability.sql`은 private download snapshot과 service role 전용 `admin_overview`, `admin_rooms`, `admin_room_members`, `admin_users`, `admin_downloads`, `admin_payments`, `admin_ingest_download_metrics`를 추가한다. `anon`과 일반 `authenticated`에는 모든 함수 실행 권한을 명시적으로 회수한다. 검색·상태·기간·정렬·page size는 Node API와 SQL 양쪽에서 allowlist 검증한다.
-
-GitHub download collector는 정식 Release만 읽고 `SIDEY-macOS-arm64-v<version>.dmg`, `SIDEY-macOS-arm64-v<version>-homebrew.dmg`, `SIDEY-Windows-x64-v<version>.msi`, `SIDEY-Windows-x64-v<version>-Setup.exe`만 집계한다. Windows MSI와 Setup EXE는 기존 `windows_msi` 지표 키 아래 하나의 Windows 설치 채널로 연속 집계한다. 같은 macOS Release에 Homebrew 전용 자산이 없으면 해당 DMG의 기존 누적 수는 직접·Homebrew가 섞인 `legacy_unclassified`로 보존한다. 자산별 최초 snapshot은 누적 총계 baseline으로만 사용하고 관측 전 다운로드를 수집 당일 증가량으로 재분류하지 않는다. 이후 일별·오늘 수치는 Asia/Seoul 자정 전후 snapshot 차이이며 최대 약 15분의 경계 오차와 마지막 수집 시각을 함께 보여준다. 현재 `sidey-app/tap`은 third-party tap이므로 `homebrew/homebrew-cask` 공식 30/90/365일 익명 통계를 제공받지 못하며, 공식 Cask 편입 전에는 교차 확인 수치를 비워 둔다.
+### 8.1 공개 상점 표현
 
 공개 상점은 기본 제공 7종(캐릭터 5·말랑공·기본 말풍선)과 공통 catalog의 유료 24종(캐릭터 7·투척물 14·말풍선 3)을 한국어·영어·일본어로 소개한다. 가격과 캐릭터–애착 물건 연결은 `assets/v1/commerce-catalog.json`에서 읽고 캐릭터 카드·상세에서 애착 물건의 별도 판매와 가격을 표시한다. 상세의 애착 물건 카드를 누르면 해당 투척물 미리보기로 전환한다. 신규 충돌음 7종은 사용자가 미리보기 안의 소리 버튼을 켰을 때 충돌 시점에 재생하고 닫기·상품 전환·백그라운드 진입에서 중단한다. 두쫀쿠의 충돌 4프레임은 0.58초 동안 보여준다. 나무 설명에는 macOS 앱의 우클릭 정지·재개 기능을 안내한다. 가격은 macOS 직배포 기준이며 App Store 가격은 앱에서 확인하도록 안내한다. 이 소개는 결제 활성화나 Windows 신규 콘텐츠 지원을 보장하지 않는다.
 
@@ -610,8 +565,8 @@ App Store판은 Apple subject와 사용자가 공유한 경우의 relay email, S
 - Windows 로딩·필터·상점 미리보기: 서버 초기화 중 기본 캐릭터 5종과 기본 말풍선·투척물 및 저장된 무료 캐릭터 선택 즉시 표시, 유료 선택 상태 추측 금지, 프로필 종류별·그룹·상점 데이터 대기 상태에 따른 스켈레톤 표시, 실데이터 수신 즉시 개별 해제, 연결·과거 메시지 지연과 독립적인 콘텐츠 표시, 확인된 목록의 갱신 중 유지, 실제 항목과 임시 자리의 겹침 방지, 애니메이션 끄기에서 스켈레톤 반복과 확장 전환 생략, 그룹·필터 꺾쇠의 양방향 회전, 제목 없는 캐릭터·말풍선·투척물 단일 선택 칩과 캐릭터 기본값, 필터 패널의 열기·닫기와 검색 IME 포커스 보존, 검색 결과 유무와 무관한 콘텐츠 폭·왼쪽 위치 유지, 닫힘 무테·열림 중립 표면, 현재 상품 종류를 유지하는 중립 `모두 다시 설정` 버튼의 검색·정렬·보유 숨김 초기화, 기존 WinUI `ContentDialog` 미리보기와 닫을 때 작업 정리
 - DMG: 660×420 배경, `SIDEY.app`, `/Applications` 심볼릭 링크, 기존 5종 idle 프레임, `.DS_Store`를 자동 생성·마운트 검증하고 Finder에서 아이콘 위치·안내 문구·nearest-neighbor 픽셀 선명도를 수동 확인
 - Keychain: schema 6에서 7로 값 보존, 신규 설치 안내 생략, 실행 중 `LAContext` 재사용, 동일 키 읽기 캐시, 동일 데이터 저장 생략, 거부 콜백 1회와 거부 후 추가 Security API 호출 차단
-- 서버: 실제 anon/authenticated role의 RLS, 12번째 성공·13번째 거부와 여섯 번째 방 경합, 병렬 초대 제한, invite hash API 비노출, current epoch topic 권한, client Broadcast INSERT 봉쇄, transient event whitelist·rate, `broadcast_character_throw`의 인증·epoch·양쪽 membership·자기 대상·필수 UUID·20회/10초 제한과 서버 source character, 메시지 멱등성·rate, 3일 retention, 비방장 관리 거부와 cascade를 SQL 테스트한다.
-- 운영 어드민: 모든 `admin_*` 조회·수집 RPC의 anon·authenticated 거부와 service role 허용, 다운로드 baseline·분리 경로·KST 경계·카운터 증가·정체·역행 거부·수집 지연을 SQL 테스트한다. 로컬 API는 환경변수 누락·잘못된 production ref·LAN Host·외부 Origin·잘못된 query와 upstream 응답을 거부해야 하며 lint·typecheck·unit·production build·Secret 번들 scan과 1280×800·1440×900의 두 테마 Playwright 검증을 통과해야 한다.
+- 서버: 권한·방 정원·메시지 보관·동시 요청·결제 검증은 [비공개 backend 저장소](https://github.com/sidey-app/sidey-backend)의 자동 검증에서 수행한다. 공개 클라이언트는 방 상태·권한 변경과 서버 응답에 맞게 동작하는지 검증한다.
+- 운영 어드민: DB 조회·집계·권한은 backend 저장소, 로컬 API·화면·접근 제한·테마는 독립 `sidey-admin` 저장소에서 검증한다. 공개 앱 검사를 통과한 것만으로 서버·어드민 검증을 대신하지 않는다.
 - Windows 설치·업데이트: clean install, 기본 `C:\Program Files\SIDEY`와 사용자 선택 설치 위치, 공용 시작 메뉴, 아이콘이 포함된 `Uninstall.exe`, 게시된 런처·호스트 시작 스모크, repair, 실행 중 upgrade 종료, downgrade 차단, 기존 v1.0.5 MSI 전환을 Windows CI·실기에서 확인한다. Windows 설정·`Uninstall.exe`의 일반 제거에서 설정·로그와 자격 증명의 독립적인 기본 미선택 삭제 옵션이 동작하고, 선택한 항목만 현재 사용자의 `%LOCALAPPDATA%\SIDEY` 또는 Credential Manager `SIDEY/` 자격 증명에서 삭제하며 upgrade·repair·MSI 전환에는 실행하지 않는지도 검증한다. `windows-v<version>` manifest의 버전·태그·고정 Setup EXE URL·SHA-256, 시작 확인 시 새 버전 시스템 알림, 현재 버전·마지막 성공 확인 시각 표시와 신뢰된 Release 링크도 검증하며 기존 per-user·Burn 테스트 설치가 있으면 설치 전에 제거하도록 안내한다.
 
 ### 10.2 macOS 장시간 수동·계측 테스트

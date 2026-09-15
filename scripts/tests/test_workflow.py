@@ -237,9 +237,9 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(w.head(self.primary), old)
         self.assertEqual((self.primary / 'README.md').read_text(), 'owned by user')
 
-    def test_scopes_include_catalog_database_and_verifier(self):
+    def test_catalog_runs_public_consumers(self):
         self.assertEqual(set(w.required_scopes(['assets/v1/commerce-catalog.json'])),
-                         {'shared', 'macos', 'windows', 'web', 'server', 'database'})
+                         {'shared', 'macos', 'windows', 'web'})
         self.assertIn('windows', w.required_scopes(['website/src/pages/ko/terms.md']))
 
     def test_release_manifests_run_the_matching_native_checks(self):
@@ -252,14 +252,21 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(w.required_scopes(['.github/workflows/windows-release.yml']),
                          ['shared', 'windows'])
         self.assertEqual(w.required_scopes(['.github/workflows/database.yml']),
-                         ['database', 'shared'])
+                         ['shared'])
         self.assertEqual(w.required_scopes(['.github/workflows/pages.yml']),
                          ['shared', 'web'])
         self.assertEqual(w.required_scopes(['.github/workflows/download-metrics.yml']),
                          ['shared'])
 
+    def test_backend_removal_does_not_require_removed_ci_jobs(self):
+        self.assertEqual(w.required_scopes([
+            'supabase/migrations/20260915000000_admin_app_store_revenue.sql',
+            'services/app-store-verifier/src/server.ts',
+            'scripts/supabase/test_concurrency.sh',
+        ]), ['shared'])
+
     def test_integration_and_scope_logic_changes_run_every_check(self):
-        every_scope = {'shared', 'macos', 'windows', 'web', 'server', 'database'}
+        every_scope = {'shared', 'macos', 'windows', 'web'}
         self.assertEqual(set(w.required_scopes(['.github/workflows/integration.yml'])),
                          every_scope)
         self.assertEqual(set(w.required_scopes(['scripts/workflow_ci.py'])), every_scope)

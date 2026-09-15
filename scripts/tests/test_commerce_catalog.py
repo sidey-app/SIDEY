@@ -31,6 +31,12 @@ class CatalogTests(unittest.TestCase):
             with self.assertRaises(WorkflowError):
                 validate_paths(('macos' if target == 'shared' else 'shared')+'/catalog', output)
 
+    def test_shared_generation_only_owns_the_public_website_mirror(self):
+        output = c.generated(self.products, 'shared')
+        self.assertEqual(set(output), {'website/public/assets/commerce-products.js'})
+        self.assertEqual(output['website/public/assets/commerce-products.js'],
+                         (c.ROOT / 'website/public/assets/commerce-products.js').read_bytes())
+
     def test_storekit_current_offer_missing_or_wrong_price_is_rejected(self):
         original = json.loads((c.ROOT / 'macos/SIDEYAppStore.storekit').read_text())
         c.check_storekit(self.products, original)

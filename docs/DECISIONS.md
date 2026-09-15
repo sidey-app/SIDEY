@@ -8,6 +8,8 @@
 
 ## 확정된 결정
 
+2026-09-15 백엔드 비공개 저장소 분리: 사용자는 Supabase 관련 백엔드 전체를 조직의 새 비공개 저장소 [sidey-app/sidey-backend](https://github.com/sidey-app/sidey-backend)로 분리하도록 명시적으로 승인했다. Supabase migration·RLS·Edge Functions·서버 테스트, App Store 검증 서비스, 운영 데이터 수집·staging 설정·배포 도구와 서버 운영 문서는 비공개 저장소에서 관리한다. 공개 SIDEY에는 macOS·Windows Supabase 클라이언트, 공개 웹과 제품·클라이언트 계약을 유지한다. 상품·자산 원본은 공개 `assets/v1/commerce-catalog.json`·`manifest.json`이며 backend는 검토한 공개 커밋의 snapshot과 출처를 기록하고 서버용 매핑만 별도로 생성·검증한다. 서버 작업은 backend의 현재 clone·규칙·CI를 따르고 공개 저장소의 과거 사본에서 수정·배포하지 않는다. 이번 분리는 앞으로의 파일 위치와 공개 범위를 변경하는 작업이다. 이미 공개된 Git 이력·태그·fork·다운로드 사본의 제거 또는 이력 재작성은 별도 범위이며, 이번 작업으로 과거 코드까지 비공개가 되었다고 주장하지 않는다. 저장소 이관 자체는 운영 DB migration·Cloud Run 배포·판매 설정 변경을 뜻하지 않는다.
+
 2026-09-15 로컬 어드민 App Store 결제 금액: 사용자 요청으로 개요와 결제 메뉴에 App Store의 검증된 앱 내 구매 금액을 추가한다. Apple 서명 거래의 `price` milliunits·`currency`를 거래 원장에 저장하고 Production과 Sandbox를 분리하며 통화별로 합산한다. 상품 정가로 과거 금액을 추정하지 않고 미확인 건수를 표시한다. 환불·회수 대상 구매액은 원래 구매 금액이며 실제 부분 환불액·수수료·세금 차감 후 정산액으로 부르지 않는다. 복원·재검증은 같은 transaction을 중복 집계하지 않으며 계정 연결이 삭제된 보존 거래도 포함한다. 과거 금액 보완은 검증 서버의 제한된 순차 도구로 수행하고 어드민에는 변경 기능을 추가하지 않는다. 이번 코드 통합과 운영 DB migration·검증 서버 배포·과거 거래 보완 실행은 구분한다.
 
 2026-09-15 GitHub Actions 실행 시간 단축: 사용자는 동일 커밋의 플랫폼·데이터베이스 검증을 여러 워크플로가 반복하지 않도록 CI를 정리하라고 지시했다. PR과 `main` push의 자동 검증은 diff 기반 `SIDEY integration`을 단일 진입점으로 사용하고, 기존 macOS·Windows·Database 전용 CI는 수동 진단용으로만 남긴다. 통합 게이트는 기존 네이티브 테스트·Windows 상품 카탈로그·framework-dependent publish·prerequisite·앱 smoke·NSIS·Supabase 검증을 유지한다. Pages는 같은 실행에서 검증한 웹 빌드 산출물을 배포 job이 재사용하고, 다운로드 지표 수집은 테스트와 수집이 한 runner에서 순서대로 실행된다. Windows 정식 릴리스는 같은 runner에서 전체 검사 뒤 후보 설치 파일을 만들되 공개 전 asset·SHA-256 검증과 성공 후 Pages 호출을 유지한다.

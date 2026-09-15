@@ -1,4 +1,5 @@
 from pathlib import Path
+import subprocess
 import unittest
 
 
@@ -14,7 +15,7 @@ class CiWorkflowTests(unittest.TestCase):
         integration = self.read('integration.yml')
         self.assertIn("python -X utf8 ./windows/tools/sync_product_assets.py --check", integration)
         self.assertIn('Run Windows app smoke', integration)
-        for name in ('database.yml', 'release-metadata.yml'):
+        for name in ('release-metadata.yml',):
             with self.subTest(workflow=name):
                 workflow = self.read(name)
                 self.assertIn('  workflow_dispatch:', workflow)
@@ -29,11 +30,28 @@ class CiWorkflowTests(unittest.TestCase):
         self.assertIn('name: Upload tested website build', workflow)
         self.assertIn('name: Download tested website build', workflow)
 
-    def test_download_metrics_uses_one_runner(self):
-        workflow = self.read('download-metrics.yml')
-        self.assertEqual(workflow.count('runs-on: ubuntu-latest'), 1)
-        self.assertEqual(workflow.count('actions/checkout@v7'), 1)
-        self.assertEqual(workflow.count('actions/setup-node@v6'), 1)
+    def test_public_checkout_excludes_backend_implementation_and_operations(self):
+        private_paths = (
+            'supabase', 'services/app-store-verifier', 'scripts/supabase',
+            'scripts/download-metrics', 'scripts/configure_supabase_staging.sh',
+            '.github/workflows/database.yml', '.github/workflows/download-metrics.yml',
+        )
+        # Ignore leftover local build caches after the split, but reject new
+        # untracked source too. Deleted files may still appear in the index.
+        candidates = subprocess.check_output([
+            'git', '-C', str(ROOT), 'ls-files', '-z', '--cached', '--others',
+            '--exclude-standard',
+        ]).decode().split('\0')
+        unexpected = [path for path in candidates
+                      if path and (ROOT / path).exists()
+                      and any(path == owned or path.startswith(owned + '/')
+                              for owned in private_paths)]
+        self.assertEqual(unexpected, [],
+                         'Backend implementation belongs in sidey-app/sidey-backend')
+        integration = self.read('integration.yml')
+        self.assertNotIn('  database:', integration)
+        self.assertNotIn('  server:', integration)
+        self.assertIn('needs: [scope, shared, macos, windows, web]', integration)
 
 
 if __name__ == '__main__':
