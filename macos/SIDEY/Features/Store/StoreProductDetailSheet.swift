@@ -126,6 +126,14 @@ private struct StoreDetailPurchaseCard: View {
         } else if case .error = state.purchaseState {
             Button("상태 다시 확인") { actions.onRefreshCommerceState(state.id) }
                 .disabled(purchaseInProgress)
+        } else if state.purchaseState == .unavailable {
+            VStack(spacing: 6) {
+                Text("이 상품은 아직 구매할 수 없어요.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Button("상태 다시 확인") { actions.onRefreshCommerceState(state.id) }
+                    .disabled(purchaseInProgress)
+            }
+            .frame(maxWidth: .infinity, minHeight: 30)
         } else if availability.usesAppStore && state.localizedPrice == nil {
             VStack(spacing: 6) {
                 Text(state.priceLoadState == .loading

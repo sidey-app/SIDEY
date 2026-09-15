@@ -2,7 +2,6 @@
 """Verify native asset bytes against the bundle's reviewed Git source."""
 from __future__ import annotations
 import hashlib
-import json
 from pathlib import Path
 import subprocess
 import sys
@@ -10,20 +9,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from catalog_source import load_source
-
-
-def selected_artifacts(records: list[dict]) -> dict[str, str]:
-    selected = {}
-    for record in records:
-        if record['status'] != 'approved':
-            continue
-        selection = record['selection']
-        if isinstance(selection, str):
-            selection = [selection]
-        for artifact in record.get('artifacts', []):
-            if artifact['candidate_id'] in selection:
-                selected['docs/reviews/character-five/' + artifact['path']] = artifact['sha256']
-    return selected
+from character_five_provenance import selected_artifacts, verify_character_five_provenance
 
 
 def verify(root: Path = ROOT) -> int:
@@ -57,20 +43,10 @@ def verify(root: Path = ROOT) -> int:
         asset = item['sprite']
         compare('assets/v1/' + asset['path'], resources / 'CharacterThrow/ObjectSheets' / f"{item['id']}.png", asset['sha256'])
 
-    # Promotion records identify the exact candidate selected by the user.
-    promotion = json.loads(read('assets/v1/character-five-source.json'))
-    approvals = json.loads(read(promotion['approval']))
-    selected = selected_artifacts(approvals['records'])
-    for item in promotion['files']:
-        expected = item['sha256']
-        if selected.get(item['source']) != expected:
-            raise ValueError(f"Promoted asset was not selected: {item['source']}")
-        if hashlib.sha256(read(item['source'])).hexdigest() != expected:
-            raise ValueError(f"Selected source hash differs: {item['source']}")
-        if hashlib.sha256(read(item['destination'])).hexdigest() != expected:
-            raise ValueError(f"Promoted destination hash differs: {item['destination']}")
+    # Follow preserved user-approved originals and recorded, reviewed derivatives.
+    for item in verify_character_five_provenance(read):
         if item['destination'].startswith('assets/v1/audio/'):
-            compare(item['destination'], resources / 'DirectImpactAudio' / Path(item['destination']).name, expected)
+            compare(item['destination'], resources / 'DirectImpactAudio' / Path(item['destination']).name, item['sha256'])
     return count
 
 

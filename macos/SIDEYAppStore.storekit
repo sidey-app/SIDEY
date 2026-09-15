@@ -8,7 +8,7 @@
       "type": "NonConsumable",
       "productID": "character_starlight_upalupa_solo",
       "referenceName": "별빛 우파루파",
-      "displayPrice": "1100",
+      "displayPrice": "2200",
       "localizations": [
         {
           "description": "진주빛 몸과 별빛 아가미를 가진 우파루파 캐릭터",
@@ -18,7 +18,7 @@
       ]
     },
     {
-      "displayPrice": "1100",
+      "displayPrice": "2200",
       "familyShareable": false,
       "internalID": "01000000-0000-4000-8000-000000000001",
       "localizations": [
@@ -567,7 +567,7 @@
       "localizations": [
         {
           "description": "누가 불렀는지는 모르겠지만, 일단 나왔어요.",
-          "displayName": "똥",
+          "displayName": "똥 캐릭터",
           "locale": "ko_KR"
         }
       ]

@@ -1,4 +1,5 @@
 import importlib.util
+import json
 from pathlib import Path
 import unittest
 
@@ -15,3 +16,17 @@ class SelectedApprovalTests(unittest.TestCase):
                 dict(status='approved', selection=selection, artifacts=artifacts),
                 dict(status='pending', selection='A', artifacts=artifacts),
             ]), {'docs/reviews/character-five/B.wav': 'B'})
+
+
+class StoreKitRegistrationMetadataTests(unittest.TestCase):
+    def test_localizations_fit_app_store_connect_limits(self):
+        root = Path(__file__).resolve().parents[3]
+        configuration = json.loads((root / 'macos/SIDEYAppStore.storekit').read_text())
+        for product in configuration['products']:
+            self.assertTrue(product['localizations'], product['productID'])
+            for locale in product['localizations']:
+                with self.subTest(product=product['productID'], locale=locale['locale']):
+                    self.assertGreaterEqual(len(locale['displayName']), 2)
+                    self.assertLessEqual(len(locale['displayName']), 30)
+                    self.assertGreater(len(locale['description']), 0)
+                    self.assertLessEqual(len(locale['description']), 45)

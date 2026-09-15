@@ -250,21 +250,47 @@ final class AppModel {
 
     func apply(commerceStates: [CommerceState]) {
         for state in commerceStates { apply(commerceState: state) }
-        if commerceStates.contains(where: { $0.product.kind == .bubble }) {
-            equippedBubbleStyleID = commerceStates.first(where: {
-                $0.product.kind == .bubble
-                    && $0.entitlementStatus == "active"
-                    && $0.isEquipped
-            })?.product.catalogItemID
+        func equipment(kind: CommerceProductKind, currentID: String?) -> String? {
+            if let equipped = commerceStates.first(where: {
+                $0.product.kind == kind && $0.entitlementStatus == "active" && $0.isEquipped
+            }) {
+                return equipped.product.catalogItemID
+            }
+            // Absence from a partial catalog says nothing about an existing profile selection.
+            let selectionWasReturned = commerceStates.contains {
+                $0.product.kind == kind && $0.product.catalogItemID == currentID
+            }
+            return selectionWasReturned ? nil : currentID
         }
-        if commerceStates.contains(where: { $0.product.kind == .throwable }) {
-            equippedThrowableID = commerceStates.first(where: {
-                $0.product.kind == .throwable
-                    && $0.entitlementStatus == "active"
-                    && $0.isEquipped
-            })?.product.catalogItemID
-        }
+        equippedBubbleStyleID = equipment(kind: .bubble, currentID: equippedBubbleStyleID)
+        equippedThrowableID = equipment(kind: .throwable, currentID: equippedThrowableID)
         enforceOwnedCosmetics()
+    }
+
+    func applyStoreCatalog(_ states: [CommerceState], usesAppStore: Bool) {
+        apply(commerceStates: states)
+        let returnedIDs = Set(states.map { $0.product.id })
+        for state in commerceProducts {
+            if !returnedIDs.contains(state.id) {
+                // A missing sale offer must not revoke a separately verified entitlement.
+                commerce.setCommercePurchaseState(
+                    activeEntitlementKeys.contains(state.product.entitlementKey) ? .owned : .unavailable,
+                    productID: state.id
+                )
+            } else if usesAppStore && state.purchaseState != .owned {
+                commerce.setCommercePurchaseState(.available, productID: state.id)
+            }
+        }
+    }
+
+    func failStoreCatalogLoading(productIDs: [String]) {
+        for id in productIDs {
+            guard let state = commerceProduct(id: id) else { continue }
+            commerce.setCommercePurchaseState(
+                activeEntitlementKeys.contains(state.product.entitlementKey)
+                    ? .owned : .error("상점 상태를 불러오지 못했습니다."), productID: id
+            )
+        }
     }
 
     func commerceProduct(id: String) -> CommerceProductState? {
