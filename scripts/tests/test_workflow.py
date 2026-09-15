@@ -50,15 +50,21 @@ class WorkflowTests(unittest.TestCase):
             w.main(['--repo', str(self.primary), 'start', name, '--platform', platform, '--worktree', str(path)])
         return path
 
-    def test_recovers_server_merge_after_lost_client_response_only_for_checked_head(self):
+    def test_recovers_server_squash_after_lost_client_response_only_for_checked_tree(self):
         path = self.start()
         (path / 'change.md').write_text('task')
         self.commit(path, 'task change')
         task = w.read_state(path)['task']
-        task['checked'] = {'head': w.head(path), 'snapshot': w.snapshot(path)}
-        w.git(self.primary, 'merge', '--no-ff', '-m', 'merge task', 'shared/task')
+        task['checked'] = {'head': w.head(path), 'snapshot': w.snapshot(path), 'base': task['base']}
+        task['merge_intent'] = {
+            'head': w.head(path), 'base': task['base'], 'subject': 'squash task',
+            'body_sha256': w.hashlib.sha256(b'').hexdigest(), 'coauthors': [],
+        }
+        w.git(self.primary, 'merge', '--squash', 'shared/task')
+        self.commit(self.primary, 'squash task')
         remote = w.head(self.primary)
-        pr = dict(number=42, headRefOid=w.head(path), mergeCommit={'oid': remote}, isCrossRepository=False)
+        pr = dict(number=42, headRefOid=w.head(path), mergeCommit={'oid': remote},
+                  isCrossRepository=False, body='')
         real_run = w.run
         def response(root, *args, **kwargs):
             return json.dumps([pr]) if args[0] == 'gh' else real_run(root, *args, **kwargs)
@@ -71,6 +77,55 @@ class WorkflowTests(unittest.TestCase):
             (path / 'change.md').write_text('task')
             pr['headRefOid'] = 'unrelated'
             self.assertIsNone(w.recover_merged_task(path, task, remote))
+
+    def test_recovery_rejects_a_merge_with_different_content(self):
+        path = self.start()
+        (path / 'change.md').write_text('task')
+        self.commit(path, 'task change')
+        task = w.read_state(path)['task']
+        task['checked'] = {'head': w.head(path), 'snapshot': w.snapshot(path), 'base': task['base']}
+        task['merge_intent'] = {
+            'head': w.head(path), 'base': task['base'], 'subject': 'expected subject',
+            'body_sha256': w.hashlib.sha256(b'').hexdigest(), 'coauthors': [],
+        }
+        (self.primary / 'other.md').write_text('other')
+        self.commit(self.primary, 'unrelated merge result')
+        remote = w.head(self.primary)
+        pr = dict(number=42, headRefOid=w.head(path), mergeCommit={'oid': remote},
+                  isCrossRepository=False, body='')
+        real_run = w.run
+        def response(root, *args, **kwargs):
+            return json.dumps([pr]) if args[0] == 'gh' else real_run(root, *args, **kwargs)
+        with patch.object(w, 'run', side_effect=response):
+            self.assertIsNone(w.recover_merged_task(path, task, remote))
+
+    def test_coauthors_come_from_real_trailer_blocks_and_deduplicate_email(self):
+        messages = [
+            'Example\nCo-authored-by: Not A Trailer <fake@example.test>\nMore text',
+            'Change\n\nCo-authored-by: Codex <codex@openai.com>',
+            'Another\n\nco-authored-by: codex <CODEX@OPENAI.COM>',
+            'Third\n\nCo-authored-by: Person <person@example.test>',
+        ]
+        self.assertEqual(w.coauthor_trailers(self.primary, messages), [
+            'Co-authored-by: Codex <codex@openai.com>',
+            'Co-authored-by: Person <person@example.test>',
+        ])
+
+    def test_squash_body_normalizes_existing_trailers_and_preserves_others(self):
+        body = ('Summary\n\nReviewed-by: Reviewer <reviewer@example.test>\n'
+                'Co-authored-by: Codex <codex@openai.com>\n'
+                'co-authored-by: codex <CODEX@OPENAI.COM>')
+        result = w.squash_body(self.primary, body, [
+            'Change\n\nCo-authored-by: Person <person@example.test>',
+        ])
+        self.assertEqual(result, ('Summary\n\nReviewed-by: Reviewer <reviewer@example.test>\n'
+                                  'Co-authored-by: Codex <codex@openai.com>\n'
+                                  'Co-authored-by: Person <person@example.test>'))
+
+    def test_single_line_pr_body_is_parsed_as_a_commit_body_trailer(self):
+        body = 'Co-authored-by: Person <person@example.test>'
+        self.assertEqual(w.squash_body(self.primary, body, []), body)
+        self.assertEqual(w.coauthor_trailers(self.primary, [w.pr_body_message(body)]), [body])
 
     def advance(self):
         (self.other / 'advance.md').write_text('remote update\n')
@@ -186,6 +241,10 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(set(w.required_scopes(['assets/v1/commerce-catalog.json'])),
                          {'shared', 'macos', 'windows', 'web', 'server', 'database'})
         self.assertIn('windows', w.required_scopes(['website/src/pages/ko/terms.md']))
+
+    def test_release_manifests_run_the_matching_native_checks(self):
+        self.assertEqual(w.required_scopes(['release/macos.json']), ['macos', 'shared'])
+        self.assertEqual(w.required_scopes(['release/windows.json']), ['shared', 'windows'])
 
     def test_workflow_scopes_only_run_affected_platforms(self):
         self.assertEqual(w.required_scopes(['.github/workflows/macos.yml']),
