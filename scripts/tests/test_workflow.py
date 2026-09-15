@@ -152,6 +152,25 @@ class WorkflowTests(unittest.TestCase):
         with self.assertRaises(w.WorkflowError):
             w.main(['--repo', str(self.primary), 'start', 'task', '--platform', 'shared', '--worktree', str(task)])
 
+    def test_task_state_round_trips_korean_as_utf8(self):
+        task = self.start()
+        state = w.read_state(task)['task']
+        state['merge_intent'] = {'subject': '한글 squash 제목'}
+        w.update_task(task, 'task', state)
+        state_path = w.common_dir(task) / 'sidey-workflow' / 'tasks.json'
+        self.assertIn('한글 squash 제목', state_path.read_bytes().decode('utf-8'))
+        self.assertEqual(w.read_state(task)['task']['merge_intent']['subject'], '한글 squash 제목')
+
+    def test_legacy_locale_task_state_is_migrated_to_utf8(self):
+        task = self.start()
+        state_path = w.common_dir(task) / 'sidey-workflow' / 'tasks.json'
+        state = w.read_state(task)
+        state['task']['merge_intent'] = {'subject': '예전 한글 제목'}
+        state_path.write_bytes(json.dumps(state, ensure_ascii=False).encode('cp949'))
+        with patch.object(w.locale, 'getencoding', return_value='cp949'):
+            self.assertEqual(w.read_state(task)['task']['merge_intent']['subject'], '예전 한글 제목')
+        self.assertIn('예전 한글 제목', state_path.read_bytes().decode('utf-8'))
+
     def test_moved_file_checks_deleted_platform_path(self):
         (self.primary / 'macos').mkdir()
         (self.primary / 'macos/source.swift').write_text('native\n')
@@ -257,6 +276,18 @@ class WorkflowTests(unittest.TestCase):
                          ['shared', 'web'])
         self.assertEqual(w.required_scopes(['.github/workflows/download-metrics.yml']),
                          ['shared'])
+
+    def test_platform_workflow_only_changes_do_not_require_app_review(self):
+        self.assertFalse(w.app_review_required('macos', ['.github/workflows/macos.yml']))
+        self.assertFalse(w.app_review_required('windows', ['.github/workflows/windows.yml']))
+        self.assertFalse(w.app_review_required('shared', ['scripts/workflow.py']))
+
+    def test_platform_app_inputs_still_require_app_review(self):
+        self.assertTrue(w.app_review_required('macos', ['macos/Sources/SIDEY/App.swift']))
+        self.assertTrue(w.app_review_required('windows', ['windows/SIDEY/App.xaml.cs']))
+        self.assertTrue(w.app_review_required('windows', ['.github/workflows/windows-release.yml']))
+        self.assertTrue(w.app_review_required(
+            'macos', ['.github/workflows/macos.yml', 'scripts/package_macos_release.sh']))
 
     def test_integration_and_scope_logic_changes_run_every_check(self):
         every_scope = {'shared', 'macos', 'windows', 'web', 'server', 'database'}
