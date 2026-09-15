@@ -431,6 +431,10 @@ class WorkflowTests(unittest.TestCase):
                          every_scope)
         self.assertEqual(set(w.required_scopes(['scripts/workflow_ci.py'])), every_scope)
 
+    def test_checkout_attributes_require_native_and_web_verification(self):
+        self.assertEqual(set(w.required_scopes(['.gitattributes'])),
+                         {'shared', 'macos', 'windows', 'web'})
+
 
 if __name__ == '__main__':
     unittest.main()
