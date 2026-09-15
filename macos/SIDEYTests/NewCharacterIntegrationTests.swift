@@ -67,7 +67,7 @@ final class NewCharacterIntegrationTests: XCTestCase {
 
     func testAllCatalogPricesUseApprovedKoreanTiers() {
         let premium: Set<String> = ["bubble_bunny_pink", "bubble_butter_chick", "bubble_starry_cat",
-                                    "throwable_dujjonku", "throwable_wakkuball"]
+                                    "character_starlight_upalupa", "throwable_dujjonku", "throwable_wakkuball"]
         for product in CommerceCatalog.products {
             let expected = product.id == "throwable_toy_cannon" ? 3_300
                 : premium.contains(product.id) ? 2_200 : 1_100

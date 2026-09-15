@@ -93,6 +93,120 @@ final class CharacterStunTests: XCTestCase {
         XCTAssertEqual(scene.activeProjectileCount, 1)
     }
 
+    func testActualHitsStopRoamingTreeAndRecoveryPreservesServerPause() throws {
+        for paused in [false, true] {
+            var now: TimeInterval = 100
+            let actor = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
+            let target = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
+            let room = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
+            let scene = PixelWorldScene(size: CGSize(width: 540, height: 240),
+                renderingConfiguration: .storePreview(initialTrackFractions: [target: 0.7],
+                    fixedTrackFractions: [actor: 0.25]), clock: { now })
+            apply(scene, actor: actor, target: target, room: room, character: "pixel_tree")
+            scene.update(now)
+            let initial = try XCTUnwrap(scene.agentStates.first { $0.id == target }).trackPosition
+            var movedBeforeHits = false
+            for _ in 0..<120 {
+                now += 1.0 / 30
+                scene.update(now)
+                let position = try XCTUnwrap(scene.agentStates.first { $0.id == target }).trackPosition
+                movedBeforeHits = movedBeforeHits || abs(position - initial) > 1
+            }
+            XCTAssertTrue(movedBeforeHits, "The target must actually roam before testing stun")
+            apply(scene, actor: actor, target: target, room: room, character: "pixel_tree",
+                  pausedTreeUserIDs: paused ? [target] : [])
+            for hit in 1...10 {
+                scene.playLocalPreviewThrow(CharacterThrowEvent(id: UUID(), roomID: room,
+                    actorUserID: actor, targetUserID: target, sourceCharacterID: "pixel_cat"))
+                for _ in 0..<24 {
+                    now += 1.0 / 30
+                    scene.update(now)
+                    if scene.stunState.isStunned(target, at: now) { break }
+                }
+                XCTAssertEqual(scene.activeProjectileCount, 0)
+                XCTAssertEqual(scene.stunState.isStunned(target, at: now), hit == 10)
+            }
+            let started = try XCTUnwrap(scene.stunState.startedAt[target])
+            let stopped = try XCTUnwrap(scene.agentStates.first { $0.id == target }).trackPosition
+            for frame in 1..<180 {
+                now = started + Double(frame) / 30
+                scene.update(now)
+                let agent = try XCTUnwrap(scene.agentStates.first { $0.id == target })
+                XCTAssertEqual(agent.trackPosition, stopped, accuracy: 0.001)
+                XCTAssertEqual(agent.velocity, 0)
+            }
+            now = started + 6
+            scene.update(now)
+            XCTAssertFalse(scene.stunState.isStunned(target, at: now))
+            XCTAssertEqual(scene.renderedStunStarCount(for: target), 0)
+            XCTAssertEqual(scene.isTreeMovementPaused(for: target), paused)
+            var movedAfterRecovery = false
+            for frame in 1...120 {
+                now = started + 6 + Double(frame) / 30
+                scene.update(now)
+                let position = try XCTUnwrap(scene.agentStates.first { $0.id == target }).trackPosition
+                movedAfterRecovery = movedAfterRecovery || abs(position - stopped) > 1
+                if paused { XCTAssertEqual(position, stopped, accuracy: 0.001) }
+            }
+            XCTAssertEqual(movedAfterRecovery, !paused)
+        }
+    }
+
+    func testStunPreservesReleasedProjectileAndChatWhileBlockingNewThrows() throws {
+        var now: TimeInterval = 100
+        let actor = UUID(), target = UUID(), distantFriend = UUID(), room = UUID()
+        let scene = PixelWorldScene(size: CGSize(width: 1_000, height: 240),
+            renderingConfiguration: .storePreview(fixedTrackFractions: [
+                actor: 0.2, target: 0.3, distantFriend: 0.9]), clock: { now })
+        let members = [
+            PixelWorldMember(id: actor, nickname: "친구", characterID: "pixel_cat",
+                presence: .online, isTyping: false, isCurrentUser: false),
+            PixelWorldMember(id: target, nickname: "나", characterID: "pixel_tree",
+                presence: .online, isTyping: true, isCurrentUser: true),
+            PixelWorldMember(id: distantFriend, nickname: "멀리 있는 친구", characterID: "pixel_hamster",
+                presence: .online, isTyping: false, isCurrentUser: false)
+        ]
+        scene.apply(roomID: room, members: members, bubbles: [ActiveBubble(senderID: target, messageID: UUID(), body: "계속 채팅 중",
+            expiresAt: Date().addingTimeInterval(3_600))], edge: .bottom,
+            activityFrame: CGRect(x: 0, y: 0, width: 1_000, height: 240), installationSeed: 1)
+        scene.update(now)
+        for _ in 0..<9 {
+            scene.playLocalPreviewThrow(CharacterThrowEvent(id: UUID(), roomID: room,
+                actorUserID: actor, targetUserID: target, sourceCharacterID: "pixel_cat"))
+            now += 0.8
+            scene.update(now)
+        }
+        XCTAssertEqual(scene.stunState.recentHitCount(target, at: now), 9)
+        scene.playLocalPreviewThrow(CharacterThrowEvent(id: UUID(), roomID: room,
+            actorUserID: actor, targetUserID: target, sourceCharacterID: "pixel_cat"))
+        now += 0.3
+        scene.update(now)
+        scene.playLocalPreviewThrow(CharacterThrowEvent(id: UUID(), roomID: room,
+            actorUserID: target, targetUserID: distantFriend, sourceCharacterID: "pixel_tree"))
+        now += 0.4
+        scene.update(now)
+        XCTAssertTrue(scene.previewRenderEvents.contains(.projectileReleased(target)))
+        XCTAssertTrue(scene.stunState.isStunned(target, at: now))
+        XCTAssertEqual(scene.activeProjectileCount, 1)
+        XCTAssertEqual(scene.renderedHitCount(for: distantFriend), 0)
+        XCTAssertTrue(scene.renderedBubbleBodies(for: target).contains("계속 채팅 중"))
+        XCTAssertFalse(scene.renderedBubbleIsTyping(for: target), "A visible message takes priority over typing")
+        scene.playLocalPreviewThrow(CharacterThrowEvent(id: UUID(), roomID: room,
+            actorUserID: target, targetUserID: actor, sourceCharacterID: "pixel_tree"))
+        XCTAssertEqual(scene.activeProjectileCount, 1, "A new throw must not join the released projectile")
+        now += 1
+        scene.update(now)
+        XCTAssertEqual(scene.activeProjectileCount, 0)
+        XCTAssertEqual(scene.renderedHitCount(for: distantFriend), 1)
+        XCTAssertTrue(scene.previewRenderEvents.contains(.impact(distantFriend)))
+        XCTAssertTrue(scene.stunState.isStunned(target, at: now))
+        XCTAssertTrue(scene.renderedBubbleBodies(for: target).contains("계속 채팅 중"))
+        scene.apply(roomID: room, members: members, bubbles: [], edge: .bottom,
+            activityFrame: CGRect(x: 0, y: 0, width: 1_000, height: 240), installationSeed: 1)
+        XCTAssertTrue(scene.stunState.isStunned(target, at: now))
+        XCTAssertTrue(scene.renderedBubbleIsTyping(for: target), "Typing returns when the message is removed during stun")
+    }
+
     func testAllCharactersEdgesAndPresenceKeepStylingAndTypingWhileStunned() throws {
         for definition in PixelCharacterCatalog.all {
             for edge in OverlayEdge.allCases {
@@ -200,10 +314,11 @@ final class CharacterStunTests: XCTestCase {
 
     private func apply(_ scene: PixelWorldScene, actor: UUID, target: UUID, room: UUID,
                        character: String = "pixel_hamster", presence: PresenceState = .online,
-                       edge: OverlayEdge = .bottom) {
+                       edge: OverlayEdge = .bottom, pausedTreeUserIDs: Set<UUID>? = nil) {
         scene.apply(roomID: room, members: [
             PixelWorldMember(id: actor, nickname: "친구", characterID: "pixel_cat", presence: .online, isTyping: false, isCurrentUser: false),
             PixelWorldMember(id: target, nickname: "기절", characterID: character, presence: presence, isTyping: true, isCurrentUser: true)
-        ], bubbles: [], edge: edge, activityFrame: CGRect(x: 30, y: 30, width: 480, height: 180), installationSeed: 1)
+        ], bubbles: [], edge: edge, activityFrame: CGRect(x: 30, y: 30, width: 480, height: 180),
+           installationSeed: 1, pausedTreeUserIDs: pausedTreeUserIDs)
     }
 }

@@ -24,21 +24,11 @@ extension AppCoordinator {
             }
             do {
                 let states = try await backend.storeState()
-                model.apply(commerceStates: states)
-                if releaseChannel.storeAvailability.usesAppStore {
-                    for state in states where state.entitlementStatus != "active" {
-                        model.setCommercePurchaseState(.available, productID: state.product.id)
-                    }
-                }
+                model.applyStoreCatalog(states, usesAppStore: releaseChannel.storeAvailability.usesAppStore)
             } catch is CancellationError {
                 return
             } catch {
-                for id in productIDs {
-                    model.setCommercePurchaseState(
-                        .error("상점 상태를 불러오지 못했습니다."),
-                        productID: id
-                    )
-                }
+                model.failStoreCatalogLoading(productIDs: productIDs)
             }
         }
         productIDs.forEach { commerceSession.productTasks[$0] = task }
@@ -147,9 +137,7 @@ extension AppCoordinator {
             return
         }
 #endif
-        guard productState.purchaseState == .available
-                || productState.purchaseState == .refunded
-        else { return }
+        guard productState.purchaseState.canStartPurchase else { return }
 
         let product = productState.product
         model.setCommerceWorking(true, productID: productID)

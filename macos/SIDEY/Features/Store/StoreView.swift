@@ -240,6 +240,7 @@ struct StoreProductCard: View {
         if productState.isEquipped { return "사용 중" }
         if productState.purchaseState == .owned { return "보유 중" }
         if case .error = productState.purchaseState { return "오류" }
+        if productState.purchaseState == .unavailable { return productState.purchaseState.label }
         return productState.priceLabel(for: availability)
     }
 
