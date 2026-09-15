@@ -6,8 +6,8 @@
 
 ## 검토 원본
 
-- 기존 상품 가격: `d82ff7740d69ee5b630357372533564141ce419e` ([PR #145](https://github.com/sidey-app/SIDEY/pull/145)).
-- 신규 9개 상품과 승인 원본: `55a103cfc5ebc021f9ba1270d9f704cc1e76f3d0` ([PR #146](https://github.com/sidey-app/SIDEY/pull/146)). 이후 같은 브랜치의 main 동기화는 원본 두 JSON과 승인 자산 바이트를 바꾸지 않았다.
+- 기존 상품 가격: `58e41077b9eca6a0c224328a872dc8647842e9e8` ([PR #145](https://github.com/sidey-app/SIDEY/pull/145)).
+- 신규 9개 상품과 승인 원본: `57ac0ff65824103c19b62f2da31391e2d341a7d6` ([PR #146](https://github.com/sidey-app/SIDEY/pull/146)). 검토한 PR 원본과 실제 main에 통합된 두 JSON 및 승인 자산의 바이트가 같다.
 - 승인 패키지 72개 항목의 미승인·누락 없음. 선택한 시트·음원 18개는 승인 원본과 byte·SHA-256이 일치한다. 재사용 삑삑 오리는 기존 상품·시트·음원을 유지한다.
 
 ## 머지 시 필수 순서
@@ -22,17 +22,19 @@
 
 각 단계는 최신 main에 동기화하고 정확한 PR head의 필수 CI를 다시 확인한다. 선행 Windows 출처 고정이 없는 공용 가격·콘텐츠 PR의 Windows 카탈로그 검사는 의도한 배포 순서가 아직 반영되지 않아 실패한다. 이를 통과로 취급하거나 검사를 완화하지 않는다.
 
-현재 소비자가 참조하는 SHA는 검토용 PR 커밋이다. squash 머지 뒤 해당 브랜치를 삭제하기 전에, 플랫폼 `catalog-source.json`과 backend `SOURCE.json`의 상품 원본 SHA를 실제 공개 main의 원본 커밋으로 바꾼다. 원본 JSON 해시가 그대로인지 확인하고 생성기·카탈로그·필수 CI를 다시 실행한다. 임시 PR 커밋이 새 clone의 Git 이력에 항상 존재한다고 가정하지 않는다.
+플랫폼 `catalog-source.json`과 backend `SOURCE.json`은 위의 실제 공개 main 커밋으로 고정했다. Windows는 기존 24개 상품 가격 커밋을, macOS와 backend는 신규 33개 상품 커밋을 사용한다. squash 전후 원본 JSON 해시가 같음을 확인하고 생성기·카탈로그·필수 CI를 다시 실행한다. 마지막 macOS 지원 선언은 원본 상품·자산 바이트를 변경하지 않으며, 소비자의 출처 고정은 그대로 유지한다.
 
 ## 확인한 검증
 
 - macOS 로컬 신규 콘텐츠: 직배포 301개(기존 backend 연동 1개 제외)·App Store 37개·Recording 10개·Python 6개 통과. 양쪽 Debug·Release·archive 6개 산출물의 이름·bundle·카탈로그·원본 자산·빌드 출처와 두 archive의 dSYM UUID 일치를 확인했다. 로컬 ad-hoc 서명이며 제출용 서명 검증은 아니다.
 - 신규 macOS 지원 선언은 공용 manifest와 각 플랫폼 작업 디렉터리의 실제 PNG/BGRA를 함께 읽어 모든 선언 미러의 byte 일치를 사전 확인했다. 한 Git head의 통합 CI는 선행 PR 통합 후 별도로 확인한다.
 
-- 공용 Python 검사 85개, 17개 base·17개 action·19개 투척물·3개 말풍선의 원본 및 선언된 미러 검사 통과.
-- 웹 47개 페이지 빌드와 테스트 15개 통과. 브라우저 연결 부재로 실제 데스크톱·모바일 화면 검사는 미완료다.
+- 신규 공용 콘텐츠 PR #146의 Python 검사 86개, 17개 base·17개 action·19개 투척물·3개 말풍선의 원본 및 선언된 미러 검사 통과.
+- 신규 공용 콘텐츠의 [최종 통합 CI](https://github.com/sidey-app/SIDEY/actions/runs/34988174572)는 macOS·Windows·공용·웹 모두 통과했다. 웹 47개 페이지 빌드와 테스트 15개 통과. 브라우저 연결 부재로 실제 데스크톱·모바일 화면 검사는 미완료다.
 - Windows Core 199개·Presentation 146개 통과. 새 가격에서 화면 생성이 실패하던 고정 가격 분기를 수정했고 7개 언어 원화 표시를 검증했다. Windows PR head `6ad05eaf075ebbbfd47ec6c99d7c1a1ffa312647`의 전체 Release·플랫폼 테스트·패키징·앱 smoke가 [CI](https://github.com/sidey-app/SIDEY/actions/runs/34983219991)에서 통과했다.
-- backend verifier/PGlite 29개·Python 2개·수집기 5개와 전체 Supabase reset·pgTAP·동시성 CI 통과. migration 재실행·이전 주문/Apple 금액·복원 권리·독립 소유권·18개 유료 투척물 경로를 검증했다. 운영 DB는 변경하지 않았다.
+- backend verifier/PGlite 29개·Python 2개·수집기 5개와 [전체 Supabase reset·pgTAP·동시성 CI](https://github.com/sidey-app/sidey-backend/actions/runs/34989392191) 통과. 상품 PR #3을 `25a5b5dcf32be04ea522e9632d8340282a09a26e`로 병합하고 private primary main의 트리 일치를 확인했다. migration 재실행·이전 주문/Apple 금액·복원 권리·독립 소유권·18개 유료 투척물 경로를 검증했다. 운영 DB는 변경하지 않았다.
+
+- squash 후 앱 검증은 실제 main의 merge 커밋 포함 여부와 검증된 PR head의 트리 일치로 확인하도록 수정했다. 실제 Git squash·후속 main 전진·거부 조건 9개를 포함한 workflow 테스트 30개가 통과했다.
 
 ## 후속 출시 확인
 
