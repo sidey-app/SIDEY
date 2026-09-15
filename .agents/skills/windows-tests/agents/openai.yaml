@@ -1,0 +1,7 @@
+interface:
+  display_name: "Windows Tests"
+  short_description: "Choose and implement reliable Windows tests"
+  default_prompt: "Use $windows-tests to add or improve tests for this SIDEY Windows change."
+
+policy:
+  allow_implicit_invocation: true

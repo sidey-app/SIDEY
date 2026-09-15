@@ -102,7 +102,10 @@ particle burst 효과를 제안할 수 있습니다. 이러한 효과는 PNG 프
 2. `python3 scripts/commerce_catalog.py --target shared --write`로 상점·checkout 공통 상품 표현을 생성합니다.
    서버용 verifier 매핑과 Edge Function 허용 목록은 비공개 backend 저장소에서 생성합니다.
 3. `--target shared --check`는 바이트 차이·중복 ID·권리·자산 참조를 검사합니다.
-4. 공통 PR 통합 뒤 별도 `macos/*` 작업에서 `--target macos --write`로 번들 사본을 갱신합니다.
+4. 공통 PR 통합 뒤 별도 `macos/*` 작업에서 `--target macos --write --source-commit <검토된-전체-SHA>`로 번들 사본을 갱신합니다.
+   `catalog-source.json`은 원본 커밋과 상품·manifest SHA-256을 기록합니다.
+   검사는 해당 Git 원본과 번들을 대조하므로 CI와 로컬에 원본 커밋 이력이 필요합니다.
+   공용 변경과 플랫폼 소비는 순차 통합하며, 아직 갱신하지 않은 플랫폼은 기록된 원본으로 검사합니다.
    `--target macos --check`는 번들 사본과 현재 StoreKit 상품 ID·비소모성 유형·가격을 검사합니다.
    StoreKit 등록·지역·심사 설정 전체를 생성기로 덮어쓰지 않습니다.
 5. 서버 반영이 필요한 상품 변경은 [비공개 backend 저장소](https://github.com/sidey-app/sidey-backend)의
