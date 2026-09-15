@@ -626,6 +626,8 @@ Keychain 접근은 앱 실행 동안 하나의 `LAContext`를 공유하고 `loca
 
 다음 Windows 배포부터 `SelfContained=false`, `WindowsAppSDKSelfContained=false`, `PublishSingleFile=false`로 게시한다. `Runtime` 폴더에는 SIDEY 호스트와 앱 의존성·공유 런타임 로딩용 bootstrapper만 두며, Visual C++·.NET 런타임과 Windows App SDK / WinUI 런타임 본체·런타임 설치 파일은 포함하지 않는다. Visual C++ v14 x64 Redistributable은 Microsoft가 문서화한 레지스트리에서 설치 여부와 버전을 확인하고, `.NET 10 Runtime` x64와 앱이 요구하는 Windows App Runtime 버전·아키텍처도 설치 시 확인한다. 누락된 prerequisite는 Microsoft가 각 제품에 제공하는 공식 HTTPS permalink에서 내려받는다. `aka.ms` permalink와 redirect 도착지는 Microsoft host allowlist로 제한하고, 내려받은 실행 파일은 Microsoft Corporation Authenticode 서명을 검증한 뒤 무인·재시작 금지 옵션으로 설치하며 설치 후 사용 가능 여부를 다시 확인한다. 이 단계는 SIDEY 프로세스 종료·기존 NSIS/MSI 제거보다 먼저 수행한다. 다운로드·검증·설치 실패나 재시작 필요 시 설치를 중단하고 기존 앱을 보존한다.
 
+배포된 Setup의 prerequisite 설치·오류 정규화·설치 transaction·프로세스 종료 경로는 컴파일된 .NET Framework 4.7.2 도우미만 사용한다. 사용자 PC에서 PowerShell 스크립트, `ExecutionPolicy Bypass`, `taskkill.exe`를 호출하지 않으며, 패키징 검증은 NSIS 소스에 이 호출이 다시 추가되면 빌드를 실패시킨다. 이 제한은 저장소의 빌드·테스트 자동화에는 적용하지 않는다.
+
 prerequisite 확인이 끝나면 기존 제거기를 실행하고, 설치 폴더의 이전 self-contained `Runtime` 파일을 정리한 뒤 새 payload를 설치한다. 사용자 데이터와 시스템에 설치한 공유 Visual C++ / .NET / Windows App Runtime은 이 정리와 일반 SIDEY 제거 대상에 포함하지 않는다. CI는 framework-dependent publish의 runtimeconfig와 실제 파일 목록을 검사해 self-contained 런타임 혼입을 차단하고, prerequisite 설치 후 게시 런처 스모크를 실행한다. 설치 실패 시 기존 앱 보존, 기존 self-contained 업데이트, 같은 버전 복구, 공유 런타임 보존을 회귀 검증한다.
 
 Windows 설치 실행 승인창을 취소하면 `업데이트 설치를 취소했습니다.`를 일반 안내로 표시한다. 실제 실행 실패는 재시도를 안내하고, 업데이트 확인·다운로드·설치 오류의 내부 예외와 파일 경로는 화면에 노출하지 않고 진단 로그에 기록한다.
