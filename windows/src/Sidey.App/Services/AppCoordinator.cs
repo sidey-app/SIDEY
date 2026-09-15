@@ -1044,7 +1044,10 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     private static async Task DrainTreeMovementOperationAsync(Task operation)
     {
         // The caller reports failures; this observer owns shutdown draining only.
-        try { await operation.ConfigureAwait(false); }
+        try
+        {
+            await operation.ConfigureAwait(false);
+        }
         catch (Exception) { }
     }
 
