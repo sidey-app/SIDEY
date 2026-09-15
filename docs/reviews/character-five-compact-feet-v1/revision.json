@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "status": "user_requested_revision_implementation_reviewed",
+  "authorization": {
+    "kind": "user_requested_adjustment",
+    "request_summary": "신규 5종의 발목이 길고 발이 커 보이므로 기니피그·원숭이를 참고해 모두 수정하도록 요청함.",
+    "scope": "얼굴·의상·팔레트·그 외 픽셀은 보존하며 발과 배 밑 외곽만 제한적으로 수정",
+    "new_pixels_explicitly_approved_by_user": false
+  },
+  "visual_review": {
+    "status": "reviewed_by_implementation_agent",
+    "coordinating_agent_review": "정지·상승·피격 전후 summary PNG를 확인하고 사용자 요청 범위의 전체 반영을 진행함.",
+    "implementing_agent_review": "5종의 전체 90프레임 전후 PNG와 summary를 확인함.",
+    "user_visual_approval_claimed": false,
+    "comparisons": [
+      {
+        "path": "review/pixel_duck-all-frames.png",
+        "sha256": "b58d5fd3313fdf1e5b9923dec91ef9c24fa54bf48ab952f4d2852f208ce8e1c9"
+      },
+      {
+        "path": "review/pixel_poop-all-frames.png",
+        "sha256": "506194bc7c0bdc863cea809e1ff617f12a917b510356b792421dfbfd57c4a73d"
+      },
+      {
+        "path": "review/pixel_quokka-all-frames.png",
+        "sha256": "d16ef0a5cb6d239d6939657f763fb2019874b52c6fd7805a4177f2d67e783f9b"
+      },
+      {
+        "path": "review/pixel_shiba-all-frames.png",
+        "sha256": "9f40d25084ee955b19fc3a87facd65dd34c7f44d7409abff136e129dc592ae26"
+      },
+      {
+        "path": "review/pixel_tteokbokki-all-frames.png",
+        "sha256": "570f9781e96ec5db3871f429f07a8a608f05546a99a47d2aa874685781219497"
+      },
+      {
+        "path": "review/references.png",
+        "sha256": "45ddc0cc864f185228a4567c0e158aa592d7864543a887ffdceee85353f7b9c3"
+      },
+      {
+        "path": "review/summary.png",
+        "sha256": "15dce6faf3b4255c95089f8900c7637bdb7b6daa7b32e6aeed2c23e5bf4b7d7e"
+      }
+    ]
+  },
+  "original_approval": {
+    "path": "docs/reviews/character-five/approvals.json",
+    "sha256": "0909322ceec82191a4a218f14f9a88d8485312623365752e2c8be062d7558f92",
+    "meaning": "기존 입력 자산 승인만을 나타내며 새 파생 픽셀의 승인으로 재해석하지 않음"
+  },
+  "source_commit": "d8188a529b54c61969d4a987b782976bcca2e45c",
+  "result_sheets": [
+    {
+      "path": "pixel_shiba/base.png",
+      "sha256": "f0fbdc42e774c4fc005b6712d7361f1032864c71f1dae6a62d4f631483de647f"
+    },
+    {
+      "path": "pixel_shiba/throw_hit.png",
+      "sha256": "0e2a54c5d53dd827526afca86ab3ec073f860da21ade1b1289b864c30f5a0e87"
+    },
+    {
+      "path": "pixel_duck/base.png",
+      "sha256": "007e181fc7546b5346fc52746daf60985fe6113f366795a8c90f21d1b084e559"
+    },
+    {
+      "path": "pixel_duck/throw_hit.png",
+      "sha256": "ad802bb86d51eed5e2e5a1208da93503ff30c3886c5e21e8e40b86494a78881f"
+    },
+    {
+      "path": "pixel_poop/base.png",
+      "sha256": "0f2853654e953abe92fbfbd8894df1396f28fc32fe06db9b5c3db60197da1c43"
+    },
+    {
+      "path": "pixel_poop/throw_hit.png",
+      "sha256": "2dfe350847ee18096f9e14431d573bf840f1445a4cef459622d77ca97760fc50"
+    },
+    {
+      "path": "pixel_tteokbokki/base.png",
+      "sha256": "1da9b6df95412bfc52df6dc21157d2708a40f508de48cb3f9c8764ca7a378b92"
+    },
+    {
+      "path": "pixel_tteokbokki/throw_hit.png",
+      "sha256": "f0f71c0d3843662a7ba80faf8c6476257adda33547e325ceea2031885ff5c5fc"
+    },
+    {
+      "path": "pixel_quokka/base.png",
+      "sha256": "55965cec0be9ac26787c255c92dd6ca5300164a505e12e506be2f87c010dcf3a"
+    },
+    {
+      "path": "pixel_quokka/throw_hit.png",
+      "sha256": "ab43e2997d6e869ee6256a22a42f13ff76fc7b4f6a411f940319d7e98ab7a6f9"
+    }
+  ]
+}
