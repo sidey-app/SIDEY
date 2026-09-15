@@ -137,7 +137,7 @@ class WorkflowTests(unittest.TestCase):
         real_run = w.run
         opened = []
         def response(root, *args, **kwargs):
-            if Path(args[0]).as_posix().endswith('/scripts/macos/open_current.sh'):
+            if Path(args[0]) == self.primary.resolve() / 'scripts/macos/open_current.sh':
                 opened.append((root, args))
                 return ''
             return real_run(root, *args, **kwargs)
@@ -166,7 +166,7 @@ class WorkflowTests(unittest.TestCase):
         ]
         real_run = w.run
         def response(root, *args, **kwargs):
-            if args[0].endswith('/scripts/macos/open_current.sh'):
+            if Path(args[0]) == self.primary.resolve() / 'scripts/macos/open_current.sh':
                 self.fail('Unverified task must not launch the app')
             return real_run(root, *args, **kwargs)
         for reason, state in invalid:
