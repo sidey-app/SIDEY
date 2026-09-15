@@ -17,4 +17,4 @@ These instructions apply to `windows/docs/**` in addition to the repository-root
 - Write commands for the repository root unless the guide explicitly states another working directory. Inspect commands with installation, publication, elevation, GUI, network, or other machine side effects and say so near the command.
 - Validate relative links and code examples, run the narrowest relevant check for behavioral claims, and run `git diff --check`. Documentation-only edits do not require an application build when repository evidence is sufficient.
 
-For the full research, drafting, and validation workflow, use [`windows-dev-docs`](../../.agents/skills/windows-dev-docs/SKILL.md).
+For the full research, drafting, and validation workflow, use [`native-dev-docs`](../../.agents/skills/native-dev-docs/SKILL.md) and its Windows reference.

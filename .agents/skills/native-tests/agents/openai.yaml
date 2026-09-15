@@ -1,0 +1,7 @@
+interface:
+  display_name: "Native Tests"
+  short_description: "Choose and implement reliable native tests"
+  default_prompt: "Use $native-tests to add or improve tests for this SIDEY macOS or Windows change."
+
+policy:
+  allow_implicit_invocation: true

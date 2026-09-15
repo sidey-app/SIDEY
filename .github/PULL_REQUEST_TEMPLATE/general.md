@@ -1,3 +1,5 @@
+<!-- SIDEY_GENERAL_PR_TEMPLATE: keep -->
+
 ## PR 유형
 
 하나만 선택해 주세요.

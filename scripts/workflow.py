@@ -21,6 +21,10 @@ import time
 from validate_commit_message import validate_message, validate_subject
 
 
+GENERAL_PR_TEMPLATE = Path('.github/PULL_REQUEST_TEMPLATE/general.md')
+GENERAL_PR_MARKER = '<!-- SIDEY_GENERAL_PR_TEMPLATE: keep -->'
+
+
 class WorkflowError(RuntimeError):
     pass
 
@@ -286,6 +290,8 @@ def owned_task(root, task_id):
 def local_checks(root, platform):
     run(root, 'git', 'diff', '--check', capture=False)
     run(root, sys.executable, '-X', 'utf8', '-m', 'unittest', 'discover', '-s', 'scripts/tests', capture=False)
+    run(root, sys.executable, '-X', 'utf8', '-m', 'unittest', 'discover',
+        '-s', '.agents/skills/release-notes/tests', capture=False)
     # Native/DB/web checks are required remotely by the scope-aware integration gate.
     if platform == 'shared':
         run(root, sys.executable, '-X', 'utf8', 'scripts/validate_pixel_assets.py', capture=False)
@@ -412,6 +418,49 @@ def require_valid_commit_text(label, value, *, subject_only=False):
         raise WorkflowError(f'{label} violates the commit policy: ' + '; '.join(violations))
 
 
+def general_pr_headings(root):
+    template_path = root / GENERAL_PR_TEMPLATE
+    try:
+        template = template_path.read_text(encoding='utf-8')
+    except (OSError, UnicodeError) as error:
+        raise WorkflowError(f'Cannot read the general PR template: {error}') from error
+    if template.count(GENERAL_PR_MARKER) != 1:
+        raise WorkflowError('The general PR template marker is missing or duplicated')
+    headings = re.findall(r'^## .+$', template, re.MULTILINE)
+    if not headings:
+        raise WorkflowError('The general PR template has no required sections')
+    return headings
+
+
+def require_general_pr_body(root, body, *, label='PR body'):
+    if body.count(GENERAL_PR_MARKER) != 1:
+        raise WorkflowError(
+            f'{label} must preserve the marker from {GENERAL_PR_TEMPLATE.as_posix()}'
+        )
+    lines = body.replace('\r\n', '\n').replace('\r', '\n').splitlines()
+    positions = []
+    for heading in general_pr_headings(root):
+        matching = [index for index, line in enumerate(lines) if line == heading]
+        if len(matching) != 1:
+            raise WorkflowError(f'{label} must contain one exact {heading!r} section')
+        positions.append(matching[0])
+    if positions != sorted(positions):
+        raise WorkflowError(f'{label} must preserve the general template section order')
+
+
+def require_general_pr_body_file(root, value):
+    path = Path(value)
+    if not path.is_absolute():
+        path = root / path
+    path = path.resolve()
+    try:
+        body = path.read_text(encoding='utf-8')
+    except (OSError, UnicodeError) as error:
+        raise WorkflowError(f'Cannot read --body-file as UTF-8: {error}') from error
+    require_general_pr_body(root, body, label='--body-file')
+    return path
+
+
 def pr_body_message(body):
     return f'Squash commit\n\n{body}'
 
@@ -483,17 +532,19 @@ def finish(root, args):
         return {'status': task['status'], 'main': str(primary), 'sha': remote}
     attest(root, task, remote)
     validate_paths(branch(root), changed_paths(root, remote))
-    git(root, 'push', '-u', 'origin', branch(root))
     prs = json.loads(run(root, 'gh', 'pr', 'list', '--head', branch(root), '--base', 'main',
                          '--state', 'open', '--json', 'number,headRefOid,isCrossRepository'))
     if not prs:
         if not args.title or not args.body_file:
             raise WorkflowError('Provide --title and --body-file to create the task PR')
         require_valid_commit_text('PR title', args.title, subject_only=True)
+        body_path = require_general_pr_body_file(root, args.body_file)
+    git(root, 'push', '-u', 'origin', branch(root))
+    if not prs:
         run(root, 'gh', 'pr', 'create', '--base', 'main', '--head', branch(root),
-            '--title', args.title, '--body-file', str(Path(args.body_file).resolve()))
-        prs = json.loads(run(root, 'gh', 'pr', 'list', '--head', branch(root), '--base', 'main',
-                             '--state', 'open', '--json', 'number,headRefOid,isCrossRepository'))
+            '--title', args.title, '--body-file', str(body_path))
+    prs = json.loads(run(root, 'gh', 'pr', 'list', '--head', branch(root), '--base', 'main',
+                         '--state', 'open', '--json', 'number,headRefOid,isCrossRepository'))
     if len(prs) != 1 or prs[0]['headRefOid'] != head(root) or prs[0]['isCrossRepository']:
         raise WorkflowError('PR does not identify this exact task head')
     number = str(prs[0]['number'])
@@ -507,6 +558,7 @@ def finish(root, args):
     checked_base = task['checked']['base']
     details = json.loads(run(root, 'gh', 'pr', 'view', number, '--json', 'title,body'))
     require_valid_commit_text('PR title', details['title'], subject_only=True)
+    require_general_pr_body(root, details.get('body') or '')
     messages = commit_messages(root, checked_base, checked_head)
     body = squash_body(root, details.get('body') or '', messages)
     expected_coauthors = coauthor_trailers(root, [pr_body_message(details.get('body') or '')] + messages)

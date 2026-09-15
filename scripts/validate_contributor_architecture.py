@@ -28,6 +28,9 @@ RETIRED_SKILL_NAMES = frozenset(
         "sidey-release-docs",
         "sidey-versioning",
         "sidey-workflow",
+        "windows-code-review",
+        "windows-dev-docs",
+        "windows-tests",
     }
 )
 
@@ -390,7 +393,11 @@ def _validate_references(
 
         for script in sorted(set(SCRIPT_REFERENCE_PATTERN.findall(source))):
             normalized = script[2:] if script.startswith("./") else script
-            if not (root / normalized).is_file():
+            candidates = [root / normalized]
+            parts = path.relative_to(root).parts
+            if len(parts) >= 3 and parts[:2] == (".agents", "skills"):
+                candidates.insert(0, root.joinpath(*parts[:3], normalized))
+            if not any(candidate.is_file() for candidate in candidates):
                 violations.append(
                     Violation(
                         "missing-script-reference",

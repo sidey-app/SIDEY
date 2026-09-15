@@ -34,6 +34,7 @@ jobs:
           persist-credentials: false
       - run: python3 scripts/validate_contributor_architecture.py
       - run: python3 -m unittest discover -s scripts/tests
+      - run: python3 -m unittest discover -s .agents/skills/release-notes/tests
       - run: python3 scripts/commerce_catalog.py --target shared --check
       - run: python3 scripts/commerce_catalog.py --target macos --check
       - run: python3 scripts/validate_pixel_assets.py

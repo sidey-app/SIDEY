@@ -104,6 +104,27 @@ class ContributorArchitectureTests(unittest.TestCase):
         self.assertIn("missing-relative-link", self.codes())
         self.assertIn("missing-script-reference", self.codes())
 
+    def test_skill_local_script_reference_is_valid(self):
+        self.add_skill(
+            "scripted-skill",
+            body=(
+                "# Scripted skill\n\n"
+                "Run [the helper](scripts/helper.py).\n"
+            ),
+        )
+        self.write(
+            ".agents/skills/scripted-skill/scripts/helper.py",
+            '"""Skill-local helper."""\n',
+        )
+        self.assertEqual(validate_repository(self.root), [])
+
+    def test_missing_skill_local_script_is_reported(self):
+        self.add_skill(
+            "scripted-skill",
+            body="# Scripted skill\n\nRun `scripts/missing.py`.\n",
+        )
+        self.assertIn("missing-script-reference", self.codes())
+
     def test_legacy_nested_windows_skill_is_rejected(self):
         self.add_skill("code-review", directory="windows/.agents/skills/code-review")
         self.assertIn("unexpected-skill-location", self.codes())
@@ -186,12 +207,12 @@ class ContributorArchitectureTests(unittest.TestCase):
         )
         self.assertIn("missing-implicit-invocation-policy", self.codes())
 
-    def test_canonical_windows_skill_set_is_valid(self):
+    def test_canonical_native_skill_set_is_valid(self):
         for name in (
-            "windows-code-review",
-            "windows-dev-docs",
+            "native-code-review",
+            "native-dev-docs",
+            "native-tests",
             "windows-powershell",
-            "windows-tests",
         ):
             self.add_skill(name)
         self.assertEqual(validate_repository(self.root), [])
@@ -202,13 +223,18 @@ class ContributorArchitectureTests(unittest.TestCase):
             "web-verification",
             "release-notes",
             "app-verification",
-            "windows-code-review",
-            "windows-dev-docs",
+            "native-code-review",
+            "native-dev-docs",
+            "native-tests",
             "windows-powershell",
-            "windows-tests",
         ):
             self.add_skill(name)
         self.assertEqual(validate_repository(self.root), [])
+
+    def test_retired_windows_specialist_names_are_reported(self):
+        self.add_skill("native-tests")
+        self.write("AGENTS.md", "Use $windows-tests for this task.\n")
+        self.assertIn("retired-skill-reference", self.codes())
 
 
 if __name__ == "__main__":

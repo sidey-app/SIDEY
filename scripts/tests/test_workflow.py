@@ -343,11 +343,12 @@ class WorkflowTests(unittest.TestCase):
     def test_contributor_architecture_only_changes_are_shared_only(self):
         paths = [
             'AGENTS.md',
+            'macos/AGENTS.md',
             'windows/AGENTS.md',
             'windows/docs/AGENTS.md',
             'website/AGENTS.md',
             '.agents/skills/version-audit/SKILL.md',
-            '.agents/skills/windows-tests/agents/openai.yaml',
+            '.agents/skills/native-tests/agents/openai.yaml',
             'scripts/validate_contributor_architecture.py',
             'scripts/tests/test_contributor_architecture.py',
             'scripts/validate_commit_message.py',
@@ -355,6 +356,7 @@ class WorkflowTests(unittest.TestCase):
             '.githooks/prepare-commit-msg',
         ]
         self.assertEqual(w.required_scopes(paths), ['shared'])
+        self.assertEqual(w.platform_for('macos/AGENTS.md'), 'shared')
         self.assertEqual(w.platform_for('windows/AGENTS.md'), 'shared')
         self.assertEqual(w.platform_for('website/AGENTS.md'), 'shared')
         self.assertEqual(w.validate_paths('shared/contributor-architecture', paths), 'shared')
@@ -379,6 +381,49 @@ class WorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(w.WorkflowError, 'commit policy'):
             w.require_valid_commit_text('PR title', 'Invalid title', subject_only=True)
 
+    def write_general_pr_template(self):
+        template = self.primary / '.github/PULL_REQUEST_TEMPLATE/general.md'
+        template.parent.mkdir(parents=True, exist_ok=True)
+        template.write_text(
+            '<!-- SIDEY_GENERAL_PR_TEMPLATE: keep -->\n\n'
+            '## PR 유형\n\n- [ ] macOS 구현\n\n'
+            '## 변경 내용\n\n설명\n\n'
+            '## 검증\n\n검증\n\n'
+            '## 확인 사항\n\n- [ ] 확인\n',
+            encoding='utf-8',
+        )
+        return template
+
+    def test_general_pr_body_accepts_filled_template_and_extra_sections(self):
+        template = self.write_general_pr_template()
+        body = template.read_text(encoding='utf-8').replace('[ ]', '[x]')
+        body += '\n## 추가 정보\n\n검토 참고 사항\n'
+        w.require_general_pr_body(self.primary, body)
+
+    def test_general_pr_body_rejects_asset_template_and_changed_sections(self):
+        self.write_general_pr_template()
+        with self.assertRaisesRegex(w.WorkflowError, 'preserve the marker'):
+            w.require_general_pr_body(self.primary, '# 캐릭터 에셋 PR\n')
+        marker = w.GENERAL_PR_MARKER
+        missing = f'{marker}\n\n## PR 유형\n\n## 검증\n\n## 확인 사항\n'
+        with self.assertRaisesRegex(w.WorkflowError, '변경 내용'):
+            w.require_general_pr_body(self.primary, missing)
+        reordered = (
+            f'{marker}\n\n## 변경 내용\n\n## PR 유형\n\n'
+            '## 검증\n\n## 확인 사항\n'
+        )
+        with self.assertRaisesRegex(w.WorkflowError, 'section order'):
+            w.require_general_pr_body(self.primary, reordered)
+
+    def test_general_pr_body_file_requires_existing_utf8_file(self):
+        self.write_general_pr_template()
+        with self.assertRaisesRegex(w.WorkflowError, 'Cannot read --body-file'):
+            w.require_general_pr_body_file(self.primary, 'missing.md')
+        invalid = self.primary / 'invalid.md'
+        invalid.write_bytes(b'\x80')
+        with self.assertRaisesRegex(w.WorkflowError, 'UTF-8'):
+            w.require_general_pr_body_file(self.primary, invalid)
+
     def test_local_python_checks_are_locale_independent(self):
         with patch.object(w, 'run') as run:
             w.local_checks(self.primary, 'shared')
@@ -389,6 +434,13 @@ class WorkflowTests(unittest.TestCase):
         ]
         self.assertTrue(python_commands)
         self.assertTrue(all(command[1:3] == ('-X', 'utf8') for command in python_commands))
+        self.assertIn(
+            (
+                w.sys.executable, '-X', 'utf8', '-m', 'unittest', 'discover', '-s',
+                '.agents/skills/release-notes/tests',
+            ),
+            python_commands,
+        )
 
     def test_release_manifests_run_the_matching_native_checks(self):
         self.assertEqual(w.required_scopes(['release/macos.json']), ['macos', 'shared'])

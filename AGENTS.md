@@ -13,6 +13,7 @@ If the documents conflict, confirmed decisions in `docs/DECISIONS.md` win.
 
 ## Instruction routing
 
+- Before changing `macos/**`, `scripts/macos/**`, or macOS-specific workflows, read [the macOS instructions](macos/AGENTS.md).
 - Before changing `windows/**`, `scripts/windows/**`, or Windows-specific workflows, read [the Windows instructions](windows/AGENTS.md). Changes under `windows/docs/**` also follow [the Windows developer-document instructions](windows/docs/AGENTS.md).
 - Before changing `website/**`, read [the public website instructions](website/AGENTS.md). Use [.agents/skills/web-verification/SKILL.md](.agents/skills/web-verification/SKILL.md) when a public-site change needs claim, build, or rendered-layout evidence.
 - Before changing the root README, translated README files, `docs/releases/**`, or public release copy, read [the documentation and release instructions](docs/AGENTS.md). Use [.agents/skills/release-notes/SKILL.md](.agents/skills/release-notes/SKILL.md) only for a specific macOS or Windows release note or GitHub Release body.
@@ -44,6 +45,8 @@ Directly authored commit subjects, and pull request titles that will become squa
 - Git- or GitHub-generated merge subjects may remain generated; a human- or agent-supplied title must follow this contract.
 
 `scripts/validate_commit_message.py` is the deterministic format checker. `scripts/workflow.py` rejects invalid authored commit and squash-PR subjects before mutation or merge, and the integration scope check validates only the new commit range plus the current PR title.
+
+Agent-created and task-workflow pull requests in this repository must start from [the general pull request template](.github/PULL_REQUEST_TEMPLATE/general.md), preserve its hidden marker and required sections, and fill in the relevant type, change, validation and checklist details. The character asset template remains for manual external asset submissions and is not a substitute for the task-workflow template.
 
 Codex-assisted new commits must include `Co-authored-by: codex <codex@openai.com>` while preserving the human Git author. The canonical mechanism is the repository hook installed once per clone with `python3 scripts/setup_codex_attribution.py`; it also covers linked worktrees. If an existing hook prevents installation, preserve it and connect the tracked hook through that clone's hook manager; if automatic attribution is unavailable, add the trailer once to the newly authored Codex commit. Do not attribute imported or replayed history, duplicate attribution enforcement in the commit-message validator, or rewrite existing history to add attribution.
 

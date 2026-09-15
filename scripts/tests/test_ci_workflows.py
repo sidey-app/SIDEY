@@ -17,6 +17,10 @@ class CiWorkflowTests(unittest.TestCase):
             'python3 scripts/validate_contributor_architecture.py',
             integration,
         )
+        self.assertIn(
+            'python3 -m unittest discover -s .agents/skills/release-notes/tests',
+            integration,
+        )
         self.assertNotIn('--require-windows-instruction-foundation', integration)
         self.assertIn("python -X utf8 ./windows/tools/sync_product_assets.py --check", integration)
         self.assertIn('Run Windows app smoke', integration)
