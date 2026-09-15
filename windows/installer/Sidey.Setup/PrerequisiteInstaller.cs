@@ -1495,168 +1495,131 @@ namespace Sidey.Setup.Prerequisites
 
     internal static class WindowsPackageQuery
     {
-        private const int ErrorSuccess = 0;
-        private const int ErrorInsufficientBuffer = 122;
-        private const int ErrorNotFound = 1168;
-        private const uint PackageFilterHead = 0x00000010;
-        private const uint PackageFilterDirect = 0x00000020;
-        private const uint ProcessorArchitectureAmd64 = 9;
-
         internal static bool HasPackage(string family, Version minimumVersion)
         {
-            uint count = 0;
-            uint bufferLength = 0;
-            int result = FindPackagesByPackageFamily(
-                family,
-                PackageFilterHead | PackageFilterDirect,
-                ref count,
-                IntPtr.Zero,
-                ref bufferLength,
-                IntPtr.Zero,
-                IntPtr.Zero);
-            if (result == ErrorSuccess && count == 0)
+            Type managerType = Type.GetType(
+                "Windows.Management.Deployment.PackageManager, Windows, ContentType=WindowsRuntime",
+                true);
+            Type packageType = Type.GetType(
+                "Windows.ApplicationModel.Package, Windows, ContentType=WindowsRuntime",
+                true);
+            Type identityType = Type.GetType(
+                "Windows.ApplicationModel.PackageId, Windows, ContentType=WindowsRuntime",
+                true);
+            Type versionType = Type.GetType(
+                "Windows.ApplicationModel.PackageVersion, Windows, ContentType=WindowsRuntime",
+                true);
+            Type storageFolderType = Type.GetType(
+                "Windows.Storage.StorageFolder, Windows, ContentType=WindowsRuntime",
+                true);
+            Type statusType = Type.GetType(
+                "Windows.ApplicationModel.PackageStatus, Windows, ContentType=WindowsRuntime",
+                true);
+            MethodInfo findPackages = null;
+            foreach (MethodInfo method in managerType.GetMethods())
             {
-                return false;
+                ParameterInfo[] parameters = method.GetParameters();
+                if (method.Name == "FindPackagesForUserWithPackageTypes"
+                    && parameters.Length == 3
+                    && parameters[0].ParameterType == typeof(string)
+                    && parameters[1].ParameterType == typeof(string)
+                    && parameters[2].ParameterType.IsEnum)
+                {
+                    findPackages = method;
+                    break;
+                }
             }
-            if (result != ErrorInsufficientBuffer)
+            if (findPackages == null)
             {
-                throw new Win32Exception(result, "Windows package query failed.");
+                throw new MissingMethodException("Windows package type query API is unavailable.");
             }
 
-            IntPtr names = Marshal.AllocHGlobal(checked((int)count * IntPtr.Size));
-            IntPtr buffer = Marshal.AllocHGlobal(checked((int)bufferLength * sizeof(char)));
-            try
+            object manager = Activator.CreateInstance(managerType);
+            object packageTypes = Enum.ToObject(
+                findPackages.GetParameters()[2].ParameterType,
+                1 | 2); // PackageTypes.Main | PackageTypes.Framework
+            var packages = findPackages.Invoke(
+                manager,
+                new[] { string.Empty, family, packageTypes }) as IEnumerable;
+            if (packages == null)
             {
-                result = FindPackagesByPackageFamily(
-                    family,
-                    PackageFilterHead | PackageFilterDirect,
-                    ref count,
-                    names,
-                    ref bufferLength,
-                    buffer,
-                    IntPtr.Zero);
-                if (result != ErrorSuccess)
+                throw new InvalidOperationException("Windows package query returned no enumerable result.");
+            }
+
+            PropertyInfo idProperty = packageType.GetProperty("Id");
+            PropertyInfo installedLocationProperty = packageType.GetProperty("InstalledLocation");
+            PropertyInfo statusProperty = packageType.GetProperty("Status");
+            PropertyInfo familyNameProperty = identityType.GetProperty("FamilyName");
+            PropertyInfo architectureProperty = identityType.GetProperty("Architecture");
+            PropertyInfo versionProperty = identityType.GetProperty("Version");
+            PropertyInfo pathProperty = storageFolderType.GetProperty("Path");
+            MethodInfo verifyIsOk = statusType.GetMethod(
+                "VerifyIsOK",
+                BindingFlags.Public | BindingFlags.Instance,
+                null,
+                Type.EmptyTypes,
+                null);
+            if (idProperty == null || installedLocationProperty == null
+                || statusProperty == null || familyNameProperty == null
+                || architectureProperty == null || versionProperty == null
+                || pathProperty == null || verifyIsOk == null)
+            {
+                throw new MissingMemberException("Windows package identity API is unavailable.");
+            }
+
+            foreach (object package in packages)
+            {
+                try
                 {
-                    throw new Win32Exception(result, "Windows package query failed.");
-                }
-                for (int index = 0; index < count; index++)
-                {
-                    string fullName = Marshal.PtrToStringUni(Marshal.ReadIntPtr(names, index * IntPtr.Size));
-                    PackageIdentity identity;
-                    if (TryReadIdentity(fullName, out identity)
-                        && identity.Architecture == ProcessorArchitectureAmd64
-                        && identity.Version >= minimumVersion
-                        && HasUsablePath(fullName)
-                        && WindowsPackageStatus.IsUsable(fullName))
+                    object identity = idProperty.GetValue(package, null);
+                    string packageFamily = (string)familyNameProperty.GetValue(identity, null);
+                    object architecture = architectureProperty.GetValue(identity, null);
+                    object packageVersion = versionProperty.GetValue(identity, null);
+                    object installedLocation = installedLocationProperty.GetValue(package, null);
+                    object status = statusProperty.GetValue(package, null);
+                    string installedPath = installedLocation == null
+                        ? null
+                        : (string)pathProperty.GetValue(installedLocation, null);
+                    if (string.Equals(packageFamily, family, StringComparison.Ordinal)
+                        && string.Equals(architecture.ToString(), "X64", StringComparison.OrdinalIgnoreCase)
+                        && ReadVersion(versionType, packageVersion) >= minimumVersion
+                        && !string.IsNullOrWhiteSpace(installedPath)
+                        && Directory.Exists(installedPath)
+                        && status != null
+                        && (bool)verifyIsOk.Invoke(status, null))
                     {
                         return true;
                     }
                 }
-                return false;
-            }
-            finally
-            {
-                Marshal.FreeHGlobal(buffer);
-                Marshal.FreeHGlobal(names);
-            }
-        }
-
-        private static bool HasUsablePath(string fullName)
-        {
-            uint length = 0;
-            int result = GetPackagePathByFullName(fullName, ref length, null);
-            if (result == ErrorNotFound)
-            {
-                return false;
-            }
-            if (result != ErrorInsufficientBuffer)
-            {
-                throw new Win32Exception(result, "Windows package path query failed.");
-            }
-            var path = new StringBuilder(checked((int)length));
-            result = GetPackagePathByFullName(fullName, ref length, path);
-            if (result != ErrorSuccess)
-            {
-                throw new Win32Exception(result, "Windows package path query failed.");
-            }
-            return Directory.Exists(path.ToString());
-        }
-
-        internal static bool TryReadIdentity(string fullName, out PackageIdentity identity)
-        {
-            identity = new PackageIdentity();
-            uint length = 0;
-            int result = PackageIdFromFullName(fullName, 0, ref length, IntPtr.Zero);
-            if (result != ErrorInsufficientBuffer)
-            {
-                return false;
-            }
-            IntPtr buffer = Marshal.AllocHGlobal(checked((int)length));
-            try
-            {
-                result = PackageIdFromFullName(fullName, 0, ref length, buffer);
-                if (result != ErrorSuccess)
+                catch (Exception exception)
                 {
-                    return false;
+                    if (exception is OutOfMemoryException || exception is StackOverflowException)
+                    {
+                        throw;
+                    }
                 }
-                NativePackageId packageId = (NativePackageId)Marshal.PtrToStructure(
-                    buffer,
-                    typeof(NativePackageId));
-                ulong version = packageId.Version;
-                identity.Architecture = packageId.ProcessorArchitecture;
-                identity.Version = new Version(
-                    (int)((version >> 48) & 0xffff),
-                    (int)((version >> 32) & 0xffff),
-                    (int)((version >> 16) & 0xffff),
-                    (int)(version & 0xffff));
-                return true;
             }
-            finally
+            return false;
+        }
+
+        private static Version ReadVersion(Type versionType, object value)
+        {
+            return new Version(
+                ReadVersionPart(versionType, value, "Major"),
+                ReadVersionPart(versionType, value, "Minor"),
+                ReadVersionPart(versionType, value, "Build"),
+                ReadVersionPart(versionType, value, "Revision"));
+        }
+
+        private static int ReadVersionPart(Type versionType, object value, string name)
+        {
+            FieldInfo field = versionType.GetField(name);
+            if (field == null)
             {
-                Marshal.FreeHGlobal(buffer);
+                throw new MissingMemberException("Windows package version API is unavailable.");
             }
+            return Convert.ToInt32(field.GetValue(value), CultureInfo.InvariantCulture);
         }
-
-        internal struct PackageIdentity
-        {
-            internal uint Architecture;
-            internal Version Version;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct NativePackageId
-        {
-            internal uint Reserved;
-            internal uint ProcessorArchitecture;
-            internal ulong Version;
-            internal IntPtr Name;
-            internal IntPtr Publisher;
-            internal IntPtr ResourceId;
-            internal IntPtr PublisherId;
-        }
-
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-        private static extern int FindPackagesByPackageFamily(
-            string packageFamilyName,
-            uint packageFilters,
-            ref uint count,
-            IntPtr packageFullNames,
-            ref uint bufferLength,
-            IntPtr buffer,
-            IntPtr packageProperties);
-
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-        private static extern int GetPackagePathByFullName(
-            string packageFullName,
-            ref uint pathLength,
-            StringBuilder path);
-
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-        private static extern int PackageIdFromFullName(
-            string packageFullName,
-            uint flags,
-            ref uint bufferLength,
-            IntPtr buffer);
     }
 
     internal static class WindowsPackageStatus
