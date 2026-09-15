@@ -9,9 +9,14 @@ Read these files before product or implementation work:
 1. `docs/DECISIONS.md` — authoritative confirmed decisions and open questions
 2. `docs/PRODUCT_SPEC.md` — detailed product scope and technical direction
 
-Before editing public landing, store, policy, or checkout pages under `website/`, read `.agents/skills/sidey-public-web/SKILL.md`.
-
 If the documents conflict, confirmed decisions in `docs/DECISIONS.md` win.
+
+## Instruction routing
+
+- Before changing `windows/**`, `scripts/windows/**`, or Windows-specific workflows, read [the Windows instructions](windows/AGENTS.md). Changes under `windows/docs/**` also follow [the Windows developer-document instructions](windows/docs/AGENTS.md).
+- Before changing `website/**`, read [the public website instructions](website/AGENTS.md). Use [.agents/skills/sidey-public-web/SKILL.md](.agents/skills/sidey-public-web/SKILL.md) when the task requires researching, writing, or validating public copy or presentation.
+- Before changing the root README, translated README files, `docs/releases/**`, or public release copy, read [the documentation and release instructions](docs/AGENTS.md). Use [.agents/skills/sidey-release-docs/SKILL.md](.agents/skills/sidey-release-docs/SKILL.md) for the evidence-gathering and writing workflow.
+- Nested `AGENTS.md` files add rules for their path. A root-started Codex session does not load a nested file automatically, so follow the routing above before touching that path.
 
 ## Backend ownership
 
@@ -21,11 +26,26 @@ Keep native Supabase clients, the public website and client-facing product contr
 
 ## Work lifecycle
 
-Before creating a commit, use [.agents/skills/sidey-commit/SKILL.md](.agents/skills/sidey-commit/SKILL.md). Write commit subjects as `type(scope): 한국어 설명`, using the skill's distribution scopes; descriptions and optional bodies must be in Korean.
+Use an isolated, task-owned worktree on a branch whose platform prefix matches the complete change. Treat `scripts/workflow.py` as the executable source of truth for freshness, ownership, changed-path classification, checks, exact-head integration and primary-main refresh; use [.agents/skills/sidey-workflow/SKILL.md](.agents/skills/sidey-workflow/SKILL.md) while that orchestration skill remains in the repository. Public releases, store uploads and production deployments are separate operations that require explicit authorization.
 
-Use [.agents/skills/sidey-workflow/SKILL.md](.agents/skills/sidey-workflow/SKILL.md) and `scripts/workflow.py` for task start, resume, integration and app opening. Default completion includes reviewed PR integration and refreshing the primary main checkout; app-affecting changes also require build/run provenance verification. Public releases, store uploads and production deployments remain separate.
+- Do not make implementation changes directly on `main`, switch or clean another task's dirty worktree, or overwrite unrelated user or agent changes.
+- Keep the requested change focused. Do not include drive-by refactors, formatting, generated output, or documentation changes that are not required by the task.
+- A failed, skipped, stale, or unavailable required build or test is not a passing result. Fix it or report the gap; do not integrate while a required check is failing.
+- Review the full diff against its base before a commit or handoff. Validation must describe the exact commit and source snapshot tested. If source changes after validation, run the affected checks again.
+- Integrate only the reviewed and checked head. Do not substitute a rebuilt, amended, or merely similar commit without repeating review and validation.
 
-Codex-assisted new commits must include `Co-authored-by: codex <codex@openai.com>` while preserving the human Git author. Install the repository hook once per clone with `python3 scripts/setup_codex_attribution.py`; it also covers linked worktrees. See the commit skill for attribution exceptions and verification. Do not rewrite existing history to add attribution.
+## Commit and pull request policy
+
+Directly authored commit subjects, and pull request titles that will become squash commit subjects, use `type(scope): 한국어 설명`.
+
+- Allowed types: `feat`, `fix`, `refactor`, `perf`, `docs`, `test`, `build`, `ci`, `chore`, `revert`.
+- Allowed scopes: `macOS-Direct`, `AppStore`, `macOS-Direct / AppStore`, `Windows`, `Shared`.
+- The description and optional prose body are Korean. Identifiers, paths, product names, and machine-readable trailers may retain their required spelling.
+- Git- or GitHub-generated merge subjects may remain generated; a human- or agent-supplied title must follow this contract.
+
+Before creating a commit, continue to use [.agents/skills/sidey-commit/SKILL.md](.agents/skills/sidey-commit/SKILL.md) for message composition and review until that transitional skill is retired. `scripts/validate_commit_message.py` is the deterministic format checker.
+
+Codex-assisted new commits must include `Co-authored-by: codex <codex@openai.com>` while preserving the human Git author. The canonical mechanism is the repository hook installed once per clone with `python3 scripts/setup_codex_attribution.py`; it also covers linked worktrees. See the commit skill for attribution exceptions and verification. Do not duplicate attribution enforcement in the commit-message validator or rewrite existing history to add attribution.
 
 ## Automatic parallel agent work
 
