@@ -32,7 +32,7 @@
 
 <p align="center">
   <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
-    <img src="../assets/mac-app-store-badge-en.svg" height="48" alt="Скачать SIDEY в Mac App Store">
+    <img src="../assets/mac-app-store-badge.svg" height="48" alt="Скачать SIDEY в Mac App Store">
   </a>
   <img src="../assets/microsoft-store-badge.svg" height="48" alt="Скачать SIDEY в Microsoft Store (скоро)">
 </p>
@@ -63,7 +63,7 @@ SIDEY — мессенджер для macOS и Windows, в котором вы �
   <p>Приложение легко установить из Mac App Store:</p>
   <p>
     <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
-      <img src="../assets/mac-app-store-badge-en.svg" height="48" alt="Скачать SIDEY в Mac App Store">
+      <img src="../assets/mac-app-store-badge.svg" height="48" alt="Скачать SIDEY в Mac App Store">
     </a>
   </p>
   <p>Обновления могут выходить позже, поскольку проходят проверку Apple.</p>

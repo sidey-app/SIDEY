@@ -32,7 +32,7 @@
 
 <p align="center">
   <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
-    <img src="../assets/mac-app-store-badge-en.svg" height="48" alt="Mac App StoreでSIDEYをダウンロード">
+    <img src="../assets/mac-app-store-badge.svg" height="48" alt="Mac App StoreでSIDEYをダウンロード">
   </a>
   <img src="../assets/microsoft-store-badge.svg" height="48" alt="Microsoft StoreでSIDEYをダウンロード（準備中）">
 </p>
@@ -63,7 +63,7 @@ SIDEYは、画面の端にいる2Dピクセル動物を通じて友だちと会�
   <p>Mac App Storeから簡単にインストールできます:</p>
   <p>
     <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
-      <img src="../assets/mac-app-store-badge-en.svg" height="48" alt="Mac App StoreでSIDEYをダウンロード">
+      <img src="../assets/mac-app-store-badge.svg" height="48" alt="Mac App StoreでSIDEYをダウンロード">
     </a>
   </p>
   <p>Appleの審査があるため、アップデートの公開が遅れる場合があります。</p>

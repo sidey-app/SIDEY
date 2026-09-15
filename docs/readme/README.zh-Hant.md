@@ -32,7 +32,7 @@
 
 <p align="center">
   <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
-    <img src="../assets/mac-app-store-badge-en.svg" height="48" alt="在 Mac App Store 下載 SIDEY">
+    <img src="../assets/mac-app-store-badge.svg" height="48" alt="在 Mac App Store 下載 SIDEY">
   </a>
   <img src="../assets/microsoft-store-badge.svg" height="48" alt="在 Microsoft Store 下載 SIDEY（即將推出）">
 </p>
@@ -63,7 +63,7 @@ SIDEY 是一款適用於 macOS 和 Windows 的桌面聊天應用程式，讓你�
   <p>透過 Mac App Store 就能輕鬆安裝：</p>
   <p>
     <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
-      <img src="../assets/mac-app-store-badge-en.svg" height="48" alt="在 Mac App Store 下載 SIDEY">
+      <img src="../assets/mac-app-store-badge.svg" height="48" alt="在 Mac App Store 下載 SIDEY">
     </a>
   </p>
   <p>由於需要經過 Apple 審核，更新可能會晚一些推出。</p>

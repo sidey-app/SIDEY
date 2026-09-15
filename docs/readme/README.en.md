@@ -32,7 +32,7 @@
 
 <p align="center">
   <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
-    <img src="../assets/mac-app-store-badge-en.svg" height="48" alt="Download SIDEY from the Mac App Store">
+    <img src="../assets/mac-app-store-badge.svg" height="48" alt="Download SIDEY from the Mac App Store">
   </a>
   <img src="../assets/microsoft-store-badge.svg" height="48" alt="Download SIDEY from the Microsoft Store (coming soon)">
 </p>
@@ -63,7 +63,7 @@ SIDEY is a desktop messenger for macOS and Windows that lets you chat with frien
   <p>You can easily install SIDEY from the Mac App Store:</p>
   <p>
     <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
-      <img src="../assets/mac-app-store-badge-en.svg" height="48" alt="Download SIDEY from the Mac App Store">
+      <img src="../assets/mac-app-store-badge.svg" height="48" alt="Download SIDEY from the Mac App Store">
     </a>
   </p>
   <p>Updates may take longer to arrive because they go through Apple’s review process.</p>
