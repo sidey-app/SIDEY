@@ -164,9 +164,7 @@
       "pixel_monkey": "Click a friend's character to toss a ripe banana.",
       "pixel_chinchilla": "Click a friend's character to toss a little pouch of bathing dust."
     },
-    "price2900": "₩2,900",
-    "price1900": "₩1,900",
-    "price990": "₩990",
+    "priceKrw": "₩{0:N0}",
     "productDescriptions": {
       "bubble_bunny_pink": "A pink bubble with a bunny decoration and crisp dark text.",
       "bubble_butter_chick": "A butter-yellow bubble with a chick decoration and crisp dark text.",

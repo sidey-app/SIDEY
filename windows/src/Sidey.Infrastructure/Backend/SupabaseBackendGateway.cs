@@ -77,7 +77,9 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                         peer?.Nickname ?? I18n.Get("common.friend"),
                         PixelCharacterCatalog.NormalizeId(peer?.CharacterId),
                         PresenceState.Offline,
-                        CosmeticCatalog.NormalizeBubbleStyleId(peer?.EquippedBubbleStyleId));
+                        CosmeticCatalog.NormalizeBubbleStyleId(peer?.EquippedBubbleStyleId),
+                        peer?.TreeMovementPaused ?? false,
+                        peer?.TreeMovementRevision);
                 })],
             room.InviteCodeHint,
             room.InviteCodeReady,
@@ -104,7 +106,9 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                     OwnedCosmeticOrNull(
                         profile.EquippedThrowableId,
                         CommerceProductKind.Throwable,
-                        activeEntitlementKeys)),
+                        activeEntitlementKeys),
+                    profile.TreeMovementPaused,
+                    profile.TreeMovementRevision),
             rooms,
             session.UserId,
             activeEntitlementKeys);
@@ -210,6 +214,17 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         return new CommerceCheckout(order.OrderId, checkoutUri);
     }
 #endif
+
+    public async Task<Profile> SetTreeMovementPausedAsync(
+        bool paused, long expectedRevision, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(expectedRevision);
+        DatabaseProfile row = await RpcSingleAsync<DatabaseProfile>(
+            "set_tree_movement_paused",
+            new { p_paused = paused, p_expected_revision = expectedRevision },
+            cancellationToken).ConfigureAwait(false);
+        return MapProfile(row);
+    }
 
     public async Task<Profile> SaveProfileAsync(
         string nickname,
@@ -972,7 +987,9 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         row.Nickname,
         PixelCharacterCatalog.NormalizeId(row.CharacterId),
         CosmeticCatalog.NormalizeBubbleStyleId(row.EquippedBubbleStyleId),
-        CosmeticCatalog.NormalizeThrowableId(row.EquippedThrowableId));
+        CosmeticCatalog.NormalizeThrowableId(row.EquippedThrowableId),
+        row.TreeMovementPaused,
+        row.TreeMovementRevision);
 
     private static string? OwnedCosmeticOrNull(
         string? catalogItemId,
@@ -1007,7 +1024,9 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         string Nickname,
         [property: JsonPropertyName("character_id")] string CharacterId,
         [property: JsonPropertyName("equipped_bubble_style_id")] string? EquippedBubbleStyleId,
-        [property: JsonPropertyName("equipped_throwable_id")] string? EquippedThrowableId);
+        [property: JsonPropertyName("equipped_throwable_id")] string? EquippedThrowableId,
+        [property: JsonPropertyName("tree_movement_paused")] bool TreeMovementPaused = false,
+        [property: JsonPropertyName("tree_movement_revision")] long? TreeMovementRevision = null);
 
     private sealed record DatabaseCommerceEntitlement(
         [property: JsonPropertyName("entitlement_key")] string EntitlementKey,
