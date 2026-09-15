@@ -1,31 +1,7 @@
 name: macOS CI
 
+# PR and main validation is owned by integration.yml to avoid duplicate native runs.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'assets/**'
-      - 'release/macos.json'
-      - 'macos/**'
-      - 'scripts/export_macos.sh'
-      - 'scripts/package_macos_release.sh'
-      - 'scripts/release_macos.sh'
-      - 'scripts/macos/**'
-      - 'scripts/validate_pixel_assets.py'
-      - 'shared/character-throw/**'
-      - '.github/workflows/macos.yml'
-  pull_request:
-    paths:
-      - 'assets/**'
-      - 'release/macos.json'
-      - 'macos/**'
-      - 'scripts/export_macos.sh'
-      - 'scripts/package_macos_release.sh'
-      - 'scripts/release_macos.sh'
-      - 'scripts/macos/**'
-      - 'scripts/validate_pixel_assets.py'
-      - 'shared/character-throw/**'
-      - '.github/workflows/macos.yml'
   workflow_dispatch:
 
 permissions:
