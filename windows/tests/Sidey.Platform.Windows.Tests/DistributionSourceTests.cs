@@ -16,9 +16,9 @@ public sealed class DistributionSourceTests
         Assert.Equal("true", Value(project, "EnableMsixTooling"));
         Assert.Equal("false", Value(project, "IncludeAllContentForSelfExtract"));
         Assert.Equal("false", Value(project, "PublishTrimmed"));
-        Assert.Equal("1.3.0", Value(project, "Version"));
-        Assert.Equal("1.3.0.0", Value(project, "FileVersion"));
-        Assert.Equal("1.3.0.0", Value(project, "AssemblyVersion"));
+        Assert.Equal("1.3.1", Value(project, "Version"));
+        Assert.Equal("1.3.1.0", Value(project, "FileVersion"));
+        Assert.Equal("1.3.1.0", Value(project, "AssemblyVersion"));
         Assert.Equal("SIDEY.Host", Value(project, "AssemblyName"));
         Assert.Equal("SIDEY", Value(project, "AssemblyTitle"));
         Assert.Equal("SIDEY", Value(project, "Product"));
@@ -271,7 +271,10 @@ public sealed class DistributionSourceTests
         string organizer = File.ReadAllText(RepositoryPath(
             "scripts", "windows", "ConvertTo-PublishLayout.ps1"));
         Assert.Contains("Uninstall.exe", organizer, StringComparison.Ordinal);
-        Assert.Contains("/win32icon", organizer, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("-IconPath $iconPath", organizer, StringComparison.Ordinal);
+        string helperBuilder = File.ReadAllText(RepositoryPath(
+            "scripts", "windows", "New-SideyHelperExecutable.ps1"));
+        Assert.Contains("ApplicationIcon = $iconFilePath", helperBuilder, StringComparison.Ordinal);
     }
 
     [Fact]

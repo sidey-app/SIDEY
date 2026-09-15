@@ -60,9 +60,9 @@ public sealed class WindowPolicyTests
     }
 
     [Fact]
-    public void CurrentWindowsSourceVersionIsOneThreeZero()
+    public void CurrentWindowsSourceVersionIsOneThreeOne()
     {
-        Assert.Equal("1.3.0", WindowsUpdateService.CurrentVersion);
+        Assert.Equal("1.3.1", WindowsUpdateService.CurrentVersion);
     }
 
     [Theory]

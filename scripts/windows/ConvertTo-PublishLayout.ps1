@@ -100,71 +100,21 @@ if (-not (Test-Path -LiteralPath $assetsDirectory -PathType Container)) {
 # Compiled PRI/XAML stays beside the host. File assets, including the title bar
 # icon, are loaded explicitly from the deployment root; no private copy is needed.
 
-$assemblyVersion = [Version]$FileVersion
 $installerLanguagesSourcePath = (Resolve-Path -LiteralPath (
     Join-Path $PSScriptRoot '..\..\windows\installer\Sidey.Setup\InstallerLanguages.cs')).Path
-function New-SideyExecutable {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string[]]$SourcePath,
+$helperBuilder = Join-Path $PSScriptRoot 'New-SideyHelperExecutable.ps1'
+$iconPath = Join-Path $assetsDirectory 'Icons\SideyAppIcon.ico'
 
-        [Parameter(Mandatory = $true)]
-        [string]$OutputAssembly,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Title,
-
-        [Parameter(Mandatory = $true)]
-        [string]$Description
-    )
-
-    $assemblyInfoName = [IO.Path]::GetFileNameWithoutExtension($OutputAssembly) + '.AssemblyInfo.cs'
-    $assemblyInfoPath = Join-Path $runtimeDirectory $assemblyInfoName
-    $assemblyInfo = @"
-using System.Reflection;
-[assembly: AssemblyTitle("$Title")]
-[assembly: AssemblyProduct("SIDEY")]
-[assembly: AssemblyCompany("SIDEY")]
-[assembly: AssemblyDescription("$Description")]
-[assembly: AssemblyVersion("$assemblyVersion")]
-[assembly: AssemblyFileVersion("$assemblyVersion")]
-[assembly: AssemblyInformationalVersion("$Version")]
-"@
-    [IO.File]::WriteAllText(
-        $assemblyInfoPath,
-        $assemblyInfo,
-        [Text.UTF8Encoding]::new($false))
-
-    $iconPath = Join-Path $assetsDirectory 'Icons\SideyAppIcon.ico'
-    $compilerOptions = '/optimize+ /nologo'
-    if (Test-Path -LiteralPath $iconPath -PathType Leaf) {
-        $compilerOptions += " /win32icon:`"$iconPath`""
-    }
-    $compilerParameters = [CodeDom.Compiler.CompilerParameters]::new()
-    $compilerParameters.CompilerOptions = "$compilerOptions /target:winexe"
-    $compilerParameters.GenerateExecutable = $true
-    $compilerParameters.OutputAssembly = $OutputAssembly
-    [void]$compilerParameters.ReferencedAssemblies.Add('System.dll')
-    [void]$compilerParameters.ReferencedAssemblies.Add('System.Core.dll')
-    $sourceFiles = @($SourcePath) + @($assemblyInfoPath)
-    try {
-        Add-Type `
-            -Path $sourceFiles `
-            -CompilerParameters $compilerParameters
-    }
-    finally {
-        Remove-Item -LiteralPath $assemblyInfoPath -Force
-    }
-}
-
-New-SideyExecutable `
+& $helperBuilder `
     -SourcePath @($launcherSourceFilePath, $installerLanguagesSourcePath) `
-    -OutputAssembly $launcherPath `
+    -OutputPath $launcherPath `
+    -Version $Version -FileVersion $FileVersion -IconPath $iconPath `
     -Title 'SIDEY Launcher' `
     -Description 'SIDEY desktop launcher'
-New-SideyExecutable `
+& $helperBuilder `
     -SourcePath $uninstallerSourceFilePath `
-    -OutputAssembly $uninstallerPath `
+    -OutputPath $uninstallerPath `
+    -Version $Version -FileVersion $FileVersion -IconPath $iconPath `
     -Title 'SIDEY Uninstaller' `
     -Description 'SIDEY uninstaller'
 
