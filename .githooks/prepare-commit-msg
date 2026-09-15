@@ -27,7 +27,11 @@ def main():
     if not author or not committer or author[1].lower() != committer[1].lower():
         return
     message = Path(sys.argv[1])
-    meaningful = subprocess.check_output(['git', 'stripspace', '--strip-comments'], input=message.read_text(), text=True)
+    meaningful = subprocess.check_output(
+        ['git', 'stripspace', '--strip-comments'],
+        input=message.read_text(encoding='utf-8'),
+        text=True,
+    )
     if not meaningful.strip():
         return  # Never turn an empty/aborted message into a trailer-only commit.
     trailers = git('interpret-trailers', '--parse', str(message))

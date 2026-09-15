@@ -21,6 +21,15 @@ ROOT = Path(__file__).resolve().parent.parent
 # This is a user-installed, non-project skill referenced only as an optional
 # follow-up.  Project-local skill references must otherwise resolve locally.
 EXTERNAL_SKILL_REFERENCES = frozenset({"humanize-korean"})
+RETIRED_SKILL_NAMES = frozenset(
+    {
+        "sidey-commit",
+        "sidey-public-web",
+        "sidey-release-docs",
+        "sidey-versioning",
+        "sidey-workflow",
+    }
+)
 
 IGNORED_DIRECTORIES = frozenset(
     {
@@ -41,9 +50,12 @@ IGNORED_DIRECTORIES = frozenset(
 NAME_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 MARKDOWN_LINK_PATTERN = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 SCRIPT_REFERENCE_PATTERN = re.compile(
-    r"(?<![A-Za-z0-9_./-])((?:\./)?scripts/[A-Za-z0-9_./-]+\.(?:py|ps1|sh))"
+    r"(?<![A-Za-z0-9_./-])((?:\./)?scripts/[A-Za-z0-9_./-]+\.(?:py|ps1|psd1|psm1|sh))"
 )
 SKILL_REFERENCE_PATTERN = re.compile(r"(?<![A-Za-z0-9_-])\$([a-z0-9]+(?:-[a-z0-9]+)+)\b")
+SKILL_PATH_PATTERN = re.compile(
+    r"\.agents[/\\]skills[/\\]([A-Za-z0-9_-]+)[/\\]SKILL\.md\b"
+)
 FRONTMATTER_FIELD_PATTERN = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):\s*(.*)$")
 
 
@@ -79,6 +91,34 @@ def _repository_files(root: Path, filename: str) -> list[Path]:
         for path in root.rglob(filename)
         if path.is_file() and not _is_ignored(path, root)
     )
+
+
+def _repository_tree_files(root: Path) -> list[Path]:
+    return sorted(
+        path
+        for path in root.rglob("*")
+        if path.is_file() and not _is_ignored(path, root)
+    )
+
+
+def _validate_nested_skill_paths(root: Path) -> list[Violation]:
+    violations: list[Violation] = []
+    for path in _repository_tree_files(root):
+        relative = path.relative_to(root)
+        parts = relative.parts
+        nested = any(
+            parts[index : index + 2] == (".agents", "skills")
+            for index in range(1, len(parts) - 1)
+        )
+        if nested:
+            violations.append(
+                Violation(
+                    "unexpected-nested-skills-path",
+                    relative.as_posix(),
+                    "repository-local skill files must live below the root .agents/skills directory",
+                )
+            )
+    return violations
 
 
 def _unquote(value: str) -> str:
@@ -188,6 +228,13 @@ def _validate_openai_metadata(
     for skill in skills:
         metadata = skill.path.parent / "agents" / "openai.yaml"
         if not metadata.is_file():
+            violations.append(
+                Violation(
+                    "missing-openai-metadata",
+                    metadata.relative_to(root).as_posix(),
+                    "every repository-local skill must provide agents/openai.yaml",
+                )
+            )
             continue
 
         relative = metadata.relative_to(root).as_posix()
@@ -214,6 +261,26 @@ def _validate_openai_metadata(
                     "agents/openai.yaml must explicitly set allow_implicit_invocation to true or false",
                 )
             )
+
+    expected_metadata = {
+        (skill.path.parent / "agents" / "openai.yaml").resolve()
+        for skill in skills
+    }
+    canonical_root = root / ".agents" / "skills"
+    if canonical_root.is_dir():
+        for metadata in sorted(canonical_root.rglob("openai.yaml")):
+            if (
+                metadata.is_file()
+                and not _is_ignored(metadata, root)
+                and metadata.resolve() not in expected_metadata
+            ):
+                violations.append(
+                    Violation(
+                        "orphan-openai-metadata",
+                        metadata.relative_to(root).as_posix(),
+                        "agents/openai.yaml has no owning SKILL.md",
+                    )
+                )
     return violations
 
 
@@ -274,6 +341,15 @@ def _source_documents(root: Path, skills: Iterable[Skill]) -> list[Path]:
     return sorted(documents)
 
 
+def _architecture_sources(root: Path, skills: Iterable[Skill]) -> list[Path]:
+    sources = set(_source_documents(root, skills))
+    for skill in skills:
+        metadata = skill.path.parent / "agents" / "openai.yaml"
+        if metadata.is_file():
+            sources.add(metadata)
+    return sorted(sources)
+
+
 def _validate_references(
     root: Path,
     skills: Iterable[Skill],
@@ -281,10 +357,36 @@ def _validate_references(
     violations: list[Violation] = []
     skill_names = {skill.name for skill in skills if skill.name}
 
-    for path in _source_documents(root, skills):
+    for path in _architecture_sources(root, skills):
         relative = path.relative_to(root).as_posix()
         source = path.read_text(encoding="utf-8")
-        violations.extend(_relative_link_violations(path, root))
+        if path.suffix == ".md":
+            violations.extend(_relative_link_violations(path, root))
+
+        for retired_name in RETIRED_SKILL_NAMES:
+            if re.search(
+                rf"(?<![A-Za-z0-9_-]){re.escape(retired_name)}(?![A-Za-z0-9_-])",
+                source,
+            ):
+                violations.append(
+                    Violation(
+                        "retired-skill-reference",
+                        relative,
+                        f"active contributor architecture references retired skill {retired_name!r}",
+                    )
+                )
+
+        for referenced_name in sorted(set(SKILL_PATH_PATTERN.findall(source))):
+            target = root / ".agents" / "skills" / referenced_name / "SKILL.md"
+            if referenced_name not in skill_names or not target.is_file():
+                violations.append(
+                    Violation(
+                        "missing-skill-path-reference",
+                        relative,
+                        "referenced canonical skill target does not exist: "
+                        f".agents/skills/{referenced_name}/SKILL.md",
+                    )
+                )
 
         for script in sorted(set(SCRIPT_REFERENCE_PATTERN.findall(source))):
             normalized = script[2:] if script.startswith("./") else script
@@ -316,6 +418,7 @@ def validate_repository(
 
     repository_root = Path(root).resolve()
     skills, violations = _discover_skills(repository_root)
+    violations.extend(_validate_nested_skill_paths(repository_root))
     violations.extend(_validate_openai_metadata(repository_root, skills))
     violations.extend(_validate_references(repository_root, skills))
     return sorted(set(violations))

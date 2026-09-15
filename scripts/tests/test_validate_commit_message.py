@@ -9,6 +9,8 @@ spec = importlib.util.spec_from_file_location(
 validator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(validator)
 
+ROOT = Path(__file__).parents[2]
+
 
 class CommitMessageValidatorTests(unittest.TestCase):
     def test_accepts_each_supported_type_and_scope(self):
@@ -56,11 +58,21 @@ class CommitMessageValidatorTests(unittest.TestCase):
                 self.assertEqual(validator.validate_subject(subject), [])
 
     def test_does_not_exempt_explicit_legacy_release_subject(self):
-        # release_macos.sh currently supplies this SIDEY commit/PR title itself;
-        # it is not an automatically generated merge title under the policy.
         self.assertTrue(
             validator.validate_subject("Publish Sparkle appcast for v1.2.3")
         )
+
+    def test_macos_appcast_uses_a_valid_sidey_commit_and_pr_subject(self):
+        script = (ROOT / "scripts/release_macos.sh").read_text(encoding="utf-8")
+        subject = "build(Shared): macOS v1.2.3 Sparkle appcast 갱신"
+
+        self.assertEqual(validator.validate_subject(subject), [])
+        self.assertIn(
+            'SIDEY_APPCAST_SUBJECT="build(Shared): macOS $SIDEY_TAG Sparkle appcast 갱신"',
+            script,
+        )
+        self.assertIn('commit -m "$SIDEY_APPCAST_SUBJECT"', script)
+        self.assertIn('--title "$SIDEY_APPCAST_SUBJECT"', script)
 
     def test_external_homebrew_release_subject_is_not_sidey_compliant(self):
         # The release script commits this in the separate Homebrew tap repository,
