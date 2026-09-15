@@ -1,0 +1,96 @@
+{
+  "source_commit": "a4548eea160e46dfb821e5dcb31d4542144e9c98",
+  "approval": "docs/reviews/character-five/approvals.json",
+  "files": [
+    {
+      "source": "docs/reviews/character-five/candidates/character-v2/pixel_shiba/base.png",
+      "destination": "assets/v1/characters/pixel_shiba/base.png",
+      "sha256": "011ae19b2882a18869666641681a33c9dc41b42cf30d1404ecb08e20b9acb928"
+    },
+    {
+      "source": "docs/reviews/character-five/candidates/character-v2/pixel_shiba/throw_hit.png",
+      "destination": "assets/v1/characters/pixel_shiba/throw_hit.png",
+      "sha256": "a88e049275de5059d880cb7ff1c478a2e8204d9decc0c7bf461ff9255d6dc24f"
+    },
+    {
+      "source": "docs/reviews/character-five/candidates/keepsakes-v2/tennis_ball/sprite.png",
+      "destination": "assets/v1/throwables/tennis_ball/sprite.png",
+      "sha256": "19c1a71275fd2e5be5be0b39ebd7be95d960f80ac65dd629aedd885b64f89fc3"
+    },
+    {
+      "source": "docs/reviews/character-five/candidates/audio-v2/tennis_ball/1.wav",
+      "destination": "assets/v1/audio/impact-tennis_ball.wav",
+      "sha256": "19e7236673dafa5ce57f0d6c5959ed8179210aaedffdc421f3139982666a2d67"
+    },
+    {
+      "source": "docs/reviews/character-five/candidates/character-v2/pixel_duck/base.png",
+      "destination": "assets/v1/characters/pixel_duck/base.png",
+      "sha256": "09c0c4160cf143dd4a1859fe20fdbab1167d08c5b072f6cd1b7906bed429b97c"
+    },
+    {
+      "source": "docs/reviews/character-five/candidates/character-v2/pixel_duck/throw_hit.png",
+      "destination": "assets/v1/characters/pixel_duck/throw_hit.png",
+      "sha256": "a8fab6aebc7f6260e8f470e26365a45cac1a493144da36ab0665d54a38d0fc67"
+    },
+    {
+      "source": "docs/reviews/character-five/candidates/character-v2/pixel_poop/base.png",
+      "destination": "assets/v1/characters/pixel_poop/base.png",
+      "sha256": "99ac0e9eb8c055f5663e3109d3e7cbbf95a0137f2920c8cde41fa265854188c1"
+    },
+    {
+      "source": "docs/reviews/character-five/candidates/character-v2/pixel_poop/throw_hit.png",
+      "destination": "assets/v1/characters/pixel_poop/throw_hit.png",
+      "sha256": "3611e29ca3a6b1efcd9533a9d56494eb8daee31bef973e7ae2c69c0f115f7e8b"
+    },
+    {
+      "source": "docs/reviews/character-five/candidates/keepsakes-v2/tissue_ball/sprite.png",
+      "destination": "assets/v1/throwables/tissue_ball/sprite.png",
+      "sha256": "ae0a3d483f6a606b4dc35bdac173044720668679f6462e36ff19720334dea975"
+    },
+    {
+      "source": "docs/reviews/character-five/candidates/audio-v3/tissue_ball/B.wav",
+      "destination": "assets/v1/audio/impact-tissue_ball.wav",
+      "sha256": "0c9c04c4ea096358598dd9cf24744b369249947a1c35a856a51a52d6fd2762c7"
+    },
+    {
+      "source": "docs/reviews/character-five/candidates/character-v2/pixel_tteokbokki/base.png",
+      "destination": "assets/v1/characters/pixel_tteokbokki/base.png",
+      "sha256": "0a7400c8d7019602147994a75c8e0171441f7c151629cb0f5948bb75e1b7b655"
+    },
+    {
+      "source": "docs/reviews/character-five/candidates/character-v2/pixel_tteokbokki/throw_hit.png",
+      "destination": "assets/v1/characters/pixel_tteokbokki/throw_hit.png",
+      "sha256": "b5084af74609db432e21bea117da0253aac94197e2a2ded157f7cec04465851c"
+    },
+    {
+      "source": "docs/reviews/character-five/candidates/keepsakes-v2/fish_cake_skewer/sprite.png",
+      "destination": "assets/v1/throwables/fish_cake_skewer/sprite.png",
+      "sha256": "bdcfc04e33f3cf4f45305aa9fbf6c6fed70b515fe826823c890ccbb5e28340fd"
+    },
+    {
+      "source": "docs/reviews/character-five/candidates/audio-v2/fish_cake_skewer/1.wav",
+      "destination": "assets/v1/audio/impact-fish_cake_skewer.wav",
+      "sha256": "468a9111c759ac37a0676040427cb40ee93456aacb740f4b766808fb4f0717e2"
+    },
+    {
+      "source": "docs/reviews/character-five/candidates/character-v3/pixel_quokka/base.png",
+      "destination": "assets/v1/characters/pixel_quokka/base.png",
+      "sha256": "e301cb83b48761c1bb5b83f82a6525638d973eb7e337ebe378dea88d370e2a7c"
+    },
+    {
+      "source": "docs/reviews/character-five/candidates/character-v3/pixel_quokka/throw_hit.png",
+      "destination": "assets/v1/characters/pixel_quokka/throw_hit.png",
+      "sha256": "fc01c484c98651c5da3e32888122070af04091d57a514199da6019ca73b753a7"
+    },
+    {
+      "source": "docs/reviews/character-five/candidates/keepsakes-v2/leaf/sprite.png",
+      "destination": "assets/v1/throwables/leaf/sprite.png",
+      "sha256": "b0a419e6659ded829130ec7d0be92d0b693ccd1cdc158aa8aabbd8b24936173e"
+    },
+    {
+      "source": "docs/reviews/character-five/candidates/audio-v3/leaf/A.wav",
+      "destination": "assets/v1/audio/impact-leaf.wav",
+      "sha256": "99e72647b9bec270e1183bde9aa00b737ea7f164b16109930b475badc2a82dd2"
+    }
+  ]
+}

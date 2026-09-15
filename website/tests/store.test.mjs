@@ -4,6 +4,7 @@ import { readFileSync, existsSync } from "node:fs";
 
 const catalog = JSON.parse(readFileSync(new URL("../../assets/v1/commerce-catalog.json", import.meta.url)));
 const read = (path) => readFileSync(new URL(`../dist/${path}`, import.meta.url), "utf8");
+const manifest = JSON.parse(readFileSync(new URL("../../assets/v1/manifest.json", import.meta.url)));
 const root = new URL("../../", import.meta.url);
 const included = { characters: 5, throwables: 1, bubbles: 1 };
 
@@ -43,7 +44,7 @@ for (const locale of ["ko", "en", "ja"]) {
         assert.doesNotMatch(soundButton, /material-symbols|volume_off|volume_up/);
       }
       if (category === "characters") {
-        assert.equal(html.match(/class="store-keepsake-summary"/g)?.length, 7);
+        assert.equal(html.match(/class="store-keepsake-summary"/g)?.length, catalog.filter(entry => entry.related_character_product_id).length);
         if (locale === "ko") assert.match(html, /우클릭하면 멈추고/);
       }
     });
@@ -64,7 +65,10 @@ test("public sheets and sounds exactly match the approved canonical assets", () 
   for (const id of throwableIDs) {
     const path = `impact-${id}.wav`;
     const publicAudio = readFileSync(new URL(`website/public/assets/store/${path}`, root));
-    assert.deepEqual(publicAudio, readFileSync(new URL(`macos/SIDEY/Resources/DirectImpactAudio/${path}`, root)));
+    const asset = manifest.throwables.find(entry => entry.id === id);
+    if (asset.supported_platforms.includes("macos")) {
+      assert.deepEqual(publicAudio, readFileSync(new URL(`macos/SIDEY/Resources/DirectImpactAudio/${path}`, root)));
+    }
     const canonical = new URL(`assets/v1/audio/${path}`, root);
     if (existsSync(canonical)) assert.deepEqual(publicAudio, readFileSync(canonical));
     assert.ok(read("ko/store/throwables/index.html").includes(`data-preview-sound="/SIDEY/assets/store/${path}"`));
