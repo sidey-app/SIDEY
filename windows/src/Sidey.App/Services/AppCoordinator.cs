@@ -46,6 +46,12 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     private readonly HashSet<(Guid RoomId, Guid UserId)> _typing = [];
     private readonly Dictionary<(Guid RoomId, Guid UserId), PresenceState> _basePresence = [];
     private readonly Dictionary<Guid, int> _unreadByRoom = [];
+    private readonly TreeMovementLedger _treeMovement = new();
+    private readonly HashSet<Guid> _treeMovementMigrationAttempted = [];
+    private Guid? _treeMovementAccountId;
+    private CancellationTokenSource? _treeMovementRequest;
+    private readonly List<Task> _treeMovementOperations = [];
+    private bool TreeMovementSaving => _treeMovementRequest is not null;
     private IAuthService? _auth;
     private IBackendGateway? _backend;
     private NativePixelWorldSession? _overlay;
@@ -400,6 +406,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         Guid? activeRoomId = SelectActiveRoom(preferences.ActiveRoomId, snapshot.Rooms);
         _state = _state with { ActiveRoomId = activeRoomId };
         ApplySnapshot(snapshot);
+        StartTreeMovementMigration();
         string? commerceStateError = null;
 #if SIDEY_DEVELOPMENT_COMMERCE
         if (developmentCommerceEnabled)
@@ -972,13 +979,124 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     public async Task ToggleTreeMovementAsync(Guid? expectedRoomId, CancellationToken cancellationToken = default)
     {
         WorldSnapshot world = CurrentWorldSnapshot();
-        if (world.RoomId != expectedRoomId || world.Members.FirstOrDefault(member => member.IsCurrentUser)?.CharacterId != "pixel_tree")
+        if (TreeMovementSaving || world.RoomId != expectedRoomId
+            || world.Members.FirstOrDefault(member => member.IsCurrentUser)?.CharacterId != "pixel_tree")
+            return;
+        if (_backend is null && _previewSnapshot is not null)
         {
+            SetState(_state with { Preferences = _state.Preferences with { TreeMovementPaused = !_state.Preferences.TreeMovementPaused } });
+            ApplyWorldSnapshot();
             return;
         }
-        SetState(_state with { Preferences = _state.Preferences with { TreeMovementPaused = !_state.Preferences.TreeMovementPaused } });
-        ApplyWorldSnapshot();
-        await PersistPreferencesAsync(cancellationToken);
+        if (_state.Profile is not { } profile)
+            return;
+        if (profile.TreeMovementRevision is null)
+        {
+            SetState(_state with { Preferences = _state.Preferences with { TreeMovementPaused = !_state.Preferences.TreeMovementPaused } });
+            ApplyWorldSnapshot();
+            await PersistPreferencesAsync(cancellationToken);
+            return;
+        }
+        PixelWorldMember current = world.Members.Single(member => member.IsCurrentUser);
+        bool paused = PixelMovementPolicy.IsTreePaused(current, world.TreeMovementPaused);
+        await SaveTreeMovementAsync(!paused, profile, cancellationToken);
+    }
+
+    private void StartTreeMovementMigration()
+    {
+        _treeMovementOperations.RemoveAll(task => task.IsCompleted);
+        _treeMovementOperations.Add(MigrateTreeMovementAsync(_roomSession.Token));
+    }
+
+    private void CancelTreeMovementRequest()
+    {
+        CancellationTokenSource? previous = _treeMovementRequest;
+        _treeMovementRequest = null;
+        previous?.Cancel();
+    }
+
+    private async Task MigrateTreeMovementAsync(CancellationToken cancellationToken)
+    {
+        if (TreeMovementSaving || _backend is null
+            || _state.Profile is not { TreeMovementRevision: 0 } profile
+            || !_treeMovementMigrationAttempted.Add(profile.Id))
+            return;
+        try
+        {
+            await SaveTreeMovementAsync(_state.Preferences.TreeMovementPaused, profile, cancellationToken);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception exception)
+        {
+            // A failed migration never changes confirmed state or blocks login.
+            StartupDiagnostics.NonFatal("tree-movement-migration", exception);
+        }
+    }
+
+    private Task SaveTreeMovementAsync(bool paused, Profile profile, CancellationToken cancellationToken)
+    {
+        Task operation = SaveTreeMovementCoreAsync(paused, profile, cancellationToken);
+        _treeMovementOperations.RemoveAll(task => task.IsCompleted);
+        _treeMovementOperations.Add(DrainTreeMovementOperationAsync(operation));
+        return operation;
+    }
+
+    private static async Task DrainTreeMovementOperationAsync(Task operation)
+    {
+        // The caller reports failures; this observer owns shutdown draining only.
+        try { await operation.ConfigureAwait(false); }
+        catch (Exception) { }
+    }
+
+    private async Task SaveTreeMovementCoreAsync(bool paused, Profile profile, CancellationToken cancellationToken)
+    {
+        IBackendGateway backend = RequiredBackend();
+        using var request = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _roomSession.Token);
+        _treeMovementRequest = request;
+        try
+        {
+            Profile saved = await backend.SetTreeMovementPausedAsync(
+                paused, profile.TreeMovementRevision!.Value, request.Token);
+            if (!ReferenceEquals(request, _treeMovementRequest) || !ReferenceEquals(backend, _backend) || _state.Profile is not { } current
+                || current.Id != profile.Id || saved.Id != profile.Id || _roomSession.IsCancellationRequested)
+                return;
+            Profile confirmed = MergeTreeMovement(saved);
+            SetState(_state with
+            {
+                Profile = current with
+                {
+                    TreeMovementPaused = confirmed.TreeMovementPaused,
+                    TreeMovementRevision = confirmed.TreeMovementRevision,
+                },
+                Rooms = [.. _state.Rooms.Select(room => room with
+                {
+                    Members = [.. room.Members.Select(member => member.UserId == profile.Id
+                        ? member with
+                        {
+                            TreeMovementPaused = confirmed.TreeMovementPaused,
+                            TreeMovementRevision = confirmed.TreeMovementRevision,
+                        } : member)],
+                })],
+            });
+            ApplyWorldSnapshot();
+        }
+        finally
+        {
+            if (ReferenceEquals(request, _treeMovementRequest))
+                _treeMovementRequest = null;
+        }
+    }
+
+    private Profile MergeTreeMovement(Profile profile)
+    {
+        (bool Paused, long? Revision) state = _treeMovement.Merge(profile.Id, profile.TreeMovementPaused, profile.TreeMovementRevision);
+        return profile with { TreeMovementPaused = state.Paused, TreeMovementRevision = state.Revision };
+    }
+
+    private RoomMember MergeTreeMovement(RoomMember member)
+    {
+        (bool Paused, long? Revision) state = _treeMovement.Merge(member.UserId, member.TreeMovementPaused, member.TreeMovementRevision);
+        return member with { TreeMovementPaused = state.Paused, TreeMovementRevision = state.Revision };
     }
 
     public async Task SetRequiresRightClickToThrowAsync(
@@ -1266,7 +1384,9 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         _animations.Changed -= OnAnimationsChanged;
         _animations.Dispose();
         _audio.Dispose();
+        CancelTreeMovementRequest();
         await _roomSession.DisposeAsync().ConfigureAwait(false);
+        await Task.WhenAll(_treeMovementOperations).ConfigureAwait(false);
         if (_backend is SupabaseBackendGateway supabase)
         {
             await supabase.DisposeAsync().ConfigureAwait(false);
@@ -1575,6 +1695,17 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 
     private void ApplySnapshot(BackendSnapshot snapshot)
     {
+        if (_treeMovementAccountId != snapshot.CurrentUserId)
+        {
+            CancelTreeMovementRequest();
+            _treeMovement.Clear();
+            _treeMovementAccountId = snapshot.CurrentUserId;
+        }
+        // Both queries may observe different revisions of our own profile.
+        foreach (RoomMember member in snapshot.Rooms.SelectMany(room => room.Members))
+            MergeTreeMovement(member);
+        if (snapshot.Profile is not null)
+            snapshot = snapshot with { Profile = MergeTreeMovement(snapshot.Profile) };
         Guid? activeRoomId = SelectActiveRoom(_state.ActiveRoomId, snapshot.Rooms);
         Profile? profile = snapshot.Profile is null
             ? null
@@ -1598,7 +1729,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                 : null;
         Room[] projectedRooms = [.. snapshot.Rooms.Select(room => room with
         {
-            Members = [.. room.Members.Select(member => member with
+            Members = [.. room.Members.Select(member => MergeTreeMovement(member) with
             {
                 CharacterId = member.UserId == snapshot.CurrentUserId && profile is not null
                     ? profile.CharacterId
@@ -1702,6 +1833,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     {
         Guid? previousActiveRoomId = _state.ActiveRoomId;
         ApplySnapshot(snapshot);
+        StartTreeMovementMigration();
         if (_state.ActiveRoomId != previousActiveRoomId)
         {
             StopTypingKeepalive();
@@ -2012,7 +2144,9 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                 LocalPresenceProjection.ForOverlay(member.Presence, _state.ActiveRoomConnected),
                 IsTyping: _state.ActiveRoomConnected && room is not null && _typing.Contains((room.Id, member.UserId)),
                 IsCurrentUser: member.UserId == _state.Profile?.Id,
-                EquippedBubbleStyleId: member.EquippedBubbleStyleId))
+                EquippedBubbleStyleId: member.EquippedBubbleStyleId,
+                TreeMovementPaused: member.TreeMovementPaused,
+                TreeMovementRevision: member.TreeMovementRevision))
             .ToArray() ?? [];
         return new WorldSnapshot(
             room?.Id,
