@@ -88,29 +88,21 @@ class ContributorArchitectureTests(unittest.TestCase):
         self.assertIn("missing-relative-link", self.codes())
         self.assertIn("missing-script-reference", self.codes())
 
-    def test_exact_transitional_windows_skill_is_allowed(self):
+    def test_legacy_nested_windows_skill_is_rejected(self):
         self.add_skill("code-review", directory="windows/.agents/skills/code-review")
-        self.assertNotIn("unexpected-skill-location", self.codes())
+        self.assertIn("unexpected-skill-location", self.codes())
 
     def test_new_nested_skill_is_rejected(self):
         self.add_skill("new-skill", directory="windows/.agents/skills/new-skill")
         self.assertIn("unexpected-skill-location", self.codes())
 
-    def test_exact_pending_windows_routing_targets_are_transitionally_allowed(self):
+    def test_missing_windows_routing_targets_are_reported(self):
         self.write(
             "AGENTS.md",
             "Read [Windows instructions](windows/AGENTS.md) and "
             "[Windows docs instructions](windows/docs/AGENTS.md).\n",
         )
-        self.assertNotIn("missing-relative-link", self.codes())
-        strict_codes = [
-            violation.code
-            for violation in validate_repository(
-                self.root,
-                allow_pending_windows_instructions=False,
-            )
-        ]
-        self.assertIn("missing-relative-link", strict_codes)
+        self.assertIn("missing-relative-link", self.codes())
 
     def test_other_missing_agents_routing_target_is_always_reported(self):
         self.write("AGENTS.md", "Read [missing instructions](platform/AGENTS.md).\n")
@@ -128,21 +120,23 @@ class ContributorArchitectureTests(unittest.TestCase):
         self.add_skill("missing-policy", implicit_policy=None)
         self.assertIn("missing-implicit-invocation-policy", self.codes())
 
-    def test_existing_write_docs_policy_gap_is_narrowly_allowed(self):
+    def test_legacy_write_docs_metadata_requires_invocation_policy(self):
         self.add_skill(
             "write-docs",
             directory="windows/.agents/skills/write-docs",
             implicit_policy=None,
         )
-        self.assertNotIn("missing-implicit-invocation-policy", self.codes())
-        strict_codes = [
-            violation.code
-            for violation in validate_repository(
-                self.root,
-                allow_pending_windows_instructions=False,
-            )
-        ]
-        self.assertIn("missing-implicit-invocation-policy", strict_codes)
+        self.assertIn("missing-implicit-invocation-policy", self.codes())
+
+    def test_canonical_windows_skill_set_is_valid(self):
+        for name in (
+            "windows-code-review",
+            "windows-dev-docs",
+            "windows-powershell",
+            "windows-tests",
+        ):
+            self.add_skill(name)
+        self.assertEqual(validate_repository(self.root), [])
 
 
 if __name__ == "__main__":
