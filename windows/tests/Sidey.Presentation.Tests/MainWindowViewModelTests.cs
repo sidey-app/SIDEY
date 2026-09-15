@@ -798,6 +798,29 @@ public sealed class MainWindowViewModelTests
         Assert.False(viewModel.SaveProfileCommand.CanExecute(null));
     }
 
+    [Theory]
+    [InlineData("ko-KR", "1,100원", "2,200원", "3,300원")]
+    [InlineData("en-US", "₩1,100", "₩2,200", "₩3,300")]
+    [InlineData("ja-JP", "1,100ウォン", "2,200ウォン", "3,300ウォン")]
+    [InlineData("zh-CN", "1,100 韩元", "2,200 韩元", "3,300 韩元")]
+    [InlineData("zh-TW", "1,100 韓元", "2,200 韓元", "3,300 韓元")]
+    [InlineData("ru-RU", "1\u00a0100 ₩", "2\u00a0200 ₩", "3\u00a0300 ₩")]
+    [InlineData("uk-UA", "1\u00a0100 ₩", "2\u00a0200 ₩", "3\u00a0300 ₩")]
+    public void NewCatalogPricesCreateTheStoreAndKeepLocalizedWonFormatting(
+        string language, string characterPrice, string bubblePrice, string cannonPrice)
+    {
+        string previous = Sidey.Core.Localization.I18n.Language;
+        try
+        {
+            Sidey.Core.Localization.I18n.SetLanguage(language);
+            var model = new MainWindowViewModel(new FakeSideyCoordinator(), new FakeMainWindowDialogService(), new FakeUpdateService());
+            Assert.Equal(characterPrice, model.StoreProducts.Single(product => product.ProductId == "character_tree").FormattedPrice);
+            Assert.Equal(bubblePrice, model.StoreProducts.Single(product => product.ProductId == "bubble_bunny_pink").FormattedPrice);
+            Assert.Equal(cannonPrice, model.StoreProducts.Single(product => product.ProductId == "throwable_toy_cannon").FormattedPrice);
+        }
+        finally { Sidey.Core.Localization.I18n.SetLanguage(previous); }
+    }
+
     [Fact]
     public void StoreFiltersByKindSortsByPriceAndCanHideOwnedProducts()
     {
@@ -821,7 +844,7 @@ public sealed class MainWindowViewModelTests
         viewModel.SelectedStoreKindIndex = (int)CommerceProductKind.Throwable;
         viewModel.SelectedStoreSortIndex = 2;
         Assert.Equal(
-            new[] { 2_900, 1_900, 1_900 }.Concat(Enumerable.Repeat(990, 11)),
+            new[] { 3_300, 2_200, 2_200 }.Concat(Enumerable.Repeat(1_100, 11)),
             viewModel.VisibleStoreProducts.Select(product => product.AmountKrw));
 
         viewModel.HidesOwnedStoreProducts = true;

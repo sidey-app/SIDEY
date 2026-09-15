@@ -20,7 +20,10 @@ public sealed class PixelMovementAgent(
 public static class PixelMovementPolicy
 {
     public static bool IsTreePaused(PixelWorldMember member, bool treeMovementPaused) =>
-        treeMovementPaused && member.IsCurrentUser && member.CharacterId == "pixel_tree";
+        member.CharacterId == "pixel_tree"
+        && (member.TreeMovementRevision is >= 1
+            ? member.TreeMovementPaused
+            : treeMovementPaused && member.IsCurrentUser);
 
     public static IReadOnlySet<Guid> StoppedMemberIds(IEnumerable<PixelWorldMember> members) =>
         members
