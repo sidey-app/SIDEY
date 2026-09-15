@@ -1,0 +1,7 @@
+interface:
+  display_name: "Windows Developer Docs"
+  short_description: "Write and verify Windows developer guides"
+  default_prompt: "Use $windows-dev-docs to revise this SIDEY Windows guide from current repository evidence."
+
+policy:
+  allow_implicit_invocation: true

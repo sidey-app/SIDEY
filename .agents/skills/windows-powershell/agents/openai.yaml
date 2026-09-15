@@ -1,0 +1,7 @@
+interface:
+  display_name: "Windows PowerShell"
+  short_description: "Create safe compatible Windows PowerShell"
+  default_prompt: "Use $windows-powershell to revise this SIDEY Windows PowerShell change while preserving its callers and side effects."
+
+policy:
+  allow_implicit_invocation: true
