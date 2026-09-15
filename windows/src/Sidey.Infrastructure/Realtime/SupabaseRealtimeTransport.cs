@@ -179,7 +179,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             {
                 if (PauseForAuthorizationFailure(exception))
                     return;
-                Emit(new BackendEvent.TechnicalError(ConnectionFailureMessage(exception)));
+                Emit(new BackendEvent.TechnicalError(RealtimeUserErrorMessage.From(exception)));
                 EmitDisconnected();
                 ScheduleRecovery();
                 return;
@@ -213,6 +213,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 if (PauseForAuthorizationFailure(exception))
                     return;
                 Emit(new BackendEvent.Diagnostic($"realtime-initial-subscription-failed {ConnectionFailureMessage(exception)}"));
+                Emit(new BackendEvent.TechnicalError(RealtimeUserErrorMessage.From(exception)));
                 _socketSession?.Socket.Abort();
                 EmitDisconnected();
                 ScheduleRecovery();
@@ -419,6 +420,8 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             TaskCanceledException => "timeout",
             HttpRequestException => "http",
             WebSocketException => "websocket",
+            RealtimeSubscriptionException subscription =>
+                $"subscription-{subscription.FailureKind.ToString().ToLowerInvariant()}",
             _ => "unknown",
         };
         string detail = current is SocketException socketException
@@ -676,7 +679,10 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 EmitDisconnected();
                 return;
             }
-            Emit(new BackendEvent.TechnicalError(ConnectionFailureMessage(exception)));
+            if (!RealtimeUserErrorMessage.IsExpectedLocalAbort(exception))
+            {
+                Emit(new BackendEvent.TechnicalError(RealtimeUserErrorMessage.From(exception)));
+            }
             EmitDisconnected();
             ScheduleRecovery();
         }
@@ -706,7 +712,8 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 Emit(new BackendEvent.Diagnostic(
                     $"realtime-heartbeat-timeout silence-ms={(long)silence.TotalMilliseconds}"));
                 socket.Abort();
-                Emit(new BackendEvent.TechnicalError("Realtime WebSocket heartbeat timed out."));
+                Emit(new BackendEvent.TechnicalError(
+                    I18n.Get("connection.serviceUnavailable")));
                 EmitDisconnected();
                 ScheduleRecovery();
                 continue;
@@ -748,7 +755,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                         $"realtime-channel-authorization-refresh-deferred {ConnectionFailureMessage(exception)}"));
                     if (Volatile.Read(ref _socketAccessTokenExpiresAtUtcTicks) <= DateTimeOffset.UtcNow.UtcTicks)
                     {
-                        Emit(new BackendEvent.TechnicalError(ConnectionFailureMessage(exception)));
+                        Emit(new BackendEvent.TechnicalError(RealtimeUserErrorMessage.From(exception)));
                         socket.Abort();
                         EmitDisconnected();
                         ScheduleRecovery();
@@ -757,7 +764,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
                 }
                 catch (Exception exception)
                 {
-                    Emit(new BackendEvent.TechnicalError(ConnectionFailureMessage(exception)));
+                    Emit(new BackendEvent.TechnicalError(RealtimeUserErrorMessage.From(exception)));
                     socket.Abort();
                     continue;
                 }
@@ -770,7 +777,7 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
             }
             catch (Exception exception)
             {
-                Emit(new BackendEvent.TechnicalError(ConnectionFailureMessage(exception)));
+                Emit(new BackendEvent.TechnicalError(RealtimeUserErrorMessage.From(exception)));
                 socket.Abort();
             }
         }
@@ -1026,12 +1033,13 @@ internal sealed class SupabaseRealtimeTransport : IAsyncDisposable
         Emit(new BackendEvent.Diagnostic(
             $"realtime-channel-terminated kind={descriptor.Kind.ToString().ToLowerInvariant()} event={eventName}"));
         EmitConnectionStatus(CurrentTransportStatus());
-        if (eventName == "system"
-            && PauseForAuthorizationFailure(RealtimeSubscriptionException.FromServerPayload(payload)))
+        var failure = RealtimeSubscriptionException.FromServerPayload(payload);
+        if (eventName == "system" && PauseForAuthorizationFailure(failure))
         {
             return;
         }
 
+        Emit(new BackendEvent.TechnicalError(RealtimeUserErrorMessage.From(failure)));
         ScheduleRecovery();
     }
 

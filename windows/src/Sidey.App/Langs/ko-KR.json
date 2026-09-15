@@ -371,7 +371,7 @@
     "activeRoomRequired": "활성 그룹과 프로필이 필요합니다."
   },
   "tray": {
-    "open": "열기", "hideOverlay": "오버레이 숨기기", "showOverlay": "오버레이 보이기", "compose": "메시지 작성…", "noGroups": "연결된 그룹 없음", "activeGroup": "활성 그룹", "quietMode": "조용히 모드", "history": "최근 기록…", "store": "상점…", "groups": "그룹 설정…", "startup": "로그인 시 자동 실행", "checkUpdates": "업데이트 확인…", "settings": "설정…", "exit": "종료", "unreadTooltip": "SIDEY · 미확인 메시지 {0}개", "connectionFailedTitle": "SIDEY 연결 안 됨", "connectionFailedBody": "SIDEY 서버와 연결할 수 없습니다. 네트워크 상태를 확인해 주세요.", "updateLatest": "최신 버전입니다.", "updateAvailable": "업데이트가 있습니다. {0}", "updateCheckFailed": "업데이트 확인에 실패했습니다. 잠시 후 다시 시도해 주세요."
+    "open": "열기", "hideOverlay": "오버레이 숨기기", "showOverlay": "오버레이 보이기", "compose": "메시지 작성…", "noGroups": "연결된 그룹 없음", "activeGroup": "활성 그룹", "quietMode": "조용히 모드", "history": "최근 기록…", "store": "상점…", "groups": "그룹 설정…", "startup": "로그인 시 자동 실행", "checkUpdates": "업데이트 확인…", "settings": "설정…", "exit": "종료", "unreadTooltip": "SIDEY · 미확인 메시지 {0}개", "connectionFailedTitle": "SIDEY 연결 안 됨", "connectionFailedBody": "SIDEY가 자동으로 재연결을 계속 시도합니다. 연결이 돌아오지 않으면 연결 상태에서 재연결을 눌러 주세요.", "updateLatest": "최신 버전입니다.", "updateAvailable": "업데이트가 있습니다. {0}", "updateCheckFailed": "업데이트 확인에 실패했습니다. 잠시 후 다시 시도해 주세요."
   },
   "history": {
     "retentionNotice": "메시지는 서버에서 3일 후 자동 삭제됩니다.",
@@ -429,7 +429,11 @@
     "retry": "재연결",
     "pageTitle": "연결 상태",
     "pageDescription": "SIDEY 서버 연결 상태를 확인하고 문제가 있을 때 다시 연결할 수 있습니다.",
-    "accessRequired": "인증 또는 그룹 접근 권한을 확인할 수 없어 자동 재연결을 멈췄습니다. 연결 상태를 눌러 다시 시도할 수 있습니다.",
+    "accessRequired": "SIDEY 로그인 정보를 다시 확인해야 합니다. 연결 상태에서 재연결을 눌러 주세요. 같은 안내가 계속되면 진단 로그를 첨부해 문의해 주세요.",
+    "busy": "현재 접속 요청이 많아 평소보다 연결이 늦어지고 있습니다. SIDEY가 자동으로 계속 시도합니다. 몇 분 뒤에도 연결되지 않으면 진단 로그를 첨부해 문의해 주세요.",
+    "serviceUnavailable": "서버 응답을 정상적으로 확인하지 못했습니다. SIDEY가 자동으로 계속 시도합니다. 몇 분 뒤에도 연결되지 않으면 연결 상태에서 재연결을 눌러 주세요. 그래도 안 되면 진단 로그를 첨부해 문의해 주세요.",
+    "networkUnavailable": "SIDEY 서버에 닿지 못했습니다. 인터넷 연결을 확인한 뒤 연결 상태에서 재연결을 눌러 주세요. 다른 사이트는 열리는데 같은 문제가 계속되면 진단 로그를 첨부해 문의해 주세요.",
+    "secureConnectionFailed": "안전한 연결을 만들지 못했습니다. Windows의 날짜와 시간이 맞는지 확인한 뒤 재연결해 주세요. 계속 실패하면 진단 로그를 첨부해 문의해 주세요.",
     "connected": "서버와 연결됨",
     "disconnected": "서버와 연결 안 됨",
     "reconnecting": "연결 중",

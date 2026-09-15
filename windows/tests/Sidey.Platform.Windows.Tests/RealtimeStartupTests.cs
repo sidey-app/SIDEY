@@ -1,11 +1,13 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
+using System.Security.Authentication;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Sidey.Core.Abstractions;
 using Sidey.Core.Domain;
+using Sidey.Core.Localization;
 using Sidey.Core.Realtime;
 using Sidey.Infrastructure;
 
@@ -546,19 +548,106 @@ public sealed class RealtimeStartupTests
     }
 
     [Theory]
-    [InlineData("Unauthorized: denied", true)]
-    [InlineData("InvalidJWTToken: expired", true)]
-    [InlineData("JwtSignatureError: invalid", true)]
-    [InlineData("You do not have permissions to read from this Topic", true)]
-    [InlineData("ClientJoinRateLimitReached: too many joins", false)]
-    [InlineData("RealtimeRestarting: please standby", false)]
-    [InlineData("Unknown Error on Channel", false)]
-    public void OnlyRecognizedAccessFailuresPauseRetries(string reason, bool expected)
+    [InlineData("Unauthorized: denied", "Authorization")]
+    [InlineData("InvalidJWTExpiration: token expired", "Authorization")]
+    [InlineData("InvalidJWTToken: expired", "Authorization")]
+    [InlineData("JwtSignatureError: invalid", "Authorization")]
+    [InlineData("You do not have permissions to read from this Topic", "Authorization")]
+    [InlineData("Token has expired", "Authorization")]
+    [InlineData("ClientJoinRateLimitReached: too many joins", "Capacity")]
+    [InlineData("ConnectionRateLimitReached: too many connections", "Capacity")]
+    [InlineData("DatabaseLackOfConnections: unavailable", "Capacity")]
+    [InlineData("RealtimeDisabledForTenant: quota reached", "Capacity")]
+    [InlineData("Too many messages per second", "Capacity")]
+    [InlineData("Client presence rate limit exceeded", "Capacity")]
+    [InlineData("TopicNameRequired: missing", "Configuration")]
+    [InlineData("RealtimeRestarting: please standby", "Transient")]
+    [InlineData("Unknown Error on Channel", "Transient")]
+    public void ServerRejectionsAreClassifiedWithoutRetainingRawReason(
+        string reason,
+        string expected)
     {
         using var payload = JsonDocument.Parse(JsonSerializer.Serialize(new { response = new { reason } }));
         var exception = RealtimeSubscriptionException.FromServerPayload(payload.RootElement);
-        Assert.Equal(expected, exception.AuthorizationFailure);
+        Assert.Equal(expected, exception.FailureKind.ToString());
+        Assert.Equal(expected == "Authorization", exception.AuthorizationFailure);
         Assert.DoesNotContain(reason, exception.Message);
+    }
+
+    [Theory]
+    [InlineData("ConnectionRateLimitReached: quota reached", "connection.busy")]
+    [InlineData("RealtimeDisabledForTenant: upgrade required", "connection.busy")]
+    [InlineData("Unauthorized: denied", "connection.accessRequired")]
+    [InlineData("Unknown Error on Channel", "connection.serviceUnavailable")]
+    public void ServerRejectionsUseActionableMessagesWithoutProviderDetails(string reason, string messageKey)
+    {
+        using var payload = JsonDocument.Parse(JsonSerializer.Serialize(new { response = new { reason } }));
+        var exception = RealtimeSubscriptionException.FromServerPayload(payload.RootElement);
+
+        string message = RealtimeUserErrorMessage.From(exception);
+
+        Assert.Equal(I18n.Get(messageKey), message);
+        Assert.DoesNotContain("Supabase", message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("WebSocket", message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("quota", message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("upgrade", message, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(reason.Split(':', 2)[0], message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task InitialCapacityRejectionEmitsTheActionableBusyMessage()
+    {
+        await using var server = new LocalServer(async (socket, _, token) =>
+        {
+            JsonElement[] joins = [await ReadAsync(socket, token), await ReadAsync(socket, token)];
+            foreach (JsonElement request in joins)
+            {
+                await socket.SendAsync(JsonSerializer.SerializeToUtf8Bytes(new
+                {
+                    topic = request.GetProperty("topic").GetString(),
+                    @event = "phx_reply",
+                    @ref = request.GetProperty("ref").GetString(),
+                    payload = new
+                    {
+                        status = "error",
+                        response = new { reason = "ConnectionRateLimitReached: quota reached" },
+                    },
+                }), WebSocketMessageType.Text, true, token);
+            }
+        });
+        await using SupabaseRealtimeTransport transport = CreateTransport(server);
+        var room = Guid.NewGuid();
+
+        await transport.SynchronizeAsync(
+            new Dictionary<Guid, long> { [room] = 1 },
+            room,
+            PresenceState.Online,
+            server.Token);
+        BackendEvent.TechnicalError error = await WaitForEventAsync<BackendEvent.TechnicalError>(transport);
+
+        Assert.Equal(I18n.Get("connection.busy"), error.Message);
+        Assert.DoesNotContain("ConnectionRateLimitReached", error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("quota", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AppInitiatedWebSocketAbortIsNotAUserFacingFailure()
+    {
+        var exception = new WebSocketException(
+            "The WebSocket was aborted.",
+            new SocketException((int)SocketError.OperationAborted));
+
+        Assert.True(RealtimeUserErrorMessage.IsExpectedLocalAbort(exception));
+    }
+
+    [Fact]
+    public void NetworkAndSecureConnectionFailuresGiveSpecificUserActions()
+    {
+        var network = new SocketException((int)SocketError.NetworkUnreachable);
+        var secure = new AuthenticationException("Handshake failed.", new IOException("Certificate error."));
+
+        Assert.Equal(I18n.Get("connection.networkUnavailable"), RealtimeUserErrorMessage.From(network));
+        Assert.Equal(I18n.Get("connection.secureConnectionFailed"), RealtimeUserErrorMessage.From(secure));
     }
 
     [Fact]
