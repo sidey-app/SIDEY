@@ -28,7 +28,9 @@ class AttributionTests(unittest.TestCase):
         self.install()
 
     def git(self, *args, **kwargs):
-        return subprocess.check_output(['git', *args], cwd=self.repo, env=self.env, text=True, **kwargs).strip()
+        return subprocess.check_output(
+            ['git', *args], cwd=self.repo, env=self.env, text=True, encoding='utf-8', **kwargs
+        ).strip()
 
     def install(self, check=True):
         return subprocess.run([sys.executable, str(self.repo / 'scripts/setup_codex_attribution.py')],
@@ -43,6 +45,12 @@ class AttributionTests(unittest.TestCase):
         self.env['CODEX_THREAD_ID'] = 'test-session'
         self.assertIn('Co-authored-by: codex <codex@openai.com>', self.commit())
         self.assertEqual(self.git('show', '-s', '--format=%ae'), 'human@example.test')
+
+    def test_codex_commit_accepts_utf8_korean_message(self):
+        self.env['CODEX_THREAD_ID'] = 'test-session'
+        message = self.commit('chore(Shared): 기여자 구조 정리')
+        self.assertIn('chore(Shared): 기여자 구조 정리', message)
+        self.assertIn('Co-authored-by: codex <codex@openai.com>', message)
 
     def test_human_and_explicit_opt_out(self):
         self.assertNotIn('codex@', self.commit())

@@ -4,10 +4,12 @@ import importlib.util
 import json
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
+sys.path.insert(0, str(Path(__file__).parents[1]))
 spec = importlib.util.spec_from_file_location('workflow', Path(__file__).parents[1] / 'workflow.py')
 w = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(w)
@@ -260,6 +262,56 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(set(w.required_scopes(['assets/v1/commerce-catalog.json'])),
                          {'shared', 'macos', 'windows', 'web'})
         self.assertIn('windows', w.required_scopes(['website/src/pages/ko/terms.md']))
+
+    def test_contributor_architecture_only_changes_are_shared_only(self):
+        paths = [
+            'AGENTS.md',
+            'windows/AGENTS.md',
+            'windows/docs/AGENTS.md',
+            'website/AGENTS.md',
+            '.agents/skills/version-audit/SKILL.md',
+            '.agents/skills/windows-tests/agents/openai.yaml',
+            'scripts/validate_contributor_architecture.py',
+            'scripts/tests/test_contributor_architecture.py',
+            'scripts/validate_commit_message.py',
+            'scripts/tests/test_validate_commit_message.py',
+            '.githooks/prepare-commit-msg',
+        ]
+        self.assertEqual(w.required_scopes(paths), ['shared'])
+        self.assertEqual(w.platform_for('windows/AGENTS.md'), 'shared')
+        self.assertEqual(w.platform_for('website/AGENTS.md'), 'shared')
+        self.assertEqual(w.validate_paths('shared/contributor-architecture', paths), 'shared')
+
+    def test_contributor_classification_does_not_hide_product_changes(self):
+        self.assertEqual(
+            w.required_scopes(['AGENTS.md', 'macos/Sources/SIDEY/App.swift']),
+            ['macos', 'shared'],
+        )
+        self.assertEqual(
+            w.required_scopes(['website/AGENTS.md', 'website/src/pages/index.astro']),
+            ['shared', 'web'],
+        )
+
+    def test_commit_text_validation_fails_before_repository_mutation(self):
+        w.require_valid_commit_text('Commit message', 'chore(Shared): 기여자 구조 정리')
+        w.require_valid_commit_text(
+            'PR title', 'chore(Shared): 기여자 구조 정리', subject_only=True
+        )
+        with self.assertRaisesRegex(w.WorkflowError, 'commit policy'):
+            w.require_valid_commit_text('Commit message', 'Contributor architecture cleanup')
+        with self.assertRaisesRegex(w.WorkflowError, 'commit policy'):
+            w.require_valid_commit_text('PR title', 'Invalid title', subject_only=True)
+
+    def test_local_python_checks_are_locale_independent(self):
+        with patch.object(w, 'run') as run:
+            w.local_checks(self.primary, 'shared')
+        python_commands = [
+            call.args[1:]
+            for call in run.call_args_list
+            if call.args[1] == w.sys.executable
+        ]
+        self.assertTrue(python_commands)
+        self.assertTrue(all(command[1:3] == ('-X', 'utf8') for command in python_commands))
 
     def test_release_manifests_run_the_matching_native_checks(self):
         self.assertEqual(w.required_scopes(['release/macos.json']), ['macos', 'shared'])

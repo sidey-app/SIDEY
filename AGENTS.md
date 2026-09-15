@@ -14,8 +14,8 @@ If the documents conflict, confirmed decisions in `docs/DECISIONS.md` win.
 ## Instruction routing
 
 - Before changing `windows/**`, `scripts/windows/**`, or Windows-specific workflows, read [the Windows instructions](windows/AGENTS.md). Changes under `windows/docs/**` also follow [the Windows developer-document instructions](windows/docs/AGENTS.md).
-- Before changing `website/**`, read [the public website instructions](website/AGENTS.md). Use [.agents/skills/sidey-public-web/SKILL.md](.agents/skills/sidey-public-web/SKILL.md) when the task requires researching, writing, or validating public copy or presentation.
-- Before changing the root README, translated README files, `docs/releases/**`, or public release copy, read [the documentation and release instructions](docs/AGENTS.md). Use [.agents/skills/sidey-release-docs/SKILL.md](.agents/skills/sidey-release-docs/SKILL.md) for the evidence-gathering and writing workflow.
+- Before changing `website/**`, read [the public website instructions](website/AGENTS.md). Use [.agents/skills/web-verification/SKILL.md](.agents/skills/web-verification/SKILL.md) when a public-site change needs claim, build, or rendered-layout evidence.
+- Before changing the root README, translated README files, `docs/releases/**`, or public release copy, read [the documentation and release instructions](docs/AGENTS.md). Use [.agents/skills/release-notes/SKILL.md](.agents/skills/release-notes/SKILL.md) only for a specific macOS or Windows release note or GitHub Release body.
 - Nested `AGENTS.md` files add rules for their path. A root-started Codex session does not load a nested file automatically, so follow the routing above before touching that path.
 
 ## Backend ownership
@@ -26,7 +26,7 @@ Keep native Supabase clients, the public website and client-facing product contr
 
 ## Work lifecycle
 
-Use an isolated, task-owned worktree on a branch whose platform prefix matches the complete change. Treat `scripts/workflow.py` as the executable source of truth for freshness, ownership, changed-path classification, checks, exact-head integration and primary-main refresh; use [.agents/skills/sidey-workflow/SKILL.md](.agents/skills/sidey-workflow/SKILL.md) while that orchestration skill remains in the repository. Public releases, store uploads and production deployments are separate operations that require explicit authorization.
+Use an isolated, task-owned worktree on a branch whose platform prefix matches the complete change. Treat `scripts/workflow.py` as the executable source of truth for freshness, ownership, changed-path classification, checks, exact-head integration and primary-main refresh. Use [.agents/skills/app-verification/SKILL.md](.agents/skills/app-verification/SKILL.md) when an integrated app change needs a runtime verdict from exact-main provenance. Public releases, store uploads and production deployments are separate operations that require explicit authorization.
 
 - Do not make implementation changes directly on `main`, switch or clean another task's dirty worktree, or overwrite unrelated user or agent changes.
 - Keep the requested change focused. Do not include drive-by refactors, formatting, generated output, or documentation changes that are not required by the task.
@@ -43,16 +43,17 @@ Directly authored commit subjects, and pull request titles that will become squa
 - The description and optional prose body are Korean. Identifiers, paths, product names, and machine-readable trailers may retain their required spelling.
 - Git- or GitHub-generated merge subjects may remain generated; a human- or agent-supplied title must follow this contract.
 
-Before creating a commit, continue to use [.agents/skills/sidey-commit/SKILL.md](.agents/skills/sidey-commit/SKILL.md) for message composition and review until that transitional skill is retired. `scripts/validate_commit_message.py` is the deterministic format checker.
+`scripts/validate_commit_message.py` is the deterministic format checker. `scripts/workflow.py` rejects invalid authored commit and squash-PR subjects before mutation or merge, and the integration scope check validates only the new commit range plus the current PR title.
 
-Codex-assisted new commits must include `Co-authored-by: codex <codex@openai.com>` while preserving the human Git author. The canonical mechanism is the repository hook installed once per clone with `python3 scripts/setup_codex_attribution.py`; it also covers linked worktrees. See the commit skill for attribution exceptions and verification. Do not duplicate attribution enforcement in the commit-message validator or rewrite existing history to add attribution.
+Codex-assisted new commits must include `Co-authored-by: codex <codex@openai.com>` while preserving the human Git author. The canonical mechanism is the repository hook installed once per clone with `python3 scripts/setup_codex_attribution.py`; it also covers linked worktrees. If an existing hook prevents installation, preserve it and connect the tracked hook through that clone's hook manager; if automatic attribution is unavailable, add the trailer once to the newly authored Codex commit. Do not attribute imported or replayed history, duplicate attribution enforcement in the commit-message validator, or rewrite existing history to add attribution.
 
 ## Automatic parallel agent work
 
 - The coordinating agent must proactively create subagents when independent work can run alongside its own useful work and the expected time savings or verification benefit outweigh creation and coordination costs. This is an explicit instruction to delegate qualifying SIDEY work; do not wait for the user to request parallel agents or ask for confirmation each time.
 - Use the minimum useful number of agents within the environment's available limits. Independent features, separate investigations, and verification that does not depend on unfinished changes are suitable candidates. Handle small edits, overlapping file changes, and dependent steps directly or sequentially.
 - Follow the user's explicit request for solo or sequential work. If delegation is unavailable or capacity is exhausted, continue feasible work directly. All agents remain within the authorized task, platform boundaries, and the environment's permissions.
-- Use [sidey-workflow](.agents/skills/sidey-workflow/SKILL.md#parallel-work-coordination) for file ownership, worktree selection, verification, and integration. Briefly explain the reason for parallel work and the assignments when starting it. The coordinating agent owns the final review and completion report.
+- The coordinating agent allocates the task worktree and disjoint file ownership before delegation. Subagents do not create more agents, expand their scope, or commit, push, create PRs, or integrate unless the coordinator explicitly assigns that repository-state operation.
+- Stop source-mutating parallel work before final diff review and validation. The coordinating agent runs the final `check`/`finish` sequence serially and owns the integration and completion report.
 
 ## Branch and platform isolation
 

@@ -8,6 +8,8 @@
 
 ## 확정된 결정
 
+2026-09-16 AI 기여자 구조 최종화: 저장소와 경로에 항상 적용되는 규칙은 `AGENTS.md` 계층이, 작업 수명·경로 분류·커밋 제목·릴리스 일치·실행 출처처럼 기계적으로 판정할 수 있는 조건은 추적된 script와 CI가 맡는다. repository-local Skill은 실제 판단과 evidence를 만드는 `version-audit`, `web-verification`, `release-notes`, `app-verification` 및 Windows 전문 Skill 4개만 root `.agents/skills`에 둔다. 변경 수명과 커밋 메시지를 설명하던 transitional Skill 및 모든 `sidey-*` 이름은 제거한다. 일반 PR review와 release 실행은 기존 diff 분류·전문 Skill·release script/Actions를 감싸는 중복이므로 별도 Skill을 두지 않고, 현재 실제 consumer가 없는 Claude·Copilot adapter도 만들지 않는다. `app-verification`은 결정론적 빌드·실행을 재구현하지 않고 exact-main macOS 실행 또는 Windows CI smoke evidence의 범위와 한계를 해석한다. commit 제목은 정책 문서, `validate_commit_message.py`, mutation 전 workflow 검사와 새 commit range/PR title CI 검사로 완결하며 attribution hook은 공동 작성자 기록만 담당한다. 순수 AGENTS·Skill·기여자 validator 변경은 shared 검사만 요구하되 workflow/CI 판정 자체나 실제 앱·웹·릴리스 tooling 변경의 기존 검증 범위는 줄이지 않는다.
+
 2026-09-15 콘텐츠·가격·macOS 배포판 동작 통일: 사용자 확정 계획에 따라 모든 상품의 직배포·Windows·웹·서버 기준 가격과 로컬 StoreKit 가격을 1,100원으로 통일하되, 말풍선 3종·두쫀쿠·왁뿌볼은 2,200원, 미니 대포는 3,300원으로 한다. 나무·별빛 우파루파도 1,100원이다. 기존 주문·거래 금액과 Apple 판매·복원 ID는 보존한다. App Store 화면은 Apple 현지화 가격만 표시하고 운영 가격 차이는 후속 출시 작업에 기록한다.
 
 승인된 시바견·오리·똥·떡볶이·쿼카와 테니스공·휴지 뭉치·어묵꼬치·잎사귀를 두 macOS 배포판에 연결한다. 오리는 기존 삑삑 오리 상품을 재사용하므로 신규 상품은 9개, 전체 유료 상품은 33개다. 캐릭터 17종·기본 포함 투척물 19종을 목표로 한다. 캐릭터와 물건의 소유권은 독립적이며 모든 캐릭터의 미장착 투척물은 말랑공이다. Windows 신규 콘텐츠 연결은 이 범위에 없고 기존 상품 가격·나무 공유만 변경한다.

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Version Audit"
+  short_description: "Classify and verify SIDEY release versions"
+  default_prompt: "Use $version-audit to determine the minimum valid SIDEY version from the actual artifact diff and report consistency evidence."
+
+policy:
+  allow_implicit_invocation: true

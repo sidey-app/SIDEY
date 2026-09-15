@@ -61,6 +61,22 @@ class ContributorArchitectureTests(unittest.TestCase):
         self.add_skill("sample-skill")
         self.assertEqual(validate_repository(self.root), [])
 
+    def test_explicit_false_implicit_invocation_policy_is_valid(self):
+        self.add_skill("explicit-only", implicit_policy="false")
+        self.assertEqual(validate_repository(self.root), [])
+
+    def test_missing_openai_metadata_is_reported(self):
+        self.add_skill("missing-metadata", metadata=False)
+        self.assertIn("missing-openai-metadata", self.codes())
+
+    def test_orphan_openai_metadata_is_reported(self):
+        self.write(
+            ".agents/skills/orphan/agents/openai.yaml",
+            "interface:\n  default_prompt: \"Use $orphan for this task.\"\n"
+            "policy:\n  allow_implicit_invocation: false\n",
+        )
+        self.assertIn("orphan-openai-metadata", self.codes())
+
     def test_required_frontmatter_fields_are_reported(self):
         self.write(".agents/skills/missing-fields/SKILL.md", "---\n---\n\n# Skill\n")
         codes = self.codes()
@@ -96,6 +112,10 @@ class ContributorArchitectureTests(unittest.TestCase):
         self.add_skill("new-skill", directory="windows/.agents/skills/new-skill")
         self.assertIn("unexpected-skill-location", self.codes())
 
+    def test_nested_skill_file_without_skill_manifest_is_rejected(self):
+        self.write("windows/.agents/skills/notes/reference.md", "# Reference\n")
+        self.assertIn("unexpected-nested-skills-path", self.codes())
+
     def test_missing_windows_routing_targets_are_reported(self):
         self.write(
             "AGENTS.md",
@@ -116,6 +136,44 @@ class ContributorArchitectureTests(unittest.TestCase):
         self.add_skill("calling-skill", body="# Skill\n\nAlso use `$missing-skill`.\n")
         self.assertIn("missing-skill-reference", self.codes())
 
+    def test_dangling_inline_canonical_skill_path_is_reported(self):
+        self.add_skill("available-skill")
+        self.write(
+            "AGENTS.md",
+            "Use `.agents/skills/missing-skill/SKILL.md` for this task.\n",
+        )
+        self.assertIn("missing-skill-path-reference", self.codes())
+
+    def test_dangling_powershell_module_reference_is_reported(self):
+        self.add_skill(
+            "module-check",
+            body="# Module check\n\nRun `scripts/windows/Missing.Module.psm1`.\n",
+        )
+        self.assertIn("missing-script-reference", self.codes())
+
+    def test_retired_skill_references_are_reported_in_active_sources(self):
+        self.add_skill(
+            "version-audit",
+            body="# Version audit\n\nDo not invoke sidey-workflow.\n",
+        )
+        self.write("AGENTS.md", "The sidey-commit skill is retired.\n")
+        metadata = self.root / ".agents/skills/version-audit/agents/openai.yaml"
+        metadata.write_text(
+            metadata.read_text(encoding="utf-8")
+            + "# Formerly sidey-versioning.\n",
+            encoding="utf-8",
+        )
+        violations = validate_repository(self.root)
+        retired = [item for item in violations if item.code == "retired-skill-reference"]
+        self.assertEqual(len(retired), 3)
+
+    def test_retired_names_in_history_tests_and_state_are_not_active_references(self):
+        self.add_skill("version-audit")
+        self.write("docs/history/migration.md", "Removed sidey-versioning.\n")
+        self.write("scripts/tests/test_fixture.py", "OLD_NAME = 'sidey-commit'\n")
+        self.write("scripts/workflow.py", "STATE_DIRECTORY = 'sidey-workflow'\n")
+        self.assertEqual(validate_repository(self.root), [])
+
     def test_metadata_requires_explicit_implicit_invocation_policy(self):
         self.add_skill("missing-policy", implicit_policy=None)
         self.assertIn("missing-implicit-invocation-policy", self.codes())
@@ -130,6 +188,20 @@ class ContributorArchitectureTests(unittest.TestCase):
 
     def test_canonical_windows_skill_set_is_valid(self):
         for name in (
+            "windows-code-review",
+            "windows-dev-docs",
+            "windows-powershell",
+            "windows-tests",
+        ):
+            self.add_skill(name)
+        self.assertEqual(validate_repository(self.root), [])
+
+    def test_final_style_specialist_skill_set_is_valid(self):
+        for name in (
+            "version-audit",
+            "web-verification",
+            "release-notes",
+            "app-verification",
             "windows-code-review",
             "windows-dev-docs",
             "windows-powershell",

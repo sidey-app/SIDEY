@@ -1,0 +1,7 @@
+interface:
+  display_name: "Release Notes"
+  short_description: "Draft evidence-backed platform release notes"
+  default_prompt: "Use $release-notes to draft the canonical SIDEY release note from the exact shipped commit range and explain included and excluded changes."
+
+policy:
+  allow_implicit_invocation: true

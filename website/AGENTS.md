@@ -19,6 +19,6 @@ These instructions apply to `website/**`. The site is public product, store, che
 
 ## Workflow and validation
 
-Use `.agents/skills/sidey-public-web/SKILL.md` for public-copy or responsive-presentation work that requires source exploration, impact analysis and evidence. Update `docs/DECISIONS.md` when public wording becomes a confirmed product rule and `docs/PRODUCT_SPEC.md` when behavior or scope changes.
+Use [web verification](../.agents/skills/web-verification/SKILL.md) for public-copy or responsive-presentation work that requires claim, build, or rendered-layout evidence. Update `docs/DECISIONS.md` when public wording becomes a confirmed product rule and `docs/PRODUCT_SPEC.md` when behavior or scope changes.
 
 Run `pnpm --dir website test` for website changes and any narrower affected checks. Inspect generated pages or rendered desktop/mobile layouts when appearance changes, search final public copy for stale status and internal terminology, and run `git diff --check`. Building or editing the site does not authorize deployment.

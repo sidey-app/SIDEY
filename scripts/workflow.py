@@ -18,6 +18,8 @@ import sys
 import tempfile
 import time
 
+from validate_commit_message import validate_message, validate_subject
+
 
 class WorkflowError(RuntimeError):
     pass
@@ -161,6 +163,8 @@ def changed_paths(root, base, revision='HEAD', dirty=False):
 
 
 def platform_for(path):
+    if is_contributor_architecture_path(path):
+        return 'shared'
     if (path.startswith(('macos/', 'scripts/macos/')) or
         re.fullmatch(r'scripts/(?:export_macos|install_macos_dev|package_macos_release|release_macos)\.sh', path) or
         re.fullmatch(r'\.github/workflows/macos(?:-[^/]+)?\.yml', path)):
@@ -168,6 +172,29 @@ def platform_for(path):
     if path.startswith(('windows/', 'scripts/windows/')) or re.fullmatch(r'\.github/workflows/windows(?:-[^/]+)?\.yml', path):
         return 'windows'
     return 'shared'
+
+
+CONTRIBUTOR_ARCHITECTURE_FILES = frozenset({
+    '.githooks/prepare-commit-msg',
+    'scripts/setup_codex_attribution.py',
+    'scripts/tests/test_codex_attribution.py',
+    'scripts/tests/test_contributor_architecture.py',
+    'scripts/tests/test_validate_commit_message.py',
+    'scripts/validate_commit_message.py',
+    'scripts/validate_contributor_architecture.py',
+})
+
+
+def is_contributor_architecture_path(path):
+    """Return whether *path* can affect contributors but not shipped artifacts."""
+
+    return (
+        path == 'AGENTS.md'
+        or path.endswith('/AGENTS.md')
+        or path.startswith('.agents/skills/')
+        or '/.agents/skills/' in path
+        or path in CONTRIBUTOR_ARCHITECTURE_FILES
+    )
 
 
 def validate_paths(branch_name, paths):
@@ -182,6 +209,9 @@ def validate_paths(branch_name, paths):
 
 
 def required_scopes(paths):
+    if paths and all(is_contributor_architecture_path(path) for path in paths):
+        return ['shared']
+
     result = {'shared'}
     for path in paths:
         platform = platform_for(path)
@@ -238,11 +268,11 @@ def owned_task(root, task_id):
 
 def local_checks(root, platform):
     run(root, 'git', 'diff', '--check', capture=False)
-    run(root, sys.executable, '-m', 'unittest', 'discover', '-s', 'scripts/tests', capture=False)
+    run(root, sys.executable, '-X', 'utf8', '-m', 'unittest', 'discover', '-s', 'scripts/tests', capture=False)
     # Native/DB/web checks are required remotely by the scope-aware integration gate.
     if platform == 'shared':
-        run(root, sys.executable, 'scripts/validate_pixel_assets.py', capture=False)
-        run(root, sys.executable, 'scripts/verify_release_consistency.py',
+        run(root, sys.executable, '-X', 'utf8', 'scripts/validate_pixel_assets.py', capture=False)
+        run(root, sys.executable, '-X', 'utf8', 'scripts/verify_release_consistency.py',
             '--allow-pending-appcast', '--allow-unreleased-source', capture=False)
 
 
@@ -359,6 +389,12 @@ def commit_messages(root, base, checked_head):
                                        f'{base}..{checked_head}').split('\0') if message.strip()]
 
 
+def require_valid_commit_text(label, value, *, subject_only=False):
+    violations = validate_subject(value) if subject_only else validate_message(value)
+    if violations:
+        raise WorkflowError(f'{label} violates the commit policy: ' + '; '.join(violations))
+
+
 def pr_body_message(body):
     return f'Squash commit\n\n{body}'
 
@@ -399,6 +435,7 @@ def finish(root, args):
         validate_paths(branch(root), paths)
         if not args.message:
             raise WorkflowError('--message is required when committing explicit paths')
+        require_valid_commit_text('Commit message', args.message)
         git(root, 'add', '--', *paths)
         git(root, 'commit', '--only', '-m', args.message, '--', *paths)
         task = check_task(root, args.task)
@@ -435,6 +472,7 @@ def finish(root, args):
     if not prs:
         if not args.title or not args.body_file:
             raise WorkflowError('Provide --title and --body-file to create the task PR')
+        require_valid_commit_text('PR title', args.title, subject_only=True)
         run(root, 'gh', 'pr', 'create', '--base', 'main', '--head', branch(root),
             '--title', args.title, '--body-file', str(Path(args.body_file).resolve()))
         prs = json.loads(run(root, 'gh', 'pr', 'list', '--head', branch(root), '--base', 'main',
@@ -451,6 +489,7 @@ def finish(root, args):
     checked_head = task['checked']['head']
     checked_base = task['checked']['base']
     details = json.loads(run(root, 'gh', 'pr', 'view', number, '--json', 'title,body'))
+    require_valid_commit_text('PR title', details['title'], subject_only=True)
     messages = commit_messages(root, checked_base, checked_head)
     body = squash_body(root, details.get('body') or '', messages)
     expected_coauthors = coauthor_trailers(root, [pr_body_message(details.get('body') or '')] + messages)
