@@ -250,9 +250,7 @@
       "pixel_monkey": "친구를 클릭하면 잘 익은 바나나를 던져요.",
       "pixel_chinchilla": "친구를 클릭하면 보송한 먼지목욕 모래주머니를 던져요."
     },
-    "price2900": "2,900원",
-    "price1900": "1,900원",
-    "price990": "990원",
+    "priceKrw": "{0:N0}원",
     "productDescriptions": {
       "bubble_bunny_pink": "토끼 장식이 있는 분홍 말풍선",
       "bubble_butter_chick": "병아리 장식이 있는 버터색 말풍선",

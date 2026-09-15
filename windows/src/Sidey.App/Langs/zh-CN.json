@@ -157,9 +157,7 @@
       "pixel_monkey": "点击好友的角色，投出一根熟透的香蕉。",
       "pixel_chinchilla": "点击好友的角色，投出一小袋浴沙。"
     },
-    "price2900": "2,900 韩元",
-    "price1900": "1,900 韩元",
-    "price990": "990 韩元",
+    "priceKrw": "{0:N0} 韩元",
     "productDescriptions": {
       "bubble_bunny_pink": "粉红色气泡配有兔兔装饰和清晰的深色文字。",
       "bubble_butter_chick": "奶油黄色气泡配有小鸡装饰和清晰的深色文字。",
