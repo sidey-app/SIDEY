@@ -208,7 +208,12 @@ def _yaml_scalar(source: str, key: str) -> str | None:
     return _unquote(match.group(1)) if match else None
 
 
-def _validate_openai_metadata(root: Path, skills: Iterable[Skill]) -> list[Violation]:
+def _validate_openai_metadata(
+    root: Path,
+    skills: Iterable[Skill],
+    *,
+    allow_pending_windows_instructions: bool,
+) -> list[Violation]:
     violations: list[Violation] = []
     for skill in skills:
         metadata = skill.path.parent / "agents" / "openai.yaml"
@@ -231,7 +236,11 @@ def _validate_openai_metadata(root: Path, skills: Iterable[Skill]) -> list[Viola
             )
 
         policy = _yaml_scalar(source, "allow_implicit_invocation")
-        if policy not in {"true", "false"} and relative not in TRANSITIONAL_MISSING_IMPLICIT_POLICY:
+        policy_is_transitionally_pending = (
+            allow_pending_windows_instructions
+            and relative in TRANSITIONAL_MISSING_IMPLICIT_POLICY
+        )
+        if policy not in {"true", "false"} and not policy_is_transitionally_pending:
             violations.append(
                 Violation(
                     "missing-implicit-invocation-policy",
@@ -359,7 +368,13 @@ def validate_repository(
 
     repository_root = Path(root).resolve()
     skills, violations = _discover_skills(repository_root)
-    violations.extend(_validate_openai_metadata(repository_root, skills))
+    violations.extend(
+        _validate_openai_metadata(
+            repository_root,
+            skills,
+            allow_pending_windows_instructions=allow_pending_windows_instructions,
+        )
+    )
     violations.extend(
         _validate_references(
             repository_root,
@@ -379,9 +394,9 @@ def _parser() -> argparse.ArgumentParser:
         help="repository root to audit (defaults to this script's repository)",
     )
     parser.add_argument(
-        "--require-all-routing-targets",
+        "--require-windows-instruction-foundation",
         action="store_true",
-        help="disable the two pending Windows AGENTS routing allowances",
+        help="disable pending Windows AGENTS and write-docs metadata allowances",
     )
     return parser
 
@@ -390,7 +405,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     violations = validate_repository(
         arguments.root,
-        allow_pending_windows_instructions=not arguments.require_all_routing_targets,
+        allow_pending_windows_instructions=not arguments.require_windows_instruction_foundation,
     )
     if violations:
         for violation in violations:

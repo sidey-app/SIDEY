@@ -135,6 +135,14 @@ class ContributorArchitectureTests(unittest.TestCase):
             implicit_policy=None,
         )
         self.assertNotIn("missing-implicit-invocation-policy", self.codes())
+        strict_codes = [
+            violation.code
+            for violation in validate_repository(
+                self.root,
+                allow_pending_windows_instructions=False,
+            )
+        ]
+        self.assertIn("missing-implicit-invocation-policy", strict_codes)
 
 
 if __name__ == "__main__":
