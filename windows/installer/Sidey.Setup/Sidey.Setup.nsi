@@ -24,6 +24,12 @@ Unicode true
 !ifndef LANGUAGE_SELECTOR_EXE
   !error "LANGUAGE_SELECTOR_EXE is required."
 !endif
+!ifndef INSTALL_TRANSACTION_EXE
+  !error "INSTALL_TRANSACTION_EXE is required."
+!endif
+!ifndef PREREQUISITE_INSTALLER_EXE
+  !error "PREREQUISITE_INSTALLER_EXE is required."
+!endif
 
 !define PRODUCT_NAME "SIDEY"
 !define PRODUCT_PUBLISHER "SIDEY"
@@ -201,10 +207,11 @@ Var SetupMutexHandle
 !macroend
 
 !macro RunInstallTransaction ACTION RESULT
-  ${DisableX64FSRedirection}
-  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\InstallTransaction.ps1" -Action ${ACTION} -InstallDirectory "$INSTDIR" -StagingDirectory "$StagingDirectory" -RollbackDirectory "$RollbackDirectory" -Version "${APP_VERSION}"'
-  Pop ${RESULT}
-  ${EnableX64FSRedirection}
+  ClearErrors
+  ExecWait '"$PLUGINSDIR\Sidey.InstallTransaction.exe" --action ${ACTION} --install-directory "$INSTDIR" --staging-directory "$StagingDirectory" --rollback-directory "$RollbackDirectory" --version "${APP_VERSION}"' ${RESULT}
+  ${If} ${Errors}
+    StrCpy ${RESULT} 5
+  ${EndIf}
 !macroend
 
 Function .onInit
@@ -226,7 +233,7 @@ Function .onInit
   ; Recovery must precede installed-version classification. A process can stop
   ; after writing the new version but before committing its payload.
   Call InitializeInstallTransaction
-  Call PrepareRuntimeHelper
+  Call PrepareInstallerHelpers
   !insertmacro RunInstallTransaction "Recover" $0
   ${If} $0 != 0
     SetErrorLevel 1
@@ -352,10 +359,11 @@ Function DirectoryPagePre
 FunctionEnd
 
 Function StopSideyProcesses
-  nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /IM SIDEY.exe /F'
-  Pop $0
-  nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /IM SIDEY.Host.exe /F'
-  Pop $0
+  ClearErrors
+  ExecWait '"$PLUGINSDIR\Sidey.SetupSupport.exe" --stop-sidey-processes' $0
+  ${If} ${Errors}
+    StrCpy $0 5
+  ${EndIf}
 FunctionEnd
 
 Function InitializeInstallTransaction
@@ -414,30 +422,30 @@ Function ShowInstallerAfterLanguageSelection
   BringToFront
 FunctionEnd
 
-Function PrepareRuntimeHelper
+Function PrepareInstallerHelpers
   InitPluginsDir
   ; Updates can inherit the app host's Runtime working directory. Release it in
   ; the installer itself before launching any helper or removing the old app.
   SetOutPath "$PLUGINSDIR"
-  File /oname=$PLUGINSDIR\SetupRuntime.ps1 "${__FILEDIR__}\SetupRuntime.ps1"
-  File /oname=$PLUGINSDIR\Prerequisites.ps1 "${__FILEDIR__}\Prerequisites.ps1"
-  File /oname=$PLUGINSDIR\InstallerErrors.ps1 "${__FILEDIR__}\InstallerErrors.ps1"
-  File /oname=$PLUGINSDIR\InstallTransaction.ps1 "${__FILEDIR__}\InstallTransaction.ps1"
+  File /oname=$PLUGINSDIR\Sidey.InstallTransaction.exe "${INSTALL_TRANSACTION_EXE}"
+  File /oname=$PLUGINSDIR\Sidey.PrerequisiteInstaller.exe "${PREREQUISITE_INSTALLER_EXE}"
+  File /oname=$PLUGINSDIR\Sidey.SetupSupport.exe "${PUBLISH_DIR}\Uninstall.exe"
   File /oname=$PLUGINSDIR\prerequisites.json "${__FILEDIR__}\prerequisites.json"
 FunctionEnd
 
 Function EnsurePrerequisites
-  Call PrepareRuntimeHelper
+  Call PrepareInstallerHelpers
   Call ResetInstallerError
   StrCpy $InstallerErrorSource "PREREQUISITE"
   StrCpy $InstallerErrorStage "INSTALL"
   StrCpy $InstallerErrorTarget "SIDEY required runtimes"
   StrCpy $InstallerErrorCommand "Install-SideyPrerequisites"
   DetailPrint "$(PrerequisitesStatus)"
-  ${DisableX64FSRedirection}
-  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\SetupRuntime.ps1" -ProvisionAllUsers -ResultPath "$InstallerErrorResultPath" -LogPath "$InstallerErrorLogPath" -InstallerVersion "${APP_VERSION}"'
-  Pop $0
-  ${EnableX64FSRedirection}
+  ClearErrors
+  ExecWait '"$PLUGINSDIR\Sidey.PrerequisiteInstaller.exe" --provision-all-users --config "$PLUGINSDIR\prerequisites.json" --download-directory "$PLUGINSDIR" --result-path "$InstallerErrorResultPath" --log-path "$InstallerErrorLogPath" --installer-version "${APP_VERSION}"' $0
+  ${If} ${Errors}
+    StrCpy $0 5
+  ${EndIf}
   StrCpy $InstallerErrorExitCode $0
   StrCpy $InstallerErrorNativeCode $0
   Call LoadInstallerResult
@@ -479,13 +487,8 @@ Section "SIDEY" MainSection
 
   ; Keep the previous live install available until the full replacement payload
   ; is staged and validated. Downtime starts only after staging succeeds.
-  InitPluginsDir
-  SetOutPath "$PLUGINSDIR"
   ClearErrors
-  File /oname=$PLUGINSDIR\SideyLegacyMsiHelper.exe "${PUBLISH_DIR}\Uninstall.exe"
-  IfErrors payload_stage_failed
-  ClearErrors
-  ExecWait '"$PLUGINSDIR\SideyLegacyMsiHelper.exe" --detect-legacy-msi' $0
+  ExecWait '"$PLUGINSDIR\Sidey.SetupSupport.exe" --detect-legacy-msi' $0
   ${If} ${Errors}
     StrCpy $0 5
     Goto legacy_detection_failed
@@ -502,6 +505,9 @@ Section "SIDEY" MainSection
   ${EndIf}
 
   Call StopSideyProcesses
+  ${If} $0 != 0
+    Goto registration_rollback_failed
+  ${EndIf}
 
   !insertmacro RunInstallTransaction "Activate" $0
   ${If} $0 != 0
@@ -582,7 +588,7 @@ Section "SIDEY" MainSection
     StrCpy $InstallerErrorSource "MSI"
     StrCpy $InstallerErrorStage "DETECT"
     StrCpy $InstallerErrorTarget "Legacy SIDEY MSI"
-    StrCpy $InstallerErrorCommand "SideyLegacyMsiHelper.exe --detect-legacy-msi"
+    StrCpy $InstallerErrorCommand "Sidey.SetupSupport.exe --detect-legacy-msi"
     Call NormalizeInstallerError
     Call ShowInstallerError
     Abort
@@ -652,23 +658,28 @@ FunctionEnd
 Section "Uninstall"
   SetRegView 64
   SetShellVarContext all
-  nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /IM SIDEY.exe /F'
-  Pop $0
-  nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /IM SIDEY.Host.exe /F'
-  Pop $0
+  ClearErrors
+  ExecWait '"$INSTDIR\Runtime\SIDEY.UninstallHelper.exe" --stop-sidey-processes' $0
+  ${If} ${Errors}
+    StrCpy $0 5
+  ${EndIf}
+  ${If} $0 != 0
+    Goto uninstall_transaction_failed
+  ${EndIf}
 
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
   ClearErrors
-  File /oname=$PLUGINSDIR\InstallTransaction.ps1 "${__FILEDIR__}\InstallTransaction.ps1"
+  File /oname=$PLUGINSDIR\Sidey.InstallTransaction.exe "${INSTALL_TRANSACTION_EXE}"
   IfErrors uninstall_transaction_failed
   System::Call 'kernel32::GetCurrentProcessId() i.r0'
   StrCpy $StagingDirectory "$INSTDIR.sidey-staging-$0"
   StrCpy $RollbackDirectory "$INSTDIR.sidey-rollback"
-  ${DisableX64FSRedirection}
-  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\InstallTransaction.ps1" -Action CleanupForUninstall -InstallDirectory "$INSTDIR" -StagingDirectory "$StagingDirectory" -RollbackDirectory "$RollbackDirectory" -Version "${APP_VERSION}"'
-  Pop $0
-  ${EnableX64FSRedirection}
+  ClearErrors
+  ExecWait '"$PLUGINSDIR\Sidey.InstallTransaction.exe" --action CleanupForUninstall --install-directory "$INSTDIR" --staging-directory "$StagingDirectory" --rollback-directory "$RollbackDirectory" --version "${APP_VERSION}"' $0
+  ${If} ${Errors}
+    StrCpy $0 5
+  ${EndIf}
   ${If} $0 != 0
     Goto uninstall_transaction_failed
   ${EndIf}

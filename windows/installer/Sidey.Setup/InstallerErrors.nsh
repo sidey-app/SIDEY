@@ -1,4 +1,5 @@
-; Category-based installer UI. Native codes are normalized by InstallerErrors.ps1;
+; Category-based installer UI. Native codes are normalized by the compiled
+; prerequisite helper;
 ; this file deliberately branches only on application-owned categories/statuses.
 
 Var InstallerErrorStatus
@@ -221,10 +222,8 @@ FunctionEnd
 
 Function NormalizeInstallerError
   Delete "$InstallerErrorResultPath"
-  ${DisableX64FSRedirection}
-  nsExec::ExecToLog '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\SetupRuntime.ps1" -NativeCode "$InstallerErrorNativeCode" -Source "$InstallerErrorSource" -Stage "$InstallerErrorStage" -Target "$InstallerErrorTarget" -CommandDescription "$InstallerErrorCommand" -ExitCode "$InstallerErrorExitCode" -ResultPath "$InstallerErrorResultPath" -LogPath "$InstallerErrorLogPath" -InstallerVersion "${APP_VERSION}"'
-  Pop $R0
-  ${EnableX64FSRedirection}
+  ClearErrors
+  ExecWait '"$PLUGINSDIR\Sidey.PrerequisiteInstaller.exe" --normalize-error --native-code "$InstallerErrorNativeCode" --source "$InstallerErrorSource" --stage "$InstallerErrorStage" --target "$InstallerErrorTarget" --command-description "$InstallerErrorCommand" --exit-code "$InstallerErrorExitCode" --result-path "$InstallerErrorResultPath" --log-path "$InstallerErrorLogPath" --installer-version "${APP_VERSION}"' $R0
   Call LoadInstallerResult
 FunctionEnd
 

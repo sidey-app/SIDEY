@@ -219,6 +219,9 @@ if (-not $publishedVersionInfo.FileVersion.StartsWith(
 $installerBuildDirectory = Join-Path $outputDirectoryPath 'internal/setup-build'
 [IO.Directory]::CreateDirectory($installerBuildDirectory) | Out-Null
 $languageSelectorPath = Join-Path $installerBuildDirectory 'language/Sidey.SetupLanguage.exe'
+$helperDirectory = Join-Path $installerBuildDirectory 'helpers'
+$installTransactionExecutablePath = Join-Path $helperDirectory 'Sidey.InstallTransaction.exe'
+$prerequisiteInstallerExecutablePath = Join-Path $helperDirectory 'Sidey.PrerequisiteInstaller.exe'
 $termsSourcePath = Join-Path $repositoryRootPath 'website/src/pages/ko/terms.md'
 $termsGeneratorPath = Join-Path $PSScriptRoot 'New-InstallerTerms.ps1'
 $termsLicenseFilePath = Join-Path $installerBuildDirectory 'SideyTerms.txt'
@@ -289,11 +292,52 @@ Invoke-SideyNativeCommand `
     ) `
     -Description 'Installer language selector build'
 
+$helperBuilderPath = Join-Path $PSScriptRoot 'New-SideyHelperExecutable.ps1'
+$helperIconPath = Join-Path $repositoryRootPath 'windows/src/Sidey.App/Assets/Icons/SideyAppIcon.ico'
+& $helperBuilderPath `
+    -SourcePath (Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup/InstallTransaction.cs') `
+    -OutputPath $installTransactionExecutablePath `
+    -Version $Version -FileVersion "$Version.0" `
+    -Title 'SIDEY Install Transaction' `
+    -Description 'SIDEY atomic install transaction helper' `
+    -IconPath $helperIconPath
+& $helperBuilderPath `
+    -SourcePath (Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup/PrerequisiteInstaller.cs') `
+    -OutputPath $prerequisiteInstallerExecutablePath `
+    -Version $Version -FileVersion "$Version.0" `
+    -Title 'SIDEY Prerequisite Installer' `
+    -Description 'SIDEY prerequisite detection and installation helper' `
+    -IconPath $helperIconPath
+
 & (Join-Path $PSScriptRoot 'tests/Test-HelperExecutables.ps1') `
     -PublishDirectory $publishDirectoryPath -SelectorExecutablePath $languageSelectorPath `
     -Version $Version -FileVersion "$Version.0" `
     -NsisDirectory (Split-Path -Parent $resolvedMakensisPath)
-& (Join-Path $PSScriptRoot 'tests/Test-InstallTransaction.ps1')
+& (Join-Path $PSScriptRoot 'tests/Test-InstallTransaction.ps1') `
+    -HelperPath $installTransactionExecutablePath
+& (Join-Path $PSScriptRoot 'tests/Test-PrerequisiteInstaller.ps1') `
+    -HelperPath $prerequisiteInstallerExecutablePath `
+    -Version $Version -FileVersion "$Version.0"
+
+$runtimeInstallerSources = @(Get-ChildItem `
+    -LiteralPath (Split-Path -Parent $setupScriptPath) -File |
+    Where-Object { $_.Extension -in @('.nsi', '.nsh') } |
+    Select-Object -ExpandProperty FullName)
+foreach ($runtimeInstallerSource in $runtimeInstallerSources) {
+    $runtimeInstallerText = [IO.File]::ReadAllText($runtimeInstallerSource)
+    foreach ($forbiddenRuntimeToken in @(
+        'powershell.exe',
+        'ExecutionPolicy',
+        '.ps1',
+        'nsExec::ExecToLog',
+        'taskkill.exe')) {
+        if ($runtimeInstallerText.IndexOf(
+            $forbiddenRuntimeToken,
+            [StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            throw "Installer runtime source contains forbidden token '$forbiddenRuntimeToken': $runtimeInstallerSource"
+        }
+    }
+}
 
 function ConvertTo-NsisLiteral {
     param([Parameter(Mandatory = $true)][string]$Value)
@@ -359,6 +403,8 @@ Invoke-SideyNativeCommand `
         "/DPAYLOAD_UNINSTALL_INCLUDE=$uninstallInclude",
         "/DTERMS_LICENSE_FILE=$termsLicenseFilePath",
         "/DLANGUAGE_SELECTOR_EXE=$languageSelectorPath",
+        "/DINSTALL_TRANSACTION_EXE=$installTransactionExecutablePath",
+        "/DPREREQUISITE_INSTALLER_EXE=$prerequisiteInstallerExecutablePath",
         $setupScriptPath
     ) `
     -Description 'SIDEY Setup EXE build'

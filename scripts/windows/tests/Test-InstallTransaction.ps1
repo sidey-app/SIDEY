@@ -1,13 +1,20 @@
 #requires -Version 5.1
 
 [CmdletBinding()]
-param()
+param(
+    [string]$HelperPath
+)
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '../../..')).Path
-$transactionScript = Join-Path $root 'windows/installer/Sidey.Setup/InstallTransaction.ps1'
 $probeRoot = Join-Path ([IO.Path]::GetTempPath()) ('SIDEY install transaction ' + [Guid]::NewGuid().ToString('N'))
+$transactionExecutable = if ([string]::IsNullOrWhiteSpace($HelperPath)) {
+    Join-Path $probeRoot 'Sidey.InstallTransaction.exe'
+}
+else {
+    (Resolve-Path -LiteralPath $HelperPath).Path
+}
 $install = Join-Path $probeRoot 'SIDEY'
 $staging = $install + '.sidey-staging-1234'
 $rollback = $install + '.sidey-rollback'
@@ -19,10 +26,51 @@ function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw $Message }
 }
 
-function Invoke-Transaction([string]$Action) {
-    & $transactionScript -Action $Action -InstallDirectory $install `
-        -StagingDirectory $staging -RollbackDirectory $rollback -Version $version `
-        -AllowUserWritableParentForTests
+function ConvertTo-NativeArgument([string]$Value) {
+    return '"' + $Value.Replace('\', '\').Replace('"', '\"') + '"'
+}
+
+function Invoke-Helper([string]$Arguments) {
+    $start = [Diagnostics.ProcessStartInfo]::new()
+    $start.FileName = $transactionExecutable
+    $start.Arguments = $Arguments
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $start.RedirectStandardError = $true
+    $process = [Diagnostics.Process]::Start($start)
+    try {
+        $errorText = $process.StandardError.ReadToEnd()
+        $process.WaitForExit()
+        return [ordered]@{
+            ExitCode = $process.ExitCode
+            ErrorText = $errorText.Trim()
+        }
+    }
+    finally {
+        $process.Dispose()
+    }
+}
+
+function Invoke-Transaction(
+    [string]$Action,
+    [string]$StagingDirectory = $staging,
+    [switch]$AllowFailure
+) {
+    $arguments = @(
+        '--action', (ConvertTo-NativeArgument $Action),
+        '--install-directory', (ConvertTo-NativeArgument $install),
+        '--staging-directory', (ConvertTo-NativeArgument $StagingDirectory),
+        '--rollback-directory', (ConvertTo-NativeArgument $rollback),
+        '--version', (ConvertTo-NativeArgument $version),
+        '--allow-user-writable-parent-for-tests'
+    ) -join ' '
+    $result = Invoke-Helper $arguments
+    if ($AllowFailure) {
+        return $result.ExitCode
+    }
+    if ($result.ExitCode -ne 0) {
+        throw "Install transaction failed. Action=$Action ExitCode=$($result.ExitCode) Error=$($result.ErrorText)"
+    }
 }
 
 function New-Payload([string]$Marker) {
@@ -33,8 +81,36 @@ function New-Payload([string]$Marker) {
     [IO.File]::WriteAllText((Join-Path $staging 'Uninstall.exe'), $Marker)
 }
 
+function Set-DeletionRestrictedPayload([string]$Path) {
+    foreach ($file in Get-ChildItem -LiteralPath $Path -File -Recurse -Force) {
+        [IO.File]::SetAttributes(
+            $file.FullName,
+            $file.Attributes -bor [IO.FileAttributes]::ReadOnly `
+                -bor [IO.FileAttributes]::Hidden -bor [IO.FileAttributes]::System)
+    }
+    $directories = @(Get-ChildItem -LiteralPath $Path -Directory -Recurse -Force) + `
+        @(Get-Item -LiteralPath $Path -Force)
+    foreach ($directory in $directories) {
+        [IO.File]::SetAttributes(
+            $directory.FullName,
+            $directory.Attributes -bor [IO.FileAttributes]::ReadOnly `
+                -bor [IO.FileAttributes]::Hidden -bor [IO.FileAttributes]::System)
+    }
+}
+
 try {
     [IO.Directory]::CreateDirectory($probeRoot) | Out-Null
+    if ([string]::IsNullOrWhiteSpace($HelperPath)) {
+        & (Join-Path $root 'scripts/windows/New-SideyHelperExecutable.ps1') `
+            -SourcePath (Join-Path $root 'windows/installer/Sidey.Setup/InstallTransaction.cs') `
+            -OutputPath $transactionExecutable -Version $version -FileVersion "$version.0" `
+            -Title 'SIDEY Install Transaction' `
+            -Description 'SIDEY atomic install transaction helper' `
+            -IconPath (Join-Path $root 'windows/src/Sidey.App/Assets/Icons/SideyAppIcon.ico')
+    }
+    Assert-True ([IO.File]::Exists($transactionExecutable)) `
+        'The compiled install transaction helper was not created.'
+
     [IO.Directory]::CreateDirectory($install) | Out-Null
     [IO.File]::WriteAllText((Join-Path $install 'marker.txt'), 'old')
 
@@ -45,6 +121,10 @@ try {
         'Activate did not promote the staged payload.'
     Assert-True ([IO.File]::Exists((Join-Path $rollback 'marker.txt'))) `
         'Activate did not retain the previous install for rollback.'
+    Set-DeletionRestrictedPayload $install
+    Assert-True (((Get-Item -LiteralPath (Join-Path $install 'SIDEY.exe') -Force).Attributes `
+            -band [IO.FileAttributes]::ReadOnly) -ne 0) `
+        'The rollback test payload was not made read-only.'
     Invoke-Transaction Rollback
     Assert-True ((Get-Content -LiteralPath (Join-Path $install 'marker.txt') -Raw) -ceq 'old') `
         'Rollback did not restore the previous install.'
@@ -75,6 +155,10 @@ try {
     Invoke-Transaction Activate
     Invoke-Transaction BeginRegistration
     Invoke-Transaction Commit
+    Set-DeletionRestrictedPayload $rollback
+    Assert-True (((Get-Item -LiteralPath (Join-Path $rollback 'marker.txt') -Force).Attributes `
+            -band [IO.FileAttributes]::ReadOnly) -ne 0) `
+        'The Complete test backup was not made read-only.'
     Invoke-Transaction Complete
     Assert-True ((Get-Content -LiteralPath (Join-Path $install 'SIDEY.exe') -Raw) -ceq 'new-committed') `
         'Complete did not keep the committed payload.'
@@ -82,6 +166,32 @@ try {
         'Complete did not remove the previous install.'
     Assert-True (-not [IO.File]::Exists($install + '.sidey-transaction.json')) `
         'Complete did not remove transaction state.'
+
+    Invoke-Transaction Prepare
+    New-Payload 'cleanup-retry'
+    Invoke-Transaction Activate
+    Invoke-Transaction BeginRegistration
+    Invoke-Transaction Commit
+    $lockedBackup = [IO.File]::Open(
+        (Join-Path $rollback 'SIDEY.exe'),
+        [IO.FileMode]::Open,
+        [IO.FileAccess]::Read,
+        [IO.FileShare]::None)
+    try {
+        $cleanupExitCode = Invoke-Transaction Complete -AllowFailure
+        Assert-True ($cleanupExitCode -eq 10) `
+            'Complete did not report retryable cleanup failure with exit code 10.'
+        Assert-True ([IO.File]::Exists($install + '.sidey-transaction.json')) `
+            'A failed cleanup removed transaction state needed for retry.'
+    }
+    finally {
+        $lockedBackup.Dispose()
+    }
+    Invoke-Transaction Complete
+    Assert-True (-not [IO.Directory]::Exists($rollback)) `
+        'A retried Complete did not remove the previous install.'
+    Assert-True ((Get-Content -LiteralPath (Join-Path $install 'SIDEY.exe') -Raw) -ceq 'cleanup-retry') `
+        'A retried Complete did not preserve the committed live payload.'
 
     Remove-Item -LiteralPath $install -Recurse -Force
     Invoke-Transaction Prepare
@@ -132,6 +242,10 @@ try {
     Invoke-Transaction Activate
     Invoke-Transaction BeginRegistration
     Invoke-Transaction Commit
+    Set-DeletionRestrictedPayload $rollback
+    Assert-True (((Get-Item -LiteralPath (Join-Path $rollback 'SIDEY.exe') -Force).Attributes `
+            -band [IO.FileAttributes]::ReadOnly) -ne 0) `
+        'The uninstall cleanup test backup was not made read-only.'
     Invoke-Transaction CleanupForUninstall
     Assert-True ([IO.File]::Exists((Join-Path $install 'SIDEY.exe'))) `
         'Uninstall cleanup removed the committed live payload.'
@@ -161,21 +275,20 @@ try {
 
     Invoke-Transaction Prepare
     [IO.File]::WriteAllText((Join-Path $staging 'SIDEY.exe'), 'incomplete')
-    $failed = $false
-    try { Invoke-Transaction Activate } catch { $failed = $true }
-    Assert-True $failed 'Activate accepted an incomplete staged payload.'
+    $failedExitCode = Invoke-Transaction Activate -AllowFailure
+    Assert-True ($failedExitCode -ne 0) 'Activate accepted an incomplete staged payload.'
     Assert-True ([IO.File]::Exists((Join-Path $install 'SIDEY.exe'))) `
         'An incomplete staged payload changed the live install.'
     Invoke-Transaction Rollback
 
-    $unsafeFailed = $false
-    try {
-        & $transactionScript -Action Prepare -InstallDirectory $install `
-            -StagingDirectory (Join-Path $probeRoot 'not-a-sidey-stage') `
-            -RollbackDirectory $rollback -Version $version -AllowUserWritableParentForTests
-    }
-    catch { $unsafeFailed = $true }
-    Assert-True $unsafeFailed 'The transaction accepted an unrelated staging directory.'
+    $unsafeExitCode = Invoke-Transaction Prepare `
+        -StagingDirectory (Join-Path $probeRoot 'not-a-sidey-stage') -AllowFailure
+    Assert-True ($unsafeExitCode -ne 0) `
+        'The transaction accepted an unrelated staging directory.'
+
+    $invalidResult = Invoke-Helper '--unsupported'
+    Assert-True ($invalidResult.ExitCode -eq 64) `
+        'The transaction helper did not reject unsupported arguments with exit code 64.'
 
     Write-Host "Install transaction tests passed. Assertions=$assertions"
 }
