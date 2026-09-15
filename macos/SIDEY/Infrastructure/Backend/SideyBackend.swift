@@ -289,28 +289,17 @@ actor SideyBackend {
         let rows: [DatabaseCommerceState] = try await client.rpc(
             "get_store_state"
         ).execute().value
-        let states = try rows.compactMap { state -> CommerceState? in
-            guard let registered = CommerceCatalog.product(id: state.productID) else { return nil }
-            guard state.productKind == registered.kind,
-                  state.catalogItemID == registered.catalogItemID,
-                  state.characterID == registered.characterID,
-                  state.entitlementKey == registered.entitlementKey,
-                  state.sortOrder == registered.sortOrder
-            else {
-                recoveryLogger.error("Store catalog metadata mismatch: \(state.productID, privacy: .public)")
-                throw SideyBackendError.malformedResponse
+        do {
+            return try StoreCatalogResponse.validatedStates(rows)
+        } catch let error as StoreCatalogResponse.ValidationError {
+            switch error {
+            case .duplicateProduct(let id):
+                recoveryLogger.error("Store catalog duplicate product: \(id, privacy: .public)")
+            case .mismatchedProduct(let id):
+                recoveryLogger.error("Store catalog metadata mismatch: \(id, privacy: .public)")
             }
-            if let characterID = state.characterID,
-               PixelCharacterCatalog.definition(for: characterID).id != characterID {
-                throw SideyBackendError.malformedResponse
-            }
-            return state.domain
-        }
-        guard states.count == CommerceCatalog.products.count else {
-            recoveryLogger.error("Store catalog count mismatch: server \(states.count), app \(CommerceCatalog.products.count)")
             throw SideyBackendError.malformedResponse
         }
-        return states.sorted { $0.product.sortOrder < $1.product.sortOrder }
     }
 
     func commerceState(

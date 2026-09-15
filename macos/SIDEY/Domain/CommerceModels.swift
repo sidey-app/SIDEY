@@ -185,7 +185,10 @@ enum CommercePurchaseState: Equatable, Sendable {
     case confirming
     case owned
     case error(String)
+    case unavailable
     case refunded
+
+    var canStartPurchase: Bool { self == .available || self == .refunded }
 
     var label: String {
         switch self {
@@ -195,6 +198,7 @@ enum CommercePurchaseState: Equatable, Sendable {
         case .confirming: "확인 중"
         case .owned: "보유 중"
         case .error: "오류"
+        case .unavailable: "현재 구매 불가"
         case .refunded: "환불됨"
         }
     }

@@ -21,11 +21,11 @@ final class PixelHamsterAssetTests: XCTestCase {
         "pixel_otter": "38ebed0f4588e4f776df44872c2e81e96d70056fb8c97b19c812433584e4b5db",
         "pixel_pig": "b383c07699cc40fe21c05f18aaf21730888685f9b0874a16b95cd82bebcd6f98",
         "pixel_tree": "ddf40aa115034c2c4fb3046673f6e20d2ca208d0b5a9ffa5737fb79c2e6cc97f",
-        "pixel_shiba": "011ae19b2882a18869666641681a33c9dc41b42cf30d1404ecb08e20b9acb928",
-        "pixel_duck": "09c0c4160cf143dd4a1859fe20fdbab1167d08c5b072f6cd1b7906bed429b97c",
-        "pixel_poop": "99ac0e9eb8c055f5663e3109d3e7cbbf95a0137f2920c8cde41fa265854188c1",
-        "pixel_tteokbokki": "0a7400c8d7019602147994a75c8e0171441f7c151629cb0f5948bb75e1b7b655",
-        "pixel_quokka": "e301cb83b48761c1bb5b83f82a6525638d973eb7e337ebe378dea88d370e2a7c"
+        "pixel_shiba": "f0fbdc42e774c4fc005b6712d7361f1032864c71f1dae6a62d4f631483de647f",
+        "pixel_duck": "007e181fc7546b5346fc52746daf60985fe6113f366795a8c90f21d1b084e559",
+        "pixel_poop": "0f2853654e953abe92fbfbd8894df1396f28fc32fe06db9b5c3db60197da1c43",
+        "pixel_tteokbokki": "1da9b6df95412bfc52df6dc21157d2708a40f508de48cb3f9c8764ca7a378b92",
+        "pixel_quokka": "55965cec0be9ac26787c255c92dd6ca5300164a505e12e506be2f87c010dcf3a"
     ]
 
     func testAllRuntimeSheetsAreTen24PixelFramesWithAlphaAndStableHashes() throws {
