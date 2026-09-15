@@ -74,11 +74,11 @@ xcodebuild \
 	"$@" \
 	archive
 
-SIDEY_APP="$SIDEY_ARCHIVE_PATH/Products/Applications/SIDEYAppStore.app"
-SIDEY_EXECUTABLE="$SIDEY_APP/Contents/MacOS/SIDEYAppStore"
+SIDEY_APP="$SIDEY_ARCHIVE_PATH/Products/Applications/SIDEY.app"
+SIDEY_EXECUTABLE="$SIDEY_APP/Contents/MacOS/SIDEY"
 SIDEY_INFO_PLIST="$SIDEY_APP/Contents/Info.plist"
 SIDEY_PRIVACY_MANIFEST="$SIDEY_APP/Contents/Resources/PrivacyInfo.xcprivacy"
-SIDEY_DSYM_DWARF="$SIDEY_ARCHIVE_PATH/dSYMs/SIDEYAppStore.app.dSYM/Contents/Resources/DWARF/SIDEYAppStore"
+SIDEY_DSYM_DWARF="$SIDEY_ARCHIVE_PATH/dSYMs/SIDEY.app.dSYM/Contents/Resources/DWARF/SIDEY"
 
 for SIDEY_REQUIRED_PATH in \
 	"$SIDEY_EXECUTABLE" \

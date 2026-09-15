@@ -8,7 +8,7 @@
       buildArchitectures = "Automatic">
       <BuildActionEntries>
          <BuildActionEntry
-            buildForTesting = "NO"
+            buildForTesting = "YES"
             buildForRunning = "YES"
             buildForProfiling = "YES"
             buildForArchiving = "YES"
@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "100000000000000000000049"
-               BuildableName = "SIDEYAppStore.app"
+               BuildableName = "SIDEY.app"
                BlueprintName = "SIDEYAppStore"
                ReferencedContainer = "container:SIDEY.xcodeproj">
             </BuildableReference>
@@ -28,7 +28,13 @@
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES">
+      <EnvironmentVariables>
+         <EnvironmentVariable key="SIDEY_TESTING" value="1" isEnabled="YES"/>
+      </EnvironmentVariables>
       <Testables>
+         <TestableReference skipped="NO" parallelizable="NO">
+            <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="300000000000000000000023" BuildableName="SIDEYAppStoreTests.xctest" BlueprintName="SIDEYAppStoreTests" ReferencedContainer="container:SIDEY.xcodeproj"/>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
@@ -44,7 +50,7 @@
       <PreActions>
          <ExecutionAction ActionType="Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
             <ActionContent title="Verify current build before launch" scriptText="/usr/bin/python3 &quot;$SRCROOT/../scripts/macos/build_provenance.py&quot; prepare-launch&#10;">
-               <EnvironmentBuildable><BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="100000000000000000000049" BuildableName="SIDEYAppStore.app" BlueprintName="SIDEYAppStore" ReferencedContainer="container:SIDEY.xcodeproj" /></EnvironmentBuildable>
+               <EnvironmentBuildable><BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="100000000000000000000049" BuildableName="SIDEY.app" BlueprintName="SIDEYAppStore" ReferencedContainer="container:SIDEY.xcodeproj" /></EnvironmentBuildable>
             </ActionContent>
          </ExecutionAction>
       </PreActions>
@@ -53,7 +59,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "100000000000000000000049"
-            BuildableName = "SIDEYAppStore.app"
+            BuildableName = "SIDEY.app"
             BlueprintName = "SIDEYAppStore"
             ReferencedContainer = "container:SIDEY.xcodeproj">
          </BuildableReference>
@@ -70,7 +76,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "100000000000000000000049"
-            BuildableName = "SIDEYAppStore.app"
+            BuildableName = "SIDEY.app"
             BlueprintName = "SIDEYAppStore"
             ReferencedContainer = "container:SIDEY.xcodeproj">
          </BuildableReference>

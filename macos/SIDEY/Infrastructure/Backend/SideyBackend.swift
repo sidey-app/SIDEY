@@ -195,6 +195,21 @@ actor SideyBackend {
         eventContinuation.finish()
     }
 
+    func setTreeMovementPaused(_ paused: Bool, expectedRevision: Int64, expectedUserID: UUID) async throws -> Profile {
+        try Task.checkCancellation()
+        guard client.auth.currentUser?.id == expectedUserID else { throw SideyBackendError.sessionRecoveryFailed }
+        struct Parameters: Encodable {
+            let p_paused: Bool
+            let p_expected_revision: Int64
+        }
+        let rows: [DatabaseProfile] = try await client.rpc(
+            "set_tree_movement_paused",
+            params: Parameters(p_paused: paused, p_expected_revision: expectedRevision)
+        ).execute().value
+        guard let profile = rows.first else { throw SideyBackendError.malformedResponse }
+        return profile.domain
+    }
+
     func loadSnapshot() async throws -> BackendSnapshot {
         let session = try await client.auth.session
         async let profileRows: [DatabaseProfile] = client.from("profiles")
@@ -228,7 +243,9 @@ actor SideyBackend {
                     nickname: peer?.nickname ?? "친구",
                     characterID: PixelCharacterCatalog.canonicalID(for: peer?.characterID ?? "pixel_hamster"),
                     presence: .offline,
-                    equippedBubbleStyleID: peer?.equippedBubbleStyleID
+                    equippedBubbleStyleID: peer?.equippedBubbleStyleID,
+                    treeMovementPaused: peer?.treeMovementPaused ?? false,
+                    treeMovementRevision: peer?.treeMovementRevision
                 )
             }
             return Room(

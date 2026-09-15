@@ -126,19 +126,25 @@ struct Profile: Codable, Equatable, Sendable {
     var characterID: String
     var equippedBubbleStyleID: String?
     var equippedThrowableID: String?
+    var treeMovementPaused: Bool
+    var treeMovementRevision: Int64?
 
     init(
         id: UUID,
         nickname: String,
         characterID: String,
         equippedBubbleStyleID: String? = nil,
-        equippedThrowableID: String? = nil
+        equippedThrowableID: String? = nil,
+        treeMovementPaused: Bool = false,
+        treeMovementRevision: Int64? = nil
     ) {
         self.id = id
         self.nickname = nickname
         self.characterID = characterID
         self.equippedBubbleStyleID = equippedBubbleStyleID
         self.equippedThrowableID = equippedThrowableID
+        self.treeMovementPaused = treeMovementPaused
+        self.treeMovementRevision = treeMovementRevision
     }
 }
 
@@ -160,6 +166,8 @@ struct RoomMember: Codable, Equatable, Identifiable, Sendable {
     var characterID: String
     var presence: PresenceState
     var equippedBubbleStyleID: String? = nil
+    var treeMovementPaused: Bool = false
+    var treeMovementRevision: Int64? = nil
 }
 
 struct ChatMessage: Codable, Equatable, Identifiable, Sendable {
