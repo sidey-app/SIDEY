@@ -1,6 +1,6 @@
-name: Windows CI
+name: Validate Windows
 
-# PR and main validation is owned by integration.yml to avoid duplicate native runs.
+# Automatic PR and main validation is owned by validate-change.yml.
 on:
   workflow_dispatch:
 
@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: windows-ci-${{ github.ref }}
+  group: validate-windows-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

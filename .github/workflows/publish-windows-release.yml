@@ -1,4 +1,4 @@
-name: Windows Release
+name: Publish Windows release
 
 on:
   workflow_dispatch:
@@ -12,7 +12,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: windows-production-release
+  group: publish-windows-release
   cancel-in-progress: false
 
 jobs:
@@ -210,10 +210,10 @@ jobs:
             throw "Release was not published as a regular release: $tag"
           }
 
-  pages:
+  deploy_website:
     needs: publish
     permissions:
       contents: read
       pages: write
       id-token: write
-    uses: ./.github/workflows/pages.yml
+    uses: ./.github/workflows/deploy-website.yml

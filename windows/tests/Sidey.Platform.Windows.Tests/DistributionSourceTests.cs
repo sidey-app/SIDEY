@@ -469,9 +469,9 @@ public sealed class DistributionSourceTests
     }
 
     [Theory]
-    [InlineData("windows.yml")]
-    [InlineData("windows-release.yml")]
-    public void CiValidatesPublishedFilesWithoutLaunchingTheGui(string workflowName)
+    [InlineData("validate-windows.yml")]
+    [InlineData("publish-windows-release.yml")]
+    public void WorkflowsValidatePublishedFilesWithoutLaunchingTheGui(string workflowName)
     {
         string workflow = File.ReadAllText(RepositoryPath(".github", "workflows", workflowName));
         Assert.Contains("--self-contained false", workflow, StringComparison.Ordinal);
