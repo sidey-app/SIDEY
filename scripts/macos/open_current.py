@@ -79,7 +79,7 @@ def main():
         # Direct shell invocation has the same latest-main default as workflow open.
         records = run('git', '-C', str(root), 'worktree', 'list', '--porcelain', capture=True)
         primary = Path(records.splitlines()[0].split(' ', 1)[1]).resolve()
-        workflow = root / 'scripts/workflow.py'
+        workflow = root / 'scripts/skills/workflow.py'
         if not workflow.exists():
             raise RuntimeError('Use an explicit --worktree preview until the shared workflow is integrated')
         command = [sys.executable, str(workflow), '--repo', str(primary), 'open', '--scheme', args.scheme]

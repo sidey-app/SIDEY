@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 import unittest
 sys.path.insert(0, str(Path(__file__).parents[1]))
+sys.path.insert(0, str(Path(__file__).parents[1] / 'skills'))
 import commerce_catalog as c
 from workflow import validate_paths, WorkflowError
 

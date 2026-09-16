@@ -56,7 +56,7 @@ python3 docs/reviews/character-five/serve_review.py
 2. 선택된 물건 5종의 그림·회전·충돌 승인, 물건별 번호 음원 선택(기존 삑삑 오리 소리 재사용은 확정), 합성 장면 최종 승인과 캐릭터·물건 고유 설명 10개를 승인한다. 제작을 먼저 허용한 응답은 최종 승인으로 간주하지 않는다.
 3. `approvals.json`에 후보 ID·대상 경로·SHA-256·실제 사용자 선택과 근거를 기록한다. 미응답은 pending이다. 파일이 바뀌면 이전 승인은 유효하지 않다. 생성 콘셉트 승인만으로 최종 프레임 승인을 채우지 않는다.
 4. `python3 docs/reviews/character-five/verify_package.py --require-approved`가 모든 최종 산출물·승인·해시를 확인해야 병합할 수 있다. 현재는 모든 승인이 완료되어 통과해야 한다.
-5. 독립 최종 diff 검토와 정확한 head의 필수 CI 이후 `scripts/workflow.py check/finish`로 후속 PR을 merge commit으로 병합하고 기본 main 작업 폴더를 갱신한다.
+5. 독립 최종 diff 검토와 정확한 head의 필수 CI 이후 `scripts/skills/workflow.py check/finish`로 후속 PR을 merge commit으로 병합하고 기본 main 작업 폴더를 갱신한다.
 6. 병합 뒤 #27에 5종 채택 결과와 후속 PR 링크를 댓글로 남겨 종료한다. 원본 브랜치 force push·삭제는 하지 않는다.
 7. main에 비어 있지 않은 원작자 이관 커밋이 포함되는지, GitHub commit author가 `jungjiyu`인지 확인한다. [GitHub 기여자 안내](https://docs.github.com/en/repositories/viewing-activity-and-data-for-your-repository/viewing-a-projects-contributors)에 따라 계정 이메일 연결과 기본 브랜치 반영을 확인하고 집계 화면 갱신은 별도로 기록한다.
 

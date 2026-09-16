@@ -24,7 +24,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - id: scope
-        run: python3 scripts/workflow_ci.py
+        run: python3 scripts/skills/workflow_ci.py
 
   shared:
     runs-on: ubuntu-latest
@@ -33,13 +33,13 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - run: python3 scripts/validate_contributor_architecture.py
+      - run: python3 scripts/skills/validate_contributor_architecture.py
       - run: python3 -m unittest discover -s scripts/tests
-      - run: python3 -m unittest discover -s .agents/skills/release-notes/tests
+      - run: python3 -m unittest discover -s scripts/skills/release-notes/tests
       - run: python3 scripts/commerce_catalog.py --target shared --check
       - run: python3 scripts/commerce_catalog.py --target macos --check
       - run: python3 scripts/validate_pixel_assets.py
-      - run: python3 scripts/verify_release_consistency.py --allow-pending-appcast --allow-unreleased-source
+      - run: python3 scripts/skills/verify_release_consistency.py --allow-pending-appcast --allow-unreleased-source
 
   macos:
     needs: scope
@@ -95,7 +95,7 @@ jobs:
 
       - name: Validate Windows release metadata
         run: >-
-          python ./scripts/verify_release_consistency.py
+          python ./scripts/skills/verify_release_consistency.py
           --platform windows
           --allow-unreleased-source
 
@@ -257,4 +257,4 @@ jobs:
       - name: Require every applicable check, including missing or skipped jobs
         env:
           SIDEY_NEEDS: ${{ toJSON(needs) }}
-        run: python3 scripts/workflow_ci.py gate
+        run: python3 scripts/skills/workflow_ci.py gate

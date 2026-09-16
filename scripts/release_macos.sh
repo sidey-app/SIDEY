@@ -43,7 +43,7 @@ SIDEY_ZIP_SHA="$SIDEY_ZIP.sha256"
 SIDEY_DMG_SHA="$SIDEY_DMG.sha256"
 SIDEY_COMMIT=$(git rev-parse HEAD)
 
-python3 ./scripts/verify_release_consistency.py --platform macos --allow-pending-appcast
+python3 ./scripts/skills/verify_release_consistency.py --platform macos --allow-pending-appcast
 [ -f "$SIDEY_RELEASE_NOTES" ] || fail "Release notes are missing: $SIDEY_RELEASE_NOTES"
 if [ "${SIDEY_ARCHIVE_APP_STORE:-0}" = 1 ]; then
 	./scripts/macos/archive_app_store.sh
@@ -101,7 +101,7 @@ git -C "$SIDEY_APPCAST_CLONE" switch -c "$SIDEY_APPCAST_BRANCH"
 SIDEY_APPCAST_OUTPUT="$SIDEY_APPCAST_CLONE/updates/appcast.xml" \
 SIDEY_RELEASE_NOTES="$SIDEY_RELEASE_NOTES" \
 	./scripts/macos/prepare_sparkle_appcast.sh "$SIDEY_TAG" "$SIDEY_ZIP"
-python3 "$SIDEY_APPCAST_CLONE/scripts/verify_release_consistency.py" --platform macos
+python3 "$SIDEY_APPCAST_CLONE/scripts/skills/verify_release_consistency.py" --platform macos
 git -C "$SIDEY_APPCAST_CLONE" add updates/appcast.xml
 git -C "$SIDEY_APPCAST_CLONE" commit -m "$SIDEY_APPCAST_SUBJECT"
 git -C "$SIDEY_APPCAST_CLONE" push -u origin "$SIDEY_APPCAST_BRANCH"

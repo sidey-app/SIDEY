@@ -9,7 +9,7 @@ Resolve the previous published regular platform tag and the target commit. For m
 Run the skill-local collector from the repository root:
 
 ```text
-python3 .agents/skills/release-notes/scripts/collect_release_evidence.py --base <previous-tag> --target <target-commit> --target-tag <release-tag> --output <temporary-json-path>
+python3 scripts/skills/release-notes/collect_release_evidence.py --base <previous-tag> --target <target-commit> --target-tag <release-tag> --output <temporary-json-path>
 ```
 
 The collector is read-only. It follows the target's first-parent history so a traditional merge is represented once and SIDEY's squash integrations remain one record each. It resolves pull requests through GitHub's commit-to-pulls API because SIDEY squash subjects intentionally contain the Korean PR title without a `(#number)` suffix.

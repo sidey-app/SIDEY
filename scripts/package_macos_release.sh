@@ -14,7 +14,7 @@ fi
 
 SIDEY_BASE_VERSION=$(printf '%s\n' "$SIDEY_RELEASE_TAG" | sed -E 's/^v//; s/-.*$//')
 SIDEY_PROJECT_FILE="$SIDEY_REPO_ROOT/macos/SIDEY.xcodeproj/project.pbxproj"
-SIDEY_DIRECT_METADATA=$(python3 - "$SIDEY_PROJECT_FILE" "$SIDEY_REPO_ROOT/scripts" <<'PYTHON'
+SIDEY_DIRECT_METADATA=$(python3 - "$SIDEY_PROJECT_FILE" "$SIDEY_REPO_ROOT/scripts/skills" <<'PYTHON'
 from pathlib import Path
 import sys
 sys.path.insert(0, sys.argv[2])

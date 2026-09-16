@@ -14,11 +14,11 @@ class CiWorkflowTests(unittest.TestCase):
     def test_integration_is_the_automatic_shared_validation_entrypoint(self):
         integration = self.read('integration.yml')
         self.assertIn(
-            'python3 scripts/validate_contributor_architecture.py',
+            'python3 scripts/skills/validate_contributor_architecture.py',
             integration,
         )
         self.assertIn(
-            'python3 -m unittest discover -s .agents/skills/release-notes/tests',
+            'python3 -m unittest discover -s scripts/skills/release-notes/tests',
             integration,
         )
         self.assertNotIn('--require-windows-instruction-foundation', integration)

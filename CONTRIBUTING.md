@@ -52,8 +52,8 @@ and use the prefix that covers the complete change:
 Start a tracked task from a clean primary checkout:
 
 ```shell
-python3 scripts/workflow.py doctor
-python3 scripts/workflow.py start <task> --platform <shared|macos|windows> --worktree <path>
+python3 scripts/skills/workflow.py doctor
+python3 scripts/skills/workflow.py start <task> --platform <shared|macos|windows> --worktree <path>
 ```
 
 Keep platform work separate. A `macos/*` branch must not change Windows-owned
@@ -101,7 +101,7 @@ Install the attribution hook once per clone when Codex contributes to a
 commit:
 
 ```shell
-python3 scripts/setup_codex_attribution.py
+python3 scripts/skills/commit/setup_codex_attribution.py
 ```
 
 Before committing, inspect the complete working tree, stage only the files for
@@ -111,7 +111,7 @@ the current commit, and review the staged diff:
 git status --short
 git add -- <files>
 git diff --cached
-python3 scripts/validate_commit_message.py --subject "<subject>"
+python3 scripts/skills/commit/validate_commit_message.py --subject "<subject>"
 git commit
 ```
 
@@ -128,7 +128,7 @@ Review the full diff against the branch base, then run the repository workflow
 check. If any source file changes afterward, rerun the affected checks.
 
 ```shell
-python3 scripts/workflow.py check <task>
+python3 scripts/skills/workflow.py check <task>
 ```
 
 The pull request must point to the same commit that passed review and
@@ -150,7 +150,7 @@ Once branch publication and pull request creation are authorized, use the
 checked task workflow:
 
 ```shell
-python3 scripts/workflow.py publish <task> --title "<title>" --body-file <path>
+python3 scripts/skills/workflow.py publish <task> --title "<title>" --body-file <path>
 ```
 
 Required CI must finish successfully before merge. SIDEY uses squash merge;

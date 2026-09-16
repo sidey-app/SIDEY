@@ -16,7 +16,7 @@ import sys
 from typing import Iterable, Sequence
 
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 
 # This is a user-installed, non-project skill referenced only as an optional
 # follow-up.  Project-local skill references must otherwise resolve locally.

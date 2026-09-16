@@ -41,7 +41,7 @@ evidence.
    Before proposing a distributable build, determine the greatest build already consumed by
    either channel and add one. Repository metadata cannot prove external upload history: label
    the build `PROVISIONAL` and block upload readiness when that history is unavailable.
-6. Read `scripts/verify_release_consistency.py` for the current mirrors, then run the mode that
+6. Read `scripts/skills/verify_release_consistency.py` for the current mirrors, then run the mode that
    matches the state being audited. Windows publication uses the strict platform check. macOS
    pre-publication intentionally permits an older signed appcast; the appcast becomes strict
    after its verified post-release update. Candidate allowances validate only their named staged

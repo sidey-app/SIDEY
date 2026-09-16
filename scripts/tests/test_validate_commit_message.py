@@ -4,7 +4,11 @@ import unittest
 
 
 spec = importlib.util.spec_from_file_location(
-    "validate_commit_message", Path(__file__).parents[1] / "validate_commit_message.py"
+    "validate_commit_message",
+    Path(__file__).parents[1]
+    / "skills"
+    / "commit"
+    / "validate_commit_message.py",
 )
 validator = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(validator)

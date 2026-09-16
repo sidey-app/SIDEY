@@ -4,9 +4,18 @@ import json
 import os
 from pathlib import Path
 import sys
-from validate_commit_message import validate_message, validate_subject
-from validate_pull_request import PullRequestValidationError, validate_pr_body
-from workflow import WorkflowError, changed_paths, git, required_scopes, root_at, validate_paths
+from workflow import (
+    PullRequestValidationError,
+    WorkflowError,
+    changed_paths,
+    git,
+    required_scopes,
+    root_at,
+    validate_message,
+    validate_paths,
+    validate_pr_body,
+    validate_subject,
+)
 
 
 def verify_gate(scopes, needs):

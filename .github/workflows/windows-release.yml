@@ -40,7 +40,7 @@ jobs:
         env:
           CONFIRM_VERSION: ${{ inputs.confirm_version }}
         run: |
-          python ./scripts/verify_release_consistency.py `
+          python ./scripts/skills/verify_release_consistency.py `
             --platform windows `
             --github-output $env:GITHUB_OUTPUT
 

@@ -21,7 +21,10 @@ class AttributionTests(unittest.TestCase):
         self.git('init', '-q')
         self.git('config', 'user.name', 'Human')
         self.git('config', 'user.email', 'human@example.test')
-        for relative in ('.githooks/prepare-commit-msg', 'scripts/setup_codex_attribution.py'):
+        for relative in (
+            'scripts/skills/commit/prepare_commit_msg.py',
+            'scripts/skills/commit/setup_codex_attribution.py',
+        ):
             target = self.repo / relative
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / relative, target)
@@ -33,7 +36,10 @@ class AttributionTests(unittest.TestCase):
         ).strip()
 
     def install(self, check=True):
-        return subprocess.run([sys.executable, str(self.repo / 'scripts/setup_codex_attribution.py')],
+        return subprocess.run([
+            sys.executable,
+            str(self.repo / 'scripts/skills/commit/setup_codex_attribution.py'),
+        ],
                               cwd=self.repo, env=self.env, capture_output=True, check=check)
 
     def commit(self, body='test: change', *args):
@@ -103,7 +109,7 @@ class AttributionTests(unittest.TestCase):
         self.assertEqual(self.git('config', '--get', 'core.hooksPath'), 'custom-hooks')
 
     def test_setup_accepts_both_line_endings_and_preserves_source_bytes(self):
-        source = self.repo / '.githooks/prepare-commit-msg'
+        source = self.repo / 'scripts/skills/commit/prepare_commit_msg.py'
         destination = self.repo / '.git/hooks/prepare-commit-msg'
         canonical = source.read_bytes().replace(b'\r\n', b'\n')
         for source_ending in (b'\n', b'\r\n'):

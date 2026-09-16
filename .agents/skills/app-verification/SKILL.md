@@ -17,8 +17,8 @@ from an explicitly requested preview.
 
 ## macOS
 
-Use the verified opener exposed by `scripts/workflow.py`. For an already integrated task awaiting
-app review, run `python3 scripts/workflow.py open --task <task> --scheme <scheme>`. Without a task,
+Use the verified opener exposed by `scripts/skills/workflow.py`. For an already integrated task awaiting
+app review, run `python3 scripts/skills/workflow.py open --task <task> --scheme <scheme>`. Without a task,
 its plain `open` path reviews latest main. Use preview or offline modes only when explicitly
 requested, and label offline freshness as unverified.
 
@@ -30,7 +30,7 @@ that was not separately observed.
 ## Windows
 
 For an already integrated task awaiting app review, provide the successful current-`main` push
-run to `python3 scripts/workflow.py finish <task> --windows-run <run-id>`. The evidence must
+run to `python3 scripts/skills/workflow.py finish <task> --windows-run <run-id>`. The evidence must
 identify the exact head SHA, `.github/workflows/integration.yml` run URL, successful `windows`
 job, and successful `Run Windows app smoke` step. That smoke proves the published launcher/host
 startup and its instrumented preview probes; report it as GitHub Actions Windows verification,

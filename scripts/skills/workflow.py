@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import hashlib
+import importlib.util
 import json
 import locale
 import os
@@ -18,13 +19,33 @@ import sys
 import tempfile
 import time
 
-from validate_commit_message import validate_message, validate_subject
-from validate_pull_request import (
-    GENERAL_MARKER,
-    GENERAL_TEMPLATE,
-    PullRequestValidationError,
-    validate_pr_body,
+
+def load_skill_script(name, path):
+    """Load one skill-owned Python helper from its non-package directory."""
+
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f'Cannot load skill script: {path}')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+SKILL_SCRIPTS = Path(__file__).resolve().parent
+commit_policy = load_skill_script(
+    'sidey_validate_commit_message',
+    SKILL_SCRIPTS / 'commit' / 'validate_commit_message.py',
 )
+pull_request_policy = load_skill_script(
+    'sidey_validate_pull_request',
+    SKILL_SCRIPTS / 'create-pr' / 'validate_pull_request.py',
+)
+validate_message = commit_policy.validate_message
+validate_subject = commit_policy.validate_subject
+GENERAL_MARKER = pull_request_policy.GENERAL_MARKER
+GENERAL_TEMPLATE = pull_request_policy.GENERAL_TEMPLATE
+PullRequestValidationError = pull_request_policy.PullRequestValidationError
+validate_pr_body = pull_request_policy.validate_pr_body
 
 
 # Compatibility aliases for callers that inspect the canonical general template.
@@ -202,15 +223,15 @@ def platform_for(path):
 
 
 CONTRIBUTOR_ARCHITECTURE_FILES = frozenset({
-    '.githooks/prepare-commit-msg',
-    'scripts/setup_codex_attribution.py',
+    'scripts/skills/commit/prepare_commit_msg.py',
+    'scripts/skills/commit/setup_codex_attribution.py',
+    'scripts/skills/commit/validate_commit_message.py',
+    'scripts/skills/create-pr/validate_pull_request.py',
+    'scripts/skills/validate_contributor_architecture.py',
     'scripts/tests/test_codex_attribution.py',
     'scripts/tests/test_contributor_architecture.py',
     'scripts/tests/test_validate_commit_message.py',
     'scripts/tests/test_validate_pull_request.py',
-    'scripts/validate_commit_message.py',
-    'scripts/validate_contributor_architecture.py',
-    'scripts/validate_pull_request.py',
 })
 
 
@@ -222,6 +243,11 @@ def is_contributor_architecture_path(path):
         or path.endswith('/AGENTS.md')
         or path.startswith('.agents/skills/')
         or '/.agents/skills/' in path
+        or path.startswith((
+            'scripts/skills/commit/',
+            'scripts/skills/create-pr/',
+            'scripts/skills/release-notes/',
+        ))
         or path in CONTRIBUTOR_ARCHITECTURE_FILES
     )
 
@@ -257,7 +283,12 @@ def required_scopes(paths):
         if path == 'website/src/pages/ko/terms.md':
             result.add('windows')
         # Checkout attributes can change asset bytes on every build host.
-        if path in ('.gitattributes', '.github/workflows/integration.yml') or path.startswith('scripts/workflow'):
+        if path in (
+            '.gitattributes',
+            '.github/workflows/integration.yml',
+            'scripts/skills/workflow.py',
+            'scripts/skills/workflow_ci.py',
+        ):
             result.update(('macos', 'windows', 'web'))
         elif path == '.github/workflows/pages.yml':
             result.add('web')
@@ -300,11 +331,11 @@ def local_checks(root, platform):
     run(root, 'git', 'diff', '--check', capture=False)
     run(root, sys.executable, '-X', 'utf8', '-m', 'unittest', 'discover', '-s', 'scripts/tests', capture=False)
     run(root, sys.executable, '-X', 'utf8', '-m', 'unittest', 'discover',
-        '-s', '.agents/skills/release-notes/tests', capture=False)
+        '-s', 'scripts/skills/release-notes/tests', capture=False)
     # Native/DB/web checks are required remotely by the scope-aware integration gate.
     if platform == 'shared':
         run(root, sys.executable, '-X', 'utf8', 'scripts/validate_pixel_assets.py', capture=False)
-        run(root, sys.executable, '-X', 'utf8', 'scripts/verify_release_consistency.py',
+        run(root, sys.executable, '-X', 'utf8', 'scripts/skills/verify_release_consistency.py',
             '--allow-pending-appcast', '--allow-unreleased-source', capture=False)
 
 

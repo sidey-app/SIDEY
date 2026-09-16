@@ -7,7 +7,7 @@ MARKER = b'# SIDEY Codex attribution hook v1'
 
 
 def install():
-    source = Path(__file__).resolve().parents[1] / '.githooks/prepare-commit-msg'
+    source = Path(__file__).resolve().with_name('prepare_commit_msg.py')
     config = subprocess.run(['git', 'config', '--get', 'core.hooksPath'], capture_output=True, text=True)
     if config.returncode not in (0, 1):
         raise SystemExit(config.stderr)

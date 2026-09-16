@@ -27,7 +27,7 @@ For a local commit:
    does not require.
 5. Write the subject, optional body and footers according to
    `CONTRIBUTING.md`. Validate the complete message with
-   `scripts/validate_commit_message.py` before committing.
+   `scripts/skills/commit/validate_commit_message.py` before committing.
 6. Preserve the human Git author. Install or use the repository attribution
    hook when Codex authored the change, and include the required trailer once.
 7. Create the commit without bypassing hooks. If a hook fails, fix the cause

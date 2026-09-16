@@ -5,7 +5,7 @@ from pathlib import Path
 import unittest
 
 
-SCRIPT = Path(__file__).parents[1] / "scripts" / "validate_release_note.py"
+SCRIPT = Path(__file__).parents[1] / "validate_release_note.py"
 SPEC = importlib.util.spec_from_file_location("validate_release_note", SCRIPT)
 VALIDATOR = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(VALIDATOR)

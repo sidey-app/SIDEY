@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 import unittest
 from unittest.mock import patch
-sys.path.insert(0, str(Path(__file__).parents[1]))
+sys.path.insert(0, str(Path(__file__).parents[1] / 'skills'))
 from workflow import WorkflowError
 from workflow_ci import (
     commit_messages,

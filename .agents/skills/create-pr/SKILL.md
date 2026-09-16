@@ -27,7 +27,8 @@ not, return the prepared title and body without changing remote state.
    unrelated paths, prohibited platform mixing and unreviewed changes.
 3. Confirm that required checks passed for this exact HEAD. A failed, skipped,
    unavailable or stale check blocks publication.
-4. Write a title that passes `scripts/validate_commit_message.py --subject`.
+4. Write a title that passes
+   `scripts/skills/commit/validate_commit_message.py --subject`.
    Do not add a pull request number to the title.
 5. Copy the template selected from the complete changed-path set, preserve its
    hidden marker and required sections, and fill in concrete change and
@@ -38,7 +39,7 @@ not, return the prepared title and body without changing remote state.
 
 ## Publish
 
-Use `scripts/workflow.py` for freshness, ownership, push and pull request
+Use `scripts/skills/workflow.py` for freshness, ownership, push and pull request
 creation. Do not replace it with an ad hoc `git push` or `gh pr create` path.
 After publication, read the pull request back and confirm its number, URL,
 base, head commit, title and body.

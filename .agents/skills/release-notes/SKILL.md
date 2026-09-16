@@ -13,7 +13,12 @@ Establish the platform, target version and commit, intended artifact, and previo
 
 ## Collect and classify evidence
 
-Read [references/evidence.md](references/evidence.md), then use the read-only [collector](scripts/collect_release_evidence.py) to inventory first-parent integrations, associated pull requests, direct commits, authors and changed paths in the exact baseline-to-target range. The inventory is a routing aid, not sufficient evidence for release copy: inspect the relevant hunks, pull-request context and tests or artifact evidence.
+Read [references/evidence.md](references/evidence.md), then use the read-only
+[collector](../../../scripts/skills/release-notes/collect_release_evidence.py)
+to inventory first-parent integrations, associated pull requests, direct
+commits, authors and changed paths in the exact baseline-to-target range. The
+inventory is a routing aid, not sufficient evidence for release copy: inspect
+the relevant hunks, pull-request context and tests or artifact evidence.
 
 Include only changes consumed by the target platform artifact. Keep macOS and Windows independent. Exclude other-platform work, future work, release-note preparation itself, and internal-only changes without a meaningful user outcome. Record every integration as included or excluded with a reason; unresolved PR association or author attribution is `ACTION REQUIRED`, not a value to invent.
 
@@ -23,7 +28,12 @@ Read [references/format.md](references/format.md) before drafting. Translate imp
 
 Write or revise `docs/releases/v<version>.md` for macOS or `docs/releases/windows-v<version>.md` for Windows. The public GitHub Release body derives from that canonical file. Unless the user explicitly requests another section, use only the requested preamble when present, the summary, `## 변경사항`, attributed bullets and the final comparison link; do not add a release title, date, installation or limitations section by habit.
 
-Save the collector output outside tracked source, then run the skill-local [format validator](scripts/validate_release_note.py) with that evidence and the exact baseline and target tags. Then run the relevant `scripts/verify_release_consistency.py` mode and validate changed links. Recheck every bullet's PR or direct-commit reference and author against the collected evidence.
+Save the collector output outside tracked source, then run the
+[format validator](../../../scripts/skills/release-notes/validate_release_note.py)
+with that evidence and the exact baseline and target tags. Then run the
+relevant `scripts/skills/verify_release_consistency.py` mode and validate
+changed links. Recheck every bullet's PR or direct-commit reference and author
+against the collected evidence.
 
 ## Evidence
 

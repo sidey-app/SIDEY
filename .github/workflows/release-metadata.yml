@@ -17,6 +17,6 @@ jobs:
 
       - name: Verify release manifests and mirrors
         run: >-
-          ./scripts/verify_release_consistency.sh
+          ./scripts/skills/verify_release_consistency.sh
           --allow-pending-appcast
           --allow-unreleased-source

@@ -5,7 +5,7 @@ from pathlib import Path
 import unittest
 
 
-SCRIPT = Path(__file__).parents[1] / "scripts" / "collect_release_evidence.py"
+SCRIPT = Path(__file__).parents[1] / "collect_release_evidence.py"
 SPEC = importlib.util.spec_from_file_location(
     "collect_release_evidence",
     SCRIPT,

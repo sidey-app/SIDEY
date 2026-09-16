@@ -5,7 +5,7 @@ import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, str(Path(__file__).parents[1]))
+sys.path.insert(0, str(Path(__file__).parents[1] / "skills"))
 
 from validate_contributor_architecture import validate_repository
 
@@ -104,24 +104,27 @@ class ContributorArchitectureTests(unittest.TestCase):
         self.assertIn("missing-relative-link", self.codes())
         self.assertIn("missing-script-reference", self.codes())
 
-    def test_skill_local_script_reference_is_valid(self):
+    def test_skill_script_tree_reference_is_valid(self):
         self.add_skill(
             "scripted-skill",
             body=(
                 "# Scripted skill\n\n"
-                "Run [the helper](scripts/helper.py).\n"
+                "Run `scripts/skills/scripted-skill/helper.py`.\n"
             ),
         )
         self.write(
-            ".agents/skills/scripted-skill/scripts/helper.py",
-            '"""Skill-local helper."""\n',
+            "scripts/skills/scripted-skill/helper.py",
+            '"""Skill-owned helper."""\n',
         )
         self.assertEqual(validate_repository(self.root), [])
 
-    def test_missing_skill_local_script_is_reported(self):
+    def test_missing_skill_script_is_reported(self):
         self.add_skill(
             "scripted-skill",
-            body="# Scripted skill\n\nRun `scripts/missing.py`.\n",
+            body=(
+                "# Scripted skill\n\n"
+                "Run `scripts/skills/scripted-skill/missing.py`.\n"
+            ),
         )
         self.assertIn("missing-script-reference", self.codes())
 

@@ -9,8 +9,9 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).parents[1]))
-spec = importlib.util.spec_from_file_location('workflow', Path(__file__).parents[1] / 'workflow.py')
+SKILL_SCRIPTS = Path(__file__).parents[1] / 'skills'
+sys.path.insert(0, str(SKILL_SCRIPTS))
+spec = importlib.util.spec_from_file_location('workflow', SKILL_SCRIPTS / 'workflow.py')
 w = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(w)
 
@@ -424,11 +425,11 @@ class WorkflowTests(unittest.TestCase):
             'website/AGENTS.md',
             '.agents/skills/version-audit/SKILL.md',
             '.agents/skills/write-tests/agents/openai.yaml',
-            'scripts/validate_contributor_architecture.py',
+            'scripts/skills/validate_contributor_architecture.py',
             'scripts/tests/test_contributor_architecture.py',
-            'scripts/validate_commit_message.py',
+            'scripts/skills/commit/validate_commit_message.py',
             'scripts/tests/test_validate_commit_message.py',
-            '.githooks/prepare-commit-msg',
+            'scripts/skills/commit/prepare_commit_msg.py',
         ]
         self.assertEqual(w.required_scopes(paths), ['shared'])
         self.assertEqual(w.platform_for('macos/AGENTS.md'), 'shared')
@@ -527,7 +528,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn(
             (
                 w.sys.executable, '-X', 'utf8', '-m', 'unittest', 'discover', '-s',
-                '.agents/skills/release-notes/tests',
+                'scripts/skills/release-notes/tests',
             ),
             python_commands,
         )
@@ -558,7 +559,7 @@ class WorkflowTests(unittest.TestCase):
     def test_platform_workflow_only_changes_do_not_require_app_review(self):
         self.assertFalse(w.app_review_required('macos', ['.github/workflows/macos.yml']))
         self.assertFalse(w.app_review_required('windows', ['.github/workflows/windows.yml']))
-        self.assertFalse(w.app_review_required('shared', ['scripts/workflow.py']))
+        self.assertFalse(w.app_review_required('shared', ['scripts/skills/workflow.py']))
 
     def test_platform_app_inputs_still_require_app_review(self):
         self.assertTrue(w.app_review_required('macos', ['macos/Sources/SIDEY/App.swift']))
@@ -571,7 +572,10 @@ class WorkflowTests(unittest.TestCase):
         every_scope = {'shared', 'macos', 'windows', 'web'}
         self.assertEqual(set(w.required_scopes(['.github/workflows/integration.yml'])),
                          every_scope)
-        self.assertEqual(set(w.required_scopes(['scripts/workflow_ci.py'])), every_scope)
+        self.assertEqual(
+            set(w.required_scopes(['scripts/skills/workflow_ci.py'])),
+            every_scope,
+        )
 
     def test_checkout_attributes_require_native_and_web_verification(self):
         self.assertEqual(set(w.required_scopes(['.gitattributes'])),

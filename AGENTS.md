@@ -27,7 +27,7 @@ Keep native Supabase clients, the public website and client-facing product contr
 
 ## Work lifecycle
 
-Use an isolated, task-owned worktree on a branch whose platform prefix matches the complete change. Treat `scripts/workflow.py` as the executable source of truth for freshness, ownership, changed-path classification, checks, exact-head integration and primary-main refresh. Use [.agents/skills/app-verification/SKILL.md](.agents/skills/app-verification/SKILL.md) when an integrated app change needs a runtime verdict from exact-main provenance. Public releases, store uploads and production deployments are separate operations that require explicit authorization.
+Use an isolated, task-owned worktree on a branch whose platform prefix matches the complete change. Treat `scripts/skills/workflow.py` as the executable source of truth for freshness, ownership, changed-path classification, checks, exact-head integration and primary-main refresh. Use [.agents/skills/app-verification/SKILL.md](.agents/skills/app-verification/SKILL.md) when an integrated app change needs a runtime verdict from exact-main provenance. Public releases, store uploads and production deployments are separate operations that require explicit authorization.
 
 - Do not make implementation changes directly on `main`, switch or clean another task's dirty worktree, or overwrite unrelated user or agent changes.
 - Keep the requested change focused. Do not include drive-by refactors, formatting, generated output, or documentation changes that are not required by the task.
@@ -40,7 +40,7 @@ Use an isolated, task-owned worktree on a branch whose platform prefix matches t
 [CONTRIBUTING.md](CONTRIBUTING.md) is the human-readable source of truth for
 issues, branch boundaries, commit messages, validation and pull request
 content. Apply it to both manual and agent-assisted work. Deterministic rules
-remain enforced by the tracked validators, `scripts/workflow.py` and CI.
+remain enforced by the tracked validators, `scripts/skills/workflow.py` and CI.
 
 Use [.agents/skills/commit/SKILL.md](.agents/skills/commit/SKILL.md) when asked
 to prepare a commit message or create a local commit. Use
@@ -50,7 +50,7 @@ push, create a pull request, merge, release or deploy beyond the user's
 explicit request. GitHub's repository settings own the generated squash
 commit title and body; do not override them in the task workflow.
 
-Codex-assisted new commits must include `Co-authored-by: codex <codex@openai.com>` while preserving the human Git author. The canonical mechanism is the repository hook installed once per clone with `python3 scripts/setup_codex_attribution.py`; it also covers linked worktrees. If an existing hook prevents installation, preserve it and connect the tracked hook through that clone's hook manager; if automatic attribution is unavailable, add the trailer once to the newly authored Codex commit. Do not attribute imported or replayed history, duplicate attribution enforcement in the commit-message validator, or rewrite existing history to add attribution.
+Codex-assisted new commits must include `Co-authored-by: codex <codex@openai.com>` while preserving the human Git author. The canonical mechanism is the repository hook installed once per clone with `python3 scripts/skills/commit/setup_codex_attribution.py`; it also covers linked worktrees. If an existing hook prevents installation, preserve it and connect the tracked hook through that clone's hook manager; if automatic attribution is unavailable, add the trailer once to the newly authored Codex commit. Do not attribute imported or replayed history, duplicate attribution enforcement in the commit-message validator, or rewrite existing history to add attribution.
 
 ## Automatic parallel agent work
 

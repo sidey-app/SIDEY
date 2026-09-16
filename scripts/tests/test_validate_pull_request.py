@@ -3,7 +3,10 @@ from pathlib import Path
 import tempfile
 import unittest
 
-sys.path.insert(0, str(Path(__file__).parents[1]))
+sys.path.insert(
+    0,
+    str(Path(__file__).parents[1] / 'skills' / 'create-pr'),
+)
 
 from validate_pull_request import (  # noqa: E402
     CHARACTER_ASSET_MARKER,
