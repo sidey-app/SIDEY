@@ -42,4 +42,4 @@ jobs:
         run: rm -rf "$RUNNER_TEMP/sidey-source-packages"
 
       - name: Run native test suite
-        run: ./scripts/macos/test_native.sh -clonedSourcePackagesDirPath "$RUNNER_TEMP/sidey-source-packages"
+        run: ./scripts/macos/tests/test_native.sh -clonedSourcePackagesDirPath "$RUNNER_TEMP/sidey-source-packages"
