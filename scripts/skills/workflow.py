@@ -713,7 +713,7 @@ def finish(root, args):
     number = require_exact_task_pr(root, prs)
     # A named gate must actually exist and succeed; empty required checks never pass.
     checks = json.loads(run(root, 'gh', 'pr', 'checks', number, '--json', 'name,bucket,workflow'))
-    gate = [c for c in checks if c['name'] == 'SIDEY integration gate' and c['workflow'] == 'SIDEY integration']
+    gate = [c for c in checks if c['name'] == 'Required validation' and c['workflow'] == 'SIDEY integration']
     if len(gate) != 1 or gate[0]['bucket'] != 'pass':
         raise WorkflowError(
             f'PR #{number} integration gate is pending or failed; rerun finish '

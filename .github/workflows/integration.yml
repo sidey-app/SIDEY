@@ -203,7 +203,7 @@ jobs:
         run: python3 -m unittest discover -s scripts/pages/tests
 
   gate:
-    name: SIDEY integration gate
+    name: Required validation
     if: always()
     needs: [scope, shared, macos, windows, web]
     runs-on: ubuntu-latest
