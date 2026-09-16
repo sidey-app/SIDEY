@@ -214,7 +214,6 @@ def changed_paths(root, base, revision='HEAD', dirty=False):
 
 def platform_for(path):
     if (path.startswith(('macos/', 'scripts/macos/')) or
-        re.fullmatch(r'scripts/(?:export_macos|install_macos_dev|package_macos_release|release_macos)\.sh', path) or
         re.fullmatch(r'\.github/workflows/(?:macos(?:-[^/]+)?|validate-macos|publish-macos-release)\.yml', path)):
         return 'macos'
     if (path.startswith(('windows/', 'scripts/windows/')) or
