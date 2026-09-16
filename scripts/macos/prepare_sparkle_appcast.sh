@@ -31,7 +31,7 @@ SIDEY_SPARKLE_BIN_DIR=$(
 		| sed 's|/generate_appcast$||'
 )
 if [ -z "$SIDEY_SPARKLE_BIN_DIR" ] || [ ! -x "$SIDEY_SPARKLE_BIN_DIR/generate_keys" ]; then
-	echo "Sparkle tools are missing. Resolve packages or run ./scripts/export_macos.sh first." >&2
+	echo "Sparkle tools are missing. Resolve packages or run ./scripts/macos/export_macos.sh first." >&2
 	exit 69
 fi
 
