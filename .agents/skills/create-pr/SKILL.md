@@ -5,10 +5,13 @@ description: Prepare or create a SIDEY pull request from the exact reviewed and 
 
 # Create Pull Request
 
-Read the root `AGENTS.md`, `CONTRIBUTING.md` and
-`.github/PULL_REQUEST_TEMPLATE/general.md`. Agent-created pull requests always
-use the general template. The character asset template remains available for
-manual external asset submissions, outside this skill.
+Read the root `AGENTS.md` and `CONTRIBUTING.md`, then inspect the complete
+changed-path set before selecting a pull request template. Use
+`.github/PULL_REQUEST_TEMPLATE/character_asset.md` when the change includes
+character or throwable content under `assets/v1/characters/` or
+`assets/v1/throwables/`. Use `.github/PULL_REQUEST_TEMPLATE/general.md` for
+all other changes. This selection applies equally to agent-created and manual
+pull requests.
 
 Separate local preparation from remote publication. Drafting a title, body or
 preview does not authorize a push or pull request creation. Immediately before
@@ -26,9 +29,10 @@ not, return the prepared title and body without changing remote state.
    unavailable or stale check blocks publication.
 4. Write a title that passes `scripts/validate_commit_message.py --subject`.
    Do not add a pull request number to the title.
-5. Copy `.github/PULL_REQUEST_TEMPLATE/general.md`, preserve its hidden marker
-   and required sections, and fill in concrete change and validation evidence.
-   Do not mark a failed or inapplicable check as passed.
+5. Copy the template selected from the complete changed-path set, preserve its
+   hidden marker and required sections, and fill in concrete change and
+   validation evidence. Do not combine templates or mark a failed or
+   inapplicable check as passed.
 6. Validate the body with the repository pull request validator and present
    the base, head, title, body and exact commit for review.
 

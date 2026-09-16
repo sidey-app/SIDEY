@@ -432,21 +432,14 @@ def require_pr_body(
     paths,
     *,
     label='PR body',
-    required_template=None,
 ):
     try:
-        selected = validate_pr_body(root, body, paths, label=label)
+        return validate_pr_body(root, body, paths, label=label)
     except PullRequestValidationError as error:
         raise WorkflowError(str(error)) from error
-    if required_template and selected != required_template:
-        raise WorkflowError(
-            f'{label} must use {GENERAL_PR_TEMPLATE.as_posix()} for task '
-            'workflow pull requests'
-        )
-    return selected
 
 
-def require_pr_body_file(root, value, paths, *, required_template=None):
+def require_pr_body_file(root, value, paths):
     path = Path(value)
     if not path.is_absolute():
         path = root / path
@@ -460,7 +453,6 @@ def require_pr_body_file(root, value, paths, *, required_template=None):
         body,
         paths,
         label='--body-file',
-        required_template=required_template,
     )
     return path
 
@@ -559,7 +551,6 @@ def publish(root, args):
             root,
             args.body_file,
             paths,
-            required_template='general',
         )
         title = args.title
         body = body_path.read_text(encoding='utf-8')
@@ -580,7 +571,6 @@ def publish(root, args):
             root,
             body,
             paths,
-            required_template='general',
         )
     messages = commit_messages(
         root,
@@ -592,7 +582,6 @@ def publish(root, args):
         root,
         prepared_body,
         paths,
-        required_template='general',
     )
     temporary_body = None
     try:
@@ -648,7 +637,6 @@ def publish(root, args):
         root,
         details.get('body') or '',
         paths,
-        required_template='general',
     )
     task.update(status='published', pr=number, published={
         'head': head(root),
@@ -714,7 +702,6 @@ def finish(root, args):
         root,
         pr_body,
         paths,
-        required_template='general',
     )
     pr_message = details['title'] + ('\n\n' + pr_body if pr_body else '')
     require_valid_commit_text('PR title and body', pr_message)

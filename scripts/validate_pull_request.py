@@ -59,17 +59,20 @@ def _validate_sections(body: str, headings: list[str], label: str) -> None:
 
 
 def is_character_asset_change(paths: list[str]) -> bool:
-    """Return whether a diff is eligible for the character asset template."""
+    """Return whether a diff must use the character asset template."""
 
-    has_character_content = any(
+    return any(
         path.startswith(
             ('assets/v1/characters/', 'assets/v1/throwables/')
         )
         for path in paths
     )
-    return has_character_content and all(
-        path.startswith('assets/') for path in paths
-    )
+
+
+def required_template_for_paths(paths: list[str]) -> str:
+    """Return the pull request template required by the changed paths."""
+
+    return 'character_asset' if is_character_asset_change(paths) else 'general'
 
 
 def validate_pr_body(
@@ -97,16 +100,21 @@ def validate_pr_body(
         )
 
     template_name = selected[0]
+    required_template = required_template_for_paths(paths)
+    if template_name != required_template:
+        required_path = (
+            CHARACTER_ASSET_TEMPLATE
+            if required_template == 'character_asset'
+            else GENERAL_TEMPLATE
+        )
+        raise PullRequestValidationError(
+            f'{label} must use {required_path.as_posix()} for the changed paths'
+        )
+
     if template_name == 'general':
         template_path = GENERAL_TEMPLATE
         marker = GENERAL_MARKER
     else:
-        if not is_character_asset_change(paths):
-            raise PullRequestValidationError(
-                'The character asset template is allowed only when every '
-                'changed path is under assets/ and the diff contains character '
-                'or throwable content'
-            )
         template_path = CHARACTER_ASSET_TEMPLATE
         marker = CHARACTER_ASSET_MARKER
 

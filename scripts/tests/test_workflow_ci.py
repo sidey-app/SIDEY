@@ -62,6 +62,23 @@ class GateTests(unittest.TestCase):
         with self.assertRaisesRegex(WorkflowError, 'template validation'):
             verify_pr_contract(root, '## 변경 내용\n', ['docs/guide.md'])
 
+    def test_character_asset_pr_must_use_character_template(self):
+        root = Path(__file__).parents[2]
+        template_directory = root / '.github/PULL_REQUEST_TEMPLATE'
+        character_body = (template_directory / 'character_asset.md').read_text(
+            encoding='utf-8'
+        )
+        general_body = (template_directory / 'general.md').read_text(
+            encoding='utf-8'
+        )
+        paths = ['assets/v1/characters/capybara/idle.png']
+        self.assertEqual(
+            verify_pr_contract(root, character_body, paths),
+            'character_asset',
+        )
+        with self.assertRaisesRegex(WorkflowError, 'character_asset.md'):
+            verify_pr_contract(root, general_body, paths)
+
     def test_required_job_cannot_be_skipped_missing_cancelled_or_failed(self):
         for status in ('skipped', 'failure', 'cancelled', None):
             needs = {'scope': {'result': 'success'}, 'shared': {'result': 'success'}}

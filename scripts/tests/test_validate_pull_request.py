@@ -10,6 +10,7 @@ from validate_pull_request import (  # noqa: E402
     GENERAL_MARKER,
     PullRequestValidationError,
     is_character_asset_change,
+    required_template_for_paths,
     validate_pr_body,
 )
 
@@ -41,22 +42,25 @@ class PullRequestValidationTests(unittest.TestCase):
             self.root / f'.github/PULL_REQUEST_TEMPLATE/{name}.md'
         ).read_text(encoding='utf-8')
 
-    def test_general_template_is_valid_for_any_change(self):
+    def test_general_template_is_required_for_non_character_change(self):
+        paths = ['windows/src/App.cs']
+        self.assertEqual(required_template_for_paths(paths), 'general')
         self.assertEqual(
             validate_pr_body(
                 self.root,
                 self.body('general'),
-                ['windows/src/App.cs'],
+                paths,
             ),
             'general',
         )
 
-    def test_character_template_is_valid_only_for_asset_only_change(self):
+    def test_character_template_is_required_for_character_asset_change(self):
         paths = [
             'assets/v1/characters/capybara/idle.png',
             'assets/v1/manifest.json',
         ]
         self.assertTrue(is_character_asset_change(paths))
+        self.assertEqual(required_template_for_paths(paths), 'character_asset')
         self.assertEqual(
             validate_pr_body(
                 self.root,
@@ -66,23 +70,41 @@ class PullRequestValidationTests(unittest.TestCase):
             'character_asset',
         )
 
-    def test_character_template_rejects_mixed_or_non_character_change(self):
-        for paths in (
-            ['assets/v1/manifest.json'],
-            [
-                'assets/v1/characters/capybara/idle.png',
-                'scripts/validate_pixel_assets.py',
-            ],
+    def test_character_template_is_required_for_mixed_character_change(self):
+        paths = [
+            'assets/v1/characters/capybara/idle.png',
+            'scripts/validate_pixel_assets.py',
+        ]
+        self.assertEqual(
+            validate_pr_body(
+                self.root,
+                self.body('character_asset'),
+                paths,
+            ),
+            'character_asset',
+        )
+
+    def test_general_template_rejects_character_asset_change(self):
+        with self.assertRaisesRegex(
+            PullRequestValidationError,
+            'character_asset.md',
         ):
-            with self.subTest(paths=paths), self.assertRaisesRegex(
-                PullRequestValidationError,
-                'allowed only',
-            ):
-                validate_pr_body(
-                    self.root,
-                    self.body('character_asset'),
-                    paths,
-                )
+            validate_pr_body(
+                self.root,
+                self.body('general'),
+                ['assets/v1/throwables/ball/idle.png'],
+            )
+
+    def test_character_template_rejects_non_character_change(self):
+        with self.assertRaisesRegex(
+            PullRequestValidationError,
+            'general.md',
+        ):
+            validate_pr_body(
+                self.root,
+                self.body('character_asset'),
+                ['assets/v1/manifest.json'],
+            )
 
     def test_missing_or_multiple_markers_are_rejected(self):
         with self.assertRaisesRegex(
