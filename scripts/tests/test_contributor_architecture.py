@@ -157,6 +157,34 @@ class ContributorArchitectureTests(unittest.TestCase):
         self.add_skill("calling-skill", body="# Skill\n\nAlso use `$missing-skill`.\n")
         self.assertIn("missing-skill-reference", self.codes())
 
+    def test_single_word_skill_reference_is_validated(self):
+        self.add_skill("available-skill")
+        self.write("AGENTS.md", "Use `$commit` for local commits.\n")
+        self.assertIn("missing-skill-reference", self.codes())
+
+        self.add_skill("commit")
+        self.assertEqual(validate_repository(self.root), [])
+
+    def test_powershell_variables_are_not_skill_references(self):
+        self.add_skill(
+            "powershell-guide",
+            body=(
+                "# PowerShell\n\n"
+                "```powershell\n"
+                "$tokens = $null\n"
+                "```\n"
+            ),
+        )
+        self.assertEqual(validate_repository(self.root), [])
+
+    def test_contributing_references_are_validated(self):
+        self.add_skill("commit")
+        self.write(
+            "CONTRIBUTING.md",
+            "Use [missing guidance](docs/missing.md) and `$commit`.\n",
+        )
+        self.assertIn("missing-relative-link", self.codes())
+
     def test_dangling_inline_canonical_skill_path_is_reported(self):
         self.add_skill("available-skill")
         self.write(
@@ -219,6 +247,8 @@ class ContributorArchitectureTests(unittest.TestCase):
 
     def test_final_style_specialist_skill_set_is_valid(self):
         for name in (
+            "commit",
+            "create-pr",
             "version-audit",
             "web-verification",
             "release-notes",

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Commit"
+  short_description: "Create focused local SIDEY commits"
+  default_prompt: "Use $commit to review my current SIDEY changes and create a focused local commit without pushing."
+
+policy:
+  allow_implicit_invocation: true

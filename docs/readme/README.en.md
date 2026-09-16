@@ -119,6 +119,8 @@ Found a bug or have a feature in mind? Let us know on [GitHub Issues](https://gi
 
 Contributions are welcome, whether you’re fixing bugs, improving docs, translating, or creating characters.
 
+Before you begin, read the [contribution guide](../../CONTRIBUTING.md) for the discussion, branch, commit, validation, and pull request workflow.
+
 - Before starting a new feature, open an [issue](https://github.com/sidey-app/SIDEY/issues) to discuss what it’s for and how it should work.
 - For code and documentation changes, use the [general PR template](../../.github/PULL_REQUEST_TEMPLATE/general.md) to explain your changes and how you checked them.
 - To create a character, read the [asset creation guide](../../assets/README.md) and [character asset PR template](../../.github/PULL_REQUEST_TEMPLATE/character_asset.md). For paid assets, discuss sales and payment terms before submitting.

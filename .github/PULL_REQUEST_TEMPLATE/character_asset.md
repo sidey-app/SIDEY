@@ -1,3 +1,5 @@
+<!-- SIDEY_CHARACTER_ASSET_PR_TEMPLATE: keep -->
+
 # 캐릭터 에셋 PR
 
 먼저 [`assets/README.md`](https://github.com/sidey-app/SIDEY/blob/main/assets/README.md)의 제작 규격과 제출 절차를 확인해 주세요.

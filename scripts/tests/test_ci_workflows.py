@@ -31,6 +31,13 @@ class CiWorkflowTests(unittest.TestCase):
                 self.assertNotIn('  pull_request:', workflow)
                 self.assertNotIn('  push:', workflow)
 
+    def test_integration_revalidates_edited_pull_request_bodies(self):
+        workflow = self.read('integration.yml')
+        self.assertIn(
+            'types: [opened, synchronize, reopened, edited]',
+            workflow,
+        )
+
     def test_pages_reuses_the_tested_build_for_deployment(self):
         workflow = self.read('pages.yml')
         self.assertNotIn('  pull_request:', workflow)

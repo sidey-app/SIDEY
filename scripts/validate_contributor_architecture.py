@@ -58,7 +58,7 @@ MARKDOWN_LINK_PATTERN = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 SCRIPT_REFERENCE_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_./-])((?:\./)?scripts/[A-Za-z0-9_./-]+\.(?:py|ps1|psd1|psm1|sh))"
 )
-SKILL_REFERENCE_PATTERN = re.compile(r"(?<![A-Za-z0-9_-])\$([a-z0-9]+(?:-[a-z0-9]+)+)\b")
+SKILL_REFERENCE_PATTERN = re.compile(r"`\$([a-z0-9]+(?:-[a-z0-9]+)*)`")
 SKILL_PATH_PATTERN = re.compile(
     r"\.agents[/\\]skills[/\\]([A-Za-z0-9_-]+)[/\\]SKILL\.md\b"
 )
@@ -338,6 +338,9 @@ def _relative_link_violations(
 
 def _source_documents(root: Path, skills: Iterable[Skill]) -> list[Path]:
     documents = set(_repository_files(root, "AGENTS.md"))
+    contributing = root / "CONTRIBUTING.md"
+    if contributing.is_file():
+        documents.add(contributing)
     for skill in skills:
         documents.update(
             path

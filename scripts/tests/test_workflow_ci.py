@@ -4,7 +4,12 @@ import unittest
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parents[1]))
 from workflow import WorkflowError
-from workflow_ci import commit_messages, verify_commit_contract, verify_gate
+from workflow_ci import (
+    commit_messages,
+    verify_commit_contract,
+    verify_gate,
+    verify_pr_contract,
+)
 
 
 class GateTests(unittest.TestCase):
@@ -44,6 +49,18 @@ class GateTests(unittest.TestCase):
         message = f"docs: 규칙 추가\n\n{'가' * 73}"
         with self.assertRaisesRegex(WorkflowError, 'commit message'):
             verify_commit_contract([message])
+
+    def test_manual_pr_body_must_use_repository_template(self):
+        root = Path(__file__).parents[2]
+        body = (root / '.github/PULL_REQUEST_TEMPLATE/general.md').read_text(
+            encoding='utf-8'
+        )
+        self.assertEqual(
+            verify_pr_contract(root, body, ['docs/guide.md']),
+            'general',
+        )
+        with self.assertRaisesRegex(WorkflowError, 'template validation'):
+            verify_pr_contract(root, '## 변경 내용\n', ['docs/guide.md'])
 
     def test_required_job_cannot_be_skipped_missing_cancelled_or_failed(self):
         for status in ('skipped', 'failure', 'cancelled', None):

@@ -1,0 +1,41 @@
+---
+name: commit
+description: Prepare and create focused local SIDEY commits from the current worktree using the repository message, staging, validation and attribution contracts. Use when asked to write a commit message or make a local commit; do not use for pushing, pull requests, merging or rewriting existing history.
+---
+
+# Commit
+
+Read the root `AGENTS.md` and `CONTRIBUTING.md` before acting. Treat
+`CONTRIBUTING.md` as the human-readable policy and the repository scripts as
+the executable contract.
+
+Determine whether the user wants only a proposed message or an actual local
+commit. A message-only request must not change the index or repository.
+
+For a local commit:
+
+1. Confirm that the worktree and branch belong to the current task. Inspect
+   `git status`, the unstaged diff, the staged diff, untracked files and the
+   complete diff against the task base.
+2. Choose one coherent commit boundary. Never include unrelated user or agent
+   changes. If the requested paths mix independent work, split the commits or
+   stop and report the ownership conflict.
+3. Stage only explicit paths. Do not use `git add .`, broad globs, interactive
+   staging or a command that can capture unknown files.
+4. Review `git diff --cached` and verify that every staged path belongs to the
+   intended commit. Check again for sensitive or generated files that the task
+   does not require.
+5. Write the subject, optional body and footers according to
+   `CONTRIBUTING.md`. Validate the complete message with
+   `scripts/validate_commit_message.py` before committing.
+6. Preserve the human Git author. Install or use the repository attribution
+   hook when Codex authored the change, and include the required trailer once.
+7. Create the commit without bypassing hooks. If a hook fails, fix the cause
+   and retry the commit; do not amend an earlier commit unless the user
+   explicitly requested history rewriting.
+8. Report the new commit ID, subject, committed paths, checks performed and any
+   changes left in the worktree.
+
+Never push, create a pull request, merge, tag, release or deploy as part of
+this skill. A request to continue with a pull request is a separate
+`$create-pr` task with its own remote authorization check.

@@ -19,10 +19,17 @@ import tempfile
 import time
 
 from validate_commit_message import validate_message, validate_subject
+from validate_pull_request import (
+    GENERAL_MARKER,
+    GENERAL_TEMPLATE,
+    PullRequestValidationError,
+    validate_pr_body,
+)
 
 
-GENERAL_PR_TEMPLATE = Path('.github/PULL_REQUEST_TEMPLATE/general.md')
-GENERAL_PR_MARKER = '<!-- SIDEY_GENERAL_PR_TEMPLATE: keep -->'
+# Compatibility aliases for callers that inspect the canonical general template.
+GENERAL_PR_TEMPLATE = GENERAL_TEMPLATE
+GENERAL_PR_MARKER = GENERAL_MARKER
 
 
 class WorkflowError(RuntimeError):
@@ -200,8 +207,10 @@ CONTRIBUTOR_ARCHITECTURE_FILES = frozenset({
     'scripts/tests/test_codex_attribution.py',
     'scripts/tests/test_contributor_architecture.py',
     'scripts/tests/test_validate_commit_message.py',
+    'scripts/tests/test_validate_pull_request.py',
     'scripts/validate_commit_message.py',
     'scripts/validate_contributor_architecture.py',
+    'scripts/validate_pull_request.py',
 })
 
 
@@ -370,8 +379,7 @@ def recover_merged_task(root, task, remote):
                          '--state', 'merged', '--json', 'number,headRefOid,mergeCommit,isCrossRepository'))
     matches = [pr for pr in prs if pr['headRefOid'] == checked['head'] and not pr['isCrossRepository']
                and pr.get('mergeCommit') and is_ancestor(root, pr['mergeCommit']['oid'], remote)
-               and same_tree(root, checked['head'], pr['mergeCommit']['oid'])
-               and squash_intent_matches(root, intent, pr['mergeCommit']['oid'])]
+               and same_tree(root, checked['head'], pr['mergeCommit']['oid'])]
     if len(matches) != 1:
         return None
     pr = matches[0]
@@ -418,37 +426,27 @@ def require_valid_commit_text(label, value, *, subject_only=False):
         raise WorkflowError(f'{label} violates the commit policy: ' + '; '.join(violations))
 
 
-def general_pr_headings(root):
-    template_path = root / GENERAL_PR_TEMPLATE
+def require_pr_body(
+    root,
+    body,
+    paths,
+    *,
+    label='PR body',
+    required_template=None,
+):
     try:
-        template = template_path.read_text(encoding='utf-8')
-    except (OSError, UnicodeError) as error:
-        raise WorkflowError(f'Cannot read the general PR template: {error}') from error
-    if template.count(GENERAL_PR_MARKER) != 1:
-        raise WorkflowError('The general PR template marker is missing or duplicated')
-    headings = re.findall(r'^## .+$', template, re.MULTILINE)
-    if not headings:
-        raise WorkflowError('The general PR template has no required sections')
-    return headings
-
-
-def require_general_pr_body(root, body, *, label='PR body'):
-    if body.count(GENERAL_PR_MARKER) != 1:
+        selected = validate_pr_body(root, body, paths, label=label)
+    except PullRequestValidationError as error:
+        raise WorkflowError(str(error)) from error
+    if required_template and selected != required_template:
         raise WorkflowError(
-            f'{label} must preserve the marker from {GENERAL_PR_TEMPLATE.as_posix()}'
+            f'{label} must use {GENERAL_PR_TEMPLATE.as_posix()} for task '
+            'workflow pull requests'
         )
-    lines = body.replace('\r\n', '\n').replace('\r', '\n').splitlines()
-    positions = []
-    for heading in general_pr_headings(root):
-        matching = [index for index, line in enumerate(lines) if line == heading]
-        if len(matching) != 1:
-            raise WorkflowError(f'{label} must contain one exact {heading!r} section')
-        positions.append(matching[0])
-    if positions != sorted(positions):
-        raise WorkflowError(f'{label} must preserve the general template section order')
+    return selected
 
 
-def require_general_pr_body_file(root, value):
+def require_pr_body_file(root, value, paths, *, required_template=None):
     path = Path(value)
     if not path.is_absolute():
         path = root / path
@@ -457,67 +455,217 @@ def require_general_pr_body_file(root, value):
         body = path.read_text(encoding='utf-8')
     except (OSError, UnicodeError) as error:
         raise WorkflowError(f'Cannot read --body-file as UTF-8: {error}') from error
-    require_general_pr_body(root, body, label='--body-file')
+    require_pr_body(
+        root,
+        body,
+        paths,
+        label='--body-file',
+        required_template=required_template,
+    )
     return path
 
 
-def pr_body_message(body):
-    return f'Squash commit\n\n{body}'
+def pr_body_with_coauthors(root, body, messages):
+    """Append missing commit-range co-authors to a pull request body."""
 
-
-def squash_body(root, body, messages):
-    body_message = pr_body_message(body)
+    body_message = f'Pull request body\n\n{body}'
+    required_coauthors = coauthor_trailers(root, [body_message] + messages)
+    existing_coauthors = parsed_coauthors(root, body_message)
+    if required_coauthors == existing_coauthors:
+        return body
     trailers = parsed_trailers(root, body_message)
     clean_body = body.rstrip()
     if trailers:
         lines = clean_body.splitlines()
-        separator = max((index for index, line in enumerate(lines) if not line.strip()), default=-1)
-        clean_body = '\n'.join(lines[:separator + 1]).rstrip()
-    other_trailers = [line for line in trailers
-                      if not re.match(r'Co-authored-by:', line, re.IGNORECASE)]
-    final_trailers = other_trailers + coauthor_trailers(root, [body_message] + messages)
-    if final_trailers:
-        return (clean_body + '\n\n' if clean_body else '') + '\n'.join(final_trailers)
-    return clean_body
-
-
-def squash_subject(title, number):
-    number = str(number)
-    if not re.fullmatch(r'[1-9]\d*', number):
-        raise WorkflowError(f'Invalid pull request number: {number!r}')
-    if re.search(r' \(#\d+\)$', title):
-        raise WorkflowError(
-            'PR title must not include a generated pull request number suffix'
+        separator = max(
+            (index for index, line in enumerate(lines) if not line.strip()),
+            default=-1,
         )
-    return f'{title} (#{number})'
+        clean_body = '\n'.join(lines[:separator + 1]).rstrip()
+    other_trailers = [
+        trailer
+        for trailer in trailers
+        if not re.match(r'Co-authored-by:', trailer, re.IGNORECASE)
+    ]
+    final_trailers = other_trailers + required_coauthors
+    return (
+        (clean_body + '\n\n' if clean_body else '')
+        + '\n'.join(final_trailers)
+        + '\n'
+    )
 
 
-def squash_intent_matches(root, intent, merge_commit):
-    subject = git(root, 'show', '-s', '--format=%s', merge_commit)
-    body = git(root, 'show', '-s', '--format=%b', merge_commit)
-    message = git(root, 'show', '-s', '--format=%B', merge_commit)
-    return (subject == intent.get('subject')
-            and hashlib.sha256(body.encode()).hexdigest() == intent.get('body_sha256')
-            and parsed_coauthors(root, message) == intent.get('coauthors', []))
+def open_task_prs(root):
+    return json.loads(run(
+        root,
+        'gh',
+        'pr',
+        'list',
+        '--head',
+        branch(root),
+        '--base',
+        'main',
+        '--state',
+        'open',
+        '--json',
+        'number,headRefOid,isCrossRepository',
+    ))
+
+
+def require_exact_task_pr(root, prs):
+    if len(prs) != 1 or prs[0]['headRefOid'] != head(root):
+        raise WorkflowError('PR does not identify this exact task head')
+    if prs[0]['isCrossRepository']:
+        raise WorkflowError('Task workflow does not accept a cross-repository PR')
+    return str(prs[0]['number'])
+
+
+def merge_task_pr(root, number, checked_head):
+    """Request a default GitHub squash merge for the exact checked head."""
+
+    run(
+        root,
+        'gh',
+        'pr',
+        'merge',
+        number,
+        '--squash',
+        '--match-head-commit',
+        checked_head,
+    )
+
+
+def publish(root, args):
+    """Push the checked task head and create its PR without merging it."""
+
+    task = owned_task(root, args.task)
+    if dirty_paths(root):
+        raise WorkflowError('Publish requires a clean checked task worktree')
+    remote = fetch_main(root)
+    attest(root, task, remote)
+    paths = changed_paths(root, remote)
+    validate_paths(branch(root), paths)
+    prs = open_task_prs(root)
+    if len(prs) > 1 or any(pr['isCrossRepository'] for pr in prs):
+        raise WorkflowError('Task branch must identify at most one same-repository PR')
+    number = str(prs[0]['number']) if prs else None
+    if not prs:
+        if not args.title or not args.body_file:
+            raise WorkflowError(
+                'Provide --title and --body-file to create the task PR'
+            )
+        require_valid_commit_text('PR title', args.title, subject_only=True)
+        body_path = require_pr_body_file(
+            root,
+            args.body_file,
+            paths,
+            required_template='general',
+        )
+        title = args.title
+        body = body_path.read_text(encoding='utf-8')
+    else:
+        details = json.loads(run(
+            root,
+            'gh',
+            'pr',
+            'view',
+            number,
+            '--json',
+            'title,body',
+        ))
+        title = details['title']
+        body = details.get('body') or ''
+        require_valid_commit_text('PR title', title, subject_only=True)
+        require_pr_body(
+            root,
+            body,
+            paths,
+            required_template='general',
+        )
+    messages = commit_messages(
+        root,
+        task['checked']['base'],
+        task['checked']['head'],
+    )
+    prepared_body = pr_body_with_coauthors(root, body, messages)
+    require_pr_body(
+        root,
+        prepared_body,
+        paths,
+        required_template='general',
+    )
+    temporary_body = None
+    try:
+        if not prs or prepared_body != body:
+            descriptor, temporary_body = tempfile.mkstemp(
+                prefix='sidey-pr-',
+                suffix='.md',
+            )
+            with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
+                stream.write(prepared_body)
+        git(root, 'push', '-u', 'origin', branch(root))
+        if not prs:
+            run(
+                root,
+                'gh',
+                'pr',
+                'create',
+                '--base',
+                'main',
+                '--head',
+                branch(root),
+                '--title',
+                title,
+                '--body-file',
+                temporary_body,
+            )
+        elif temporary_body:
+            run(
+                root,
+                'gh',
+                'pr',
+                'edit',
+                number,
+                '--body-file',
+                temporary_body,
+            )
+    finally:
+        if temporary_body:
+            Path(temporary_body).unlink(missing_ok=True)
+    prs = open_task_prs(root)
+    number = require_exact_task_pr(root, prs)
+    details = json.loads(run(
+        root,
+        'gh',
+        'pr',
+        'view',
+        number,
+        '--json',
+        'title,body',
+    ))
+    require_valid_commit_text('PR title', details['title'], subject_only=True)
+    require_pr_body(
+        root,
+        details.get('body') or '',
+        paths,
+        required_template='general',
+    )
+    task.update(status='published', pr=number, published={
+        'head': head(root),
+        'base': remote,
+        'time': time.time(),
+    })
+    update_task(root, args.task, task)
+    return {'status': 'published', 'pr': number, 'head': head(root)}
 
 
 def finish(root, args):
     task = owned_task(root, args.task)
-    if args.paths:
-        remote = fetch_main(root)
-        attest(root, task, remote)
-        paths = dirty_paths(root)
-        if sorted(args.paths) != paths:
-            raise WorkflowError('--paths must explicitly name every current change; unrelated work must be isolated')
-        validate_paths(branch(root), paths)
-        if not args.message:
-            raise WorkflowError('--message is required when committing explicit paths')
-        require_valid_commit_text('Commit message', args.message)
-        git(root, 'add', '--', *paths)
-        git(root, 'commit', '--only', '-m', args.message, '--', *paths)
-        task = check_task(root, args.task)
     if dirty_paths(root):
-        raise WorkflowError('Commit this task explicitly with --paths and --message, then recheck')
+        raise WorkflowError(
+            'Finish requires a clean published task; commit, check and publish '
+            'the exact head first'
+        )
     remote = fetch_main(root)
     if task.get('status') not in ('integrated', 'main-updated', 'complete'):
         recovered = recover_merged_task(root, task, remote)
@@ -543,83 +691,64 @@ def finish(root, args):
         return {'status': task['status'], 'main': str(primary), 'sha': remote}
     attest(root, task, remote)
     validate_paths(branch(root), changed_paths(root, remote))
-    prs = json.loads(run(root, 'gh', 'pr', 'list', '--head', branch(root), '--base', 'main',
-                         '--state', 'open', '--json', 'number,headRefOid,isCrossRepository'))
+    paths = changed_paths(root, remote)
+    prs = open_task_prs(root)
     if not prs:
-        if not args.title or not args.body_file:
-            raise WorkflowError('Provide --title and --body-file to create the task PR')
-        require_valid_commit_text('PR title', args.title, subject_only=True)
-        body_path = require_general_pr_body_file(root, args.body_file)
-    git(root, 'push', '-u', 'origin', branch(root))
-    if not prs:
-        run(root, 'gh', 'pr', 'create', '--base', 'main', '--head', branch(root),
-            '--title', args.title, '--body-file', str(body_path))
-    prs = json.loads(run(root, 'gh', 'pr', 'list', '--head', branch(root), '--base', 'main',
-                         '--state', 'open', '--json', 'number,headRefOid,isCrossRepository'))
-    if len(prs) != 1 or prs[0]['headRefOid'] != head(root) or prs[0]['isCrossRepository']:
-        raise WorkflowError('PR does not identify this exact task head')
-    number = str(prs[0]['number'])
+        raise WorkflowError('No task PR exists; run publish before finish')
+    number = require_exact_task_pr(root, prs)
     # A named gate must actually exist and succeed; empty required checks never pass.
     checks = json.loads(run(root, 'gh', 'pr', 'checks', number, '--json', 'name,bucket,workflow'))
     gate = [c for c in checks if c['name'] == 'SIDEY integration gate' and c['workflow'] == 'SIDEY integration']
     if len(gate) != 1 or gate[0]['bucket'] != 'pass':
-        raise WorkflowError(f'PR #{number} created; integration gate pending/failed. Rerun finish after CI passes')
+        raise WorkflowError(
+            f'PR #{number} integration gate is pending or failed; rerun finish '
+            'after CI passes'
+        )
     run(root, 'gh', 'pr', 'checks', number, '--required')
     checked_head = task['checked']['head']
     checked_base = task['checked']['base']
     details = json.loads(run(root, 'gh', 'pr', 'view', number, '--json', 'title,body'))
     require_valid_commit_text('PR title', details['title'], subject_only=True)
     pr_body = details.get('body') or ''
-    require_general_pr_body(root, pr_body)
+    require_pr_body(
+        root,
+        pr_body,
+        paths,
+        required_template='general',
+    )
     pr_message = details['title'] + ('\n\n' + pr_body if pr_body else '')
     require_valid_commit_text('PR title and body', pr_message)
-    messages = commit_messages(root, checked_base, checked_head)
-    body = squash_body(root, pr_body, messages)
-    subject = squash_subject(details['title'], number)
-    squash_message = subject + ('\n\n' + body if body else '')
-    require_valid_commit_text('Squash commit message', squash_message)
-    expected_coauthors = coauthor_trailers(
-        root,
-        [pr_body_message(pr_body)] + messages,
-    )
-    descriptor, body_path = tempfile.mkstemp(prefix='sidey-squash-', suffix='.txt')
-    try:
-        with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
-            stream.write(body)
-        with lock(root, 'integration'):
-            remote = fetch_main(root)
-            source = json.loads(run(root, 'gh', 'pr', 'view', number,
-                                    '--json', 'title,body,headRefOid,baseRefOid,mergeStateStatus'))
-            attest(root, task, remote)
-            if (source['headRefOid'] != checked_head or source['baseRefOid'] != remote
-                    or source['mergeStateStatus'] != 'CLEAN'
-                    or source['title'] != details['title'] or source.get('body') != details.get('body')):
-                raise WorkflowError('PR head/base/content is not the exact checked and mergeable source')
-            task['merge_intent'] = {
-                'head': checked_head,
-                'base': checked_base,
-                'subject': subject,
-                'body_sha256': hashlib.sha256(body.encode()).hexdigest(),
-                'coauthors': expected_coauthors,
-                'time': time.time(),
-            }
-            update_task(root, args.task, task)
-            run(root, 'gh', 'pr', 'merge', number, '--squash', '--match-head-commit', checked_head,
-                '--subject', subject, '--body-file', body_path)
-            info = json.loads(run(root, 'gh', 'pr', 'view', number, '--json', 'state,mergeCommit,headRefOid'))
-            if info['state'] != 'MERGED' or info['headRefOid'] != checked_head:
-                raise WorkflowError('Exact checked head was not confirmed merged')
-            remote = fetch_main(root)
-            merge_commit = info['mergeCommit']['oid']
-            if not is_ancestor(root, merge_commit, remote) or not same_tree(root, checked_head, merge_commit):
-                raise WorkflowError('Merged commit does not match the exact checked task tree')
-            if not squash_intent_matches(root, task['merge_intent'], merge_commit):
-                raise WorkflowError('Squash commit message or co-author attribution differs from the merge intent')
-            task.update(status='integrated', pr=number, merge=info['mergeCommit']['oid'])
-            update_task(root, args.task, task)
-            primary = update_main(root, remote, already_locked=True)
-    finally:
-        Path(body_path).unlink(missing_ok=True)
+    with lock(root, 'integration'):
+        remote = fetch_main(root)
+        source = json.loads(run(root, 'gh', 'pr', 'view', number,
+                                '--json', 'title,body,headRefOid,baseRefOid,mergeStateStatus'))
+        attest(root, task, remote)
+        if (source['headRefOid'] != checked_head or source['baseRefOid'] != remote
+                or source['mergeStateStatus'] != 'CLEAN'
+                or source['title'] != details['title'] or source.get('body') != details.get('body')):
+            raise WorkflowError('PR head/base/content is not the exact checked and mergeable source')
+        task['merge_intent'] = {
+            'head': checked_head,
+            'base': checked_base,
+            'pr': number,
+            'time': time.time(),
+        }
+        update_task(root, args.task, task)
+        merge_task_pr(root, number, checked_head)
+        info = json.loads(run(root, 'gh', 'pr', 'view', number,
+                              '--json', 'state,mergeCommit,headRefOid'))
+        if info['state'] != 'MERGED' or info['headRefOid'] != checked_head:
+            raise WorkflowError('Exact checked head was not confirmed merged')
+        remote = fetch_main(root)
+        merge_commit = info['mergeCommit']['oid']
+        if (not is_ancestor(root, merge_commit, remote)
+                or not same_tree(root, checked_head, merge_commit)):
+            raise WorkflowError(
+                'Merged commit does not match the exact checked task tree'
+            )
+        task.update(status='integrated', pr=number, merge=merge_commit)
+        update_task(root, args.task, task)
+        primary = update_main(root, remote, already_locked=True)
     needs_app_review = task.get('checked', {}).get(
         'app_review_required', task['platform'] != 'shared')
     task['status'] = 'main-updated' if needs_app_review else 'complete'
@@ -640,7 +769,7 @@ def main(argv=None):
     start.add_argument('--platform', choices=['shared', 'macos', 'windows'], required=True)
     start.add_argument('--worktree', required=True)
     start.add_argument('--app', default='SIDEYAppStore', choices=['SIDEYAppStore', 'SIDEY', 'sidey-reals', 'windows'])
-    for command in ('sync', 'check', 'finish'):
+    for command in ('sync', 'check', 'publish', 'finish'):
         sub = subs.add_parser(command)
         sub.add_argument('task', nargs='?')
         if command == 'check':
@@ -648,11 +777,10 @@ def main(argv=None):
             sub.add_argument('--base')
             sub.add_argument('--head', default='HEAD')
             sub.add_argument('--branch')
-        if command == 'finish':
-            sub.add_argument('--paths', nargs='+')
-            sub.add_argument('--message')
+        if command == 'publish':
             sub.add_argument('--title')
             sub.add_argument('--body-file')
+        if command == 'finish':
             sub.add_argument('--windows-run', type=int, help='Complete an integrated Windows task using current-main app smoke CI')
     opener = subs.add_parser('open')
     opener.add_argument('--task', help='Complete an integrated macOS task after verified latest-main app review')
@@ -711,6 +839,8 @@ def main(argv=None):
         result = {'paths': paths, 'scopes': required_scopes(paths)}
     elif args.command == 'check':
         result = check_task(root, args.task)
+    elif args.command == 'publish':
+        result = publish(root, args)
     elif args.command == 'finish':
         result = finish(root, args)
     else:

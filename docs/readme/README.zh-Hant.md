@@ -119,6 +119,8 @@ SIDEY 是一款適用於 macOS 和 Windows 的桌面聊天應用程式，讓你�
 
 歡迎你以各種方式參與，包括修正問題、改善文件、翻譯和製作角色。
 
+開始前，請先閱讀[貢獻指南](../../CONTRIBUTING.md)，了解討論、分支、提交、驗證和 Pull Request 流程。
+
 - 提出新功能前，請先在 [Issue](https://github.com/sidey-app/SIDEY/issues) 中一起討論它的用途和具體行為。
 - 修改程式碼或文件時，請使用[通用 PR 範本](../../.github/PULL_REQUEST_TEMPLATE/general.md)，說明修改原因和驗證情況。
 - 如果你想製作角色，請先閱讀[素材製作指南](../../assets/README.md)和[角色素材 PR 範本](../../.github/PULL_REQUEST_TEMPLATE/character_asset.md)。付費素材需要在提交前協商銷售與結算條件。

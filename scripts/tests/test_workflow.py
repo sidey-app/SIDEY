@@ -190,32 +190,96 @@ class WorkflowTests(unittest.TestCase):
             'Co-authored-by: Person <person@example.test>',
         ])
 
-    def test_squash_body_normalizes_existing_trailers_and_preserves_others(self):
-        body = ('Summary\n\nReviewed-by: Reviewer <reviewer@example.test>\n'
-                'Co-authored-by: Codex <codex@openai.com>\n'
-                'co-authored-by: codex <CODEX@OPENAI.COM>')
-        result = w.squash_body(self.primary, body, [
-            'Change\n\nCo-authored-by: Person <person@example.test>',
-        ])
-        self.assertEqual(result, ('Summary\n\nReviewed-by: Reviewer <reviewer@example.test>\n'
-                                  'Co-authored-by: Codex <codex@openai.com>\n'
-                                  'Co-authored-by: Person <person@example.test>'))
-
-    def test_single_line_pr_body_is_parsed_as_a_commit_body_trailer(self):
-        body = 'Co-authored-by: Person <person@example.test>'
-        self.assertEqual(w.squash_body(self.primary, body, []), body)
-        self.assertEqual(w.coauthor_trailers(self.primary, [w.pr_body_message(body)]), [body])
-
-    def test_squash_subject_adds_pr_number_once(self):
-        title = 'fix(window): 창 크기 변경 문제 수정'
-        self.assertEqual(
-            w.squash_subject(title, 108),
-            f'{title} (#108)',
+    def test_publish_body_appends_missing_commit_coauthors_once(self):
+        body = (
+            'Summary\n\n'
+            'Co-authored-by: Codex <codex@openai.com>\n'
         )
-        with self.assertRaisesRegex(w.WorkflowError, 'must not include'):
-            w.squash_subject(f'{title} (#108)', 108)
-        with self.assertRaisesRegex(w.WorkflowError, 'Invalid pull request'):
-            w.squash_subject(title, 'not-a-number')
+        messages = [
+            'Change\n\nCo-authored-by: codex <CODEX@OPENAI.COM>',
+            'Another\n\nCo-authored-by: Person <person@example.test>',
+        ]
+        self.assertEqual(
+            w.pr_body_with_coauthors(self.primary, body, messages),
+            body.rstrip()
+            + '\nCo-authored-by: Person <person@example.test>\n',
+        )
+
+    def test_merge_uses_github_squash_defaults_without_message_overrides(self):
+        with patch.object(w, 'run') as run:
+            w.merge_task_pr(self.primary, '108', 'checked-head')
+        command = run.call_args.args[1:]
+        self.assertEqual(
+            command,
+            (
+                'gh', 'pr', 'merge', '108', '--squash',
+                '--match-head-commit', 'checked-head',
+            ),
+        )
+        self.assertNotIn('--subject', command)
+        self.assertNotIn('--body-file', command)
+
+    def test_publish_updates_existing_pr_coauthors_without_merging(self):
+        template = self.write_general_pr_template()
+        body = template.read_text(encoding='utf-8')
+        updated_body = body + '\nCo-authored-by: Person <person@example.test>\n'
+        task = {
+            'checked': {'base': 'base', 'head': 'checked-head'},
+            'status': 'checked',
+        }
+        old_pr = {
+            'number': 42,
+            'headRefOid': 'old-head',
+            'isCrossRepository': False,
+        }
+        current_pr = {**old_pr, 'headRefOid': 'checked-head'}
+        views = iter((
+            {'title': 'fix(auth): 인증 오류 수정', 'body': body},
+            {'title': 'fix(auth): 인증 오류 수정', 'body': updated_body},
+        ))
+        commands = []
+
+        def response(root, *args, **kwargs):
+            commands.append(args)
+            if args[:3] == ('gh', 'pr', 'view'):
+                return json.dumps(next(views))
+            return ''
+
+        args = w.argparse.Namespace(task='task', title=None, body_file=None)
+        with (
+            patch.object(w, 'owned_task', return_value=task),
+            patch.object(w, 'dirty_paths', return_value=[]),
+            patch.object(w, 'fetch_main', return_value='base'),
+            patch.object(w, 'attest'),
+            patch.object(w, 'changed_paths', return_value=['docs/guide.md']),
+            patch.object(w, 'validate_paths'),
+            patch.object(w, 'open_task_prs', side_effect=([old_pr], [current_pr])),
+            patch.object(w, 'branch', return_value='shared/task'),
+            patch.object(w, 'head', return_value='checked-head'),
+            patch.object(w, 'commit_messages', return_value=['commit']),
+            patch.object(w, 'pr_body_with_coauthors', return_value=updated_body),
+            patch.object(w, 'git') as git,
+            patch.object(w, 'update_task') as update_task,
+            patch.object(w, 'run', side_effect=response),
+        ):
+            result = w.publish(self.primary, args)
+
+        git.assert_called_once_with(
+            self.primary,
+            'push',
+            '-u',
+            'origin',
+            'shared/task',
+        )
+        self.assertTrue(any(command[:3] == ('gh', 'pr', 'edit') for command in commands))
+        self.assertFalse(any(command[:3] == ('gh', 'pr', 'merge') for command in commands))
+        self.assertFalse(any(command[:3] == ('gh', 'pr', 'create') for command in commands))
+        self.assertEqual(result, {
+            'status': 'published',
+            'pr': '42',
+            'head': 'checked-head',
+        })
+        self.assertEqual(update_task.call_args.args[2]['status'], 'published')
 
     def advance(self):
         (self.other / 'advance.md').write_text('remote update\n')
@@ -409,31 +473,46 @@ class WorkflowTests(unittest.TestCase):
         template = self.write_general_pr_template()
         body = template.read_text(encoding='utf-8').replace('[ ]', '[x]')
         body += '\n## 추가 정보\n\n검토 참고 사항\n'
-        w.require_general_pr_body(self.primary, body)
+        self.assertEqual(
+            w.require_pr_body(self.primary, body, ['docs/guide.md']),
+            'general',
+        )
 
     def test_general_pr_body_rejects_asset_template_and_changed_sections(self):
         self.write_general_pr_template()
-        with self.assertRaisesRegex(w.WorkflowError, 'preserve the marker'):
-            w.require_general_pr_body(self.primary, '# 캐릭터 에셋 PR\n')
+        with self.assertRaisesRegex(w.WorkflowError, 'preserve exactly one'):
+            w.require_pr_body(
+                self.primary,
+                '# 캐릭터 에셋 PR\n',
+                ['docs/guide.md'],
+            )
         marker = w.GENERAL_PR_MARKER
         missing = f'{marker}\n\n## PR 유형\n\n## 검증\n\n## 확인 사항\n'
         with self.assertRaisesRegex(w.WorkflowError, '변경 내용'):
-            w.require_general_pr_body(self.primary, missing)
+            w.require_pr_body(self.primary, missing, ['docs/guide.md'])
         reordered = (
             f'{marker}\n\n## 변경 내용\n\n## PR 유형\n\n'
             '## 검증\n\n## 확인 사항\n'
         )
         with self.assertRaisesRegex(w.WorkflowError, 'section order'):
-            w.require_general_pr_body(self.primary, reordered)
+            w.require_pr_body(self.primary, reordered, ['docs/guide.md'])
 
     def test_general_pr_body_file_requires_existing_utf8_file(self):
         self.write_general_pr_template()
         with self.assertRaisesRegex(w.WorkflowError, 'Cannot read --body-file'):
-            w.require_general_pr_body_file(self.primary, 'missing.md')
+            w.require_pr_body_file(
+                self.primary,
+                'missing.md',
+                ['docs/guide.md'],
+            )
         invalid = self.primary / 'invalid.md'
         invalid.write_bytes(b'\x80')
         with self.assertRaisesRegex(w.WorkflowError, 'UTF-8'):
-            w.require_general_pr_body_file(self.primary, invalid)
+            w.require_pr_body_file(
+                self.primary,
+                invalid,
+                ['docs/guide.md'],
+            )
 
     def test_local_python_checks_are_locale_independent(self):
         with patch.object(w, 'run') as run:

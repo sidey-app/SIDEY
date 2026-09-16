@@ -1,0 +1,7 @@
+interface:
+  display_name: "Create Pull Request"
+  short_description: "Prepare or publish an exact-head SIDEY PR"
+  default_prompt: "Use $create-pr to prepare a SIDEY pull request from the exact reviewed and validated task head."
+
+policy:
+  allow_implicit_invocation: true

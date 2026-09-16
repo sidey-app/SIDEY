@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import sys
 from validate_commit_message import validate_message, validate_subject
+from validate_pull_request import PullRequestValidationError, validate_pr_body
 from workflow import WorkflowError, changed_paths, git, required_scopes, root_at, validate_paths
 
 
@@ -33,6 +34,13 @@ def verify_commit_contract(messages, pr_title=None):
         raise WorkflowError('Commit policy validation failed: ' + ' | '.join(failures))
 
 
+def verify_pr_contract(root, body, paths):
+    try:
+        return validate_pr_body(root, body or '', paths)
+    except PullRequestValidationError as error:
+        raise WorkflowError(f'Pull request template validation failed: {error}') from error
+
+
 def commit_messages(root, base, revision):
     return [
         message.strip('\r\n')
@@ -58,13 +66,16 @@ def main():
     base = pr['base']['sha'] if pr else event['before']
     revision = pr['head']['sha'] if pr else event['after']
     root = root_at('.')
-    verify_commit_contract(
-        commit_messages(root, base, revision),
-        pr.get('title') if pr else None,
-    )
     paths = changed_paths(root, base, revision)
     if pr:
+        verify_commit_contract(
+            commit_messages(root, base, revision),
+            pr.get('title'),
+        )
+        verify_pr_contract(root, pr.get('body'), paths)
         validate_paths(pr['head']['ref'], paths)
+    else:
+        verify_commit_contract(commit_messages(root, base, revision))
     scopes = required_scopes(paths)
     with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
         output.write(f'scopes={json.dumps(scopes)}\n')
