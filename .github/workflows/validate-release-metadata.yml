@@ -1,7 +1,7 @@
-name: Release metadata
+name: Validate release metadata
 
 on:
-  # PR and main validation is owned by integration.yml to avoid duplicate runs.
+  # PR and main validation is owned by validate-change.yml to avoid duplicate runs.
   workflow_dispatch:
 
 permissions:
@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   validate:
+    name: Release metadata validation
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

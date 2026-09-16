@@ -1,0 +1,236 @@
+name: Deploy website
+run-name: Deploy website | ${{ github.event_name }} | ${{ github.event.action || 'dispatch' }} | ${{ github.ref_name }}
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'assets/**'
+      - 'website/src/**'
+      - 'website/public/**'
+      - 'website/astro.config.mjs'
+      - 'website/package.json'
+      - 'website/pnpm-lock.yaml'
+      - 'website/pnpm-workspace.yaml'
+      - 'website/tsconfig.json'
+      - 'scripts/website/**'
+      - '.github/workflows/deploy-website.yml'
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Website validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: '11.24.0'
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: website/pnpm-lock.yaml
+
+      - name: Install website dependencies
+        working-directory: website
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and test website
+        working-directory: website
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: pnpm test
+
+      - name: Validate central pixel assets and mirrors
+        run: python3 ./scripts/validate_pixel_assets.py
+
+      - name: Validate release metadata preparation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $macOSManifest = Get-Content ./release/macos.json -Raw | ConvertFrom-Json
+          $macOSVersion = [string]$macOSManifest.version
+          $macOSDmgName = "SIDEY-macOS-arm64-v${macOSVersion}.dmg"
+          $windowsManifest = Get-Content ./release/windows.json -Raw | ConvertFrom-Json
+          $windowsVersion = [string]$windowsManifest.version
+          $windowsInstallerName = "SIDEY-Windows-x64-v${windowsVersion}-Setup.exe"
+          New-Item -ItemType Directory -Path ./build/pages-test-release -Force |
+            Out-Null
+          Copy-Item ./release/macos.json `
+            "./build/pages-test-release/$macOSDmgName"
+          Copy-Item ./release/windows.json `
+            "./build/pages-test-release/$windowsInstallerName"
+
+          ./scripts/website/prepare-release-metadata.ps1 `
+            -WebsiteDir ./website/dist `
+            -OutputDir ./build/pages-test-site `
+            -MacOSReleaseManifest ./release/macos.json `
+            -MacOSReleaseDmg "./build/pages-test-release/$macOSDmgName" `
+            -WindowsReleaseManifest ./release/windows.json `
+            -WindowsReleaseInstaller "./build/pages-test-release/$windowsInstallerName"
+
+          $published = Get-Content ./build/pages-test-site/windows-latest.json -Raw |
+            ConvertFrom-Json
+          $macOSHash = (Get-FileHash `
+            -LiteralPath "./build/pages-test-release/$macOSDmgName" `
+            -Algorithm SHA256).Hash.ToLowerInvariant()
+          $windowsHash = (Get-FileHash `
+            -LiteralPath "./build/pages-test-release/$windowsInstallerName" `
+            -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ([string]$published.sha256 -cne $windowsHash) {
+            throw 'Generated Windows SHA-256 does not match the release asset.'
+          }
+          foreach ($page in @('ko/index.html', 'en/index.html', 'ja/index.html')) {
+            $html = Get-Content "./build/pages-test-site/$page" -Raw
+            if ($html -notmatch "<code id=`"macos-download-sha256`" data-release-platform=`"macos`">$macOSHash</code>") {
+              throw "Generated macOS SHA-256 is missing: $page"
+            }
+            if ($html -notmatch "<code id=`"windows-download-sha256`" data-release-platform=`"windows`">$windowsHash</code>") {
+              throw "Generated Windows SHA-256 is missing: $page"
+            }
+          }
+
+      - name: Upload tested website build
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v5
+        with:
+          name: pages-website-dist
+          path: website/dist
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 1
+
+  deploy:
+    name: Website deployment
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: test
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Download tested website build
+        uses: actions/download-artifact@v5
+        with:
+          name: pages-website-dist
+          path: website/dist
+
+      - name: Verify published macOS release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $manifest = Get-Content ./release/macos.json -Raw | ConvertFrom-Json
+          $version = [string]$manifest.version
+          $tag = "v$version"
+          $requiredAssets = @(
+            "SIDEY-macOS-arm64-$tag.dmg",
+            "SIDEY-macOS-arm64-$tag.dmg.sha256",
+            "SIDEY-macOS-arm64-$tag.zip",
+            "SIDEY-macOS-arm64-$tag.zip.sha256"
+          )
+          $release = gh release view $tag --json isDraft,isPrerelease,assets |
+            ConvertFrom-Json
+          if ($release.isDraft -or $release.isPrerelease) {
+            throw "macOS release must be a published regular release: $tag"
+          }
+          $assetNames = @($release.assets | ForEach-Object { [string]$_.name })
+          if ($assetNames.Count -ne $requiredAssets.Count) {
+            throw "macOS release must contain exactly the four expected assets: $tag"
+          }
+          foreach ($asset in $requiredAssets) {
+            if ($assetNames -cnotcontains $asset) {
+              throw "macOS release is missing $asset"
+            }
+          }
+
+          New-Item -ItemType Directory -Path ./build/macos-pages-release -Force |
+            Out-Null
+          gh release download $tag `
+            --pattern $requiredAssets[0] `
+            --dir ./build/macos-pages-release `
+            --clobber
+
+      - name: Prepare verified release metadata
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $manifest = Get-Content ./release/windows.json -Raw | ConvertFrom-Json
+          $version = [string]$manifest.version
+          $tag = "windows-v$version"
+          $installerName = "SIDEY-Windows-x64-v${version}-Setup.exe"
+
+          $release = gh release view $tag --json isDraft,isPrerelease,assets |
+            ConvertFrom-Json
+          if ($release.isDraft -or $release.isPrerelease) {
+            throw "Windows release must be a published regular release: $tag"
+          }
+          $assetNames = @($release.assets | ForEach-Object { [string]$_.name })
+          if ($assetNames.Count -ne 1 -or $assetNames[0] -cne $installerName) {
+            throw "Windows release must contain only $installerName"
+          }
+
+          New-Item -ItemType Directory -Path ./build/windows-pages-release -Force |
+            Out-Null
+          gh release download $tag `
+            --pattern $installerName `
+            --dir ./build/windows-pages-release `
+            --clobber
+
+          $macOSManifest = Get-Content ./release/macos.json -Raw | ConvertFrom-Json
+          $macOSVersion = [string]$macOSManifest.version
+          $macOSDmgName = "SIDEY-macOS-arm64-v${macOSVersion}.dmg"
+
+          ./scripts/website/prepare-release-metadata.ps1 `
+            -WebsiteDir ./website/dist `
+            -OutputDir ./build/pages-site `
+            -MacOSReleaseManifest ./release/macos.json `
+            -MacOSReleaseDmg "./build/macos-pages-release/$macOSDmgName" `
+            -WindowsReleaseManifest ./release/windows.json `
+            -WindowsReleaseInstaller "./build/windows-pages-release/$installerName"
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload website artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: build/pages-site
+          include-hidden-files: true
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

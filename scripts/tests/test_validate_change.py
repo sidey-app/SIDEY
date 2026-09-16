@@ -4,8 +4,9 @@ import unittest
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parents[1] / 'skills'))
 from workflow import WorkflowError
-from workflow_ci import (
+from validate_change import (
     commit_messages,
+    resolve_change,
     verify_commit_contract,
     verify_gate,
     verify_pr_contract,
@@ -19,7 +20,7 @@ class GateTests(unittest.TestCase):
             'fix: 첫 번째 변경\n\n변경 이유를 설명해요.\x00\n'
             "Merge branch 'main' into shared/task\x00\n"
         )
-        with patch('workflow_ci.git', return_value=output):
+        with patch('validate_change.git', return_value=output):
             self.assertEqual(
                 commit_messages(Path('.'), 'base', 'head'),
                 [
@@ -85,7 +86,6 @@ class GateTests(unittest.TestCase):
             validate_pr_paths(
                 'shared/script-relocation',
                 ['scripts/release_macos.sh'],
-                [],
             )
 
     def test_required_job_cannot_be_skipped_missing_cancelled_or_failed(self):
@@ -99,6 +99,62 @@ class GateTests(unittest.TestCase):
     def test_unaffected_platform_may_skip(self):
         verify_gate(['shared'], {'scope': {'result': 'success'}, 'shared': {'result': 'success'},
                                   'windows': {'result': 'skipped'}})
+
+    def test_edited_pr_revalidates_policy_without_scheduling_heavy_jobs(self):
+        event = {
+            'action': 'edited',
+            'pull_request': {
+                'base': {'sha': 'base'},
+                'head': {'sha': 'head', 'ref': 'shared/task'},
+                'title': 'docs: update policy',
+                'body': 'body',
+                'labels': [],
+            },
+        }
+        with (
+            patch('validate_change.changed_paths', return_value=['docs/guide.md']),
+            patch('validate_change.commit_messages', return_value=['docs: update policy']),
+            patch('validate_change.verify_commit_contract') as commits,
+            patch('validate_change.verify_pr_contract') as body,
+            patch('validate_change.validate_pr_paths') as paths,
+            patch('validate_change.required_scopes') as scopes,
+        ):
+            result = resolve_change(Path('.'), event)
+        self.assertEqual(result['scopes'], [])
+        commits.assert_called_once_with(['docs: update policy'], 'docs: update policy')
+        body.assert_called_once_with(Path('.'), 'body', ['docs/guide.md'])
+        paths.assert_called_once_with('shared/task', ['docs/guide.md'])
+        scopes.assert_not_called()
+
+    def test_normal_pr_emits_resolved_scopes(self):
+        event = {
+            'action': 'synchronize',
+            'pull_request': {
+                'base': {'sha': 'base'},
+                'head': {'sha': 'head', 'ref': 'windows/task'},
+                'title': 'fix(Windows): update app',
+                'body': 'body',
+                'labels': [],
+            },
+        }
+        with (
+            patch('validate_change.changed_paths', return_value=['windows/SIDEY/App.xaml.cs']),
+            patch('validate_change.commit_messages', return_value=[]),
+            patch('validate_change.verify_commit_contract'),
+            patch('validate_change.verify_pr_contract'),
+            patch('validate_change.validate_pr_paths'),
+            patch('validate_change.required_scopes', return_value=['shared', 'windows']) as scopes,
+        ):
+            result = resolve_change(Path('.'), event)
+        self.assertEqual(result['scopes'], ['shared', 'windows'])
+        scopes.assert_called_once_with(['windows/SIDEY/App.xaml.cs'])
+
+    def test_empty_edited_scope_requires_only_scope_job(self):
+        verify_gate([], {
+            'scope': {'result': 'success'},
+            'shared': {'result': 'skipped'},
+            'windows': {'result': 'skipped'},
+        })
 
     def test_scope_failure_never_passes_empty_requirements(self):
         with self.assertRaises(WorkflowError):

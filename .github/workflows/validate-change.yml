@@ -1,8 +1,9 @@
-name: SIDEY integration
+name: Validate change
+run-name: Validate change | ${{ github.event_name }}/${{ github.event.action || 'push' }} | ${{ github.event.pull_request.number && format('PR #{0} | {1}', github.event.pull_request.number, github.head_ref) || github.ref_name }}
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
 
@@ -10,11 +11,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: integration-${{ github.ref }}
+  group: validate-change-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   scope:
+    name: Plan validation
+    if: github.event_name != 'pull_request' || github.event.pull_request.state == 'open'
     runs-on: ubuntu-latest
     outputs:
       scopes: ${{ steps.scope.outputs.scopes }}
@@ -24,9 +27,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - id: scope
-        run: python3 scripts/skills/workflow_ci.py
+        run: python3 scripts/skills/validate_change.py
 
   shared:
+    name: Repository validation
+    needs: scope
+    if: contains(fromJSON(needs.scope.outputs.scopes), 'shared')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -42,9 +48,9 @@ jobs:
       - run: python3 scripts/skills/verify_release_consistency.py --allow-pending-appcast --allow-unreleased-source
 
   macos:
+    name: macOS validation
     needs: scope
     if: contains(fromJSON(needs.scope.outputs.scopes), 'macos')
-    name: Native tests
     runs-on: macos-26
     timeout-minutes: 30
     steps:
@@ -80,6 +86,7 @@ jobs:
         run: ./scripts/macos/test_native.sh -clonedSourcePackagesDirPath "$RUNNER_TEMP/sidey-source-packages"
 
   windows:
+    name: Windows validation
     needs: scope
     if: contains(fromJSON(needs.scope.outputs.scopes), 'windows')
     runs-on: windows-latest
@@ -158,11 +165,12 @@ jobs:
         if: ${{ always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure') }}
         uses: actions/upload-artifact@v5
         with:
-          name: integration-windows-code-coverage
+          name: windows-validation-code-coverage
           path: artifacts/coverage/**/coverage.cobertura.xml
           if-no-files-found: error
 
   web:
+    name: Website validation
     needs: scope
     if: contains(fromJSON(needs.scope.outputs.scopes), 'web')
     runs-on: ubuntu-latest
@@ -246,8 +254,8 @@ jobs:
           }
 
   gate:
-    name: SIDEY integration gate
-    if: always()
+    name: Required validation
+    if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.state == 'open') }}
     needs: [scope, shared, macos, windows, web]
     runs-on: ubuntu-latest
     steps:
@@ -257,4 +265,4 @@ jobs:
       - name: Require every applicable check, including missing or skipped jobs
         env:
           SIDEY_NEEDS: ${{ toJSON(needs) }}
-        run: python3 scripts/skills/workflow_ci.py gate
+        run: python3 scripts/skills/validate_change.py gate
