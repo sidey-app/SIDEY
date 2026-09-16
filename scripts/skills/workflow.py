@@ -214,7 +214,6 @@ def platform_for(path):
     if is_contributor_architecture_path(path):
         return 'shared'
     if (path.startswith(('macos/', 'scripts/macos/')) or
-        re.fullmatch(r'scripts/(?:export_macos|install_macos_dev|package_macos_release|release_macos)\.sh', path) or
         re.fullmatch(r'\.github/workflows/macos(?:-[^/]+)?\.yml', path)):
         return 'macos'
     if path.startswith(('windows/', 'scripts/windows/')) or re.fullmatch(r'\.github/workflows/windows(?:-[^/]+)?\.yml', path):
