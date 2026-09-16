@@ -548,35 +548,13 @@ public sealed class DistributionSourceTests
             testsDirectory,
             "Test-*.ps1",
             SearchOption.TopDirectoryOnly);
-        string[] compatibilityWrappers = Directory.GetFiles(
+        string[] rootTestScripts = Directory.GetFiles(
             scriptsDirectory,
             "Test-*.ps1",
             SearchOption.TopDirectoryOnly);
-        string[] expectedCompatibilityWrappers =
-        [
-            "Test-FrameworkDependentPublish.ps1",
-            "Test-ImpactAudioAssets.ps1",
-            "Test-PublishedApplication.ps1",
-            "Test-WindowsBuild.ps1",
-            "Test-WindowsRelease.ps1",
-        ];
 
         Assert.NotEmpty(canonicalTestScripts);
-        Assert.Equal(
-            expectedCompatibilityWrappers.Order(StringComparer.Ordinal),
-            compatibilityWrappers.Select(Path.GetFileName).Order(StringComparer.Ordinal));
-        Assert.All(compatibilityWrappers, path =>
-        {
-            string source = File.ReadAllText(path);
-            Assert.Contains(
-                "tests/" + Path.GetFileName(path),
-                source,
-                StringComparison.Ordinal);
-            Assert.Contains("@PSBoundParameters", source, StringComparison.Ordinal);
-            Assert.True(
-                source.Split('\n').Length <= 15,
-                $"Compatibility wrapper must not contain test implementation: {path}");
-        });
+        Assert.Empty(rootTestScripts);
 
         string[] misplacedTests =
         [
@@ -598,22 +576,18 @@ public sealed class DistributionSourceTests
 
         string integration = File.ReadAllText(RepositoryPath(
             ".github", "workflows", "validate-change.yml"));
-        Assert.True(
-            integration.Contains(
-                "./scripts/windows/tests/Test-FrameworkDependentPublish.ps1",
-                StringComparison.Ordinal)
-            || integration.Contains(
-                "./scripts/windows/Test-FrameworkDependentPublish.ps1",
-                StringComparison.Ordinal),
-            "Validation must call the canonical test or its transition wrapper.");
-        Assert.True(
-            integration.Contains(
-                "./scripts/windows/tests/Test-PublishedApplication.ps1",
-                StringComparison.Ordinal)
-            || integration.Contains(
-                "./scripts/windows/Test-PublishedApplication.ps1",
-                StringComparison.Ordinal),
-            "Validation must call the canonical test or its transition wrapper.");
+        Assert.Contains(
+            "./scripts/windows/tests/Test-FrameworkDependentPublish.ps1",
+            integration,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "./scripts/windows/tests/Test-PublishedApplication.ps1",
+            integration,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "./scripts/windows/Test-",
+            integration,
+            StringComparison.Ordinal);
 
         string package = File.ReadAllText(RepositoryPath(
             "scripts", "windows", "New-WindowsInstaller.ps1"));

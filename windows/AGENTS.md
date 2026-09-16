@@ -21,7 +21,7 @@ dotnet build windows/SIDEY.Windows.slnx --configuration Release --no-restore
 dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build
 ```
 
-Run the affected asset, PowerShell, publish-layout, prerequisite, installer, or startup checks used by the integration job when those contracts change. Read a script before executing it: `scripts/windows/Test-WindowsBuild.ps1` publishes an application, can install missing runtimes, and starts the built executables, so it is an extended machine-level check rather than the default local command. Release, installation, GUI, elevation, network, or machine-state validation must remain within the user's authorized scope. Never integrate a Windows commit while a required check is failing or while the commit under review differs from the commit that produced the evidence.
+Run the affected asset, PowerShell, publish-layout, prerequisite, installer, or startup checks used by the integration job when those contracts change. Read a script before executing it: `scripts/windows/tests/Test-WindowsBuild.ps1` publishes an application, can install missing runtimes, and starts the built executables, so it is an extended machine-level check rather than the default local command. Release, installation, GUI, elevation, network, or machine-state validation must remain within the user's authorized scope. Never integrate a Windows commit while a required check is failing or while the commit under review differs from the commit that produced the evidence.
 
 ## Specialist skills
 
