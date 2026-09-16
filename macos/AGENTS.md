@@ -16,7 +16,7 @@ These instructions apply to `macos/**`. Read the repository-root `AGENTS.md` fir
 The macOS job in `.github/workflows/integration.yml` is the canonical integration check. Start with the narrowest affected XCTest, Python asset/provenance test or structural check. When a change can affect either shipped macOS application, run the maintained native route from the repository root:
 
 ```sh
-./scripts/macos/tests/test_native.sh
+./scripts/macos/test_native.sh
 ```
 
 This route verifies content assets, runs the macOS Python tests, tests both `SIDEY` and `SIDEYAppStore`, and tests the recording tool. Read narrower scripts before invoking them and do not replace the maintained wrapper with an improvised build command for final evidence.
