@@ -114,7 +114,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '10.0.401'
 
       - name: Restore
         run: dotnet restore windows/SIDEY.Windows.slnx
@@ -129,18 +129,25 @@ jobs:
         id: tests
         run: dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build --logger trx --collect:"XPlat Code Coverage" --settings windows/coverlet.runsettings --results-directory artifacts/coverage
 
-      - name: Test compiled prerequisite installer
-        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./scripts/windows/tests/Test-PrerequisiteInstaller.ps1
-
-      - name: Publish and verify framework-dependent payload
+      - name: Publish and verify Windows payload
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
-            --configuration Release --runtime win-x64 --self-contained false `
-            --no-restore -p:WindowsAppSDKSelfContained=false -p:PublishSingleFile=false `
-            --output build/windows/publish
-          ./scripts/windows/tests/Test-FrameworkDependentPublish.ps1 -PublishDirectory ./build/windows/publish
-          ./scripts/windows/tests/Test-FrameworkPublishGuard.ps1 -PublishDirectory ./build/windows/publish
+          if (Test-Path -LiteralPath ./scripts/windows/tests/Test-SelfContainedPublish.ps1) {
+            dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
+              --configuration Release --runtime win-x64 --self-contained true `
+              --no-restore -p:PublishSingleFile=false `
+              --output build/windows/publish
+            ./scripts/windows/tests/Test-SelfContainedPublish.ps1 -PublishDirectory ./build/windows/publish
+          } else {
+            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+              -File ./scripts/windows/tests/Test-PrerequisiteInstaller.ps1
+            dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
+              --configuration Release --runtime win-x64 --self-contained false `
+              --no-restore -p:WindowsAppSDKSelfContained=false -p:PublishSingleFile=false `
+              --output build/windows/publish
+            ./scripts/windows/tests/Test-FrameworkDependentPublish.ps1 -PublishDirectory ./build/windows/publish
+            ./scripts/windows/tests/Test-FrameworkPublishGuard.ps1 -PublishDirectory ./build/windows/publish
+          }
 
       - name: Run Windows app smoke
         env:
@@ -148,8 +155,10 @@ jobs:
           SIDEY_OVERLAY_STARTUP_SMOKE: '1'
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          $version = ([xml](Get-Content ./windows/src/Sidey.App/Sidey.App.csproj -Raw)).Project.PropertyGroup.Version | Where-Object { $_ }
-          ./scripts/windows/Install-WindowsPrerequisites.ps1 -Version $version
+          if (-not (Test-Path -LiteralPath ./scripts/windows/tests/Test-SelfContainedPublish.ps1)) {
+            $version = ([xml](Get-Content ./windows/src/Sidey.App/Sidey.App.csproj -Raw)).Project.PropertyGroup.Version | Where-Object { $_ }
+            ./scripts/windows/Install-WindowsPrerequisites.ps1 -Version $version
+          }
           ./scripts/windows/tests/Test-PublishedApplication.ps1 -PublishDirectory ./build/windows/publish -TimeoutSeconds 120
 
       - name: Compile NSIS installer
