@@ -568,14 +568,12 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(w.required_scopes(['release/windows.json']), ['shared', 'windows'])
 
     def test_workflow_scopes_only_run_affected_platforms(self):
-        self.assertEqual(w.required_scopes(['.github/workflows/macos.yml']),
+        self.assertEqual(w.required_scopes(['.github/workflows/validate-macos.yml']),
                          ['macos', 'shared'])
-        self.assertEqual(w.required_scopes(['.github/workflows/windows-release.yml']),
+        self.assertEqual(w.required_scopes(['.github/workflows/publish-windows-release.yml']),
                          ['shared', 'windows'])
         self.assertEqual(w.required_scopes(['.github/workflows/database.yml']),
                          ['shared'])
-        self.assertEqual(w.required_scopes(['.github/workflows/pages.yml']),
-                         ['shared', 'web'])
         self.assertEqual(w.required_scopes(['.github/workflows/deploy-website.yml']),
                          ['shared', 'web'])
         self.assertEqual(w.required_scopes(['scripts/pages/prepare_release_metadata.py']),
@@ -591,18 +589,20 @@ class WorkflowTests(unittest.TestCase):
         ]), ['shared'])
 
     def test_platform_workflow_only_changes_do_not_require_app_review(self):
-        self.assertFalse(w.app_review_required('macos', ['.github/workflows/macos.yml']))
         self.assertFalse(w.app_review_required('macos', ['.github/workflows/validate-macos.yml']))
-        self.assertFalse(w.app_review_required('windows', ['.github/workflows/windows.yml']))
         self.assertFalse(w.app_review_required('windows', ['.github/workflows/validate-windows.yml']))
         self.assertFalse(w.app_review_required('shared', ['scripts/skills/workflow.py']))
 
     def test_platform_app_inputs_still_require_app_review(self):
         self.assertTrue(w.app_review_required('macos', ['macos/Sources/SIDEY/App.swift']))
         self.assertTrue(w.app_review_required('windows', ['windows/SIDEY/App.xaml.cs']))
-        self.assertTrue(w.app_review_required('windows', ['.github/workflows/windows-release.yml']))
         self.assertTrue(w.app_review_required(
-            'macos', ['.github/workflows/macos.yml', 'scripts/macos/package_macos_release.sh']))
+            'windows', ['.github/workflows/publish-windows-release.yml']))
+        self.assertTrue(w.app_review_required(
+            'macos', [
+                '.github/workflows/validate-macos.yml',
+                'scripts/macos/package_macos_release.sh',
+            ]))
 
     def test_validate_change_workflow_and_scope_logic_run_every_check(self):
         every_scope = {'shared', 'macos', 'windows', 'web'}

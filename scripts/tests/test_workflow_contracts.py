@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOWS = ROOT / '.github' / 'workflows'
 
 
-class CiWorkflowTests(unittest.TestCase):
+class WorkflowContractTests(unittest.TestCase):
     def read(self, name):
         return (WORKFLOWS / name).read_text(encoding='utf-8')
 
@@ -46,7 +46,7 @@ class CiWorkflowTests(unittest.TestCase):
         self.assertNotIn('unlabeled', workflow)
         self.assertIn("github.event.pull_request.state == 'open'", workflow)
 
-    def test_pages_reuses_the_tested_build_for_deployment(self):
+    def test_website_deployment_reuses_the_tested_build(self):
         workflow = self.read('deploy-website.yml')
         validation = self.read('validate-change.yml')
         self.assertNotIn('  pull_request:', workflow)
@@ -82,12 +82,6 @@ class CiWorkflowTests(unittest.TestCase):
         self.assertNotIn('  database:', validation)
         self.assertNotIn('  server:', validation)
         self.assertIn('needs: [scope, shared, macos, windows, web]', validation)
-
-    def test_pages_compatibility_wrapper_has_no_automatic_trigger(self):
-        workflow = self.read('pages.yml')
-        self.assertNotIn('  pull_request:', workflow)
-        self.assertNotIn('  push:', workflow)
-        self.assertIn('uses: ./.github/workflows/deploy-website.yml', workflow)
 
     def test_website_deployment_excludes_contributor_only_files(self):
         workflow = self.read('deploy-website.yml')
