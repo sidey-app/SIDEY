@@ -553,13 +553,13 @@ public sealed class DistributionSourceTests
             "Test-*.ps1",
             SearchOption.TopDirectoryOnly);
         string[] expectedCompatibilityWrappers =
-        {
+        [
             "Test-FrameworkDependentPublish.ps1",
             "Test-ImpactAudioAssets.ps1",
             "Test-PublishedApplication.ps1",
             "Test-WindowsBuild.ps1",
             "Test-WindowsRelease.ps1",
-        };
+        ];
 
         Assert.NotEmpty(canonicalTestScripts);
         Assert.Equal(
@@ -578,7 +578,9 @@ public sealed class DistributionSourceTests
                 $"Compatibility wrapper must not contain test implementation: {path}");
         });
 
-        string[] misplacedTests = Directory.GetFiles(
+        string[] misplacedTests =
+        [
+            .. Directory.GetFiles(
                 scriptsDirectory,
                 "Test-*.ps1",
                 SearchOption.AllDirectories)
@@ -591,7 +593,7 @@ public sealed class DistributionSourceTests
                     Path.GetDirectoryName(path),
                     testsDirectory,
                     StringComparison.OrdinalIgnoreCase))
-            .ToArray();
+        ];
         Assert.Empty(misplacedTests);
 
         string integration = File.ReadAllText(RepositoryPath(
