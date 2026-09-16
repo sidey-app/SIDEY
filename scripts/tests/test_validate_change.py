@@ -85,7 +85,7 @@ class GateTests(unittest.TestCase):
         with self.assertRaisesRegex(WorkflowError, 'platform boundary'):
             validate_pr_paths(
                 'shared/script-relocation',
-                ['scripts/release_macos.sh'],
+                ['scripts/macos/release_macos.sh'],
             )
 
     def test_required_job_cannot_be_skipped_missing_cancelled_or_failed(self):

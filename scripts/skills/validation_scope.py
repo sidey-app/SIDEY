@@ -94,7 +94,7 @@ def required_scopes(paths):
         elif path == 'release/windows.json':
             result.add('windows')
         if (
-            path.startswith(('website/', 'scripts/website/'))
+            path.startswith(('website/', 'scripts/pages/'))
             and not is_contributor_architecture_path(path)
         ):
             result.add('web')

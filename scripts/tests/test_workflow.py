@@ -493,6 +493,22 @@ class WorkflowTests(unittest.TestCase):
             'general',
         )
 
+    def test_pr_body_is_not_subject_to_commit_line_length(self):
+        template = self.write_general_pr_template()
+        body = template.read_text(encoding='utf-8').replace('[ ]', '[x]')
+        body += '\n## Additional context\n\n' + ('detail ' * 20) + '\n'
+
+        self.assertGreater(max(map(len, body.splitlines())), 72)
+        self.assertEqual(
+            w.require_valid_pr(
+                self.primary,
+                'chore(Shared): 기여자 구조 정리',
+                body,
+                ['docs/guide.md'],
+            ),
+            'general',
+        )
+
     def test_general_pr_body_rejects_asset_template_and_changed_sections(self):
         self.write_general_pr_template()
         with self.assertRaisesRegex(w.WorkflowError, 'preserve exactly one'):
@@ -562,6 +578,8 @@ class WorkflowTests(unittest.TestCase):
                          ['shared', 'web'])
         self.assertEqual(w.required_scopes(['.github/workflows/deploy-website.yml']),
                          ['shared', 'web'])
+        self.assertEqual(w.required_scopes(['scripts/pages/prepare_release_metadata.py']),
+                         ['shared', 'web'])
         self.assertEqual(w.required_scopes(['.github/workflows/download-metrics.yml']),
                          ['shared'])
 
@@ -584,7 +602,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertTrue(w.app_review_required('windows', ['windows/SIDEY/App.xaml.cs']))
         self.assertTrue(w.app_review_required('windows', ['.github/workflows/windows-release.yml']))
         self.assertTrue(w.app_review_required(
-            'macos', ['.github/workflows/macos.yml', 'scripts/package_macos_release.sh']))
+            'macos', ['.github/workflows/macos.yml', 'scripts/macos/package_macos_release.sh']))
 
     def test_validate_change_workflow_and_scope_logic_run_every_check(self):
         every_scope = {'shared', 'macos', 'windows', 'web'}

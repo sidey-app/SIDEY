@@ -10,4 +10,4 @@ Respect the current purpose-based locations:
 
 Do not impose Windows's paired Korean and English edition convention. Preserve the target document's established language and register unless the user requests a translation or a path-specific rule requires one.
 
-Verify commands against the Xcode project, shared schemes, `scripts/macos/**` callers and macOS workflows. Describe signing, notarization, packaging, Keychain, StoreKit, network and application-launch side effects next to the command. Use `./scripts/macos/test_native.sh` only when the documented behavior warrants the full native check and the environment supports it.
+Verify commands against the Xcode project, shared schemes, `scripts/macos/**` callers and macOS workflows. Describe signing, notarization, packaging, Keychain, StoreKit, network and application-launch side effects next to the command. Use `./scripts/macos/tests/test_native.sh` only when the documented behavior warrants the full native check and the environment supports it.

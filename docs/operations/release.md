@@ -36,7 +36,7 @@ Candidate source가 검증 뒤 바뀌면 영향을 받는 검사를 다시 실�
 
 ### macOS direct
 
-운영자 Mac에서 [`scripts/release_macos.sh`](../../scripts/release_macos.sh)를 사용한다.
+운영자 Mac에서 [`scripts/macos/release_macos.sh`](../../scripts/macos/release_macos.sh)를 사용한다.
 Script가 Developer ID signing, Hardened Runtime, notarization/stapling, DMG와 Sparkle ZIP,
 hash 및 download 재검증을 완료해야 한다. Signing 및 Sparkle private key는 repository나
 CI log에 넣지 않는다. App Store archive와 submission은 direct release와 별도다.

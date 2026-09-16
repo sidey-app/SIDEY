@@ -48,9 +48,15 @@ class CiWorkflowTests(unittest.TestCase):
 
     def test_pages_reuses_the_tested_build_for_deployment(self):
         workflow = self.read('deploy-website.yml')
+        validation = self.read('validate-change.yml')
         self.assertNotIn('  pull_request:', workflow)
         self.assertEqual(workflow.count('pnpm install --frozen-lockfile'), 1)
         self.assertEqual(workflow.count('pnpm test'), 1)
+        self.assertIn('python3 -m unittest discover -s scripts/pages/tests', workflow)
+        self.assertIn('python3 -m unittest discover -s scripts/pages/tests', validation)
+        self.assertIn('python3 ./scripts/pages/prepare_release_metadata.py', workflow)
+        self.assertNotIn('./scripts/website/prepare-release-metadata.ps1', workflow)
+        self.assertNotIn('./scripts/website/prepare-release-metadata.ps1', validation)
         self.assertIn('name: Upload tested website build', workflow)
         self.assertIn('name: Download tested website build', workflow)
 
