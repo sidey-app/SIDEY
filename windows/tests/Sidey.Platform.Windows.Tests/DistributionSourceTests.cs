@@ -595,16 +595,15 @@ public sealed class DistributionSourceTests
         Assert.Empty(misplacedTests);
 
         string integration = File.ReadAllText(RepositoryPath(
-            ".github", "workflows", "integration.yml"));
+            ".github", "workflows", "validate-change.yml"));
         Assert.Contains(
-            "./scripts/windows/tests/Test-FrameworkDependentPublish.ps1",
+            "./scripts/windows/Test-FrameworkDependentPublish.ps1",
             integration,
             StringComparison.Ordinal);
         Assert.Contains(
-            "./scripts/windows/tests/Test-PublishedApplication.ps1",
+            "./scripts/windows/Test-PublishedApplication.ps1",
             integration,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("./scripts/windows/Test-", integration, StringComparison.Ordinal);
 
         string package = File.ReadAllText(RepositoryPath(
             "scripts", "windows", "New-WindowsInstaller.ps1"));
