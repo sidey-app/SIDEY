@@ -60,6 +60,11 @@ Keep platform work separate. A `macos/*` branch must not change Windows-owned
 files, and a `windows/*` branch must not change macOS-owned files. Put shared
 changes on a `shared/*` branch and land them independently.
 
+For an atomic repository-wide migration that must update platform-owned call
+sites, a maintainer may apply the `repository-wide` pull request label to a
+`shared/*` branch. The exception covers only the required callers; CI still
+runs every affected platform scope.
+
 Do not clean, switch, or reuse another task's dirty worktree. Avoid unrelated
 refactors, formatting, generated output, and documentation changes.
 

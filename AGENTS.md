@@ -68,6 +68,7 @@ Codex-assisted new commits must include `Co-authored-by: codex <codex@openai.com
 - A `macos/*` branch must not edit, move, delete, format, generate, build, test, or release Windows implementation files. This includes `windows/**` and Windows-specific workflows, installers, assets, and documentation.
 - A `windows/*` branch must not edit, move, delete, format, generate, build, test, or release macOS implementation files. This includes `macos/**` and macOS-specific scripts, workflows, packages, assets, and documentation.
 - Shared changes belong on `shared/*`. Do not mix new shared-file edits into a platform implementation commit. Land the shared change independently, then merge or cherry-pick that reviewed commit into the platform branch that needs it.
+- A maintainer-applied `repository-wide` pull request label may authorize a `shared/*` branch to update platform-owned call sites required by one atomic repository-wide migration. It does not authorize unrelated platform behavior changes, and CI must run every affected scope.
 - If a platform task reveals work needed on the other platform, record a follow-up instead of implementing it on the current branch.
 - Do not switch or clean a dirty worktree owned by another task or agent. Create an isolated worktree on the correctly prefixed branch.
 - macOS remains the reference implementation. Windows follows through its own branch without rewriting or opportunistically modifying macOS code.

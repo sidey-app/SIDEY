@@ -18,6 +18,9 @@ from workflow import (
 )
 
 
+REPOSITORY_WIDE_LABEL = "repository-wide"
+
+
 def verify_gate(scopes, needs):
     required = set(scopes) | {'scope', 'shared'}
     failures = {name: needs.get(name, {}).get('result', 'missing') for name in required
@@ -48,6 +51,21 @@ def verify_pr_contract(root, body, paths):
         return validate_pr_body(root, body or '', paths)
     except PullRequestValidationError as error:
         raise WorkflowError(f'Pull request template validation failed: {error}') from error
+
+
+def validate_pr_paths(branch, paths, labels):
+    label_names = {
+        label.get("name")
+        for label in labels
+        if isinstance(label, dict)
+    }
+    if REPOSITORY_WIDE_LABEL not in label_names:
+        return validate_paths(branch, paths)
+    if validate_paths(branch, []) != "shared":
+        raise WorkflowError(
+            f"{REPOSITORY_WIDE_LABEL!r} applies only to shared/* branches"
+        )
+    return "shared"
 
 
 def commit_messages(root, base, revision):
@@ -82,7 +100,7 @@ def main():
             pr.get('title'),
         )
         verify_pr_contract(root, pr.get('body'), paths)
-        validate_paths(pr['head']['ref'], paths)
+        validate_pr_paths(pr['head']['ref'], paths, pr.get('labels', []))
     else:
         verify_commit_contract(commit_messages(root, base, revision))
     scopes = required_scopes(paths)

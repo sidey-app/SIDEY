@@ -34,7 +34,7 @@ class CiWorkflowTests(unittest.TestCase):
     def test_integration_revalidates_edited_pull_request_bodies(self):
         workflow = self.read('integration.yml')
         self.assertIn(
-            'types: [opened, synchronize, reopened, edited]',
+            'types: [opened, synchronize, reopened, edited, labeled, unlabeled]',
             workflow,
         )
 
