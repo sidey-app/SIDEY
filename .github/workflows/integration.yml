@@ -200,50 +200,7 @@ jobs:
         run: python3 ./scripts/validate_pixel_assets.py
 
       - name: Validate release metadata preparation
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $macOSManifest = Get-Content ./release/macos.json -Raw | ConvertFrom-Json
-          $macOSVersion = [string]$macOSManifest.version
-          $macOSDmgName = "SIDEY-macOS-arm64-v${macOSVersion}.dmg"
-          $windowsManifest = Get-Content ./release/windows.json -Raw | ConvertFrom-Json
-          $windowsVersion = [string]$windowsManifest.version
-          $windowsInstallerName = "SIDEY-Windows-x64-v${windowsVersion}-Setup.exe"
-          New-Item -ItemType Directory -Path ./build/pages-test-release -Force |
-            Out-Null
-          Copy-Item ./release/macos.json `
-            "./build/pages-test-release/$macOSDmgName"
-          Copy-Item ./release/windows.json `
-            "./build/pages-test-release/$windowsInstallerName"
-
-          ./scripts/website/prepare-release-metadata.ps1 `
-            -WebsiteDir ./website/dist `
-            -OutputDir ./build/pages-test-site `
-            -MacOSReleaseManifest ./release/macos.json `
-            -MacOSReleaseDmg "./build/pages-test-release/$macOSDmgName" `
-            -WindowsReleaseManifest ./release/windows.json `
-            -WindowsReleaseInstaller "./build/pages-test-release/$windowsInstallerName"
-
-          $published = Get-Content ./build/pages-test-site/windows-latest.json -Raw |
-            ConvertFrom-Json
-          $macOSHash = (Get-FileHash `
-            -LiteralPath "./build/pages-test-release/$macOSDmgName" `
-            -Algorithm SHA256).Hash.ToLowerInvariant()
-          $windowsHash = (Get-FileHash `
-            -LiteralPath "./build/pages-test-release/$windowsInstallerName" `
-            -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ([string]$published.sha256 -cne $windowsHash) {
-            throw 'Generated Windows SHA-256 does not match the release asset.'
-          }
-          foreach ($page in @('ko/index.html', 'en/index.html', 'ja/index.html')) {
-            $html = Get-Content "./build/pages-test-site/$page" -Raw
-            if ($html -notmatch "<code id=`"macos-download-sha256`" data-release-platform=`"macos`">$macOSHash</code>") {
-              throw "Generated macOS SHA-256 is missing: $page"
-            }
-            if ($html -notmatch "<code id=`"windows-download-sha256`" data-release-platform=`"windows`">$windowsHash</code>") {
-              throw "Generated Windows SHA-256 is missing: $page"
-            }
-          }
+        run: python3 -m unittest discover -s scripts/pages/tests
 
   gate:
     name: SIDEY integration gate

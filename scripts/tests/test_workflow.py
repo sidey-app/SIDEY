@@ -546,6 +546,8 @@ class WorkflowTests(unittest.TestCase):
                          ['shared'])
         self.assertEqual(w.required_scopes(['.github/workflows/pages.yml']),
                          ['shared', 'web'])
+        self.assertEqual(w.required_scopes(['scripts/pages/prepare_release_metadata.py']),
+                         ['shared', 'web'])
         self.assertEqual(w.required_scopes(['.github/workflows/download-metrics.yml']),
                          ['shared'])
 

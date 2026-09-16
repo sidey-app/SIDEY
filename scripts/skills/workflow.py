@@ -278,7 +278,7 @@ def required_scopes(paths):
             result.add('macos')
         elif path == 'release/windows.json':
             result.add('windows')
-        if path.startswith(('website/', 'scripts/website/')):
+        if path.startswith(('website/', 'scripts/pages/')):
             result.add('web')
         if path == 'website/src/pages/ko/terms.md':
             result.add('windows')
