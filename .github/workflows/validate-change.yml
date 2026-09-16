@@ -1,5 +1,5 @@
 name: Validate change
-run-name: Validate change | ${{ github.event_name }}/${{ github.event.action || 'push' }} | ${{ github.event.pull_request.number && format('PR #{0} | {1}', github.event.pull_request.number, github.head_ref) || github.ref_name }}
+run-name: "Validate change | ${{ github.event_name }} | ${{ github.ref_name }}"
 
 on:
   pull_request:
