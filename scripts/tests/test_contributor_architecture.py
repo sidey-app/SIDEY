@@ -200,29 +200,6 @@ class ContributorArchitectureTests(unittest.TestCase):
         )
         self.assertIn("missing-script-reference", self.codes())
 
-    def test_retired_skill_references_are_reported_in_active_sources(self):
-        self.add_skill(
-            "version-audit",
-            body="# Version audit\n\nDo not invoke sidey-workflow.\n",
-        )
-        self.write("AGENTS.md", "The sidey-commit skill is retired.\n")
-        metadata = self.root / ".agents/skills/version-audit/agents/openai.yaml"
-        metadata.write_text(
-            metadata.read_text(encoding="utf-8")
-            + "# Formerly sidey-versioning.\n",
-            encoding="utf-8",
-        )
-        violations = validate_repository(self.root)
-        retired = [item for item in violations if item.code == "retired-skill-reference"]
-        self.assertEqual(len(retired), 3)
-
-    def test_retired_names_in_history_tests_and_state_are_not_active_references(self):
-        self.add_skill("version-audit")
-        self.write("docs/history/migration.md", "Removed sidey-versioning.\n")
-        self.write("scripts/tests/test_fixture.py", "OLD_NAME = 'sidey-commit'\n")
-        self.write("scripts/workflow.py", "STATE_DIRECTORY = 'sidey-workflow'\n")
-        self.assertEqual(validate_repository(self.root), [])
-
     def test_metadata_requires_explicit_implicit_invocation_policy(self):
         self.add_skill("missing-policy", implicit_policy=None)
         self.assertIn("missing-implicit-invocation-policy", self.codes())
@@ -260,17 +237,6 @@ class ContributorArchitectureTests(unittest.TestCase):
         ):
             self.add_skill(name)
         self.assertEqual(validate_repository(self.root), [])
-
-    def test_retired_windows_specialist_names_are_reported(self):
-        self.add_skill("write-tests")
-        self.write("AGENTS.md", "Use $windows-tests for this task.\n")
-        self.assertIn("retired-skill-reference", self.codes())
-
-    def test_retired_native_prefixed_names_are_reported(self):
-        self.add_skill("write-tests")
-        self.write("AGENTS.md", "Use $native-tests for this task.\n")
-        self.assertIn("retired-skill-reference", self.codes())
-
 
 if __name__ == "__main__":
     unittest.main()

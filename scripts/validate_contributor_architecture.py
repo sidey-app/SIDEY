@@ -21,21 +21,6 @@ ROOT = Path(__file__).resolve().parent.parent
 # This is a user-installed, non-project skill referenced only as an optional
 # follow-up.  Project-local skill references must otherwise resolve locally.
 EXTERNAL_SKILL_REFERENCES = frozenset({"humanize-korean"})
-RETIRED_SKILL_NAMES = frozenset(
-    {
-        "sidey-commit",
-        "sidey-public-web",
-        "sidey-release-docs",
-        "sidey-versioning",
-        "sidey-workflow",
-        "windows-code-review",
-        "windows-dev-docs",
-        "windows-tests",
-        "native-code-review",
-        "native-dev-docs",
-        "native-tests",
-    }
-)
 
 IGNORED_DIRECTORIES = frozenset(
     {
@@ -371,19 +356,6 @@ def _validate_references(
         source = path.read_text(encoding="utf-8")
         if path.suffix == ".md":
             violations.extend(_relative_link_violations(path, root))
-
-        for retired_name in RETIRED_SKILL_NAMES:
-            if re.search(
-                rf"(?<![A-Za-z0-9_-]){re.escape(retired_name)}(?![A-Za-z0-9_-])",
-                source,
-            ):
-                violations.append(
-                    Violation(
-                        "retired-skill-reference",
-                        relative,
-                        f"active contributor architecture references retired skill {retired_name!r}",
-                    )
-                )
 
         for referenced_name in sorted(set(SKILL_PATH_PATTERN.findall(source))):
             target = root / ".agents" / "skills" / referenced_name / "SKILL.md"
