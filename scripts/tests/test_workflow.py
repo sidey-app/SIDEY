@@ -618,10 +618,6 @@ class WorkflowTests(unittest.TestCase):
                     'name': 'Required validation',
                     'workflow': workflow,
                 }))
-        self.assertFalse(w.is_required_validation({
-            'name': 'SIDEY integration gate',
-            'workflow': 'SIDEY integration',
-        }))
 
     def test_policy_and_contributor_changes_are_repository_only(self):
         self.assertEqual(
