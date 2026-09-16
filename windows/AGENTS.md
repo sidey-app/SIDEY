@@ -12,7 +12,7 @@ These instructions apply to `windows/**`. Read the repository-root `AGENTS.md` f
 
 ## Build and validation
 
-The Windows job in `.github/workflows/integration.yml` is the canonical integration check. Start with the narrowest affected test, then run the non-installing solution checks from the repository root when the change can affect the application:
+The `Windows validation` job in `.github/workflows/validate-change.yml` is the canonical automatic check. Start with the narrowest affected test, then run the non-installing solution checks from the repository root when the change can affect the application:
 
 ```powershell
 dotnet restore windows/SIDEY.Windows.slnx
