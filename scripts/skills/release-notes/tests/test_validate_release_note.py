@@ -4,7 +4,6 @@ import importlib.util
 from pathlib import Path
 import unittest
 
-
 SCRIPT = Path(__file__).parents[1] / "validate_release_note.py"
 SPEC = importlib.util.spec_from_file_location("validate_release_note", SCRIPT)
 VALIDATOR = importlib.util.module_from_spec(SPEC)
@@ -13,10 +12,7 @@ SPEC.loader.exec_module(VALIDATOR)
 
 BASE = "windows-v1.3.0"
 TARGET = "windows-v1.3.1"
-COMPARISON = (
-    "https://github.com/sidey-app/SIDEY/compare/"
-    f"{BASE}...{TARGET}"
-)
+COMPARISON = "https://github.com/sidey-app/SIDEY/compare/" f"{BASE}...{TARGET}"
 
 
 def note(heading="## 변경사항", attribution="#108, @patulus"):

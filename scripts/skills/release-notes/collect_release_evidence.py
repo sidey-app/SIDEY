@@ -11,7 +11,6 @@ import subprocess
 import sys
 from typing import Callable, Sequence
 
-
 REPOSITORY = "sidey-app/SIDEY"
 CommandRunner = Callable[[Sequence[str], Path], str]
 

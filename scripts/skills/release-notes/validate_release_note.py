@@ -10,7 +10,6 @@ import re
 import sys
 from typing import Sequence
 
-
 CHANGES_HEADING = "## 변경사항"
 LOGIN_PATTERN = r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?"
 BULLET_PATTERN = re.compile(
@@ -68,7 +67,9 @@ def validate_note(
         if line != "---" and not line.startswith("#")
     ]
     if not prose:
-        raise NoteError("Release note needs a final-user summary before 변경사항")
+        raise NoteError(
+            "Release note needs a final-user summary before 변경사항"
+        )
 
     comparison = (
         "**전체 변경 내역**: "
@@ -90,9 +91,7 @@ def validate_note(
         comparison_index,
     )
     bullets = [
-        line
-        for line in lines[heading + 1:following_heading]
-        if line.strip()
+        line for line in lines[heading + 1:following_heading] if line.strip()
     ]
     if not bullets:
         raise NoteError("변경사항 must contain at least one attributed bullet")
