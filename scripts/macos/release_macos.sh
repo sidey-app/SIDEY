@@ -91,7 +91,7 @@ if [ "$(gh release view "$SIDEY_TAG" --json isDraft --jq .isDraft)" = true ]; th
 fi
 [ "$(gh release view "$SIDEY_TAG" --json isDraft,isPrerelease --jq '.isDraft or .isPrerelease')" = false ] || \
 	fail "Release is not a published stable release: $SIDEY_TAG"
-gh workflow run pages.yml --repo sidey-app/SIDEY --ref main
+gh workflow run deploy-website.yml --repo sidey-app/SIDEY --ref main
 
 SIDEY_APPCAST_CLONE="$SIDEY_TEMP_DIR/sidey-appcast"
 gh repo clone sidey-app/SIDEY "$SIDEY_APPCAST_CLONE" -- --branch main --single-branch

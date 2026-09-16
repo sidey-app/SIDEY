@@ -1,6 +1,6 @@
-name: macOS CI
+name: Validate macOS
 
-# PR and main validation is owned by integration.yml to avoid duplicate native runs.
+# Automatic PR and main validation is owned by validate-change.yml.
 on:
   workflow_dispatch:
 
