@@ -1,8 +1,9 @@
-name: SIDEY integration
+name: Validate change
+run-name: "Validate change | ${{ github.event_name }} | ${{ github.ref_name }}"
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [main]
 
@@ -10,11 +11,13 @@ permissions:
   contents: read
 
 concurrency:
-  group: integration-${{ github.ref }}
+  group: validate-change-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   scope:
+    name: Plan validation
+    if: github.event_name != 'pull_request' || github.event.pull_request.state == 'open'
     runs-on: ubuntu-latest
     outputs:
       scopes: ${{ steps.scope.outputs.scopes }}
@@ -24,9 +27,12 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - id: scope
-        run: python3 scripts/skills/workflow_ci.py
+        run: python3 scripts/skills/validate_change.py
 
   shared:
+    name: Repository validation
+    needs: scope
+    if: contains(fromJSON(needs.scope.outputs.scopes), 'shared')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -42,9 +48,9 @@ jobs:
       - run: python3 scripts/skills/verify_release_consistency.py --allow-pending-appcast --allow-unreleased-source
 
   macos:
+    name: macOS validation
     needs: scope
     if: contains(fromJSON(needs.scope.outputs.scopes), 'macos')
-    name: Native tests
     runs-on: macos-26
     timeout-minutes: 30
     steps:
@@ -77,9 +83,10 @@ jobs:
         run: rm -rf "$RUNNER_TEMP/sidey-source-packages"
 
       - name: Run native test suite
-        run: ./scripts/macos/test_native.sh -clonedSourcePackagesDirPath "$RUNNER_TEMP/sidey-source-packages"
+        run: ./scripts/macos/tests/test_native.sh -clonedSourcePackagesDirPath "$RUNNER_TEMP/sidey-source-packages"
 
   windows:
+    name: Windows validation
     needs: scope
     if: contains(fromJSON(needs.scope.outputs.scopes), 'windows')
     runs-on: windows-latest
@@ -158,11 +165,12 @@ jobs:
         if: ${{ always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure') }}
         uses: actions/upload-artifact@v5
         with:
-          name: integration-windows-code-coverage
+          name: windows-validation-code-coverage
           path: artifacts/coverage/**/coverage.cobertura.xml
           if-no-files-found: error
 
   web:
+    name: Website validation
     needs: scope
     if: contains(fromJSON(needs.scope.outputs.scopes), 'web')
     runs-on: ubuntu-latest
@@ -200,54 +208,11 @@ jobs:
         run: python3 ./scripts/validate_pixel_assets.py
 
       - name: Validate release metadata preparation
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $macOSManifest = Get-Content ./release/macos.json -Raw | ConvertFrom-Json
-          $macOSVersion = [string]$macOSManifest.version
-          $macOSDmgName = "SIDEY-macOS-arm64-v${macOSVersion}.dmg"
-          $windowsManifest = Get-Content ./release/windows.json -Raw | ConvertFrom-Json
-          $windowsVersion = [string]$windowsManifest.version
-          $windowsInstallerName = "SIDEY-Windows-x64-v${windowsVersion}-Setup.exe"
-          New-Item -ItemType Directory -Path ./build/pages-test-release -Force |
-            Out-Null
-          Copy-Item ./release/macos.json `
-            "./build/pages-test-release/$macOSDmgName"
-          Copy-Item ./release/windows.json `
-            "./build/pages-test-release/$windowsInstallerName"
-
-          ./scripts/website/prepare-release-metadata.ps1 `
-            -WebsiteDir ./website/dist `
-            -OutputDir ./build/pages-test-site `
-            -MacOSReleaseManifest ./release/macos.json `
-            -MacOSReleaseDmg "./build/pages-test-release/$macOSDmgName" `
-            -WindowsReleaseManifest ./release/windows.json `
-            -WindowsReleaseInstaller "./build/pages-test-release/$windowsInstallerName"
-
-          $published = Get-Content ./build/pages-test-site/windows-latest.json -Raw |
-            ConvertFrom-Json
-          $macOSHash = (Get-FileHash `
-            -LiteralPath "./build/pages-test-release/$macOSDmgName" `
-            -Algorithm SHA256).Hash.ToLowerInvariant()
-          $windowsHash = (Get-FileHash `
-            -LiteralPath "./build/pages-test-release/$windowsInstallerName" `
-            -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ([string]$published.sha256 -cne $windowsHash) {
-            throw 'Generated Windows SHA-256 does not match the release asset.'
-          }
-          foreach ($page in @('ko/index.html', 'en/index.html', 'ja/index.html')) {
-            $html = Get-Content "./build/pages-test-site/$page" -Raw
-            if ($html -notmatch "<code id=`"macos-download-sha256`" data-release-platform=`"macos`">$macOSHash</code>") {
-              throw "Generated macOS SHA-256 is missing: $page"
-            }
-            if ($html -notmatch "<code id=`"windows-download-sha256`" data-release-platform=`"windows`">$windowsHash</code>") {
-              throw "Generated Windows SHA-256 is missing: $page"
-            }
-          }
+        run: python3 -m unittest discover -s scripts/pages/tests
 
   gate:
-    name: SIDEY integration gate
-    if: always()
+    name: Required validation
+    if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.state == 'open') }}
     needs: [scope, shared, macos, windows, web]
     runs-on: ubuntu-latest
     steps:
@@ -257,4 +222,4 @@ jobs:
       - name: Require every applicable check, including missing or skipped jobs
         env:
           SIDEY_NEEDS: ${{ toJSON(needs) }}
-        run: python3 scripts/skills/workflow_ci.py gate
+        run: python3 scripts/skills/validate_change.py gate

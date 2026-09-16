@@ -352,7 +352,7 @@ class WorkflowTests(unittest.TestCase):
     def test_platform_branches_reject_shared_changes(self):
         for name in ('macos/task', 'windows/task'):
             with self.assertRaises(w.WorkflowError):
-                w.validate_paths(name, ['docs/DECISIONS.md'])
+                w.validate_paths(name, ['docs/architecture.md'])
 
     def test_shared_commits_already_in_main_are_excluded(self):
         task = self.start(platform='macos')
@@ -416,7 +416,7 @@ class WorkflowTests(unittest.TestCase):
                          {'shared', 'macos', 'windows', 'web'})
         self.assertIn('windows', w.required_scopes(['website/src/pages/ko/terms.md']))
 
-    def test_contributor_architecture_only_changes_are_shared_only(self):
+    def test_contributor_architecture_only_changes_require_repository_validation(self):
         paths = [
             'AGENTS.md',
             'macos/AGENTS.md',
@@ -432,10 +432,24 @@ class WorkflowTests(unittest.TestCase):
             'scripts/skills/commit/prepare_commit_msg.py',
         ]
         self.assertEqual(w.required_scopes(paths), ['shared'])
-        self.assertEqual(w.platform_for('macos/AGENTS.md'), 'shared')
-        self.assertEqual(w.platform_for('windows/AGENTS.md'), 'shared')
+        self.assertEqual(w.platform_for('macos/AGENTS.md'), 'macos')
+        self.assertEqual(w.platform_for('windows/AGENTS.md'), 'windows')
         self.assertEqual(w.platform_for('website/AGENTS.md'), 'shared')
-        self.assertEqual(w.validate_paths('shared/contributor-architecture', paths), 'shared')
+        self.assertEqual(
+            w.validate_paths(
+                'shared/contributor-architecture',
+                [path for path in paths if not path.startswith(('macos/', 'windows/'))],
+            ),
+            'shared',
+        )
+        self.assertEqual(w.validate_paths('macos/contributor-docs', ['macos/AGENTS.md']), 'macos')
+        self.assertEqual(
+            w.validate_paths(
+                'windows/contributor-docs',
+                ['windows/AGENTS.md', 'windows/docs/AGENTS.md'],
+            ),
+            'windows',
+        )
 
     def test_contributor_classification_does_not_hide_product_changes(self):
         self.assertEqual(
@@ -476,6 +490,22 @@ class WorkflowTests(unittest.TestCase):
         body += '\n## 추가 정보\n\n검토 참고 사항\n'
         self.assertEqual(
             w.require_pr_body(self.primary, body, ['docs/guide.md']),
+            'general',
+        )
+
+    def test_pr_body_is_not_subject_to_commit_line_length(self):
+        template = self.write_general_pr_template()
+        body = template.read_text(encoding='utf-8').replace('[ ]', '[x]')
+        body += '\n## Additional context\n\n' + ('detail ' * 20) + '\n'
+
+        self.assertGreater(max(map(len, body.splitlines())), 72)
+        self.assertEqual(
+            w.require_valid_pr(
+                self.primary,
+                'chore(Shared): 기여자 구조 정리',
+                body,
+                ['docs/guide.md'],
+            ),
             'general',
         )
 
@@ -546,6 +576,10 @@ class WorkflowTests(unittest.TestCase):
                          ['shared'])
         self.assertEqual(w.required_scopes(['.github/workflows/pages.yml']),
                          ['shared', 'web'])
+        self.assertEqual(w.required_scopes(['.github/workflows/deploy-website.yml']),
+                         ['shared', 'web'])
+        self.assertEqual(w.required_scopes(['scripts/pages/prepare_release_metadata.py']),
+                         ['shared', 'web'])
         self.assertEqual(w.required_scopes(['.github/workflows/download-metrics.yml']),
                          ['shared'])
 
@@ -558,7 +592,9 @@ class WorkflowTests(unittest.TestCase):
 
     def test_platform_workflow_only_changes_do_not_require_app_review(self):
         self.assertFalse(w.app_review_required('macos', ['.github/workflows/macos.yml']))
+        self.assertFalse(w.app_review_required('macos', ['.github/workflows/validate-macos.yml']))
         self.assertFalse(w.app_review_required('windows', ['.github/workflows/windows.yml']))
+        self.assertFalse(w.app_review_required('windows', ['.github/workflows/validate-windows.yml']))
         self.assertFalse(w.app_review_required('shared', ['scripts/skills/workflow.py']))
 
     def test_platform_app_inputs_still_require_app_review(self):
@@ -566,16 +602,55 @@ class WorkflowTests(unittest.TestCase):
         self.assertTrue(w.app_review_required('windows', ['windows/SIDEY/App.xaml.cs']))
         self.assertTrue(w.app_review_required('windows', ['.github/workflows/windows-release.yml']))
         self.assertTrue(w.app_review_required(
-            'macos', ['.github/workflows/macos.yml', 'scripts/package_macos_release.sh']))
+            'macos', ['.github/workflows/macos.yml', 'scripts/macos/package_macos_release.sh']))
 
-    def test_integration_and_scope_logic_changes_run_every_check(self):
+    def test_validate_change_workflow_and_scope_logic_run_every_check(self):
         every_scope = {'shared', 'macos', 'windows', 'web'}
-        self.assertEqual(set(w.required_scopes(['.github/workflows/integration.yml'])),
+        self.assertEqual(set(w.required_scopes(['.github/workflows/validate-change.yml'])),
                          every_scope)
         self.assertEqual(
-            set(w.required_scopes(['scripts/skills/workflow_ci.py'])),
+            w.required_scopes(['scripts/skills/validate_change.py']),
+            ['shared'],
+        )
+        self.assertEqual(
+            set(w.required_scopes(['scripts/skills/validation_scope.py'])),
             every_scope,
         )
+
+    def test_validation_contract_changes_run_all_checks(self):
+        self.assertEqual(
+            set(w.required_scopes([
+                '.github/workflows/validate-change.yml',
+                'scripts/skills/validate_change.py',
+            ])),
+            {'shared', 'macos', 'windows', 'web'},
+        )
+
+    def test_required_validation_accepts_workflow_name_and_initial_path(self):
+        for workflow in (
+            'Validate change',
+            '.github/workflows/validate-change.yml',
+        ):
+            with self.subTest(workflow=workflow):
+                self.assertTrue(w.is_required_validation({
+                    'name': 'Required validation',
+                    'workflow': workflow,
+                }))
+
+    def test_policy_and_contributor_changes_are_repository_only(self):
+        self.assertEqual(
+            w.required_scopes([
+                'scripts/skills/validate_change.py',
+                'website/AGENTS.md',
+            ]),
+            ['shared'],
+        )
+
+    def test_windows_docs_stay_owned_without_running_windows_build(self):
+        paths = ['windows/docs/debugging.md', 'windows/docs/code-style.md']
+        self.assertEqual(w.required_scopes(paths), ['shared'])
+        self.assertTrue(all(w.platform_for(path) == 'windows' for path in paths))
+        self.assertEqual(w.validate_paths('windows/docs-refresh', paths), 'windows')
 
     def test_checkout_attributes_require_native_and_web_verification(self):
         self.assertEqual(set(w.required_scopes(['.gitattributes'])),

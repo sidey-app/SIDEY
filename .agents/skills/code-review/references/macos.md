@@ -13,4 +13,4 @@ Read this reference only when the review includes macOS-owned changes. Apply `ma
 
 ## Validation
 
-Use the narrowest affected XCTest, Python asset/provenance test or structural inspection first. When broader evidence is warranted, use `./scripts/macos/test_native.sh` as defined by `macos/AGENTS.md`. Signing, packaging, app launch, Keychain prompts, StoreKit, network-backed integration and release operations require matching authorization and must not be inferred from unit-test success.
+Use the narrowest affected XCTest, Python asset/provenance test or structural inspection first. When broader evidence is warranted, use `./scripts/macos/tests/test_native.sh` as defined by `macos/AGENTS.md`. Signing, packaging, app launch, Keychain prompts, StoreKit, network-backed integration and release operations require matching authorization and must not be inferred from unit-test success.

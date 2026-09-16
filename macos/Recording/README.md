@@ -22,4 +22,4 @@ Xcode 수동 작업은 `macos/Recording/SIDEYRecording.xcodeproj`의 `sidey-real
 
 ## 검증
 
-`scripts/macos/test_recording.sh`는 편집/가져오기/설정 보존, 액션 시점, 일시정지·재개, 재시작·종료 정리와 실제 렌더러를 검사한다. `test_native.sh`도 이 검사를 호출한다. 새 공유 리소스를 추가할 때는 전용 프로젝트의 명시적 참조를 함께 추가한다.
+`scripts/macos/tests/test_recording.sh`는 편집/가져오기/설정 보존, 액션 시점, 일시정지·재개, 재시작·종료 정리와 실제 렌더러를 검사한다. `test_native.sh`도 이 검사를 호출한다. 새 공유 리소스를 추가할 때는 전용 프로젝트의 명시적 참조를 함께 추가한다.

@@ -11,38 +11,52 @@ class CiWorkflowTests(unittest.TestCase):
     def read(self, name):
         return (WORKFLOWS / name).read_text(encoding='utf-8')
 
-    def test_integration_is_the_automatic_shared_validation_entrypoint(self):
-        integration = self.read('integration.yml')
+    def test_validate_change_is_the_automatic_shared_validation_entrypoint(self):
+        validation = self.read('validate-change.yml')
         self.assertIn(
             'python3 scripts/skills/validate_contributor_architecture.py',
-            integration,
+            validation,
         )
         self.assertIn(
             'python3 -m unittest discover -s scripts/skills/release-notes/tests',
-            integration,
+            validation,
         )
-        self.assertNotIn('--require-windows-instruction-foundation', integration)
-        self.assertIn("python -X utf8 ./windows/tools/sync_product_assets.py --check", integration)
-        self.assertIn('Run Windows app smoke', integration)
-        for name in ('release-metadata.yml',):
+        self.assertNotIn('--require-windows-instruction-foundation', validation)
+        self.assertIn("python -X utf8 ./windows/tools/sync_product_assets.py --check", validation)
+        self.assertIn('Run Windows app smoke', validation)
+        self.assertIn('name: Required validation', validation)
+        self.assertIn(
+            'run-name: "Validate change | ${{ github.event_name }} | ${{ github.ref_name }}"',
+            validation,
+        )
+        for name in ('validate-release-metadata.yml',):
             with self.subTest(workflow=name):
                 workflow = self.read(name)
                 self.assertIn('  workflow_dispatch:', workflow)
                 self.assertNotIn('  pull_request:', workflow)
                 self.assertNotIn('  push:', workflow)
 
-    def test_integration_revalidates_edited_pull_request_bodies(self):
-        workflow = self.read('integration.yml')
+    def test_validate_change_revalidates_edited_pull_request_bodies_without_label_events(self):
+        workflow = self.read('validate-change.yml')
         self.assertIn(
-            'types: [opened, synchronize, reopened, edited, labeled, unlabeled]',
+            'types: [opened, synchronize, reopened, edited]',
             workflow,
         )
+        self.assertNotIn('labeled', workflow)
+        self.assertNotIn('unlabeled', workflow)
+        self.assertIn("github.event.pull_request.state == 'open'", workflow)
 
     def test_pages_reuses_the_tested_build_for_deployment(self):
-        workflow = self.read('pages.yml')
+        workflow = self.read('deploy-website.yml')
+        validation = self.read('validate-change.yml')
         self.assertNotIn('  pull_request:', workflow)
         self.assertEqual(workflow.count('pnpm install --frozen-lockfile'), 1)
         self.assertEqual(workflow.count('pnpm test'), 1)
+        self.assertIn('python3 -m unittest discover -s scripts/pages/tests', workflow)
+        self.assertIn('python3 -m unittest discover -s scripts/pages/tests', validation)
+        self.assertIn('python3 ./scripts/pages/prepare_release_metadata.py', workflow)
+        self.assertNotIn('./scripts/website/prepare-release-metadata.ps1', workflow)
+        self.assertNotIn('./scripts/website/prepare-release-metadata.ps1', validation)
         self.assertIn('name: Upload tested website build', workflow)
         self.assertIn('name: Download tested website build', workflow)
 
@@ -64,10 +78,24 @@ class CiWorkflowTests(unittest.TestCase):
                               for owned in private_paths)]
         self.assertEqual(unexpected, [],
                          'Backend implementation belongs in sidey-app/sidey-backend')
-        integration = self.read('integration.yml')
-        self.assertNotIn('  database:', integration)
-        self.assertNotIn('  server:', integration)
-        self.assertIn('needs: [scope, shared, macos, windows, web]', integration)
+        validation = self.read('validate-change.yml')
+        self.assertNotIn('  database:', validation)
+        self.assertNotIn('  server:', validation)
+        self.assertIn('needs: [scope, shared, macos, windows, web]', validation)
+
+    def test_pages_compatibility_wrapper_has_no_automatic_trigger(self):
+        workflow = self.read('pages.yml')
+        self.assertNotIn('  pull_request:', workflow)
+        self.assertNotIn('  push:', workflow)
+        self.assertIn('uses: ./.github/workflows/deploy-website.yml', workflow)
+
+    def test_website_deployment_excludes_contributor_only_files(self):
+        workflow = self.read('deploy-website.yml')
+        self.assertNotIn("- 'website/**'", workflow)
+        self.assertNotIn('website/AGENTS.md', workflow)
+        self.assertIn("- 'website/src/**'", workflow)
+        self.assertIn("- 'website/public/**'", workflow)
+        self.assertNotIn("- 'scripts/validate_pixel_assets.py'", workflow)
 
 
 if __name__ == '__main__':

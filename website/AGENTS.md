@@ -4,7 +4,11 @@ These instructions apply to `website/**`. The site is public product, store, che
 
 ## Sources and claims
 
-- Read the repository-root `docs/DECISIONS.md` and `docs/PRODUCT_SPEC.md`; confirmed decisions win. Verify catalog, price and platform data against `assets/v1/commerce-catalog.json`, `release/*.json`, the relevant tests and shipped behavior.
+- Read the relevant current behavior under `docs/product/` and the system boundaries in
+  `docs/architecture.md`; consult `docs/decisions/` only for long-lived rationale. Verify
+  catalog, price and platform data against `assets/v1/commerce-catalog.json`,
+  `release/*.json`, the relevant tests and shipped behavior. Machine-readable sources win
+  when prose differs.
 - Do not claim that a download, store listing, purchase path, feature, signing state or compatibility guarantee is available without current evidence. Treat localized equivalents of “coming soon” or “in preparation” as evidence-backed status, not durable filler, and update them when the confirmed state changes.
 - Keep internal environment, migration, rollout, channel, server-topology and test terminology out of merchandising copy. Do not expose secrets, checkout tokens or unpublished operational instructions.
 - Never claim E2EE or universal overlay compatibility. Preserve verified platform restrictions and the privacy boundary: SIDEY does not collect screen contents, active-app lists, other applications' keystrokes, mouse coordinates, files, microphone audio or camera video.
@@ -19,6 +23,6 @@ These instructions apply to `website/**`. The site is public product, store, che
 
 ## Workflow and validation
 
-Use [web verification](../.agents/skills/web-verification/SKILL.md) for public-copy or responsive-presentation work that requires claim, build, or rendered-layout evidence. Update `docs/DECISIONS.md` when public wording becomes a confirmed product rule and `docs/PRODUCT_SPEC.md` when behavior or scope changes.
+Use [web verification](../.agents/skills/web-verification/SKILL.md) for public-copy or responsive-presentation work that requires claim, build, or rendered-layout evidence. Update the relevant current document under `docs/product/` when behavior or scope changes. Add a `docs/decisions/` record only when the choice meets that directory's long-lived-decision rules.
 
 Run `pnpm --dir website test` for website changes and any narrower affected checks. Inspect generated pages or rendered desktop/mobile layouts when appearance changes, search final public copy for stale status and internal terminology, and run `git diff --check`. Building or editing the site does not authorize deployment.

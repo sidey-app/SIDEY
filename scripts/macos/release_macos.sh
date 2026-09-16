@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-SIDEY_REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && /bin/pwd -P)
+SIDEY_REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && /bin/pwd -P)
 SIDEY_MANIFEST="$SIDEY_REPO_ROOT/release/macos.json"
 SIDEY_TAP_REPOSITORY=${SIDEY_TAP_REPOSITORY:-sidey-app/homebrew-tap}
 SIDEY_CODE_SIGN_IDENTITY=${SIDEY_CODE_SIGN_IDENTITY:-}
@@ -50,7 +50,7 @@ if [ "${SIDEY_ARCHIVE_APP_STORE:-0}" = 1 ]; then
 fi
 
 export SIDEY_CODE_SIGN_IDENTITY SIDEY_HARDENED_RUNTIME SIDEY_NOTARYTOOL_PROFILE
-./scripts/package_macos_release.sh "$SIDEY_TAG"
+./scripts/macos/package_macos_release.sh "$SIDEY_TAG"
 for SIDEY_ASSET in "$SIDEY_ZIP" "$SIDEY_ZIP_SHA" "$SIDEY_DMG" "$SIDEY_DMG_SHA"; do
 	[ -f "$SIDEY_ASSET" ] || fail "Release asset is missing: $SIDEY_ASSET"
 done

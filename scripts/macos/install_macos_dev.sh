@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-SIDEY_REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && /bin/pwd -P)
+SIDEY_REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && /bin/pwd -P)
 SIDEY_DERIVED_DATA=${SIDEY_DEV_DERIVED_DATA:-$SIDEY_REPO_ROOT/build/macos-dev-derived}
 SIDEY_PRODUCT_APP="$SIDEY_DERIVED_DATA/Build/Products/Release/SIDEY.app"
 SIDEY_TARGET_APP=/Applications/Sidey-dev.app

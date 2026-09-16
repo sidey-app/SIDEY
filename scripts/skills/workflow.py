@@ -19,6 +19,8 @@ import sys
 import tempfile
 import time
 
+from validation_scope import is_contributor_architecture_path, required_scopes
+
 
 def load_skill_script(name, path):
     """Load one skill-owned Python helper from its non-package directory."""
@@ -211,45 +213,13 @@ def changed_paths(root, base, revision='HEAD', dirty=False):
 
 
 def platform_for(path):
-    if is_contributor_architecture_path(path):
-        return 'shared'
     if (path.startswith(('macos/', 'scripts/macos/')) or
-        re.fullmatch(r'scripts/(?:export_macos|install_macos_dev|package_macos_release|release_macos)\.sh', path) or
-        re.fullmatch(r'\.github/workflows/macos(?:-[^/]+)?\.yml', path)):
+        re.fullmatch(r'\.github/workflows/(?:macos(?:-[^/]+)?|validate-macos|publish-macos-release)\.yml', path)):
         return 'macos'
-    if path.startswith(('windows/', 'scripts/windows/')) or re.fullmatch(r'\.github/workflows/windows(?:-[^/]+)?\.yml', path):
+    if (path.startswith(('windows/', 'scripts/windows/')) or
+        re.fullmatch(r'\.github/workflows/(?:windows(?:-[^/]+)?|validate-windows|publish-windows-release)\.yml', path)):
         return 'windows'
     return 'shared'
-
-
-CONTRIBUTOR_ARCHITECTURE_FILES = frozenset({
-    'scripts/skills/commit/prepare_commit_msg.py',
-    'scripts/skills/commit/setup_codex_attribution.py',
-    'scripts/skills/commit/validate_commit_message.py',
-    'scripts/skills/create-pr/validate_pull_request.py',
-    'scripts/skills/validate_contributor_architecture.py',
-    'scripts/tests/test_codex_attribution.py',
-    'scripts/tests/test_contributor_architecture.py',
-    'scripts/tests/test_validate_commit_message.py',
-    'scripts/tests/test_validate_pull_request.py',
-})
-
-
-def is_contributor_architecture_path(path):
-    """Return whether *path* can affect contributors but not shipped artifacts."""
-
-    return (
-        path == 'AGENTS.md'
-        or path.endswith('/AGENTS.md')
-        or path.startswith('.agents/skills/')
-        or '/.agents/skills/' in path
-        or path.startswith((
-            'scripts/skills/commit/',
-            'scripts/skills/create-pr/',
-            'scripts/skills/release-notes/',
-        ))
-        or path in CONTRIBUTOR_ARCHITECTURE_FILES
-    )
 
 
 def validate_paths(branch_name, paths):
@@ -263,43 +233,14 @@ def validate_paths(branch_name, paths):
     return platform
 
 
-def required_scopes(paths):
-    if paths and all(is_contributor_architecture_path(path) for path in paths):
-        return ['shared']
-
-    result = {'shared'}
-    for path in paths:
-        platform = platform_for(path)
-        if platform != 'shared':
-            result.add(platform)
-        if path.startswith(('assets/', 'shared/character-throw/')) or path == 'scripts/validate_pixel_assets.py':
-            result.update(('macos', 'windows', 'web'))
-        if path == 'release/macos.json':
-            result.add('macos')
-        elif path == 'release/windows.json':
-            result.add('windows')
-        if path.startswith(('website/', 'scripts/website/')):
-            result.add('web')
-        if path == 'website/src/pages/ko/terms.md':
-            result.add('windows')
-        # Checkout attributes can change asset bytes on every build host.
-        if path in (
-            '.gitattributes',
-            '.github/workflows/integration.yml',
-            'scripts/skills/workflow.py',
-            'scripts/skills/workflow_ci.py',
-        ):
-            result.update(('macos', 'windows', 'web'))
-        elif path == '.github/workflows/pages.yml':
-            result.add('web')
-    return sorted(result)
-
-
 def app_review_required(platform, paths):
     if platform == 'shared':
         return False
-    validation_workflow = f'.github/workflows/{platform}.yml'
-    return any(path != validation_workflow for path in paths)
+    validation_workflows = {
+        f'.github/workflows/{platform}.yml',
+        f'.github/workflows/validate-{platform}.yml',
+    }
+    return any(path not in validation_workflows for path in paths)
 
 
 def snapshot(root):
@@ -332,7 +273,7 @@ def local_checks(root, platform):
     run(root, sys.executable, '-X', 'utf8', '-m', 'unittest', 'discover', '-s', 'scripts/tests', capture=False)
     run(root, sys.executable, '-X', 'utf8', '-m', 'unittest', 'discover',
         '-s', 'scripts/skills/release-notes/tests', capture=False)
-    # Native/DB/web checks are required remotely by the scope-aware integration gate.
+    # Native and website checks are required remotely by scope-aware validation.
     if platform == 'shared':
         run(root, sys.executable, '-X', 'utf8', 'scripts/validate_pixel_assets.py', capture=False)
         run(root, sys.executable, '-X', 'utf8', 'scripts/skills/verify_release_consistency.py',
@@ -387,14 +328,26 @@ def verify_windows_run(remote, metadata, jobs):
     if (metadata.get('head_sha') != remote or metadata.get('head_branch') != 'main'
             or metadata.get('event') != 'push' or metadata.get('status') != 'completed'
             or metadata.get('conclusion') != 'success'
-            or metadata.get('path', '').split('@')[0] != '.github/workflows/integration.yml'):
-        raise WorkflowError('Windows app review requires the successful integration run of current main')
-    windows = [job for job in jobs if job.get('name') == 'windows']
+            or metadata.get('path', '').split('@')[0] != '.github/workflows/validate-change.yml'):
+        raise WorkflowError('Windows app review requires a successful Validate change run for current main')
+    windows = [job for job in jobs if job.get('name') == 'Windows validation']
     if len(windows) != 1 or windows[0].get('conclusion') != 'success':
         raise WorkflowError('Current main did not run the Windows job successfully')
     steps = [step for step in windows[0].get('steps', []) if step.get('name') == 'Run Windows app smoke']
     if len(steps) != 1 or steps[0].get('conclusion') != 'success':
         raise WorkflowError('Windows app startup/preview smoke is missing or did not pass')
+
+
+def is_required_validation(check):
+    """Recognize the gate before and after its workflow reaches main."""
+
+    return (
+        check.get('name') == 'Required validation'
+        and check.get('workflow') in {
+            'Validate change',
+            '.github/workflows/validate-change.yml',
+        }
+    )
 
 
 def recover_merged_task(root, task, remote):
@@ -468,6 +421,13 @@ def require_pr_body(
         return validate_pr_body(root, body, paths, label=label)
     except PullRequestValidationError as error:
         raise WorkflowError(str(error)) from error
+
+
+def require_valid_pr(root, title, body, paths):
+    """Validate a PR title and template without applying commit-body limits."""
+
+    require_valid_commit_text('PR title', title, subject_only=True)
+    return require_pr_body(root, body, paths)
 
 
 def require_pr_body_file(root, value, paths):
@@ -597,12 +557,7 @@ def publish(root, args):
         ))
         title = details['title']
         body = details.get('body') or ''
-        require_valid_commit_text('PR title', title, subject_only=True)
-        require_pr_body(
-            root,
-            body,
-            paths,
-        )
+        require_valid_pr(root, title, body, paths)
     messages = commit_messages(
         root,
         task['checked']['base'],
@@ -663,12 +618,7 @@ def publish(root, args):
         '--json',
         'title,body',
     ))
-    require_valid_commit_text('PR title', details['title'], subject_only=True)
-    require_pr_body(
-        root,
-        details.get('body') or '',
-        paths,
-    )
+    require_valid_pr(root, details['title'], details.get('body') or '', paths)
     task.update(status='published', pr=number, published={
         'head': head(root),
         'base': remote,
@@ -717,25 +667,18 @@ def finish(root, args):
     number = require_exact_task_pr(root, prs)
     # A named gate must actually exist and succeed; empty required checks never pass.
     checks = json.loads(run(root, 'gh', 'pr', 'checks', number, '--json', 'name,bucket,workflow'))
-    gate = [c for c in checks if c['name'] == 'SIDEY integration gate' and c['workflow'] == 'SIDEY integration']
+    gate = [check for check in checks if is_required_validation(check)]
     if len(gate) != 1 or gate[0]['bucket'] != 'pass':
         raise WorkflowError(
-            f'PR #{number} integration gate is pending or failed; rerun finish '
-            'after CI passes'
+            f'PR #{number} Required validation is pending or failed; rerun finish '
+            'after validation passes'
         )
     run(root, 'gh', 'pr', 'checks', number, '--required')
     checked_head = task['checked']['head']
     checked_base = task['checked']['base']
     details = json.loads(run(root, 'gh', 'pr', 'view', number, '--json', 'title,body'))
-    require_valid_commit_text('PR title', details['title'], subject_only=True)
     pr_body = details.get('body') or ''
-    require_pr_body(
-        root,
-        pr_body,
-        paths,
-    )
-    pr_message = details['title'] + ('\n\n' + pr_body if pr_body else '')
-    require_valid_commit_text('PR title and body', pr_message)
+    require_valid_pr(root, details['title'], pr_body, paths)
     with lock(root, 'integration'):
         remote = fetch_main(root)
         source = json.loads(run(root, 'gh', 'pr', 'view', number,
@@ -799,7 +742,7 @@ def main(argv=None):
             sub.add_argument('--title')
             sub.add_argument('--body-file')
         if command == 'finish':
-            sub.add_argument('--windows-run', type=int, help='Complete an integrated Windows task using current-main app smoke CI')
+            sub.add_argument('--windows-run', type=int, help='Complete an integrated Windows task using current-main app smoke validation')
     opener = subs.add_parser('open')
     opener.add_argument('--task', help='Complete an integrated macOS task after verified latest-main app review')
     opener.add_argument('--preview', type=Path)

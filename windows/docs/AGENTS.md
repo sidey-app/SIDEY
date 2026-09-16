@@ -7,7 +7,11 @@ These instructions apply to `windows/docs/**` in addition to the repository-root
 - Keep Windows contributor and implementation guides in this directory. The Korean edition is `windows/docs/{topic}.md`; its English edition is `windows/docs/en/{topic}-en.md`.
 - Use a concise lowercase topic name, with hyphens only when a multiword topic needs them. Keep paired editions on the same topic and align their technical claims, commands, headings, and links when either edition changes.
 - Link a Korean guide to Korean neighbors and an English guide to English neighbors. Resolve relative links from the file that contains them; English files are one directory deeper.
-- Do not place public README copy, release notes, store or download claims, policy text, or general product decisions here. Public release notes live under `docs/releases/**`; repository-wide decisions and specifications live in `docs/DECISIONS.md` and `docs/PRODUCT_SPEC.md` and require a separate shared change when updated.
+- Do not place public README copy, release notes, store or download claims, policy text, or
+  repository-wide product contracts here. Public release notes live under `docs/releases/**`;
+  current product and architecture documents live under `docs/product/**` and
+  `docs/architecture.md`, while long-lived rationale lives under `docs/decisions/**`. Updating
+  those repository-wide sources requires a separate shared change.
 
 ## Writing and evidence
 

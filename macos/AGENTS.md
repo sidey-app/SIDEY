@@ -7,14 +7,16 @@ These instructions apply to `macos/**`. Read the repository-root `AGENTS.md` fir
 - Make macOS implementation changes on a task-owned `macos/*` branch and worktree. Keep Windows implementation files out of the change, and prepare shared product, protocol, asset-source, website or repository-policy changes separately on `shared/*`.
 - Keep the client native in SwiftUI, AppKit and SpriteKit. Preserve the Direct and App Store distributions as separate products that share source while retaining their existing signing, entitlement, commerce and update boundaries.
 - Treat `macos/SIDEY.xcodeproj`, its shared schemes, resolved package file, property lists and entitlements as executable contracts. Do not restate dependency or deployment versions in prose unless the version itself is being changed.
-- Preserve the product privacy boundary, explicit interaction mode, click-through overlay default, Keychain behavior and backend ownership defined by the root instructions and confirmed decisions.
+- Preserve the product privacy boundary, explicit interaction mode, click-through overlay
+  default, Keychain behavior and backend ownership defined by the root instructions,
+  `docs/product/` and `docs/architecture.md`.
 
 ## Build and validation
 
 The macOS job in `.github/workflows/integration.yml` is the canonical integration check. Start with the narrowest affected XCTest, Python asset/provenance test or structural check. When a change can affect either shipped macOS application, run the maintained native route from the repository root:
 
 ```sh
-./scripts/macos/test_native.sh
+./scripts/macos/tests/test_native.sh
 ```
 
 This route verifies content assets, runs the macOS Python tests, tests both `SIDEY` and `SIDEYAppStore`, and tests the recording tool. Read narrower scripts before invoking them and do not replace the maintained wrapper with an improvised build command for final evidence.

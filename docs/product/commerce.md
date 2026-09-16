@@ -1,0 +1,41 @@
+# Commerce
+
+## 권위 있는 데이터
+
+현재 상품명, 가격, 내부·판매·복원 ID, 정렬과 asset 연결은
+[`assets/v1/commerce-catalog.json`](../../assets/v1/commerce-catalog.json)이 소유한다.
+이 문서는 그 값을 표로 복제하지 않는다. Asset 형식과 플랫폼 지원 범위는
+[`assets/v1/manifest.json`](../../assets/v1/manifest.json)이 소유한다. 공개 웹과
+네이티브 bundle의 catalog는 이 두 source에서 생성되고 일치 여부를 검사한다.
+
+## 소유권과 장착
+
+Entitlement는 account가 상품을 사용할 수 있는 권리이고 equipped state는 현재
+보여 줄 선택이다. 둘은 별도다. 서버는 활성 entitlement를 확인한 뒤 장착을 승인한다.
+캐릭터와 관련 애착 물건도 독립 상품이며, 현재 단품 캐릭터를 보유했다는 이유만으로
+물건 권리를 추론하지 않는다. 과거 포함 구매나 complimentary grant는 지급 source별로
+보존하므로 한 source의 refund가 다른 유효한 권리까지 회수하지 않는다.
+
+구매가 승인된 새 cosmetic은 해당 종류에 장착할 수 있다. 시작 재검증과 restore는
+소유권을 동기화하되 사용자의 현재 equipped state를 덮어쓰지 않는다. 기본 말풍선과
+기본 투척물은 구매 없이 사용할 수 있다.
+
+## 서버와 플랫폼 책임
+
+클라이언트 redirect나 local receipt만으로 entitlement를 부여하지 않는다. Backend가
+결제 provider 또는 Apple transaction을 검증하고 account snapshot에 반영한 뒤 client가
+사용한다. Catalog 응답이 client보다 적은 정상적인 부분 응답이면 등록되지 않은 상품만
+구매 불가로 처리하고 기존 entitlement나 장착을 회수하지 않는다. 알려진 상품의 중복
+ID 또는 metadata 불일치는 오류다.
+
+- Mac App Store판은 StoreKit의 비소모성 상품과 Apple이 반환한 localized price를
+  사용한다. Apple에서 상품을 받지 못하면 다른 채널의 가격을 대신 표시하지 않는다.
+- 직접 배포판의 production purchase availability는 build가 결정하며 remote response만으로
+  열리지 않는다. 이미 가진 상품의 장착은 판매 잠금과 별개다.
+- Windows Release는 구매를 지원하지 않는다. 개발 전용 staging 구매 흐름만 명시적으로
+  opt-in한 환경에서 사용할 수 있다.
+- 공개 웹은 catalog를 소개하지만 entitlement를 직접 발급하지 않는다.
+
+Account 삭제는 자동 환불이 아니다. 환불·회수·복원은 원래 payment source와 서버
+ledger를 기준으로 처리한다. 실제 settlement와 회계는 payment provider의 보고서를
+기준으로 한다.

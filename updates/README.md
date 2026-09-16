@@ -4,7 +4,7 @@
 Sparkle EdDSA key stored under the `sidey-app` account in the release operator's login
 Keychain. Never edit a signed feed by hand.
 
-The supported release entry point is `scripts/release_macos.sh`. It packages and notarizes
+The supported release entry point is `scripts/macos/release_macos.sh`. It packages and notarizes
 the app, creates a draft GitHub Release, downloads and compares all four assets, publishes
 the release, and opens the signed appcast and Homebrew Cask pull requests:
 
@@ -12,7 +12,7 @@ the release, and opens the signed appcast and Homebrew Cask pull requests:
 SIDEY_CODE_SIGN_IDENTITY='Developer ID Application: Example (TEAMID)' \
 SIDEY_HARDENED_RUNTIME=YES \
 SIDEY_NOTARYTOOL_PROFILE=sidey-notary \
-  ./scripts/release_macos.sh
+  ./scripts/macos/release_macos.sh
 ```
 
 The lower-level `scripts/macos/prepare_sparkle_appcast.sh` remains an implementation detail

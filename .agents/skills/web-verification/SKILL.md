@@ -12,9 +12,11 @@ apply those rules to a concrete change and produce evidence.
 ## Inputs
 
 Identify the changed or proposed routes, locales, claims, and viewport-sensitive components.
-Read the relevant confirmed decisions and product specification, then inspect the canonical
+Read the relevant current product documents and architecture, then inspect the canonical
 catalog, release manifest, policy source, tests, or shipped client/server behavior behind each
-material claim. Do not infer availability from planned code or internal rollout state.
+material claim. Source code and machine-readable sources own exact current values; decision
+records explain long-lived rationale. Do not infer availability from planned code or internal
+rollout state.
 
 ## Verification
 

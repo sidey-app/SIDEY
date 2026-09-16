@@ -4,7 +4,13 @@ These instructions apply to `docs/**`. They also govern the root `README.md` whe
 
 ## Document boundaries
 
-- `docs/DECISIONS.md` is the authority for confirmed product and technical decisions; `docs/PRODUCT_SPEC.md` carries detailed scope and direction. Preserve the distinction between confirmed, planned and unresolved behavior. Update both in the same change when their respective product contracts change.
+- `product/**` describes current product behavior, `architecture.md` describes current
+  system boundaries, `decisions/**` preserves only long-lived rationale, and `operations/**`
+  contains repeatable procedures. Do not put plans, completed checklists or ordinary change
+  history into current-state documents.
+- Machine-readable source and code own exact prices, IDs, versions, build numbers, asset
+  hashes and platform settings. Link to those sources instead of copying their values into
+  Markdown. Use Git/PR history for ordinary implementation history.
 - Public README and release writing is for users. Internal architecture, review evidence, operational history and contributor procedures may retain the technical detail needed for their audience; do not force public marketing style onto them.
 - Windows contributor documentation under `windows/docs/**` follows `windows/docs/AGENTS.md`, not this directory's location and language layout.
 
