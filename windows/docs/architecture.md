@@ -2,10 +2,7 @@
 
 SIDEY Windows는 C#/.NET과 WinUI 3으로 만든 네이티브 데스크톱 앱이에요. 이 문서는 화면 하나를 고칠 때 저장소, 네트워크, 오버레이까지 함께 건드리지 않도록 코드의 책임과 의존 방향을 정해요.
 
-현재 제품 동작은 저장소 루트의 [`docs/product/`](../../docs/product/overview.md), 전체
-책임 경계는 [`docs/architecture.md`](../../docs/architecture.md)를 따라요. 정확한 값은
-source code와 manifest가 소유하고, 장기 선택의 이유는
-[`docs/decisions/`](../../docs/decisions/README.md)에서 확인해요.
+확정된 제품 동작은 저장소 루트의 [`docs/DECISIONS.md`](../../docs/DECISIONS.md)와 [`docs/PRODUCT_SPEC.md`](../../docs/PRODUCT_SPEC.md)를 따라요. 두 문서와 이 문서가 다르면 확정된 결정이 우선해요.
 
 ## 화면 코드에 모든 일을 넣지 않아요
 

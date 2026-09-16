@@ -2,10 +2,7 @@
 
 SIDEY for Windows is a native desktop app built with C#/.NET and WinUI 3. Its code is split so that a change to one screen stays out of storage, networking, and overlay code unless the behavior itself crosses those boundaries.
 
-Current product behavior follows [`docs/product/`](../../../docs/product/overview.md), and
-repository-wide responsibility boundaries follow
-[`docs/architecture.md`](../../../docs/architecture.md). Source code and manifests own exact
-values; consult [`docs/decisions/`](../../../docs/decisions/README.md) for long-lived rationale.
+Confirmed product behavior follows [`docs/DECISIONS.md`](../../../docs/DECISIONS.md) and [`docs/PRODUCT_SPEC.md`](../../../docs/PRODUCT_SPEC.md) at the repository root. If either document conflicts with this guide, confirmed decisions take precedence.
 
 ## Do not put every responsibility in UI code
 

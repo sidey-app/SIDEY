@@ -354,24 +354,6 @@ class WorkflowTests(unittest.TestCase):
             with self.assertRaises(w.WorkflowError):
                 w.validate_paths(name, ['docs/architecture.md'])
 
-    def test_repository_wide_allows_shared_platform_callers(self):
-        self.assertEqual(
-            w.validate_paths(
-                'shared/task',
-                ['docs/architecture.md', 'windows/docs/architecture.md'],
-                repository_wide=True,
-            ),
-            'shared',
-        )
-
-    def test_repository_wide_rejects_platform_branches(self):
-        with self.assertRaisesRegex(w.WorkflowError, 'only to shared'):
-            w.validate_paths(
-                'windows/task',
-                ['windows/docs/architecture.md'],
-                repository_wide=True,
-            )
-
     def test_shared_commits_already_in_main_are_excluded(self):
         task = self.start(platform='macos')
         (task / 'macos').mkdir()

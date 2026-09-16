@@ -80,30 +80,12 @@ class GateTests(unittest.TestCase):
         with self.assertRaisesRegex(WorkflowError, 'character_asset.md'):
             verify_pr_contract(root, general_body, paths)
 
-    def test_repository_wide_label_allows_shared_platform_callers(self):
-        self.assertEqual(
-            validate_pr_paths(
-                'shared/script-relocation',
-                ['scripts/release_macos.sh', 'windows/tests/ContractTests.cs'],
-                [{'name': 'repository-wide'}],
-            ),
-            'shared',
-        )
-
-    def test_platform_crossing_still_fails_without_repository_wide_label(self):
+    def test_shared_branch_cannot_cross_platform_boundary(self):
         with self.assertRaisesRegex(WorkflowError, 'platform boundary'):
             validate_pr_paths(
                 'shared/script-relocation',
                 ['scripts/release_macos.sh'],
                 [],
-            )
-
-    def test_repository_wide_label_does_not_expand_platform_branches(self):
-        with self.assertRaisesRegex(WorkflowError, 'only to shared'):
-            validate_pr_paths(
-                'macos/script-relocation',
-                ['windows/tests/ContractTests.cs'],
-                [{'name': 'repository-wide'}],
             )
 
     def test_required_job_cannot_be_skipped_missing_cancelled_or_failed(self):
