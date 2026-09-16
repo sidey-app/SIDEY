@@ -339,6 +339,18 @@ def verify_windows_run(remote, metadata, jobs):
         raise WorkflowError('Windows app startup/preview smoke is missing or did not pass')
 
 
+def is_required_validation(check):
+    """Recognize the gate before and after its workflow reaches main."""
+
+    return (
+        check.get('name') == 'Required validation'
+        and check.get('workflow') in {
+            'Validate change',
+            '.github/workflows/validate-change.yml',
+        }
+    )
+
+
 def recover_merged_task(root, task, remote):
     # The server may merge successfully even if the client receives a timeout/503.
     checked = task.get('checked', {})
@@ -659,7 +671,7 @@ def finish(root, args):
     number = require_exact_task_pr(root, prs)
     # A named gate must actually exist and succeed; empty required checks never pass.
     checks = json.loads(run(root, 'gh', 'pr', 'checks', number, '--json', 'name,bucket,workflow'))
-    gate = [c for c in checks if c['name'] == 'Required validation' and c['workflow'] == 'Validate change']
+    gate = [check for check in checks if is_required_validation(check)]
     if len(gate) != 1 or gate[0]['bucket'] != 'pass':
         raise WorkflowError(
             f'PR #{number} Required validation is pending or failed; rerun finish '

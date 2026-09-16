@@ -608,6 +608,21 @@ class WorkflowTests(unittest.TestCase):
             {'shared', 'macos', 'windows', 'web'},
         )
 
+    def test_required_validation_accepts_workflow_name_and_initial_path(self):
+        for workflow in (
+            'Validate change',
+            '.github/workflows/validate-change.yml',
+        ):
+            with self.subTest(workflow=workflow):
+                self.assertTrue(w.is_required_validation({
+                    'name': 'Required validation',
+                    'workflow': workflow,
+                }))
+        self.assertFalse(w.is_required_validation({
+            'name': 'SIDEY integration gate',
+            'workflow': 'SIDEY integration',
+        }))
+
     def test_policy_and_contributor_changes_are_repository_only(self):
         self.assertEqual(
             w.required_scopes([
