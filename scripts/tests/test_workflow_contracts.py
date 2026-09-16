@@ -24,6 +24,9 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn('--require-windows-instruction-foundation', validation)
         self.assertIn("python -X utf8 ./windows/tools/sync_product_assets.py --check", validation)
         self.assertIn('Run Windows app smoke', validation)
+        smoke_step = validation.split('- name: Run Windows app smoke', 1)[1].split(
+            '\n      - name:', 1)[0]
+        self.assertIn("if: github.event_name == 'push'", smoke_step)
         self.assertIn('name: Required validation', validation)
         self.assertIn(
             'run-name: "Validate change | ${{ github.event_name }} | ${{ github.ref_name }}"',

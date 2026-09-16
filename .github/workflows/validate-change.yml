@@ -143,6 +143,7 @@ jobs:
           ./scripts/windows/tests/Test-FrameworkPublishGuard.ps1 -PublishDirectory ./build/windows/publish
 
       - name: Run Windows app smoke
+        if: github.event_name == 'push'
         env:
           SIDEY_STORE_PREVIEW_SMOKE: '1'
           SIDEY_OVERLAY_STARTUP_SMOKE: '1'
