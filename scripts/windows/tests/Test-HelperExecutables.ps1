@@ -72,4 +72,23 @@ foreach ($language in @(1033, 1042, 1041, 2052, 1028, 1049, 1058)) {
 $process = Start-Process -FilePath (Join-Path $probeRoot 'Uninstall.exe') `
     -ArgumentList '--sidey-invalid-verification-argument' -WindowStyle Hidden -PassThru -Wait
 if ($process.ExitCode -ne 64) { throw 'Uninstaller no longer rejects unsupported arguments.' }
+$unsafeRuntimeInstaller = Join-Path $probeRoot 'windowsappruntimeinstall-x64.exe'
+[IO.File]::WriteAllText($unsafeRuntimeInstaller, 'not an installer')
+$process = Start-Process -FilePath (Join-Path $probeRoot 'Uninstall.exe') `
+    -ArgumentList ('--run-windows-app-runtime-as-desktop-user "' + $unsafeRuntimeInstaller + '"') `
+    -WindowStyle Hidden -PassThru -Wait
+if ($process.ExitCode -ne 64) { throw 'Desktop-user runtime runner accepted an unsafe target.' }
+
+$uninstallerAssembly = [Reflection.Assembly]::Load(
+    [IO.File]::ReadAllBytes((Join-Path $probeRoot 'Uninstall.exe')))
+$uninstallerProgram = $uninstallerAssembly.GetType('Sidey.Uninstaller.Program', $true)
+$errorMapper = $uninstallerProgram.GetMethod(
+    'GetDesktopUserRunnerErrorCode',
+    [Reflection.BindingFlags]'NonPublic,Static')
+$mappedError = [int]$errorMapper.Invoke(
+    $null,
+    [object[]]@([ComponentModel.Win32Exception]::new(193)))
+if ($mappedError -ne 193) {
+    throw "Desktop-user runner did not preserve ERROR_BAD_EXE_FORMAT (193): $mappedError"
+}
 Write-Host "Helper verification passed. Evidence directory: $probeRoot"

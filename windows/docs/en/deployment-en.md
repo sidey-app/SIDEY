@@ -49,7 +49,7 @@ Source assets live in the App and Overlay projects. Publishing gathers them in f
 - .NET Runtime x64
 - Windows App Runtime package set
 
-The installer checks these requirements first and downloads only missing runtimes from Microsoft URLs. After the runtimes are ready, it extracts and validates the full new payload in a protected staging directory on the same volume as the live install. Setup rejects a parent directory that is writable by an unprivileged identity or contains a reparse point, because such a location cannot safely contain elevated extraction against path-swap races. A prerequisite or staging failure must leave the previous SIDEY runnable.
+The installer checks these requirements first and downloads only missing runtimes from Microsoft URLs. Visual C++ and .NET are installed machine-wide, while the Windows App Runtime installer runs with the interactive desktop user's token and success is verified by querying that user's SID for the required package set. If a standard user enters another administrator's credentials at UAC, Setup does not register the Windows App Runtime for that administrator or provision it for every user instead. After the runtimes are ready, Setup extracts and validates the full new payload in a protected staging directory on the same volume as the live install. Setup rejects a parent directory that is writable by an unprivileged identity or contains a reparse point, because such a location cannot safely contain elevated extraction against path-swap races. A prerequisite or staging failure must leave the previous SIDEY runnable.
 
 The distributed Setup performs prerequisite installation, error normalization, install transactions, and process shutdown through compiled .NET Framework 4.7.2 helpers. It does not run PowerShell scripts or `ExecutionPolicy Bypass` on the user's PC, and packaging checks prevent those calls from returning to the NSIS runtime path. Repository build and verification scripts are outside this runtime restriction.
 
@@ -59,7 +59,7 @@ WiX MSI and NSIS cannot share one atomic rollback boundary. When Setup detects a
 
 Updates and removal may replace the installation directory. They preserve user data. Cleanup for an existing NSIS or MSI installation must never target the paths that hold messages and settings.
 
-Setup and the uninstaller run elevated to modify Program Files, HKLM, and the all-users Start menu. Post-install launch and cleanup of `%LOCALAPPDATA%`, Credential Manager, and HKCU startup registration instead run with the desktop shell user's token. When a standard user enters another administrator's credentials at UAC, the administrator's data and credentials must not be treated as the current user's. If the desktop token cannot be acquired, the installer fails safely instead of launching SIDEY elevated or deleting the administrator's data.
+Setup and the uninstaller run elevated to modify Program Files, HKLM, and the all-users Start menu. Windows App Runtime installation and registration, post-install launch, and cleanup of `%LOCALAPPDATA%`, Credential Manager, and HKCU startup registration instead run with the desktop shell user's token. When a standard user enters another administrator's credentials at UAC, the administrator's runtime, data, and credentials must not be treated as the current user's state. If the desktop token cannot be acquired, the installer fails safely instead of registering the runtime for the wrong account, launching SIDEY elevated, or deleting the administrator's data.
 
 Setup and the uninstaller are serialized by one global mutex. An update does not uninstall the existing NSIS package first. After the complete staging payload is ready, Setup stops the app, renames the live install to a rollback sibling, and renames staging to the live path. It also records the pre-install machine registration. A file activation or registration failure restores the files, machine registration, and all-users shortcuts. The old directory is removed only after registration succeeds and the transaction is committed. The next Setup run recovers interrupted state, and uninstall also finishes any deferred rollback cleanup.
 
@@ -86,7 +86,7 @@ dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no
 `Test-WindowsBuild.ps1` creates a separate publish directory and checks the framework-dependent contract, prerequisites, and startup of both Launcher and Host. Installing missing prerequisites changes machine state, so review the script's scope before running it.
 
 ```powershell
-powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/Test-WindowsBuild.ps1
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/tests/Test-WindowsBuild.ps1
 ```
 
 To inspect an existing publish directory, pass the same explicit `-PublishDirectory` to `Test-FrameworkDependentPublish.ps1` and `Test-PublishedApplication.ps1`. Neither script discovers a publish directory automatically.

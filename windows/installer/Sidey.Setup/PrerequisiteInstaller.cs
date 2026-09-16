@@ -8,7 +8,10 @@ using System.IO;
 using System.Net;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Security.Principal;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -82,7 +85,8 @@ namespace Sidey.Setup.Prerequisites
                     configuration,
                     downloadDirectory,
                     commandLine.HasFlag("--check-only"),
-                    commandLine.HasFlag("--provision-all-users"));
+                    commandLine.OptionalValue("--desktop-user-runner"),
+                    delegate(string warning) { ResultWriter.AppendWarning(logPath, warning); });
                 InstallerResult result = InstallerErrors.CreateResult(
                     code.ToString(CultureInfo.InvariantCulture),
                     "PREREQUISITE",
@@ -139,7 +143,6 @@ namespace Sidey.Setup.Prerequisites
             new[]
             {
                 "--check-only",
-                "--provision-all-users",
                 "--normalize-error",
                 "--cleanup-private-runtime",
             },
@@ -150,6 +153,7 @@ namespace Sidey.Setup.Prerequisites
             {
                 "--config",
                 "--download-directory",
+                "--desktop-user-runner",
                 "--result-path",
                 "--log-path",
                 "--installer-version",
@@ -355,6 +359,9 @@ namespace Sidey.Setup.Prerequisites
             Add(definitions, "0x800B0109", "SIGNATURE_ERROR", "CERT_E_UNTRUSTEDROOT");
             Add(definitions, "0x80070005", "PERMISSION_DENIED", "E_ACCESSDENIED");
             Add(definitions, "0x80070070", "DISK_FULL", "ERROR_DISK_FULL");
+            Add(definitions, "5", "PERMISSION_DENIED", "ERROR_ACCESS_DENIED");
+            Add(definitions, "1300", "PERMISSION_DENIED", "ERROR_NOT_ALL_ASSIGNED");
+            Add(definitions, "1314", "PERMISSION_DENIED", "ERROR_PRIVILEGE_NOT_HELD");
             Add(definitions, "12002", "NETWORK_ERROR", "ERROR_INTERNET_TIMEOUT");
             Add(definitions, "12007", "NETWORK_ERROR", "ERROR_INTERNET_NAME_NOT_RESOLVED");
             Add(definitions, "12029", "NETWORK_ERROR", "ERROR_INTERNET_CANNOT_CONNECT");
@@ -610,6 +617,29 @@ namespace Sidey.Setup.Prerequisites
             catch
             {
                 // Diagnostics are best-effort and cannot change the operation result.
+            }
+        }
+
+        internal static void AppendWarning(string logPath, string warning)
+        {
+            if (string.IsNullOrWhiteSpace(logPath))
+            {
+                return;
+            }
+            try
+            {
+                EnsureParent(logPath);
+                using (var writer = new StreamWriter(logPath, true, new UTF8Encoding(true)))
+                {
+                    writer.WriteLine("[InstallerWarning]");
+                    writer.WriteLine("timestamp=" + DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture));
+                    writer.WriteLine("detail=" + Safe(warning));
+                    writer.WriteLine();
+                }
+            }
+            catch
+            {
+                // A diagnostic warning must never replace the operation result.
             }
         }
 
@@ -930,6 +960,34 @@ namespace Sidey.Setup.Prerequisites
         private static extern int RtlGetVersion(ref OsVersionInfo versionInformation);
     }
 
+    internal static class PrerequisiteInstallPolicy
+    {
+        internal static bool IsAvailableAfterNonzeroExit(
+            int exitCode,
+            Func<bool> availabilityCheck)
+        {
+            if (exitCode == 0)
+            {
+                throw new ArgumentOutOfRangeException("exitCode");
+            }
+            if (availabilityCheck == null)
+            {
+                throw new ArgumentNullException("availabilityCheck");
+            }
+            return availabilityCheck();
+        }
+
+        internal static bool IsAvailableAfterSuccessfulExit(Func<bool> availabilityCheck)
+        {
+            if (availabilityCheck == null)
+            {
+                throw new ArgumentNullException("availabilityCheck");
+            }
+            return availabilityCheck();
+        }
+
+    }
+
     internal static class PrerequisiteService
     {
         private sealed class Requirement
@@ -940,16 +998,53 @@ namespace Sidey.Setup.Prerequisites
             internal string FileName;
             internal string Arguments;
             internal Func<bool> IsAvailable;
+            internal bool RunAsDesktopUser;
         }
 
         internal static int Ensure(
             PrerequisiteConfiguration configuration,
             string downloadDirectory,
             bool checkOnly,
-            bool provisionAllUsers)
+            string desktopUserRunner,
+            Action<string> warningWriter)
         {
-            string fullDownloadDirectory = Path.GetFullPath(downloadDirectory);
-            Directory.CreateDirectory(fullDownloadDirectory);
+            string fullDownloadDirectory;
+            try
+            {
+                fullDownloadDirectory = Path.GetFullPath(downloadDirectory);
+            }
+            catch (Exception exception)
+            {
+                throw Failure(
+                    "Prerequisite download directory validation failed.",
+                    exception,
+                    null,
+                    "FILESYSTEM",
+                    "DOWNLOAD",
+                    null,
+                    "Prerequisite download directory",
+                    "Validate prerequisite download directory",
+                    null);
+            }
+
+            string desktopUserSid;
+            try
+            {
+                desktopUserSid = DesktopUserIdentity.GetSecurityIdentifier();
+            }
+            catch (Exception exception)
+            {
+                throw Failure(
+                    "Windows App Runtime desktop-user identification failed.",
+                    exception,
+                    null,
+                    "APPX",
+                    "CHECK",
+                    null,
+                    "Windows App Runtime x64",
+                    "Identify the interactive desktop user",
+                    null);
+            }
             Requirement[] requirements =
             {
                 new Requirement
@@ -977,7 +1072,13 @@ namespace Sidey.Setup.Prerequisites
                     Source = "APPX",
                     FileName = "windowsappruntimeinstall-x64.exe",
                     Arguments = "--quiet",
-                    IsAvailable = delegate { return IsWindowsAppRuntimeAvailable(configuration.WindowsAppRuntime); },
+                    IsAvailable = delegate
+                    {
+                        return IsWindowsAppRuntimeAvailable(
+                            configuration.WindowsAppRuntime,
+                            desktopUserSid);
+                    },
+                    RunAsDesktopUser = true,
                 },
             };
 
@@ -1020,38 +1121,84 @@ namespace Sidey.Setup.Prerequisites
                         null);
                 }
 
-                string downloadPath = SafeDownloadPath(fullDownloadDirectory, requirement.FileName);
+                bool useDesktopUserRunner = requirement.RunAsDesktopUser;
+                string requirementDownloadDirectory;
+                string downloadPath;
                 try
                 {
-                    try
+                    if (useDesktopUserRunner)
                     {
-                        MicrosoftDownload.Save(requirement.Configuration.DownloadUri, downloadPath);
+                        requirementDownloadDirectory =
+                            PrepareDesktopUserDownloadDirectory(desktopUserSid);
                     }
-                    catch (Exception exception)
+                    else
                     {
-                        throw Failure(
-                            requirement.Name + " download failed.",
-                            exception,
-                            null,
-                            "NETWORK",
-                            "DOWNLOAD",
-                            InstallerErrors.DownloadCategory(exception),
-                            requirement.Name,
-                            "GET " + requirement.Configuration.DownloadUri.GetLeftPart(UriPartial.Path),
-                            null);
+                        requirementDownloadDirectory = fullDownloadDirectory;
+                        PrepareDownloadDirectory(requirementDownloadDirectory);
                     }
 
+                    downloadPath = SafeDownloadPath(
+                        requirementDownloadDirectory,
+                        requirement.FileName);
+                }
+                catch (Exception exception)
+                {
+                    throw Failure(
+                        requirement.Name + " download preparation failed.",
+                        exception,
+                        null,
+                        "FILESYSTEM",
+                        "DOWNLOAD",
+                        null,
+                        requirement.Name,
+                        "Prepare secure prerequisite download path",
+                        null);
+                }
+                try
+                {
                     int code;
-                    // Deny writes and deletes from signature verification until
-                    // the child exits, closing the path-based verification race.
-                    using (var verifiedFileLock = new FileStream(
-                        downloadPath,
-                        FileMode.Open,
-                        FileAccess.Read,
-                        FileShare.Read))
+                    FileStream downloadFile = null;
+                    FileStream verifiedFileLock = null;
+                    try
                     {
+                        // CreateNew prevents an untrusted pre-existing file from being used.
+                        // A writable handle cannot remain open while Windows maps an EXE.
+                        // Bridge to a read-only, no-write/no-delete-share handle without ever
+                        // leaving the path unowned, then verify under that final lock.
+                        downloadFile = new FileStream(
+                            downloadPath,
+                            FileMode.CreateNew,
+                            FileAccess.ReadWrite,
+                            FileShare.Read);
                         try
                         {
+                            MicrosoftDownload.Save(
+                                requirement.Configuration.DownloadUri,
+                                downloadFile);
+                        }
+                        catch (Exception exception)
+                        {
+                            throw Failure(
+                                requirement.Name + " download failed.",
+                                exception,
+                                null,
+                                "NETWORK",
+                                "DOWNLOAD",
+                                InstallerErrors.DownloadCategory(exception),
+                                requirement.Name,
+                                "GET " + requirement.Configuration.DownloadUri.GetLeftPart(UriPartial.Path),
+                                null);
+                        }
+
+                        byte[] downloadedHash = ComputeSha256(downloadFile);
+                        verifiedFileLock = TransitionToExecutableReadLock(
+                            downloadPath,
+                            downloadFile);
+                        downloadFile = null;
+
+                        try
+                        {
+                            AssertSameSha256(verifiedFileLock, downloadedHash);
                             AuthenticodeVerifier.AssertMicrosoftSignature(downloadPath);
                         }
                         catch (Exception exception)
@@ -1070,7 +1217,11 @@ namespace Sidey.Setup.Prerequisites
 
                         try
                         {
-                            code = RunInstaller(downloadPath, requirement.Arguments);
+                            code = requirement.RunAsDesktopUser
+                                ? RunInstallerAsDesktopUser(
+                                    downloadPath,
+                                    desktopUserRunner)
+                                : RunInstaller(downloadPath, requirement.Arguments);
                         }
                         catch (Exception exception)
                         {
@@ -1086,6 +1237,17 @@ namespace Sidey.Setup.Prerequisites
                                 null);
                         }
                     }
+                    finally
+                    {
+                        if (verifiedFileLock != null)
+                        {
+                            verifiedFileLock.Dispose();
+                        }
+                        if (downloadFile != null)
+                        {
+                            downloadFile.Dispose();
+                        }
+                    }
 
                     if (code == 3010 || code == 1641)
                     {
@@ -1093,18 +1255,64 @@ namespace Sidey.Setup.Prerequisites
                     }
                     if (code != 0)
                     {
+                        bool availableAfterFailure;
+                        try
+                        {
+                            availableAfterFailure =
+                                PrerequisiteInstallPolicy.IsAvailableAfterNonzeroExit(
+                                    code,
+                                    requirement.IsAvailable);
+                        }
+                        catch (Exception exception)
+                        {
+                            throw Failure(
+                                requirement.Name + " availability check failed after installer exit "
+                                    + code.ToString(CultureInfo.InvariantCulture) + ".",
+                                exception,
+                                null,
+                                requirement.Source,
+                                "VERIFY",
+                                null,
+                                requirement.Name,
+                                "Check prerequisite availability",
+                                code.ToString(CultureInfo.InvariantCulture));
+                        }
+                        if (!availableAfterFailure)
+                        {
+                            throw Failure(
+                                requirement.Name + " installation failed (exit=" + code.ToString(CultureInfo.InvariantCulture) + ").",
+                                null,
+                                code,
+                                requirement.Source,
+                                "INSTALL",
+                                null,
+                                requirement.Name,
+                                requirement.FileName + " " + requirement.Arguments,
+                                code.ToString(CultureInfo.InvariantCulture));
+                        }
+                        continue;
+                    }
+                    bool availableAfterInstall;
+                    try
+                    {
+                        availableAfterInstall =
+                            PrerequisiteInstallPolicy.IsAvailableAfterSuccessfulExit(
+                                requirement.IsAvailable);
+                    }
+                    catch (Exception exception)
+                    {
                         throw Failure(
-                            requirement.Name + " installation failed (exit=" + code.ToString(CultureInfo.InvariantCulture) + ").",
+                            requirement.Name + " availability check failed after successful installer exit.",
+                            exception,
                             null,
-                            code,
                             requirement.Source,
-                            "INSTALL",
+                            "VERIFY",
                             null,
                             requirement.Name,
-                            requirement.FileName + " " + requirement.Arguments,
-                            code.ToString(CultureInfo.InvariantCulture));
+                            "Check prerequisite availability",
+                            "0");
                     }
-                    if (!requirement.IsAvailable())
+                    if (!availableAfterInstall)
                     {
                         throw Failure(
                             requirement.Name + " is still unavailable after installation.",
@@ -1120,19 +1328,13 @@ namespace Sidey.Setup.Prerequisites
                 }
                 finally
                 {
-                    // SafeDownloadPath proved this exact file did not pre-exist, so
-                    // also remove a partial file left by an interrupted download.
-                    if (File.Exists(downloadPath))
-                    {
-                        File.Delete(downloadPath);
-                    }
+                    TryDeleteDownloadFile(
+                        downloadPath,
+                        requirement.Name,
+                        warningWriter);
                 }
             }
 
-            if (provisionAllUsers && !checkOnly)
-            {
-                WindowsPackageProvisioner.Provision(configuration.WindowsAppRuntime);
-            }
             return 0;
         }
 
@@ -1164,15 +1366,308 @@ namespace Sidey.Setup.Prerequisites
         {
             string path = Path.GetFullPath(Path.Combine(directory, fileName));
             string parent = Path.GetDirectoryName(path);
-            if (!string.Equals(parent, directory.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+            string fullDirectory = Path.GetFullPath(directory)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (!string.Equals(parent, fullDirectory, StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidOperationException("Unsafe prerequisite download path.");
             }
+            DeleteStaleDownloadFile(path);
+            return path;
+        }
+
+        private static string GetDesktopUserDownloadDirectory()
+        {
+            return Path.GetFullPath(Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                "SIDEY-PrerequisiteDownloads"));
+        }
+
+        private static string PrepareDesktopUserDownloadDirectory(
+            string userSecurityIdentifier)
+        {
+            string programData = Path.GetFullPath(
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData));
+            PrepareDownloadDirectory(programData);
+
+            string expected = GetDesktopUserDownloadDirectory();
+            AssertNoReparseAncestors(expected);
+            SecureDesktopUserDirectory(expected, userSecurityIdentifier);
+            AssertNoReparseAncestors(expected);
+            return expected;
+        }
+
+        private static FileStream TransitionToExecutableReadLock(
+            string path,
+            FileStream downloadFile)
+        {
+            if (downloadFile == null)
+            {
+                throw new ArgumentNullException("downloadFile");
+            }
+
+            FileStream transitionFile = null;
+            try
+            {
+                transitionFile = new FileStream(
+                    path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite);
+                downloadFile.Dispose();
+                downloadFile = null;
+                return new FileStream(
+                    path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.Read);
+            }
+            finally
+            {
+                if (transitionFile != null)
+                {
+                    transitionFile.Dispose();
+                }
+                if (downloadFile != null)
+                {
+                    downloadFile.Dispose();
+                }
+            }
+        }
+
+        private static byte[] ComputeSha256(Stream stream)
+        {
+            if (stream == null || !stream.CanRead || !stream.CanSeek)
+            {
+                throw new ArgumentException(
+                    "The prerequisite stream must be readable and seekable.",
+                    "stream");
+            }
+
+            long originalPosition = stream.Position;
+            try
+            {
+                stream.Position = 0;
+                using (SHA256 algorithm = SHA256.Create())
+                {
+                    return algorithm.ComputeHash(stream);
+                }
+            }
+            finally
+            {
+                stream.Position = originalPosition;
+            }
+        }
+
+        private static void AssertSameSha256(Stream stream, byte[] expectedHash)
+        {
+            byte[] actualHash = ComputeSha256(stream);
+            if (expectedHash == null || expectedHash.Length != actualHash.Length)
+            {
+                throw new CryptographicException(
+                    "The prerequisite download changed before signature verification.");
+            }
+
+            int difference = 0;
+            for (int index = 0; index < expectedHash.Length; index++)
+            {
+                difference |= expectedHash[index] ^ actualHash[index];
+            }
+            if (difference != 0)
+            {
+                throw new CryptographicException(
+                    "The prerequisite download changed before signature verification.");
+            }
+        }
+
+        private static void PrepareDownloadDirectory(string directory)
+        {
+            string fullDirectory = Path.GetFullPath(directory);
+            AssertNoReparseAncestors(fullDirectory);
+            Directory.CreateDirectory(fullDirectory);
+            AssertNoReparseAncestors(fullDirectory);
+
+            FileAttributes attributes = File.GetAttributes(fullDirectory);
+            if ((attributes & FileAttributes.Directory) == 0
+                || (attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new IOException(
+                    "The prerequisite download directory must be an ordinary directory.");
+            }
+        }
+
+        private static void AssertNoReparseAncestors(string path)
+        {
+            for (DirectoryInfo current = new DirectoryInfo(path);
+                current != null;
+                current = current.Parent)
+            {
+                if (current.Exists
+                    && (current.Attributes & FileAttributes.ReparsePoint) != 0)
+                {
+                    throw new IOException(
+                        "The prerequisite download path cannot contain a reparse point.");
+                }
+            }
+        }
+
+        private static void DeleteStaleDownloadFile(string path)
+        {
+            if (Directory.Exists(path))
+            {
+                throw new IOException(
+                    "The prerequisite download destination cannot be a directory.");
+            }
+            if (!File.Exists(path))
+            {
+                return;
+            }
+
+            FileAttributes attributes = File.GetAttributes(path);
+            if ((attributes & FileAttributes.ReparsePoint) != 0
+                || (attributes & FileAttributes.Directory) != 0)
+            {
+                throw new IOException(
+                    "The prerequisite download destination cannot be a reparse point.");
+            }
+
+            // An active installer keeps this file open without delete/write sharing.
+            // Taking an exclusive handle makes stale cleanup fail closed instead of
+            // deleting a download that another Setup instance is still using.
+            using (new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.ReadWrite,
+                FileShare.None))
+            {
+            }
+            File.Delete(path);
             if (File.Exists(path) || Directory.Exists(path))
             {
-                throw new IOException("Prerequisite download destination already exists.");
+                throw new IOException("The stale prerequisite download could not be removed.");
             }
-            return path;
+        }
+
+        private static void TryDeleteDownloadFile(
+            string path,
+            string component,
+            Action<string> warningWriter)
+        {
+            try
+            {
+                DeleteStaleDownloadFile(path);
+            }
+            catch (Exception cleanupException)
+            {
+                if (warningWriter == null)
+                {
+                    return;
+                }
+                try
+                {
+                    warningWriter(
+                        "Prerequisite download cleanup failed; component="
+                        + component
+                        + "; nativeCode="
+                        + InstallerErrors.NormalizeNativeCode(cleanupException.HResult)
+                        + "; detail="
+                        + cleanupException.Message);
+                }
+                catch
+                {
+                    // Cleanup diagnostics never replace the install result.
+                }
+            }
+        }
+
+        private static void SecureDesktopUserDirectory(
+            string directory,
+            string userSecurityIdentifier)
+        {
+            var administrators = new SecurityIdentifier("S-1-5-32-544");
+            var system = new SecurityIdentifier("S-1-5-18");
+            var desktopUser = new SecurityIdentifier(userSecurityIdentifier);
+            const InheritanceFlags inheritance =
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
+            var security = new DirectorySecurity();
+            security.SetAccessRuleProtection(true, false);
+            security.SetOwner(administrators);
+            security.AddAccessRule(new FileSystemAccessRule(
+                administrators,
+                FileSystemRights.FullControl,
+                inheritance,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(
+                system,
+                FileSystemRights.FullControl,
+                inheritance,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+            security.AddAccessRule(new FileSystemAccessRule(
+                desktopUser,
+                FileSystemRights.ReadAndExecute | FileSystemRights.Synchronize,
+                inheritance,
+                PropagationFlags.None,
+                AccessControlType.Allow));
+
+            bool existed = Directory.Exists(directory);
+            DirectoryInfo information;
+            if (existed)
+            {
+                information = new DirectoryInfo(directory);
+                AssertDirectoryIsNotUserControlled(information, administrators, system);
+                information.SetAccessControl(security);
+            }
+            else
+            {
+                information = Directory.CreateDirectory(directory, security);
+            }
+            information.Refresh();
+            if (!information.Exists
+                || (information.Attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new IOException(
+                    "The prerequisite download directory changed while access was secured.");
+            }
+            AssertDirectoryIsNotUserControlled(information, administrators, system);
+        }
+
+        private static void AssertDirectoryIsNotUserControlled(
+            DirectoryInfo information,
+            SecurityIdentifier administrators,
+            SecurityIdentifier system)
+        {
+            DirectorySecurity security = information.GetAccessControl(
+                AccessControlSections.Access | AccessControlSections.Owner);
+            var owner = (SecurityIdentifier)security.GetOwner(typeof(SecurityIdentifier));
+            if ((!owner.Equals(administrators) && !owner.Equals(system))
+                || !security.AreAccessRulesProtected)
+            {
+                throw new UnauthorizedAccessException(
+                    "The prerequisite download directory is not owned by a trusted principal.");
+            }
+
+            int safeUntrustedRights = (int)(
+                FileSystemRights.ReadAndExecute
+                | FileSystemRights.ReadPermissions
+                | FileSystemRights.Synchronize);
+            AuthorizationRuleCollection rules = security.GetAccessRules(
+                true,
+                true,
+                typeof(SecurityIdentifier));
+            foreach (FileSystemAccessRule rule in rules)
+            {
+                var identity = (SecurityIdentifier)rule.IdentityReference;
+                if (rule.AccessControlType == AccessControlType.Allow
+                    && !identity.Equals(administrators)
+                    && !identity.Equals(system)
+                    && (((int)rule.FileSystemRights) & ~safeUntrustedRights) != 0)
+                {
+                    throw new UnauthorizedAccessException(
+                        "The prerequisite download directory grants unsafe write access.");
+                }
+            }
         }
 
         private static bool IsVisualCppAvailable(RuntimeRequirement requirement)
@@ -1275,16 +1770,52 @@ namespace Sidey.Setup.Prerequisites
             return VersionChecks.HasDotNetVersion(versions, requirement.MinimumVersion);
         }
 
-        private static bool IsWindowsAppRuntimeAvailable(WindowsAppRuntimeRequirement requirement)
+        private static bool IsWindowsAppRuntimeAvailable(
+            WindowsAppRuntimeRequirement requirement,
+            string userSecurityIdentifier)
         {
             foreach (PackageRequirement package in requirement.Packages)
             {
-                if (!WindowsPackageQuery.HasPackage(package.Family, package.MinimumVersion))
+                if (!WindowsPackageQuery.HasPackage(
+                    package.Family,
+                    package.MinimumVersion,
+                    userSecurityIdentifier))
                 {
                     return false;
                 }
             }
             return true;
+        }
+
+        private static int RunInstallerAsDesktopUser(
+            string path,
+            string desktopUserRunner)
+        {
+            if (string.IsNullOrWhiteSpace(desktopUserRunner))
+            {
+                throw new UnauthorizedAccessException(
+                    "A desktop-user process runner is required for Windows App Runtime installation.");
+            }
+
+            string runnerPath = Path.GetFullPath(desktopUserRunner);
+            if (!File.Exists(runnerPath)
+                || !string.Equals(
+                    Path.GetFileName(runnerPath),
+                    "Sidey.SetupSupport.exe",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new FileNotFoundException(
+                    "The SIDEY desktop-user process runner is unavailable.",
+                    runnerPath);
+            }
+            return RunInstaller(
+                runnerPath,
+                "--run-windows-app-runtime-as-desktop-user " + QuoteArgument(path));
+        }
+
+        private static string QuoteArgument(string value)
+        {
+            return "\"" + value.Replace("\"", "\\\"") + "\"";
         }
 
         private static int RunInstaller(string path, string arguments)
@@ -1334,8 +1865,18 @@ namespace Sidey.Setup.Prerequisites
             }
         }
 
-        internal static void Save(Uri uri, string destination)
+        internal static void Save(Uri uri, Stream destination)
         {
+            if (destination == null
+                || !destination.CanWrite
+                || !destination.CanSeek)
+            {
+                throw new ArgumentException(
+                    "The runtime download destination must be a writable seekable stream.",
+                    "destination");
+            }
+            destination.SetLength(0);
+            destination.Position = 0;
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
             Uri current = uri;
             for (int redirect = 0; redirect < 10; redirect++)
@@ -1364,18 +1905,22 @@ namespace Sidey.Setup.Prerequisites
                         throw new WebException("Runtime download failed with HTTP status " + status + ".");
                     }
                     using (Stream input = response.GetResponseStream())
-                    using (var output = new FileStream(
-                        destination,
-                        FileMode.CreateNew,
-                        FileAccess.Write,
-                        FileShare.None))
                     {
                         if (input == null)
                         {
                             throw new WebException("Runtime download returned no content.");
                         }
-                        input.CopyTo(output);
-                        output.Flush(true);
+                        input.CopyTo(destination);
+                        var fileDestination = destination as FileStream;
+                        if (fileDestination != null)
+                        {
+                            fileDestination.Flush(true);
+                        }
+                        else
+                        {
+                            destination.Flush();
+                        }
+                        destination.Position = 0;
                     }
                     return;
                 }
@@ -1493,9 +2038,90 @@ namespace Sidey.Setup.Prerequisites
             ref WinTrustData trustData);
     }
 
+    internal static class DesktopUserIdentity
+    {
+        private const uint ProcessQueryLimitedInformation = 0x1000;
+        private const uint TokenQuery = 0x0008;
+
+        internal static string GetSecurityIdentifier()
+        {
+            IntPtr shellWindow = GetShellWindow();
+            uint shellProcessId;
+            if (shellWindow == IntPtr.Zero
+                || GetWindowThreadProcessId(shellWindow, out shellProcessId) == 0
+                || shellProcessId == 0)
+            {
+                throw new InvalidOperationException("The desktop user could not be identified.");
+            }
+
+            IntPtr shellProcess = IntPtr.Zero;
+            IntPtr shellToken = IntPtr.Zero;
+            try
+            {
+                shellProcess = OpenProcess(
+                    ProcessQueryLimitedInformation,
+                    false,
+                    shellProcessId);
+                if (shellProcess == IntPtr.Zero
+                    || !OpenProcessToken(shellProcess, TokenQuery, out shellToken))
+                {
+                    throw new Win32Exception(
+                        Marshal.GetLastWin32Error(),
+                        "The desktop user token could not be opened.");
+                }
+                using (var identity = new WindowsIdentity(shellToken))
+                {
+                    if (identity.User == null)
+                    {
+                        throw new InvalidOperationException(
+                            "The desktop user security identifier is unavailable.");
+                    }
+                    return identity.User.Value;
+                }
+            }
+            finally
+            {
+                if (shellToken != IntPtr.Zero)
+                {
+                    CloseHandle(shellToken);
+                }
+                if (shellProcess != IntPtr.Zero)
+                {
+                    CloseHandle(shellProcess);
+                }
+            }
+        }
+
+        [DllImport("kernel32.dll")]
+        private static extern bool CloseHandle(IntPtr handle);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr GetShellWindow();
+
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern uint GetWindowThreadProcessId(
+            IntPtr window,
+            out uint processId);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr OpenProcess(
+            uint desiredAccess,
+            bool inheritHandle,
+            uint processId);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool OpenProcessToken(
+            IntPtr process,
+            uint desiredAccess,
+            out IntPtr token);
+    }
+
     internal static class WindowsPackageQuery
     {
-        internal static bool HasPackage(string family, Version minimumVersion)
+        internal static bool HasPackage(
+            string family,
+            Version minimumVersion,
+            string userSecurityIdentifier)
         {
             Type managerType = Type.GetType(
                 "Windows.Management.Deployment.PackageManager, Windows, ContentType=WindowsRuntime",
@@ -1540,7 +2166,7 @@ namespace Sidey.Setup.Prerequisites
                 1 | 2); // PackageTypes.Main | PackageTypes.Framework
             var packages = findPackages.Invoke(
                 manager,
-                new[] { string.Empty, family, packageTypes }) as IEnumerable;
+                new object[] { userSecurityIdentifier, family, packageTypes }) as IEnumerable;
             if (packages == null)
             {
                 throw new InvalidOperationException("Windows package query returned no enumerable result.");
@@ -1671,170 +2297,6 @@ namespace Sidey.Setup.Prerequisites
                 return false;
             }
             return (bool)verifyIsOk.Invoke(status, null);
-        }
-    }
-
-    internal static class WindowsPackageProvisioner
-    {
-        private const string WindowsRuntimeAssemblyName =
-            "System.Runtime.WindowsRuntime, Version=4.0.0.0, Culture=neutral, "
-            + "PublicKeyToken=b77a5c561934e089";
-
-        internal static void Provision(WindowsAppRuntimeRequirement requirement)
-        {
-            Type managerType = Type.GetType(
-                "Windows.Management.Deployment.PackageManager, Windows, ContentType=WindowsRuntime",
-                true);
-            Type resultType = Type.GetType(
-                "Windows.Management.Deployment.DeploymentResult, Windows, ContentType=WindowsRuntime",
-                true);
-            Type progressType = Type.GetType(
-                "Windows.Management.Deployment.DeploymentProgress, Windows, ContentType=WindowsRuntime",
-                true);
-            object manager = Activator.CreateInstance(managerType);
-            MethodInfo provision = null;
-            foreach (MethodInfo method in managerType.GetMethods())
-            {
-                if (method.Name == "ProvisionPackageForAllUsersAsync"
-                    && method.GetParameters().Length == 1
-                    && method.GetParameters()[0].ParameterType == typeof(string))
-                {
-                    provision = method;
-                    break;
-                }
-            }
-            if (provision == null)
-            {
-                throw ProvisionFailure(
-                    "Windows package provisioning API is unavailable.",
-                    null,
-                    "Windows App Runtime");
-            }
-
-            foreach (PackageRequirement package in requirement.Packages)
-            {
-                // Framework dependencies are provisioned with the Main/DDLM package.
-                if (package.Family.StartsWith("Microsoft.WindowsAppRuntime.", StringComparison.Ordinal))
-                {
-                    continue;
-                }
-                try
-                {
-                    object operation = provision.Invoke(manager, new object[] { package.Family });
-                    object result = WaitForOperation(operation, resultType, progressType);
-                    Exception extended = GetProperty(result, "ExtendedErrorCode") as Exception;
-                    if (extended != null && extended.HResult != 0)
-                    {
-                        string errorText = Convert.ToString(GetProperty(result, "ErrorText"), CultureInfo.InvariantCulture);
-                        throw ProvisionFailure(
-                            "Windows App Runtime provisioning failed: " + errorText,
-                            extended,
-                            package.Family);
-                    }
-                }
-                catch (Exception exception)
-                {
-                    exception = Unwrap(exception);
-                    if (exception is InstallerFailureException)
-                    {
-                        throw;
-                    }
-                    throw ProvisionFailure(
-                        "Windows App Runtime provisioning failed.",
-                        exception,
-                        package.Family);
-                }
-            }
-        }
-
-        private static object WaitForOperation(object operation, Type resultType, Type progressType)
-        {
-            Type extensions = ResolveWindowsRuntimeExtensions();
-            MethodInfo asTask = null;
-            foreach (MethodInfo method in extensions.GetMethods(BindingFlags.Public | BindingFlags.Static))
-            {
-                if (method.Name == "AsTask"
-                    && method.IsGenericMethodDefinition
-                    && method.GetGenericArguments().Length == 2
-                    && method.GetParameters().Length == 1)
-                {
-                    asTask = method;
-                    break;
-                }
-            }
-            if (asTask == null)
-            {
-                throw new MissingMethodException("WinRT AsTask projection is unavailable.");
-            }
-            object taskObject = asTask.MakeGenericMethod(resultType, progressType)
-                .Invoke(null, new[] { operation });
-            var task = taskObject as System.Threading.Tasks.Task;
-            if (task == null)
-            {
-                throw new InvalidOperationException("WinRT operation did not produce a Task.");
-            }
-            try
-            {
-                task.Wait();
-            }
-            catch (AggregateException exception)
-            {
-                throw exception.GetBaseException();
-            }
-            PropertyInfo resultProperty = taskObject.GetType().GetProperty("Result");
-            if (resultProperty == null)
-            {
-                throw new InvalidOperationException("WinRT operation did not return a result.");
-            }
-            return resultProperty.GetValue(taskObject, null);
-        }
-
-        internal static Type ResolveWindowsRuntimeExtensions()
-        {
-            // This framework facade is in the GAC on .NET Framework 4.7.2 but
-            // is not a static build reference. Assembly-qualified Type.GetType
-            // does not reliably bind it from an unpackaged helper process.
-            Assembly assembly = Assembly.Load(WindowsRuntimeAssemblyName);
-            return assembly.GetType("System.WindowsRuntimeSystemExtensions", true);
-        }
-
-        private static object GetProperty(object instance, string name)
-        {
-            if (instance == null)
-            {
-                return null;
-            }
-            PropertyInfo property = instance.GetType().GetProperty(name);
-            return property == null ? null : property.GetValue(instance, null);
-        }
-
-        private static Exception Unwrap(Exception exception)
-        {
-            while ((exception is TargetInvocationException || exception is AggregateException)
-                && exception.InnerException != null)
-            {
-                exception = exception.InnerException;
-            }
-            return exception;
-        }
-
-        private static InstallerFailureException ProvisionFailure(
-            string message,
-            Exception innerException,
-            string target)
-        {
-            object nativeCode = innerException == null ? null : (object)innerException.HResult;
-            return new InstallerFailureException(
-                message,
-                innerException,
-                nativeCode,
-                "APPX",
-                "INSTALL",
-                null,
-                target,
-                "PackageManager.ProvisionPackageForAllUsersAsync",
-                null,
-                null);
         }
     }
 

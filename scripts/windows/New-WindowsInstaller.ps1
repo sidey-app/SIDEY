@@ -26,7 +26,8 @@ $runtimeDirectory = Join-Path $publishDirectoryPath 'Runtime'
 $hostExecutablePath = Join-Path $runtimeDirectory 'SIDEY.Host.exe'
 $legacyExecutablePath = Join-Path $publishDirectoryPath 'Sidey.App.exe'
 $setupScriptPath = Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup/Sidey.Setup.nsi'
-& (Join-Path $PSScriptRoot 'Test-FrameworkDependentPublish.ps1') -PublishDirectory $publishDirectoryPath
+& (Join-Path $PSScriptRoot 'tests/Test-FrameworkDependentPublish.ps1') `
+    -PublishDirectory $publishDirectoryPath
 
 function Get-SideyRelativePath {
     param(

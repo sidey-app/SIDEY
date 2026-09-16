@@ -82,8 +82,8 @@ Stale `bin` and `obj` directories sometimes cause build failures. Deleting them 
 For a publishing problem, inspect the published output rather than a normal build result.
 
 ```powershell
-powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/Test-FrameworkDependentPublish.ps1
-powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/Test-PublishedApplication.ps1
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/tests/Test-FrameworkDependentPublish.ps1 -PublishDirectory build/windows/publish
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/tests/Test-PublishedApplication.ps1 -PublishDirectory build/windows/publish
 ```
 
 These checks cover deployment file locations, shared-runtime assumptions, and application startup. A complete deployment check may install prerequisites and change the environment, so read the script's scope before running it.

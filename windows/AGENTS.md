@@ -12,6 +12,10 @@ These instructions apply to `windows/**`. Read the repository-root `AGENTS.md` f
 
 ## Build and validation
 
+Keep Windows PowerShell verification entrypoints named `Test-*.ps1` under
+`scripts/windows/tests/`. Keep `scripts/windows/` itself for build, install,
+generation, synchronization and interactive design commands plus shared modules.
+
 The Windows job in `.github/workflows/integration.yml` is the canonical integration check. Start with the narrowest affected test, then run the non-installing solution checks from the repository root when the change can affect the application:
 
 ```powershell
@@ -21,7 +25,7 @@ dotnet build windows/SIDEY.Windows.slnx --configuration Release --no-restore
 dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build
 ```
 
-Run the affected asset, PowerShell, publish-layout, prerequisite, installer, or startup checks used by the integration job when those contracts change. Read a script before executing it: `scripts/windows/Test-WindowsBuild.ps1` publishes an application, can install missing runtimes, and starts the built executables, so it is an extended machine-level check rather than the default local command. Release, installation, GUI, elevation, network, or machine-state validation must remain within the user's authorized scope. Never integrate a Windows commit while a required check is failing or while the commit under review differs from the commit that produced the evidence.
+Run the affected asset, PowerShell, publish-layout, prerequisite, installer, or startup checks used by the integration job when those contracts change. Read a script before executing it: `scripts/windows/tests/Test-WindowsBuild.ps1` publishes an application, can install missing runtimes, and starts the built executables, so it is an extended machine-level check rather than the default local command. Release, installation, GUI, elevation, network, or machine-state validation must remain within the user's authorized scope. Never integrate a Windows commit while a required check is failing or while the commit under review differs from the commit that produced the evidence.
 
 ## Specialist skills
 

@@ -49,7 +49,7 @@ Runtime\
 - .NET Runtime x64
 - Windows App Runtime 패키지 집합
 
-설치 관리자는 먼저 조건을 검사하고, 부족한 런타임만 Microsoft 주소에서 내려받아요. 런타임 설치가 성공한 뒤 새 payload 전체를 현재 설치 폴더와 같은 볼륨의 보호된 staging 폴더에 풀고 검증해요. 설치 폴더의 부모가 일반 사용자에게 쓰기 가능한 경로이거나 reparse point를 포함하면 상승된 파일 쓰기와 경로 바꾸기 경쟁을 막을 수 없으므로 설치를 중단해요. 선행 조건이나 staging이 실패할 때는 기존 SIDEY를 그대로 실행할 수 있어야 해요.
+설치 관리자는 먼저 조건을 검사하고, 부족한 런타임만 Microsoft 주소에서 내려받아요. Visual C++와 .NET은 머신 범위로 설치하지만 Windows App Runtime 설치 프로그램은 대화형 데스크톱 사용자의 토큰으로 실행하고, 해당 사용자 SID의 패키지 집합을 다시 조회해 성공 여부를 확인해요. 표준 사용자가 UAC에 다른 관리자 자격 증명을 입력해도 Windows App Runtime을 그 관리자 계정이나 전체 사용자 대상으로 대신 등록하지 않아요. 런타임 설치가 성공한 뒤 새 payload 전체를 현재 설치 폴더와 같은 볼륨의 보호된 staging 폴더에 풀고 검증해요. 설치 폴더의 부모가 일반 사용자에게 쓰기 가능한 경로이거나 reparse point를 포함하면 상승된 파일 쓰기와 경로 바꾸기 경쟁을 막을 수 없으므로 설치를 중단해요. 선행 조건이나 staging이 실패할 때는 기존 SIDEY를 그대로 실행할 수 있어야 해요.
 
 배포된 Setup은 선행 조건 설치, 오류 정규화, 설치 transaction, 프로세스 종료를 .NET Framework 4.7.2 기반의 컴파일된 도우미로 수행해요. 사용자 PC에서 PowerShell 스크립트나 `ExecutionPolicy Bypass`를 실행하지 않으며, 패키징 검사는 이 호출이 NSIS 런타임 경로에 다시 들어오는 것을 차단해요. 빌드·검증용 저장소 스크립트는 이 제한의 대상이 아니에요.
 
@@ -59,7 +59,7 @@ WiX MSI와 NSIS 사이에는 하나의 원자적 rollback 경계가 없어요. S
 
 업데이트와 제거 과정에서 프로그램 설치 폴더는 교체할 수 있지만 사용자 데이터는 보존해요. 기존 NSIS 또는 MSI 설치를 정리할 때도 메시지와 설정이 있는 사용자 데이터 경로를 삭제 대상으로 사용하지 않아요.
 
-Setup과 제거기는 Program Files, HKLM, 모든 사용자 시작 메뉴를 바꾸기 위해 관리자 권한으로 실행돼요. 반면 설치 완료 후 앱 실행과 `%LOCALAPPDATA%`, Credential Manager, HKCU 자동 실행 정리는 데스크톱 셸 사용자의 토큰으로 분리해요. 표준 사용자가 UAC 창에 다른 관리자 계정을 입력해도 관리자 계정의 데이터나 자격 증명을 현재 사용자 데이터로 취급하면 안 돼요. 데스크톱 사용자 토큰을 얻지 못하면 앱을 관리자 권한으로 대신 실행하거나 관리자 계정의 데이터를 지우지 않고 안전하게 실패해요.
+Setup과 제거기는 Program Files, HKLM, 모든 사용자 시작 메뉴를 바꾸기 위해 관리자 권한으로 실행돼요. 반면 Windows App Runtime 설치·등록, 설치 완료 후 앱 실행과 `%LOCALAPPDATA%`, Credential Manager, HKCU 자동 실행 정리는 데스크톱 셸 사용자의 토큰으로 분리해요. 표준 사용자가 UAC 창에 다른 관리자 계정을 입력해도 관리자 계정의 runtime, 데이터나 자격 증명을 현재 사용자 상태로 취급하면 안 돼요. 데스크톱 사용자 토큰을 얻지 못하면 runtime을 잘못된 계정에 등록하거나 앱을 관리자 권한으로 대신 실행하거나 관리자 계정의 데이터를 지우지 않고 안전하게 실패해요.
 
 Setup과 제거기는 전역 mutex 하나로 직렬화해요. 새 payload를 활성화할 때는 기존 NSIS 설치를 먼저 제거하지 않아요. 완성된 staging을 준비한 뒤 실행 중인 앱을 종료하고, 기존 설치 폴더를 rollback 형제 폴더로 이름 변경한 다음 staging을 live 경로로 이름 변경해요. 설치 전 등록 정보도 transaction 상태에 저장해요. 파일 활성화나 등록 정보 갱신이 실패하면 파일·머신 등록·공용 바로가기를 이전 상태로 복원하고, 등록까지 성공해 commit한 뒤에만 이전 폴더를 지워요. 다음 Setup 실행은 중단된 transaction 상태를 먼저 복구하며, 제거기는 지연된 rollback 정리도 함께 끝내요.
 
@@ -86,7 +86,7 @@ dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no
 `Test-WindowsBuild.ps1`은 별도의 게시 폴더를 만들고 framework-dependent 계약, 선행 조건, Launcher와 Host의 시작까지 검사해요. 선행 조건 설치가 필요하면 머신 상태가 바뀔 수 있으므로 스크립트의 범위를 확인한 뒤 실행해요.
 
 ```powershell
-powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/Test-WindowsBuild.ps1
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/tests/Test-WindowsBuild.ps1
 ```
 
 이미 만든 게시 폴더만 검사할 때는 `Test-FrameworkDependentPublish.ps1`과 `Test-PublishedApplication.ps1`에 같은 `-PublishDirectory`를 명시해요. 두 스크립트는 게시 폴더를 자동으로 찾지 않아요.

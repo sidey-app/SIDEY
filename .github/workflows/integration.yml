@@ -132,7 +132,7 @@ jobs:
             --configuration Release --runtime win-x64 --self-contained false `
             --no-restore -p:WindowsAppSDKSelfContained=false -p:PublishSingleFile=false `
             --output build/windows/publish
-          ./scripts/windows/Test-FrameworkDependentPublish.ps1 -PublishDirectory ./build/windows/publish
+          ./scripts/windows/tests/Test-FrameworkDependentPublish.ps1 -PublishDirectory ./build/windows/publish
           ./scripts/windows/tests/Test-FrameworkPublishGuard.ps1 -PublishDirectory ./build/windows/publish
 
       - name: Run Windows app smoke
@@ -143,7 +143,7 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           $version = ([xml](Get-Content ./windows/src/Sidey.App/Sidey.App.csproj -Raw)).Project.PropertyGroup.Version | Where-Object { $_ }
           ./scripts/windows/Install-WindowsPrerequisites.ps1 -Version $version
-          ./scripts/windows/Test-PublishedApplication.ps1 -PublishDirectory ./build/windows/publish -TimeoutSeconds 120
+          ./scripts/windows/tests/Test-PublishedApplication.ps1 -PublishDirectory ./build/windows/publish -TimeoutSeconds 120
 
       - name: Compile NSIS installer
         run: |

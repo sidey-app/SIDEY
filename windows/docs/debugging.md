@@ -82,8 +82,8 @@ ViewModel 테스트는 명령을 실행한 뒤 상태와 협력자 호출을 확
 게시 문제라면 일반 빌드 결과가 아니라 실제 게시 결과를 검사해요.
 
 ```powershell
-powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/Test-FrameworkDependentPublish.ps1
-powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/Test-PublishedApplication.ps1
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/tests/Test-FrameworkDependentPublish.ps1 -PublishDirectory build/windows/publish
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/tests/Test-PublishedApplication.ps1 -PublishDirectory build/windows/publish
 ```
 
 이 검사는 배포 파일의 위치, 공유 런타임 전제, 실제 실행 가능성을 확인해요. 설치 관리자의 선행 조건 설치까지 포함하는 전체 배포 검사는 환경을 바꿀 수 있으므로 스크립트의 범위를 먼저 읽고 실행해요.

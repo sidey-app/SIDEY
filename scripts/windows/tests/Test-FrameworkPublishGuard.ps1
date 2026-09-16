@@ -4,7 +4,6 @@
 param([Parameter(Mandatory = $true)][string]$PublishDirectory)
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
-$windowsScriptsDirectory = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $publishDirectoryPath = (Resolve-Path -LiteralPath $PublishDirectory).Path
 $fixtureDirectory = Join-Path ([IO.Path]::GetTempPath()) "SIDEY-Publish-Guard-$([guid]::NewGuid().ToString('N'))"
 $fixtureRuntimeDirectory = Join-Path $fixtureDirectory 'Runtime'
@@ -21,7 +20,7 @@ try {
         $probeFilePath = Join-Path $fixtureRuntimeDirectory $name
         [IO.File]::WriteAllText($probeFilePath, 'forbidden payload')
         $rejected = $false
-        try { & (Join-Path $windowsScriptsDirectory 'Test-FrameworkDependentPublish.ps1') -PublishDirectory $fixtureDirectory }
+        try { & (Join-Path $PSScriptRoot 'Test-FrameworkDependentPublish.ps1') -PublishDirectory $fixtureDirectory }
         catch { $rejected = $_.Exception.Message -like 'Shared runtime payload found:*' }
         Remove-Item -LiteralPath $probeFilePath -Force
         if (-not $rejected) { throw "Publish validation did not reject $name" }
@@ -29,7 +28,7 @@ try {
     }
     [IO.Directory]::CreateDirectory((Join-Path $fixtureRuntimeDirectory 'Assets')) | Out-Null
     $rejected = $false
-    try { & (Join-Path $windowsScriptsDirectory 'Test-FrameworkDependentPublish.ps1') -PublishDirectory $fixtureDirectory }
+    try { & (Join-Path $PSScriptRoot 'Test-FrameworkDependentPublish.ps1') -PublishDirectory $fixtureDirectory }
     catch { $rejected = $_.Exception.Message -like 'Duplicate Runtime/Assets*' }
     if (-not $rejected) { throw 'Publish validation did not reject duplicate Assets.' }
     Write-Host 'Rejected=Runtime/Assets'

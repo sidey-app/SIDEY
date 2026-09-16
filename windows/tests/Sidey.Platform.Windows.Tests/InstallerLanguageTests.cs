@@ -97,6 +97,143 @@ public sealed class InstallerLanguageTests
     }
 
     [Fact]
+    public void InstallerRoutesLifecycleFailuresToDistinctUserMessages()
+    {
+        string source = File.ReadAllText(RepositoryPath(
+            "windows", "installer", "Sidey.Setup", "Sidey.Setup.nsi"));
+
+        string mutex = Section(source, "!macro AcquireSetupMutex HANDLE", "!macroend");
+        Assert.Contains("${If} $1 == 183", mutex, StringComparison.Ordinal);
+        Assert.Contains("${ElseIf} ${HANDLE} == 0", mutex, StringComparison.Ordinal);
+        Assert.Contains("$(SetupAlreadyRunning)", mutex, StringComparison.Ordinal);
+        Assert.Contains("$(SetupInitializationFailed)", mutex, StringComparison.Ordinal);
+
+        string initialization = Section(source, "Function .onInit", "FunctionEnd");
+        Assert.Contains("$(TransactionRecoveryFailed)", initialization, StringComparison.Ordinal);
+        Assert.Contains("Call ShowLifecycleError", initialization, StringComparison.Ordinal);
+        Assert.Contains("TRANSACTION_RECOVERY_FAILED", initialization, StringComparison.Ordinal);
+        Assert.DoesNotContain("$(TransactionStateUnknown)", initialization, StringComparison.Ordinal);
+
+        string maintenanceRemoval = Section(source, "Function TermsPagePre", "FunctionEnd");
+        Assert.Contains("$(ExistingRemovalFailed)", maintenanceRemoval, StringComparison.Ordinal);
+        Assert.Contains("Call ShowLifecycleError", maintenanceRemoval, StringComparison.Ordinal);
+        Assert.Contains("SetErrorLevel 1", maintenanceRemoval, StringComparison.Ordinal);
+
+        string prerequisites = Section(source, "Function EnsurePrerequisites", "FunctionEnd");
+        Assert.Contains("$InstallerErrorCategory == \"USER_CANCELLED\"", prerequisites, StringComparison.Ordinal);
+        Assert.Contains("SetErrorLevel 1602", prerequisites, StringComparison.Ordinal);
+
+        string installation = Section(source, "Section \"SIDEY\" MainSection", "SectionEnd");
+        foreach (string command in new[]
+                 {
+                     "Sidey.InstallTransaction.exe --action Prepare",
+                     "Sidey.SetupSupport.exe --stop-sidey-processes",
+                     "Sidey.InstallTransaction.exe --action Activate",
+                     "Sidey.InstallTransaction.exe --action BeginRegistration",
+                     "Sidey.InstallTransaction.exe --action Commit",
+                     "Stage SIDEY application files",
+                     "Register SIDEY shortcuts and Windows metadata",
+                 })
+        {
+            Assert.Contains(command, installation, StringComparison.Ordinal);
+        }
+        Assert.Contains("StrCpy $InstallerErrorSource \"PROCESS\"", installation, StringComparison.Ordinal);
+        Assert.Contains("StrCpy $InstallerErrorSource \"REGISTRY\"", installation, StringComparison.Ordinal);
+        Assert.Contains("StrCpy $InstallerErrorSource \"FILESYSTEM\"", installation, StringComparison.Ordinal);
+
+        string uninstall = Section(source, "Section \"Uninstall\"", "SectionEnd");
+        Assert.Contains("Goto uninstall_preflight_failed", uninstall, StringComparison.Ordinal);
+        Assert.Contains("$(UninstallPreflightFailed)", uninstall, StringComparison.Ordinal);
+        Assert.Contains("Goto uninstall_state_unknown", uninstall, StringComparison.Ordinal);
+        Assert.Contains("$(UninstallStateUnknown)", uninstall, StringComparison.Ordinal);
+        Assert.Contains("StrCpy $InstallerErrorSource \"PROCESS\"", uninstall, StringComparison.Ordinal);
+        Assert.Contains(
+            "SIDEY.UninstallHelper.exe --stop-sidey-processes",
+            uninstall,
+            StringComparison.Ordinal);
+        Assert.Contains("StrCpy $InstallerErrorSource \"FILESYSTEM\"", uninstall, StringComparison.Ordinal);
+        Assert.Contains(
+            "Extract Sidey.InstallTransaction.exe",
+            uninstall,
+            StringComparison.Ordinal);
+        Assert.Equal(
+            3,
+            Regex.Matches(uninstall, "Call un\\.ShowLifecycleError").Count);
+
+        string uninitialization = Section(source, "Function un.onInit", "FunctionEnd");
+        Assert.Contains("Call un.InitializeInstallerErrorHandling", uninitialization, StringComparison.Ordinal);
+
+        string errors = File.ReadAllText(RepositoryPath(
+            "windows", "installer", "Sidey.Setup", "InstallerErrors.nsh"));
+        string display = Section(errors, "Function ShowInstallerError", "FunctionEnd");
+        Assert.Contains("MB_ICONEXCLAMATION", display, StringComparison.Ordinal);
+        Assert.Contains("MB_ICONINFORMATION", display, StringComparison.Ordinal);
+        Assert.Contains("MB_ICONSTOP", display, StringComparison.Ordinal);
+        Assert.Contains("$(InstallerErrorOpenLog)", display, StringComparison.Ordinal);
+        Assert.Contains("ExecShell \"open\" \"$InstallerErrorLogPath\"", display, StringComparison.Ordinal);
+        Assert.Contains("/SD IDNO", display, StringComparison.Ordinal);
+
+        string lifecycleDisplay = Section(errors, "Function ShowLifecycleError", "FunctionEnd");
+        Assert.Contains("Call LogInstallerErrorFallback", lifecycleDisplay, StringComparison.Ordinal);
+        Assert.Contains("$(InstallerErrorComponent)", lifecycleDisplay, StringComparison.Ordinal);
+        Assert.Contains("$(InstallerErrorLog)", lifecycleDisplay, StringComparison.Ordinal);
+
+        string uninstallLifecycleDisplay = Section(errors, "Function un.ShowLifecycleError", "FunctionEnd");
+        Assert.Contains("Call un.LogInstallerErrorFallback", uninstallLifecycleDisplay, StringComparison.Ordinal);
+        Assert.Contains("$(InstallerErrorComponent)", uninstallLifecycleDisplay, StringComparison.Ordinal);
+        Assert.Contains("$(InstallerErrorLog)", uninstallLifecycleDisplay, StringComparison.Ordinal);
+
+        foreach (string hardCodedTarget in new[]
+                 {
+                     "SIDEY installation state",
+                     "SIDEY installation",
+                     "SIDEY removal preflight",
+                     "SIDEY removal state",
+                     "Current-user SIDEY data",
+                 })
+        {
+            Assert.DoesNotContain(
+                $"StrCpy $InstallerErrorTarget \"{hardCodedTarget}\"",
+                source,
+                StringComparison.Ordinal);
+        }
+        Assert.Contains("$(InstallerComponentInstallation)", source, StringComparison.Ordinal);
+        Assert.Contains("$(InstallerComponentRegistration)", source, StringComparison.Ordinal);
+        Assert.Contains("$(InstallerComponentRemoval)", source, StringComparison.Ordinal);
+        Assert.Contains("$(InstallerComponentCurrentUserData)", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UninstallReportsCleanupFailuresOnceWithEveryFailedItemAndCode()
+    {
+        string source = File.ReadAllText(RepositoryPath(
+            "windows", "installer", "Sidey.Setup", "Sidey.Setup.nsi"));
+        string uninstall = Section(source, "Section \"Uninstall\"", "SectionEnd");
+
+        Assert.Contains("$(CleanupLocalDataFailure)", uninstall, StringComparison.Ordinal);
+        Assert.Contains("$(CleanupCredentialsFailure)", uninstall, StringComparison.Ordinal);
+        Assert.Contains("$(CleanupStartupFailure)", uninstall, StringComparison.Ordinal);
+        Assert.Contains("StrCpy $InstallerErrorMessage \"$(CleanupFailed)\"", uninstall, StringComparison.Ordinal);
+        Assert.Contains("StrCpy $InstallerErrorDetail $CleanupFailureDetails", uninstall, StringComparison.Ordinal);
+        Assert.Contains("Call un.ShowLifecycleError", uninstall, StringComparison.Ordinal);
+
+        foreach (string key in new[]
+                 {
+                     "CleanupLocalDataFailure",
+                     "CleanupCredentialsFailure",
+                     "CleanupStartupFailure",
+                 })
+        {
+            Match message = Regex.Match(
+                source,
+                $"^LangString {key} \\${{LANG_ENGLISH}} \\\"(?<message>.*)\\\"\\r?$",
+                RegexOptions.Multiline);
+            Assert.True(message.Success);
+            Assert.Contains("$0", message.Groups["message"].Value, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void ExistingRemovalFailureExplainsRecoveryBeforeSupportContact()
     {
         string source = File.ReadAllText(RepositoryPath(
@@ -120,9 +257,100 @@ public sealed class InstallerLanguageTests
                 < message.IndexOf("문의", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void InstallerErrorsShowComponentAndDiagnosticLogWithoutUnsafeRuntimeRemovalAdvice()
+    {
+        string source = File.ReadAllText(RepositoryPath(
+            "windows", "installer", "Sidey.Setup", "InstallerErrors.nsh"));
+
+        Assert.Contains("$(InstallerErrorComponent)", source, StringComparison.Ordinal);
+        Assert.Contains("$(InstallerErrorCode)", source, StringComparison.Ordinal);
+        Assert.Contains("$(InstallerErrorLog)", source, StringComparison.Ordinal);
+        Assert.Contains("Native error code: $InstallerErrorNativeCode", source, StringComparison.Ordinal);
+        Assert.Contains("Diagnostic log (send this file to customer support): $InstallerErrorLogPath", source, StringComparison.Ordinal);
+        Assert.Contains("진단 로그(이 파일을 고객지원에 보내세요): $InstallerErrorLogPath", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "LangString InstallerComponentInstallation ${LANG_KOREAN} \"SIDEY 설치\"",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "LangString InstallerComponentRemoval ${LANG_JAPANESE} \"SIDEY の削除\"",
+            source,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("Remove the conflicting version", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("충돌하는 버전을 제거", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("No further changes were made", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("더 이상 변경하지 않았습니다", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(".NET Desktop Runtime 10.0.12", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("0x80070032", source, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("0x80131500", source, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void InstallerErrorGuidanceCoversStoragePackageSignatureAndSharedRuntimeSafety()
+    {
+        string source = File.ReadAllText(RepositoryPath(
+            "windows", "installer", "Sidey.Setup", "InstallerErrors.nsh"));
+
+        string disk = EnglishMessage(source, "InstallerErrorDiskFull");
+        Assert.Contains("Windows system drive", disk, StringComparison.Ordinal);
+        Assert.Contains("selected SIDEY installation drive", disk, StringComparison.Ordinal);
+
+        string package = EnglishMessage(source, "InstallerErrorPackage");
+        Assert.Contains("downloads a fresh copy from Microsoft", package, StringComparison.Ordinal);
+        Assert.DoesNotContain("Download Setup again", package, StringComparison.OrdinalIgnoreCase);
+
+        string signature = EnglishMessage(source, "InstallerErrorSignature");
+        Assert.Contains("date and time", signature, StringComparison.Ordinal);
+        Assert.Contains("Windows updates", signature, StringComparison.Ordinal);
+        Assert.Contains("Do not disable signature verification", signature, StringComparison.Ordinal);
+
+        Assert.Contains("Do not manually remove shared Microsoft runtimes", EnglishMessage(source, "InstallerErrorDependency"), StringComparison.Ordinal);
+        Assert.Contains("Do not manually remove shared Microsoft runtimes", EnglishMessage(source, "InstallerErrorAlreadyInstalled"), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InstallerUsesCommonErrorFooterAndNoDeadRestartMessage()
+    {
+        string errors = File.ReadAllText(RepositoryPath(
+            "windows", "installer", "Sidey.Setup", "InstallerErrors.nsh"));
+        string setup = File.ReadAllText(RepositoryPath(
+            "windows", "installer", "Sidey.Setup", "Sidey.Setup.nsi"));
+        string languages = File.ReadAllText(RepositoryPath(
+            "windows", "installer", "Sidey.Setup", "Languages.nsh"));
+
+        Assert.Contains(
+            "$(InstallerErrorComponent)$\\r$\\n$(InstallerErrorCode)$\\r$\\n$(InstallerErrorLog)",
+            errors,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("PrerequisitesRestart", setup, StringComparison.Ordinal);
+        Assert.DoesNotContain("PrerequisitesRestart", languages, StringComparison.Ordinal);
+        Assert.Contains("--download-directory \"$PLUGINSDIR\"", setup, StringComparison.Ordinal);
+        Assert.DoesNotContain("--download-directory \"$APPDATA", setup, StringComparison.Ordinal);
+    }
+
     private static string[] Placeholders(string text) =>
-        [.. Regex.Matches(text, @"\$\{[A-Z_]+\}|\$[0-9]|%LOCALAPPDATA%")
+        [.. Regex.Matches(text, @"\$\{[A-Z_]+\}|\$[0-9]|\$[A-Za-z_][A-Za-z0-9_]*|%LOCALAPPDATA%")
             .Select(match => match.Value).Order(StringComparer.Ordinal)];
+
+    private static string EnglishMessage(string source, string key)
+    {
+        Match match = Regex.Match(
+            source,
+            $"^LangString {key} \\${{LANG_ENGLISH}} \\\"(?<message>.*)\\\"\\r?$",
+            RegexOptions.Multiline);
+        Assert.True(match.Success);
+        return match.Groups["message"].Value;
+    }
+
+    private static string Section(string source, string start, string end)
+    {
+        int startIndex = source.IndexOf(start, StringComparison.Ordinal);
+        Assert.True(startIndex >= 0);
+        int endIndex = source.IndexOf(end, startIndex, StringComparison.Ordinal);
+        Assert.True(endIndex >= 0);
+        return source[startIndex..(endIndex + end.Length)];
+    }
 
     private static string RepositoryPath(params string[] parts)
     {

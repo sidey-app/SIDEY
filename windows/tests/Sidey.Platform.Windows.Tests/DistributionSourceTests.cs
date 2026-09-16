@@ -131,6 +131,34 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
+    public void LegacyMsiMessagesUseTheSavedInstallerLanguageAcrossAllSevenCatalogs()
+    {
+        string helper = File.ReadAllText(RepositoryPath(
+            "windows", "src", "Sidey.Uninstaller", "Program.cs"));
+
+        Assert.Contains("InstallerLanguageValueName = \"Language\"", helper, StringComparison.Ordinal);
+        Assert.Contains("RegistryView.Registry64", helper, StringComparison.Ordinal);
+        Assert.Contains("GetUserDefaultUILanguage()", helper, StringComparison.Ordinal);
+        Assert.Contains("SupportedLanguageOrEnglish", helper, StringComparison.Ordinal);
+        foreach (string language in new[]
+                 {
+                     "EnglishLanguage",
+                     "KoreanLanguage",
+                     "JapaneseLanguage",
+                     "SimplifiedChineseLanguage",
+                     "TraditionalChineseLanguage",
+                     "RussianLanguage",
+                     "UkrainianLanguage",
+                 })
+        {
+            Assert.Contains(language, helper, StringComparison.Ordinal);
+        }
+        Assert.Contains("FormatExceptionErrorCode", helper, StringComparison.Ordinal);
+        Assert.Contains("NativeErrorCode", helper, StringComparison.Ordinal);
+        Assert.DoesNotContain("TwoLetterISOLanguageName", helper, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void InstallerRegistersOnlyTheProductionGoogleCallbackScheme()
     {
         string setup = ReadSetupScript();
@@ -348,12 +376,13 @@ public sealed class DistributionSourceTests
 
         int start = setup.IndexOf("Function EnsurePrerequisites", StringComparison.Ordinal);
         string prerequisiteFunction = setup[start..setup.IndexOf("FunctionEnd", start, StringComparison.Ordinal)];
-        Assert.Contains("--provision-all-users", prerequisiteFunction, StringComparison.Ordinal);
+        Assert.Contains("--desktop-user-runner", prerequisiteFunction, StringComparison.Ordinal);
+        Assert.DoesNotContain("--provision-all-users", prerequisiteFunction, StringComparison.Ordinal);
         Assert.Contains("Sidey.PrerequisiteInstaller.exe", prerequisiteFunction, StringComparison.Ordinal);
         Assert.Contains("SUCCESS_REBOOT_REQUIRED", prerequisiteFunction, StringComparison.Ordinal);
         Assert.Contains("$InstallerErrorStatus == \"SUCCESS\"", prerequisiteFunction, StringComparison.Ordinal);
         Assert.Contains("Call ShowInstallerError", prerequisiteFunction, StringComparison.Ordinal);
-        Assert.Equal(2, prerequisiteFunction.Split("    Abort", StringSplitOptions.None).Length - 1);
+        Assert.Equal(3, prerequisiteFunction.Split("    Abort", StringSplitOptions.None).Length - 1);
 
         string uninstall = setup[setup.IndexOf("Section \"Uninstall\"", StringComparison.Ordinal)..];
         Assert.DoesNotContain("SetupRuntime.ps1", uninstall, StringComparison.Ordinal);
@@ -429,12 +458,10 @@ public sealed class DistributionSourceTests
         Assert.Contains("-HelperPath $prerequisiteInstallerExecutablePath", package, StringComparison.Ordinal);
         Assert.Contains("tests/Test-PowerShellSupport.ps1", package, StringComparison.Ordinal);
         Assert.Contains("forbiddenRuntimeToken", package, StringComparison.Ordinal);
-        Assert.Contains("[switch]$ProvisionAllUsers", prerequisiteSetup, StringComparison.Ordinal);
-        Assert.Contains("if ($ProvisionAllUsers)", prerequisiteSetup, StringComparison.Ordinal);
-        Assert.Contains("@('--provision-all-users') + $helperArguments", prerequisiteSetup, StringComparison.Ordinal);
+        Assert.DoesNotContain("ProvisionAllUsers", prerequisiteSetup, StringComparison.Ordinal);
+        Assert.DoesNotContain("--provision-all-users", prerequisiteSetup, StringComparison.Ordinal);
         Assert.Contains("Invoke-SideyWindowsProcess", prerequisiteSetup, StringComparison.Ordinal);
         Assert.DoesNotContain("& $helperPath @helperArguments", prerequisiteSetup, StringComparison.Ordinal);
-        Assert.DoesNotContain("& $helperPath `\n    --provision-all-users", prerequisiteSetup, StringComparison.Ordinal);
         foreach (string source in new[] { setup, errors })
         {
             Assert.DoesNotContain("powershell.exe", source, StringComparison.OrdinalIgnoreCase);
@@ -451,11 +478,25 @@ public sealed class DistributionSourceTests
         string setup = ReadSetupScript();
         string helper = File.ReadAllText(RepositoryPath(
             "windows", "src", "Sidey.Uninstaller", "Program.cs"));
+        string prerequisiteHelper = File.ReadAllText(RepositoryPath(
+            "windows", "installer", "Sidey.Setup", "PrerequisiteInstaller.cs"));
+        string prerequisiteSetup = File.ReadAllText(RepositoryPath(
+            "scripts", "windows", "Install-WindowsPrerequisites.ps1"));
 
         Assert.Contains("MUI_FINISHPAGE_RUN_FUNCTION LaunchSideyAsDesktopUser", setup, StringComparison.Ordinal);
         Assert.DoesNotContain("MUI_FINISHPAGE_RUN \"$INSTDIR\\SIDEY.exe\"", setup, StringComparison.Ordinal);
         Assert.Contains("--launch-sidey-as-desktop-user", setup, StringComparison.Ordinal);
         Assert.Contains("--cleanup-startup-as-desktop-user", setup, StringComparison.Ordinal);
+        Assert.Contains("--desktop-user-runner", setup, StringComparison.Ordinal);
+        Assert.Contains("DesktopUserIdentity.GetSecurityIdentifier()", prerequisiteHelper, StringComparison.Ordinal);
+        Assert.Contains("--run-windows-app-runtime-as-desktop-user", prerequisiteHelper, StringComparison.Ordinal);
+        Assert.Contains("--run-windows-app-runtime-as-desktop-user", helper, StringComparison.Ordinal);
+        Assert.DoesNotContain("DesktopUserIdentity.IsCurrentUser", prerequisiteHelper, StringComparison.Ordinal);
+        Assert.Contains("--desktop-user-runner", prerequisiteSetup, StringComparison.Ordinal);
+        Assert.Contains("Sidey.SetupSupport.exe", prerequisiteSetup, StringComparison.Ordinal);
+        Assert.DoesNotContain("exception.Message", helper, StringComparison.Ordinal);
+        Assert.Contains("SIDEY-PrerequisiteDownloads", prerequisiteHelper, StringComparison.Ordinal);
+        Assert.Contains("SIDEY-PrerequisiteDownloads", helper, StringComparison.Ordinal);
 
         Assert.Contains("GetShellWindow", helper, StringComparison.Ordinal);
         Assert.Contains("GetWindowThreadProcessId", helper, StringComparison.Ordinal);
@@ -466,6 +507,111 @@ public sealed class DistributionSourceTests
         Assert.Contains("IsCurrentDesktopUser", helper, StringComparison.Ordinal);
         Assert.Contains("WindowsIdentity", helper, StringComparison.Ordinal);
         Assert.Contains("Registry.CurrentUser", helper, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PrerequisitePreparationAndPostconditionFailuresKeepComponentContext()
+    {
+        string source = File.ReadAllText(RepositoryPath(
+            "windows", "installer", "Sidey.Setup", "PrerequisiteInstaller.cs"));
+
+        Assert.Contains(
+            "Windows App Runtime desktop-user identification failed.",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("\"APPX\",", source, StringComparison.Ordinal);
+        Assert.Contains("\"Windows App Runtime x64\",", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "requirement.Name + \" download preparation failed.\"",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("\"FILESYSTEM\",", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "Prepare secure prerequisite download path",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("IsAvailableAfterSuccessfulExit", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "availability check failed after successful installer exit.",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("\"VERIFY\",", source, StringComparison.Ordinal);
+        Assert.Contains("\"0\");", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void PowerShellTestsLiveUnderTheDedicatedTestsDirectory()
+    {
+        string scriptsDirectory = RepositoryPath("scripts", "windows");
+        string testsDirectory = Path.Combine(scriptsDirectory, "tests");
+        string[] canonicalTestScripts = Directory.GetFiles(
+            testsDirectory,
+            "Test-*.ps1",
+            SearchOption.TopDirectoryOnly);
+        string[] compatibilityWrappers = Directory.GetFiles(
+            scriptsDirectory,
+            "Test-*.ps1",
+            SearchOption.TopDirectoryOnly);
+        string[] expectedCompatibilityWrappers =
+        {
+            "Test-FrameworkDependentPublish.ps1",
+            "Test-ImpactAudioAssets.ps1",
+            "Test-PublishedApplication.ps1",
+            "Test-WindowsBuild.ps1",
+            "Test-WindowsRelease.ps1",
+        };
+
+        Assert.NotEmpty(canonicalTestScripts);
+        Assert.Equal(
+            expectedCompatibilityWrappers.Order(StringComparer.Ordinal),
+            compatibilityWrappers.Select(Path.GetFileName).Order(StringComparer.Ordinal));
+        Assert.All(compatibilityWrappers, path =>
+        {
+            string source = File.ReadAllText(path);
+            Assert.Contains(
+                "tests/" + Path.GetFileName(path),
+                source,
+                StringComparison.Ordinal);
+            Assert.Contains("@PSBoundParameters", source, StringComparison.Ordinal);
+            Assert.True(
+                source.Split('\n').Length <= 15,
+                $"Compatibility wrapper must not contain test implementation: {path}");
+        });
+
+        string[] misplacedTests = Directory.GetFiles(
+                scriptsDirectory,
+                "Test-*.ps1",
+                SearchOption.AllDirectories)
+            .Where(path =>
+                !string.Equals(
+                    Path.GetDirectoryName(path),
+                    scriptsDirectory,
+                    StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(
+                    Path.GetDirectoryName(path),
+                    testsDirectory,
+                    StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        Assert.Empty(misplacedTests);
+
+        string integration = File.ReadAllText(RepositoryPath(
+            ".github", "workflows", "integration.yml"));
+        Assert.Contains(
+            "./scripts/windows/tests/Test-FrameworkDependentPublish.ps1",
+            integration,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "./scripts/windows/tests/Test-PublishedApplication.ps1",
+            integration,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain("./scripts/windows/Test-", integration, StringComparison.Ordinal);
+
+        string package = File.ReadAllText(RepositoryPath(
+            "scripts", "windows", "New-WindowsInstaller.ps1"));
+        Assert.Contains(
+            "tests/Test-FrameworkDependentPublish.ps1",
+            package,
+            StringComparison.Ordinal);
     }
 
     [Theory]

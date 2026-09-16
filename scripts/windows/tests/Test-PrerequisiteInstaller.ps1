@@ -87,11 +87,46 @@ try {
     $download = $assembly.GetType('Sidey.Setup.Prerequisites.MicrosoftDownload', $true)
     $signer = $assembly.GetType('Sidey.Setup.Prerequisites.AuthenticodeVerifier', $true)
     $errors = $assembly.GetType('Sidey.Setup.Prerequisites.InstallerErrors', $true)
+    $installPolicy = $assembly.GetType('Sidey.Setup.Prerequisites.PrerequisiteInstallPolicy', $true)
+    $prerequisiteService = $assembly.GetType('Sidey.Setup.Prerequisites.PrerequisiteService', $true)
     $platform = $assembly.GetType('Sidey.Setup.Prerequisites.PlatformSupport', $true)
-    $provisioner = $assembly.GetType('Sidey.Setup.Prerequisites.WindowsPackageProvisioner', $true)
+    $desktopUser = $assembly.GetType('Sidey.Setup.Prerequisites.DesktopUserIdentity', $true)
     $packageQuery = $assembly.GetType('Sidey.Setup.Prerequisites.WindowsPackageQuery', $true)
     $packageStatus = $assembly.GetType('Sidey.Setup.Prerequisites.WindowsPackageStatus', $true)
     $configType = $assembly.GetType('Sidey.Setup.Prerequisites.PrerequisiteConfiguration', $true)
+
+    $lockedExecutablePath = Join-Path $testRoot 'where.exe'
+    Copy-Item -LiteralPath (Join-Path $env:SystemRoot 'System32/where.exe') `
+        -Destination $lockedExecutablePath
+    $downloadHandle = [IO.File]::Open(
+        $lockedExecutablePath,
+        [IO.FileMode]::Open,
+        [IO.FileAccess]::ReadWrite,
+        [IO.FileShare]::Read)
+    $lockedExecutable = $null
+    try {
+        $lockedExecutable = Invoke-Static $prerequisiteService `
+            'TransitionToExecutableReadLock' @($lockedExecutablePath, $downloadHandle)
+        $downloadHandle = $null
+        Assert-Throws {
+            [IO.File]::Open(
+                $lockedExecutablePath,
+                [IO.FileMode]::Open,
+                [IO.FileAccess]::Write,
+                [IO.FileShare]::ReadWrite).Dispose()
+        } 'Reject writes after transitioning the prerequisite to its executable read lock.'
+        Assert-Throws { [IO.File]::Delete($lockedExecutablePath) } `
+            'Reject replacement after transitioning the prerequisite to its executable read lock.'
+        $lockedProcess = Start-Process -FilePath $lockedExecutablePath `
+            -ArgumentList '/?' `
+            -WindowStyle Hidden -Wait -PassThru
+        Assert-True ($lockedProcess.ExitCode -eq 0) `
+            'Allow Windows to execute a verified prerequisite while the anti-replacement handle remains open.'
+    }
+    finally {
+        if ($null -ne $lockedExecutable) { $lockedExecutable.Dispose() }
+        if ($null -ne $downloadHandle) { $downloadHandle.Dispose() }
+    }
 
     Assert-True (Test-DotNetVersions -Candidates ([string[]]@('8.0.30', '10.0.11')) -Minimum ([version]'10.0.0')) `
         'Accept .NET 10 servicing updates.'
@@ -126,22 +161,33 @@ try {
         $actualWindowsVersion.Contains(".$currentBuild.")) `
         'Read the real Windows build with RtlGetVersion instead of the manifest-dependent Environment.OSVersion.'
     $sourceText = [IO.File]::ReadAllText($source)
-    Assert-True ($sourceText.Contains('Assembly.Load(WindowsRuntimeAssemblyName)') -and
-        $sourceText.Contains('"VerifyIsOK"') -and
+    Assert-True ($sourceText.Contains('"SIDEY-PrerequisiteDownloads"') -and
+        $sourceText.Contains('Directory.CreateDirectory(directory, security)') -and
+        $sourceText.Contains('AssertDirectoryIsNotUserControlled') -and
+        $sourceText.Contains('security.SetAccessRuleProtection(true, false);') -and
+        -not $sourceText.Contains('GrantDesktopUserReadAccess')) `
+        'Use an isolated ProgramData directory that is atomically protected and rejects unsafe precreation.'
+    Assert-True ($sourceText.Contains('bool useDesktopUserRunner = requirement.RunAsDesktopUser;') -and
+        -not $sourceText.Contains('DesktopUserIdentity.IsCurrentUser') -and
+        $sourceText -match '(?s)private static int RunInstallerAsDesktopUser\(.*?if \(string\.IsNullOrWhiteSpace\(desktopUserRunner\)\)') `
+        'Always route Windows App Runtime through the non-elevated desktop-user runner, including same-SID UAC elevation.'
+    Assert-True ($sourceText.Contains('"VerifyIsOK"') -and
         $sourceText.Contains('"FindPackagesForUserWithPackageTypes"') -and
         $sourceText.Contains('1 | 2') -and
+        $sourceText.Contains('DesktopUserIdentity.GetSecurityIdentifier()') -and
+        -not $sourceText.Contains('ProvisionPackageForAllUsersAsync') -and
         -not $sourceText.Contains('FindPackagesByPackageFamily')) `
-        'Query current-user Main and Framework packages and require Package.Status.VerifyIsOK.'
+        'Query desktop-user Main and Framework packages and require Package.Status.VerifyIsOK.'
+    $desktopUserSid = [string](Invoke-Static $desktopUser 'GetSecurityIdentifier' @())
+    Assert-True (-not [string]::IsNullOrWhiteSpace($desktopUserSid)) `
+        'Resolve the interactive desktop user security identifier.'
     Assert-True (-not (Invoke-Static $packageQuery 'HasPackage' `
-        @('Sidey.Does.Not.Exist_8wekyb3d8bbwe', [version]'1.0.0.0'))) `
+        @('Sidey.Does.Not.Exist_8wekyb3d8bbwe', [version]'1.0.0.0', $desktopUserSid))) `
         'Reject an unregistered package family.'
     $installationType = [string](Get-ItemPropertyValue `
         -LiteralPath 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' `
         -Name 'InstallationType')
     if ($installationType -ceq 'Client') {
-        $extensions = Invoke-Static $provisioner 'ResolveWindowsRuntimeExtensions' @()
-        Assert-True ($extensions.FullName -ceq 'System.WindowsRuntimeSystemExtensions') `
-            'Resolve the .NET Framework WinRT task projection from its strong-named GAC assembly.'
         $knownGoodPackage = Get-AppxPackage -PackageTypeFilter Framework, Main | Where-Object {
             $_.Status -eq 'Ok' -and [string]$_.Architecture -eq 'X64' -and $_.PackageFullName
         } | Select-Object -First 1
@@ -149,8 +195,8 @@ try {
         Assert-True (Invoke-Static $packageStatus 'IsUsable' @([string]$knownGoodPackage.PackageFullName)) `
             'Require Package.Status.VerifyIsOK before accepting an installed package.'
         Assert-True (Invoke-Static $packageQuery 'HasPackage' `
-            @([string]$knownGoodPackage.PackageFamilyName, [version]$knownGoodPackage.Version)) `
-            'Find a usable current-user Main or Framework package through the compiled query path.'
+            @([string]$knownGoodPackage.PackageFamilyName, [version]$knownGoodPackage.Version, $desktopUserSid)) `
+            'Find a usable desktop-user Main or Framework package through the compiled query path.'
     }
     else {
         Write-Host "Skipped client AppX reflection probe on Windows installation type: $installationType"
@@ -183,6 +229,44 @@ try {
     Assert-Throws { Invoke-Static $signer 'AssertMicrosoftSignature' @($source) } `
         'Reject unsigned input bytes.'
 
+    $retryDownloadDirectory = Join-Path $testRoot 'retry-download'
+    [void][IO.Directory]::CreateDirectory($retryDownloadDirectory)
+    $staleDownloadPath = Join-Path $retryDownloadDirectory 'component.exe'
+    [IO.File]::WriteAllText($staleDownloadPath, 'partial prerequisite download')
+    $preparedDownloadPath = [string](Invoke-Static $prerequisiteService 'SafeDownloadPath' `
+        @($retryDownloadDirectory, 'component.exe'))
+    Assert-True ($preparedDownloadPath -ceq $staleDownloadPath -and
+        -not (Test-Path -LiteralPath $staleDownloadPath)) `
+        'Remove an ordinary stale prerequisite download so Setup can retry.'
+
+    [IO.File]::WriteAllText($staleDownloadPath, 'active prerequisite download')
+    $activeDownload = [IO.File]::Open(
+        $staleDownloadPath,
+        [IO.FileMode]::Open,
+        [IO.FileAccess]::ReadWrite,
+        [IO.FileShare]::None)
+    try {
+        Assert-Throws { Invoke-Static $prerequisiteService 'SafeDownloadPath' `
+            @($retryDownloadDirectory, 'component.exe') } `
+            'Do not delete a prerequisite download that another Setup still owns.'
+        $cleanupWarnings = New-Object 'Collections.Generic.List[string]'
+        $warningWriter = [Action[string]]{
+            param([string]$warning)
+            [void]$cleanupWarnings.Add($warning)
+        }
+        Invoke-Static $prerequisiteService 'TryDeleteDownloadFile' `
+            @($staleDownloadPath, 'test component', $warningWriter) | Out-Null
+        Assert-True ($cleanupWarnings.Count -eq 1 -and
+            $cleanupWarnings[0].Contains('component=test component')) `
+            'Report download cleanup failure without replacing the prerequisite result.'
+    }
+    finally {
+        $activeDownload.Dispose()
+    }
+    Assert-True (Test-Path -LiteralPath $staleDownloadPath -PathType Leaf) `
+        'Keep an active prerequisite download after rejecting concurrent cleanup.'
+    Remove-Item -LiteralPath $staleDownloadPath -Force
+
     $loadedConfiguration = Invoke-Static $configType 'Load' @($configuration)
     Assert-True ($null -ne $loadedConfiguration) 'Load the shipped prerequisite configuration.'
     $requiredPackages = @((Get-Content -LiteralPath $configuration -Raw -Encoding UTF8 |
@@ -197,7 +281,7 @@ try {
             [string]$_.Status -ceq 'Ok'
         }).Count -gt 0
         $actualAvailable = Invoke-Static $packageQuery 'HasPackage' `
-            @([string]$requiredPackage.family, $minimumVersion)
+            @([string]$requiredPackage.family, $minimumVersion, $desktopUserSid)
         Assert-True ($actualAvailable -eq $expectedAvailable) `
             "Match current-user Main/Framework package inventory for $($requiredPackage.family)."
     }
@@ -217,6 +301,8 @@ try {
         @('0x80080206', 'PACKAGE_CORRUPTED'), @('0x80080207', 'PACKAGE_CORRUPTED'),
         @('0x800B0100', 'SIGNATURE_ERROR'), @('0x800B0109', 'SIGNATURE_ERROR'),
         @('0x80070005', 'PERMISSION_DENIED'), @('0x80070070', 'DISK_FULL'),
+        @('5', 'PERMISSION_DENIED'), @('1300', 'PERMISSION_DENIED'),
+        @('1314', 'PERMISSION_DENIED'),
         @('12002', 'NETWORK_ERROR'), @('12007', 'NETWORK_ERROR'), @('12029', 'NETWORK_ERROR'),
         @('12030', 'NETWORK_ERROR'), @('12031', 'NETWORK_ERROR'), @('12163', 'NETWORK_ERROR'),
         @('1602', 'USER_CANCELLED'), @('1603', 'UNKNOWN_ERROR'),
@@ -231,6 +317,27 @@ try {
     }
     Assert-True ((Invoke-Static $errors 'NormalizeNativeCode' @(-2147009281)) -ceq '0x80073CFF') `
         'Preserve signed HRESULT values as canonical hexadecimal.'
+    foreach ($opaqueCode in @('128', '0x80070032', '0x80131500')) {
+        $opaqueResult = Invoke-Static $errors 'CreateResult' `
+            @($opaqueCode, 'TEST', 'INSTALL', $null, 'test component', $null, $opaqueCode, $null, '1.3.1')
+        Assert-True ((Get-Field $opaqueResult 'Category') -ceq 'UNKNOWN_ERROR') `
+            "Do not assign a misleading global meaning to opaque code $opaqueCode."
+    }
+    Assert-True (Invoke-Static $installPolicy 'IsAvailableAfterNonzeroExit' `
+        @([int]128, [Func[bool]]{ return $true })) `
+        'Accept an opaque installer exit such as 128 when the required runtime is usable.'
+    Assert-True (-not (Invoke-Static $installPolicy 'IsAvailableAfterNonzeroExit' `
+        @([int]128, [Func[bool]]{ return $false }))) `
+        'Keep an opaque installer exit as a failure when the required runtime is unavailable.'
+    Assert-Throws { Invoke-Static $installPolicy 'IsAvailableAfterNonzeroExit' `
+        @([int]0, [Func[bool]]{ return $true }) } `
+        'Apply postcondition recovery only to nonzero installer exits.'
+    Assert-True (-not (Invoke-Static $installPolicy 'IsAvailableAfterSuccessfulExit' `
+        @([Func[bool]]{ return $false }))) `
+        'Preserve a missing prerequisite after an installer reports success.'
+    Assert-Throws { Invoke-Static $installPolicy 'IsAvailableAfterSuccessfulExit' `
+        @([Func[bool]]{ throw [InvalidOperationException]::new('postcondition failed') }) } `
+        'Surface a throwing success postcondition so the caller can add component context.'
 
     $resultPath = Join-Path $testRoot 'Installer Result.ini'
     $logPath = Join-Path $testRoot 'SIDEY Setup.log'

@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
@@ -22,21 +23,48 @@ namespace Sidey.Uninstaller
             "--cleanup-startup-as-desktop-user";
         private const string LaunchSideyAsDesktopUserArgument =
             "--launch-sidey-as-desktop-user";
+        private const string RunWindowsAppRuntimeAsDesktopUserArgument =
+            "--run-windows-app-runtime-as-desktop-user";
         private const string LegacyMsiDetectArgument = "--detect-legacy-msi";
         private const string StopSideyProcessesArgument = "--stop-sidey-processes";
         private const string CredentialFilter = "SIDEY/*";
         private const string StartupRegistryPath =
             @"Software\Microsoft\Windows\CurrentVersion\Run";
         private const string StartupValueName = "SIDEY";
+        private const string InstallerRegistryPath = @"Software\SIDEY\Installer";
+        private const string InstallerLanguageValueName = "Language";
         private const string UpgradeCode = "{E744D02B-C3CF-41CE-A4C9-9BA1EB10C6B9}";
+        private const int EnglishLanguage = 1033;
+        private const int JapaneseLanguage = 1041;
+        private const int KoreanLanguage = 1042;
+        private const int RussianLanguage = 1049;
+        private const int UkrainianLanguage = 1058;
+        private const int SimplifiedChineseLanguage = 2052;
+        private const int TraditionalChineseLanguage = 1028;
         private const int ErrorNotFound = 1168;
         private const int ErrorProductNotInstalled = 1605;
+        private const int ErrorAccessDenied = 5;
+        private const int ErrorInvalidParameter = 87;
+        // The customer-defined bit keeps helper-owned state failures distinct
+        // from Win32 codes returned by the native desktop-user launch path.
+        private const int HelperErrorDesktopUnavailable = 0x20000001;
+        private const int HelperErrorNativeCodeUnavailable = 0x20000002;
+        private const int HelperErrorProcessNotStarted = 0x20000003;
+        private const int HelperErrorUnexpectedFailure = 0x20000004;
         private const uint ErrorSuccess = 0;
         private const uint ErrorNoMoreItems = 259;
 
         [STAThread]
         public static int Main(string[] arguments)
         {
+            if (arguments.Length == 2
+                && string.Equals(
+                    arguments[0],
+                    RunWindowsAppRuntimeAsDesktopUserArgument,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return RunWindowsAppRuntimeAsDesktopUser(arguments[1]);
+            }
             if (arguments.Length == 1
                 && string.Equals(
                     arguments[0],
@@ -142,9 +170,9 @@ namespace Sidey.Uninstaller
                 string productCode = FindInstalledProductCode();
                 if (string.IsNullOrEmpty(productCode))
                 {
-                    ShowMessage(
-                        "SIDEY is not installed.",
-                        "SIDEY가 설치되어 있지 않습니다.",
+                    ShowLegacyUninstallMessage(
+                        LegacyUninstallMessage.NotInstalled,
+                        null,
                         0x30);
                     return 2;
                 }
@@ -166,9 +194,9 @@ namespace Sidey.Uninstaller
             }
             catch (Exception exception)
             {
-                ShowMessage(
-                    "SIDEY could not start Windows Installer.\r\n\r\n" + exception.Message,
-                    "Windows Installer를 시작하지 못했습니다.\r\n\r\n" + exception.Message,
+                ShowLegacyUninstallMessage(
+                    LegacyUninstallMessage.InstallerStartFailed,
+                    exception,
                     0x10);
                 return 1;
             }
@@ -200,9 +228,9 @@ namespace Sidey.Uninstaller
                     installDirectory.FullName,
                     waitForExit: false);
             }
-            catch
+            catch (Exception exception)
             {
-                return 5;
+                return GetDesktopUserRunnerErrorCode(exception);
             }
         }
 
@@ -217,10 +245,78 @@ namespace Sidey.Uninstaller
                     Path.GetDirectoryName(helperPath),
                     waitForExit: true);
             }
-            catch
+            catch (Exception exception)
             {
-                return 5;
+                return GetDesktopUserRunnerErrorCode(exception);
             }
+        }
+
+        private static int RunWindowsAppRuntimeAsDesktopUser(string installerPath)
+        {
+            try
+            {
+                string fullInstallerPath = Path.GetFullPath(installerPath);
+                string expectedInstallerDirectory = Path.GetFullPath(Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                    "SIDEY-PrerequisiteDownloads"));
+                if (!string.Equals(
+                        Path.GetDirectoryName(fullInstallerPath),
+                        expectedInstallerDirectory,
+                        StringComparison.OrdinalIgnoreCase)
+                    || !string.Equals(
+                        Path.GetFileName(fullInstallerPath),
+                        "windowsappruntimeinstall-x64.exe",
+                        StringComparison.OrdinalIgnoreCase)
+                    || !File.Exists(fullInstallerPath)
+                    || (File.GetAttributes(fullInstallerPath) & FileAttributes.ReparsePoint) != 0
+                    || (File.GetAttributes(expectedInstallerDirectory) & FileAttributes.ReparsePoint) != 0)
+                {
+                    return 64;
+                }
+
+                return DesktopUserProcess.Start(
+                    fullInstallerPath,
+                    "--quiet",
+                    expectedInstallerDirectory,
+                    waitForExit: true);
+            }
+            catch (Exception exception)
+            {
+                return GetDesktopUserRunnerErrorCode(exception);
+            }
+        }
+
+        private static int GetDesktopUserRunnerErrorCode(Exception exception)
+        {
+            for (Exception current = exception; current != null; current = current.InnerException)
+            {
+                var win32Exception = current as System.ComponentModel.Win32Exception;
+                if (win32Exception != null && win32Exception.NativeErrorCode != 0)
+                {
+                    return win32Exception.NativeErrorCode;
+                }
+
+                uint hresult = unchecked((uint)current.HResult);
+                if ((hresult & 0xFFFF0000u) == 0x80070000u)
+                {
+                    int win32Error = unchecked((int)(hresult & 0x0000FFFFu));
+                    if (win32Error != 0)
+                    {
+                        return win32Error;
+                    }
+                }
+
+                if (current is UnauthorizedAccessException)
+                {
+                    return ErrorAccessDenied;
+                }
+                if (current is ArgumentException)
+                {
+                    return ErrorInvalidParameter;
+                }
+            }
+
+            return HelperErrorUnexpectedFailure;
         }
 
         private static int DetectLegacyMsi()
@@ -446,21 +542,220 @@ namespace Sidey.Uninstaller
             return "\"" + argument.Replace("\"", "\\\"") + "\"";
         }
 
-        private static void ShowMessage(string english, string korean, uint type)
+        private static void ShowLegacyUninstallMessage(
+            LegacyUninstallMessage message,
+            Exception exception,
+            uint type)
         {
-            bool useEnglish = System.Globalization.CultureInfo.CurrentUICulture
-                .TwoLetterISOLanguageName == "en";
+            LegacyUninstallText text = LegacyUninstallText.ForLanguage(
+                ResolveLegacyUninstallLanguage());
+            string body = message == LegacyUninstallMessage.NotInstalled
+                ? text.NotInstalled
+                : text.InstallerStartFailed;
+            if (exception != null)
+            {
+                body += "\r\n\r\n" + text.ErrorCode + ": "
+                    + FormatExceptionErrorCode(exception);
+            }
+
             MessageBox(
                 IntPtr.Zero,
-                useEnglish ? english : korean,
-                useEnglish ? "Uninstall SIDEY" : "SIDEY 제거",
+                body,
+                text.Title,
                 type);
+        }
+
+        private static int ResolveLegacyUninstallLanguage()
+        {
+            int savedLanguage;
+            if (TryReadSavedInstallerLanguage(out savedLanguage))
+            {
+                return SupportedLanguageOrEnglish(savedLanguage);
+            }
+
+            return MatchWindowsUiLanguage(GetUserDefaultUILanguage());
+        }
+
+        private static bool TryReadSavedInstallerLanguage(out int language)
+        {
+            language = EnglishLanguage;
+            try
+            {
+                using (RegistryKey machine = RegistryKey.OpenBaseKey(
+                    RegistryHive.LocalMachine,
+                    RegistryView.Registry64))
+                using (RegistryKey installer = machine.OpenSubKey(
+                    InstallerRegistryPath,
+                    writable: false))
+                {
+                    object value = installer == null
+                        ? null
+                        : installer.GetValue(
+                            InstallerLanguageValueName,
+                            null,
+                            RegistryValueOptions.DoNotExpandEnvironmentNames);
+                    if (value == null)
+                    {
+                        return false;
+                    }
+
+                    int parsedLanguage;
+                    if (int.TryParse(
+                        Convert.ToString(value, CultureInfo.InvariantCulture),
+                        NumberStyles.Integer,
+                        CultureInfo.InvariantCulture,
+                        out parsedLanguage))
+                    {
+                        language = parsedLanguage;
+                    }
+                    return true;
+                }
+            }
+            catch
+            {
+                // Missing or inaccessible installer state falls back to the
+                // desktop user's Windows UI language.
+                return false;
+            }
+        }
+
+        private static int MatchWindowsUiLanguage(int windowsLanguage)
+        {
+            switch (windowsLanguage & 0x3ff)
+            {
+                case 0x09:
+                    return EnglishLanguage;
+                case 0x11:
+                    return JapaneseLanguage;
+                case 0x12:
+                    return KoreanLanguage;
+                case 0x19:
+                    return RussianLanguage;
+                case 0x22:
+                    return UkrainianLanguage;
+                case 0x04:
+                    return windowsLanguage == 0x0404 || windowsLanguage == 0x0c04
+                        || windowsLanguage == 0x1404 || windowsLanguage == 0x7c04
+                            ? TraditionalChineseLanguage
+                            : SimplifiedChineseLanguage;
+                default:
+                    return EnglishLanguage;
+            }
+        }
+
+        private static int SupportedLanguageOrEnglish(int language)
+        {
+            switch (language)
+            {
+                case EnglishLanguage:
+                case JapaneseLanguage:
+                case KoreanLanguage:
+                case RussianLanguage:
+                case UkrainianLanguage:
+                case SimplifiedChineseLanguage:
+                case TraditionalChineseLanguage:
+                    return language;
+                default:
+                    return EnglishLanguage;
+            }
+        }
+
+        private static string FormatExceptionErrorCode(Exception exception)
+        {
+            var win32Exception = exception as System.ComponentModel.Win32Exception;
+            if (win32Exception != null && win32Exception.NativeErrorCode != 0)
+            {
+                int nativeError = win32Exception.NativeErrorCode;
+                return nativeError.ToString(CultureInfo.InvariantCulture)
+                    + " (0x" + unchecked((uint)nativeError).ToString("X8", CultureInfo.InvariantCulture)
+                    + ")";
+            }
+
+            return "0x" + unchecked((uint)exception.HResult).ToString(
+                "X8",
+                CultureInfo.InvariantCulture);
+        }
+
+        private enum LegacyUninstallMessage
+        {
+            NotInstalled,
+            InstallerStartFailed,
+        }
+
+        private sealed class LegacyUninstallText
+        {
+            public readonly string Title;
+            public readonly string NotInstalled;
+            public readonly string InstallerStartFailed;
+            public readonly string ErrorCode;
+
+            private LegacyUninstallText(
+                string title,
+                string notInstalled,
+                string installerStartFailed,
+                string errorCode)
+            {
+                Title = title;
+                NotInstalled = notInstalled;
+                InstallerStartFailed = installerStartFailed;
+                ErrorCode = errorCode;
+            }
+
+            public static LegacyUninstallText ForLanguage(int language)
+            {
+                switch (language)
+                {
+                    case KoreanLanguage:
+                        return new LegacyUninstallText(
+                            "SIDEY 제거",
+                            "SIDEY가 설치되어 있지 않습니다.",
+                            "Windows Installer를 시작하지 못했습니다.",
+                            "오류 코드");
+                    case JapaneseLanguage:
+                        return new LegacyUninstallText(
+                            "SIDEY のアンインストール",
+                            "SIDEY はインストールされていません。",
+                            "Windows Installer を起動できませんでした。",
+                            "エラー コード");
+                    case SimplifiedChineseLanguage:
+                        return new LegacyUninstallText(
+                            "卸载 SIDEY",
+                            "未安装 SIDEY。",
+                            "无法启动 Windows Installer。",
+                            "错误代码");
+                    case TraditionalChineseLanguage:
+                        return new LegacyUninstallText(
+                            "解除安裝 SIDEY",
+                            "尚未安裝 SIDEY。",
+                            "無法啟動 Windows Installer。",
+                            "錯誤碼");
+                    case RussianLanguage:
+                        return new LegacyUninstallText(
+                            "Удаление SIDEY",
+                            "SIDEY не установлен.",
+                            "Не удалось запустить установщик Windows.",
+                            "Код ошибки");
+                    case UkrainianLanguage:
+                        return new LegacyUninstallText(
+                            "Видалення SIDEY",
+                            "SIDEY не встановлено.",
+                            "Не вдалося запустити інсталятор Windows.",
+                            "Код помилки");
+                    default:
+                        return new LegacyUninstallText(
+                            "Uninstall SIDEY",
+                            "SIDEY is not installed.",
+                            "SIDEY could not start Windows Installer.",
+                            "Error code");
+                }
+            }
         }
 
         private static class DesktopUserProcess
         {
             private const uint CreateUnicodeEnvironment = 0x00000400;
             private const uint Infinite = 0xFFFFFFFF;
+            private const uint WaitFailed = 0xFFFFFFFF;
             private const uint LogonWithProfile = 0x00000001;
             private const uint ProcessQueryLimitedInformation = 0x1000;
             private const uint SePrivilegeEnabled = 0x00000002;
@@ -481,24 +776,36 @@ namespace Sidey.Uninstaller
                 bool waitForExit)
             {
                 bool elevated;
-                if (!TryIsCurrentProcessElevated(out elevated))
+                int errorCode;
+                if (!TryIsCurrentProcessElevated(out elevated, out errorCode))
                 {
-                    return 5;
+                    return errorCode;
                 }
                 if (!elevated)
                 {
-                    return IsCurrentDesktopUser()
+                    bool isCurrentDesktopUser;
+                    if (!TryIsCurrentDesktopUser(out isCurrentDesktopUser, out errorCode))
+                    {
+                        return errorCode;
+                    }
+                    return isCurrentDesktopUser
                         ? StartNormally(executable, arguments, workingDirectory, waitForExit)
-                        : 5;
+                        : ErrorAccessDenied;
                 }
 
                 IntPtr shellWindow = GetShellWindow();
-                uint shellProcessId;
-                if (shellWindow == IntPtr.Zero
-                    || GetWindowThreadProcessId(shellWindow, out shellProcessId) == 0
-                    || shellProcessId == 0)
+                if (shellWindow == IntPtr.Zero)
                 {
-                    return 5;
+                    return HelperErrorDesktopUnavailable;
+                }
+                uint shellProcessId;
+                if (GetWindowThreadProcessId(shellWindow, out shellProcessId) == 0)
+                {
+                    return GetLastWin32ErrorCode();
+                }
+                if (shellProcessId == 0)
+                {
+                    return HelperErrorDesktopUnavailable;
                 }
 
                 IntPtr shellProcess = IntPtr.Zero;
@@ -515,21 +822,25 @@ namespace Sidey.Uninstaller
                         ProcessQueryLimitedInformation,
                         false,
                         shellProcessId);
-                    if (shellProcess == IntPtr.Zero
-                        || !OpenProcessToken(
-                            shellProcess,
-                            TokenQuery | TokenDuplicate,
-                            out shellToken))
+                    if (shellProcess == IntPtr.Zero)
                     {
-                        return 5;
+                        return GetLastWin32ErrorCode();
+                    }
+                    if (!OpenProcessToken(
+                        shellProcess,
+                        TokenQuery | TokenDuplicate,
+                        out shellToken))
+                    {
+                        return GetLastWin32ErrorCode();
                     }
 
                     privilegeChanged = EnableImpersonatePrivilege(
                         out currentToken,
-                        out previousPrivileges);
+                        out previousPrivileges,
+                        out errorCode);
                     if (!privilegeChanged)
                     {
-                        return 5;
+                        return errorCode;
                     }
 
                     if (!DuplicateTokenEx(
@@ -541,11 +852,11 @@ namespace Sidey.Uninstaller
                         TokenPrimary,
                         out primaryToken))
                     {
-                        return 5;
+                        return GetLastWin32ErrorCode();
                     }
                     if (!CreateEnvironmentBlock(out environment, primaryToken, false))
                     {
-                        return 5;
+                        return GetLastWin32ErrorCode();
                     }
 
                     var commandLine = new StringBuilder(QuoteArgument(executable));
@@ -568,21 +879,23 @@ namespace Sidey.Uninstaller
                         ref startupInformation,
                         out processInformation))
                     {
-                        return 5;
+                        return GetLastWin32ErrorCode();
                     }
 
                     if (!waitForExit)
                     {
                         return 0;
                     }
-                    if (WaitForSingleObject(processInformation.Process, Infinite) == 0xFFFFFFFF)
+                    if (WaitForSingleObject(processInformation.Process, Infinite) == WaitFailed)
                     {
-                        return 5;
+                        return GetLastWin32ErrorCode();
                     }
                     int exitCode;
-                    return GetExitCodeProcess(processInformation.Process, out exitCode)
-                        ? exitCode
-                        : 5;
+                    if (!GetExitCodeProcess(processInformation.Process, out exitCode))
+                    {
+                        return GetLastWin32ErrorCode();
+                    }
+                    return exitCode;
                 }
                 finally
                 {
@@ -632,7 +945,7 @@ namespace Sidey.Uninstaller
                 {
                     if (process == null)
                     {
-                        return 5;
+                        return HelperErrorProcessNotStarted;
                     }
                     if (!waitForExit)
                     {
@@ -645,12 +958,35 @@ namespace Sidey.Uninstaller
 
             public static bool IsCurrentDesktopUser()
             {
+                bool isCurrentDesktopUser;
+                int ignoredErrorCode;
+                return TryIsCurrentDesktopUser(
+                        out isCurrentDesktopUser,
+                        out ignoredErrorCode)
+                    && isCurrentDesktopUser;
+            }
+
+            private static bool TryIsCurrentDesktopUser(
+                out bool isCurrentDesktopUser,
+                out int errorCode)
+            {
+                isCurrentDesktopUser = false;
+                errorCode = 0;
                 IntPtr shellWindow = GetShellWindow();
-                uint shellProcessId;
-                if (shellWindow == IntPtr.Zero
-                    || GetWindowThreadProcessId(shellWindow, out shellProcessId) == 0
-                    || shellProcessId == 0)
+                if (shellWindow == IntPtr.Zero)
                 {
+                    errorCode = HelperErrorDesktopUnavailable;
+                    return false;
+                }
+                uint shellProcessId;
+                if (GetWindowThreadProcessId(shellWindow, out shellProcessId) == 0)
+                {
+                    errorCode = GetLastWin32ErrorCode();
+                    return false;
+                }
+                if (shellProcessId == 0)
+                {
+                    errorCode = HelperErrorDesktopUnavailable;
                     return false;
                 }
 
@@ -662,22 +998,29 @@ namespace Sidey.Uninstaller
                         ProcessQueryLimitedInformation,
                         false,
                         shellProcessId);
-                    if (shellProcess == IntPtr.Zero
-                        || !OpenProcessToken(shellProcess, TokenQuery, out shellToken))
+                    if (shellProcess == IntPtr.Zero)
                     {
+                        errorCode = GetLastWin32ErrorCode();
+                        return false;
+                    }
+                    if (!OpenProcessToken(shellProcess, TokenQuery, out shellToken))
+                    {
+                        errorCode = GetLastWin32ErrorCode();
                         return false;
                     }
 
                     using (WindowsIdentity currentIdentity = WindowsIdentity.GetCurrent())
                     using (var shellIdentity = new WindowsIdentity(shellToken))
                     {
-                        return currentIdentity.User != null
+                        isCurrentDesktopUser = currentIdentity.User != null
                             && shellIdentity.User != null
                             && currentIdentity.User.Equals(shellIdentity.User);
+                        return true;
                     }
                 }
-                catch
+                catch (Exception exception)
                 {
+                    errorCode = GetDesktopUserRunnerErrorCode(exception);
                     return false;
                 }
                 finally
@@ -689,12 +1032,16 @@ namespace Sidey.Uninstaller
                 }
             }
 
-            private static bool TryIsCurrentProcessElevated(out bool elevated)
+            private static bool TryIsCurrentProcessElevated(
+                out bool elevated,
+                out int errorCode)
             {
                 elevated = false;
+                errorCode = 0;
                 IntPtr token;
                 if (!OpenProcessToken(GetCurrentProcess(), TokenQuery, out token))
                 {
+                    errorCode = GetLastWin32ErrorCode();
                     return false;
                 }
                 try
@@ -708,6 +1055,7 @@ namespace Sidey.Uninstaller
                         sizeof(int),
                         out returnedLength))
                     {
+                        errorCode = GetLastWin32ErrorCode();
                         return false;
                     }
                     elevated = elevation != 0;
@@ -721,21 +1069,25 @@ namespace Sidey.Uninstaller
 
             private static bool EnableImpersonatePrivilege(
                 out IntPtr token,
-                out TokenPrivileges previous)
+                out TokenPrivileges previous,
+                out int errorCode)
             {
                 previous = new TokenPrivileges();
                 token = IntPtr.Zero;
+                errorCode = 0;
                 if (!OpenProcessToken(
                     GetCurrentProcess(),
                     TokenQuery | TokenAdjustPrivileges,
                     out token))
                 {
+                    errorCode = GetLastWin32ErrorCode();
                     return false;
                 }
 
                 Luid luid;
                 if (!LookupPrivilegeValue(null, "SeImpersonatePrivilege", out luid))
                 {
+                    errorCode = GetLastWin32ErrorCode();
                     return false;
                 }
                 var requested = new TokenPrivileges
@@ -748,14 +1100,32 @@ namespace Sidey.Uninstaller
                     },
                 };
                 uint returnedLength;
-                return AdjustTokenPrivileges(
-                    token,
-                    false,
-                    ref requested,
-                    Marshal.SizeOf(typeof(TokenPrivileges)),
-                    out previous,
-                    out returnedLength)
-                    && Marshal.GetLastWin32Error() != 1300;
+                if (!AdjustTokenPrivileges(
+                        token,
+                        false,
+                        ref requested,
+                        Marshal.SizeOf(typeof(TokenPrivileges)),
+                        out previous,
+                        out returnedLength))
+                {
+                    errorCode = GetLastWin32ErrorCode();
+                    return false;
+                }
+
+                int privilegeError = Marshal.GetLastWin32Error();
+                if (privilegeError != 0)
+                {
+                    errorCode = privilegeError;
+                    return false;
+                }
+
+                return true;
+            }
+
+            private static int GetLastWin32ErrorCode()
+            {
+                int errorCode = Marshal.GetLastWin32Error();
+                return errorCode != 0 ? errorCode : HelperErrorNativeCodeUnavailable;
             }
 
             [StructLayout(LayoutKind.Sequential)]
@@ -918,6 +1288,9 @@ namespace Sidey.Uninstaller
             public string TargetAlias;
             public string UserName;
         }
+
+        [DllImport("kernel32.dll")]
+        private static extern ushort GetUserDefaultUILanguage();
 
         [DllImport("msi.dll", CharSet = CharSet.Unicode)]
         private static extern uint MsiEnumRelatedProducts(

@@ -63,7 +63,7 @@ jobs:
             --configuration Release --runtime win-x64 --self-contained false `
             --no-restore -p:WindowsAppSDKSelfContained=false -p:PublishSingleFile=false `
             --output build/windows/publish
-          ./scripts/windows/Test-FrameworkDependentPublish.ps1 -PublishDirectory ./build/windows/publish
+          ./scripts/windows/tests/Test-FrameworkDependentPublish.ps1 -PublishDirectory ./build/windows/publish
           ./scripts/windows/tests/Test-FrameworkPublishGuard.ps1 -PublishDirectory ./build/windows/publish
 
       - name: Compile NSIS installer
