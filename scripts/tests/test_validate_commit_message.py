@@ -138,7 +138,9 @@ class CommitMessageValidatorTests(unittest.TestCase):
         )
 
     def test_macos_appcast_uses_a_valid_sidey_commit_and_pr_subject(self):
-        script = (ROOT / "scripts/release_macos.sh").read_text(encoding="utf-8")
+        script = (ROOT / "scripts/macos/release_macos.sh").read_text(encoding="utf-8")
+        if 'SIDEY_APPCAST_SUBJECT=' not in script:
+            script = (ROOT / "scripts/release_macos.sh").read_text(encoding="utf-8")
         subject = "build(Shared): macOS v1.2.3 Sparkle appcast 갱신"
 
         self.assertEqual(validator.validate_subject(subject), [])

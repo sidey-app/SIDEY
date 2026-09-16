@@ -14,7 +14,7 @@ on `main`. Enter the exact version from `windows.json`; the workflow builds a dr
 its downloaded Setup EXE, publishes it, and calls the reusable Pages workflow.
 
 macOS Developer ID, notarization, and Sparkle keys remain on the release operator's Mac.
-After the staged version change reaches `main`, run `scripts/release_macos.sh`. It publishes
+After the staged version change reaches `main`, run `scripts/macos/release_macos.sh`. It publishes
 verified direct-distribution assets and opens separate signed appcast and Homebrew Cask pull
 requests. Set `SIDEY_ARCHIVE_APP_STORE=1` with the App Store environment to also create the
 local App Store archive; submission remains an explicit App Store Connect operation.

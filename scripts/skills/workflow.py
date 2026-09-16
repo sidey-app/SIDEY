@@ -470,6 +470,13 @@ def require_pr_body(
         raise WorkflowError(str(error)) from error
 
 
+def require_valid_pr(root, title, body, paths):
+    """Validate a PR title and template without applying commit-body limits."""
+
+    require_valid_commit_text('PR title', title, subject_only=True)
+    return require_pr_body(root, body, paths)
+
+
 def require_pr_body_file(root, value, paths):
     path = Path(value)
     if not path.is_absolute():
@@ -597,12 +604,7 @@ def publish(root, args):
         ))
         title = details['title']
         body = details.get('body') or ''
-        require_valid_commit_text('PR title', title, subject_only=True)
-        require_pr_body(
-            root,
-            body,
-            paths,
-        )
+        require_valid_pr(root, title, body, paths)
     messages = commit_messages(
         root,
         task['checked']['base'],
@@ -663,12 +665,7 @@ def publish(root, args):
         '--json',
         'title,body',
     ))
-    require_valid_commit_text('PR title', details['title'], subject_only=True)
-    require_pr_body(
-        root,
-        details.get('body') or '',
-        paths,
-    )
+    require_valid_pr(root, details['title'], details.get('body') or '', paths)
     task.update(status='published', pr=number, published={
         'head': head(root),
         'base': remote,
@@ -727,15 +724,8 @@ def finish(root, args):
     checked_head = task['checked']['head']
     checked_base = task['checked']['base']
     details = json.loads(run(root, 'gh', 'pr', 'view', number, '--json', 'title,body'))
-    require_valid_commit_text('PR title', details['title'], subject_only=True)
     pr_body = details.get('body') or ''
-    require_pr_body(
-        root,
-        pr_body,
-        paths,
-    )
-    pr_message = details['title'] + ('\n\n' + pr_body if pr_body else '')
-    require_valid_commit_text('PR title and body', pr_message)
+    require_valid_pr(root, details['title'], pr_body, paths)
     with lock(root, 'integration'):
         remote = fetch_main(root)
         source = json.loads(run(root, 'gh', 'pr', 'view', number,
