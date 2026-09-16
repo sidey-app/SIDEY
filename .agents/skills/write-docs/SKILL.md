@@ -17,7 +17,7 @@ Apply the repository-root `AGENTS.md` and every nested `AGENTS.md` governing the
 
 1. Read the target guide and any edition or neighboring guide required by its path rules.
 2. Identify the contributor problem and the decision or procedure the guide must support.
-3. Trace every behavioral claim to current native code, tests, project metadata, scripts, packaging inputs or CI. Confirmed decisions take precedence where repository instructions say they do.
+3. Trace every behavioral claim to current native code, tests, project metadata, scripts, packaging inputs or CI. Source code and machine-readable contracts own exact current values; current product and architecture documents define repository-wide behavior, while decision records explain long-lived rationale.
 4. Mark planned behavior and manual procedures as such. Do not present either as implemented or verified.
 5. Keep implementation changes and product decisions out of a documentation-only task. If accurate documentation requires either, report the gap and follow the separate ownership and branch rules.
 

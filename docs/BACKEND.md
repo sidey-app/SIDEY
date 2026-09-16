@@ -22,10 +22,12 @@ SIDEY 백엔드의 구현 저장소는 조직의 비공개 [sidey-app/sidey-back
 
 공개 상품 JSON을 변경한 것만으로 서버 상품이 자동 변경되지는 않는다. backend의 기존 상품 snapshot을 새 상품 원본으로 독립 편집하지 않는다.
 
-## 서버 문서와 이전 이력
+## 서버 문서와 작업 위치
 
 - [서버 계약·변경 이력](https://github.com/sidey-app/sidey-backend/blob/main/docs/SERVER_CONTRACT.md)
 - [운영 어드민·결제 조회 계약](https://github.com/sidey-app/sidey-backend/blob/main/docs/ADMIN_OPERATIONS.md)
 - [App Store 검증 서비스 운영 안내](https://github.com/sidey-app/sidey-backend/blob/main/services/app-store-verifier/README.md)
 
-2026-09-15 분리 기준은 CI를 통과한 공개 SIDEY main `f37cfc6b9544e4ac079fb7d9cec13039bdd21662`다. 이전 원본 `0cfe9af6ad546d529a3495eff692f1d2c5e0a074` 이후 백엔드 소스 변경이 없음을 대조했다. 이후 backend 작업·검증·배포는 비공개 저장소에서 진행한다. 공개 저장소의 과거 커밋에는 이전 서버 소스가 남아 있을 수 있으며, 이번 파일 이관은 과거 Git 이력이나 이미 배포된 사본의 삭제를 의미하지 않는다.
+Backend 작업·검증·배포는 비공개 저장소의 현재 checkout에서 진행한다. 공개 저장소의
+과거 commit을 backend 작업 원본으로 사용하지 않는다. 저장소 분리의 이유와 Git history
+경계는 [backend 분리 결정](decisions/202609151611-private-backend.md)에 보존한다.

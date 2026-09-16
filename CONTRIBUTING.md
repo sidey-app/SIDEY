@@ -25,10 +25,12 @@ and other secrets from logs and screenshots before posting them.
 
 ## Choose the right contribution path
 
-Read [the confirmed decisions](docs/DECISIONS.md) and
-[the product specification](docs/PRODUCT_SPEC.md) before changing product
-behavior. Confirmed decisions take precedence when the two documents differ.
-Keep a change focused on the issue it addresses.
+Read the relevant [current product documents](docs/product/overview.md) and
+[architecture](docs/architecture.md) before changing product behavior. Consult
+[long-lived decisions](docs/decisions/README.md) when the change touches an established
+identity, security, distribution or source-of-truth boundary. Machine-readable source and
+code own exact values; decision records explain rationale rather than overriding current
+state. Keep a change focused on the issue it addresses.
 
 Character contributions follow the [asset creation guide](assets/README.md)
 and use the
@@ -63,7 +65,9 @@ changes on a `shared/*` branch and land them independently.
 For an atomic repository-wide migration that must update platform-owned call
 sites, a maintainer may apply the `repository-wide` pull request label to a
 `shared/*` branch. The exception covers only the required callers; CI still
-runs every affected platform scope.
+runs every affected platform scope. Pass `--repository-wide` to the local
+`workflow.py check` command so the checked task records the same exception;
+the label remains required before CI can accept the pull request.
 
 Do not clean, switch, or reuse another task's dirty worktree. Avoid unrelated
 refactors, formatting, generated output, and documentation changes.

@@ -252,11 +252,15 @@ def is_contributor_architecture_path(path):
     )
 
 
-def validate_paths(branch_name, paths):
+def validate_paths(branch_name, paths, *, repository_wide=False):
     match = re.fullmatch(r'(shared|macos|windows)/[A-Za-z0-9][A-Za-z0-9._/-]*', branch_name)
     if not match:
         raise WorkflowError('Implementation requires shared/*, macos/* or windows/* (never main)')
     platform = match[1]
+    if repository_wide:
+        if platform != 'shared':
+            raise WorkflowError('repository-wide applies only to shared/* branches')
+        return platform
     invalid = [p for p in paths if platform_for(p) != platform]
     if invalid:
         raise WorkflowError(f'{branch_name} crosses its platform boundary: ' + ', '.join(invalid))
@@ -339,19 +343,20 @@ def local_checks(root, platform):
             '--allow-pending-appcast', '--allow-unreleased-source', capture=False)
 
 
-def check_task(root, task_id):
+def check_task(root, task_id, *, repository_wide=False):
     task = owned_task(root, task_id)
     remote = fetch_main(root)
     if not is_ancestor(root, remote):
         raise WorkflowError('Remote main advanced; preserve your changes and run sync before checking')
     paths = changed_paths(root, remote, dirty=True)
-    validate_paths(branch(root), paths)
+    validate_paths(branch(root), paths, repository_wide=repository_wide)
     before = snapshot(root)
     checked_head = head(root)
     local_checks(root, task['platform'])
     if fetch_main(root) != remote or head(root) != checked_head or snapshot(root) != before:
         raise WorkflowError('Source or remote main changed during checks; results invalidated')
-    task.update(base=remote, checked={'head': checked_head, 'snapshot': before,
+    task.update(base=remote, repository_wide=repository_wide,
+                checked={'head': checked_head, 'snapshot': before,
                 'base': remote, 'scopes': required_scopes(paths),
                 'app_review_required': app_review_required(task['platform'], paths),
                 'time': time.time()}, status='checked')
@@ -567,7 +572,11 @@ def publish(root, args):
     remote = fetch_main(root)
     attest(root, task, remote)
     paths = changed_paths(root, remote)
-    validate_paths(branch(root), paths)
+    validate_paths(
+        branch(root),
+        paths,
+        repository_wide=task.get('repository_wide', False),
+    )
     prs = open_task_prs(root)
     if len(prs) > 1 or any(pr['isCrossRepository'] for pr in prs):
         raise WorkflowError('Task branch must identify at most one same-repository PR')
@@ -709,7 +718,11 @@ def finish(root, args):
         update_task(root, args.task, task)
         return {'status': task['status'], 'main': str(primary), 'sha': remote}
     attest(root, task, remote)
-    validate_paths(branch(root), changed_paths(root, remote))
+    validate_paths(
+        branch(root),
+        changed_paths(root, remote),
+        repository_wide=task.get('repository_wide', False),
+    )
     paths = changed_paths(root, remote)
     prs = open_task_prs(root)
     if not prs:
@@ -791,6 +804,7 @@ def main(argv=None):
         sub = subs.add_parser(command)
         sub.add_argument('task', nargs='?')
         if command == 'check':
+            sub.add_argument('--repository-wide', action='store_true')
             sub.add_argument('--ci', action='store_true')
             sub.add_argument('--base')
             sub.add_argument('--head', default='HEAD')
@@ -843,7 +857,11 @@ def main(argv=None):
         remote = fetch_main(root)
         if dirty_paths(root):
             raise WorkflowError('Preserve changes in an explicit task commit before sync; no automatic stash')
-        validate_paths(branch(root), changed_paths(root, remote))
+        validate_paths(
+            branch(root),
+            changed_paths(root, remote),
+            repository_wide=task.get('repository_wide', False),
+        )
         git(root, 'merge', '--no-edit', remote)
         task.update(base=remote, status='started')
         task.pop('checked', None)
@@ -856,7 +874,11 @@ def main(argv=None):
         validate_paths(args.branch, paths)
         result = {'paths': paths, 'scopes': required_scopes(paths)}
     elif args.command == 'check':
-        result = check_task(root, args.task)
+        result = check_task(
+            root,
+            args.task,
+            repository_wide=args.repository_wide,
+        )
     elif args.command == 'publish':
         result = publish(root, args)
     elif args.command == 'finish':

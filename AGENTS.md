@@ -4,12 +4,25 @@
 
 SIDEY is a macOS/Windows desktop overlay ambient messenger for private groups of up to twelve close friends. Each on-screen 2D pixel animal represents a real friend and shows presence, typing, and short text messages.
 
-Read these files before product or implementation work:
+## Sources of truth
 
-1. `docs/DECISIONS.md` — authoritative confirmed decisions and open questions
-2. `docs/PRODUCT_SPEC.md` — detailed product scope and technical direction
+Read only the sources relevant to the task:
 
-If the documents conflict, confirmed decisions in `docs/DECISIONS.md` win.
+- Current product behavior: [`docs/product/`](docs/product/overview.md)
+- Repository and system boundaries: [`docs/architecture.md`](docs/architecture.md)
+- Long-lived decision rationale: [`docs/decisions/`](docs/decisions/README.md)
+- Repeatable release operations: [`docs/operations/`](docs/operations/release.md)
+- Backend ownership and catalog handoff: [`docs/BACKEND.md`](docs/BACKEND.md)
+- Commerce metadata: [`assets/v1/commerce-catalog.json`](assets/v1/commerce-catalog.json)
+- Asset metadata and platform support: [`assets/v1/manifest.json`](assets/v1/manifest.json)
+- Public release versions: [`release/macos.json`](release/macos.json) and
+  [`release/windows.json`](release/windows.json)
+
+Source code, project settings and machine-readable sources take precedence over current
+documentation. Current product and architecture documents take precedence over decision
+records, which explain historical rationale rather than current state. Use Git and pull
+request history for ordinary implementation history. Do not duplicate machine-readable
+values in documentation.
 
 ## Instruction routing
 
@@ -92,4 +105,6 @@ Codex-assisted new commits must include `Co-authored-by: codex <codex@openai.com
 
 Prefer correctness, long-running stability, low resource usage, privacy, and cross-platform behavior over visual polish or feature count. Keep pixel assets at 24×24 logical pixels with ten deterministic frames, integer nearest-neighbor scaling, no real-time shadows, and 30 FPS by default.
 
-When a product decision is made, update `docs/DECISIONS.md` in the same change. When behavior or scope changes, update `docs/PRODUCT_SPEC.md` as well.
+When behavior or scope changes, update the relevant current document under `docs/product/`
+or `docs/architecture.md`. Add a file under `docs/decisions/` only for a long-lived decision
+that meets that directory's inclusion rules. Keep ordinary change history in Git/PRs.
