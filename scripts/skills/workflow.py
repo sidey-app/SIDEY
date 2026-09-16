@@ -214,10 +214,10 @@ def changed_paths(root, base, revision='HEAD', dirty=False):
 
 def platform_for(path):
     if (path.startswith(('macos/', 'scripts/macos/')) or
-        re.fullmatch(r'\.github/workflows/(?:macos(?:-[^/]+)?|validate-macos|publish-macos-release)\.yml', path)):
+        path == '.github/workflows/validate-macos.yml'):
         return 'macos'
     if (path.startswith(('windows/', 'scripts/windows/')) or
-        re.fullmatch(r'\.github/workflows/(?:windows(?:-[^/]+)?|validate-windows|publish-windows-release)\.yml', path)):
+        re.fullmatch(r'\.github/workflows/(?:validate-windows|publish-windows-release)\.yml', path)):
         return 'windows'
     return 'shared'
 
@@ -236,10 +236,7 @@ def validate_paths(branch_name, paths):
 def app_review_required(platform, paths):
     if platform == 'shared':
         return False
-    validation_workflows = {
-        f'.github/workflows/{platform}.yml',
-        f'.github/workflows/validate-{platform}.yml',
-    }
+    validation_workflows = {f'.github/workflows/validate-{platform}.yml'}
     return any(path not in validation_workflows for path in paths)
 
 

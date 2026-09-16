@@ -63,7 +63,7 @@ def validation_platform_for(path):
             path,
         )
         or re.fullmatch(
-            r'\.github/workflows/(?:macos(?:-[^/]+)?|validate-macos|publish-macos-release)\.yml',
+            r'\.github/workflows/validate-macos\.yml',
             path,
         )
     ):
@@ -71,7 +71,7 @@ def validation_platform_for(path):
     if (
         path.startswith(('windows/', 'scripts/windows/'))
         or re.fullmatch(
-            r'\.github/workflows/(?:windows(?:-[^/]+)?|validate-windows|publish-windows-release)\.yml',
+            r'\.github/workflows/(?:validate-windows|publish-windows-release)\.yml',
             path,
         )
     ):
@@ -103,6 +103,6 @@ def required_scopes(paths):
         # Checkout attributes can change source bytes on every build host.
         if path == '.gitattributes' or path in FULL_VALIDATION_PATHS:
             result.update(('macos', 'windows', 'web'))
-        elif path in ('.github/workflows/pages.yml', '.github/workflows/deploy-website.yml'):
+        elif path == '.github/workflows/deploy-website.yml':
             result.add('web')
     return sorted(result)
