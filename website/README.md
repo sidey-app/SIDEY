@@ -36,3 +36,8 @@ tests use deterministic provider responses and do not initiate real payments.
 Set `CHROME_BIN` to the Chrome executable if it is not installed at the default
 macOS path. Browser payment responses are fixtures; no provider charge occurs.
 Screenshots are written to a temporary directory printed by the runner.
+
+For an isolated Spring instance with no payment provider configured, run
+`SIDEY_TEST_API_BASE_URL=http://127.0.0.1:8080/api pnpm --dir website test:server`.
+This verifies real CORS and fail-closed API responses with invalid credentials;
+it neither creates orders nor invokes a payment provider.
