@@ -3,10 +3,11 @@ import "../styles/styles.scss";
 import SiteHeader from "../components/SiteHeader.astro";
 import SiteFonts from "../components/SiteFonts.astro";
 import SiteTheme from "../components/SiteTheme.astro";
+import { checkoutAPIBase, checkoutAPIOrigin } from "../data/checkout-config";
 ---
 
 <!doctype html>
-<html lang="ko">
+<html lang="ko" data-sidey-api-base={checkoutAPIBase}>
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -14,7 +15,7 @@ import SiteTheme from "../components/SiteTheme.astro";
     <meta name="robots" content="noindex, nofollow">
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self' https://cdn.portone.io; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; connect-src https://*.supabase.co http://localhost:* http://127.0.0.1:* https://api.portone.io https://*.portone.io; frame-src https://*.portone.io; form-action 'none'; base-uri 'self'"
+      content={`default-src 'none'; script-src 'self' https://cdn.portone.io; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; connect-src ${checkoutAPIOrigin} https://api.portone.io https://*.portone.io; frame-src https://*.portone.io; form-action 'none'; base-uri 'self'`}
     >
     <title>SIDEY 디지털 꾸미기 결제</title>
     <SiteTheme />

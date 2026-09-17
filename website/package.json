@@ -11,7 +11,8 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "test": "astro build && node --test tests/store.test.mjs"
+    "test": "astro build && node --test tests/*.test.mjs",
+    "test:browser": "node tests/browser-smoke.mjs dist"
   },
   "devDependencies": {
     "astro": "7.3.1",
