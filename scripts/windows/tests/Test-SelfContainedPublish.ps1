@@ -122,6 +122,9 @@ foreach ($runtimeName in $nativeRuntimeNames) {
         throw "VC runtime import scan failed for $runtimeName with exit code $findExitCode."
     }
 }
+# A successful scan may end with findstr's expected no-match code. Do not let
+# that implementation detail become this entry script's process exit status.
+$global:LASTEXITCODE = 0
 $missingNativeRuntimes = @($nativeRuntimeImports | Where-Object {
     -not (Test-Path -LiteralPath (Join-Path $runtimeDirectoryPath $_) -PathType Leaf)
 })
