@@ -36,21 +36,27 @@ if (-not $BuildOnly -and $runningHosts.Count -gt 0) {
     throw "실행 중인 SIDEY를 먼저 종료해 주세요: $($runningPaths -join ', ')"
 }
 
-Invoke-SideyNativeCommand `
-    -FilePath 'dotnet' `
-    -ArgumentList @(
-        'publish',
-        (Join-Path $repositoryRootPath 'windows/src/Sidey.App/Sidey.App.csproj'),
-        '--configuration', 'Release',
-        '--runtime', 'win-x64',
-        '--self-contained', 'true',
-        '-p:PublishSingleFile=false',
-        "-p:Version=$TestVersion",
-        "-p:FileVersion=$TestVersion.0",
-        "-p:AssemblyVersion=$TestVersion.0",
-        '--output', $publishDirectory
-    ) `
-    -Description 'Update design test publish'
+Push-Location (Join-Path $repositoryRootPath 'windows')
+try {
+    Invoke-SideyNativeCommand `
+        -FilePath 'dotnet' `
+        -ArgumentList @(
+            'publish',
+            (Join-Path $repositoryRootPath 'windows/src/Sidey.App/Sidey.App.csproj'),
+            '--configuration', 'Release',
+            '--runtime', 'win-x64',
+            '--self-contained', 'true',
+            '-p:PublishSingleFile=false',
+            "-p:Version=$TestVersion",
+            "-p:FileVersion=$TestVersion.0",
+            "-p:AssemblyVersion=$TestVersion.0",
+            '--output', $publishDirectory
+        ) `
+        -Description 'Update design test publish'
+}
+finally {
+    Pop-Location
+}
 
 $publishedVersion = [Reflection.AssemblyName]::GetAssemblyName($hostAssemblyPath).Version.ToString(3)
 if ($publishedVersion -ne $TestVersion) {
