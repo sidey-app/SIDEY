@@ -32,6 +32,11 @@ namespace Sidey.Installer
         {
             try
             {
+                if (Array.IndexOf(arguments, "--activate-existing") >= 0)
+                {
+                    return InstallerWindowActivation.TryActivateExisting() ? 0 : 1;
+                }
+
                 int savedLanguage = 0;
                 if (arguments.Length > 0)
                 {
@@ -52,6 +57,7 @@ namespace Sidey.Installer
                 }
 
                 InstallerLanguage[] languages = InstallerLanguages.Ordered(systemLanguage);
+                IntPtr dialogWindow = IntPtr.Zero;
                 using (Stream stream = Assembly.GetExecutingAssembly()
                     .GetManifestResourceStream("Sidey.Installer.LanguageDialog"))
                 using (BinaryReader reader = new BinaryReader(stream))
@@ -70,6 +76,8 @@ namespace Sidey.Installer
                         {
                             if (message == InitializeDialogMessage)
                             {
+                                dialogWindow = window;
+                                InstallerWindowActivation.MarkWindow(window);
                                 SetWindowText(window, "Installer Language");
                                 SetDlgItemText(window, DialogPromptControl, "Please select a language.");
                                 SendDlgItemMessage(
@@ -145,6 +153,7 @@ namespace Sidey.Installer
                     }
                     finally
                     {
+                        InstallerWindowActivation.UnmarkWindow(dialogWindow);
                         Marshal.FreeHGlobal(template);
                     }
                 }

@@ -26,7 +26,7 @@ $runtimeDirectory = Join-Path $publishDirectoryPath 'Runtime'
 $hostExecutablePath = Join-Path $runtimeDirectory 'SIDEY.Host.exe'
 $legacyExecutablePath = Join-Path $publishDirectoryPath 'Sidey.App.exe'
 $setupScriptPath = Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup/Sidey.Setup.nsi'
-& (Join-Path $PSScriptRoot 'tests/Test-FrameworkDependentPublish.ps1') `
+& (Join-Path $PSScriptRoot 'tests/Test-SelfContainedPublish.ps1') `
     -PublishDirectory $publishDirectoryPath
 
 function Get-SideyRelativePath {
@@ -222,7 +222,7 @@ $installerBuildDirectory = Join-Path $outputDirectoryPath 'internal/setup-build'
 $languageSelectorPath = Join-Path $installerBuildDirectory 'language/Sidey.SetupLanguage.exe'
 $helperDirectory = Join-Path $installerBuildDirectory 'helpers'
 $installTransactionExecutablePath = Join-Path $helperDirectory 'Sidey.InstallTransaction.exe'
-$prerequisiteInstallerExecutablePath = Join-Path $helperDirectory 'Sidey.PrerequisiteInstaller.exe'
+$installerErrorHelperExecutablePath = Join-Path $helperDirectory 'Sidey.InstallerErrorHelper.exe'
 $termsSourcePath = Join-Path $repositoryRootPath 'website/src/pages/ko/terms.md'
 $termsGeneratorPath = Join-Path $PSScriptRoot 'New-InstallerTerms.ps1'
 $termsLicenseFilePath = Join-Path $installerBuildDirectory 'SideyTerms.txt'
@@ -303,11 +303,11 @@ $helperIconPath = Join-Path $repositoryRootPath 'windows/src/Sidey.App/Assets/Ic
     -Description 'SIDEY atomic install transaction helper' `
     -IconPath $helperIconPath
 & $helperBuilderPath `
-    -SourcePath (Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup/PrerequisiteInstaller.cs') `
-    -OutputPath $prerequisiteInstallerExecutablePath `
+    -SourcePath (Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup/InstallerErrorNormalizer.cs') `
+    -OutputPath $installerErrorHelperExecutablePath `
     -Version $Version -FileVersion "$Version.0" `
-    -Title 'SIDEY Prerequisite Installer' `
-    -Description 'SIDEY prerequisite detection and installation helper' `
+    -Title 'SIDEY Installer Error Helper' `
+    -Description 'SIDEY installer error normalization helper' `
     -IconPath $helperIconPath
 
 & (Join-Path $PSScriptRoot 'tests/Test-HelperExecutables.ps1') `
@@ -316,18 +316,11 @@ $helperIconPath = Join-Path $repositoryRootPath 'windows/src/Sidey.App/Assets/Ic
     -NsisDirectory (Split-Path -Parent $resolvedMakensisPath)
 & (Join-Path $PSScriptRoot 'tests/Test-InstallTransaction.ps1') `
     -HelperPath $installTransactionExecutablePath
-& powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass `
-    -File (Join-Path $PSScriptRoot 'tests/Test-PrerequisiteInstaller.ps1') `
-    -HelperPath $prerequisiteInstallerExecutablePath `
-    -Version $Version -FileVersion "$Version.0"
-if ($LASTEXITCODE -ne 0) {
-    throw "Prerequisite helper verification failed with exit code $LASTEXITCODE."
-}
 & (Join-Path $PSScriptRoot 'tests/Test-PowerShellSupport.ps1') `
-    -HelperPath $prerequisiteInstallerExecutablePath
+    -HelperPath $installerErrorHelperExecutablePath
 & powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass `
     -File (Join-Path $PSScriptRoot 'tests/Test-PowerShellSupport.ps1') `
-    -HelperPath $prerequisiteInstallerExecutablePath
+    -HelperPath $installerErrorHelperExecutablePath
 if ($LASTEXITCODE -ne 0) {
     throw "Windows PowerShell process verification failed with exit code $LASTEXITCODE."
 }
@@ -362,9 +355,11 @@ $payloadFiles = @($deployableFiles | Where-Object {
     $_.FullName -ne $uninstallerPath
 })
 $installInclude = Join-Path $installerBuildDirectory 'SideyPayloadInstall.nsh'
-$uninstallInclude = Join-Path $installerBuildDirectory 'SideyPayloadUninstall.nsh'
+$uninstallFilesInclude = Join-Path $installerBuildDirectory 'SideyPayloadUninstallFiles.nsh'
+$uninstallDirectoriesInclude = Join-Path $installerBuildDirectory 'SideyPayloadUninstallDirectories.nsh'
 $installLines = [Collections.Generic.List[string]]::new()
-$uninstallLines = [Collections.Generic.List[string]]::new()
+$uninstallFileLines = [Collections.Generic.List[string]]::new()
+$uninstallDirectoryLines = [Collections.Generic.List[string]]::new()
 $payloadDirectories = [Collections.Generic.HashSet[string]]::new(
     [StringComparer]::OrdinalIgnoreCase)
 
@@ -374,27 +369,41 @@ foreach ($file in $payloadFiles) {
     $destination = '$StagingDirectory'
     if (-not [string]::IsNullOrWhiteSpace($relativeDirectory)) {
         $destination += "\$(ConvertTo-NsisLiteral $relativeDirectory)"
-        [void]$payloadDirectories.Add($relativeDirectory)
+        # Keep removal non-recursive, but include parents that contain only
+        # child directories so an owned payload can still disappear fully.
+        $directory = $relativeDirectory
+        while (-not [string]::IsNullOrWhiteSpace($directory)) {
+            [void]$payloadDirectories.Add($directory)
+            $directory = Split-Path $directory -Parent
+        }
     }
 
     $installLines.Add("SetOutPath `"$destination`"")
     $installLines.Add('ClearErrors')
     $installLines.Add("File `"$(ConvertTo-NsisLiteral $file.FullName)`"")
     $installLines.Add('IfErrors payload_stage_failed')
-    $uninstallLines.Add(
+    $uninstallFileLines.Add(
         "Delete `"`$INSTDIR\$(ConvertTo-NsisLiteral $relativePath)`"")
 }
 
 foreach ($directory in @($payloadDirectories) |
-    Sort-Object { ($_ -split '[\\/]').Count } -Descending) {
-    $uninstallLines.Add(
+    Sort-Object `
+        @{ Expression = { ($_ -split '[\\/]').Count }; Descending = $true }, `
+        @{ Expression = { $_ }; Descending = $false }) {
+    # SIDEY.UninstallHelper.exe is installed separately under Runtime and must
+    # remain available when an earlier owned-file deletion fails. The NSIS
+    # section removes the helper and Runtime only after this manifest succeeds.
+    if ($directory.Equals('Runtime', [StringComparison]::OrdinalIgnoreCase)) {
+        continue
+    }
+    $uninstallDirectoryLines.Add(
         "RMDir `"`$INSTDIR\$(ConvertTo-NsisLiteral $directory)`"")
 }
 
 if (@($installLines | Where-Object {
     $_.IndexOf('$$StagingDirectory', [StringComparison]::Ordinal) -ge 0 -or
     $_.IndexOf('$INSTDIR', [StringComparison]::Ordinal) -ge 0
-}).Count -gt 0 -or @($uninstallLines | Where-Object {
+}).Count -gt 0 -or @($uninstallFileLines + $uninstallDirectoryLines | Where-Object {
     $_.IndexOf('$$INSTDIR', [StringComparison]::Ordinal) -ge 0
 }).Count -gt 0) {
     throw 'Generated NSIS payload paths must use runtime transaction variables.'
@@ -402,7 +411,18 @@ if (@($installLines | Where-Object {
 
 $utf8WithoutBom = [Text.UTF8Encoding]::new($false)
 [IO.File]::WriteAllLines($installInclude, $installLines.ToArray(), $utf8WithoutBom)
-[IO.File]::WriteAllLines($uninstallInclude, $uninstallLines.ToArray(), $utf8WithoutBom)
+[IO.File]::WriteAllLines(
+    $uninstallFilesInclude,
+    $uninstallFileLines.ToArray(),
+    $utf8WithoutBom)
+[IO.File]::WriteAllLines(
+    $uninstallDirectoriesInclude,
+    $uninstallDirectoryLines.ToArray(),
+    $utf8WithoutBom)
+& (Join-Path $PSScriptRoot 'tests/Test-InstallerPayloadUninstall.ps1') `
+    -PublishDirectory $publishDirectoryPath `
+    -UninstallFilesIncludePath $uninstallFilesInclude `
+    -UninstallDirectoriesIncludePath $uninstallDirectoriesInclude
 
 Invoke-SideyNativeCommand `
     -FilePath $resolvedMakensisPath `
@@ -413,11 +433,12 @@ Invoke-SideyNativeCommand `
         "/DOUTPUT_DIR=$installerBuildDirectory",
         "/DPUBLISH_DIR=$publishDirectoryPath",
         "/DPAYLOAD_INSTALL_INCLUDE=$installInclude",
-        "/DPAYLOAD_UNINSTALL_INCLUDE=$uninstallInclude",
+        "/DPAYLOAD_UNINSTALL_FILES_INCLUDE=$uninstallFilesInclude",
+        "/DPAYLOAD_UNINSTALL_DIRECTORIES_INCLUDE=$uninstallDirectoriesInclude",
         "/DTERMS_LICENSE_FILE=$termsLicenseFilePath",
         "/DLANGUAGE_SELECTOR_EXE=$languageSelectorPath",
         "/DINSTALL_TRANSACTION_EXE=$installTransactionExecutablePath",
-        "/DPREREQUISITE_INSTALLER_EXE=$prerequisiteInstallerExecutablePath",
+        "/DINSTALLER_ERROR_HELPER_EXE=$installerErrorHelperExecutablePath",
         $setupScriptPath
     ) `
     -Description 'SIDEY Setup EXE build'
@@ -433,7 +454,7 @@ Copy-Item -LiteralPath $builtSetupFiles[0].FullName -Destination $setupFilePath 
 $hash = (Get-FileHash -LiteralPath $setupFilePath -Algorithm SHA256).Hash.ToLowerInvariant()
 $publishBytes = ($deployableFiles | Measure-Object -Property Length -Sum).Sum
 
-Write-Host "PublishLayout=structured framework-dependent; Files=$($deployableFiles.Count); Bytes=$publishBytes"
+Write-Host "PublishLayout=structured self-contained; Files=$($deployableFiles.Count); Bytes=$publishBytes"
 Write-Host "NSIS=$makensisVersion"
 Write-Host "Created public Setup EXE $setupFilePath"
 Write-Host "SHA256=$hash"

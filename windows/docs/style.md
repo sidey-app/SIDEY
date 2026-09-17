@@ -15,13 +15,15 @@
 - 네임스페이스는 폴더 구조와 맞춰요.
 - `CA2012`와 `CA2025` 위반은 빌드 오류로 처리해요.
 
-스타일을 눈으로 맞추기보다 다음 명령으로 확인해요.
+스타일을 눈으로 맞추기보다 저장소 루트에서 다음 명령으로 확인해요. `windows/`로 이동해야 `windows/global.json`의 SDK 고정이 적용돼요.
 
 ```powershell
-dotnet restore windows/SIDEY.Windows.slnx
-dotnet format windows/SIDEY.Windows.slnx --verify-no-changes --no-restore
-dotnet build windows/SIDEY.Windows.slnx --configuration Release --no-restore
-dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build
+Push-Location windows
+dotnet restore SIDEY.Windows.slnx
+dotnet format SIDEY.Windows.slnx --verify-no-changes --no-restore
+dotnet build SIDEY.Windows.slnx --configuration Release --no-restore
+dotnet test SIDEY.Windows.slnx --configuration Release --no-restore --no-build
+Pop-Location
 ```
 
 자동 검사를 통과했다고 이름과 구조까지 읽기 쉬운 것은 아니에요. 도구가 판단하지 못하는 부분은 아래 원칙으로 살펴봐요.

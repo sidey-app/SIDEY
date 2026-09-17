@@ -63,7 +63,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '10.0.401'
 
       - name: Restore
         run: dotnet restore windows/SIDEY.Windows.slnx
@@ -77,9 +77,6 @@ jobs:
       - name: Test
         id: tests
         run: dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build --logger trx --collect:"XPlat Code Coverage" --settings windows/coverlet.runsettings --results-directory artifacts/coverage
-
-      - name: Test compiled prerequisite installer
-        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./scripts/windows/tests/Test-PrerequisiteInstaller.ps1
 
       - name: Upload coverage
         if: ${{ always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure') }}
@@ -111,13 +108,11 @@ jobs:
           dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
             --configuration Release `
             --runtime win-x64 `
-            --self-contained false `
+            --self-contained true `
             --no-restore `
-            -p:WindowsAppSDKSelfContained=false `
             -p:PublishSingleFile=false `
             --output build/windows/publish
-          ./scripts/windows/tests/Test-FrameworkDependentPublish.ps1 -PublishDirectory ./build/windows/publish
-          ./scripts/windows/tests/Test-FrameworkPublishGuard.ps1 -PublishDirectory ./build/windows/publish
+          ./scripts/windows/tests/Test-SelfContainedPublish.ps1 -PublishDirectory ./build/windows/publish
           ./scripts/windows/New-WindowsInstaller.ps1 `
             -PublishDirectory ./build/windows/publish `
             -OutputDirectory ./build/windows/artifacts `

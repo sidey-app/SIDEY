@@ -43,17 +43,21 @@ Choose a starting point based on the type of problem:
 Start with the test closest to the suspected cause. Its result arrives sooner and usually points to a smaller part of the system.
 
 ```powershell
-dotnet test windows/tests/Sidey.Presentation.Tests/Sidey.Presentation.Tests.csproj --configuration Release --nologo
+Push-Location windows
+dotnet test tests/Sidey.Presentation.Tests/Sidey.Presentation.Tests.csproj --configuration Release --nologo
+Pop-Location
 ```
 
-After making a change, run the full checks from the repository root.
+After making a change, run the full checks from `windows/` so the .NET CLI applies the SDK policy in `windows/global.json`.
 
 ```powershell
-dotnet restore windows/SIDEY.Windows.slnx
-dotnet format windows/SIDEY.Windows.slnx --verify-no-changes --no-restore
-dotnet build windows/SIDEY.Windows.slnx --configuration Debug --no-restore
-dotnet build windows/SIDEY.Windows.slnx --configuration Release --no-restore
-dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build
+Push-Location windows
+dotnet restore SIDEY.Windows.slnx
+dotnet format SIDEY.Windows.slnx --verify-no-changes --no-restore
+dotnet build SIDEY.Windows.slnx --configuration Debug --no-restore
+dotnet build SIDEY.Windows.slnx --configuration Release --no-restore
+dotnet test SIDEY.Windows.slnx --configuration Release --no-restore --no-build
+Pop-Location
 ```
 
 ViewModel tests check state and collaborator calls after a command runs. A test may parse XAML as XML when the file itself is a contract, but it must ignore whitespace and attribute order. Use UI interaction tests or manual checks for focus, window activation, clicks, and other live WinUI behavior.
@@ -63,7 +67,7 @@ ViewModel tests check state and collaborator calls after a command runs. A test 
 A published SIDEY installation has two startup layers: the Launcher checks the runtime environment, and the Host runs the WinUI app. A failure to open `SIDEY.exe` can occur before any View code runs.
 
 1. Confirm that the published directory structure is complete.
-2. Confirm that the Launcher passes its .NET, Visual C++ Redistributable, and Windows App Runtime checks.
+2. Confirm that `Runtime` contains the .NET and Windows App SDK files and that the Launcher starts the Host.
 3. Check the stage markers in the session log to determine whether the Host started.
 4. If the Host started, find the first failed stage around `startup-complete`.
 
@@ -82,11 +86,11 @@ Stale `bin` and `obj` directories sometimes cause build failures. Deleting them 
 For a publishing problem, inspect the published output rather than a normal build result.
 
 ```powershell
-powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/tests/Test-FrameworkDependentPublish.ps1 -PublishDirectory build/windows/publish
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/tests/Test-SelfContainedPublish.ps1 -PublishDirectory build/windows/publish
 powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/tests/Test-PublishedApplication.ps1 -PublishDirectory build/windows/publish
 ```
 
-These checks cover deployment file locations, shared-runtime assumptions, and application startup. A complete deployment check may install prerequisites and change the environment, so read the script's scope before running it.
+These checks cover deployment file locations, app-local runtimes, and application startup. An installation check can change machine installation state, so read the script's scope before running it.
 
 ## State the coordinate system when investigating overlay problems
 

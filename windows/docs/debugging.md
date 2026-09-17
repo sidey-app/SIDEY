@@ -43,17 +43,21 @@ XAML Command 바인딩
 원인 후보와 가까운 테스트를 먼저 실행하면 피드백이 빠르고 실패 이유도 선명해요.
 
 ```powershell
-dotnet test windows/tests/Sidey.Presentation.Tests/Sidey.Presentation.Tests.csproj --configuration Release --nologo
+Push-Location windows
+dotnet test tests/Sidey.Presentation.Tests/Sidey.Presentation.Tests.csproj --configuration Release --nologo
+Pop-Location
 ```
 
-수정 뒤에는 저장소 루트에서 전체 검사를 실행해요.
+수정 뒤에는 `windows/`에서 전체 검사를 실행해 `windows/global.json`의 SDK 고정을 적용해요.
 
 ```powershell
-dotnet restore windows/SIDEY.Windows.slnx
-dotnet format windows/SIDEY.Windows.slnx --verify-no-changes --no-restore
-dotnet build windows/SIDEY.Windows.slnx --configuration Debug --no-restore
-dotnet build windows/SIDEY.Windows.slnx --configuration Release --no-restore
-dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build
+Push-Location windows
+dotnet restore SIDEY.Windows.slnx
+dotnet format SIDEY.Windows.slnx --verify-no-changes --no-restore
+dotnet build SIDEY.Windows.slnx --configuration Debug --no-restore
+dotnet build SIDEY.Windows.slnx --configuration Release --no-restore
+dotnet test SIDEY.Windows.slnx --configuration Release --no-restore --no-build
+Pop-Location
 ```
 
 ViewModel 테스트는 명령을 실행한 뒤 상태와 협력자 호출을 확인해요. XAML 자체가 계약이면 XML 구조를 읽어 필수 바인딩을 확인할 수 있지만, 공백과 속성 순서에는 의존하지 않아요. 실제 포커스, 창 활성화, 클릭 같은 WinUI 동작은 UI 상호작용 테스트나 수동 검사로 확인해요.
@@ -63,7 +67,7 @@ ViewModel 테스트는 명령을 실행한 뒤 상태와 협력자 호출을 확
 게시된 SIDEY는 실행 환경을 확인하는 Launcher와 실제 WinUI 앱인 Host로 나뉘어 있어요. `SIDEY.exe`가 열리지 않는다고 해서 곧바로 View 코드 문제라고 판단하면 안 돼요.
 
 1. 게시 폴더 구조가 완성됐는지 확인해요.
-2. Launcher가 .NET, Visual C++ Redistributable, Windows App Runtime 조건을 통과했는지 확인해요.
+2. `Runtime`에 .NET과 Windows App SDK 파일이 있고 Launcher가 Host를 시작했는지 확인해요.
 3. Host가 시작됐는지 세션 로그의 단계 표식을 확인해요.
 4. Host가 시작됐다면 `startup-complete` 전후에서 처음 실패한 단계를 찾아요.
 
@@ -82,11 +86,11 @@ ViewModel 테스트는 명령을 실행한 뒤 상태와 협력자 호출을 확
 게시 문제라면 일반 빌드 결과가 아니라 실제 게시 결과를 검사해요.
 
 ```powershell
-powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/tests/Test-FrameworkDependentPublish.ps1 -PublishDirectory build/windows/publish
+powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/tests/Test-SelfContainedPublish.ps1 -PublishDirectory build/windows/publish
 powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -File scripts/windows/tests/Test-PublishedApplication.ps1 -PublishDirectory build/windows/publish
 ```
 
-이 검사는 배포 파일의 위치, 공유 런타임 전제, 실제 실행 가능성을 확인해요. 설치 관리자의 선행 조건 설치까지 포함하는 전체 배포 검사는 환경을 바꿀 수 있으므로 스크립트의 범위를 먼저 읽고 실행해요.
+이 검사는 배포 파일의 위치, 앱 로컬 런타임, 실제 실행 가능성을 확인해요. 실제 설치 검사는 머신의 설치 상태를 바꿀 수 있으므로 스크립트의 범위를 먼저 읽고 실행해요.
 
 ## 오버레이 문제는 좌표계를 적어요
 

@@ -43,8 +43,7 @@ Invoke-SideyNativeCommand `
         (Join-Path $repositoryRootPath 'windows/src/Sidey.App/Sidey.App.csproj'),
         '--configuration', 'Release',
         '--runtime', 'win-x64',
-        '--self-contained', 'false',
-        '-p:WindowsAppSDKSelfContained=false',
+        '--self-contained', 'true',
         '-p:PublishSingleFile=false',
         "-p:Version=$TestVersion",
         "-p:FileVersion=$TestVersion.0",
@@ -64,8 +63,6 @@ Write-Host "PublishDirectory=$publishDirectory"
 if ($BuildOnly) {
     return
 }
-
-& (Join-Path $PSScriptRoot 'Install-WindowsPrerequisites.ps1') -Version $TestVersion
 
 $firstLaunch = Start-Process `
     -FilePath $launcherExecutablePath `

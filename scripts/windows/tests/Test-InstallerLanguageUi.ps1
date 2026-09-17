@@ -24,6 +24,14 @@ $outputDirectoryPath = [IO.Path]::GetFullPath($OutputDirectory)
 $setupSource = Get-Content -LiteralPath $SetupScriptPath -Raw -Encoding UTF8
 $selectionFunction = [regex]::Match($setupSource, '(?ms)^Function SelectInstallerLanguage\r?\n.*?^FunctionEnd').Value
 if (-not $selectionFunction) { throw 'Installer language selection function not found.' }
+$prepareFunction = [regex]::Match($setupSource, '(?ms)^Function PrepareInstallerActivation\r?\n.*?^FunctionEnd').Value
+if (-not $prepareFunction) { throw 'Installer activation preparation function not found.' }
+$activationFunction = [regex]::Match($setupSource, '(?ms)^Function ActivateExistingInstaller\r?\n.*?^FunctionEnd').Value
+if (-not $activationFunction) { throw 'Installer activation function not found.' }
+$mutexMacro = [regex]::Match($setupSource, '(?ms)^!macro AcquireSetupMutex HANDLE ACTIVATE_FUNCTION\r?\n.*?^!macroend').Value
+if (-not $mutexMacro) { throw 'Installer mutex macro not found.' }
+$activationProperty = [regex]::Match($setupSource, '(?m)^!define SETUP_ACTIVATION_PROPERTY .+$').Value
+if (-not $activationProperty) { throw 'Installer activation property definition not found.' }
 $guiDefine = [regex]::Match($setupSource, '(?m)^!define MUI_CUSTOMFUNCTION_GUIINIT (\w+)').Value
 $guiName = [regex]::Match($guiDefine, 'GUIINIT (\w+)').Groups[1].Value
 $guiFunction = if ($guiName) { [regex]::Match($setupSource, "(?ms)^Function $guiName\r?\n.*?^FunctionEnd").Value } else { '' }
@@ -34,6 +42,8 @@ Unicode true
 RequestExecutionLevel user
 Name "SIDEY language transition test"
 OutFile "@OUTPUT@\LanguageTransition.exe"
+@ACTIVATION_PROPERTY@
+!define SETUP_MUTEX_NAME "Local\SIDEY.Setup.LanguageTransition.@MUTEX_ID@"
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
 !define LANGUAGE_SELECTOR_EXE "@SELECTOR@"
@@ -42,18 +52,36 @@ OutFile "@OUTPUT@\LanguageTransition.exe"
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_LANGUAGE "English"
 LangString LanguageSelectionFailed ${LANG_ENGLISH} "Language selector failed"
+LangString SetupAlreadyRunning ${LANG_ENGLISH} "Another SIDEY Setup is already running"
+LangString SetupInitializationFailed ${LANG_ENGLISH} "SIDEY Setup could not initialize the installation lock: $1"
+Var SetupMutexHandle
+@MUTEX_MACRO@
 Function .onInit
   SetRegView 64
+  Call PrepareInstallerActivation
+  !insertmacro AcquireSetupMutex $SetupMutexHandle ActivateExistingInstaller
   @SELECTION_CALL@
 FunctionEnd
+@PREPARE_FUNCTION@
+@ACTIVATION_FUNCTION@
 @SELECTION_FUNCTION@
 @GUI_FUNCTION@
+Function .onGUIEnd
+  System::Call 'user32::RemovePropW(p $HWNDPARENT, w "${SETUP_ACTIVATION_PROPERTY}") p.r0'
+  ${If} $SetupMutexHandle != 0
+    System::Call 'kernel32::CloseHandle(p $SetupMutexHandle)'
+    StrCpy $SetupMutexHandle 0
+  ${EndIf}
+FunctionEnd
 Section
   Abort
 SectionEnd
 '@
 $fixtureSource = $fixtureSource.Replace('@OUTPUT@', $outputDirectoryPath).Replace('@SELECTOR@', $resolvedSelectorExecutablePath).
+    Replace('@MUTEX_ID@', [Guid]::NewGuid().ToString('N')).
+    Replace('@ACTIVATION_PROPERTY@', $activationProperty).Replace('@MUTEX_MACRO@', $mutexMacro).
     Replace('@GUI_DEFINE@', $guiDefine).Replace('@GUI_FUNCTION@', $guiFunction).
+    Replace('@PREPARE_FUNCTION@', $prepareFunction).Replace('@ACTIVATION_FUNCTION@', $activationFunction).
     Replace('@SELECTION_FUNCTION@', $selectionFunction).Replace('@SELECTION_CALL@', 'Call SelectInstallerLanguage')
 $fixturePath = Join-Path $outputDirectoryPath 'LanguageTransition.nsi'
 [IO.File]::WriteAllText($fixturePath, $fixtureSource, [Text.UTF8Encoding]::new($true))
@@ -81,9 +109,26 @@ public static class LanguageTransitionProbe {
     public static extern IntPtr ReadComboText(IntPtr hwnd, uint message, IntPtr wParam, StringBuilder text);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd, int command);
     [DllImport("user32.dll")] public static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extraInfo);
 }
 '@
+function Find-TestWindowsByTitle([int[]]$ProcessIds, [string]$Title) {
+    $script:foundWindows = @()
+    $callback = [LanguageTransitionProbe+EnumProc]{
+        param($window, $state)
+        $windowProcess = [uint32]0
+        [void][LanguageTransitionProbe]::GetWindowThreadProcessId($window, [ref]$windowProcess)
+        $text = [Text.StringBuilder]::new(256)
+        [void][LanguageTransitionProbe]::GetWindowText($window, $text, 256)
+        if ($ProcessIds -contains [int]$windowProcess -and $text.ToString() -eq $Title) {
+            $script:foundWindows += $window
+        }
+        return $true
+    }
+    [void][LanguageTransitionProbe]::EnumWindows($callback, [IntPtr]::Zero)
+    return @($script:foundWindows)
+}
 function Find-TestWindow([int]$ProcessId, [string]$Title) {
     $script:foundWindow = [IntPtr]::Zero
     $callback = [LanguageTransitionProbe+EnumProc]{
@@ -101,6 +146,7 @@ function Find-TestWindow([int]$ProcessId, [string]$Title) {
 # This test intentionally displays the two UI windows to verify foreground state.
 $process = Start-Process -FilePath (Join-Path $outputDirectoryPath 'LanguageTransition.exe') -PassThru
 $helper = $null
+$duplicateProcesses = New-Object System.Collections.Generic.List[Diagnostics.Process]
 try {
     $deadline = [DateTime]::UtcNow.AddSeconds(15)
     do {
@@ -131,6 +177,21 @@ try {
         [void][LanguageTransitionProbe]::ReadComboText($combo, 0x148, [IntPtr]$index, $text)
         if ($text.ToString() -cne $expected[$index].DisplayName) { throw "Unexpected language at index $index." }
     }
+    [void][LanguageTransitionProbe]::ShowWindow($dialog, 6)
+    if (-not [LanguageTransitionProbe]::IsIconic($dialog)) { throw 'Could not minimize the language selector for activation testing.' }
+    $duplicateSelector = Start-Process -FilePath (Join-Path $outputDirectoryPath 'LanguageTransition.exe') -PassThru
+    $duplicateProcesses.Add($duplicateSelector)
+    if (-not $duplicateSelector.WaitForExit(10000)) { throw 'Duplicate Setup did not exit while the language selector was open.' }
+    if ($duplicateSelector.ExitCode -ne 1618) { throw "Duplicate Setup returned $($duplicateSelector.ExitCode), expected 1618." }
+    $deadline = [DateTime]::UtcNow.AddSeconds(5)
+    while ([LanguageTransitionProbe]::IsIconic($dialog) -and [DateTime]::UtcNow -lt $deadline) {
+        Start-Sleep -Milliseconds 100
+    }
+    if ([LanguageTransitionProbe]::IsIconic($dialog)) { throw 'Duplicate Setup did not restore the existing language selector.' }
+    $fixtureProcessIds = @($process.Id, [int]$helper.ProcessId)
+    if (@(Find-TestWindowsByTitle -ProcessIds $fixtureProcessIds -Title 'Installer Language').Count -ne 1) {
+        throw 'Duplicate Setup created another language selector.'
+    }
     [void][LanguageTransitionProbe]::SetForegroundWindow($dialog)
     if ([LanguageTransitionProbe]::GetForegroundWindow() -ne $dialog) { throw 'Could not establish the selector as foreground for this interactive test.' }
     $script:confirmButton = [IntPtr]::Zero
@@ -157,10 +218,35 @@ try {
     if (-not $foreground -or [LanguageTransitionProbe]::IsIconic($wizard)) {
         throw "Installer did not become visible and foreground after language selection (visible=$visible, foreground=$foreground)."
     }
-    Write-Output 'NativeLanguageDialog=true; Languages=7; SystemFirst=true; InstallerLanguageTransition=true; WelcomeVisible=true; WelcomeForeground=true; Minimized=false'
+    [void][LanguageTransitionProbe]::ShowWindow($wizard, 6)
+    if (-not [LanguageTransitionProbe]::IsIconic($wizard)) { throw 'Could not minimize the Setup wizard for activation testing.' }
+    $duplicateWizard = Start-Process -FilePath (Join-Path $outputDirectoryPath 'LanguageTransition.exe') -PassThru
+    $duplicateProcesses.Add($duplicateWizard)
+    if (-not $duplicateWizard.WaitForExit(10000)) { throw 'Duplicate Setup did not exit while the Setup wizard was open.' }
+    if ($duplicateWizard.ExitCode -ne 1618) { throw "Duplicate Setup returned $($duplicateWizard.ExitCode), expected 1618." }
+    $deadline = [DateTime]::UtcNow.AddSeconds(5)
+    while ([LanguageTransitionProbe]::IsIconic($wizard) -and [DateTime]::UtcNow -lt $deadline) {
+        Start-Sleep -Milliseconds 100
+    }
+    if ([LanguageTransitionProbe]::IsIconic($wizard)) { throw 'Duplicate Setup did not restore the existing Setup wizard.' }
+    if (@(Find-TestWindowsByTitle -ProcessIds $fixtureProcessIds -Title 'Installer Language').Count -ne 0) {
+        throw 'Duplicate Setup displayed a language selector after the wizard opened.'
+    }
+    $silentDuplicate = Start-Process -FilePath (Join-Path $outputDirectoryPath 'LanguageTransition.exe') -ArgumentList '/S' -PassThru
+    $duplicateProcesses.Add($silentDuplicate)
+    if (-not $silentDuplicate.WaitForExit(10000)) { throw 'Silent duplicate Setup did not exit.' }
+    if ($silentDuplicate.ExitCode -ne 1618) { throw "Silent duplicate Setup returned $($silentDuplicate.ExitCode), expected 1618." }
+    Write-Output 'NativeLanguageDialog=true; Languages=7; SystemFirst=true; InstallerLanguageTransition=true; SingleInstanceActivation=true; DuplicateExitCode=1618; SilentDuplicateExitCode=1618; WelcomeVisible=true; WelcomeForeground=true; Minimized=false'
 }
 finally {
-    if ($helper) { Stop-Process -Id $helper.ProcessId -ErrorAction SilentlyContinue }
+    foreach ($duplicate in $duplicateProcesses) {
+        if (-not $duplicate.HasExited) { $duplicate.Kill() }
+        $duplicate.Dispose()
+    }
+    if ($helper) {
+        $remainingHelper = Get-CimInstance Win32_Process -Filter "ProcessId = $($helper.ProcessId) AND ParentProcessId = $($process.Id) AND Name = 'Sidey.SetupLanguage.exe'"
+        if ($remainingHelper) { Stop-Process -Id $helper.ProcessId -ErrorAction SilentlyContinue }
+    }
     if (-not $process.HasExited) { $process.Kill() }
     $process.Dispose()
 }
