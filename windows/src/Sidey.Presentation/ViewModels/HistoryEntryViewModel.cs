@@ -1,3 +1,5 @@
+using CommunityToolkit.Mvvm.Input;
+
 namespace Sidey.Presentation.ViewModels;
 
 public sealed record HistoryEntryViewModel(
@@ -9,4 +11,8 @@ public sealed record HistoryEntryViewModel(
     bool IsCurrentUser,
     bool IsPending,
     bool IsFailed,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    IAsyncRelayCommand? RetryCommand = null)
+{
+    public bool CanRetry => IsFailed && IsCurrentUser && RetryCommand is not null;
+}

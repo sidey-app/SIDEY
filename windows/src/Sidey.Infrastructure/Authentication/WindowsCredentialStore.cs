@@ -7,18 +7,24 @@ namespace Sidey.Infrastructure.Authentication;
 public sealed class WindowsCredentialStore : ICredentialStore
 {
     private const string Prefix = "SIDEY/";
+    private readonly string _backendFingerprint;
+
+    public WindowsCredentialStore(SideyRuntimeConfiguration? configuration = null)
+    {
+        _backendFingerprint = (configuration ?? new SideyRuntimeConfiguration(new Uri("https://api.sidey.app/api"))).BackendFingerprint;
+    }
 
     public ValueTask<string?> ReadAsync(CredentialKey key, CancellationToken cancellationToken = default) =>
-        ReadTargetAsync(Prefix + key, cancellationToken);
+        ReadTargetAsync(CredentialTarget(key, _backendFingerprint), cancellationToken);
 
     public ValueTask WriteAsync(
         CredentialKey key,
         string value,
         CancellationToken cancellationToken = default) =>
-        WriteTargetAsync(Prefix + key, value, cancellationToken);
+        WriteTargetAsync(CredentialTarget(key, _backendFingerprint), value, cancellationToken);
 
     public ValueTask DeleteAsync(CredentialKey key, CancellationToken cancellationToken = default) =>
-        DeleteTargetAsync(Prefix + key, cancellationToken);
+        DeleteTargetAsync(CredentialTarget(key, _backendFingerprint), cancellationToken);
 
     public ValueTask<string?> ReadInviteCodeAsync(
         Guid roomId,
@@ -119,6 +125,14 @@ public sealed class WindowsCredentialStore : ICredentialStore
     }
 
     private static string InviteTarget(Guid roomId) => $"{Prefix}Invite/{roomId:D}";
+
+    internal static string CredentialTarget(CredentialKey key, string fingerprint) => key switch
+    {
+        CredentialKey.SupabaseSession => "SIDEY/SupabaseSession",
+        CredentialKey.SideySession => $"SIDEY/Session/{fingerprint}",
+        CredentialKey.LegacyClaimCompleted => $"SIDEY/LegacyClaimCompleted/{fingerprint}",
+        _ => throw new ArgumentOutOfRangeException(nameof(key)),
+    };
 
     private static void EnsureWindows()
     {

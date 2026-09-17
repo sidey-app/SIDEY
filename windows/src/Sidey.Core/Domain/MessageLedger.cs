@@ -14,18 +14,37 @@ public sealed record MessageLedgerEntry(
     string Body,
     DateTimeOffset CreatedAt,
     MessageDeliveryState State,
-    string? BubbleStyleId = null);
+    string? BubbleStyleId = null)
+{
+    internal long OutboxSequence { get; init; }
+}
 
-public sealed class MessageLedger
+public sealed class MessageLedger(TimeProvider? timeProvider = null)
 {
     public const int MaximumConfirmedPerRoom = 50;
+    public const int MaximumOutboxPerRoom = 50;
     public static readonly TimeSpan ConfirmedRetention = TimeSpan.FromDays(3);
 
     private readonly List<MessageLedgerEntry> _entries = [];
+    private long _nextOutboxSequence;
 
-    public IReadOnlyList<MessageLedgerEntry> Entries => _entries;
+    public IReadOnlyList<MessageLedgerEntry> Entries
+    {
+        get { PruneConfirmed(); return _entries; }
+    }
 
     public MessageLedgerEntry? Latest => _entries.LastOrDefault();
+
+    public void Clear() => _entries.Clear();
+
+    public void RetainRooms(IReadOnlySet<Guid> rooms) => _entries.RemoveAll(entry => !rooms.Contains(entry.RoomId));
+
+    public MessageLedgerEntry StageNew(Guid roomId, Guid senderId, string body, string? bubbleStyleId = null)
+    {
+        var id = Guid.NewGuid();
+        Stage(id, roomId, senderId, body, bubbleStyleId: bubbleStyleId);
+        return _entries.Single(entry => entry.Id == id);
+    }
 
     public void Stage(
         Guid id,
@@ -45,9 +64,11 @@ public sealed class MessageLedger
             roomId,
             senderId,
             body,
-            createdAt ?? DateTimeOffset.UtcNow,
+            createdAt ?? (timeProvider ?? TimeProvider.System).GetUtcNow(),
             MessageDeliveryState.Pending,
-            CosmeticCatalog.NormalizeBubbleStyleId(bubbleStyleId)));
+            CosmeticCatalog.NormalizeBubbleStyleId(bubbleStyleId))
+        { OutboxSequence = ++_nextOutboxSequence });
+        PruneConfirmed();
     }
 
     public bool Confirm(ChatMessage message, DateTimeOffset? now = null)
@@ -88,6 +109,7 @@ public sealed class MessageLedger
 
     public string? Fail(Guid id)
     {
+        PruneConfirmed();
         int index = _entries.FindIndex(entry => entry.Id == id && entry.State == MessageDeliveryState.Pending);
         if (index < 0)
         {
@@ -99,6 +121,18 @@ public sealed class MessageLedger
         return body;
     }
 
+    public MessageLedgerEntry? RetryFailed(Guid roomId, Guid senderId, Guid messageId, DateTimeOffset? now = null)
+    {
+        PruneConfirmed(now);
+        int index = _entries.FindIndex(entry => entry.Id == messageId
+            && entry.RoomId == roomId && entry.SenderId == senderId
+            && entry.State == MessageDeliveryState.Failed);
+        if (index < 0)
+            return null;
+        _entries[index] = _entries[index] with { State = MessageDeliveryState.Pending };
+        return _entries[index];
+    }
+
     public bool Remove(Guid roomId, Guid messageId) =>
         _entries.RemoveAll(entry => entry.RoomId == roomId && entry.Id == messageId) > 0;
 
@@ -107,9 +141,17 @@ public sealed class MessageLedger
 
     public void PruneConfirmed(DateTimeOffset? now = null)
     {
-        DateTimeOffset cutoff = (now ?? DateTimeOffset.UtcNow) - ConfirmedRetention;
-        _entries.RemoveAll(entry =>
-            entry.State == MessageDeliveryState.Confirmed && entry.CreatedAt < cutoff);
+        DateTimeOffset cutoff = (now ?? (timeProvider ?? TimeProvider.System).GetUtcNow()) - ConfirmedRetention;
+        _entries.RemoveAll(entry => entry.State == MessageDeliveryState.Confirmed
+            ? entry.CreatedAt < cutoff : entry.CreatedAt <= cutoff);
+        foreach (IGrouping<Guid, MessageLedgerEntry> room in _entries
+            .Where(entry => entry.State != MessageDeliveryState.Confirmed).GroupBy(entry => entry.RoomId).ToArray())
+        {
+            var expired = room.OrderByDescending(entry => entry.CreatedAt)
+                .ThenByDescending(entry => entry.OutboxSequence)
+                .Skip(MaximumOutboxPerRoom).Select(entry => entry.Id).ToHashSet();
+            _entries.RemoveAll(entry => expired.Contains(entry.Id));
+        }
         foreach (IGrouping<Guid, MessageLedgerEntry>? room in _entries
             .Where(entry => entry.State == MessageDeliveryState.Confirmed)
             .GroupBy(entry => entry.RoomId)

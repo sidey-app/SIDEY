@@ -4,6 +4,8 @@ namespace Sidey.Presentation.Services;
 
 public interface IHistoryCoordinator : ICoordinatorStateSource
 {
+    public Task RetryMessageAsync(Guid roomId, Guid messageId, CancellationToken cancellationToken = default);
+
     public Task<MessageHistoryPage> FetchMessagePageAsync(
         Guid roomId,
         MessageHistoryCursor? before,

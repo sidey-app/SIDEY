@@ -11,16 +11,21 @@ public sealed record AuthSession(
 public interface IAuthService
 {
     public Task<AuthSession?> RestoreSessionAsync(CancellationToken cancellationToken = default);
-    public Task<AuthSession> CreateAnonymousSessionAsync(CancellationToken cancellationToken = default);
     public Task SignOutAsync(CancellationToken cancellationToken = default);
 }
 
 public sealed class SessionRecoveryException(string message, Exception? innerException = null)
     : Exception(message, innerException);
 
-public static class AnonymousSessionBootstrapper
+public class AuthenticationRequiredException(string message = "Google 또는 Apple로 로그인해 주세요.", Exception? innerException = null)
+    : Exception(message, innerException);
+
+public sealed class LegacyClaimRequiredException()
+    : AuthenticationRequiredException("기존 계정을 유지하려면 Google 또는 Apple로 로그인해 주세요.");
+
+public static class SessionBootstrapper
 {
-    public static async Task<AuthSession> RestoreOrCreateAsync(
+    public static async Task<AuthSession> RestoreAsync(
         IAuthService auth,
         bool hasStoredSession,
         CancellationToken cancellationToken = default)
@@ -31,7 +36,8 @@ public static class AnonymousSessionBootstrapper
         {
             restored = await auth.RestoreSessionAsync(cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception exception) when (hasStoredSession)
+        catch (Exception exception) when (hasStoredSession && exception is not AuthenticationRequiredException
+            && exception is not OperationCanceledException)
         {
             throw new SessionRecoveryException(
                 I18n.Get("auth.restoreFailed"),
@@ -43,13 +49,7 @@ public static class AnonymousSessionBootstrapper
             return restored;
         }
 
-        if (hasStoredSession)
-        {
-            throw new SessionRecoveryException(
-                I18n.Get("auth.restoreFailed"));
-        }
-
-        return await auth.CreateAnonymousSessionAsync(cancellationToken).ConfigureAwait(false);
+        throw new AuthenticationRequiredException();
     }
 }
 
@@ -57,7 +57,10 @@ public sealed record BackendSnapshot(
     Profile? Profile,
     IReadOnlyList<Room> Rooms,
     Guid CurrentUserId,
-    IReadOnlySet<string> ActiveEntitlementKeys);
+    IReadOnlySet<string> ActiveEntitlementKeys)
+{
+    public long MembershipRevision { get; init; }
+}
 
 public sealed record CreateRoomResult(Room Room, string InviteCode);
 
@@ -86,6 +89,9 @@ public sealed record RealtimeConnectionStatus(
 
 public abstract record BackendEvent
 {
+    public sealed record AuthenticationRequired : BackendEvent;
+    public sealed record RoomAccessInvalidated(long MembershipRevision) : BackendEvent;
+    public sealed record RoomRevoked(Guid RoomId, long MembershipRevision) : BackendEvent;
     public sealed record SnapshotReceived(BackendSnapshot Snapshot) : BackendEvent;
     public sealed record MessageReceived(ChatMessage Message) : BackendEvent;
     public sealed record MessageDeleted(Guid RoomId, Guid MessageId) : BackendEvent;
@@ -136,7 +142,6 @@ public interface IBackendGateway
         Guid targetUserId,
         CancellationToken cancellationToken = default);
     public Task SynchronizeRealtimeRoomsAsync(
-        IReadOnlyDictionary<Guid, long> roomEpochs,
         Guid? activeRoomId,
         PresenceState localPresence,
         CancellationToken cancellationToken = default);
@@ -162,7 +167,10 @@ public interface IMonitorService
 
 public enum CredentialKey
 {
+    // Retain the original Credential Manager target for migration proof only.
     SupabaseSession,
+    SideySession,
+    LegacyClaimCompleted,
 }
 
 public interface ICredentialStore

@@ -1,11 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0-windows10.0.26100.0</TargetFramework>
-    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <TargetFrameworks>net10.0;net10.0-windows10.0.26100.0</TargetFrameworks>
+    <SupportedOSPlatformVersion Condition="'$(TargetFramework)' != 'net10.0'">10.0.17763.0</SupportedOSPlatformVersion>
     <RootNamespace>Sidey.Infrastructure</RootNamespace>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
   </PropertyGroup>
+  <!-- The desktop app selects its existing Windows/x64 target. Protocol tests
+       use the same production assembly on any SDK host with fake credentials. -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+  </PropertyGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
+    <Compile Remove="Connectivity/SystemNetworkAvailabilityMonitor.cs" />
+  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Sidey.Core/Sidey.Core.csproj" />
   </ItemGroup>

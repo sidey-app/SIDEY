@@ -38,16 +38,18 @@ public sealed record CoordinatorState(
     AppPreferences Preferences,
     RealtimeConnectionStatus RealtimeConnection,
     IReadOnlyList<CommerceProductState> CommerceProducts,
-    bool DevelopmentCommerceEnabled,
+    bool CommerceEnabled,
     GroupOperation GroupOperation,
     Guid? SwitchingRoomId,
     string? ErrorMessage)
 {
     public RemoteContentLoadingState ContentLoading { get; init; } = RemoteContentLoadingState.Initial;
+    public bool AuthenticationRequired { get; init; }
+    public bool AuthenticationInProgress { get; init; }
 
-    public bool Connected => RealtimeConnection.IsReady;
+    public bool Connected => !AuthenticationRequired && RealtimeConnection.IsReady;
 
-    public bool ActiveRoomConnected => RealtimeConnection.ActiveRoomTransportConnected;
+    public bool ActiveRoomConnected => !AuthenticationRequired && RealtimeConnection.ActiveRoomTransportConnected;
 
     public static CoordinatorState Initial { get; } = new(
         null,

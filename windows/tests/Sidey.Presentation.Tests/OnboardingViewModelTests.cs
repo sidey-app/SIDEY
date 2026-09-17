@@ -8,6 +8,48 @@ namespace Sidey.Presentation.Tests;
 public sealed class OnboardingViewModelTests
 {
     [Fact]
+    public async Task MissingSessionBlocksSetupUntilGoogleLoginCompletes()
+    {
+        var coordinator = new FakeSideyCoordinator
+        {
+            State = CoordinatorState.Initial with
+            {
+                AuthenticationRequired = true,
+                RealtimeConnection = new RealtimeConnectionStatus(true, true, true),
+            },
+        };
+        coordinator.SignInHandler = () =>
+        {
+            coordinator.State = coordinator.State with { AuthenticationRequired = false };
+            return Task.CompletedTask;
+        };
+        var model = new OnboardingViewModel(coordinator);
+        model.Nickname = "Mo";
+        Assert.True(model.AuthenticationRequired);
+        Assert.False(coordinator.State.Connected);
+        Assert.False(coordinator.State.ActiveRoomConnected);
+        Assert.False(model.CanSaveProfile);
+        await model.SignInWithGoogleCommand.ExecuteAsync(null);
+        Assert.Equal(1, coordinator.SignInCount);
+        Assert.False(model.AuthenticationRequired);
+        Assert.False(model.SignInWithGoogleCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task RejectedClaimKeepsLoginRequiredAndAllowsRetry()
+    {
+        var coordinator = new FakeSideyCoordinator
+        {
+            State = CoordinatorState.Initial with { AuthenticationRequired = true },
+            SignInHandler = () => Task.FromException(new InvalidOperationException("claim rejected")),
+        };
+        var model = new OnboardingViewModel(coordinator);
+        await model.SignInWithGoogleCommand.ExecuteAsync(null);
+        Assert.True(model.AuthenticationRequired);
+        Assert.True(model.SignInWithGoogleCommand.CanExecute(null));
+        Assert.Equal("claim rejected", model.ErrorMessage);
+    }
+    [Fact]
     public void CharacterPickerKeepsTheFiveFreeWindowsSelections()
     {
         var viewModel = new OnboardingViewModel(new FakeSideyCoordinator());
@@ -62,8 +104,7 @@ public sealed class OnboardingViewModelTests
             userId,
             [new RoomMember(userId, profile.Nickname, profile.CharacterId, PresenceState.Online)],
             "ABCD",
-            true,
-            1);
+            true);
         var coordinator = new FakeSideyCoordinator
         {
             State = CoordinatorState.Initial with

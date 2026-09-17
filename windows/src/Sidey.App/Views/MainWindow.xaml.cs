@@ -1107,6 +1107,24 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         }
     }
 
+    public async Task<bool> ConfirmAccountDeletionAsync()
+    {
+        if (ActiveXamlRoot() is not { } xamlRoot)
+            return false;
+        var dialog = new ContentDialog
+        {
+            XamlRoot = xamlRoot,
+            Title = I18n.Get("account.delete"),
+            Content = I18n.Get("account.deleteConfirmation"),
+            PrimaryButtonText = I18n.Get("account.delete"),
+            CloseButtonText = I18n.Get("common.cancel"),
+            DefaultButton = ContentDialogButton.Close,
+        };
+        try
+        { return await dialog.ShowAsync() == ContentDialogResult.Primary; }
+        catch (Exception) when (_isClosed) { return false; }
+    }
+
     public async Task<bool> ConfirmMemberRemovalAsync(string nickname)
     {
         if (ActiveXamlRoot() is not { } xamlRoot)

@@ -178,26 +178,15 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
-    public void InstallerRegistersOnlyTheProductionGoogleCallbackScheme()
+    public void InstallerOnlyCleansUpTheLegacyGoogleCallbackScheme()
     {
         string setup = ReadSetupScript();
 
         Assert.Contains("Software\\Classes\\sidey", setup, StringComparison.Ordinal);
-        Assert.Contains("URL:SIDEY authentication callback", setup, StringComparison.Ordinal);
-        Assert.Contains("$INSTDIR\\SIDEY.exe$", setup, StringComparison.Ordinal);
+        Assert.DoesNotContain("URL:SIDEY authentication callback", setup, StringComparison.Ordinal);
+        Assert.DoesNotContain("WriteRegStr HKLM \"${PRODUCT_PROTOCOL_KEY}", setup, StringComparison.Ordinal);
         Assert.DoesNotContain("Software\\Classes\\sidey-dev", setup, StringComparison.Ordinal);
         Assert.Contains("DeleteRegKey HKLM \"${PRODUCT_PROTOCOL_KEY}\"", setup, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void DevelopmentCommerceCanOnlyBeCompiledIntoExplicitDebugBuilds()
-    {
-        string props = File.ReadAllText(RepositoryPath("windows", "Directory.Build.props"));
-
-        Assert.Contains("'$(Configuration)' == 'Debug'", props, StringComparison.Ordinal);
-        Assert.Contains("'$(SideyDevelopmentCommerce)' == 'true'", props, StringComparison.Ordinal);
-        Assert.Contains("SIDEY_DEVELOPMENT_COMMERCE", props, StringComparison.Ordinal);
-        Assert.Contains("RejectDevelopmentCommerceOutsideDebug", props, StringComparison.Ordinal);
     }
 
     [Fact]

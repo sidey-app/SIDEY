@@ -6,6 +6,30 @@ namespace Sidey.Presentation.Tests;
 
 internal sealed class FakeSideyCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 {
+    public List<(Guid RoomId, Guid MessageId)> MessageRetryRequests { get; } = [];
+    public Task RetryMessageAsync(Guid roomId, Guid messageId, CancellationToken cancellationToken = default)
+    { MessageRetryRequests.Add((roomId, messageId)); return Task.CompletedTask; }
+
+    public int SignInCount { get; private set; }
+    public int AppleSignInCount { get; private set; }
+    public int DeleteAccountCount { get; private set; }
+    public List<bool> SignOutRequests { get; } = [];
+    public List<string> UnlinkRequests { get; } = [];
+    public Task SignInWithAppleAsync(CancellationToken cancellationToken = default)
+    { AppleSignInCount++; return Task.CompletedTask; }
+    public Task SignOutAsync(bool allDevices, CancellationToken cancellationToken = default)
+    { SignOutRequests.Add(allDevices); return Task.CompletedTask; }
+    public Task DeleteAccountAsync(CancellationToken cancellationToken = default)
+    { DeleteAccountCount++; return Task.CompletedTask; }
+    public Task UnlinkProviderAsync(string provider, CancellationToken cancellationToken = default)
+    { UnlinkRequests.Add(provider); return Task.CompletedTask; }
+    public Func<Task>? SignInHandler { get; set; }
+    public async Task SignInWithGoogleAsync(CancellationToken cancellationToken = default)
+    {
+        SignInCount++;
+        if (SignInHandler is not null)
+            await SignInHandler();
+    }
     public int ConnectionRetryCount { get; private set; }
     public List<Uri> OpenedExternalUris { get; } = [];
     public Func<Task<string>>? DiagnosticExportHandler { get; set; }
@@ -222,10 +246,6 @@ internal sealed class FakeSideyCoordinator : IMainWindowCoordinator, IHistoryCoo
             ?? Task.CompletedTask;
     }
 
-    public Task CompleteGoogleIdentityLinkAsync(
-        Uri callbackUri,
-        CancellationToken cancellationToken = default) => Task.CompletedTask;
-
     public IReadOnlyList<MonitorOption> GetMonitors() => Monitors;
 
     public void RequestComposer()
@@ -247,6 +267,8 @@ internal sealed class FakeSideyCoordinator : IMainWindowCoordinator, IHistoryCoo
 
 internal sealed class FakeMainWindowDialogService : IMainWindowDialogService
 {
+    public bool ConfirmAccountDeletion { get; set; }
+    public Task<bool> ConfirmAccountDeletionAsync() => Task.FromResult(ConfirmAccountDeletion);
     public bool ConfirmUpdateDownload { get; set; } = true;
 
     public bool ConfirmMemberRemoval { get; set; } = true;

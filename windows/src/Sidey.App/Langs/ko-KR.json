@@ -481,29 +481,15 @@
     "invalidFolder": "환경설정 폴더 경로가 올바르지 않습니다."
   },
   "auth": {
-    "restoreFailed": "기존 SIDEY 세션을 복구하지 못했습니다. 새 계정으로 자동 대체하지 않습니다.",
-    "cannotReplaceStoredSession": "저장된 세션이 있는 설치에서는 익명 계정을 새로 만들 수 없습니다.",
-    "requestFailed": "Supabase 익명 인증 요청이 실패했습니다. HTTP {0}.",
-    "emptyResponse": "Supabase 인증 응답이 비어 있습니다.",
-    "missingSessionValues": "Supabase 인증 응답에 필요한 세션 값이 없습니다.",
-    "invalidStoredSession": "저장된 SIDEY 세션을 해석할 수 없습니다.",
-    "sessionMissing": "Supabase 세션이 없습니다.",
-    "identityLinkExpired": "Google 계정 연결 요청이 만료되었습니다. 상점에서 다시 시작해 주세요.",
-    "identityChanged": "Google 연결 후 SIDEY 사용자 ID가 달라져 세션을 저장하지 않았습니다."
+    "restoreFailed": "기존 SIDEY 세션을 복구하지 못했습니다. 새 계정으로 자동 대체하지 않습니다."
   },
   "backend": {
-    "invalidOverride": "Supabase override는 HTTPS(또는 localhost HTTP) URL과 publishable key를 함께 사용해야 하며 secret/service-role 키는 금지됩니다.",
-    "createdRoomMissing": "생성된 그룹이 서버 snapshot에 없습니다.",
-    "joinFailed": "그룹 참여 실패: {0}",
-    "joinRoomIdMissing": "그룹 참여 응답에 room_id가 없습니다.",
-    "joinedRoomMissing": "참여한 그룹이 서버 snapshot에 없습니다.",
-    "emptyInviteCode": "새 초대 코드가 비어 있습니다.",
-    "messageRecheckFailed": "메시지를 RLS로 재확인하지 못했습니다: {0}",
-    "expiredMessagesFailed": "만료 메시지 목록을 다시 읽지 못했습니다: {0}",
-    "realtimeResyncFailed": "Realtime 상태 재동기화에 실패했습니다: {0}",
-    "roomSnapshotFailed": "그룹 snapshot을 다시 읽지 못했습니다: {0}",
-    "realtimeEpochMissing": "구독 중인 그룹의 Realtime epoch를 찾을 수 없습니다.",
-    "realtimeUnavailable": "Supabase Realtime 연결을 사용할 수 없습니다."
+    "identityConflict": "다른 SIDEY 계정에 연결된 로그인 정보입니다.",
+    "lastIdentity": "로그인 계정을 최소 하나 유지해야 합니다.",
+    "membershipRequired": "이 그룹에 더 이상 접근할 수 없습니다.",
+    "rateLimited": "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+    "messageConflict": "이 메시지 ID는 다른 메시지에 사용되었습니다.",
+    "requestFailed": "요청을 완료하지 못했습니다. 다시 시도해 주세요."
   },
   "development": {
     "metricsPreview": "내부 햄스터 제한 renderer 계측 모드입니다. 수동 검증 결과는 아직 기록되지 않았습니다.",
@@ -522,5 +508,23 @@
     "preferencesSaveFailed": "설정 저장 실패: {0}",
     "messageSendFailed": "메시지 전송 실패: {0}",
     "startupWithLog": "SIDEY를 시작하지 못했습니다.\n\n진단 로그: {0}"
+  },
+  "login": {
+    "title": "SIDEY 로그인",
+    "description": "계정을 보호하고 기존 프로필과 그룹을 유지하려면 로그인해 주세요.",
+    "google": "Google로 계속",
+    "restartLogin": "SIDEY에서 Google 로그인을 다시 시작해 주세요.",
+    "apple": "Apple로 계속"
+  },
+  "account": {
+    "title": "계정",
+    "linkGoogle": "Google 계정 연결",
+    "linkApple": "Apple 계정 연결",
+    "unlinkGoogle": "Google 계정 연결 해제",
+    "unlinkApple": "Apple 계정 연결 해제",
+    "logout": "로그아웃",
+    "logoutAll": "모든 기기에서 로그아웃",
+    "delete": "계정 삭제",
+    "deleteConfirmation": "계정과 데이터를 영구 삭제할까요? 삭제 후에는 복구할 수 없습니다."
   }
 }

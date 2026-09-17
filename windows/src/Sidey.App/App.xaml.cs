@@ -218,14 +218,6 @@ public partial class App : Application
             }
 
             StartupDiagnostics.Stage("coordinator-initialized");
-#if SIDEY_DEVELOPMENT_COMMERCE
-            if (coordinator.State.DevelopmentCommerceEnabled
-                && Environment.ProcessPath is { } executablePath)
-            {
-                WindowsProtocolRegistration.EnsureCurrentUserDevelopmentCallback(executablePath);
-            }
-#endif
-            await TryHandleActivationRequestAsync(processArguments);
         }
         catch (Exception exception)
         {
@@ -828,22 +820,14 @@ public partial class App : Application
 
     private void RequestPrimaryActivation(string? activationArgument)
     {
+        _ = activationArgument;
         if (_shuttingDown)
         {
             return;
         }
 
-        _dispatcherQueue.TryEnqueue(async () =>
+        _dispatcherQueue.TryEnqueue(() =>
         {
-            if (_shuttingDown)
-            {
-                return;
-            }
-
-            if (await TryHandleActivationRequestAsync(activationArgument))
-            {
-                return;
-            }
             if (_shuttingDown)
             {
                 return;
@@ -865,44 +849,6 @@ public partial class App : Application
 
             ShowPrimaryWindow();
         });
-    }
-
-    private async Task<bool> TryHandleActivationRequestAsync(string? activationArgument)
-    {
-        if (_shuttingDown || _coordinator is null)
-        {
-            return false;
-        }
-        string expectedScheme = _coordinator.State.DevelopmentCommerceEnabled
-            ? WindowsAuthCallback.DevelopmentScheme
-            : WindowsAuthCallback.ProductionScheme;
-        if (!WindowsAuthCallback.TryGetCode(
-            activationArgument,
-            expectedScheme,
-            out Uri? callbackUri,
-            out _))
-        {
-            return false;
-        }
-
-        MainWindow mainWindow = EnsureMainWindow();
-        mainWindow.ShowPage("store");
-        try
-        {
-            await _coordinator.CompleteGoogleIdentityLinkAsync(callbackUri!);
-            if (!_shuttingDown && ReferenceEquals(_mainWindow, mainWindow))
-            {
-                mainWindow.ViewModel.ReportSuccess(I18n.Get("store.googleConnected"));
-            }
-        }
-        catch (Exception exception)
-        {
-            if (!_shuttingDown && ReferenceEquals(_mainWindow, mainWindow))
-            {
-                mainWindow.ViewModel.ReportError(exception);
-            }
-        }
-        return true;
     }
 
     private void ShowPrimaryWindow()

@@ -284,8 +284,35 @@
   "validation": { "nicknameLength": "昵称应为 2–8 个字符。", "roomNameLength": "群组名称应为 1–20 个字符。", "messageLength": "消息应为 1–200 个字符。", "invalidInviteCode": "请输入有效的邀请码。" },
   "platform": { "noMonitor": "没有可用的显示器。" },
   "preferences": { "readFailed": "无法读取 SIDEY 设置文件。", "invalidFolder": "设置文件夹路径无效。" },
-  "auth": { "restoreFailed": "无法恢复现有 SIDEY 会话，系统不会自动创建新账号。", "cannotReplaceStoredSession": "此设备已保存会话，无法创建新的匿名账号。", "requestFailed": "Supabase 匿名身份验证失败。HTTP {0}。", "emptyResponse": "Supabase 身份验证响应为空。", "missingSessionValues": "Supabase 身份验证响应缺少必要的会话值。", "invalidStoredSession": "无法解析已保存的 SIDEY 会话。", "sessionMissing": "缺少 Supabase 会话。", "identityLinkExpired": "Google 账号关联请求已过期，请从商店重新开始。", "identityChanged": "关联 Google 账号后 SIDEY 用户 ID 发生变化，因此未保存会话。" },
-  "backend": { "invalidOverride": "Supabase 覆盖配置需要 HTTPS（localhost 可使用 HTTP）网址和可公开密钥。禁止使用 secret 和 service-role 密钥。", "createdRoomMissing": "服务器快照中缺少刚创建的群组。", "joinFailed": "无法加入群组：{0}", "joinRoomIdMissing": "加入响应中缺少 room_id。", "joinedRoomMissing": "服务器快照中缺少刚加入的群组。", "emptyInviteCode": "新邀请码为空。", "messageRecheckFailed": "RLS 消息复查失败：{0}", "expiredMessagesFailed": "无法重新读取已过期的消息：{0}", "realtimeResyncFailed": "实时状态重新同步失败：{0}", "roomSnapshotFailed": "无法重新读取群组快照：{0}", "realtimeEpochMissing": "缺少已订阅群组的 Realtime epoch。", "realtimeUnavailable": "Supabase 实时连接不可用。" },
+  "auth": {
+    "restoreFailed": "无法恢复现有 SIDEY 会话，系统不会自动创建新账号。"
+  },
+  "backend": {
+    "identityConflict": "此身份已关联到另一个 SIDEY 账户。",
+    "lastIdentity": "请至少保留一种登录方式。",
+    "membershipRequired": "你已无权访问此群组。",
+    "rateLimited": "请求过于频繁，请稍后重试。",
+    "messageConflict": "此消息 ID 已用于另一条消息。",
+    "requestFailed": "无法完成请求，请重试。"
+  },
   "development": { "metricsPreview": "内部仓鼠限定渲染指标模式，尚未记录手动验证结果。", "localPreview": "由于缺少后端环境变量，正在运行十二角色本地预览。" },
-  "error": { "generic": "发生错误：{0}", "startup": "无法启动 SIDEY。", "fatalTitle": "SIDEY 启动错误", "missingConfiguration": "找不到 SIDEY 连接设置。", "launch": "启动 SIDEY 时出错，请关闭应用后重试。", "trayStart": "无法启动托盘图标。关闭窗口将退出 SIDEY。", "serverNotConfigured": "SIDEY 服务器尚未配置，请检查部署配置。", "serverConnectionNotConfigured": "SIDEY 服务器连接尚未配置。", "typingUpdateFailed": "更新输入状态失败：{0}", "preferencesSaveFailed": "无法保存设置：{0}", "messageSendFailed": "发送消息失败：{0}", "startupWithLog": "无法启动 SIDEY。\n\n诊断日志：{0}" }
+  "error": { "generic": "发生错误：{0}", "startup": "无法启动 SIDEY。", "fatalTitle": "SIDEY 启动错误", "missingConfiguration": "找不到 SIDEY 连接设置。", "launch": "启动 SIDEY 时出错，请关闭应用后重试。", "trayStart": "无法启动托盘图标。关闭窗口将退出 SIDEY。", "serverNotConfigured": "SIDEY 服务器尚未配置，请检查部署配置。", "serverConnectionNotConfigured": "SIDEY 服务器连接尚未配置。", "typingUpdateFailed": "更新输入状态失败：{0}", "preferencesSaveFailed": "无法保存设置：{0}", "messageSendFailed": "发送消息失败：{0}", "startupWithLog": "无法启动 SIDEY。\n\n诊断日志：{0}" },
+  "login": {
+    "title": "登录 SIDEY",
+    "description": "请登录以保护账号并保留现有个人资料和群组。",
+    "google": "通过 Google 继续",
+    "restartLogin": "请在 SIDEY 中重新开始 Google 登录。",
+    "apple": "通过 Apple 继续"
+  },
+  "account": {
+    "title": "账户",
+    "linkGoogle": "关联 Google 账户",
+    "linkApple": "关联 Apple 账户",
+    "unlinkGoogle": "取消关联 Google 账户",
+    "unlinkApple": "取消关联 Apple 账户",
+    "logout": "退出登录",
+    "logoutAll": "退出所有设备",
+    "delete": "删除账户",
+    "deleteConfirmation": "永久删除账户及其数据？此操作无法撤销。"
+  }
 }

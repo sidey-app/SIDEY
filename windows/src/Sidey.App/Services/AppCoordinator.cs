@@ -32,7 +32,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     public event Action? AnimationsChanged;
     private readonly IPreferencesStore _preferencesStore;
     private readonly ICredentialStore _credentialStore;
-    private readonly RoomSessionLifetime _roomSession = new();
+    private RoomSessionLifetime _roomSession = new();
     private readonly WindowsStartupService _startup = new();
     private readonly DiagnosticDataExporter _diagnosticDataExporter = new();
     private readonly IActivityMonitor _activityMonitor = new WindowsActivityMonitor();
@@ -64,6 +64,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     private PresenceState _localPresence = PresenceState.Online;
     private bool _cachedStateLoaded;
     private bool _initialSnapshotReceived;
+    private long _membershipRevision;
     private bool OverlayInteractionConnected => _state.ActiveRoomConnected || (_backend is null && _previewSnapshot is not null);
 
     public AppCoordinator(
@@ -71,7 +72,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         ICredentialStore? credentialStore = null)
     {
         _preferencesStore = preferencesStore ?? new AtomicPreferencesStore();
-        _credentialStore = credentialStore ?? new WindowsCredentialStore();
+        _credentialStore = credentialStore ?? new WindowsCredentialStore(SideyRuntimeConfiguration.FromEnvironment());
         _audio = new WindowsImpactAudio(StartupDiagnostics.NonFatal);
         _animations.Changed += OnAnimationsChanged;
 #if DEBUG
@@ -294,7 +295,12 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             await InitializeAsync(_roomSession.Token);
             return;
         }
-        if (_backend is SupabaseBackendGateway backend)
+        if (_state.AuthenticationRequired)
+        {
+            await SignInWithGoogleAsync();
+            return;
+        }
+        if (_backend is SpringBackendGateway backend)
         {
             if (userInitiated && backend.IsRealtimeRecoveryPaused)
                 await RefreshSnapshotAsync(_roomSession.Token);
@@ -317,6 +323,10 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         {
             await LoadRemoteContentAsync(cancellationToken);
         }
+        catch (AuthenticationRequiredException)
+        {
+            RequireAuthentication();
+        }
         finally
         {
             IsRemoteContentLoading = false;
@@ -337,11 +347,11 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         ShowStartupOverlay();
         AppPreferences preferences = _state.Preferences;
 
-        SupabaseRuntimeConfiguration? configuration;
+        SideyRuntimeConfiguration? configuration;
 #if DEBUG
-        configuration = _validationMode ? null : SupabaseRuntimeConfiguration.FromEnvironment();
+        configuration = _validationMode ? null : SideyRuntimeConfiguration.FromEnvironment();
 #else
-        configuration = SupabaseRuntimeConfiguration.FromEnvironment();
+        configuration = SideyRuntimeConfiguration.FromEnvironment();
 #endif
         if (configuration is null)
         {
@@ -363,41 +373,36 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             return;
         }
 
-        bool developmentCommerceEnabled = WindowsCommerceConfiguration.IsEnabled(configuration);
+        bool commerceEnabled = WindowsCommerceConfiguration.IsEnabled(configuration);
         SetState(_state with
         {
-            DevelopmentCommerceEnabled = developmentCommerceEnabled,
-            CommerceProducts = developmentCommerceEnabled
+            CommerceEnabled = commerceEnabled,
+            CommerceProducts = commerceEnabled
                 ? _state.CommerceProducts
                 : WindowsCommerceCatalog.LockedStates(),
         });
 
-        if (_backend is not SupabaseBackendGateway)
+        if (_backend is not SpringBackendGateway)
         {
-            var auth = new SupabaseAnonymousAuthService(configuration, _credentialStore);
+            SideyAuthService auth = _auth as SideyAuthService ?? new SideyAuthService(configuration, _credentialStore);
+            _auth = auth;
             try
             {
-                StartupDiagnostics.Stage("auth-session-read-started");
-                string? stored = await _credentialStore.ReadAsync(
-                    CredentialKey.SupabaseSession,
-                    cancellationToken);
-                bool restoringSession = !string.IsNullOrWhiteSpace(stored);
-                StartupDiagnostics.Stage(
-                    $"auth-session-read-completed result={(restoringSession ? "present" : "missing")}");
-                StartupDiagnostics.Stage(
-                    $"auth-session-bootstrap-started mode={(restoringSession ? "restore" : "create")}");
-                await AnonymousSessionBootstrapper.RestoreOrCreateAsync(
-                    auth,
-                    hasStoredSession: restoringSession,
-                    cancellationToken);
-                StartupDiagnostics.Stage(
-                    $"auth-session-bootstrap-completed mode={(restoringSession ? "restore" : "create")}");
-                _backend = new SupabaseBackendGateway(configuration, auth, _credentialStore);
-                _auth = auth;
+                if (await auth.RestoreSessionAsync(cancellationToken) is null)
+                {
+                    RequireAuthentication();
+                    return;
+                }
             }
-            catch { auth.Dispose(); throw; }
+            catch (AuthenticationRequiredException)
+            {
+                RequireAuthentication();
+                return;
+            }
+            _backend = new SpringBackendGateway(configuration, auth, _credentialStore);
         }
-        var backend = (SupabaseBackendGateway)_backend;
+        var backend = (SpringBackendGateway)_backend;
+        SetState(_state with { AuthenticationRequired = false });
 
         StartupDiagnostics.Stage("server-snapshot-fetch-started");
         BackendSnapshot snapshot = await backend.FetchSnapshotAsync(cancellationToken);
@@ -408,19 +413,17 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         ApplySnapshot(snapshot);
         StartTreeMovementMigration();
         string? commerceStateError = null;
-#if SIDEY_DEVELOPMENT_COMMERCE
-        if (developmentCommerceEnabled)
+        if (commerceEnabled)
         {
             try
             {
-                await RefreshDevelopmentCommerceStateAsync(cancellationToken);
+                await RefreshCommerceStateAsync(cancellationToken);
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
                 commerceStateError = I18n.Get("store.stateUnavailable");
             }
         }
-#endif
         _state = _state with
         {
             ActiveRoomId = activeRoomId,
@@ -437,7 +440,6 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         StartupDiagnostics.Stage(
             $"realtime-subscription-sync-started rooms={snapshot.Rooms.Count}");
         await backend.SynchronizeRealtimeRoomsAsync(
-            RoomEpochs(snapshot.Rooms),
             activeRoomId,
             _localPresence,
             cancellationToken);
@@ -489,15 +491,177 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         ApplyWorldSnapshot();
     }
 
+    private void RequireAuthentication()
+    {
+        StopTypingKeepalive();
+        CancelTreeMovementRequest();
+        _typing.Clear();
+        _bubbles.Clear();
+        _messages.Clear();
+        _basePresence.Clear();
+        _unreadByRoom.Clear();
+        _pendingPulses.Clear();
+        _pendingThrows.Clear();
+        _treeMovement.Clear();
+        _treeMovementAccountId = null;
+        _overlay?.Dispose();
+        _overlay = null;
+        SetState(_state with
+        {
+            AuthenticationRequired = true,
+            Profile = null,
+            Rooms = [],
+            Messages = [],
+            ActiveRoomId = null,
+            ActiveEntitlementKeys = new HashSet<string>(StringComparer.Ordinal),
+            CommerceProducts = WindowsCommerceCatalog.LockedStates(),
+            RealtimeConnection = RealtimeConnectionStatus.Disconnected,
+            ErrorMessage = null,
+        });
+    }
+
+    public async Task SignInWithGoogleAsync(CancellationToken cancellationToken = default)
+    {
+        if (_state.AuthenticationInProgress || _auth is not SideyAuthService auth)
+            return;
+        SetState(_state with { AuthenticationInProgress = true, ErrorMessage = null });
+        bool authenticated = false;
+        bool alreadyAuthenticated = !_state.AuthenticationRequired;
+        try
+        {
+            if (!alreadyAuthenticated)
+                await ResetBackendAsync();
+            await auth.SignInWithGoogleAsync(uri => { OpenExternalUri(uri); return Task.CompletedTask; }, cancellationToken);
+            authenticated = true;
+            SetState(_state with { AuthenticationRequired = false });
+            _initializationTask = null;
+            await InitializeAsync(cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            bool requiresLogin = !alreadyAuthenticated && !authenticated;
+            if (alreadyAuthenticated && exception is AuthenticationRequiredException)
+            {
+                try
+                { requiresLogin = await auth.RestoreSessionAsync(cancellationToken) is null; }
+                catch (AuthenticationRequiredException) { requiresLogin = true; }
+            }
+            SetState(_state with
+            {
+                AuthenticationRequired = requiresLogin,
+                ErrorMessage = exception.Message,
+            });
+            throw;
+        }
+        finally
+        {
+            SetState(_state with { AuthenticationInProgress = false });
+        }
+    }
+
+    private async Task ResetBackendAsync()
+    {
+        IBackendGateway? previous = _backend;
+        _backend = null;
+        await _roomSession.DisposeAsync();
+        if (previous is IAsyncDisposable disposable)
+            await disposable.DisposeAsync();
+        _roomSession = new RoomSessionLifetime();
+        _initializationTask = null;
+        _initialSnapshotReceived = false;
+        _membershipRevision = 0;
+    }
+
+    public async Task SignInWithAppleAsync(CancellationToken cancellationToken = default)
+    {
+        if (_state.AuthenticationInProgress || _auth is not SideyAuthService auth)
+            return;
+        bool alreadyAuthenticated = !_state.AuthenticationRequired;
+        SetState(_state with { AuthenticationInProgress = true, ErrorMessage = null });
+        try
+        {
+            if (!alreadyAuthenticated)
+                await ResetBackendAsync();
+            string nonce = await auth.ChallengeAsync(cancellationToken);
+            var request = new AppleDesktopOAuth(SideyRuntimeConfiguration.FromEnvironment(), nonce);
+            AppleIdentityProof proof = await AppleSignInWindow.AuthenticateAsync(request, cancellationToken);
+            await auth.AuthenticateAsync("APPLE", proof.IdentityToken, nonce, cancellationToken);
+            SetState(_state with { AuthenticationRequired = false });
+            _initializationTask = null;
+            await InitializeAsync(cancellationToken);
+        }
+        finally { SetState(_state with { AuthenticationInProgress = false }); }
+    }
+
+    public async Task UnlinkProviderAsync(string provider, CancellationToken cancellationToken = default)
+    {
+        if (_state.AuthenticationRequired || _state.AuthenticationInProgress || _auth is not SideyAuthService auth)
+            throw new AuthenticationRequiredException();
+        SetState(_state with { AuthenticationInProgress = true, ErrorMessage = null });
+        try
+        {
+            if (provider == "GOOGLE")
+                await auth.UnlinkGoogleAsync(uri => { OpenExternalUri(uri); return Task.CompletedTask; }, cancellationToken);
+            else if (provider == "APPLE")
+            {
+                string nonce = await auth.ChallengeAsync(cancellationToken);
+                var request = new AppleDesktopOAuth(SideyRuntimeConfiguration.FromEnvironment(), nonce);
+                AppleIdentityProof proof = await AppleSignInWindow.AuthenticateAsync(request, cancellationToken);
+                await auth.UnlinkAsync(provider, proof.IdentityToken, nonce, cancellationToken);
+            }
+            else
+                throw new ArgumentException("Unsupported identity provider.", nameof(provider));
+        }
+        finally { SetState(_state with { AuthenticationInProgress = false }); }
+    }
+
+    public async Task SignOutAsync(bool allDevices, CancellationToken cancellationToken = default)
+    {
+        if (_auth is not SideyAuthService auth || _state.AuthenticationInProgress)
+            return;
+        SetState(_state with { AuthenticationInProgress = true });
+        try
+        {
+            if (allDevices)
+                await auth.SignOutAllAsync(cancellationToken);
+            else
+                await auth.SignOutAsync(cancellationToken);
+            RequireAuthentication();
+            await ResetBackendAsync();
+        }
+        finally { SetState(_state with { AuthenticationInProgress = false }); }
+    }
+
+    public async Task DeleteAccountAsync(CancellationToken cancellationToken = default)
+    {
+        if (_auth is not SideyAuthService auth || _state.AuthenticationInProgress)
+            return;
+        SetState(_state with { AuthenticationInProgress = true });
+        try
+        {
+            try
+            { await auth.DeleteAccountAsync(cancellationToken); }
+            catch (SideyApiException error) when (error.Code == "apple_reauthentication_required")
+            {
+                string nonce = await auth.ChallengeAsync(cancellationToken);
+                var request = new AppleDesktopOAuth(SideyRuntimeConfiguration.FromEnvironment(), nonce);
+                AppleIdentityProof proof = await AppleSignInWindow.AuthenticateAsync(request, cancellationToken);
+                await auth.DeleteAppleAccountAsync(proof, nonce, cancellationToken);
+            }
+            RequireAuthentication();
+            await ResetBackendAsync();
+        }
+        finally { SetState(_state with { AuthenticationInProgress = false }); }
+    }
+
     public async Task ActivateStoreProductAsync(
         string productId,
         CancellationToken cancellationToken = default)
     {
-#if SIDEY_DEVELOPMENT_COMMERCE
-        if (!_state.DevelopmentCommerceEnabled
+        if (!_state.CommerceEnabled
             || WindowsCommerceCatalog.Find(productId) is null
-            || _backend is not SupabaseBackendGateway backend
-            || _auth is not SupabaseAnonymousAuthService auth)
+            || _backend is not SpringBackendGateway backend
+            || _auth is not SideyAuthService auth)
         {
             throw new InvalidOperationException(I18n.Get("store.unavailable"));
         }
@@ -513,10 +677,8 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             SetCommerceProductState(state with { IsWorking = true, ErrorMessage = null });
             try
             {
-                Uri authorizationUri = await auth.BeginGoogleIdentityLinkAsync(
-                    new Uri("sidey-dev://auth/google"),
-                    cancellationToken);
-                OpenExternalUri(authorizationUri);
+                await auth.SignInWithGoogleAsync(uri => { OpenExternalUri(uri); return Task.CompletedTask; }, cancellationToken);
+                await RefreshCommerceStateAsync(cancellationToken);
             }
             catch
             {
@@ -561,7 +723,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             {
                 await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
                 IReadOnlyList<CommerceProductState> refreshedProducts =
-                    await RefreshDevelopmentCommerceStateAsync(
+                    await RefreshCommerceStateAsync(
                         cancellationToken,
                         workingProductId: productId);
                 CommerceProductState refreshed = refreshedProducts.Single(product =>
@@ -589,12 +751,6 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             }
             throw;
         }
-#else
-        _ = productId;
-        _ = cancellationToken;
-        await Task.CompletedTask;
-        throw new InvalidOperationException(I18n.Get("store.unavailable"));
-#endif
     }
 
     public async Task SetEquippedCosmeticAsync(
@@ -641,33 +797,10 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         ApplyWorldSnapshot();
     }
 
-    public async Task CompleteGoogleIdentityLinkAsync(
-        Uri callbackUri,
-        CancellationToken cancellationToken = default)
-    {
-#if SIDEY_DEVELOPMENT_COMMERCE
-        if (!_state.DevelopmentCommerceEnabled
-            || _auth is not SupabaseAnonymousAuthService auth
-            || !WindowsAuthCallback.TryGetCode(
-                callbackUri.AbsoluteUri,
-                WindowsAuthCallback.DevelopmentScheme,
-                out _,
-                out string? code))
-        {
-            throw new InvalidOperationException(I18n.Get("store.unavailable"));
-        }
-        await auth.CompleteGoogleIdentityLinkAsync(code!, cancellationToken);
-        await RefreshDevelopmentCommerceStateAsync(cancellationToken);
-#else
-        _ = callbackUri;
-        _ = cancellationToken;
-        await Task.CompletedTask;
-        throw new InvalidOperationException(I18n.Get("store.unavailable"));
-#endif
-    }
-
     public async Task CompleteOnboardingAsync(CancellationToken cancellationToken = default)
     {
+        if (_state.AuthenticationRequired)
+            throw new AuthenticationRequiredException();
         AppPreferences previousPreferences = _state.Preferences;
         SetState(_state with
         {
@@ -893,9 +1026,25 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             throw new ArgumentException(I18n.Get("validation.messageLength"), nameof(body));
         }
 
-        var id = Guid.NewGuid();
-        _messages.Stage(id, roomId, profile.Id, normalized, bubbleStyleId: profile.EquippedBubbleStyleId);
-        _bubbles.Show(profile.Id, id, normalized, bubbleStyleId: profile.EquippedBubbleStyleId);
+        MessageLedgerEntry entry = _messages.StageNew(roomId, profile.Id, normalized, profile.EquippedBubbleStyleId);
+        await SendStagedMessageAsync(entry, cancellationToken);
+    }
+
+    public Task RetryMessageAsync(Guid roomId, Guid messageId, CancellationToken cancellationToken = default)
+    {
+        if (_state.Profile is not { } profile || !_state.Rooms.Any(room => room.Id == roomId))
+            throw new InvalidOperationException(I18n.Get("composer.activeRoomRequired"));
+        MessageLedgerEntry entry = _messages.RetryFailed(roomId, profile.Id, messageId)
+            ?? throw new InvalidOperationException(I18n.Get("history.failed"));
+        return SendStagedMessageAsync(entry, cancellationToken);
+    }
+
+    private async Task SendStagedMessageAsync(MessageLedgerEntry entry, CancellationToken cancellationToken)
+    {
+        Guid id = entry.Id, roomId = entry.RoomId;
+        string normalized = entry.Body;
+        string? bubbleStyleId = entry.BubbleStyleId;
+        _bubbles.Show(entry.SenderId, id, normalized, bubbleStyleId: bubbleStyleId);
         PublishState();
         ApplyWorldSnapshot();
         try
@@ -905,7 +1054,8 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                 roomId,
                 normalized,
                 cancellationToken);
-            _messages.Confirm(confirmed);
+            if (_state.Rooms.Any(room => room.Id == confirmed.RoomId))
+                _messages.Confirm(confirmed);
             PublishState();
         }
         catch (Exception exception)
@@ -1390,9 +1540,9 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         CancelTreeMovementRequest();
         await _roomSession.DisposeAsync().ConfigureAwait(false);
         await Task.WhenAll(_treeMovementOperations).ConfigureAwait(false);
-        if (_backend is SupabaseBackendGateway supabase)
+        if (_backend is SpringBackendGateway backend)
         {
-            await supabase.DisposeAsync().ConfigureAwait(false);
+            await backend.DisposeAsync().ConfigureAwait(false);
         }
         if (_auth is IDisposable disposableAuth)
         {
@@ -1408,7 +1558,6 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     {
         IBackendGateway backend = RequiredBackend();
         await backend.SynchronizeRealtimeRoomsAsync(
-            RoomEpochs(_state.Rooms),
             roomId,
             _localPresence,
             cancellationToken);
@@ -1417,13 +1566,14 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 
     private Task RestoreCommittedRoomAsync(Guid? roomId, CancellationToken cancellationToken) =>
         RequiredBackend().SynchronizeRealtimeRoomsAsync(
-            RoomEpochs(_state.Rooms),
             roomId,
             _localPresence,
             cancellationToken);
 
     private void CommitRoomSwitch(Guid roomId, IReadOnlyList<ChatMessage> history)
     {
+        if (!_state.Rooms.Any(room => room.Id == roomId))
+            return;
         _messages.ReplaceConfirmed(roomId, history);
         _bubbles.Clear();
         _unreadByRoom[roomId] = 0;
@@ -1450,117 +1600,152 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         {
             await foreach (BackendEvent backendEvent in RequiredBackend().SubscribeAsync(_roomSession.Token))
             {
-                switch (backendEvent)
+                try
                 {
-                    case BackendEvent.SnapshotReceived snapshot:
-                        await ReconcileSnapshotAsync(snapshot.Snapshot, _roomSession.Token);
-                        break;
-                    case BackendEvent.MessageReceived message:
-                        bool isActiveRoom = message.Message.RoomId == _state.ActiveRoomId;
-                        StartupDiagnostics.Stage(
-                            $"realtime-message-received active={isActiveRoom.ToString().ToLowerInvariant()}");
-                        _messages.Confirm(message.Message);
-                        StartupDiagnostics.Stage("message-ledger-confirmed");
-                        _bubbles.Show(
-                            message.Message.SenderId,
-                            message.Message.Id,
-                            message.Message.Body,
-                            bubbleStyleId: message.Message.BubbleStyleId);
-                        StartupDiagnostics.Stage(
-                            $"message-bubble-enqueued active={isActiveRoom.ToString().ToLowerInvariant()} quiet={_state.Preferences.QuietMode.ToString().ToLowerInvariant()}");
-                        if (message.Message.SenderId != _state.Profile?.Id
-                            && (!isActiveRoom || _state.Preferences.QuietMode))
-                        {
-                            _unreadByRoom[message.Message.RoomId] = Math.Min(
-                                99,
-                                _unreadByRoom.GetValueOrDefault(message.Message.RoomId) + 1);
-                        }
-                        PublishState();
-                        ApplyWorldSnapshot("message");
-                        break;
-                    case BackendEvent.MessageDeleted deleted:
-                        _messages.Remove(deleted.RoomId, deleted.MessageId);
-                        _bubbles.Remove(deleted.MessageId);
-                        PublishState();
-                        ApplyWorldSnapshot();
-                        break;
-                    case BackendEvent.MessagesReplaced replaced:
-                        StartupDiagnostics.Stage(
-                            $"realtime-messages-reconciled active={(replaced.RoomId == _state.ActiveRoomId).ToString().ToLowerInvariant()}");
-                        _messages.ReplaceConfirmed(replaced.RoomId, replaced.Messages);
-                        if (replaced.RoomId == _state.ActiveRoomId)
-                        {
-                            _bubbles.Clear();
-                        }
-                        PublishState();
-                        ApplyWorldSnapshot();
-                        break;
-                    case BackendEvent.PresenceChanged presence:
-                        StartupDiagnostics.Stage(
-                            $"realtime-presence state={presence.State.ToString().ToLowerInvariant()}");
-                        UpdatePresence(
-                            presence.RoomId,
-                            presence.UserId,
-                            presence.State);
-                        break;
-                    case BackendEvent.TypingChanged typing:
-                        if (typing.Active)
-                        {
-                            _typing.Add((typing.RoomId, typing.UserId));
-                        }
-                        else
-                        {
-                            _typing.Remove((typing.RoomId, typing.UserId));
-                        }
-                        ApplyWorldSnapshot();
-                        break;
-                    case BackendEvent.CharacterPulsed pulsed:
-                        if (_pulseCooldown.Accept(
-                            pulsed.Pulse.RoomId,
-                            pulsed.Pulse.UserId,
-                            TimeSpan.FromSeconds(
-                                Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency)))
-                        {
-                            QueuePulseForWorld(pulsed.Pulse);
-                        }
-                        break;
-                    case BackendEvent.CharacterThrown thrown:
-                        CharacterThrowEvent characterThrow = thrown.Throw;
-                        Room? activeRoom = _state.ActiveRoomId is { } activeRoomId
-                            ? _state.Rooms.FirstOrDefault(room => room.Id == activeRoomId)
-                            : null;
-                        if (activeRoom?.Id == characterThrow.RoomId
-                            && characterThrow.ActorUserId != characterThrow.TargetUserId
-                            && activeRoom.Members.Any(member => member.UserId == characterThrow.ActorUserId)
-                            && activeRoom.Members.Any(member => member.UserId == characterThrow.TargetUserId)
-                            && _throwCooldown.Accept(
-                                characterThrow.RoomId,
-                                characterThrow.ActorUserId,
+                    switch (backendEvent)
+                    {
+                        case BackendEvent.AuthenticationRequired:
+                            RequireAuthentication();
+                            break;
+                        case BackendEvent.RoomAccessInvalidated invalidated:
+                            _membershipRevision = Math.Max(_membershipRevision, invalidated.MembershipRevision);
+                            foreach (Guid room in _state.Rooms.Select(room => room.Id).ToArray())
+                                ApplyRoomRevocation(new BackendEvent.RoomRevoked(room, invalidated.MembershipRevision));
+                            _messages.Clear();
+                            _basePresence.Clear();
+                            _typing.Clear();
+                            PublishState();
+                            break;
+                        case BackendEvent.RoomRevoked revoked:
+                            ApplyRoomRevocation(revoked);
+                            break;
+                        case BackendEvent.SnapshotReceived snapshot:
+                            await ApplyRecoveredSnapshotAsync(snapshot.Snapshot, _roomSession.Token);
+                            break;
+                        case BackendEvent.MessageReceived message:
+                            bool isActiveRoom = message.Message.RoomId == _state.ActiveRoomId;
+                            StartupDiagnostics.Stage(
+                                $"realtime-message-received active={isActiveRoom.ToString().ToLowerInvariant()}");
+                            bool newlyConfirmed = _messages.Confirm(message.Message);
+                            if (!newlyConfirmed)
+                            {
+                                PublishState();
+                                break;
+                            }
+                            StartupDiagnostics.Stage("message-ledger-confirmed");
+                            _bubbles.Show(
+                                message.Message.SenderId,
+                                message.Message.Id,
+                                message.Message.Body,
+                                bubbleStyleId: message.Message.BubbleStyleId);
+                            StartupDiagnostics.Stage(
+                                $"message-bubble-enqueued active={isActiveRoom.ToString().ToLowerInvariant()} quiet={_state.Preferences.QuietMode.ToString().ToLowerInvariant()}");
+                            if (message.Message.SenderId != _state.Profile?.Id
+                                && (!isActiveRoom || _state.Preferences.QuietMode))
+                            {
+                                _unreadByRoom[message.Message.RoomId] = Math.Min(
+                                    99,
+                                    _unreadByRoom.GetValueOrDefault(message.Message.RoomId) + 1);
+                            }
+                            PublishState();
+                            ApplyWorldSnapshot("message");
+                            break;
+                        case BackendEvent.MessageDeleted deleted:
+                            _messages.Remove(deleted.RoomId, deleted.MessageId);
+                            _bubbles.Remove(deleted.MessageId);
+                            PublishState();
+                            ApplyWorldSnapshot();
+                            break;
+                        case BackendEvent.MessagesReplaced replaced:
+                            StartupDiagnostics.Stage(
+                                $"realtime-messages-reconciled active={(replaced.RoomId == _state.ActiveRoomId).ToString().ToLowerInvariant()}");
+                            _messages.ReplaceConfirmed(replaced.RoomId, replaced.Messages);
+                            if (replaced.RoomId == _state.ActiveRoomId)
+                            {
+                                _bubbles.Clear();
+                            }
+                            PublishState();
+                            ApplyWorldSnapshot();
+                            break;
+                        case BackendEvent.PresenceChanged presence:
+                            StartupDiagnostics.Stage(
+                                $"realtime-presence state={presence.State.ToString().ToLowerInvariant()}");
+                            UpdatePresence(
+                                presence.RoomId,
+                                presence.UserId,
+                                presence.State);
+                            break;
+                        case BackendEvent.TypingChanged typing:
+                            if (typing.Active)
+                            {
+                                _typing.Add((typing.RoomId, typing.UserId));
+                            }
+                            else
+                            {
+                                _typing.Remove((typing.RoomId, typing.UserId));
+                            }
+                            ApplyWorldSnapshot();
+                            break;
+                        case BackendEvent.CharacterPulsed pulsed:
+                            if (_pulseCooldown.Accept(
+                                pulsed.Pulse.RoomId,
+                                pulsed.Pulse.UserId,
                                 TimeSpan.FromSeconds(
                                     Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency)))
-                        {
-                            QueueThrowForWorld(characterThrow);
-                        }
-                        break;
-                    case BackendEvent.ConnectionChanged connection:
-                        StartupDiagnostics.Stage(
-                            $"realtime-connection transport={connection.Status.TransportConnected.ToString().ToLowerInvariant()} "
-                            + $"active-room={connection.Status.ActiveRoomTransportConnected.ToString().ToLowerInvariant()} "
-                            + $"reconciled={connection.Status.RecoveryReconciled.ToString().ToLowerInvariant()}");
-                        SetRealtimeConnection(connection.Status);
-                        break;
-                    case BackendEvent.Diagnostic diagnostic:
-                        StartupDiagnostics.Stage(diagnostic.Stage);
-                        break;
-                    case BackendEvent.TechnicalError error:
-                        StartupDiagnostics.Stage("realtime-technical-error");
-                        SetState(_state with { ErrorMessage = error.Message });
-                        break;
+                            {
+                                QueuePulseForWorld(pulsed.Pulse);
+                            }
+                            break;
+                        case BackendEvent.CharacterThrown thrown:
+                            CharacterThrowEvent characterThrow = thrown.Throw;
+                            Room? activeRoom = _state.ActiveRoomId is { } activeRoomId
+                                ? _state.Rooms.FirstOrDefault(room => room.Id == activeRoomId)
+                                : null;
+                            if (activeRoom?.Id == characterThrow.RoomId
+                                && characterThrow.ActorUserId != characterThrow.TargetUserId
+                                && activeRoom.Members.Any(member => member.UserId == characterThrow.ActorUserId)
+                                && activeRoom.Members.Any(member => member.UserId == characterThrow.TargetUserId)
+                                && _throwCooldown.Accept(
+                                    characterThrow.RoomId,
+                                    characterThrow.ActorUserId,
+                                    TimeSpan.FromSeconds(
+                                        Stopwatch.GetTimestamp() / (double)Stopwatch.Frequency)))
+                            {
+                                QueueThrowForWorld(characterThrow);
+                            }
+                            break;
+                        case BackendEvent.ConnectionChanged connection:
+                            StartupDiagnostics.Stage(
+                                $"realtime-connection transport={connection.Status.TransportConnected.ToString().ToLowerInvariant()} "
+                                + $"active-room={connection.Status.ActiveRoomTransportConnected.ToString().ToLowerInvariant()} "
+                                + $"reconciled={connection.Status.RecoveryReconciled.ToString().ToLowerInvariant()}");
+                            SetRealtimeConnection(connection.Status);
+                            break;
+                        case BackendEvent.Diagnostic diagnostic:
+                            StartupDiagnostics.Stage(diagnostic.Stage);
+                            break;
+                        case BackendEvent.TechnicalError error:
+                            StartupDiagnostics.Stage("realtime-technical-error");
+                            SetState(_state with { ErrorMessage = error.Message });
+                            break;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+                catch (Exception exception)
+                {
+                    HandleBackendEventFailure(exception);
                 }
             }
         }
-        catch (OperationCanceledException) when (_roomSession.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
+        }
+        catch (AuthenticationRequiredException exception)
+        {
+            HandleBackendEventFailure(exception);
         }
         catch (Exception exception)
         {
@@ -1573,20 +1758,35 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         }
     }
 
+    private void HandleBackendEventFailure(Exception exception)
+    {
+        if (exception is AuthenticationRequiredException)
+        {
+            try
+            {
+                RequireAuthentication();
+            }
+            catch (Exception notificationFailure)
+            {
+                // StateChanged observers must not terminate the backend stream.
+                StartupDiagnostics.NonFatal("backend-authentication-state", notificationFailure);
+            }
+            return;
+        }
+
+        StartupDiagnostics.NonFatal("backend-event-handler", exception);
+        if (!_state.AuthenticationRequired && _backend is SpringBackendGateway backend)
+        {
+            backend.RetryRealtimeConnection(userInitiated: false);
+        }
+    }
+
     private async Task PumpActivityAsync()
     {
         await foreach (PresenceState presence in _activityMonitor.ObserveAsync(_roomSession.Token))
         {
             _localPresence = presence;
-            if (_state.Profile is { } profile && _state.ActiveRoomId is { } activeRoomId)
-            {
-                UpdateMember(activeRoomId, profile.Id, member => member with
-                {
-                    Presence = _localPresence,
-                });
-            }
-
-            if (_backend is null || _state.ActiveRoomId is not { } roomId)
+            if (_backend is null || _state.AuthenticationRequired || _state.ActiveRoomId is not { } roomId)
             {
                 continue;
             }
@@ -1632,11 +1832,8 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 
         UpdateMember(roomId, userId, member => member with
         {
-            Presence = LocalPresenceProjection.ForMember(
-                userId,
-                _state.Profile?.Id ?? Guid.Empty,
-                presence,
-                _localPresence),
+            // The server aggregates every live device, including this user.
+            Presence = presence,
         });
     }
 
@@ -1660,9 +1857,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                     {
                         return member with
                         {
-                            Presence = member.UserId == currentUserId
-                                ? _localPresence
-                                : _basePresence.GetValueOrDefault(key, PresenceState.Offline),
+                            Presence = _basePresence.GetValueOrDefault(key, PresenceState.Offline),
                         };
                     }
 
@@ -1675,7 +1870,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                     {
                         _basePresence[key] = PresenceState.Offline;
                     }
-                    return member with { Presence = PresenceState.Reconnecting };
+                    return member with { Presence = PresenceState.Offline };
                 })],
             })]
             : _state.Rooms;
@@ -1696,8 +1891,45 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         }
     }
 
+    private void ApplyRoomRevocation(BackendEvent.RoomRevoked revoked)
+    {
+        _membershipRevision = Math.Max(_membershipRevision, revoked.MembershipRevision);
+        Room[] retained = [.. _state.Rooms.Where(room => room.Id != revoked.RoomId)];
+        _messages.RetainRooms(retained.Select(room => room.Id).ToHashSet());
+        foreach ((Guid RoomId, Guid UserId) key in _basePresence.Keys.Where(key => key.RoomId == revoked.RoomId).ToArray())
+            _basePresence.Remove(key);
+        _typing.RemoveWhere(key => key.RoomId == revoked.RoomId);
+        _unreadByRoom.Remove(revoked.RoomId);
+        _pendingPulses.Clear();
+        _pendingThrows.Clear();
+        if (_state.ActiveRoomId == revoked.RoomId)
+        {
+            StopTypingKeepalive();
+            _typingLease.Update(active: false, requestedRoomId: null);
+            _bubbles.Clear();
+            _roomSession.SwitchPipeline?.InitializeCommittedRoom(null);
+            _overlay?.Dispose();
+            _overlay = null;
+        }
+        Guid? active = _state.ActiveRoomId == revoked.RoomId ? null : _state.ActiveRoomId;
+        _state = _state with
+        {
+            Rooms = retained,
+            ActiveRoomId = active,
+            RealtimeConnection = active is null
+                ? new RealtimeConnectionStatus(_state.RealtimeConnection.TransportConnected, false, false)
+                : _state.RealtimeConnection,
+            Preferences = _state.Preferences with { ActiveRoomId = active }
+        };
+        PublishState();
+        ApplyWorldSnapshot();
+    }
+
     private void ApplySnapshot(BackendSnapshot snapshot)
     {
+        if (snapshot.MembershipRevision < _membershipRevision)
+            return;
+        _membershipRevision = snapshot.MembershipRevision;
         if (_treeMovementAccountId != snapshot.CurrentUserId)
         {
             CancelTreeMovementRequest();
@@ -1740,12 +1972,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                 EquippedBubbleStyleId = member.UserId == snapshot.CurrentUserId && profile is not null
                     ? profile.EquippedBubbleStyleId
                     : CosmeticCatalog.NormalizeBubbleStyleId(member.EquippedBubbleStyleId),
-                Presence = LocalPresenceProjection.ForSnapshotMember(
-                    member.UserId,
-                    snapshot.CurrentUserId,
-                    member.Presence,
-                    KnownPresence(room.Id, member.UserId),
-                    _localPresence),
+                Presence = KnownPresence(room.Id, member.UserId) ?? member.Presence,
             })],
         })];
         var validPresenceKeys = projectedRooms
@@ -1763,6 +1990,8 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             }
         }
         var roomIds = snapshot.Rooms.Select(room => room.Id).ToHashSet();
+        _messages.RetainRooms(roomIds);
+        _typing.RemoveWhere(key => !roomIds.Contains(key.RoomId));
         foreach (Guid removedRoomId in _unreadByRoom.Keys.Where(id => !roomIds.Contains(id)).ToArray())
         {
             _unreadByRoom.Remove(removedRoomId);
@@ -1775,7 +2004,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             ContentLoading = _state.ContentLoading with
             {
                 Snapshot = RemoteDataLoadState.Ready,
-                Store = _state.DevelopmentCommerceEnabled
+                Store = _state.CommerceEnabled
                     ? _state.ContentLoading.Store
                     : RemoteDataLoadState.Ready,
             },
@@ -1805,7 +2034,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             ContentLoading = _state.ContentLoading with
             {
                 Snapshot = _state.ContentLoading.Snapshot.Begin(),
-                Store = _state.DevelopmentCommerceEnabled
+                Store = _state.CommerceEnabled
                     ? _state.ContentLoading.Store
                     : _state.ContentLoading.Store.Begin(),
             },
@@ -1822,7 +2051,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                 ContentLoading = _state.ContentLoading with
                 {
                     Snapshot = _state.ContentLoading.Snapshot.EndAttempt(),
-                    Store = _state.DevelopmentCommerceEnabled
+                    Store = _state.CommerceEnabled
                         ? _state.ContentLoading.Store
                         : _state.ContentLoading.Store.EndAttempt(),
                 },
@@ -1830,10 +2059,19 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         }
     }
 
-    private async Task ReconcileSnapshotAsync(
+    private Task ApplyRecoveredSnapshotAsync(BackendSnapshot snapshot, CancellationToken cancellationToken) =>
+        ReconcileSnapshotCoreAsync(snapshot, cancellationToken, synchronizeRealtime: false);
+
+    private Task ReconcileSnapshotAsync(BackendSnapshot snapshot, CancellationToken cancellationToken) =>
+        ReconcileSnapshotCoreAsync(snapshot, cancellationToken, synchronizeRealtime: true);
+
+    private async Task ReconcileSnapshotCoreAsync(
         BackendSnapshot snapshot,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool synchronizeRealtime)
     {
+        if (snapshot.MembershipRevision < _membershipRevision)
+            return;
         Guid? previousActiveRoomId = _state.ActiveRoomId;
         ApplySnapshot(snapshot);
         StartTreeMovementMigration();
@@ -1844,15 +2082,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             _typing.Clear();
             _bubbles.Clear();
             _roomSession.SwitchPipeline?.InitializeCommittedRoom(_state.ActiveRoomId);
-            if (_state.ActiveRoomId is { } activeRoomId)
-            {
-                IReadOnlyList<ChatMessage> history = await RequiredBackend().FetchRecentMessagesAsync(
-                    activeRoomId,
-                    cancellationToken);
-                _messages.ReplaceConfirmed(activeRoomId, history);
-                _unreadByRoom[activeRoomId] = 0;
-            }
-            else
+            if (_state.ActiveRoomId is null)
             {
                 _overlay?.Dispose();
                 _overlay = null;
@@ -1862,11 +2092,25 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                 }
             }
         }
-        await RequiredBackend().SynchronizeRealtimeRoomsAsync(
-            RoomEpochs(snapshot.Rooms),
-            _state.ActiveRoomId,
-            _localPresence,
-            cancellationToken);
+        if (synchronizeRealtime)
+        {
+            await RequiredBackend().SynchronizeRealtimeRoomsAsync(
+                _state.ActiveRoomId,
+                _localPresence,
+                cancellationToken);
+        }
+        if (_state.ActiveRoomId != previousActiveRoomId && _state.ActiveRoomId is { } activeRoomId)
+        {
+            // The gateway finishes subscribe-first cursor recovery before this
+            // returns its recovered presentation cache.
+            IReadOnlyList<ChatMessage> history = await RequiredBackend().FetchRecentMessagesAsync(
+                activeRoomId, cancellationToken);
+            if (_state.Rooms.Any(room => room.Id == activeRoomId))
+            {
+                _messages.ReplaceConfirmed(activeRoomId, history);
+                _unreadByRoom[activeRoomId] = 0;
+            }
+        }
         if (_overlay is null
             && _state.ActiveRoomConnected
             && _state.ActiveRoomId is not null
@@ -1965,7 +2209,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             _state = _state with { Preferences = _state.Preferences with { ShowOfflineMembers = true } };
             ApplySnapshot(new BackendSnapshot(new Profile(userId, "모카", "pixel_cat"),
                 [new Room(roomId, "startup smoke", userId,
-                    [new RoomMember(userId, "모카", "pixel_cat", PresenceState.Offline), .. peers], "", false, 1)],
+                    [new RoomMember(userId, "모카", "pixel_cat", PresenceState.Offline), .. peers], "", false)],
                 userId, new HashSet<string>()));
             WorldSnapshot pending = CurrentWorldSnapshot();
             if (pending.RoomId != roomId || pending.Members.Count != 12
@@ -1979,6 +2223,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                 throw new InvalidOperationException("Offline member filtering did not retain only the current user.");
             _overlay.VerifyMemberVisualsForSmoke([userId], 142, 142, 147);
             _state = _state with { Preferences = _state.Preferences with { ShowOfflineMembers = true } };
+            UpdatePresence(roomId, userId, PresenceState.Online);
             SetRealtimeConnection(new RealtimeConnectionStatus(true, true, false));
             if (!ReferenceEquals(initialOverlay, _overlay) || !OverlayInteractionConnected
                 || CurrentWorldSnapshot().Members.Count != 12
@@ -2184,15 +2429,16 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         await _preferencesStore.SaveAsync(_state.Preferences, cancellationToken).ConfigureAwait(false);
 
     private IBackendGateway RequiredBackend() =>
-        _backend ?? throw new InvalidOperationException(I18n.Get("error.serverConnectionNotConfigured"));
+        _state.AuthenticationRequired
+            ? throw new AuthenticationRequiredException()
+            : _backend ?? throw new InvalidOperationException(I18n.Get("error.serverConnectionNotConfigured"));
 
-#if SIDEY_DEVELOPMENT_COMMERCE
-    private async Task<IReadOnlyList<CommerceProductState>> RefreshDevelopmentCommerceStateAsync(
+    private async Task<IReadOnlyList<CommerceProductState>> RefreshCommerceStateAsync(
         CancellationToken cancellationToken,
         string? workingProductId = null)
     {
-        if (!_state.DevelopmentCommerceEnabled
-            || _backend is not SupabaseBackendGateway backend)
+        if (!_state.CommerceEnabled
+            || _backend is not SpringBackendGateway backend)
         {
             return _state.CommerceProducts;
         }
@@ -2244,9 +2490,10 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         });
     }
 
+
     private static void OpenExternalUri(Uri uri)
     {
-        using Process? process = Process.Start(new ProcessStartInfo(uri.AbsoluteUri)
+        using var process = Process.Start(new ProcessStartInfo(uri.AbsoluteUri)
         {
             UseShellExecute = true,
         });
@@ -2255,8 +2502,6 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             throw new InvalidOperationException(I18n.Get("store.browserOpenFailed"));
         }
     }
-#endif
-
     private void EnsureMutationsAvailable()
     {
         if (_state.GroupOperation != GroupOperation.Idle)
@@ -2335,7 +2580,4 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         requested is { } roomId && rooms.Any(room => room.Id == roomId)
             ? roomId
             : rooms.FirstOrDefault()?.Id;
-
-    private static IReadOnlyDictionary<Guid, long> RoomEpochs(IReadOnlyList<Room> rooms) =>
-        rooms.ToDictionary(room => room.Id, room => room.RealtimeEpoch);
 }

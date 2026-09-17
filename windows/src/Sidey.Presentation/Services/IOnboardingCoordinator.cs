@@ -2,6 +2,9 @@ namespace Sidey.Presentation.Services;
 
 public interface IOnboardingCoordinator : ICoordinatorStateSource
 {
+    public Task SignInWithGoogleAsync(CancellationToken cancellationToken = default);
+    public Task SignInWithAppleAsync(CancellationToken cancellationToken = default);
+
     public Task CompleteOnboardingAsync(CancellationToken cancellationToken = default);
 
     public Task SaveProfileAsync(

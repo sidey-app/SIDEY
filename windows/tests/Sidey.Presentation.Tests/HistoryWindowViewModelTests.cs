@@ -9,6 +9,33 @@ namespace Sidey.Presentation.Tests;
 public sealed class HistoryWindowViewModelTests
 {
     [Fact]
+    public async Task ExplicitFailedItemRetryCarriesItsExactUuidAndStaleCommandCannotRetryRemovedRoom()
+    {
+        Guid room = Guid.NewGuid(), user = Guid.NewGuid(), first = Guid.NewGuid(), second = Guid.NewGuid();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        var coordinator = new FakeSideyCoordinator
+        {
+            State = CoordinatorState.Initial with
+            {
+                Profile = new Profile(user, "Friend", "pixel_hamster"),
+                Rooms = [RoomWithMember(room, user)],
+                ActiveRoomId = room,
+                Messages = [new(first, room, user, "same body", now, MessageDeliveryState.Failed),
+                    new(second, room, user, "same body", now.AddSeconds(-1), MessageDeliveryState.Failed)],
+            },
+        };
+        using var model = new HistoryWindowViewModel(coordinator);
+        await model.ActivateAsync();
+        HistoryEntryViewModel selected = model.Items.Single(entry => entry.Id == first);
+        Assert.True(selected.CanRetry);
+        await selected.RetryCommand!.ExecuteAsync(null);
+        Assert.Equal((room, first), Assert.Single(coordinator.MessageRetryRequests));
+        model.ApplyState(coordinator.State with { Rooms = [], Messages = [], ActiveRoomId = null });
+        await selected.RetryCommand.ExecuteAsync(null);
+        Assert.Single(coordinator.MessageRetryRequests);
+    }
+
+    [Fact]
     public async Task ActivationLoadsNewestFirstAndFormatsSystemLocalTime()
     {
         var roomId = Guid.NewGuid();
@@ -20,8 +47,7 @@ public sealed class HistoryWindowViewModelTests
             userId,
             [new RoomMember(userId, "aryu", "pixel_hamster", PresenceState.Online)],
             "••••-TEST",
-            true,
-            1);
+            true);
         var coordinator = new FakeSideyCoordinator
         {
             State = CoordinatorState.Initial with
@@ -268,8 +294,7 @@ public sealed class HistoryWindowViewModelTests
         userId,
         [new RoomMember(userId, "aryu", "pixel_hamster", PresenceState.Online)],
         "••••-TEST",
-        true,
-        1);
+        true);
 
     private static CoordinatorState StateWithRooms(Guid firstRoomId, Guid? secondRoomId, Guid userId)
     {

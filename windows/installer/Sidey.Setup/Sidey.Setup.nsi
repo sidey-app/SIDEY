@@ -621,11 +621,6 @@ Section "SIDEY" MainSection
   CreateShortcut "$SMPROGRAMS\SIDEY\SIDEY.lnk" "$INSTDIR\SIDEY.exe" "" "$INSTDIR\Assets\Icons\SideyAppIcon.ico"
   CreateShortcut "$SMPROGRAMS\SIDEY\Uninstall SIDEY.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\Assets\Icons\SideyAppIcon.ico"
 
-  WriteRegStr HKLM "${PRODUCT_PROTOCOL_KEY}" "" "URL:SIDEY authentication callback"
-  WriteRegStr HKLM "${PRODUCT_PROTOCOL_KEY}" "URL Protocol" ""
-  WriteRegStr HKLM "${PRODUCT_PROTOCOL_KEY}\DefaultIcon" "" "$INSTDIR\Assets\Icons\SideyAppIcon.ico"
-  WriteRegStr HKLM "${PRODUCT_PROTOCOL_KEY}\shell\open\command" "" '$\"$INSTDIR\SIDEY.exe$\" $\"%1$\"'
-
   WriteRegStr HKLM "${PRODUCT_REGISTRY_KEY}" "Language" $LANGUAGE
   WriteRegStr HKLM "${PRODUCT_REGISTRY_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKLM "${PRODUCT_UNINSTALL_KEY}" "DisplayName" "SIDEY"

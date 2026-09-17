@@ -1,8 +1,6 @@
 using System.Buffers.Binary;
 using System.Security.Cryptography;
-using System.Text.Json;
 using Sidey.Core.Domain;
-using Sidey.Infrastructure;
 using Sidey.Overlay;
 
 namespace Sidey.Platform.Windows.Tests;
@@ -98,8 +96,7 @@ public sealed class CharacterThrowAssetTests
             Assert.Equal(equipped, cache.ObjectFrame("pixel_tree", product.EffectiveCatalogItemId, 0).ToArray());
             foreach (string id in new[] { product.EffectiveCatalogItemId, product.RenderAssetId! })
             {
-                using var payload = JsonDocument.Parse(JsonSerializer.Serialize(new { throwable_id = id }));
-                string? receivedId = SupabaseRealtimeTransport.ParseThrowableAssetId(payload.RootElement);
+                string receivedId = CosmeticCatalog.ResolveThrowableAssetId(id);
                 Assert.Equal(product.RenderAssetId, receivedId);
                 Assert.Equal(equipped, cache.ObjectFrame("pixel_hamster", receivedId, 0).ToArray());
             }
@@ -108,17 +105,13 @@ public sealed class CharacterThrowAssetTests
     }
 
     [Theory]
-    [InlineData("{}")]
-    [InlineData("{\"throwable_id\":null}")]
-    [InlineData("{\"throwable_id\":42}")]
-    [InlineData("{\"throwable_id\":\"unknown\"}")]
-    [InlineData("{\"throwable_id\":\"throwable_unknown\"}")]
-    [InlineData("{\"throwable_id\":\"../pork\"}")]
-    [InlineData("{\"throwable_id\":\"patch_soft_ball\"}")]
-    public void MissingOrUnknownBroadcastThrowablesUseTheCommonBall(string json)
+    [InlineData(null)]
+    [InlineData("unknown")]
+    [InlineData("throwable_unknown")]
+    [InlineData("../pork")]
+    [InlineData("patch_soft_ball")]
+    public void MissingOrUnknownServerThrowablesUseTheCommonBall(string? receivedId)
     {
-        using var payload = JsonDocument.Parse(json);
-        string? receivedId = SupabaseRealtimeTransport.ParseThrowableAssetId(payload.RootElement);
         Assert.Equal("patch_soft_ball", CosmeticCatalog.ResolveThrowableAssetId(receivedId));
     }
 

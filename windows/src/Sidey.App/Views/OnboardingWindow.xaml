@@ -315,5 +315,18 @@
         IsOpen="{Binding HasError}"
         Message="{Binding ErrorMessage}"
         Severity="Error" />
+    <Border Grid.Row="1" Canvas.ZIndex="30"
+        Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+        Visibility="{Binding AuthenticationRequired, Converter={StaticResource BooleanToVisibilityConverter}}">
+      <StackPanel MaxWidth="440" Padding="24" Spacing="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock FontSize="28" FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=login.title}}" />
+        <TextBlock TextWrapping="Wrap" Text="{Binding Value, Source={i18n:I18n Key=login.description}}" />
+        <Button Command="{Binding SignInWithGoogleCommand}" Style="{StaticResource AccentButtonStyle}"
+            Content="{Binding Value, Source={i18n:I18n Key=login.google}}" />
+        <Button Command="{Binding SignInWithAppleCommand}" Style="{StaticResource AccentButtonStyle}"
+            Content="{Binding Value, Source={i18n:I18n Key=login.apple}}" />
+        <TextBlock TextWrapping="Wrap" Text="{Binding ErrorMessage}" />
+      </StackPanel>
+    </Border>
   </Grid>
 </Window>

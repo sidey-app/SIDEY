@@ -4,6 +4,9 @@ namespace Sidey.Presentation.Services;
 
 public interface IMainWindowCoordinator : IOnboardingCoordinator
 {
+    public Task SignOutAsync(bool allDevices, CancellationToken cancellationToken = default);
+    public Task DeleteAccountAsync(CancellationToken cancellationToken = default);
+    public Task UnlinkProviderAsync(string provider, CancellationToken cancellationToken = default);
     public Task RetryConnectionAsync(bool userInitiated = true);
     public bool IsRemoteContentLoading { get; }
     public bool AnimationsEnabled { get; }
@@ -66,10 +69,6 @@ public interface IMainWindowCoordinator : IOnboardingCoordinator
     public Task SetEquippedCosmeticAsync(
         CommerceProductKind kind,
         string? catalogItemId,
-        CancellationToken cancellationToken = default);
-
-    public Task CompleteGoogleIdentityLinkAsync(
-        Uri callbackUri,
         CancellationToken cancellationToken = default);
 
     public IReadOnlyList<MonitorOption> GetMonitors();
