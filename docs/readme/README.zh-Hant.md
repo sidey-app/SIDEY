@@ -1,17 +1,10 @@
+[**한국어**](../../README.md) | [**English**](README.en.md) | [**日本語**](README.ja.md) | [**简体中文**](README.zh-Hans.md) | **繁體中文** | [**Русский**](README.ru.md) | [**Українська**](README.uk.md)
+
 <p align="center">
     <picture>
       <img src="../../website/public/assets/app-icon.png" width="128" height="128" alt="SIDEY">
   </picture>
 </p>
-
-```text
-███████╗██╗██████╗ ███████╗██╗   ██╗        /\_/\
-██╔════╝██║██╔══██╗██╔════╝╚██╗ ██╔╝       ( •.• )
-███████╗██║██║  ██║█████╗   ╚████╔╝         > ^ <
-╚════██║██║██║  ██║██╔══╝    ╚██╔╝                    ʕ•ᴥ•ʔ
-███████║██║██████╔╝███████╗   ██║                     /| |\
-╚══════╝╚═╝╚═════╝ ╚══════╝   ╚═╝                      / \          ●  your friends, beside you.
-```
 
 <h1 align="center">
   <span>SIDEY</span>
@@ -32,14 +25,22 @@
 
 <p align="center">
   <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
-    <img src="../assets/mac-app-store-badge.svg" height="48" alt="在 Mac App Store 下載 SIDEY">
+    <img src="../assets/mac-app-store/mac-app-store.zh-Hant.svg" height="48" alt="在 Mac App Store 下載 SIDEY">
   </a>
-  <img src="../assets/microsoft-store-badge.svg" height="48" alt="在 Microsoft Store 下載 SIDEY（即將推出）">
+  <span>
+    <img src="../assets/microsoft-store/microsoft-store.zh-Hant.svg" height="48" alt="在 Microsoft Store 下載 SIDEY（即將推出）">
+    <small>Microsoft Store：即將推出</small>
+  </span>
 </p>
 
-<p align="center">
-  閱讀其他語言版本：<a href="../../README.md">한국어</a> | <a href="README.en.md">English</a> | <a href="README.ja.md">日本語</a> | <a href="README.zh-Hans.md">简体中文</a> | <a href="README.zh-Hant.md">繁體中文</a> | <a href="README.ru.md">Русский</a> | <a href="README.uk.md">Українська</a>
-</p>
+```text
+███████╗██╗██████╗ ███████╗██╗   ██╗        /\_/\
+██╔════╝██║██╔══██╗██╔════╝╚██╗ ██╔╝       ( •.• )
+███████╗██║██║  ██║█████╗   ╚████╔╝         > ^ <
+╚════██║██║██║  ██║██╔══╝    ╚██╔╝                    ʕ•ᴥ•ʔ
+███████║██║██████╔╝███████╗   ██║                     /| |\
+╚══════╝╚═╝╚═════╝ ╚══════╝   ╚═╝                      / \          ●  your friends, beside you.
+```
 
 ## 簡介
 
@@ -63,7 +64,7 @@ SIDEY 是一款適用於 macOS 和 Windows 的桌面聊天應用程式，讓你�
   <p>透過 Mac App Store 就能輕鬆安裝：</p>
   <p>
     <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
-      <img src="../assets/mac-app-store-badge.svg" height="48" alt="在 Mac App Store 下載 SIDEY">
+      <img src="../assets/mac-app-store/mac-app-store.zh-Hant.svg" height="48" alt="在 Mac App Store 下載 SIDEY">
     </a>
   </p>
   <p>由於需要經過 Apple 審核，更新可能會晚一些推出。</p>
@@ -98,9 +99,9 @@ SIDEY 是一款適用於 macOS 和 Windows 的桌面聊天應用程式，讓你�
   <br/>
   <p>Microsoft Store 版本正在準備中：</p>
   <p>
-    <img src="../assets/microsoft-store-badge.svg" height="48" alt="在 Microsoft Store 下載 SIDEY（即將推出）">
+    <img src="../assets/microsoft-store/microsoft-store.zh-Hant.svg" height="48" alt="在 Microsoft Store 下載 SIDEY（即將推出）">
   </p>
-  <p>上架後，由於需要經過 Microsoft 審核，更新可能會晚一些推出。</p>
+  <p>由於需要經過 Microsoft 審核，更新可能會晚一些推出。</p>
 </details>
 
 <details>

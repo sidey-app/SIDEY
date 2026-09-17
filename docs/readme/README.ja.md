@@ -1,17 +1,10 @@
+[**한국어**](../../README.md) | [**English**](README.en.md) | **日本語** | [**简体中文**](README.zh-Hans.md) | [**繁體中文**](README.zh-Hant.md) | [**Русский**](README.ru.md) | [**Українська**](README.uk.md)
+
 <p align="center">
     <picture>
       <img src="../../website/public/assets/app-icon.png" width="128" height="128" alt="SIDEY">
   </picture>
 </p>
-
-```text
-███████╗██╗██████╗ ███████╗██╗   ██╗        /\_/\
-██╔════╝██║██╔══██╗██╔════╝╚██╗ ██╔╝       ( •.• )
-███████╗██║██║  ██║█████╗   ╚████╔╝         > ^ <
-╚════██║██║██║  ██║██╔══╝    ╚██╔╝                    ʕ•ᴥ•ʔ
-███████║██║██████╔╝███████╗   ██║                     /| |\
-╚══════╝╚═╝╚═════╝ ╚══════╝   ╚═╝                      / \          ●  your friends, beside you.
-```
 
 <h1 align="center">
   <span>SIDEY</span>
@@ -32,14 +25,22 @@
 
 <p align="center">
   <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
-    <img src="../assets/mac-app-store-badge.svg" height="48" alt="Mac App StoreでSIDEYをダウンロード">
+    <img src="../assets/mac-app-store/mac-app-store.ja.svg" height="48" alt="Mac App StoreでSIDEYをダウンロード">
   </a>
-  <img src="../assets/microsoft-store-badge.svg" height="48" alt="Microsoft StoreでSIDEYをダウンロード（準備中）">
+  <span>
+    <img src="../assets/microsoft-store/microsoft-store.ja.svg" height="48" alt="Microsoft StoreでSIDEYをダウンロード（準備中）">
+    <small>Microsoft Store：準備中</small>
+  </span>
 </p>
 
-<p align="center">
-  ほかの言語で読む: <a href="../../README.md">한국어</a> | <a href="README.en.md">English</a> | <a href="README.ja.md">日本語</a> | <a href="README.zh-Hans.md">简体中文</a> | <a href="README.zh-Hant.md">繁體中文</a> | <a href="README.ru.md">Русский</a> | <a href="README.uk.md">Українська</a>
-</p>
+```text
+███████╗██╗██████╗ ███████╗██╗   ██╗        /\_/\
+██╔════╝██║██╔══██╗██╔════╝╚██╗ ██╔╝       ( •.• )
+███████╗██║██║  ██║█████╗   ╚████╔╝         > ^ <
+╚════██║██║██║  ██║██╔══╝    ╚██╔╝                    ʕ•ᴥ•ʔ
+███████║██║██████╔╝███████╗   ██║                     /| |\
+╚══════╝╚═╝╚═════╝ ╚══════╝   ╚═╝                      / \          ●  your friends, beside you.
+```
 
 ## 紹介
 
@@ -63,7 +64,7 @@ SIDEYは、画面の端にいる2Dピクセル動物を通じて友だちと会�
   <p>Mac App Storeから簡単にインストールできます:</p>
   <p>
     <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
-      <img src="../assets/mac-app-store-badge.svg" height="48" alt="Mac App StoreでSIDEYをダウンロード">
+      <img src="../assets/mac-app-store/mac-app-store.ja.svg" height="48" alt="Mac App StoreでSIDEYをダウンロード">
     </a>
   </p>
   <p>Appleの審査があるため、アップデートの公開が遅れる場合があります。</p>
@@ -98,9 +99,9 @@ SIDEYは、画面の端にいる2Dピクセル動物を通じて友だちと会�
   <br/>
   <p>Microsoft Storeでの配信は準備中です:</p>
   <p>
-    <img src="../assets/microsoft-store-badge.svg" height="48" alt="Microsoft StoreでSIDEYをダウンロード（準備中）">
+    <img src="../assets/microsoft-store/microsoft-store.ja.svg" height="48" alt="Microsoft StoreでSIDEYをダウンロード（準備中）">
   </p>
-  <p>配信開始後はMicrosoftの審査があるため、アップデートの公開が遅れる場合があります。</p>
+  <p>Microsoftの審査があるため、アップデートの公開が遅れる場合があります。</p>
 </details>
 
 <details>

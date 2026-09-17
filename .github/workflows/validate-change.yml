@@ -129,6 +129,16 @@ jobs:
         id: tests
         run: dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build --logger trx --collect:"XPlat Code Coverage" --settings windows/coverlet.runsettings --results-directory artifacts/coverage
 
+      - name: Test Windows app smoke timeout policy
+        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./scripts/windows/tests/Test-PublishedApplicationTimeouts.ps1
+
+      - name: Test framework-dependent prerequisite installer when present
+        run: |
+          if (Test-Path -LiteralPath ./scripts/windows/tests/Test-PrerequisiteInstaller.ps1) {
+            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+              -File ./scripts/windows/tests/Test-PrerequisiteInstaller.ps1
+          }
+
       - name: Publish and verify Windows payload
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
@@ -139,8 +149,6 @@ jobs:
               --output build/windows/publish
             ./scripts/windows/tests/Test-SelfContainedPublish.ps1 -PublishDirectory ./build/windows/publish
           } else {
-            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
-              -File ./scripts/windows/tests/Test-PrerequisiteInstaller.ps1
             dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
               --configuration Release --runtime win-x64 --self-contained false `
               --no-restore -p:WindowsAppSDKSelfContained=false -p:PublishSingleFile=false `
@@ -150,6 +158,7 @@ jobs:
           }
 
       - name: Run Windows app smoke
+        if: github.event_name == 'push'
         env:
           SIDEY_STORE_PREVIEW_SMOKE: '1'
           SIDEY_OVERLAY_STARTUP_SMOKE: '1'
