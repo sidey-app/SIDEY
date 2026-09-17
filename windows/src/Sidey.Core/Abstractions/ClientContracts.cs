@@ -57,7 +57,10 @@ public sealed record BackendSnapshot(
     Profile? Profile,
     IReadOnlyList<Room> Rooms,
     Guid CurrentUserId,
-    IReadOnlySet<string> ActiveEntitlementKeys);
+    IReadOnlySet<string> ActiveEntitlementKeys)
+{
+    public long MembershipRevision { get; init; }
+}
 
 public sealed record CreateRoomResult(Room Room, string InviteCode);
 
@@ -87,6 +90,8 @@ public sealed record RealtimeConnectionStatus(
 public abstract record BackendEvent
 {
     public sealed record AuthenticationRequired : BackendEvent;
+    public sealed record RoomAccessInvalidated(long MembershipRevision) : BackendEvent;
+    public sealed record RoomRevoked(Guid RoomId, long MembershipRevision) : BackendEvent;
     public sealed record SnapshotReceived(BackendSnapshot Snapshot) : BackendEvent;
     public sealed record MessageReceived(ChatMessage Message) : BackendEvent;
     public sealed record MessageDeleted(Guid RoomId, Guid MessageId) : BackendEvent;

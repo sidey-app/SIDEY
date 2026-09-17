@@ -37,8 +37,7 @@ public sealed class LiveSpringContractTests
         using var secondAuth = new SideyAuthService(configuration, secondCredentials);
         await using var secondTransport = new SpringRealtimeTransport();
         await using var first = new SpringBackendGateway(configuration, firstAuth, firstCredentials);
-        await using var second = new SpringBackendGateway(configuration, secondAuth, secondCredentials, secondTransport,
-            membershipRefreshInterval: TimeSpan.FromMilliseconds(250));
+        await using var second = new SpringBackendGateway(configuration, secondAuth, secondCredentials, secondTransport);
         SideySession firstSession = await firstAuth.GetSessionAsync(deadline.Token);
         Assert.Equal(original.SessionId, firstSession.SessionId);
         Assert.True(original.RefreshToken != firstSession.RefreshToken, "Expired access requires real refresh rotation.");
@@ -56,7 +55,7 @@ public sealed class LiveSpringContractTests
                 if (value is BackendEvent.PresenceChanged presence && presence.UserId == firstSession.UserId
                     && presence.State == PresenceState.Away)
                     away.TrySetResult();
-                if (value is BackendEvent.SnapshotReceived snapshot && snapshot.Snapshot.Rooms.Count == 0)
+                if (value is BackendEvent.RoomRevoked)
                     revoked.TrySetResult();
             }
         }, deadline.Token);

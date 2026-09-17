@@ -13,6 +13,7 @@
           Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" IsHitTestVisible="False" />
 
       <StackPanel Spacing="4">
+        <TextBlock Foreground="{ThemeResource SystemFillColorCriticalBrush}" Text="{Binding RetryErrorMessage}" TextWrapping="Wrap" />
         <TextBlock AutomationProperties.HeadingLevel="Level1" Style="{ThemeResource SubtitleTextBlockStyle}" Text="{Binding Title}" />
         <TextBlock
             Text="{Binding Value, Source={i18n:I18n Key=history.retentionNotice}, Mode=OneWay}"
@@ -77,6 +78,8 @@
                       Foreground="{ThemeResource SystemFillColorCriticalBrush}"
                       Text="{Binding Value, Source={i18n:I18n Key=history.failed}, Mode=OneWay}"
                       Visibility="{Binding IsFailed, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                  <Button Command="{Binding RetryCommand}" Content="{Binding Value, Source={i18n:I18n Key=history.retry}, Mode=OneWay}"
+                      Visibility="{Binding CanRetry, Converter={StaticResource BooleanToVisibilityConverter}}" />
                 </StackPanel>
               </Grid>
             </Border>

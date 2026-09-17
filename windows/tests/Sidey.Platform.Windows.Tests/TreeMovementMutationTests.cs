@@ -10,6 +10,19 @@ namespace Sidey.Platform.Windows.Tests;
 public sealed class TreeMovementMutationTests
 {
     [Fact]
+    public async Task RevocationClearsActiveRoomMessagesAndPresenceAndRejectsEarlierSnapshot()
+    {
+        await using var fixture = new Fixture();
+        await fixture.ReceiveRevocationAndStaleSnapshot().WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Empty(fixture.Coordinator.State.Rooms);
+        Assert.Empty(fixture.Coordinator.State.Messages);
+        Assert.Null(fixture.Coordinator.State.ActiveRoomId);
+        Assert.Null(fixture.Coordinator.State.Preferences.ActiveRoomId);
+        Assert.False(fixture.Coordinator.State.ActiveRoomConnected);
+        Assert.Empty(fixture.CachedPresence);
+    }
+
+    [Fact]
     public async Task EventPersistenceFailureDoesNotStopLaterSnapshots()
     {
         await using var fixture = new Fixture();
@@ -276,6 +289,17 @@ public sealed class TreeMovementMutationTests
         {
             BackendSnapshot snapshot = Snapshot(profile, RoomId);
             Server.Events = [new BackendEvent.SnapshotReceived(snapshot), new BackendEvent.SnapshotReceived(snapshot)];
+            return Bind<Func<Task>>("PumpBackendEventsAsync")();
+        }
+        public IReadOnlyDictionary<(Guid RoomId, Guid UserId), PresenceState> CachedPresence =>
+            (Dictionary<(Guid RoomId, Guid UserId), PresenceState>)typeof(AppCoordinator)
+                .GetField("_basePresence", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(Coordinator)!;
+        public Task ReceiveRevocationAndStaleSnapshot()
+        {
+            var message = new ChatMessage(Guid.NewGuid(), RoomId, Profile.Id, "private", DateTimeOffset.UtcNow);
+            Server.Events = [new BackendEvent.MessageReceived(message),
+                new BackendEvent.PresenceChanged(RoomId, Profile.Id, PresenceState.Online),
+                new BackendEvent.RoomRevoked(RoomId, 1), new BackendEvent.SnapshotReceived(Snapshot(Profile, RoomId))];
             return Bind<Func<Task>>("PumpBackendEventsAsync")();
         }
         public Task Drain() => Task.WhenAll((List<Task>)typeof(AppCoordinator)

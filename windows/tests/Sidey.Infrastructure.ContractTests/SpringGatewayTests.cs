@@ -11,6 +11,98 @@ namespace Sidey.Infrastructure.ContractTests;
 public sealed class SpringGatewayTests
 {
     [Fact]
+    public async Task FreshAuthoritativeSnapshotRestoresRejoinedRoomAfterDelayedRevocation()
+    {
+        await using var fixture = new Fixture();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await fixture.RecoverAsync(deadline.Token);
+        fixture.Push(new { type = "room.revoked", roomId = fixture.Room });
+        await using IAsyncEnumerator<BackendEvent> events = fixture.Gateway.SubscribeAsync(deadline.Token).GetAsyncEnumerator();
+        while (await events.MoveNextAsync())
+        {
+            if (events.Current is BackendEvent.RoomRevoked)
+                break;
+        }
+        // A rejoin already committed, so the next authoritative response contains the room.
+        await fixture.RecoverAsync(deadline.Token);
+        Assert.Equal(231, (await fixture.Gateway.FetchRecentMessagesAsync(fixture.Room, deadline.Token)).Count);
+        Assert.Equal(2, fixture.SubscribeCount);
+        while (await events.MoveNextAsync())
+        {
+            if (events.Current is BackendEvent.SnapshotReceived snapshot)
+            {
+                Assert.True(snapshot.Snapshot.MembershipRevision > 0);
+                Assert.Equal(fixture.Room, Assert.Single(snapshot.Snapshot.Rooms).Id);
+                break;
+            }
+        }
+    }
+
+    [Fact]
+    public async Task TargetedRevocationImmediatelyClearsRoomWhileStaleRestSnapshotIsBlocked()
+    {
+        await using var fixture = new Fixture();
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await fixture.RecoverAsync(deadline.Token);
+        var revoked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var recovered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var events = new ConcurrentQueue<BackendEvent>();
+        var consumer = Task.Run(async () =>
+        {
+            await foreach (BackendEvent value in fixture.Gateway.SubscribeAsync(deadline.Token))
+            {
+                events.Enqueue(value);
+                if (value is BackendEvent.RoomRevoked)
+                    revoked.TrySetResult();
+                if (value is BackendEvent.SnapshotReceived snapshot && snapshot.Snapshot.MembershipRevision > 0)
+                {
+                    Assert.Empty(snapshot.Snapshot.Rooms);
+                    recovered.TrySetResult();
+                }
+            }
+        }, deadline.Token);
+        try
+        {
+            fixture.HoldSnapshot = true;
+            Task staleRecovery = fixture.RecoverAsync(deadline.Token);
+            await fixture.SnapshotCaptured.Task.WaitAsync(deadline.Token);
+            fixture.Revoked = true;
+            fixture.Push(new { type = "room.revoked", roomId = fixture.Room });
+            await revoked.Task.WaitAsync(deadline.Token);
+            Assert.False(staleRecovery.IsCompleted);
+            Assert.Single(events.OfType<BackendEvent.RoomRevoked>());
+            fixture.Push(new
+            {
+                type = "presence",
+                roomId = fixture.Room,
+                members = new Dictionary<Guid, string> { [fixture.User] = "ONLINE" }
+            });
+            fixture.Push(new
+            {
+                type = "message.created",
+                message = new ChatMessage(Guid.NewGuid(), fixture.Room,
+                fixture.User, "stale live", DateTimeOffset.UtcNow)
+            });
+            fixture.ReleaseSnapshot.SetResult();
+            await staleRecovery.WaitAsync(deadline.Token);
+            await recovered.Task.WaitAsync(deadline.Token);
+            BackendEvent[] after = [.. events.SkipWhile(value => value is not BackendEvent.RoomRevoked).Skip(1)];
+            Assert.DoesNotContain(after, value => value is BackendEvent.MessageReceived or BackendEvent.MessagesReplaced
+                or BackendEvent.PresenceChanged or BackendEvent.TypingChanged);
+            Assert.DoesNotContain(fixture.PublishedPresence, room => room == fixture.Room);
+            Assert.Equal(1, fixture.SubscribeCount);
+        }
+        finally
+        {
+            fixture.ReleaseSnapshot.TrySetResult();
+            await deadline.CancelAsync();
+            try
+            { await consumer; }
+            catch (OperationCanceledException) { }
+        }
+    }
+
+    [Fact]
     public async Task ForcedReconnectRetriesConnectionAfterSnapshotFailure()
     {
         await using var fixture = new Fixture();
@@ -92,6 +184,14 @@ public sealed class SpringGatewayTests
         private readonly HttpClient _http;
         private readonly SideyAuthService _auth;
         private bool _subscribed;
+        private Socket? _socket;
+        public bool Revoked { get; set; }
+        public bool HoldSnapshot { get; set; }
+        public int SubscribeCount { get; private set; }
+        public ConcurrentQueue<Guid?> PublishedPresence { get; } = new();
+        public TaskCompletionSource SnapshotCaptured { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource ReleaseSnapshot { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public void Push(object value) => _socket!.Push(value);
         public Guid User { get; } = Guid.NewGuid();
         public Guid Room { get; } = Guid.NewGuid();
         public SpringBackendGateway Gateway { get; }
@@ -108,7 +208,7 @@ public sealed class SpringGatewayTests
                 "access", "refresh", DateTimeOffset.UtcNow.AddMinutes(15)), s_json);
             _http = new HttpClient(this);
             _auth = new SideyAuthService(configuration, this, _http);
-            var transport = new SpringRealtimeTransport(() => new Socket(this));
+            var transport = new SpringRealtimeTransport(() => _socket = new Socket(this));
             Gateway = new SpringBackendGateway(configuration, _auth, this, transport);
         }
 
@@ -118,7 +218,7 @@ public sealed class SpringGatewayTests
         public Task RecoverAsync(CancellationToken token) => Gateway.SynchronizeRealtimeRoomsAsync(
             Room, PresenceState.Online, token);
 
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
             Assert.Equal("access", request.Headers.Authorization?.Parameter);
@@ -129,14 +229,21 @@ public sealed class SpringGatewayTests
                 if (FailSnapshot)
                 {
                     FailSnapshot = false;
-                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = JsonContent.Create(new { code = "fixture_failure" }) });
+                    return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = JsonContent.Create(new { code = "fixture_failure" }) };
                 }
                 result = new Profile(User, "Friend", "pixel_hamster", TreeMovementRevision: 0);
             }
             else if (path == "/api/rooms")
             {
-                result = new[] { new { id = Room, name = "Room", ownerId = User, inviteCodeHint = "ABCD", inviteVersion = 1,
-                    members = new[] { new { userId = User, profile = new Profile(User, "Friend", "pixel_hamster", TreeMovementRevision: 0) } } } };
+                result = Revoked ? [] : (object[])[new { id = Room, name = "Room", ownerId = User, inviteCodeHint = "ABCD", inviteVersion = 1,
+                    members = new[] { new { userId = User, profile = new Profile(User, "Friend", "pixel_hamster", TreeMovementRevision: 0) } } }];
+                if (HoldSnapshot)
+                {
+                    HoldSnapshot = false;
+                    PublishedPresence.Clear();
+                    SnapshotCaptured.TrySetResult();
+                    await ReleaseSnapshot.Task.WaitAsync(cancellationToken);
+                }
             }
             else if (path == "/api/commerce/entitlements")
             { result = Array.Empty<object>(); }
@@ -157,7 +264,7 @@ public sealed class SpringGatewayTests
                 if (after == Id(199).ToString("D") && FailSecondPage)
                 {
                     FailSecondPage = false;
-                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = JsonContent.Create(new { code = "fixture_failure" }) });
+                    return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable) { Content = JsonContent.Create(new { code = "fixture_failure" }) };
                 }
                 int start = after is null ? 0 : after == Id(199).ToString("D") ? 200 : 230;
                 ChatMessage[] messages = [.. Enumerable.Range(start, Math.Min(200, 230 - start)).Select(Message)];
@@ -168,13 +275,13 @@ public sealed class SpringGatewayTests
                 var id = Guid.Parse(path.Split('/').Last());
                 if (!Committed.TryGetValue(id, out ChatMessage? message))
                 {
-                    return Task.FromResult(new HttpResponseMessage(HttpStatusCode.NotFound) { Content = JsonContent.Create(new { code = "message_missing" }) });
+                    return new HttpResponseMessage(HttpStatusCode.NotFound) { Content = JsonContent.Create(new { code = "message_missing" }) };
                 }
                 result = message;
             }
             else
             { throw new InvalidOperationException("Unexpected API request: " + path); }
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(result, options: s_json) });
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(result, options: s_json) };
         }
 
         private sealed class Socket(Fixture fixture) : ISpringRealtimeSocket
@@ -186,7 +293,7 @@ public sealed class SpringGatewayTests
                 Push(new { type = "connected" });
                 return Task.CompletedTask;
             }
-            private void Push(object value) => _incoming.Writer.TryWrite(JsonSerializer.SerializeToUtf8Bytes(value, s_json));
+            public void Push(object value) => _incoming.Writer.TryWrite(JsonSerializer.SerializeToUtf8Bytes(value, s_json));
             public ValueTask<ReadOnlyMemory<byte>> ReceiveAsync(CancellationToken cancellationToken) => _incoming.Reader.ReadAsync(cancellationToken);
             public ValueTask SendAsync(ReadOnlyMemory<byte> payload, CancellationToken cancellationToken)
             {
@@ -197,8 +304,14 @@ public sealed class SpringGatewayTests
                 if (type == "subscribe")
                 {
                     fixture._subscribed = true;
+                    fixture.SubscribeCount++;
                     Push(new { type = "message.created", message = fixture.Message(230) });
                     Push(new { type = "ack", command = "subscribe", requestId, roomId = fixture.Room, recoveryThrough = fixture.Cursor(229) });
+                }
+                else if (type == "presence.update")
+                {
+                    fixture.PublishedPresence.Enqueue(command.GetProperty("activeRoomId").ValueKind == JsonValueKind.Null
+                        ? null : command.GetProperty("activeRoomId").GetGuid());
                 }
                 else if (type == "message.send")
                 {

@@ -23,7 +23,6 @@ public sealed class SpringBackendGateway : IBackendGateway, IAsyncDisposable
     private readonly HashSet<Guid> _authorizedRooms = [];
     private readonly Dictionary<(Guid Room, Guid User), CancellationTokenSource> _typing = [];
     private readonly Task _reader;
-    private readonly Task _membershipPoll;
     private Task? _retry;
     private Guid? _activeRoomId;
     private Guid? _userId;
@@ -33,23 +32,26 @@ public sealed class SpringBackendGateway : IBackendGateway, IAsyncDisposable
     private bool _paused;
     private bool _disposed;
     private long _revision;
+    private long _membershipRevision;
     private long _completedRevision = -1;
 
     public SpringBackendGateway(SideyRuntimeConfiguration configuration, SideyAuthService auth,
-        ICredentialStore credentials, SpringRealtimeTransport? transport = null, TimeSpan? membershipRefreshInterval = null)
+        ICredentialStore credentials, SpringRealtimeTransport? transport = null)
     {
         _configuration = configuration;
         _auth = auth;
         _credentials = credentials;
         _transport = transport ?? new SpringRealtimeTransport();
         _reader = ReadTransportAsync(_lifetime.Token);
-        _membershipPoll = PollMembershipAsync(membershipRefreshInterval ?? TimeSpan.FromSeconds(30), _lifetime.Token);
     }
 
     public bool IsRealtimeRecoveryPaused { get { lock (_state) { return _paused; } } }
 
     public async Task<BackendSnapshot> FetchSnapshotAsync(CancellationToken cancellationToken = default)
     {
+        long membershipRevision;
+        lock (_state)
+        { membershipRevision = _membershipRevision; }
         SideySession session = await _auth.GetSessionAsync(cancellationToken).ConfigureAwait(false);
         lock (_state)
         { _userId = session.UserId; }
@@ -60,7 +62,8 @@ public sealed class SpringBackendGateway : IBackendGateway, IAsyncDisposable
         SpringRoom[] rooms = await ReadAsync<SpringRoom[]>(HttpMethod.Get, "rooms", null, cancellationToken).ConfigureAwait(false);
         SpringEntitlement[] entitlements = await ReadAsync<SpringEntitlement[]>(HttpMethod.Get, "commerce/entitlements", null, cancellationToken).ConfigureAwait(false);
         return new BackendSnapshot(profile, [.. rooms.Select(room => room.Domain)], session.UserId,
-            entitlements.Where(value => value.Status == "active").Select(value => value.EntitlementKey).ToHashSet(StringComparer.Ordinal));
+            entitlements.Where(value => value.Status == "active").Select(value => value.EntitlementKey).ToHashSet(StringComparer.Ordinal))
+        { MembershipRevision = membershipRevision };
     }
 
     public async Task<Profile> SaveProfileAsync(string nickname, string characterId, CancellationToken cancellationToken = default)
@@ -291,6 +294,8 @@ public sealed class SpringBackendGateway : IBackendGateway, IAsyncDisposable
                 { await _transport.DisconnectAsync().ConfigureAwait(false); }
                 // REST verifies session revocation even while the cached access JWT is unexpired.
                 BackendSnapshot snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
+                lock (_state)
+                { if (revision != _revision || snapshot.MembershipRevision != _membershipRevision) continue; }
                 if (connect)
                 {
                     SideySession session = await _auth.GetSessionAsync(cancellationToken).ConfigureAwait(false);
@@ -299,10 +304,17 @@ public sealed class SpringBackendGateway : IBackendGateway, IAsyncDisposable
                     { _connected = true; _subscriptions.Clear(); }
                 }
                 HashSet<Guid> rooms = [.. snapshot.Rooms.Select(room => room.Id)];
-                UpdateAuthorizedRooms(rooms);
+                lock (_state)
+                {
+                    if (revision != _revision || snapshot.MembershipRevision != _membershipRevision)
+                        continue;
+                    UpdateAuthorizedRooms(rooms);
+                }
                 Guid[] removed;
                 lock (_state)
                 {
+                    if (revision != _revision || snapshot.MembershipRevision != _membershipRevision)
+                        continue;
                     removed = [.. _subscriptions.Except(rooms)];
                     foreach (Guid old in _ledgers.Keys.Except(rooms).ToArray())
                     { _ledgers.Remove(old); }
@@ -324,6 +336,8 @@ public sealed class SpringBackendGateway : IBackendGateway, IAsyncDisposable
                     MessageHistoryCursor? after;
                     lock (_state)
                     {
+                        if (revision != _revision || !_authorizedRooms.Contains(room.Id))
+                            break;
                         _subscriptions.Add(room.Id);
                         SpringMessageLedger ledger = Ledger(room.Id);
                         ledger.Prune(DateTimeOffset.UtcNow);
@@ -334,17 +348,23 @@ public sealed class SpringBackendGateway : IBackendGateway, IAsyncDisposable
                         do
                         {
                             MessageHistoryPage page = await MessagePageAsync(room.Id, after, null, through, 200, cancellationToken).ConfigureAwait(false);
+                            lock (_state)
+                            { if (revision != _revision || !_authorizedRooms.Contains(room.Id)) break; }
                             foreach (ChatMessage message in page.Messages)
                             { Merge(message, live: false); }
                             after = page.NextCursor;
                         } while (after is not null);
                         lock (_state)
-                        { Ledger(room.Id).CompleteRecovery(through); }
+                        { if (revision != _revision || !_authorizedRooms.Contains(room.Id)) break; Ledger(room.Id).CompleteRecovery(through); }
                     }
                     IReadOnlyList<ChatMessage> messages;
                     lock (_state)
-                    { messages = Ledger(room.Id).Messages; }
-                    Emit(new BackendEvent.MessagesReplaced(room.Id, messages));
+                    {
+                        if (revision != _revision || !_authorizedRooms.Contains(room.Id))
+                            break;
+                        messages = Ledger(room.Id).Messages;
+                        Emit(new BackendEvent.MessagesReplaced(room.Id, messages));
+                    }
                     await _transport.SendAsync(new { type = "presence.snapshot", roomId = room.Id }, cancellationToken).ConfigureAwait(false);
                 }
                 await SendPresenceAsync(cancellationToken).ConfigureAwait(false);
@@ -353,12 +373,14 @@ public sealed class SpringBackendGateway : IBackendGateway, IAsyncDisposable
                 {
                     ready = _connected && revision == _revision;
                     if (ready)
-                    { _completedRevision = revision; }
+                    {
+                        _completedRevision = revision;
+                        Emit(new BackendEvent.SnapshotReceived(snapshot));
+                        Emit(new BackendEvent.ConnectionChanged(new RealtimeConnectionStatus(true, true, true)));
+                    }
                 }
                 if (ready)
                 {
-                    Emit(new BackendEvent.SnapshotReceived(snapshot));
-                    Emit(new BackendEvent.ConnectionChanged(new RealtimeConnectionStatus(true, true, true)));
                     return;
                 }
                 cancellationToken.ThrowIfCancellationRequested();
@@ -373,7 +395,7 @@ public sealed class SpringBackendGateway : IBackendGateway, IAsyncDisposable
         {
             // The coordinator publishes only the focused room's OS activity.
             // Room/offline aggregation is solely server-owned.
-            _activeRoomId = roomId;
+            _activeRoomId = _authorizedRooms.Contains(roomId) ? roomId : null;
             _activity = state == PresenceState.Online ? PresenceState.Online : PresenceState.Away;
         }
         return SendPresenceAsync(cancellationToken);
@@ -488,7 +510,9 @@ public sealed class SpringBackendGateway : IBackendGateway, IAsyncDisposable
         }
         if (type == "message.created")
         { Merge(Decode<ChatMessage>(payload.GetProperty("message")), live: true); return; }
-        if (type is "room.changed" or "room.revoked")
+        if (type == "room.revoked")
+        { RevokeRoom(payload.GetProperty("roomId").GetGuid()); return; }
+        if (type == "room.changed")
         { RequestRecovery(); return; }
         if (!payload.TryGetProperty("roomId", out JsonElement roomValue))
         { return; }
@@ -582,9 +606,9 @@ public sealed class SpringBackendGateway : IBackendGateway, IAsyncDisposable
             if (!_authorizedRooms.Contains(message.RoomId))
                 return;
             added = Ledger(message.RoomId).Merge(message);
+            if (live && added)
+            { Emit(new BackendEvent.MessageReceived(message)); }
         }
-        if (live && added)
-        { Emit(new BackendEvent.MessageReceived(message)); }
     }
 
     private void Emit(BackendEvent value)
@@ -600,6 +624,25 @@ public sealed class SpringBackendGateway : IBackendGateway, IAsyncDisposable
         {
             if (value is BackendEvent.ReconciliationRequired)
             { RequestRecovery(); continue; }
+            lock (_state)
+            {
+                if (value is BackendEvent.ConnectionChanged { Status.RecoveryReconciled: true } && _completedRevision != _revision)
+                    continue;
+                if (value is BackendEvent.SnapshotReceived snapshot && snapshot.Snapshot.MembershipRevision < _membershipRevision)
+                    continue;
+                Guid? room = value switch
+                {
+                    BackendEvent.MessageReceived message => message.Message.RoomId,
+                    BackendEvent.MessagesReplaced messages => messages.RoomId,
+                    BackendEvent.PresenceChanged presence => presence.RoomId,
+                    BackendEvent.TypingChanged typing => typing.RoomId,
+                    BackendEvent.CharacterPulsed pulse => pulse.Pulse.RoomId,
+                    BackendEvent.CharacterThrown thrown => thrown.Throw.RoomId,
+                    _ => null,
+                };
+                if (room is { } id && !_authorizedRooms.Contains(id))
+                    continue;
+            }
             yield return value;
         }
     }
@@ -628,11 +671,34 @@ public sealed class SpringBackendGateway : IBackendGateway, IAsyncDisposable
         string[] segments = path.Split('/');
         if (segments.Length < 2 || segments[0] != "rooms" || !Guid.TryParse(segments[1], out Guid room))
             return;
-        HashSet<Guid> retained;
+        RevokeRoom(room);
+    }
+
+    private void RevokeRoom(Guid room)
+    {
+        List<CancellationTokenSource> retired = [];
         lock (_state)
-        { retained = [.. _authorizedRooms.Where(id => id != room)]; }
-        UpdateAuthorizedRooms(retained);
-        Emit(new BackendEvent.MessagesReplaced(room, []));
+        {
+            _membershipRevision++;
+            _revision++;
+            _authorizedRooms.Remove(room);
+            _subscriptions.Remove(room);
+            _ledgers.Remove(room);
+            if (_activeRoomId == room)
+                _activeRoomId = null;
+            foreach ((Guid Room, Guid User) key in _typing.Keys.Where(key => key.Room == room).ToArray())
+            {
+                retired.Add(_typing[key]);
+                _typing.Remove(key);
+            }
+            Emit(new BackendEvent.RoomRevoked(room, _membershipRevision));
+        }
+        foreach (CancellationTokenSource lease in retired)
+        {
+            try
+            { lease.Cancel(); }
+            catch (ObjectDisposedException) { }
+        }
         RequestRecovery();
     }
 
@@ -659,46 +725,6 @@ public sealed class SpringBackendGateway : IBackendGateway, IAsyncDisposable
         }
     }
 
-    private async Task PollMembershipAsync(TimeSpan interval, CancellationToken cancellationToken)
-    {
-        using var timer = new PeriodicTimer(interval);
-        try
-        {
-            while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
-            {
-                long revision;
-                lock (_state)
-                { if (!_connected || _paused) continue; revision = _revision; }
-                try
-                {
-                    BackendSnapshot snapshot = await FetchSnapshotAsync(cancellationToken).ConfigureAwait(false);
-                    HashSet<Guid> rooms = [.. snapshot.Rooms.Select(room => room.Id)];
-                    bool changed;
-                    lock (_state)
-                    {
-                        if (!_connected || _paused || revision != _revision)
-                            continue;
-                        changed = !_authorizedRooms.SetEquals(rooms);
-                        UpdateAuthorizedRooms(rooms);
-                    }
-                    Emit(new BackendEvent.SnapshotReceived(snapshot));
-                    if (changed)
-                        RequestRecovery();
-                }
-                catch (AuthenticationRequiredException)
-                {
-                    lock (_state)
-                    { _paused = true; _connected = false; }
-                    UpdateAuthorizedRooms([]);
-                    await _transport.DisconnectAsync().ConfigureAwait(false);
-                    Emit(new BackendEvent.AuthenticationRequired());
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return; }
-                catch { /* Transient snapshot failure does not discard the durable recovery checkpoint. */ }
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-    }
     private static T Decode<T>(JsonElement value)
     {
         return value.Deserialize<T>(s_jsonOptions) ?? throw new InvalidDataException("Invalid SIDEY response.");
@@ -717,7 +743,7 @@ public sealed class SpringBackendGateway : IBackendGateway, IAsyncDisposable
         await _lifetime.CancelAsync().ConfigureAwait(false);
         await _transport.DisposeAsync().ConfigureAwait(false);
         try
-        { await _reader.ConfigureAwait(false); await _membershipPoll.ConfigureAwait(false); if (retry is not null) { await retry.ConfigureAwait(false); } }
+        { await _reader.ConfigureAwait(false); if (retry is not null) { await retry.ConfigureAwait(false); } }
         catch (OperationCanceledException) { }
         _events.Complete();
         _lifetime.Dispose();

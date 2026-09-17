@@ -5,6 +5,73 @@ namespace Sidey.Core.Tests;
 public sealed class MessageLedgerTests
 {
     [Fact]
+    public void EqualClockTimestampsKeepNewestOutboxAttemptWithoutUuidOrderingEviction()
+    {
+        var clock = new LedgerClock();
+        var ledger = new MessageLedger(clock);
+        Guid room = Guid.NewGuid(), sender = Guid.NewGuid();
+        var staged = new List<Guid>();
+        for (int i = 0; i < 100; i++)
+        {
+            MessageLedgerEntry newest = ledger.StageNew(room, sender, "same clock");
+            staged.Add(newest.Id);
+            ledger.Fail(newest.Id);
+            // Canonical insert sorts presentation order; it must not reorder attempt age.
+            ledger.Confirm(new ChatMessage(Guid.NewGuid(), room, sender, "confirmed", clock.Now));
+            Assert.Contains(ledger.Entries, entry => entry.Id == newest.Id);
+        }
+        Assert.Equal(staged.TakeLast(50).ToHashSet(), [.. ledger.Entries.Where(entry => entry.State == MessageDeliveryState.Failed).Select(entry => entry.Id)]);
+        clock.Now = clock.Now.AddDays(3);
+        Assert.Null(ledger.RetryFailed(room, sender, staged[^1]));
+        Assert.DoesNotContain(ledger.Entries, entry => entry.State != MessageDeliveryState.Confirmed);
+    }
+
+    [Fact]
+    public void SameBodyFreshSendCreatesNewIdWhileExplicitRetryReusesOnlyChosenFailure()
+    {
+        var ledger = new MessageLedger();
+        Guid room = Guid.NewGuid(), sender = Guid.NewGuid();
+        MessageLedgerEntry first = ledger.StageNew(room, sender, "same body");
+        ledger.Fail(first.Id);
+        MessageLedgerEntry fresh = ledger.StageNew(room, sender, "same body");
+        Assert.NotEqual(first.Id, fresh.Id);
+        Assert.Equal(first.Id, ledger.RetryFailed(room, sender, first.Id)!.Id);
+        Assert.Equal(2, ledger.Entries.Count);
+        Assert.All(ledger.Entries, entry => Assert.Equal(MessageDeliveryState.Pending, entry.State));
+    }
+
+    [Fact]
+    public void FailedAndPendingOutboxIsBoundedPerRoomAndExpiredIdsCannotBeRetried()
+    {
+        var clock = new LedgerClock();
+        var ledger = new MessageLedger(clock);
+        Guid room = Guid.NewGuid(), other = Guid.NewGuid(), sender = Guid.NewGuid();
+        var ids = new List<Guid>();
+        for (int i = 0; i < 80; i++)
+        {
+            MessageLedgerEntry entry = ledger.StageNew(room, sender, "pending");
+            ids.Add(entry.Id);
+            if (i % 2 == 0)
+                ledger.Fail(entry.Id);
+            clock.Now = clock.Now.AddSeconds(1);
+        }
+        MessageLedgerEntry retained = ledger.StageNew(other, sender, "other room");
+        ledger.Fail(retained.Id);
+        Assert.Equal(50, ledger.Entries.Count(entry => entry.RoomId == room));
+        Assert.DoesNotContain(ledger.Entries, entry => ids.Take(30).Contains(entry.Id));
+        Assert.Null(ledger.RetryFailed(room, sender, ids[0]));
+        clock.Now = clock.Now.AddDays(3).AddTicks(1);
+        Assert.Null(ledger.RetryFailed(other, sender, retained.Id));
+        Assert.Empty(ledger.Entries);
+    }
+
+    private sealed class LedgerClock : TimeProvider
+    {
+        public DateTimeOffset Now { get; set; } = DateTimeOffset.Parse("2026-09-17T00:00:00Z");
+        public override DateTimeOffset GetUtcNow() => Now;
+    }
+
+    [Fact]
     public void RevokedRoomsAndLogoutRemoveBothPendingAndConfirmedPrivateMessages()
     {
         var ledger = new MessageLedger();
@@ -30,28 +97,28 @@ public sealed class MessageLedgerTests
         ledger.Stage(id, room, sender, "retry", bubbleStyleId: bubbleStyleId);
         MessageLedgerEntry original = Assert.Single(ledger.Entries);
         ledger.Fail(id);
-        MessageLedgerEntry retry = Assert.IsType<MessageLedgerEntry>(ledger.RetryFailed(room, sender, "retry"));
+        MessageLedgerEntry retry = Assert.IsType<MessageLedgerEntry>(ledger.RetryFailed(room, sender, id));
         Assert.Equal(id, retry.Id);
         Assert.Equal(bubbleStyleId, retry.BubbleStyleId);
         Assert.Equal(original.BubbleStyleId, retry.BubbleStyleId);
         Assert.Equal(original.CreatedAt, retry.CreatedAt);
         Assert.Equal(MessageDeliveryState.Pending, retry.State);
         Assert.Single(ledger.Entries);
-        Assert.Null(ledger.RetryFailed(room, sender, "retry"));
+        Assert.Null(ledger.RetryFailed(room, sender, id));
         ledger.Confirm(new ChatMessage(id, room, sender, "retry", DateTimeOffset.UtcNow));
         Assert.Equal(MessageDeliveryState.Confirmed, Assert.Single(ledger.Entries).State);
     }
 
     [Fact]
-    public void ChangedBodyRoomOrSenderIsANewLogicalMessage()
+    public void RetryRequiresTheExactFailedIdRoomAndSender()
     {
         var ledger = new MessageLedger();
         Guid id = Guid.NewGuid(), room = Guid.NewGuid(), sender = Guid.NewGuid();
         ledger.Stage(id, room, sender, "original");
         ledger.Fail(id);
-        Assert.Null(ledger.RetryFailed(room, sender, "edited"));
-        Assert.Null(ledger.RetryFailed(Guid.NewGuid(), sender, "original"));
-        Assert.Null(ledger.RetryFailed(room, Guid.NewGuid(), "original"));
+        Assert.Null(ledger.RetryFailed(room, sender, Guid.NewGuid()));
+        Assert.Null(ledger.RetryFailed(Guid.NewGuid(), sender, id));
+        Assert.Null(ledger.RetryFailed(room, Guid.NewGuid(), id));
         Assert.Equal(MessageDeliveryState.Failed, Assert.Single(ledger.Entries).State);
     }
     [Fact]
@@ -156,7 +223,7 @@ public sealed class MessageLedgerTests
         var expiredId = Guid.NewGuid();
         var boundaryId = Guid.NewGuid();
         var recentId = Guid.NewGuid();
-        var ledger = new MessageLedger();
+        var ledger = new MessageLedger(new LedgerClock { Now = now });
 
         ledger.Confirm(new ChatMessage(
             expiredId,

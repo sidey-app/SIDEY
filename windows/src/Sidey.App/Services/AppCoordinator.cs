@@ -64,6 +64,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     private PresenceState _localPresence = PresenceState.Online;
     private bool _cachedStateLoaded;
     private bool _initialSnapshotReceived;
+    private long _membershipRevision;
     private bool OverlayInteractionConnected => _state.ActiveRoomConnected || (_backend is null && _previewSnapshot is not null);
 
     public AppCoordinator(
@@ -568,6 +569,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         _roomSession = new RoomSessionLifetime();
         _initializationTask = null;
         _initialSnapshotReceived = false;
+        _membershipRevision = 0;
     }
 
     public async Task SignInWithAppleAsync(CancellationToken cancellationToken = default)
@@ -1024,12 +1026,25 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             throw new ArgumentException(I18n.Get("validation.messageLength"), nameof(body));
         }
 
-        MessageLedgerEntry? retry = _messages.RetryFailed(roomId, profile.Id, normalized);
-        Guid id = retry?.Id ?? Guid.NewGuid();
-        string? bubbleStyleId = retry?.BubbleStyleId ?? profile.EquippedBubbleStyleId;
-        if (retry is null)
-            _messages.Stage(id, roomId, profile.Id, normalized, bubbleStyleId: bubbleStyleId);
-        _bubbles.Show(profile.Id, id, normalized, bubbleStyleId: bubbleStyleId);
+        MessageLedgerEntry entry = _messages.StageNew(roomId, profile.Id, normalized, profile.EquippedBubbleStyleId);
+        await SendStagedMessageAsync(entry, cancellationToken);
+    }
+
+    public Task RetryMessageAsync(Guid roomId, Guid messageId, CancellationToken cancellationToken = default)
+    {
+        if (_state.Profile is not { } profile || !_state.Rooms.Any(room => room.Id == roomId))
+            throw new InvalidOperationException(I18n.Get("composer.activeRoomRequired"));
+        MessageLedgerEntry entry = _messages.RetryFailed(roomId, profile.Id, messageId)
+            ?? throw new InvalidOperationException(I18n.Get("history.failed"));
+        return SendStagedMessageAsync(entry, cancellationToken);
+    }
+
+    private async Task SendStagedMessageAsync(MessageLedgerEntry entry, CancellationToken cancellationToken)
+    {
+        Guid id = entry.Id, roomId = entry.RoomId;
+        string normalized = entry.Body;
+        string? bubbleStyleId = entry.BubbleStyleId;
+        _bubbles.Show(entry.SenderId, id, normalized, bubbleStyleId: bubbleStyleId);
         PublishState();
         ApplyWorldSnapshot();
         try
@@ -1039,7 +1054,8 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                 roomId,
                 normalized,
                 cancellationToken);
-            _messages.Confirm(confirmed);
+            if (_state.Rooms.Any(room => room.Id == confirmed.RoomId))
+                _messages.Confirm(confirmed);
             PublishState();
         }
         catch (Exception exception)
@@ -1556,6 +1572,8 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 
     private void CommitRoomSwitch(Guid roomId, IReadOnlyList<ChatMessage> history)
     {
+        if (!_state.Rooms.Any(room => room.Id == roomId))
+            return;
         _messages.ReplaceConfirmed(roomId, history);
         _bubbles.Clear();
         _unreadByRoom[roomId] = 0;
@@ -1588,6 +1606,18 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                     {
                         case BackendEvent.AuthenticationRequired:
                             RequireAuthentication();
+                            break;
+                        case BackendEvent.RoomAccessInvalidated invalidated:
+                            _membershipRevision = Math.Max(_membershipRevision, invalidated.MembershipRevision);
+                            foreach (Guid room in _state.Rooms.Select(room => room.Id).ToArray())
+                                ApplyRoomRevocation(new BackendEvent.RoomRevoked(room, invalidated.MembershipRevision));
+                            _messages.Clear();
+                            _basePresence.Clear();
+                            _typing.Clear();
+                            PublishState();
+                            break;
+                        case BackendEvent.RoomRevoked revoked:
+                            ApplyRoomRevocation(revoked);
                             break;
                         case BackendEvent.SnapshotReceived snapshot:
                             await ApplyRecoveredSnapshotAsync(snapshot.Snapshot, _roomSession.Token);
@@ -1861,8 +1891,45 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         }
     }
 
+    private void ApplyRoomRevocation(BackendEvent.RoomRevoked revoked)
+    {
+        _membershipRevision = Math.Max(_membershipRevision, revoked.MembershipRevision);
+        Room[] retained = [.. _state.Rooms.Where(room => room.Id != revoked.RoomId)];
+        _messages.RetainRooms(retained.Select(room => room.Id).ToHashSet());
+        foreach ((Guid RoomId, Guid UserId) key in _basePresence.Keys.Where(key => key.RoomId == revoked.RoomId).ToArray())
+            _basePresence.Remove(key);
+        _typing.RemoveWhere(key => key.RoomId == revoked.RoomId);
+        _unreadByRoom.Remove(revoked.RoomId);
+        _pendingPulses.Clear();
+        _pendingThrows.Clear();
+        if (_state.ActiveRoomId == revoked.RoomId)
+        {
+            StopTypingKeepalive();
+            _typingLease.Update(active: false, requestedRoomId: null);
+            _bubbles.Clear();
+            _roomSession.SwitchPipeline?.InitializeCommittedRoom(null);
+            _overlay?.Dispose();
+            _overlay = null;
+        }
+        Guid? active = _state.ActiveRoomId == revoked.RoomId ? null : _state.ActiveRoomId;
+        _state = _state with
+        {
+            Rooms = retained,
+            ActiveRoomId = active,
+            RealtimeConnection = active is null
+                ? new RealtimeConnectionStatus(_state.RealtimeConnection.TransportConnected, false, false)
+                : _state.RealtimeConnection,
+            Preferences = _state.Preferences with { ActiveRoomId = active }
+        };
+        PublishState();
+        ApplyWorldSnapshot();
+    }
+
     private void ApplySnapshot(BackendSnapshot snapshot)
     {
+        if (snapshot.MembershipRevision < _membershipRevision)
+            return;
+        _membershipRevision = snapshot.MembershipRevision;
         if (_treeMovementAccountId != snapshot.CurrentUserId)
         {
             CancelTreeMovementRequest();
@@ -2003,6 +2070,8 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         CancellationToken cancellationToken,
         bool synchronizeRealtime)
     {
+        if (snapshot.MembershipRevision < _membershipRevision)
+            return;
         Guid? previousActiveRoomId = _state.ActiveRoomId;
         ApplySnapshot(snapshot);
         StartTreeMovementMigration();
@@ -2036,8 +2105,11 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             // returns its recovered presentation cache.
             IReadOnlyList<ChatMessage> history = await RequiredBackend().FetchRecentMessagesAsync(
                 activeRoomId, cancellationToken);
-            _messages.ReplaceConfirmed(activeRoomId, history);
-            _unreadByRoom[activeRoomId] = 0;
+            if (_state.Rooms.Any(room => room.Id == activeRoomId))
+            {
+                _messages.ReplaceConfirmed(activeRoomId, history);
+                _unreadByRoom[activeRoomId] = 0;
+            }
         }
         if (_overlay is null
             && _state.ActiveRoomConnected

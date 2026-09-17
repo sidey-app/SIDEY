@@ -13,6 +13,7 @@
     <ProjectReference Include="../../src/Sidey.Infrastructure/Sidey.Infrastructure.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="../Sidey.Platform.Windows.Tests/RealtimeEventQueueTests.cs" Link="RealtimeEventQueueTests.cs" />
     <Compile Include="../Sidey.Platform.Windows.Tests/DistributionSourceTests.cs" Link="DistributionSourceTests.cs" />
     <Compile Include="../Sidey.Platform.Windows.Tests/SpringRealtimeTransportTests.cs" Link="SpringRealtimeTransportTests.cs" />
     <Compile Include="../Sidey.Platform.Windows.Tests/ProfileMutationTests.cs" Link="ProfileMutationTests.cs" />

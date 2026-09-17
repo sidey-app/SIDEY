@@ -6,6 +6,10 @@ namespace Sidey.Presentation.Tests;
 
 internal sealed class FakeSideyCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 {
+    public List<(Guid RoomId, Guid MessageId)> MessageRetryRequests { get; } = [];
+    public Task RetryMessageAsync(Guid roomId, Guid messageId, CancellationToken cancellationToken = default)
+    { MessageRetryRequests.Add((roomId, messageId)); return Task.CompletedTask; }
+
     public int SignInCount { get; private set; }
     public int AppleSignInCount { get; private set; }
     public int DeleteAccountCount { get; private set; }

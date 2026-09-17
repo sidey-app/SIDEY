@@ -62,6 +62,9 @@ public sealed partial class HistoryWindowViewModel : ObservableObject, IDisposab
         _state = coordinator.State;
     }
 
+    [ObservableProperty]
+    public partial string RetryErrorMessage { get; set; } = string.Empty;
+
     public ObservableCollection<HistoryEntryViewModel> Items { get; } = [];
 
     public CoordinatorState CurrentState => _state;
@@ -73,6 +76,8 @@ public sealed partial class HistoryWindowViewModel : ObservableObject, IDisposab
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         bool roomChanged = state.ActiveRoomId != _state.ActiveRoomId;
+        if (roomChanged)
+            RetryErrorMessage = string.Empty;
         _state = state;
         if (!_isActive)
         {
@@ -377,7 +382,22 @@ public sealed partial class HistoryWindowViewModel : ObservableObject, IDisposab
             entry.SenderId == _state.Profile?.Id,
             entry.State == MessageDeliveryState.Pending,
             entry.State == MessageDeliveryState.Failed,
-            entry.CreatedAt);
+            entry.CreatedAt,
+            entry.State == MessageDeliveryState.Failed && entry.SenderId == _state.Profile?.Id
+                ? new AsyncRelayCommand(() => RetryMessageAsync(entry.RoomId, entry.Id)) : null);
+    }
+
+    private async Task RetryMessageAsync(Guid roomId, Guid messageId)
+    {
+        RetryErrorMessage = string.Empty;
+        if (_disposed || _state.ActiveRoomId != roomId
+            || !_state.Messages.Any(entry => entry.Id == messageId && entry.RoomId == roomId
+                && entry.SenderId == _state.Profile?.Id && entry.State == MessageDeliveryState.Failed
+                && entry.CreatedAt > DateTimeOffset.UtcNow - MessageLedger.ConfirmedRetention))
+            return;
+        try
+        { await _coordinator.RetryMessageAsync(roomId, messageId); }
+        catch (Exception error) { RetryErrorMessage = error.Message; }
     }
 
     private Room? ActiveRoom() => _loadedRoomId is { } roomId
