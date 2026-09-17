@@ -1,6 +1,11 @@
 import AppKit
 
 extension AppCoordinator {
+    func prepareAuthenticationNonce() async throws -> String {
+        guard let backend else { throw SideyBackendError.sessionRecoveryFailed }
+        return try await backend.authenticationNonce()
+    }
+
     func refreshCommerceState(productID: String? = nil) {
         guard releaseChannel.storeAvailability.allowsCommerceActions,
               let backend
@@ -24,6 +29,7 @@ extension AppCoordinator {
             }
             do {
                 let states = try await backend.storeState()
+                try Task.checkCancellation()
                 model.applyStoreCatalog(states, usesAppStore: releaseChannel.storeAvailability.usesAppStore)
             } catch is CancellationError {
                 return
@@ -94,21 +100,15 @@ extension AppCoordinator {
         model.errorMessage = nil
         commerceSession.productTasks[productID] = Task { [weak self] in
             guard let self else { return }
-            var didOpenBrowser = false
             defer {
-                if !didOpenBrowser {
-                    commerceSession.googleConnectionProductID = nil
-                }
+                commerceSession.googleConnectionProductID = nil
                 model.setCommerceWorking(false, productID: productID)
                 commerceSession.productTasks[productID] = nil
             }
             do {
-                let url = try await backend.googleIdentityLinkURL()
-                guard NSWorkspace.shared.open(url) else {
-                    throw SideyBackendError.remote("기본 브라우저를 열지 못했습니다.")
-                }
-                didOpenBrowser = true
-                model.presentSuccess("브라우저에서 Google 계정 연결을 완료해 주세요.")
+                try await backend.signInWithGoogle()
+                model.presentSuccess("Google 계정을 연결했습니다.")
+                startBackend()
             } catch is CancellationError {
                 return
             } catch {
@@ -121,6 +121,25 @@ extension AppCoordinator {
         }
     }
 #endif
+
+    func signInWithGoogle() {
+        guard let backend, !model.accountOperationInProgress else { return }
+        model.accountOperationInProgress = true
+        model.errorMessage = nil
+        let previousTreeTask = cancelTreeMovementRequests()
+        Task { [weak self] in
+            guard let self else { return }
+            defer { model.accountOperationInProgress = false }
+            do {
+                await previousTreeTask?.value
+                try await backend.signInWithGoogle()
+                model.authenticationRequired = false
+                startBackend()
+            } catch {
+                await presentAccountError("Google 인증 실패", error: error, backend: backend)
+            }
+        }
+    }
 
     func purchase(productID: String) {
         guard releaseChannel.storeAvailability.allowsCommerceActions,
@@ -157,9 +176,10 @@ extension AppCoordinator {
                     let purchased = try await commerceSession.purchaseController.purchase(
                         productID: productID,
                         userID: userID,
-                        accessToken: try await backend.currentAccessToken()
+                        accessToken: { try await backend.currentAccessToken() }
                     )
                     if purchased {
+                        try Task.checkCancellation()
                         let snapshot = try await backend.loadSnapshot()
                         applyBackendSnapshot(snapshot, currentUserID: userID)
                         model.setCommercePurchaseState(.owned, productID: productID)
@@ -202,6 +222,7 @@ extension AppCoordinator {
                     try Task.checkCancellation()
                     try await Task.sleep(for: .seconds(2))
                     let state = try await backend.commerceState(productID: productID)
+                    try Task.checkCancellation()
                     if state.purchaseState == .owned {
                         model.apply(commerceState: state)
                         let snapshot = try await backend.loadSnapshot()
@@ -211,7 +232,8 @@ extension AppCoordinator {
                         persistPreferences()
                         return
                     }
-                    if state.latestOrderStatus == "failed" || state.latestOrderStatus == "canceled" {
+                    let orderStatus = try await backend.commerceOrderStatus(orderID: checkout.orderID)
+                    if ["failed", "canceled", "refunded"].contains(orderStatus) {
                         model.apply(commerceState: state)
                         model.setCommercePurchaseState(
                             .error("결제가 완료되지 않았습니다. 다시 시도해 주세요."),
@@ -238,7 +260,7 @@ extension AppCoordinator {
     }
 
     func signInWithApple(_ payload: AppleAuthorizationPayload) {
-        guard releaseChannel.requiresAppleAuthentication, let backend,
+        guard let backend,
               !model.accountOperationInProgress else { return }
         model.accountOperationInProgress = true
         let previousTreeTask = cancelTreeMovementRequests()
@@ -247,7 +269,7 @@ extension AppCoordinator {
             guard let self else { return }
             defer { model.accountOperationInProgress = false }
             do {
-                // Finish cancellation before replacing the session used by the RPC transport.
+                // Finish cancellation before replacing the SIDEY session.
                 await previousTreeTask?.value
                 try await backend.signInWithApple(
                     identityToken: payload.identityToken,
@@ -256,10 +278,67 @@ extension AppCoordinator {
                 model.authenticationRequired = false
                 startBackend()
             } catch {
-                model.authenticationRequired = true
-                model.errorMessage = "Apple 로그인 실패: \(error.localizedDescription)"
+                await presentAccountError("Apple 인증 실패", error: error, backend: backend)
             }
         }
+    }
+
+    func unlinkGoogleIdentity() {
+        changeIdentity(successMessage: "Google 계정 연결을 해제했습니다.") { backend in
+            try await backend.unlinkGoogleIdentity()
+        }
+    }
+
+    func unlinkAppleIdentity(_ payload: AppleAuthorizationPayload) {
+        changeIdentity(successMessage: "Apple 계정 연결을 해제했습니다.") { backend in
+            try await backend.unlinkAppleIdentity(identityToken: payload.identityToken, nonce: payload.nonce)
+        }
+    }
+
+    private func changeIdentity(successMessage: String, operation: @escaping (SideyBackend) async throws -> Void) {
+        guard let backend, !model.accountOperationInProgress else { return }
+        model.accountOperationInProgress = true
+        model.errorMessage = nil
+        Task { [weak self] in
+            guard let self else { return }
+            defer { model.accountOperationInProgress = false }
+            do {
+                try await operation(backend)
+                model.presentSuccess(successMessage)
+            } catch {
+                await presentAccountError("계정 연결 변경 실패", error: error, backend: backend)
+            }
+        }
+    }
+
+    func signOut(allSessions: Bool) {
+        guard let backend, !model.accountOperationInProgress else { return }
+        model.accountOperationInProgress = true
+        model.errorMessage = nil
+        let previousTreeTask = cancelTreeMovementRequests()
+        Task { [weak self] in
+            guard let self else { return }
+            defer { model.accountOperationInProgress = false }
+            do {
+                await previousTreeTask?.value
+                try await backend.signOut(allSessions: allSessions)
+                roomSession.bootstrapTask?.cancel()
+                roomSession.switchPipeline.cancel()
+                roomSession.typingTask?.cancel()
+                commerceSession.cancel(model: model)
+                overlayWindows.dismissComposer()
+                model.resetAccountState()
+                handleBackendEvent(.authenticationRequired)
+                showSettings()
+            } catch {
+                await presentAccountError("로그아웃 실패", error: error, backend: backend)
+            }
+        }
+    }
+
+    private func presentAccountError(_ prefix: String, error: Error, backend: SideyBackend) async {
+        if await backend.authenticationRequired() { handleBackendEvent(.authenticationRequired) }
+        model.errorMessage = "\(prefix): \(error.localizedDescription)"
     }
 
     func restoreAppStorePurchases() {
@@ -272,7 +351,7 @@ extension AppCoordinator {
             defer { model.accountOperationInProgress = false }
             do {
                 try await commerceSession.purchaseController.restore(
-                    accessToken: try await backend.currentAccessToken()
+                    accessToken: { try await backend.currentAccessToken() }
                 )
                 let snapshot = try await backend.loadSnapshot()
                 applyBackendSnapshot(snapshot, currentUserID: userID)
@@ -284,8 +363,32 @@ extension AppCoordinator {
         }
     }
 
+    func requestAccountDeletion() async throws -> AccountDeletionResult {
+        guard let backend else { throw SideyBackendError.sessionRecoveryFailed }
+        guard !model.accountOperationInProgress else {
+            throw SideyBackendError.remote("account_operation_in_progress")
+        }
+        model.accountOperationInProgress = true
+        let previousTreeTask = cancelTreeMovementRequests()
+        model.errorMessage = nil
+        defer { model.accountOperationInProgress = false }
+        await previousTreeTask?.value
+        do {
+            try await backend.deleteAccount()
+        } catch SideyBackendError.remote("apple_reauthentication_required") {
+            return .appleAuthenticationRequired
+        } catch {
+            if error as? SideyBackendError == .sessionRecoveryFailed {
+                handleBackendEvent(.authenticationRequired)
+            }
+            throw error
+        }
+        await finishConfirmedAccountDeletion(backend: backend)
+        return .deleted
+    }
+
     func deleteAccount(_ payload: AppleAuthorizationPayload) {
-        guard releaseChannel == .appStore, let backend,
+        guard let backend,
               !model.accountOperationInProgress else { return }
         model.accountOperationInProgress = true
         let previousTreeTask = cancelTreeMovementRequests()
@@ -294,23 +397,34 @@ extension AppCoordinator {
             guard let self else { return }
             defer { model.accountOperationInProgress = false }
             do {
-                // Finish cancellation before replacing the session used by the RPC transport.
+                // Finish cancellation before deleting the SIDEY account.
                 await previousTreeTask?.value
                 try await commerceSession.accountClient.deleteAccount(
                     payload: payload,
                     accessToken: try await backend.currentAccessToken()
                 )
-                try? await backend.signOut()
-                try? KeychainStore(
-                    service: releaseChannel.keychainService,
-                    session: keychainAccessSession
-                ).deleteAll()
-                preferencesStore.save(.defaults)
-                NSApplication.shared.terminate(nil)
+                await finishConfirmedAccountDeletion(backend: backend)
             } catch {
+                if error as? SideyBackendError == .sessionRecoveryFailed ||
+                   error as? SideySessionError == .authenticationRequired ||
+                   error as? SideySessionError == .legacyClaimRequired {
+                    handleBackendEvent(.authenticationRequired)
+                }
                 model.errorMessage = "계정 탈퇴 실패: \(error.localizedDescription)"
             }
         }
+    }
+
+    private func finishConfirmedAccountDeletion(backend: SideyBackend) async {
+        // The successful delete already revoked server sessions. Stop local
+        // transport before clearing storage; a second logout would now reject.
+        await backend.shutdown()
+        try? KeychainStore(
+            service: releaseChannel.keychainService,
+            session: keychainAccessSession
+        ).deleteAll()
+        preferencesStore.save(.defaults)
+        NSApplication.shared.terminate(nil)
     }
 
     func refreshAppStorePrices() async {
@@ -327,7 +441,7 @@ extension AppCoordinator {
         await refreshAppStorePrices()
         do {
             try await commerceSession.purchaseController.reconcileCurrentEntitlements(
-                accessToken: try await backend.currentAccessToken()
+                accessToken: { try await backend.currentAccessToken() }
             )
         } catch {
             model.errorMessage = "App Store 구매 내역을 반영하지 못했습니다: \(error.localizedDescription)"

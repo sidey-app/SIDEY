@@ -19,22 +19,15 @@ final class BackendIntegrationTests: XCTestCase {
         guard integrationFlag == "1" else {
             throw XCTSkip("명시적인 로컬·staging 환경에서만 통합 테스트 실행")
         }
-        environment["SIDEY_SUPABASE_URL"] = configuredValue(
+        environment["SIDEY_API_BASE_URL"] = configuredValue(
             environment: environment,
-            environmentKey: "SIDEY_SUPABASE_URL",
+            environmentKey: "SIDEY_API_BASE_URL",
             bundle: testBundle,
-            bundleKey: "SIDEYSupabaseURL"
+            bundleKey: "SIDEYAPIBaseURL"
         )
-        environment["SIDEY_SUPABASE_PUBLISHABLE_KEY"] = configuredValue(
-            environment: environment,
-            environmentKey: "SIDEY_SUPABASE_PUBLISHABLE_KEY",
-            bundle: testBundle,
-            bundleKey: "SIDEYSupabasePublishableKey"
-        )
-        guard environment["SIDEY_SUPABASE_URL"]?.isEmpty == false,
-              environment["SIDEY_SUPABASE_PUBLISHABLE_KEY"]?.isEmpty == false
+        guard environment["SIDEY_API_BASE_URL"]?.isEmpty == false
         else {
-            XCTFail("통합 테스트에는 SIDEY_SUPABASE_URL과 SIDEY_SUPABASE_PUBLISHABLE_KEY가 필요합니다.")
+            XCTFail("통합 테스트에는 SIDEY_API_BASE_URL이 필요합니다.")
             return
         }
         let configuration = try RuntimeConfiguration.resolve(
@@ -47,6 +40,20 @@ final class BackendIntegrationTests: XCTestCase {
         }
         let firstStore = KeychainStore(service: "app.sidey.desktop.integration.\(UUID().uuidString)")
         let secondStore = KeychainStore(service: "app.sidey.desktop.integration.\(UUID().uuidString)")
+        // The server test fixture issues two disposable, identity-backed SIDEY
+        // sessions. This test deletes those fixture users during cleanup.
+        // No client signup/anonymous bypass is available, even in test builds.
+        let firstSession = try fixtureSession(environment: environment, bundle: testBundle,
+            environmentKey: "SIDEY_INTEGRATION_SESSION_ONE_FILE", bundleKey: "SIDEYIntegrationSessionOneFile")
+        let secondSession = try fixtureSession(environment: environment, bundle: testBundle,
+            environmentKey: "SIDEY_INTEGRATION_SESSION_TWO_FILE", bundleKey: "SIDEYIntegrationSessionTwoFile")
+        guard firstSession.userID != secondSession.userID else {
+            XCTFail("두 개의 서로 다른 일회용 통합 테스트 계정이 필요합니다.")
+            return
+        }
+        let account = "sidey-session:\(configuration.backendFingerprint):default"
+        try firstStore.write(firstSession.data, account: account)
+        try secondStore.write(secondSession.data, account: account)
         let first = SideyBackend(configuration: configuration, keychain: firstStore)
         let second = SideyBackend(configuration: configuration, keychain: secondStore)
         let firstProbe = BackendEventProbe()
@@ -318,6 +325,23 @@ final class BackendIntegrationTests: XCTestCase {
         }
         return nil
     }
+
+    private func fixtureSession(environment: [String: String], bundle: Bundle,
+                                environmentKey: String, bundleKey: String) throws -> (data: Data, userID: UUID) {
+        guard let path = configuredValue(environment: environment, environmentKey: environmentKey,
+                                         bundle: bundle, bundleKey: bundleKey), !path.contains("$(") else {
+            XCTFail("\(environmentKey)에 일회용 SIDEY session JSON 파일 경로를 설정해 주세요.")
+            throw SideyBackendError.sessionRecoveryFailed
+        }
+        let data = try Data(contentsOf: URL(fileURLWithPath: path))
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rawID = object["userId"] as? String, let id = UUID(uuidString: rawID),
+              object["accessToken"] is String, object["refreshToken"] is String,
+              object["sessionId"] is String, object["accessExpiresAt"] is String else {
+            throw SideyBackendError.malformedResponse
+        }
+        return (data, id)
+    }
 }
 
 private actor BackendEventProbe {
@@ -407,6 +431,8 @@ private actor BackendEventProbe {
                 apply(reconciliation.snapshot)
             case .technicalError:
                 break
+            case .authenticationRequired:
+                isConnected = false
             }
         }
     }

@@ -1,123 +1,72 @@
+import CryptoKit
+import Foundation
 import XCTest
+#if APP_STORE
+@testable import SIDEYAppStore
+#else
 @testable import SIDEY
+#endif
 
 final class RuntimeConfigurationTests: XCTestCase {
-    func testAuthCallbackSeparatesProductionAndDevelopmentSchemes() {
-        let productionURL = SideyAuthCallback.callbackURL(scheme: "sidey")
-        let developmentURL = SideyAuthCallback.callbackURL(scheme: "sidey-dev")
-
-        XCTAssertEqual(productionURL.absoluteString, "sidey://auth/google")
-        XCTAssertEqual(developmentURL.absoluteString, "sidey-dev://auth/google")
-        XCTAssertTrue(SideyAuthCallback.matches(developmentURL, scheme: "sidey-dev"))
-        XCTAssertFalse(SideyAuthCallback.matches(productionURL, scheme: "sidey-dev"))
+    func testAuthCallbackSeparatesOldProductionAndDevelopmentSchemes() {
+        XCTAssertTrue(SideyAuthCallback.matches(SideyAuthCallback.callbackURL(scheme: "sidey-dev"), scheme: "sidey-dev"))
+        XCTAssertFalse(SideyAuthCallback.matches(SideyAuthCallback.callbackURL(scheme: "sidey"), scheme: "sidey-dev"))
     }
-
-    func testAcceptsCompleteHTTPSPublishableConfiguration() throws {
-        let configuration = try RuntimeConfiguration.resolve(releaseChannel: .development, environment: [
-            "SIDEY_SUPABASE_URL": "https://example.supabase.co",
-            "SIDEY_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_public"
-        ])
-
-        XCTAssertEqual(configuration.supabaseURL.absoluteString, "https://example.supabase.co")
-        XCTAssertEqual(configuration.supabasePublishableKey, "sb_publishable_public")
-        XCTAssertFalse(configuration.backendFingerprint.isEmpty)
+    func testDevelopmentAcceptsAPIWithoutSupabaseConfiguration() throws {
+        let value = try RuntimeConfiguration.resolve(releaseChannel: .development,
+            environment: ["SIDEY_API_BASE_URL": "https://staging.sidey.app/api"], bundleInfo: [:])
+        XCTAssertEqual(value.apiBaseURL.absoluteString, "https://staging.sidey.app/api")
+        XCTAssertNotEqual(value.backendFingerprint, value.legacyBackendFingerprint)
     }
-
-    func testRejectsPartialInsecureAndSecretConfiguration() {
-        XCTAssertThrowsError(try RuntimeConfiguration.resolve(releaseChannel: .development, environment: [
-            "SIDEY_SUPABASE_URL": "https://example.supabase.co"
-        ]))
-        XCTAssertThrowsError(try RuntimeConfiguration.resolve(releaseChannel: .development, environment: [
-            "SIDEY_SUPABASE_URL": "http://example.supabase.co",
-            "SIDEY_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_public"
-        ]))
-        XCTAssertThrowsError(try RuntimeConfiguration.resolve(releaseChannel: .development, environment: [
-            "SIDEY_SUPABASE_URL": "https://example.supabase.co",
-            "SIDEY_SUPABASE_PUBLISHABLE_KEY": "sb_secret_do-not-ship"
-        ]))
-        XCTAssertThrowsError(try RuntimeConfiguration.resolve(releaseChannel: .development, environment: [
-            "SIDEY_SUPABASE_URL": "https://example.supabase.co",
-            "SIDEY_SUPABASE_PUBLISHABLE_KEY": "eyJhbGciOiJIUzI1NiJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIn0.signature"
-        ]))
+    func testLegacyFingerprintPreservesExactExistingKeychainAccount() throws {
+        let value = RuntimeConfiguration(apiBaseURL: URL(string: "https://staging.sidey.app/api")!)
+        let oldURL = "https://whtejsviizgejauasqqt.supabase.co"
+        let oldFingerprint = SHA256.hash(data: Data(oldURL.utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
+        XCTAssertEqual(value.legacyBackendFingerprint, oldFingerprint)
     }
-
-    func testAllowsHTTPOnlyForLoopbackDevelopment() throws {
-        for host in ["localhost", "127.0.0.1", "[::1]"] {
-            let configuration = try RuntimeConfiguration.resolve(releaseChannel: .development, environment: [
-                "SIDEY_SUPABASE_URL": "http://\(host):54321",
-                "SIDEY_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_local"
-            ])
-            XCTAssertEqual(configuration.supabaseURL.scheme, "http")
+    func testAPIBaseRequiresContractPathButLegacyOriginRemainsValid() throws {
+        for raw in ["https://staging.sidey.app", "https://staging.sidey.app/other", "https://staging.sidey.app/api/nested"] {
+            XCTAssertThrowsError(try RuntimeConfiguration.resolve(releaseChannel: .development,
+                environment: ["SIDEY_API_BASE_URL": raw], bundleInfo: [:]))
         }
-        XCTAssertThrowsError(try RuntimeConfiguration.resolve(releaseChannel: .development, environment: [
-            "SIDEY_SUPABASE_URL": "http://192.168.0.10:54321",
-            "SIDEY_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_local"
-        ]))
+        let configuration = try RuntimeConfiguration.resolve(releaseChannel: .development,
+            environment: ["SIDEY_API_BASE_URL": "http://localhost:8080/api/",
+                          "SIDEY_LEGACY_SUPABASE_URL": "https://legacy.example",
+                          "SIDEY_LEGACY_SUPABASE_PUBLISHABLE_KEY": "public-key"], bundleInfo: [:])
+        XCTAssertEqual(configuration.legacySupabaseURL.host, "legacy.example")
     }
 
-    func testDevelopmentRejectsProductionAndMissingConfiguration() {
-        XCTAssertThrowsError(try RuntimeConfiguration.resolve(
-            releaseChannel: .development,
-            environment: [:],
-            bundleInfo: [:]
-        ))
-        XCTAssertThrowsError(try RuntimeConfiguration.resolve(
-            releaseChannel: .development,
-            environment: [
-                "SIDEY_SUPABASE_URL": "https://whtejsviizgejauasqqt.supabase.co",
-                "SIDEY_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_public"
-            ],
-            bundleInfo: [:]
-        ))
+    func testDevelopmentRejectsMissingProductionAndUntrustedURLs() {
+        for raw in ["", "http://staging.sidey.app/api", "https://api.sidey.app/api",
+                    "https://user:password@staging.sidey.app/api", "https://staging.sidey.app/api?query=1",
+                    "https://staging.sidey.app/api#fragment"] {
+            XCTAssertThrowsError(try RuntimeConfiguration.resolve(releaseChannel: .development,
+                environment: ["SIDEY_API_BASE_URL": raw], bundleInfo: [:]))
+        }
     }
-
-    func testProductionIgnoresInjectedBackendConfiguration() throws {
-        let configuration = try RuntimeConfiguration.resolve(
-            releaseChannel: .production,
-            environment: [
-                "SIDEY_SUPABASE_URL": "https://attacker.example",
-                "SIDEY_SUPABASE_PUBLISHABLE_KEY": "sb_secret_do-not-ship"
-            ],
-            bundleInfo: [:]
-        )
-
-        XCTAssertTrue(configuration.isProductionBackend)
+    func testDevelopmentLoopbackAndExplicitLegacyConfiguration() throws {
+        for host in ["localhost", "127.0.0.1", "[::1]"] {
+            let value = try RuntimeConfiguration.resolve(releaseChannel: .development,
+                environment: ["SIDEY_API_BASE_URL": "http://\(host):8080/api"], bundleInfo: [:])
+            XCTAssertEqual(value.apiBaseURL.scheme, "http")
+        }
+        XCTAssertThrowsError(try RuntimeConfiguration.resolve(releaseChannel: .development,
+            environment: ["SIDEY_API_BASE_URL": "http://localhost:8080/api",
+                          "SIDEY_LEGACY_SUPABASE_URL": "https://legacy.example",
+                          "SIDEY_LEGACY_SUPABASE_PUBLISHABLE_KEY": "sb_secret_do-not-ship"], bundleInfo: [:]))
     }
-
-    func testAppStoreUsesProductionBackend() throws {
-        let configuration = try RuntimeConfiguration.resolve(
-            releaseChannel: .appStore,
-            environment: [:],
-            bundleInfo: [:]
-        )
-
-        XCTAssertTrue(configuration.isProductionBackend)
+    func testProductionIgnoresEnvironmentForBothDistributions() throws {
+        for channel in [AppReleaseChannel.production, .appStore] {
+            let value = try RuntimeConfiguration.resolve(releaseChannel: channel,
+                environment: ["SIDEY_API_BASE_URL": "https://attacker.example/api", "SIDEY_GOOGLE_CLIENT_ID": "attacker"], bundleInfo: [:])
+            XCTAssertTrue(value.isProductionBackend)
+            XCTAssertEqual(value.apiBaseURL.absoluteString, "https://api.sidey.app/api")
+            XCTAssertTrue(value.googleClientID.isEmpty)
+        }
     }
-
-    func testAppStoreVerifierEndpointRequiresHTTPSExceptLocalhost() {
-        XCTAssertEqual(
-            AppStoreServiceEndpoint.resolve(environment: [
-                "SIDEY_APP_STORE_VERIFIER_URL": "https://iap.sidey.app/"
-            ])?.absoluteString,
-            "https://iap.sidey.app/"
-        )
-        XCTAssertNil(AppStoreServiceEndpoint.resolve(environment: [
-            "SIDEY_APP_STORE_VERIFIER_URL": "http://iap.sidey.app"
-        ]))
-        XCTAssertEqual(
-            AppStoreServiceEndpoint.resolve(environment: [
-                "SIDEY_APP_STORE_VERIFIER_URL": "http://localhost:8080"
-            ])?.absoluteString,
-            "http://localhost:8080"
-        )
-        XCTAssertNil(AppStoreServiceEndpoint.resolve(environment: [
-            "SIDEY_APP_STORE_VERIFIER_URL": "https://user:password@iap.sidey.app"
-        ]))
-        XCTAssertNil(AppStoreServiceEndpoint.resolve(environment: [
-            "SIDEY_APP_STORE_VERIFIER_URL": "https://iap.sidey.app?destination=other"
-        ]))
-        XCTAssertNil(AppStoreServiceEndpoint.resolve(environment: [
-            "SIDEY_APP_STORE_VERIFIER_URL": "https://iap.sidey.app#other"
-        ]))
+    func testBundledGoogleAndProductionEndpointConfiguration() throws {
+        let value = try RuntimeConfiguration.resolve(releaseChannel: .production, environment: [:],
+            bundleInfo: ["SIDEYAPIBaseURL": "https://api.sidey.app/api", "SIDEYGoogleClientID": "public-desktop-client"])
+        XCTAssertEqual(value.googleClientID, "public-desktop-client")
     }
 }

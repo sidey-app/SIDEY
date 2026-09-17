@@ -1,52 +1,33 @@
 import AppKit
 import SwiftUI
 import XCTest
+#if APP_STORE
+@testable import SIDEYAppStore
+#else
 @testable import SIDEY
+#endif
 
 final class MessageHistoryTests: XCTestCase {
-    func testPageMapperHandlesZeroThroughFiftyOneRows() throws {
+    func testSpringPageUsesServerCursorWithoutRecentFiftyTruncation() throws {
         let roomID = UUID()
-        for count in [0, 1, 20, 50] {
-            let page = try MessageHistoryPageMapper.page(
-                from: Self.databaseRows(count: count, roomID: roomID),
-                pageSize: 50
-            )
+        for count in [0, 1, 20, 50, 200] {
+            let rows = Self.databaseRows(count: count, roomID: roomID)
+            let cursor = rows.last.map { SpringCursor(createdAt: $0.createdAt, id: $0.id) }
+            let page = try SpringMessagePage(messages: rows, nextCursor: cursor).domain
             XCTAssertEqual(page.messages.count, count)
-            XCTAssertNil(page.nextCursor)
+            XCTAssertEqual(page.nextCursor?.id, cursor?.id)
+            XCTAssertNil(try SpringMessagePage(messages: rows, nextCursor: nil).domain.nextCursor)
         }
-
-        let rows = Self.databaseRows(count: 51, roomID: roomID)
-        let page = try MessageHistoryPageMapper.page(from: rows, pageSize: 50)
-        XCTAssertEqual(page.messages.count, 50)
-        XCTAssertEqual(page.nextCursor?.rawCreatedAt, rows[49].createdAt)
-        XCTAssertEqual(page.nextCursor?.id, rows[49].id)
     }
 
-    func testKeysetCursorPreservesMicrosecondsAndSplitsEqualTimestampsByUUID() throws {
-        let roomID = UUID()
-        let rawTimestamp = "2026-08-31T01:02:03.123456Z"
-        let rows = (1...51)
-            .map { index in
-                DatabaseMessage(
-                    id: Self.uuid(index),
-                    roomID: roomID,
-                    senderID: UUID(),
-                    body: "메시지 \(index)",
-                    createdAt: rawTimestamp
-                )
-            }
-            .sorted { $0.id.uuidString > $1.id.uuidString }
-
-        let page = try MessageHistoryPageMapper.page(from: rows, pageSize: 50)
-        let cursor = try XCTUnwrap(page.nextCursor)
-        let nextRows = rows.filter {
-            $0.createdAt < cursor.rawCreatedAt
-                || ($0.createdAt == cursor.rawCreatedAt && $0.id.uuidString < cursor.id.uuidString)
-        }
-
-        XCTAssertEqual(cursor.rawCreatedAt, rawTimestamp)
-        XCTAssertEqual(nextRows.map(\.id), [rows[50].id])
-        XCTAssertTrue(Set(page.messages.map(\.id)).isDisjoint(with: nextRows.map(\.id)))
+    func testKeysetCursorPreservesExactServerMicrosecondsAndUUID() throws {
+        let rows = Self.databaseRows(count: 200, roomID: UUID())
+        let raw = "2026-08-31T01:02:03.123456Z"
+        let expected = SpringCursor(createdAt: raw, id: UUID())
+        let page = try SpringMessagePage(messages: rows, nextCursor: expected).domain
+        XCTAssertEqual(page.nextCursor?.rawCreatedAt, raw)
+        XCTAssertEqual(page.nextCursor?.id, expected.id)
+        XCTAssertEqual(page.messages.map(\.id), rows.map(\.id))
     }
 
     func testConfirmedPageMergeDeduplicatesAcrossPagesAndKeepsOneHundredTwentyRows() {
@@ -371,14 +352,14 @@ final class MessageHistoryTests: XCTestCase {
         var errorDescription: String? { "테스트 오류" }
     }
 
-    private static func databaseRows(count: Int, roomID: UUID) -> [DatabaseMessage] {
+    private static func databaseRows(count: Int, roomID: UUID) -> [SpringMessage] {
         (0..<count).map { index in
-            DatabaseMessage(
+            SpringMessage(
                 id: uuid(index + 1),
-                roomID: roomID,
-                senderID: uuid(index + 1_000),
+                roomId: roomID,
+                senderId: uuid(index + 1_000),
                 body: "메시지 \(index)",
-                createdAt: "2026-08-31T01:02:03.123456Z"
+                bubbleStyleId: nil, createdAt: "2026-08-31T01:02:03.123456Z"
             )
         }
     }

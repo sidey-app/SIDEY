@@ -7,10 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		100000000000000000000001 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000041 /* Supabase */; };
 		100000000000000000000042 /* SIDEYLoginItem.app in Embed Login Items */ = {isa = PBXBuildFile; fileRef = 10000000000000000000000C /* SIDEYLoginItem.app */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		100000000000000000000043 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000045 /* Sparkle */; };
-		100000000000000000000046 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 100000000000000000000041 /* Supabase */; };
 		200000000000000000000001 /* SideyBuildStamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000003; };
 		200000000000000000000002 /* SideyBuildStamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200000000000000000000003; };
 		3000000000000000000000C8 /* CharacterStunTests.swift */ = {isa = PBXBuildFile; fileRef = 300000000000000000000064 /* CharacterStunTests.swift */; };
@@ -21,6 +19,14 @@
 		3000000000000000000000CD /* TreeMovementTests.swift */ = {isa = PBXBuildFile; fileRef = 300000000000000000000069 /* TreeMovementTests.swift */; };
 		3000000000000000000000CE /* approved-impact-sounds.json */ = {isa = PBXBuildFile; fileRef = 30000000000000000000006A /* approved-impact-sounds.json */; };
 		3000000000000000000000CF /* StoreCatalogCompatibilityTests.swift */ = {isa = PBXBuildFile; fileRef = 30000000000000000000006B /* StoreCatalogCompatibilityTests.swift */; };
+		3000000000000000000000D0 /* SpringRealtimeTransportTests.swift */ = {isa = PBXBuildFile; fileRef = 300000000000000000000070 /* SpringRealtimeTransportTests.swift */; };
+		3000000000000000000000D1 /* SpringMessageRecoveryTests.swift */ = {isa = PBXBuildFile; fileRef = 300000000000000000000071 /* SpringMessageRecoveryTests.swift */; };
+		3000000000000000000000D2 /* SideySessionClientTests.swift */ = {isa = PBXBuildFile; fileRef = 300000000000000000000072 /* SideySessionClientTests.swift */; };
+		3000000000000000000000D3 /* RuntimeConfigurationTests.swift */ = {isa = PBXBuildFile; fileRef = 300000000000000000000073 /* RuntimeConfigurationTests.swift */; };
+		3000000000000000000000D4 /* AppStoreBackendClientTests.swift */ = {isa = PBXBuildFile; fileRef = 300000000000000000000074 /* AppStoreBackendClientTests.swift */; };
+		3000000000000000000000D5 /* KeychainStoreTests.swift */ = {isa = PBXBuildFile; fileRef = 300000000000000000000075 /* KeychainStoreTests.swift */; };
+		3000000000000000000000D6 /* MessageHistoryTests.swift */ = {isa = PBXBuildFile; fileRef = 300000000000000000000076 /* MessageHistoryTests.swift */; };
+		3000000000000000000000D7 /* MessageLedgerTests.swift */ = {isa = PBXBuildFile; fileRef = 300000000000000000000077 /* MessageLedgerTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -76,6 +82,14 @@
 		300000000000000000000069 /* TreeMovementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SIDEYTests/TreeMovementTests.swift"; sourceTree = SOURCE_ROOT; };
 		30000000000000000000006A /* approved-impact-sounds.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "SIDEYTests/Fixtures/approved-impact-sounds.json"; sourceTree = SOURCE_ROOT; };
 		30000000000000000000006B /* StoreCatalogCompatibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SIDEYTests/StoreCatalogCompatibilityTests.swift"; sourceTree = SOURCE_ROOT; };
+		300000000000000000000070 /* SpringRealtimeTransportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SIDEYTests/SpringRealtimeTransportTests.swift"; sourceTree = SOURCE_ROOT; };
+		300000000000000000000071 /* SpringMessageRecoveryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SIDEYTests/SpringMessageRecoveryTests.swift"; sourceTree = SOURCE_ROOT; };
+		300000000000000000000072 /* SideySessionClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SIDEYTests/SideySessionClientTests.swift"; sourceTree = SOURCE_ROOT; };
+		300000000000000000000073 /* RuntimeConfigurationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SIDEYTests/RuntimeConfigurationTests.swift"; sourceTree = SOURCE_ROOT; };
+		300000000000000000000074 /* AppStoreBackendClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SIDEYTests/AppStoreBackendClientTests.swift"; sourceTree = SOURCE_ROOT; };
+		300000000000000000000075 /* KeychainStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SIDEYTests/KeychainStoreTests.swift"; sourceTree = SOURCE_ROOT; };
+		300000000000000000000076 /* MessageHistoryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SIDEYTests/MessageHistoryTests.swift"; sourceTree = SOURCE_ROOT; };
+		300000000000000000000077 /* MessageLedgerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SIDEYTests/MessageLedgerTests.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 
@@ -103,7 +117,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				100000000000000000000001 /* Supabase in Frameworks */,
 				100000000000000000000043 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -126,7 +139,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				100000000000000000000046 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -163,7 +175,7 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		300000000000000000000099 /* App Store Tests */ = {isa = PBXGroup; children = (30000000000000000000006B /* StoreCatalogCompatibilityTests.swift */,300000000000000000000064 /* CharacterStunTests.swift */,300000000000000000000065 /* CharacterImpactAudioTests.swift */,300000000000000000000066 /* CharacterThrowAssetTests.swift */,300000000000000000000067 /* PixelHamsterAssetTests.swift */,300000000000000000000068 /* NewCharacterIntegrationTests.swift */,300000000000000000000069 /* TreeMovementTests.swift */,30000000000000000000006A /* approved-impact-sounds.json */,); name = "App Store Tests"; sourceTree = "<group>"; };
+		300000000000000000000099 /* App Store Tests */ = {isa = PBXGroup; children = (300000000000000000000070 /* SpringRealtimeTransportTests.swift */,300000000000000000000071 /* SpringMessageRecoveryTests.swift */,300000000000000000000072 /* SideySessionClientTests.swift */,300000000000000000000073 /* RuntimeConfigurationTests.swift */,300000000000000000000074 /* AppStoreBackendClientTests.swift */,300000000000000000000075 /* KeychainStoreTests.swift */,300000000000000000000076 /* MessageHistoryTests.swift */,300000000000000000000077 /* MessageLedgerTests.swift */,30000000000000000000006B /* StoreCatalogCompatibilityTests.swift */,300000000000000000000064 /* CharacterStunTests.swift */,300000000000000000000065 /* CharacterImpactAudioTests.swift */,300000000000000000000066 /* CharacterThrowAssetTests.swift */,300000000000000000000067 /* PixelHamsterAssetTests.swift */,300000000000000000000068 /* NewCharacterIntegrationTests.swift */,300000000000000000000069 /* TreeMovementTests.swift */,30000000000000000000006A /* approved-impact-sounds.json */,); name = "App Store Tests"; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -188,7 +200,6 @@
 			);
 			name = SIDEY;
 			packageProductDependencies = (
-				100000000000000000000041 /* Supabase */,
 				100000000000000000000045 /* Sparkle */,
 			);
 			productName = SIDEY;
@@ -258,7 +269,6 @@
 			);
 			name = SIDEYAppStore;
 			packageProductDependencies = (
-				100000000000000000000041 /* Supabase */,
 			);
 			productName = SIDEYAppStore;
 			productReference = 100000000000000000000047 /* SIDEY.app */;
@@ -322,7 +332,6 @@
 			mainGroup = 100000000000000000000009;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				100000000000000000000040 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 				100000000000000000000044 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -459,6 +468,14 @@
 				3000000000000000000000CC /* NewCharacterIntegrationTests.swift */,
 				3000000000000000000000CD /* TreeMovementTests.swift */,
 				3000000000000000000000CF /* StoreCatalogCompatibilityTests.swift */,
+				3000000000000000000000D0 /* SpringRealtimeTransportTests.swift */,
+				3000000000000000000000D1 /* SpringMessageRecoveryTests.swift */,
+				3000000000000000000000D2 /* SideySessionClientTests.swift */,
+				3000000000000000000000D3 /* RuntimeConfigurationTests.swift */,
+				3000000000000000000000D4 /* AppStoreBackendClientTests.swift */,
+				3000000000000000000000D5 /* KeychainStoreTests.swift */,
+				3000000000000000000000D6 /* MessageHistoryTests.swift */,
+				3000000000000000000000D7 /* MessageLedgerTests.swift */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -497,6 +514,7 @@
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "Config/SIDEY-Info.plist";
+				CODE_SIGN_ENTITLEMENTS = Config/SIDEY.entitlements;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -510,8 +528,11 @@
 				SIDEY_DISPLAY_NAME = "Sidey-dev";
 				SIDEY_LOGIN_ITEM_BUNDLE_IDENTIFIER = "app.sidey.desktop.dev.login-item";
 				SIDEY_RELEASE_CHANNEL = development;
-				SIDEY_SUPABASE_PUBLISHABLE_KEY = "";
-				SIDEY_SUPABASE_URL = "";
+				SIDEY_API_BASE_URL = "";
+				SIDEY_GOOGLE_CLIENT_ID = "";
+				SIDEY_GOOGLE_CLIENT_SECRET = "";
+				SIDEY_LEGACY_SUPABASE_PUBLISHABLE_KEY = "";
+				SIDEY_LEGACY_SUPABASE_URL = "";
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -532,6 +553,7 @@
 				ENABLE_HARDENED_RUNTIME = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = "Config/SIDEY-Info.plist";
+				CODE_SIGN_ENTITLEMENTS = Config/SIDEY.entitlements;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -545,8 +567,11 @@
 				SIDEY_DISPLAY_NAME = "SIDEY-DIRECT";
 				SIDEY_LOGIN_ITEM_BUNDLE_IDENTIFIER = "app.sidey.desktop.login-item";
 				SIDEY_RELEASE_CHANNEL = production;
-				SIDEY_SUPABASE_PUBLISHABLE_KEY = "";
-				SIDEY_SUPABASE_URL = "";
+				SIDEY_API_BASE_URL = "";
+				SIDEY_GOOGLE_CLIENT_ID = "";
+				SIDEY_GOOGLE_CLIENT_SECRET = "";
+				SIDEY_LEGACY_SUPABASE_PUBLISHABLE_KEY = "";
+				SIDEY_LEGACY_SUPABASE_URL = "";
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -565,8 +590,13 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.sidey.desktop.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SIDEY_RUN_BACKEND_INTEGRATION = 0;
-				SIDEY_SUPABASE_PUBLISHABLE_KEY = "";
-				SIDEY_SUPABASE_URL = "";
+				SIDEY_INTEGRATION_SESSION_ONE_FILE = "";
+				SIDEY_INTEGRATION_SESSION_TWO_FILE = "";
+				SIDEY_API_BASE_URL = "";
+				SIDEY_GOOGLE_CLIENT_ID = "";
+				SIDEY_GOOGLE_CLIENT_SECRET = "";
+				SIDEY_LEGACY_SUPABASE_PUBLISHABLE_KEY = "";
+				SIDEY_LEGACY_SUPABASE_URL = "";
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -586,8 +616,13 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.sidey.desktop.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SIDEY_RUN_BACKEND_INTEGRATION = 0;
-				SIDEY_SUPABASE_PUBLISHABLE_KEY = "";
-				SIDEY_SUPABASE_URL = "";
+				SIDEY_INTEGRATION_SESSION_ONE_FILE = "";
+				SIDEY_INTEGRATION_SESSION_TWO_FILE = "";
+				SIDEY_API_BASE_URL = "";
+				SIDEY_GOOGLE_CLIENT_ID = "";
+				SIDEY_GOOGLE_CLIENT_SECRET = "";
+				SIDEY_LEGACY_SUPABASE_PUBLISHABLE_KEY = "";
+				SIDEY_LEGACY_SUPABASE_URL = "";
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
@@ -697,7 +732,9 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.sidey.desktop.appstore;
 				PRODUCT_NAME = SIDEY;
 				PRODUCT_MODULE_NAME = SIDEYAppStore;
-				SIDEY_APP_STORE_VERIFIER_URL = "https://sidey-app-store-verifier-sandbox-802687666602.asia-northeast3.run.app";
+				SIDEY_API_BASE_URL = "";
+				SIDEY_GOOGLE_CLIENT_ID = "";
+				SIDEY_GOOGLE_CLIENT_SECRET = "";
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "APP_STORE DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -731,7 +768,9 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.sidey.desktop.appstore;
 				PRODUCT_NAME = SIDEY;
 				PRODUCT_MODULE_NAME = SIDEYAppStore;
-				SIDEY_APP_STORE_VERIFIER_URL = "https://sidey-app-store-verifier-production-eu3layugaq-du.a.run.app";
+				SIDEY_API_BASE_URL = "";
+				SIDEY_GOOGLE_CLIENT_ID = "";
+				SIDEY_GOOGLE_CLIENT_SECRET = "";
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "APP_STORE $(inherited)";
 				SWIFT_COMPILATION_MODE = wholemodule;
@@ -751,8 +790,13 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.sidey.desktop.appstore.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SIDEY_RUN_BACKEND_INTEGRATION = 0;
-				SIDEY_SUPABASE_PUBLISHABLE_KEY = "";
-				SIDEY_SUPABASE_URL = "";
+				SIDEY_INTEGRATION_SESSION_ONE_FILE = "";
+				SIDEY_INTEGRATION_SESSION_TWO_FILE = "";
+				SIDEY_API_BASE_URL = "";
+				SIDEY_GOOGLE_CLIENT_ID = "";
+				SIDEY_GOOGLE_CLIENT_SECRET = "";
+				SIDEY_LEGACY_SUPABASE_PUBLISHABLE_KEY = "";
+				SIDEY_LEGACY_SUPABASE_URL = "";
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_STRICT_CONCURRENCY = complete;
@@ -774,8 +818,13 @@
 				PRODUCT_BUNDLE_IDENTIFIER = app.sidey.desktop.appstore.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SIDEY_RUN_BACKEND_INTEGRATION = 0;
-				SIDEY_SUPABASE_PUBLISHABLE_KEY = "";
-				SIDEY_SUPABASE_URL = "";
+				SIDEY_INTEGRATION_SESSION_ONE_FILE = "";
+				SIDEY_INTEGRATION_SESSION_TWO_FILE = "";
+				SIDEY_API_BASE_URL = "";
+				SIDEY_GOOGLE_CLIENT_ID = "";
+				SIDEY_GOOGLE_CLIENT_SECRET = "";
+				SIDEY_LEGACY_SUPABASE_PUBLISHABLE_KEY = "";
+				SIDEY_LEGACY_SUPABASE_URL = "";
 				SUPPORTED_PLATFORMS = macosx;
 				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
@@ -845,14 +894,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		100000000000000000000040 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/supabase/supabase-swift.git";
-			requirement = {
-				kind = exactVersion;
-				version = 2.55.1;
-			};
-		};
 		100000000000000000000044 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
@@ -864,11 +905,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		100000000000000000000041 /* Supabase */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 100000000000000000000040 /* XCRemoteSwiftPackageReference "supabase-swift" */;
-			productName = Supabase;
-		};
 		100000000000000000000045 /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 100000000000000000000044 /* XCRemoteSwiftPackageReference "Sparkle" */;

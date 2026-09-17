@@ -7,6 +7,8 @@ struct AppSettingsView: View {
     let storeAvailability: StoreAvailability
     @State private var showsDeletionControls = false
     @State private var deletionPhrase = ""
+    @State private var requiresAppleDeletionAuthentication = false
+    @State private var unlinksAppleIdentity = false
 
     init(
         model: AppModel,
@@ -154,9 +156,7 @@ struct AppSettingsView: View {
                 }
             }
 
-            if storeAvailability.usesAppStore {
-                accountSection
-            }
+            accountSection
 
         }
     }
@@ -164,7 +164,7 @@ struct AppSettingsView: View {
     private var accountSection: some View {
         SettingsSection(
             title: "계정 및 개인정보",
-            subtitle: "계정 데이터와 App Store 구매 연결을 관리합니다.",
+            subtitle: "계정 데이터와 개인정보를 관리합니다.",
             systemImage: "person.crop.circle"
         ) {
             HStack(spacing: 18) {
@@ -177,9 +177,43 @@ struct AppSettingsView: View {
                     destination: URL(string: "https://sidey-app.github.io/SIDEY/terms.html")!
                 )
                 Spacer()
-                Button("구매 복원", action: actions.onRestorePurchases)
-                    .disabled(model.accountOperationInProgress)
+                if storeAvailability.usesAppStore {
+                    Button("구매 복원", action: actions.onRestorePurchases)
+                        .disabled(model.accountOperationInProgress)
+                }
             }
+            Divider()
+            DisclosureGroup("로그인 계정 관리") {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Google 또는 Apple 계정을 연결할 수 있습니다. 마지막 로그인 계정은 연결을 해제할 수 없습니다.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        Button("Google 계정 연결", action: actions.onSignInWithGoogle)
+                        Button("Google 연결 해제", role: .destructive, action: actions.onUnlinkGoogleIdentity)
+                    }
+                    Picker("Apple 계정", selection: $unlinksAppleIdentity) {
+                        Text("연결").tag(false)
+                        Text("연결 해제").tag(true)
+                    }
+                    .frame(maxWidth: 280)
+                    ServerAppleSignInButton(
+                        isDisabled: model.accountOperationInProgress,
+                        fetchNonce: actions.onAuthenticationNonce,
+                        onAuthorization: unlinksAppleIdentity ? actions.onUnlinkAppleIdentity : actions.onSignInWithApple,
+                        onError: { model.errorMessage = $0.localizedDescription }
+                    )
+                    Text("연결하거나 해제할 계정으로 다시 인증해 주세요.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .disabled(model.accountOperationInProgress)
+            }
+            HStack {
+                Button("로그아웃") { actions.onSignOut(false) }
+                Button("모든 기기에서 로그아웃") { actions.onSignOut(true) }
+            }
+            .disabled(model.accountOperationInProgress)
             Divider()
             VStack(alignment: .leading, spacing: 12) {
                 Text("계정 탈퇴")
@@ -192,23 +226,28 @@ struct AppSettingsView: View {
                     TextField("확인을 위해 ‘탈퇴’ 입력", text: $deletionPhrase)
                         .textFieldStyle(.roundedBorder)
                         .frame(maxWidth: 280)
-                    SignInWithAppleButton(.continue) { request in
-                        let nonce = AppleAuthorization.makeNonce()
-                        AppleAuthorization.prepare(request, nonce: nonce)
-                    } onCompletion: { result in
-                        do {
-                            let payload = try AppleAuthorization.payload(from: result)
-                            actions.onDeleteAccount(payload)
-                        } catch {
-                            model.errorMessage = error.localizedDescription
+                    if requiresAppleDeletionAuthentication {
+                        ServerAppleSignInButton(
+                            isDisabled: deletionPhrase != "탈퇴" || model.accountOperationInProgress,
+                            fetchNonce: actions.onAuthenticationNonce,
+                            onAuthorization: actions.onDeleteAccount,
+                            onError: { model.errorMessage = $0.localizedDescription }
+                        )
+                        Text("연결된 Apple 계정으로 다시 인증하면 즉시 삭제됩니다.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Button("계정 영구 삭제", role: .destructive) {
+                            Task {
+                                do {
+                                    requiresAppleDeletionAuthentication = try await actions.onRequestAccountDeletion() == .appleAuthenticationRequired
+                                } catch {
+                                    model.errorMessage = "계정 탈퇴 실패: \(error.localizedDescription)"
+                                }
+                            }
                         }
+                        .disabled(deletionPhrase != "탈퇴" || model.accountOperationInProgress)
                     }
-                    .signInWithAppleButtonStyle(.black)
-                    .frame(width: 280, height: 40)
-                    .disabled(deletionPhrase != "탈퇴" || model.accountOperationInProgress)
-                    Text("‘탈퇴’를 입력한 뒤 Apple로 다시 인증하면 즉시 삭제됩니다.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
                 } else {
                     Button("계정 탈퇴…", role: .destructive) {
                         showsDeletionControls = true

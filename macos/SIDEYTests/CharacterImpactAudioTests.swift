@@ -99,15 +99,15 @@ final class CharacterImpactAudioTests: XCTestCase {
         for (receivedID, expectedID) in cases {
             var now: TimeInterval = 100
             let actor = UUID(), target = UUID(), room = UUID()
-            var raw: [String: Any] = ["schema_version": 1, "room_id": room.uuidString,
-                "event_id": UUID().uuidString, "actor_user_id": actor.uuidString,
-                "target_user_id": target.uuidString, "source_character_id": "pixel_hamster"]
-            if let receivedID { raw["throwable_id"] = receivedID }
-            let payload = try JSONDecoder().decode(CharacterThrowPayload.self,
+            var raw: [String: Any] = ["type": "character.throw", "roomId": room.uuidString,
+                "eventId": UUID().uuidString, "userId": actor.uuidString,
+                "targetUserId": target.uuidString, "sourceCharacterId": "pixel_hamster"]
+            if let receivedID { raw["throwableId"] = receivedID }
+            let payload = try JSONDecoder().decode(SpringEvent.self,
                 from: JSONSerialization.data(withJSONObject: raw))
-            let event = CharacterThrowEvent(id: payload.eventID, roomID: payload.roomID,
-                actorUserID: payload.actorUserID, targetUserID: payload.targetUserID,
-                sourceCharacterID: payload.sourceCharacterID, throwableID: payload.throwableID)
+            let event = CharacterThrowEvent(id: try XCTUnwrap(payload.eventId), roomID: try XCTUnwrap(payload.roomId),
+                actorUserID: try XCTUnwrap(payload.userId), targetUserID: try XCTUnwrap(payload.targetUserId),
+                sourceCharacterID: try XCTUnwrap(payload.sourceCharacterId), throwableID: payload.throwableId)
             let textures = PixelCharacterThrowTextureStore.shared.textures(
                 for: event.sourceCharacterID, throwableID: event.throwableID)
             XCTAssertEqual(textures.objectID, expectedID, receivedID ?? "missing")

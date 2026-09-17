@@ -1,7 +1,11 @@
 import LocalAuthentication
 import Security
 import XCTest
+#if APP_STORE
+@testable import SIDEYAppStore
+#else
 @testable import SIDEY
+#endif
 
 final class KeychainStoreTests: XCTestCase {
     func testDefaultOperationReasonExplainsWhySIDEYUsesKeychain() {
@@ -108,7 +112,7 @@ final class KeychainStoreTests: XCTestCase {
         XCTAssertNil(try store.read(account: account))
     }
 
-    func testSupabaseStorageMirrorsRefreshTokenForRollback() throws {
+    func testLegacyClaimStoragePreservesRefreshOwnershipProof() throws {
         let store = KeychainStore(service: "app.sidey.desktop.tests.\(UUID().uuidString)")
         let sessionAccount = "native-session"
         let legacyAccount = "legacy-refresh"

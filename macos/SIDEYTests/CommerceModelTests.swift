@@ -169,20 +169,6 @@ final class CommerceModelTests: XCTestCase {
         )
     }
 
-    func testCosmeticEquipmentRPCAlwaysEncodesExplicitNullCatalogKey() throws {
-        let data = try JSONEncoder().encode(SetEquippedCosmeticParameters(
-            productKind: .bubble,
-            catalogItemID: nil
-        ))
-        let object = try XCTUnwrap(
-            JSONSerialization.jsonObject(with: data) as? [String: Any]
-        )
-
-        XCTAssertEqual(object["p_product_kind"] as? String, "bubble")
-        XCTAssertTrue(object.keys.contains("p_catalog_item_id"))
-        XCTAssertTrue(object["p_catalog_item_id"] is NSNull)
-    }
-
     func testCosmeticEquipmentSuccessCopyUsesCompletedEquipmentWording() {
         XCTAssertEqual(
             CosmeticEquipmentFeedback.successMessage(kind: .bubble, product: nil),
@@ -452,32 +438,6 @@ final class CommerceModelTests: XCTestCase {
             entitlementStatus: "refunded",
             latestOrderStatus: "refunded"
         ).purchaseState, .refunded)
-    }
-
-    func testCoreSnapshotDoesNotDependOnCommerceSchemaAvailability() {
-        let ownedKey = CommerceCatalog.starlightUpalupaEntitlementKey
-
-        XCTAssertEqual(
-            CommerceEntitlementSnapshotPolicy.resolvedKeys(
-                remoteKeys: [ownedKey],
-                profileCharacterID: PixelCharacterCatalog.pixelHamsterID
-            ),
-            [ownedKey]
-        )
-        XCTAssertEqual(
-            CommerceEntitlementSnapshotPolicy.resolvedKeys(
-                remoteKeys: nil,
-                profileCharacterID: PixelCharacterCatalog.pixelStarlightUpalupaID
-            ),
-            [ownedKey]
-        )
-        XCTAssertEqual(
-            CommerceEntitlementSnapshotPolicy.resolvedKeys(
-                remoteKeys: nil,
-                profileCharacterID: PixelCharacterCatalog.pixelHamsterID
-            ),
-            []
-        )
     }
 
     func testPaidCharacterAppearsOnlyWithActiveEntitlementAndRefundFallsBack() {

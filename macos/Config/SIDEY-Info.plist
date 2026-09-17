@@ -43,10 +43,6 @@
 	<true/>
 	<key>SIDEYReleaseChannel</key>
 	<string>$(SIDEY_RELEASE_CHANNEL)</string>
-	<key>SIDEYSupabaseURL</key>
-	<string>$(SIDEY_SUPABASE_URL)</string>
-	<key>SIDEYSupabasePublishableKey</key>
-	<string>$(SIDEY_SUPABASE_PUBLISHABLE_KEY)</string>
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/sidey-app/SIDEY/main/updates/appcast.xml</string>
 	<key>SUPublicEDKey</key>
@@ -55,5 +51,15 @@
 	<true/>
 	<key>SUVerifyUpdateBeforeExtraction</key>
 	<true/>
+	<key>SIDEYAPIBaseURL</key>
+	<string>$(SIDEY_API_BASE_URL)</string>
+	<key>SIDEYGoogleClientID</key>
+	<string>$(SIDEY_GOOGLE_CLIENT_ID)</string>
+	<key>SIDEYGoogleClientSecret</key>
+	<string>$(SIDEY_GOOGLE_CLIENT_SECRET)</string>
+	<key>SIDEYLegacySupabaseURL</key>
+	<string>$(SIDEY_LEGACY_SUPABASE_URL)</string>
+	<key>SIDEYLegacySupabasePublishableKey</key>
+	<string>$(SIDEY_LEGACY_SUPABASE_PUBLISHABLE_KEY)</string>
 </dict>
 </plist>

@@ -1,19 +1,26 @@
 import Foundation
 
-struct AppStoreAccountClient: Sendable {
-    let verifierURL: URL?
+enum AccountDeletionResult: Sendable, Equatable {
+    case deleted
+    case appleAuthenticationRequired
+}
 
-    init(verifierURL: URL? = AppStoreServiceEndpoint.resolve()) {
-        self.verifierURL = verifierURL
+struct AppStoreAccountClient: Sendable {
+    let apiBaseURL: URL?
+    let session: URLSession
+
+    init(apiBaseURL: URL? = AppStoreServiceEndpoint.resolve(), session: URLSession = .shared) {
+        self.apiBaseURL = apiBaseURL
+        self.session = session
     }
 
     func deleteAccount(payload: AppleAuthorizationPayload, accessToken: String) async throws {
         guard let authorizationCode = payload.authorizationCode else {
             throw AppleAuthorizationError.missingAuthorizationCode
         }
-        guard let verifierURL else { throw AppStorePurchaseError.verifierNotConfigured }
-        var request = URLRequest(url: verifierURL.appending(path: "v1/accounts/delete"))
-        request.httpMethod = "POST"
+        guard let apiBaseURL else { throw AppStorePurchaseError.verifierNotConfigured }
+        var request = URLRequest(url: apiBaseURL.appending(path: "account/apple"))
+        request.httpMethod = "DELETE"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(DeleteAccountRequest(
@@ -21,11 +28,22 @@ struct AppStoreAccountClient: Sendable {
             authorizationCode: authorizationCode,
             nonce: payload.nonce
         ))
-        let (_, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
             throw AppStoreAccountError.deletionRejected
         }
+        if http.statusCode == 401 { throw SideyBackendError.sessionRecoveryFailed }
+        guard (200..<300).contains(http.statusCode) else {
+            throw AppStoreAccountError.deletionRejected
+        }
+        let result = try JSONDecoder().decode(DeleteAccountResponse.self, from: data)
+        guard result.deleted else { throw AppStoreAccountError.deletionRejected }
     }
+}
+
+private struct DeleteAccountResponse: Decodable {
+    let deleted: Bool
+    let appleCredentialRevoked: Bool
 }
 
 private struct DeleteAccountRequest: Encodable {

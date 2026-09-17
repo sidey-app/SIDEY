@@ -4,6 +4,8 @@ struct BackendSnapshot: Equatable, Sendable {
     var profile: Profile?
     var rooms: [Room]
     var activeEntitlementKeys: Set<String> = []
+    // Local ordering only; never sent to the server.
+    var membershipRevision: UInt64 = 0
 }
 
 struct BackendReconciliation: Equatable, Sendable {
@@ -32,33 +34,6 @@ struct BackendConnectionStatus: Equatable, Sendable {
     }
 }
 
-enum RealtimeConnectionStatusPolicy {
-    static func resolve(
-        pathAvailable: Bool,
-        socketAvailable: Bool,
-        recoveryTaskRunning: Bool,
-        rebuildingChannels: Bool,
-        allRoomsSubscribed: Bool,
-        recoveryReconciled: Bool,
-        hasActiveRoom: Bool,
-        activeRoomSubscribed: Bool
-    ) -> BackendConnectionStatus {
-        let aggregateTransportConnected = pathAvailable
-            && socketAvailable
-            && !recoveryTaskRunning
-            && !rebuildingChannels
-            && allRoomsSubscribed
-        let activeTransportConnected = hasActiveRoom
-            ? pathAvailable && socketAvailable && activeRoomSubscribed
-            : aggregateTransportConnected
-        return BackendConnectionStatus(
-            transportConnected: aggregateTransportConnected,
-            recoveryReconciled: recoveryReconciled,
-            activeRoomTransportConnected: activeTransportConnected
-        )
-    }
-}
-
 struct MessageHistoryCursor: Equatable, Sendable {
     let rawCreatedAt: String
     let id: UUID
@@ -70,6 +45,9 @@ struct MessageHistoryPage: Equatable, Sendable {
 }
 
 enum BackendEvent: Sendable {
+    case authenticationRequired
+    case roomRevoked(roomID: UUID, revision: UInt64)
+    case roomStateInvalidated(revision: UInt64)
     case snapshot(BackendSnapshot)
     case reconciliation(BackendReconciliation)
     case message(ChatMessage)
@@ -111,68 +89,6 @@ enum BackendConnectionState: Equatable, Sendable {
     }
 }
 
-struct DatabaseProfile: Codable, Sendable {
-    let id: UUID
-    let nickname: String
-    let characterID: String
-    let equippedBubbleStyleID: String?
-    let equippedThrowableID: String?
-    var treeMovementPaused: Bool? = nil
-    var treeMovementRevision: Int64? = nil
-
-    enum CodingKeys: String, CodingKey {
-        case id, nickname
-        case characterID = "character_id"
-        case equippedBubbleStyleID = "equipped_bubble_style_id"
-        case equippedThrowableID = "equipped_throwable_id"
-        case treeMovementPaused = "tree_movement_paused"
-        case treeMovementRevision = "tree_movement_revision"
-    }
-
-    var domain: Profile {
-        Profile(
-            id: id,
-            nickname: nickname,
-            characterID: PixelCharacterCatalog.canonicalID(for: characterID),
-            equippedBubbleStyleID: equippedBubbleStyleID,
-            equippedThrowableID: equippedThrowableID,
-            treeMovementPaused: treeMovementPaused ?? false,
-            treeMovementRevision: treeMovementRevision
-        )
-    }
-}
-
-struct DatabaseRoom: Codable, Sendable {
-    let id: UUID
-    let name: String
-    let ownerID: UUID
-    let inviteCodeHint: String
-    let inviteCodeReady: Bool
-    let realtimeEpoch: Int
-    let createdAt: String
-
-    enum CodingKeys: String, CodingKey {
-        case id, name
-        case ownerID = "owner_id"
-        case inviteCodeHint = "invite_code_hint"
-        case inviteCodeReady = "invite_code_ready"
-        case realtimeEpoch = "realtime_epoch"
-        case createdAt = "created_at"
-    }
-}
-
-struct DatabaseMembership: Codable, Sendable {
-    let roomID: UUID
-    let userID: UUID
-    let joinedAt: String
-
-    enum CodingKeys: String, CodingKey {
-        case roomID = "room_id"
-        case userID = "user_id"
-        case joinedAt = "joined_at"
-    }
-}
-
 struct DatabaseCommerceEntitlement: Codable, Sendable {
     let entitlementKey: String
     let status: String
@@ -180,157 +96,6 @@ struct DatabaseCommerceEntitlement: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case status
         case entitlementKey = "entitlement_key"
-    }
-}
-
-enum CommerceEntitlementSnapshotPolicy {
-    static func resolvedKeys(
-        remoteKeys: Set<String>?,
-        profileCharacterID: String?
-    ) -> Set<String> {
-        if let remoteKeys { return remoteKeys }
-        guard let profileCharacterID,
-              let entitlementKey = PixelCharacterCatalog
-                .definition(for: profileCharacterID)
-                .entitlementKey
-        else { return [] }
-        return [entitlementKey]
-    }
-}
-
-struct DatabaseCommerceState: Codable, Sendable {
-    let productID: String
-    let displayName: String
-    let productDescription: String
-    let productKind: CommerceProductKind
-    let catalogItemID: String
-    let characterID: String?
-    let entitlementKey: String
-    let sortOrder: Int
-    let amountKRW: Int
-    let currency: String
-    let taxInclusive: Bool
-    let googleConnected: Bool
-    let entitlementStatus: String?
-    let latestOrderStatus: String?
-    let isEquipped: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case currency
-        case productID = "product_id"
-        case displayName = "display_name"
-        case productDescription = "product_description"
-        case productKind = "product_kind"
-        case catalogItemID = "catalog_item_id"
-        case characterID = "character_id"
-        case entitlementKey = "entitlement_key"
-        case sortOrder = "sort_order"
-        case amountKRW = "amount_krw"
-        case taxInclusive = "tax_inclusive"
-        case googleConnected = "google_connected"
-        case entitlementStatus = "entitlement_status"
-        case latestOrderStatus = "latest_order_status"
-        case isEquipped = "is_equipped"
-    }
-
-    var domain: CommerceState {
-        CommerceState(
-            product: CommerceProduct(
-                id: productID,
-                displayName: displayName,
-                description: productDescription,
-                kind: productKind,
-                catalogItemID: catalogItemID,
-                characterID: characterID,
-                entitlementKey: entitlementKey,
-                sortOrder: sortOrder,
-                amountKRW: amountKRW,
-                currency: currency,
-                taxInclusive: taxInclusive
-            ),
-            googleConnected: googleConnected,
-            entitlementStatus: entitlementStatus,
-            latestOrderStatus: latestOrderStatus,
-            isEquipped: isEquipped
-        )
-    }
-}
-
-struct CommerceOrderRequest: Encodable, Sendable {
-    let productID: String
-    enum CodingKeys: String, CodingKey { case productID = "product_id" }
-}
-
-struct CommerceOrderResponse: Decodable, Sendable {
-    let orderID: UUID
-    let checkoutURL: URL
-
-    enum CodingKeys: String, CodingKey {
-        case orderID = "order_id"
-        case checkoutURL = "checkout_url"
-    }
-}
-
-struct DatabaseMessage: Codable, Sendable {
-    let id: UUID
-    let roomID: UUID
-    let senderID: UUID
-    let body: String
-    let createdAt: String
-    let bubbleStyleID: String?
-
-    init(
-        id: UUID,
-        roomID: UUID,
-        senderID: UUID,
-        body: String,
-        createdAt: String,
-        bubbleStyleID: String? = nil
-    ) {
-        self.id = id
-        self.roomID = roomID
-        self.senderID = senderID
-        self.body = body
-        self.createdAt = createdAt
-        self.bubbleStyleID = bubbleStyleID
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case id, body
-        case roomID = "room_id"
-        case senderID = "sender_id"
-        case createdAt = "created_at"
-        case bubbleStyleID = "bubble_style_id"
-    }
-
-    var domain: ChatMessage {
-        get throws {
-            ChatMessage(
-                id: id,
-                roomID: roomID,
-                senderID: senderID,
-                body: body,
-                createdAt: try PostgresTimestampDecoder.decode(createdAt),
-                bubbleStyleID: bubbleStyleID
-            )
-        }
-    }
-}
-
-enum MessageHistoryPageMapper {
-    static func page(
-        from orderedRows: [DatabaseMessage],
-        pageSize: Int
-    ) throws -> MessageHistoryPage {
-        let boundedPageSize = min(max(pageSize, 1), 50)
-        let visibleRows = Array(orderedRows.prefix(boundedPageSize))
-        let messages = try visibleRows.map { try $0.domain }
-        let nextCursor = orderedRows.count > boundedPageSize
-            ? visibleRows.last.map {
-                MessageHistoryCursor(rawCreatedAt: $0.createdAt, id: $0.id)
-            }
-            : nil
-        return MessageHistoryPage(messages: messages, nextCursor: nextCursor)
     }
 }
 
@@ -444,210 +209,6 @@ enum PostgresTimestampEncoder {
     }
 }
 
-struct UpsertProfileParameters: Encodable, Sendable {
-    let nickname: String
-    let characterID: String
-
-    enum CodingKeys: String, CodingKey {
-        case nickname = "p_nickname"
-        case characterID = "p_character_id"
-    }
-}
-
-struct CreateRoomParameters: Encodable, Sendable {
-    let name: String
-    enum CodingKeys: String, CodingKey { case name = "p_name" }
-}
-
-struct CreateRoomRow: Decodable, Sendable {
-    let roomID: UUID
-    let inviteCode: String
-    enum CodingKeys: String, CodingKey {
-        case roomID = "room_id"
-        case inviteCode = "invite_code"
-    }
-}
-
-struct JoinRoomParameters: Encodable, Sendable {
-    let inviteCode: String
-    enum CodingKeys: String, CodingKey { case inviteCode = "p_invite_code" }
-}
-
-struct JoinRoomRow: Decodable, Sendable {
-    let roomID: UUID?
-    let errorCode: String?
-    enum CodingKeys: String, CodingKey {
-        case roomID = "room_id"
-        case errorCode = "error_code"
-    }
-}
-
-struct LeaveRoomParameters: Encodable, Sendable {
-    let roomID: UUID
-    enum CodingKeys: String, CodingKey { case roomID = "p_room_id" }
-}
-
-struct RenameRoomParameters: Encodable, Sendable {
-    let roomID: UUID
-    let name: String
-
-    enum CodingKeys: String, CodingKey {
-        case roomID = "p_room_id"
-        case name = "p_name"
-    }
-}
-
-struct RemoveRoomMemberParameters: Encodable, Sendable {
-    let roomID: UUID
-    let userID: UUID
-
-    enum CodingKeys: String, CodingKey {
-        case roomID = "p_room_id"
-        case userID = "p_user_id"
-    }
-}
-
-struct DeleteRoomParameters: Encodable, Sendable {
-    let roomID: UUID
-    enum CodingKeys: String, CodingKey { case roomID = "p_room_id" }
-}
-
-struct SendMessageParameters: Encodable, Sendable {
-    let id: UUID
-    let roomID: UUID
-    let body: String
-    enum CodingKeys: String, CodingKey {
-        case id = "p_id"
-        case roomID = "p_room_id"
-        case body = "p_body"
-    }
-}
-
-struct PresencePayload: Codable, Sendable {
-    let userID: UUID
-    let state: PresenceState
-    let onlineAt: String
-
-    enum CodingKeys: String, CodingKey {
-        case state
-        case userID = "user_id"
-        case onlineAt = "online_at"
-    }
-}
-
-struct PresencePublicationIntent: Equatable, Sendable {
-    let activeRoomID: UUID?
-    let localPresence: PresenceState
-}
-
-struct TypingPayload: Codable, Sendable {
-    let roomID: UUID
-    let userID: UUID
-    enum CodingKeys: String, CodingKey {
-        case roomID = "room_id"
-        case userID = "user_id"
-    }
-}
-
-struct CharacterPulsePayload: Codable, Sendable {
-    let roomID: UUID
-    let userID: UUID
-    let eventID: UUID
-
-    enum CodingKeys: String, CodingKey {
-        case roomID = "room_id"
-        case userID = "user_id"
-        case eventID = "event_id"
-    }
-}
-
-struct CharacterThrowPayload: Codable, Sendable {
-    let schemaVersion: Int
-    let roomID: UUID
-    let eventID: UUID
-    let actorUserID: UUID
-    let targetUserID: UUID
-    let sourceCharacterID: String
-    let throwableID: String?
-
-    enum CodingKeys: String, CodingKey {
-        case schemaVersion = "schema_version"
-        case roomID = "room_id"
-        case eventID = "event_id"
-        case actorUserID = "actor_user_id"
-        case targetUserID = "target_user_id"
-        case sourceCharacterID = "source_character_id"
-        case throwableID = "throwable_id"
-    }
-}
-
-struct DatabaseChangePayload: Codable, Sendable {
-    let roomID: UUID
-    let operation: String?
-    let messageID: UUID?
-    let entity: String?
-    let realtimeEpoch: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case operation, entity
-        case roomID = "room_id"
-        case messageID = "message_id"
-        case realtimeEpoch = "realtime_epoch"
-    }
-}
-
-struct BroadcastRoomEventParameters: Encodable, Sendable {
-    let roomID: UUID
-    let realtimeEpoch: Int
-    let event: String
-    let eventID: UUID?
-
-    enum CodingKeys: String, CodingKey {
-        case roomID = "p_room_id"
-        case realtimeEpoch = "p_realtime_epoch"
-        case event = "p_event"
-        case eventID = "p_event_id"
-    }
-}
-
-struct BroadcastCharacterThrowParameters: Encodable, Sendable {
-    let roomID: UUID
-    let realtimeEpoch: Int
-    let eventID: UUID
-    let targetUserID: UUID
-
-    enum CodingKeys: String, CodingKey {
-        case roomID = "p_room_id"
-        case realtimeEpoch = "p_realtime_epoch"
-        case eventID = "p_event_id"
-        case targetUserID = "p_target_user_id"
-    }
-}
-
-struct SetEquippedCosmeticParameters: Encodable, Sendable {
-    let productKind: CommerceProductKind
-    let catalogItemID: String?
-
-    enum CodingKeys: String, CodingKey {
-        case productKind = "p_product_kind"
-        case catalogItemID = "p_catalog_item_id"
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(productKind, forKey: .productKind)
-        // PostgREST distinguishes an omitted RPC argument from an explicit
-        // SQL NULL. Always include the key so both client/server versions can
-        // reliably return to the default cosmetic.
-        try container.encode(catalogItemID, forKey: .catalogItemID)
-    }
-}
-
-struct RotateInviteCodeParameters: Encodable, Sendable {
-    let roomID: UUID
-    enum CodingKeys: String, CodingKey { case roomID = "p_room_id" }
-}
-
 enum SideyBackendError: LocalizedError, Equatable {
     case invalidProfile
     case invalidRoomName
@@ -666,7 +227,6 @@ enum SideyBackendError: LocalizedError, Equatable {
     case invalidTimestamp
     case sessionRecoveryFailed
     case realtimeUnavailable
-    case staleRealtimeEpoch
     case remote(String)
 
     var errorDescription: String? {
@@ -688,8 +248,33 @@ enum SideyBackendError: LocalizedError, Equatable {
         case .invalidTimestamp: "서버 메시지 시각을 해석하지 못했습니다."
         case .sessionRecoveryFailed: "기존 로그인 세션을 복구하지 못했습니다. 새 계정은 만들지 않았으니 다시 로그인하거나 지원을 요청해 주세요."
         case .realtimeUnavailable: "실시간 연결이 준비되지 않았습니다."
-        case .staleRealtimeEpoch: "그룹 권한이 변경되어 실시간 연결을 새로 고쳐야 합니다."
-        case .remote(let message): message
+        case .remote(let message): Self.remoteDescription(message)
+        }
+    }
+
+    private static func remoteDescription(_ code: String) -> String {
+        switch code {
+        case "invalid_message": return "메시지는 200자·3줄 이하로 입력해 주세요."
+        case "message_rate_limited", "rate_limited", "transient_rate_limited": return "요청이 너무 빠릅니다. 잠시 뒤 다시 시도해 주세요."
+        case "message_id_conflict": return "이미 전송한 메시지와 내용이 다릅니다. 전송 내역을 확인해 주세요."
+        case "database_unavailable", "internal_error", "server_restarting": return "서버 연결이 잠시 불안정합니다. 잠시 뒤 다시 시도해 주세요."
+        case "session_changed": return "로그인 상태가 변경되었습니다. 현재 계정에서 다시 시도해 주세요."
+        case "identity_proof_mismatch": return "현재 계정과 다른 로그인 계정입니다. 연결된 계정으로 다시 인증해 주세요."
+        case "identity_already_linked", "provider_already_linked": return "다른 SIDEY 계정에 연결된 로그인 계정입니다."
+        case "last_identity", "last_identity_required", "last_provider_identity": return "마지막 로그인 수단은 해제할 수 없습니다. 다른 계정을 먼저 연결해 주세요."
+        case "identity_not_linked", "identity_missing": return "이 로그인 수단은 현재 계정에 연결되어 있지 않습니다."
+        case "auth_challenge_invalid", "invalid_provider_proof", "provider_identity_rejected", "nonce_mismatch": return "로그인 확인이 만료되었거나 올바르지 않습니다. 다시 로그인해 주세요."
+        case "apple_reauthentication_required": return "계정을 삭제하려면 Apple로 다시 인증해 주세요."
+        case "google_not_configured", "apple_not_configured", "identity_verifier_unconfigured", "provider_unavailable", "provider_verification_unavailable": return "로그인 제공업체에 연결하지 못했습니다. 잠시 뒤 다시 시도해 주세요."
+        case "tree_revision_conflict", "revision_conflict": return "다른 기기에서 설정이 변경되었습니다. 최신 상태를 확인한 뒤 다시 시도해 주세요."
+        case "entitlement_required", "cosmetic_not_owned", "character_not_owned": return "보유한 상품만 사용할 수 있습니다. 구매 상태를 새로 확인해 주세요."
+        case "room_missing": return "그룹이 삭제되었거나 더 이상 접근할 수 없습니다."
+        case "message_missing": return "메시지를 찾을 수 없습니다. 보관 기간이 지났을 수 있습니다."
+        case "order_missing": return "주문을 찾을 수 없습니다. 구매 내역을 확인해 주세요."
+        case "payment_provider_unavailable", "portone_unconfigured", "apple_verifier_unconfigured": return "결제 확인 서비스에 연결하지 못했습니다. 잠시 뒤 다시 시도해 주세요."
+        default:
+            return code.unicodeScalars.allSatisfy({ $0.isASCII && (CharacterSet.alphanumerics.contains($0) || $0 == "_") })
+                ? "요청을 완료하지 못했습니다. 잠시 뒤 다시 시도해 주세요." : code
         }
     }
 
@@ -706,25 +291,8 @@ enum SideyBackendError: LocalizedError, Equatable {
         case "membership_required": .membershipRequired
         case "owner_must_leave": .ownerCannotRemoveSelf
         case "invalid_room_name": .invalidRoomName
-        case "stale_realtime_epoch": .staleRealtimeEpoch
         default: .remote(code)
         }
     }
 
-    static func normalized(_ error: Error) -> Self {
-        if let error = error as? Self { return error }
-        let description = error.localizedDescription
-        let diagnostic = description + " " + String(reflecting: error)
-        let knownCodes = [
-            "invalid_room_name",
-            "owner_required",
-            "member_not_found",
-            "membership_required",
-            "owner_must_leave"
-        ]
-        if let code = knownCodes.first(where: { diagnostic.contains($0) }) {
-            return business(code: code)
-        }
-        return .remote(description)
-    }
 }

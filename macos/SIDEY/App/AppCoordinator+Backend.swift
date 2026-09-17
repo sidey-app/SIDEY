@@ -20,8 +20,7 @@ extension AppCoordinator {
             advanceFirstRunTransition()
             return
         }
-        let requireExistingSession = model.preferences.onboardingComplete
-            || releaseChannel.requiresAppleAuthentication
+        let requireExistingSession = true
         backendConnectionStatus = nil
         model.setActiveRoomRealtimeConnected(false)
         model.connectionState = .connecting
@@ -37,11 +36,13 @@ extension AppCoordinator {
                 if releaseChannel == .appStore, userID != nil {
                     await configureAppStoreCommerce(backend: backend)
                 }
+                guard !Task.isCancelled else { return }
                 refreshCommerceState()
                 let reconciliation = try await backend.syncRealtime(
                     rooms: snapshot.rooms,
                     activeRoomID: model.activeRoom?.id
                 )
+                guard !Task.isCancelled else { return }
                 applyBackendReconciliation(reconciliation)
                 model.setActiveRoomRealtimeConnected(true)
                 model.connectionState = .online
@@ -55,8 +56,7 @@ extension AppCoordinator {
                 advanceFirstRunTransition()
             } catch {
                 guard !Task.isCancelled else { return }
-                if releaseChannel.requiresAppleAuthentication,
-                   error as? SideyBackendError == .sessionRecoveryFailed {
+                if error as? SideyBackendError == .sessionRecoveryFailed {
                     model.authenticationRequired = true
                     model.connectionState = .idle
                     model.errorMessage = nil
@@ -300,7 +300,7 @@ extension AppCoordinator {
     }
 
     func sendMessage(_ body: String) {
-        guard let backend, let roomID = model.activeRoom?.id else {
+        guard backend != nil, let roomID = model.activeRoom?.id else {
             model.errorMessage = SideyBackendError.noActiveRoom.localizedDescription
             model.draft = body
             overlayWindows.presentComposer()
@@ -312,23 +312,31 @@ extension AppCoordinator {
             overlayWindows.presentComposer()
             return
         }
-        let messageID = UUID()
+        let value = model.stageNewMessage(roomID: roomID, senderID: senderID, body: body,
+            revealBubble: !model.preferences.quietModeEnabled)
+        transmitMessage(value)
+    }
+
+    func retryMessage(roomID: UUID, messageID: UUID) {
+        guard backend != nil,
+              let value = model.retryMessage(id: messageID, roomID: roomID, revealBubble: !model.preferences.quietModeEnabled) else { return }
+        transmitMessage(value)
+    }
+
+    private func transmitMessage(_ value: OutgoingMessage) {
+        guard let backend else { return }
+        let roomID = value.roomID, senderID = value.senderID, messageID = value.id, body = value.body
         let revealMessage = !model.preferences.quietModeEnabled
-        model.stageMessage(
-            id: messageID,
-            roomID: roomID,
-            senderID: senderID,
-            body: body,
-            revealBubble: revealMessage
-        )
         if revealMessage { scheduleBubbleExpiry() }
         Task { [weak self] in
             guard let self else { return }
             do {
                 let message = try await backend.sendMessage(roomID: roomID, body: body, id: messageID)
+                guard model.currentUserID == senderID, model.rooms.contains(where: { $0.id == roomID }) else { return }
                 model.confirmMessage(message, revealBubble: revealMessage)
                 model.errorMessage = nil
             } catch {
+                guard model.currentUserID == senderID, model.rooms.contains(where: { $0.id == roomID }) else { return }
                 model.errorMessage = "전송 실패: \(error.localizedDescription)"
                 _ = model.failMessage(id: messageID, roomID: roomID)
                 if model.activeRoom?.id == roomID {
@@ -406,7 +414,10 @@ extension AppCoordinator {
         }
     }
 
-    func applyBackendSnapshot(_ snapshot: BackendSnapshot, currentUserID: UUID?) {
+    @discardableResult
+    func applyBackendSnapshot(_ snapshot: BackendSnapshot, currentUserID: UUID?) -> Bool {
+        guard snapshot.membershipRevision >= latestMembershipRevision else { return false }
+        latestMembershipRevision = snapshot.membershipRevision
         if let activeRoomID = model.activeRoom?.id,
            !snapshot.rooms.contains(where: { $0.id == activeRoomID }) {
             overlayWindows.dismissComposer()
@@ -415,10 +426,46 @@ extension AppCoordinator {
         }
         model.apply(snapshot: snapshot, currentUserID: currentUserID)
         migrateTreeMovementIfNeeded()
+        return true
     }
 
     func handleBackendEvent(_ event: BackendEvent) {
         switch event {
+        case .authenticationRequired:
+            roomSession.bootstrapTask?.cancel()
+            roomSession.switchPipeline?.cancel()
+            roomSession.typingTask?.cancel()
+            commerceSession.cancel(model: model)
+            _ = cancelTreeMovementRequests()
+            model.resetAccountState()
+            backendBootstrapState = .failed
+            applyRequestedOverlayVisibility()
+            refreshStatusItem()
+        case .roomStateInvalidated(let revision):
+            latestMembershipRevision = max(latestMembershipRevision, revision)
+            roomSession.bootstrapTask?.cancel()
+            roomSession.switchPipeline?.cancel()
+            roomSession.typingTask?.cancel()
+            model.invalidateRoomState()
+            invalidateHistoryRooms()
+            overlayWindows.dismissComposer()
+            overlayWindows.invalidateThrowInteraction()
+            applyRequestedOverlayVisibility()
+            refreshStatusItem()
+        case .roomRevoked(let roomID, let revision):
+            latestMembershipRevision = max(latestMembershipRevision, revision)
+            let wasActive = model.activeRoom?.id == roomID || model.realtimeActiveRoomID == roomID
+            roomSession.bootstrapTask?.cancel()
+            if wasActive {
+                roomSession.switchPipeline?.cancel()
+                roomSession.typingTask?.cancel()
+                overlayWindows.dismissComposer()
+                overlayWindows.invalidateThrowInteraction()
+            }
+            model.revokeRoom(roomID)
+            revokeHistoryRoom(roomID)
+            applyRequestedOverlayVisibility()
+            refreshStatusItem()
         case .snapshot(let snapshot):
             applyBackendSnapshot(snapshot, currentUserID: model.currentUserID)
             applyRequestedOverlayVisibility()
@@ -430,6 +477,7 @@ extension AppCoordinator {
             refreshStatusItem()
             persistPreferences()
         case .message(let message):
+            guard !model.authenticationRequired, model.rooms.contains(where: { $0.id == message.roomID }) else { return }
             let isActiveRoom = message.roomID == model.activeRoom?.id
             let revealMessage = isActiveRoom && !model.preferences.quietModeEnabled
             let isNew = model.confirmMessage(message, revealBubble: revealMessage)
@@ -447,12 +495,14 @@ extension AppCoordinator {
                 guard let self else { return }
                 do {
                     let messages = try await backend.recentMessages(roomID: roomID)
+                    guard model.rooms.contains(where: { $0.id == roomID }) else { return }
                     model.replaceMessages(roomID: roomID, with: messages)
                 } catch {
                     model.errorMessage = "메시지 보관 상태 동기화 실패: \(error.localizedDescription)"
                 }
             }
         case .messagesReplaced(let roomID, let messages):
+            guard messages.isEmpty || model.rooms.contains(where: { $0.id == roomID }) else { return }
             model.replaceMessages(roomID: roomID, with: messages)
         case .presence(let roomID, let userID, let state):
             model.updatePresence(roomID: roomID, userID: userID, state: state)
@@ -483,7 +533,7 @@ extension AppCoordinator {
         case .connection(let status):
             let previousStatus = backendConnectionStatus
             backendConnectionStatus = status
-            model.connectionState = status.isReady ? .online : .connecting
+            model.connectionState = model.authenticationRequired ? .idle : status.isReady ? .online : .connecting
             model.setActiveRoomRealtimeConnected(status.activeRoomTransportConnected)
             if previousStatus?.activeRoomTransportConnected == true,
                !status.activeRoomTransportConnected {
@@ -496,7 +546,7 @@ extension AppCoordinator {
     }
 
     func applyBackendReconciliation(_ reconciliation: BackendReconciliation) {
-        applyBackendSnapshot(reconciliation.snapshot, currentUserID: model.currentUserID)
+        guard applyBackendSnapshot(reconciliation.snapshot, currentUserID: model.currentUserID) else { return }
         if let activeRoomID = reconciliation.activeRoomID {
             model.preferences.activeRoomID = activeRoomID
             model.replaceMessages(roomID: activeRoomID, with: reconciliation.activeMessages)
