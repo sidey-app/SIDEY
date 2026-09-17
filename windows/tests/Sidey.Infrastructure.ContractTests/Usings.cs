@@ -1,8 +1,5 @@
 global using Sidey.Infrastructure.Authentication;
 global using Sidey.Infrastructure.Backend;
 global using Sidey.Infrastructure.Configuration;
-#if WINDOWS
-global using Sidey.Infrastructure.Connectivity;
-#endif
-global using Sidey.Infrastructure.Persistence;
 global using Sidey.Infrastructure.Realtime;
+global using Xunit;

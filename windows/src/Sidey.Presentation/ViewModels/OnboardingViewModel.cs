@@ -85,6 +85,9 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
 
     public bool HasError => !string.IsNullOrWhiteSpace(ErrorMessage);
 
+    public bool AuthenticationRequired => _state.AuthenticationRequired;
+    public bool CanSignIn => AuthenticationRequired && !_state.AuthenticationInProgress;
+
     public bool CanGoBack => Step is 1 or 2;
 
     public bool CanSaveProfile =>
@@ -122,6 +125,10 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         _syncedRoomName = syncedRoomName;
 
         _state = state;
+        OnPropertyChanged(nameof(AuthenticationRequired));
+        OnPropertyChanged(nameof(CanSignIn));
+        SignInWithGoogleCommand.NotifyCanExecuteChanged();
+        SignInWithAppleCommand.NotifyCanExecuteChanged();
         RefreshCharacterSelections(state.ActiveEntitlementKeys);
         IsConnected = state.Connected;
         OnPropertyChanged(nameof(ConnectionText));
@@ -164,6 +171,26 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
 
         ErrorMessage = null;
         Step = 1;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSignIn))]
+    private async Task SignInWithGoogleAsync()
+    {
+        await RunAsync(async () =>
+        {
+            await _coordinator.SignInWithGoogleAsync();
+            ApplyState(_coordinator.State);
+        });
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSignIn))]
+    private async Task SignInWithAppleAsync()
+    {
+        await RunAsync(async () =>
+        {
+            await _coordinator.SignInWithAppleAsync();
+            ApplyState(_coordinator.State);
+        });
     }
 
     [RelayCommand]
@@ -257,7 +284,7 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         Step = 3;
     }
 
-    private bool CanSkipGroup() => Step == 2 && !IsWorking;
+    private bool CanSkipGroup() => Step == 2 && !IsWorking && !AuthenticationRequired;
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task FinishAsync()

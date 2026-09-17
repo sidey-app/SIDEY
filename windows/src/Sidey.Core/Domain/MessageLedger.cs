@@ -27,6 +27,10 @@ public sealed class MessageLedger
 
     public MessageLedgerEntry? Latest => _entries.LastOrDefault();
 
+    public void Clear() => _entries.Clear();
+
+    public void RetainRooms(IReadOnlySet<Guid> rooms) => _entries.RemoveAll(entry => !rooms.Contains(entry.RoomId));
+
     public void Stage(
         Guid id,
         Guid roomId,
@@ -97,6 +101,20 @@ public sealed class MessageLedger
         string body = _entries[index].Body;
         _entries[index] = _entries[index] with { State = MessageDeliveryState.Failed };
         return body;
+    }
+
+    public MessageLedgerEntry? RetryFailed(Guid roomId, Guid senderId, string body)
+    {
+        int index = _entries.FindLastIndex(entry =>
+            entry.RoomId == roomId && entry.SenderId == senderId
+            && entry.State == MessageDeliveryState.Failed
+            && StringComparer.Ordinal.Equals(entry.Body, body));
+        if (index < 0)
+        {
+            return null;
+        }
+        _entries[index] = _entries[index] with { State = MessageDeliveryState.Pending };
+        return _entries[index];
     }
 
     public bool Remove(Guid roomId, Guid messageId) =>

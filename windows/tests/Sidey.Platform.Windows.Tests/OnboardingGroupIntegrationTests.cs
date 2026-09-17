@@ -21,7 +21,7 @@ public sealed class OnboardingGroupIntegrationTests
         SetField(coordinator, "_backend", backend);
         SetField(coordinator, "_state", CoordinatorState.Initial with
         {
-            DevelopmentCommerceEnabled = developmentCommerce,
+            CommerceEnabled = developmentCommerce,
             Preferences = AppPreferences.Default with { OverlayVisible = false },
         });
         var syncing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

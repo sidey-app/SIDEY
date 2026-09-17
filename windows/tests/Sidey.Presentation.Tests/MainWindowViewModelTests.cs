@@ -11,6 +11,57 @@ namespace Sidey.Presentation.Tests;
 public sealed class MainWindowViewModelTests
 {
     [Fact]
+    public async Task AccountCommandsPreserveProviderAndDeviceScopeAndRequireDeletionConfirmation()
+    {
+        var coordinator = new FakeSideyCoordinator();
+        var dialogs = new FakeMainWindowDialogService();
+        var model = new MainWindowViewModel(coordinator, dialogs, new FakeUpdateService());
+        await model.LinkAppleCommand.ExecuteAsync(null);
+        await model.LinkGoogleCommand.ExecuteAsync(null);
+        await model.UnlinkAppleCommand.ExecuteAsync(null);
+        await model.UnlinkGoogleCommand.ExecuteAsync(null);
+        await model.SignOutCommand.ExecuteAsync(null);
+        await model.SignOutAllCommand.ExecuteAsync(null);
+        Assert.Equal(1, coordinator.AppleSignInCount);
+        Assert.Equal(1, coordinator.SignInCount);
+        Assert.Equal(["APPLE", "GOOGLE"], coordinator.UnlinkRequests);
+        Assert.Equal([false, true], coordinator.SignOutRequests);
+        await model.DeleteAccountCommand.ExecuteAsync(null);
+        Assert.Equal(0, coordinator.DeleteAccountCount);
+        dialogs.ConfirmAccountDeletion = true;
+        await model.DeleteAccountCommand.ExecuteAsync(null);
+        Assert.Equal(1, coordinator.DeleteAccountCount);
+        model.ApplyState(coordinator.State with { AuthenticationRequired = true });
+        Assert.False(model.SignOutCommand.CanExecute(null));
+        Assert.False(model.UnlinkAppleCommand.CanExecute(null));
+        Assert.True(model.SignInWithAppleCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task ExistingInstallationRequiresLoginWithoutResettingOnboarding()
+    {
+        var coordinator = new FakeSideyCoordinator
+        {
+            State = CoordinatorState.Initial with
+            {
+                AuthenticationRequired = true,
+                Preferences = AppPreferences.Default with { OnboardingCompleted = true },
+            },
+        };
+        coordinator.SignInHandler = () =>
+        {
+            coordinator.State = coordinator.State with { AuthenticationRequired = false };
+            return Task.CompletedTask;
+        };
+        var model = new MainWindowViewModel(coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        Assert.True(model.AuthenticationRequired);
+        Assert.False(model.IsAuthenticated);
+        await model.SignInWithGoogleCommand.ExecuteAsync(null);
+        Assert.True(model.IsAuthenticated);
+        Assert.True(coordinator.State.Preferences.OnboardingCompleted);
+        Assert.Equal(1, coordinator.SignInCount);
+    }
+    [Fact]
     public async Task ConnectionStatusRetriesWhileDisconnectedAndDisablesAfterConnection()
     {
         var coordinator = new FakeSideyCoordinator();
@@ -526,7 +577,7 @@ public sealed class MainWindowViewModelTests
         (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
         coordinator.State = state with
         {
-            DevelopmentCommerceEnabled = true,
+            CommerceEnabled = true,
             CommerceProducts = [.. WindowsCommerceCatalog.Products.Select(product =>
                 new CommerceProductState(
                     product,
@@ -559,7 +610,7 @@ public sealed class MainWindowViewModelTests
         CommerceProduct ownedProduct = WindowsCommerceCatalog.Products[0];
         coordinator.State = state with
         {
-            DevelopmentCommerceEnabled = true,
+            CommerceEnabled = true,
             CommerceProducts = [.. WindowsCommerceCatalog.Products.Select(product =>
                 new CommerceProductState(
                     product,
@@ -1685,8 +1736,7 @@ public sealed class MainWindowViewModelTests
             userId,
             [new RoomMember(userId, profile.Nickname, profile.CharacterId, PresenceState.Online)],
             "••••-TEST",
-            true,
-            1);
+            true);
         CoordinatorState state = CoordinatorState.Initial with
         {
             Profile = profile,

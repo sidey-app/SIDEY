@@ -20,8 +20,7 @@ public sealed class HistoryWindowViewModelTests
             userId,
             [new RoomMember(userId, "aryu", "pixel_hamster", PresenceState.Online)],
             "••••-TEST",
-            true,
-            1);
+            true);
         var coordinator = new FakeSideyCoordinator
         {
             State = CoordinatorState.Initial with
@@ -268,8 +267,7 @@ public sealed class HistoryWindowViewModelTests
         userId,
         [new RoomMember(userId, "aryu", "pixel_hamster", PresenceState.Online)],
         "••••-TEST",
-        true,
-        1);
+        true);
 
     private static CoordinatorState StateWithRooms(Guid firstRoomId, Guid? secondRoomId, Guid userId)
     {

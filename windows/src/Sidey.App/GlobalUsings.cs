@@ -15,7 +15,6 @@ global using Sidey.Overlay.Layout;
 global using Sidey.Overlay.Rendering;
 global using Sidey.Platform.Windows.Activity;
 global using Sidey.Platform.Windows.Audio;
-global using Sidey.Platform.Windows.Authentication;
 global using Sidey.Platform.Windows.Deployment;
 global using Sidey.Platform.Windows.Monitoring;
 global using Sidey.Platform.Windows.Overlay;

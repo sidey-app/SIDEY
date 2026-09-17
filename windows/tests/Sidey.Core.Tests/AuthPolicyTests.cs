@@ -4,43 +4,48 @@ namespace Sidey.Core.Tests;
 
 public sealed class AuthPolicyTests
 {
-    [Fact]
-    public async Task ExistingInstallationNeverCreatesReplacementAnonymousAccount()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task MissingSessionRequiresProviderAuthenticationForEveryInstallation(bool hasStoredSession)
     {
-        var auth = new FakeAuthService { Restored = null };
-
-        await Assert.ThrowsAsync<SessionRecoveryException>(() =>
-            AnonymousSessionBootstrapper.RestoreOrCreateAsync(auth, hasStoredSession: true));
-
-        Assert.Equal(0, auth.CreatedCount);
+        var auth = new FakeAuthService();
+        await Assert.ThrowsAsync<AuthenticationRequiredException>(() => SessionBootstrapper.RestoreAsync(auth, hasStoredSession));
+        Assert.Equal(1, auth.RestoreCount);
     }
 
     [Fact]
-    public async Task NewInstallationCreatesAnonymousAccountOnlyWhenNothingCanBeRestored()
+    public async Task ExistingSessionRetainsItsCanonicalUser()
     {
-        var auth = new FakeAuthService { Restored = null };
+        var session = new AuthSession(Guid.NewGuid(), DateTimeOffset.Parse("2026-01-01T00:00:00Z"));
+        var auth = new FakeAuthService { Restored = session };
+        Assert.Equal(session, await SessionBootstrapper.RestoreAsync(auth, hasStoredSession: true));
+    }
 
-        AuthSession session = await AnonymousSessionBootstrapper.RestoreOrCreateAsync(
-            auth,
-            hasStoredSession: false);
+    [Fact]
+    public async Task LegacyClaimRequirementIsNotHiddenAsGenericRecoveryFailure()
+    {
+        var auth = new FakeAuthService { Failure = new LegacyClaimRequiredException() };
+        await Assert.ThrowsAsync<LegacyClaimRequiredException>(() => SessionBootstrapper.RestoreAsync(auth, hasStoredSession: true));
+    }
 
-        Assert.Equal(auth.Created, session);
-        Assert.Equal(1, auth.CreatedCount);
+    [Fact]
+    public async Task CancelledRestoreDoesNotBecomeAccountRecoveryFailure()
+    {
+        var auth = new FakeAuthService { Failure = new OperationCanceledException() };
+        await Assert.ThrowsAsync<OperationCanceledException>(() => SessionBootstrapper.RestoreAsync(auth, hasStoredSession: true));
     }
 
     private sealed class FakeAuthService : IAuthService
     {
         public AuthSession? Restored { get; init; }
-        public AuthSession Created { get; } = new(Guid.NewGuid(), DateTimeOffset.UtcNow.AddHours(1));
-        public int CreatedCount { get; private set; }
+        public Exception? Failure { get; init; }
+        public int RestoreCount { get; private set; }
 
-        public Task<AuthSession?> RestoreSessionAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(Restored);
-
-        public Task<AuthSession> CreateAnonymousSessionAsync(CancellationToken cancellationToken = default)
+        public Task<AuthSession?> RestoreSessionAsync(CancellationToken cancellationToken = default)
         {
-            CreatedCount++;
-            return Task.FromResult(Created);
+            RestoreCount++;
+            return Failure is null ? Task.FromResult(Restored) : Task.FromException<AuthSession?>(Failure);
         }
 
         public Task SignOutAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;

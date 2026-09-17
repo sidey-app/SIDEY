@@ -5,6 +5,56 @@ namespace Sidey.Core.Tests;
 public sealed class MessageLedgerTests
 {
     [Fact]
+    public void RevokedRoomsAndLogoutRemoveBothPendingAndConfirmedPrivateMessages()
+    {
+        var ledger = new MessageLedger();
+        var retained = Guid.NewGuid();
+        var revoked = Guid.NewGuid();
+        var sender = Guid.NewGuid();
+        ledger.Stage(Guid.NewGuid(), revoked, sender, "pending private");
+        ledger.Confirm(new ChatMessage(Guid.NewGuid(), revoked, sender, "committed private", DateTimeOffset.UtcNow));
+        ledger.Stage(Guid.NewGuid(), retained, sender, "still accessible");
+        ledger.RetainRooms(new HashSet<Guid> { retained });
+        Assert.Single(ledger.Entries);
+        Assert.Equal(retained, ledger.Entries[0].RoomId);
+        ledger.Clear();
+        Assert.Empty(ledger.Entries);
+    }
+
+    [Fact]
+    public void FailedResendKeepsUuidAndFirstAttemptBubbleSnapshot()
+    {
+        var ledger = new MessageLedger();
+        Guid id = Guid.NewGuid(), room = Guid.NewGuid(), sender = Guid.NewGuid();
+        string bubbleStyleId = CosmeticCatalog.BubbleStyleIds.First();
+        ledger.Stage(id, room, sender, "retry", bubbleStyleId: bubbleStyleId);
+        MessageLedgerEntry original = Assert.Single(ledger.Entries);
+        ledger.Fail(id);
+        MessageLedgerEntry retry = Assert.IsType<MessageLedgerEntry>(ledger.RetryFailed(room, sender, "retry"));
+        Assert.Equal(id, retry.Id);
+        Assert.Equal(bubbleStyleId, retry.BubbleStyleId);
+        Assert.Equal(original.BubbleStyleId, retry.BubbleStyleId);
+        Assert.Equal(original.CreatedAt, retry.CreatedAt);
+        Assert.Equal(MessageDeliveryState.Pending, retry.State);
+        Assert.Single(ledger.Entries);
+        Assert.Null(ledger.RetryFailed(room, sender, "retry"));
+        ledger.Confirm(new ChatMessage(id, room, sender, "retry", DateTimeOffset.UtcNow));
+        Assert.Equal(MessageDeliveryState.Confirmed, Assert.Single(ledger.Entries).State);
+    }
+
+    [Fact]
+    public void ChangedBodyRoomOrSenderIsANewLogicalMessage()
+    {
+        var ledger = new MessageLedger();
+        Guid id = Guid.NewGuid(), room = Guid.NewGuid(), sender = Guid.NewGuid();
+        ledger.Stage(id, room, sender, "original");
+        ledger.Fail(id);
+        Assert.Null(ledger.RetryFailed(room, sender, "edited"));
+        Assert.Null(ledger.RetryFailed(Guid.NewGuid(), sender, "original"));
+        Assert.Null(ledger.RetryFailed(room, Guid.NewGuid(), "original"));
+        Assert.Equal(MessageDeliveryState.Failed, Assert.Single(ledger.Entries).State);
+    }
+    [Fact]
     public void OptimisticMessageConfirmsWithoutRealtimeDuplicate()
     {
         var id = Guid.NewGuid();

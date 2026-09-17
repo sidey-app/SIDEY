@@ -243,6 +243,47 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private bool CanRetryConnection() => !IsConnected;
 
+    public bool AuthenticationRequired => _state.AuthenticationRequired;
+    public bool IsAuthenticated => !AuthenticationRequired;
+    public bool CanSignIn => AuthenticationRequired && !_state.AuthenticationInProgress;
+    public bool CanManageAccount => IsAuthenticated && !_state.AuthenticationInProgress;
+    public string AuthenticationError => _state.ErrorMessage ?? string.Empty;
+
+    [RelayCommand(CanExecute = nameof(CanSignIn))]
+    private async Task SignInWithGoogleAsync()
+    {
+        await RunCommandAsync(() => _coordinator.SignInWithGoogleAsync(), successMessage: null);
+        ApplyState(_coordinator.State);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSignIn))]
+    private Task SignInWithAppleAsync() => RunCommandAsync(() => _coordinator.SignInWithAppleAsync(), null);
+
+    [RelayCommand(CanExecute = nameof(CanManageAccount))]
+    private Task LinkGoogleAsync() => RunCommandAsync(() => _coordinator.SignInWithGoogleAsync(), null);
+
+    [RelayCommand(CanExecute = nameof(CanManageAccount))]
+    private Task LinkAppleAsync() => RunCommandAsync(() => _coordinator.SignInWithAppleAsync(), null);
+
+    [RelayCommand(CanExecute = nameof(CanManageAccount))]
+    private Task UnlinkGoogleAsync() => RunCommandAsync(() => _coordinator.UnlinkProviderAsync("GOOGLE"), null);
+
+    [RelayCommand(CanExecute = nameof(CanManageAccount))]
+    private Task UnlinkAppleAsync() => RunCommandAsync(() => _coordinator.UnlinkProviderAsync("APPLE"), null);
+
+    [RelayCommand(CanExecute = nameof(CanManageAccount))]
+    private Task SignOutAsync() => RunCommandAsync(() => _coordinator.SignOutAsync(false), null);
+
+    [RelayCommand(CanExecute = nameof(CanManageAccount))]
+    private Task SignOutAllAsync() => RunCommandAsync(() => _coordinator.SignOutAsync(true), null);
+
+    [RelayCommand(CanExecute = nameof(CanManageAccount))]
+    private async Task DeleteAccountAsync()
+    {
+        if (await _dialogs.ConfirmAccountDeletionAsync())
+            await RunCommandAsync(() => _coordinator.DeleteAccountAsync(), null);
+    }
+
     [RelayCommand(CanExecute = nameof(CanRetryConnection))]
     private async Task RetryConnectionAsync()
     {
@@ -430,6 +471,20 @@ public sealed partial class MainWindowViewModel : ObservableObject
             }
 
             _state = state;
+            OnPropertyChanged(nameof(AuthenticationRequired));
+            OnPropertyChanged(nameof(IsAuthenticated));
+            OnPropertyChanged(nameof(CanSignIn));
+            OnPropertyChanged(nameof(AuthenticationError));
+            SignInWithGoogleCommand.NotifyCanExecuteChanged();
+            SignInWithAppleCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(CanManageAccount));
+            LinkGoogleCommand.NotifyCanExecuteChanged();
+            LinkAppleCommand.NotifyCanExecuteChanged();
+            UnlinkGoogleCommand.NotifyCanExecuteChanged();
+            UnlinkAppleCommand.NotifyCanExecuteChanged();
+            SignOutCommand.NotifyCanExecuteChanged();
+            SignOutAllCommand.NotifyCanExecuteChanged();
+            DeleteAccountCommand.NotifyCanExecuteChanged();
             RefreshCharacterSelections(state.ActiveEntitlementKeys);
             RefreshStoreProducts(state);
             if (shouldApplyProfileDraft)
@@ -973,7 +1028,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                     CommercePurchaseState.Unavailable);
             product.Apply(
                 productState,
-                state.DevelopmentCommerceEnabled,
+                state.CommerceEnabled,
                 state.ActiveEntitlementKeys.Contains(productState.Product.EntitlementKey)
                     || productState.PurchaseState == CommercePurchaseState.Owned);
         }

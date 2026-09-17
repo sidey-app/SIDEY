@@ -2,6 +2,7 @@ namespace Sidey.Presentation.Services;
 
 public interface IMainWindowDialogService
 {
+    public Task<bool> ConfirmAccountDeletionAsync();
     public Task<bool> ConfirmInviteCodeRotationAsync();
 
     public Task<string?> PromptForRoomNameAsync(string currentName);

@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <ProjectReference Include="../../src/Sidey.Infrastructure/Sidey.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Sidey.Platform.Windows.Tests/DistributionSourceTests.cs" Link="DistributionSourceTests.cs" />
+    <Compile Include="../Sidey.Platform.Windows.Tests/SpringRealtimeTransportTests.cs" Link="SpringRealtimeTransportTests.cs" />
+    <Compile Include="../Sidey.Platform.Windows.Tests/ProfileMutationTests.cs" Link="ProfileMutationTests.cs" />
+    <Compile Include="../Sidey.Platform.Windows.Tests/RuntimeConfigurationTests.cs" Link="RuntimeConfigurationTests.cs" />
+    <Compile Include="../Sidey.Platform.Windows.Tests/SideyAuthTests.cs" Link="SideyAuthTests.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="../../src/Sidey.App/Sidey.App.csproj" Link="TestAssets/Sidey.App.csproj.xml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../src/Sidey.Overlay/Sidey.Overlay.csproj" Link="TestAssets/Sidey.Overlay.csproj.xml" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../../installer/Sidey.Setup/Sidey.Setup.nsi" Link="TestAssets/Sidey.Setup.nsi" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

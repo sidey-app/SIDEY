@@ -10,6 +10,54 @@ namespace Sidey.Platform.Windows.Tests;
 public sealed class TreeMovementMutationTests
 {
     [Fact]
+    public async Task EventPersistenceFailureDoesNotStopLaterSnapshots()
+    {
+        await using var fixture = new Fixture();
+        fixture.Preferences.NextFailure = new IOException("temporary preference write failure");
+        await fixture.ReceiveRecoveredSnapshots(fixture.Profile with { Nickname = "Updated" })
+            .WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(2, fixture.Server.ObservedEventCount);
+        Assert.Equal("Updated", fixture.Preferences.Saved.CachedNickname);
+        Assert.False(fixture.Server.Synchronized);
+    }
+
+    [Fact]
+    public async Task AuthenticationFailureDuringEventHandlingKeepsStreamAndRequiresLogin()
+    {
+        await using var fixture = new Fixture();
+        fixture.Preferences.NextFailure = new AuthenticationRequiredException();
+        await fixture.ReceiveRecoveredSnapshots(fixture.Profile).WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.True(fixture.Coordinator.State.AuthenticationRequired);
+        Assert.Equal(2, fixture.Server.ObservedEventCount);
+        Assert.False(fixture.Coordinator.State.Connected);
+    }
+
+    [Fact]
+    public async Task EventCancellationStopsTheConsumer()
+    {
+        await using var fixture = new Fixture();
+        fixture.Preferences.NextFailure = new OperationCanceledException();
+        await fixture.ReceiveRecoveredSnapshots(fixture.Profile).WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(1, fixture.Server.ObservedEventCount);
+    }
+
+    [Fact]
+    public async Task RecoveredSnapshotEventsUpdateStateWithoutStartingAnotherRecovery()
+    {
+        await using var fixture = new Fixture();
+        Profile updated = fixture.Profile with { Nickname = "Updated" };
+        await fixture.ReceiveRecoveredSnapshots(updated).WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal("Updated", fixture.Coordinator.State.Profile!.Nickname);
+        Assert.Equal(2, fixture.Server.ObservedEventCount);
+        Assert.Null(fixture.Coordinator.State.ErrorMessage);
+        Assert.False(fixture.Server.Synchronized);
+
+        // A caller refreshing after a REST mutation must still synchronize.
+        await fixture.Reconcile().WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.True(fixture.Server.Synchronized);
+    }
+
+    [Fact]
     public async Task PendingMutationDoesNotOptimisticallyPauseOrSendADuplicate()
     {
         await using var fixture = new Fixture();
@@ -217,13 +265,19 @@ public sealed class TreeMovementMutationTests
             var room = new Room(roomId, "Friends", profile.Id,
                 [new RoomMember(profile.Id, profile.Nickname, profile.CharacterId, PresenceState.Online,
                     TreeMovementPaused: profile.TreeMovementPaused, TreeMovementRevision: profile.TreeMovementRevision)],
-                "TEST", true, 1);
+                "TEST", true);
             return new BackendSnapshot(profile, [room], profile.Id, new HashSet<string> { "character:pixel_tree" });
         }
 
         public void Apply(Profile profile, Guid roomId) => Bind<Action<BackendSnapshot>>("ApplySnapshot")(Snapshot(profile, roomId));
         public Task Reconcile() => Bind<Func<BackendSnapshot, CancellationToken, Task>>("ReconcileSnapshotAsync")(
             Snapshot(Profile, RoomId), CancellationToken.None);
+        public Task ReceiveRecoveredSnapshots(Profile profile)
+        {
+            BackendSnapshot snapshot = Snapshot(profile, RoomId);
+            Server.Events = [new BackendEvent.SnapshotReceived(snapshot), new BackendEvent.SnapshotReceived(snapshot)];
+            return Bind<Func<Task>>("PumpBackendEventsAsync")();
+        }
         public Task Drain() => Task.WhenAll((List<Task>)typeof(AppCoordinator)
             .GetField("_treeMovementOperations", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(Coordinator)!);
         public Task Migrate() => Bind<Func<CancellationToken, Task>>("MigrateTreeMovementAsync")(CancellationToken.None);
@@ -239,9 +293,15 @@ public sealed class TreeMovementMutationTests
         public List<(bool Paused, long Revision)> Requests { get; } = [];
         public List<CancellationToken> Tokens { get; } = [];
         public bool Synchronized { get; private set; }
+        public IReadOnlyList<BackendEvent> Events { get; set; } = [];
+        public int ObservedEventCount { get; private set; }
         public Func<bool, long, Task<Profile>> Save { get; set; } = (_, _) => throw new InvalidOperationException("Unexpected save");
         protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
         {
+            if (targetMethod!.Name == nameof(IBackendGateway.SubscribeAsync))
+            {
+                return Observe();
+            }
             if (targetMethod!.Name == nameof(IBackendGateway.SynchronizeRealtimeRoomsAsync))
             {
                 Synchronized = true;
@@ -255,14 +315,30 @@ public sealed class TreeMovementMutationTests
             Tokens.Add((CancellationToken)args[2]!);
             return Save(paused, revision);
         }
+
+        private async IAsyncEnumerable<BackendEvent> Observe()
+        {
+            foreach (BackendEvent value in Events)
+            {
+                await Task.Yield();
+                ObservedEventCount++;
+                yield return value;
+            }
+        }
     }
 
     private sealed class MemoryPreferences : IPreferencesStore
     {
+        public Exception? NextFailure { get; set; }
         public AppPreferences Saved { get; private set; } = AppPreferences.Default;
         public ValueTask<AppPreferences> LoadAsync(CancellationToken cancellationToken = default) => ValueTask.FromResult(Saved);
         public ValueTask SaveAsync(AppPreferences preferences, CancellationToken cancellationToken = default)
         {
+            if (NextFailure is { } failure)
+            {
+                NextFailure = null;
+                return ValueTask.FromException(failure);
+            }
             Saved = preferences;
             return ValueTask.CompletedTask;
         }

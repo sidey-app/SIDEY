@@ -59,8 +59,7 @@ public sealed record Room(
     Guid OwnerId,
     IReadOnlyList<RoomMember> Members,
     string InviteCodeHint,
-    bool InviteCodeReady,
-    long RealtimeEpoch);
+    bool InviteCodeReady);
 
 public sealed record ChatMessage(
     Guid Id,

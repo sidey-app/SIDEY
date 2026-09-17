@@ -13,9 +13,9 @@ public sealed class ProfileMutationTests
     public async Task InvalidCharacterCannotBecomeASavedHamster(string? characterId)
     {
         ICredentialStore credentials = DispatchProxy.Create<ICredentialStore, UnusedCredentials>();
-        var configuration = new SupabaseRuntimeConfiguration(new Uri("https://example.invalid"), "test-key");
-        using var auth = new SupabaseAnonymousAuthService(configuration, credentials);
-        await using var backend = new SupabaseBackendGateway(configuration, auth, credentials);
+        var configuration = new SideyRuntimeConfiguration(new Uri("https://example.invalid/api"));
+        using var auth = new SideyAuthService(configuration, credentials);
+        await using var backend = new SpringBackendGateway(configuration, auth, credentials);
 
         ArgumentException exception = await Assert.ThrowsAsync<ArgumentException>(
             () => backend.SaveProfileAsync("Friend", characterId!));

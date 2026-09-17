@@ -80,6 +80,7 @@
         Title="SIDEY" />
     <NavigationView
         x:Name="RootNavigation"
+        IsEnabled="{Binding IsAuthenticated}"
         Grid.Row="1"
         Background="Transparent"
         CompactModeThresholdWidth="0"
@@ -931,6 +932,18 @@
                 <TextBlock AutomationProperties.HeadingLevel="Level2" Style="{ThemeResource SubtitleTextBlockStyle}" Text="{Binding Value, Source={i18n:I18n Key=settings.soundTitle}, Mode=OneWay}" />
                 <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" Text="{Binding Value, Source={i18n:I18n Key=settings.soundDescription}, Mode=OneWay}" />
               </StackPanel>
+              <Border Style="{StaticResource SideySettingsCardStyle}" IsEnabled="{Binding CanManageAccount}">
+                <StackPanel Spacing="10">
+                  <TextBlock FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=account.title}}" />
+                  <Button Command="{Binding LinkGoogleCommand}" Content="{Binding Value, Source={i18n:I18n Key=account.linkGoogle}}" />
+                  <Button Command="{Binding LinkAppleCommand}" Content="{Binding Value, Source={i18n:I18n Key=account.linkApple}}" />
+                  <Button Command="{Binding UnlinkGoogleCommand}" Content="{Binding Value, Source={i18n:I18n Key=account.unlinkGoogle}}" />
+                  <Button Command="{Binding UnlinkAppleCommand}" Content="{Binding Value, Source={i18n:I18n Key=account.unlinkApple}}" />
+                  <Button Command="{Binding SignOutCommand}" Content="{Binding Value, Source={i18n:I18n Key=account.logout}}" />
+                  <Button Command="{Binding SignOutAllCommand}" Content="{Binding Value, Source={i18n:I18n Key=account.logoutAll}}" />
+                  <Button Command="{Binding DeleteAccountCommand}" Content="{Binding Value, Source={i18n:I18n Key=account.delete}}" />
+                </StackPanel>
+              </Border>
               <Border x:Name="SoundSettingsCard" Style="{StaticResource SideySettingsCardStyle}">
                 <Grid x:Name="SoundSettingsLayout" ColumnSpacing="16" RowSpacing="0">
                   <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
@@ -1153,6 +1166,19 @@
             IsOpen="False" />
       </Grid>
     </NavigationView>
+    <Border Grid.Row="1" Canvas.ZIndex="30"
+        Background="{ThemeResource ApplicationPageBackgroundThemeBrush}"
+        Visibility="{Binding AuthenticationRequired, Converter={StaticResource BooleanToVisibilityConverter}}">
+      <StackPanel MaxWidth="440" Padding="24" Spacing="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <TextBlock FontSize="28" FontWeight="SemiBold" Text="{Binding Value, Source={i18n:I18n Key=login.title}}" />
+        <TextBlock TextWrapping="Wrap" Text="{Binding Value, Source={i18n:I18n Key=login.description}}" />
+        <Button Command="{Binding SignInWithGoogleCommand}" Style="{StaticResource AccentButtonStyle}"
+            Content="{Binding Value, Source={i18n:I18n Key=login.google}}" />
+        <Button Command="{Binding SignInWithAppleCommand}" Style="{StaticResource AccentButtonStyle}"
+            Content="{Binding Value, Source={i18n:I18n Key=login.apple}}" />
+        <TextBlock TextWrapping="Wrap" Text="{Binding AuthenticationError}" />
+      </StackPanel>
+    </Border>
   </Grid>
   </UserControl>
 </Window>

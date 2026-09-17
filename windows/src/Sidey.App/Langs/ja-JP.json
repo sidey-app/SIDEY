@@ -284,8 +284,35 @@
   "validation": { "nicknameLength": "ニックネームを2〜8文字で入力してください。", "roomNameLength": "グループ名を1〜20文字で入力してください。", "messageLength": "メッセージを1〜200文字で入力してください。", "invalidInviteCode": "有効な招待コードを入力してください。" },
   "platform": { "noMonitor": "利用できるディスプレイがありません。" },
   "preferences": { "readFailed": "SIDEYの設定ファイルを読み込めませんでした。", "invalidFolder": "設定フォルダーのパスが正しくありません。" },
-  "auth": { "restoreFailed": "SIDEYの既存セッションを復元できませんでした。新しいアカウントは自動作成されません。", "cannotReplaceStoredSession": "保存済みセッションがあるため、新しい匿名アカウントを作成できません。", "requestFailed": "Supabaseの匿名認証に失敗しました。HTTP {0}。", "emptyResponse": "Supabaseの認証応答が空です。", "missingSessionValues": "Supabaseの認証応答に必要なセッション情報がありません。", "invalidStoredSession": "保存済みのSIDEYセッションを読み取れませんでした。", "sessionMissing": "Supabaseのセッションがありません。", "identityLinkExpired": "Google連携の有効期限が切れました。ストアからやり直してください。", "identityChanged": "Google連携後にSIDEYのユーザーIDが変わったため、セッションを保存しませんでした。" },
-  "backend": { "invalidOverride": "Supabaseの上書き設定にはHTTPS（localhostはHTTP可）のURLと公開可能キーが必要です。シークレットキーとservice-roleキーは使用できません。", "createdRoomMissing": "作成したグループがサーバーのデータに見つかりません。", "joinFailed": "グループに参加できませんでした：{0}", "joinRoomIdMissing": "参加応答にroom_idがありません。", "joinedRoomMissing": "参加したグループがサーバーのデータに見つかりません。", "emptyInviteCode": "新しい招待コードが空です。", "messageRecheckFailed": "RLSによるメッセージの再確認に失敗しました：{0}", "expiredMessagesFailed": "期限切れメッセージを再読み込みできませんでした：{0}", "realtimeResyncFailed": "リアルタイム状態の再同期に失敗しました：{0}", "roomSnapshotFailed": "グループのデータを再読み込みできませんでした：{0}", "realtimeEpochMissing": "接続したグループのRealtime epochがありません。", "realtimeUnavailable": "Supabaseのリアルタイム接続を利用できません。" },
+  "auth": {
+    "restoreFailed": "SIDEYの既存セッションを復元できませんでした。新しいアカウントは自動作成されません。"
+  },
+  "backend": {
+    "identityConflict": "この認証情報は別のSIDEYアカウントに連携されています。",
+    "lastIdentity": "ログイン用の連携を少なくとも1つ残してください。",
+    "membershipRequired": "このグループへのアクセス権がありません。",
+    "rateLimited": "リクエストが多すぎます。しばらくしてから再試行してください。",
+    "messageConflict": "このメッセージIDは別のメッセージで使用されています。",
+    "requestFailed": "リクエストを完了できませんでした。再試行してください。"
+  },
   "development": { "metricsPreview": "内部検証用のハムスター限定レンダリング計測モードです。手動検証はまだ記録されていません。", "localPreview": "バックエンドの環境変数がないため、12種類のキャラクターのローカルプレビューを実行しています。" },
-  "error": { "generic": "エラーが発生しました：{0}", "startup": "SIDEYを起動できませんでした。", "fatalTitle": "SIDEY 起動エラー", "missingConfiguration": "SIDEYの接続設定が見つかりません。", "launch": "SIDEYの起動中にエラーが発生しました。アプリを閉じて、もう一度お試しください。", "trayStart": "トレイアイコンを起動できませんでした。ウィンドウを閉じるとSIDEYが終了します。", "serverNotConfigured": "SIDEYのサーバーが設定されていません。配布時の設定をご確認ください。", "serverConnectionNotConfigured": "SIDEYのサーバー接続が設定されていません。", "typingUpdateFailed": "入力状態を更新できませんでした：{0}", "preferencesSaveFailed": "設定を保存できませんでした：{0}", "messageSendFailed": "メッセージを送信できませんでした：{0}", "startupWithLog": "SIDEYを起動できませんでした。\n\n診断ログ：{0}" }
+  "error": { "generic": "エラーが発生しました：{0}", "startup": "SIDEYを起動できませんでした。", "fatalTitle": "SIDEY 起動エラー", "missingConfiguration": "SIDEYの接続設定が見つかりません。", "launch": "SIDEYの起動中にエラーが発生しました。アプリを閉じて、もう一度お試しください。", "trayStart": "トレイアイコンを起動できませんでした。ウィンドウを閉じるとSIDEYが終了します。", "serverNotConfigured": "SIDEYのサーバーが設定されていません。配布時の設定をご確認ください。", "serverConnectionNotConfigured": "SIDEYのサーバー接続が設定されていません。", "typingUpdateFailed": "入力状態を更新できませんでした：{0}", "preferencesSaveFailed": "設定を保存できませんでした：{0}", "messageSendFailed": "メッセージを送信できませんでした：{0}", "startupWithLog": "SIDEYを起動できませんでした。\n\n診断ログ：{0}" },
+  "login": {
+    "title": "SIDEYにログイン",
+    "description": "アカウントを保護し、既存のプロフィールとグループを引き継ぐためにログインしてください。",
+    "google": "Googleで続ける",
+    "restartLogin": "SIDEYからGoogleログインをもう一度開始してください。",
+    "apple": "Appleで続ける"
+  },
+  "account": {
+    "title": "アカウント",
+    "linkGoogle": "Googleアカウントを連携",
+    "linkApple": "Appleアカウントを連携",
+    "unlinkGoogle": "Googleの連携を解除",
+    "unlinkApple": "Appleの連携を解除",
+    "logout": "ログアウト",
+    "logoutAll": "すべての端末からログアウト",
+    "delete": "アカウントを削除",
+    "deleteConfirmation": "アカウントとデータを完全に削除しますか？元に戻せません。"
+  }
 }
