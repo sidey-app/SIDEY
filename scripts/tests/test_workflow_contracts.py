@@ -27,6 +27,11 @@ class WorkflowContractTests(unittest.TestCase):
         smoke_step = validation.split('- name: Run Windows app smoke', 1)[1].split(
             '\n      - name:', 1)[0]
         self.assertIn("if: github.event_name == 'push'", smoke_step)
+        self.assertIn(
+            'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass '
+            '-File ./scripts/windows/tests/Test-PublishedApplicationTimeouts.ps1',
+            validation,
+        )
         self.assertIn('name: Required validation', validation)
         self.assertIn(
             'run-name: "Validate change | ${{ github.event_name }} | ${{ github.ref_name }}"',
