@@ -115,12 +115,7 @@ final class RoomManagementTests: XCTestCase {
         ]
 
         for (code, expected) in cases {
-            let remote = NSError(
-                domain: "PostgREST",
-                code: 1,
-                userInfo: [NSLocalizedDescriptionKey: "database error: \(code)"]
-            )
-            let normalized = SideyBackendError.normalized(remote)
+            let normalized = SideyBackendError.business(code: code)
             XCTAssertEqual(normalized, expected)
             XCTAssertFalse(normalized.localizedDescription.contains(code))
         }

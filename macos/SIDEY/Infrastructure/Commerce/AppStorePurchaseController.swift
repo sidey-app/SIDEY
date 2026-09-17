@@ -5,12 +5,12 @@ import OSLog
 @MainActor
 final class AppStorePurchaseController {
     private let logger = Logger(subsystem: "app.sidey.desktop", category: "AppStoreProducts")
-    private let verifierURL: URL?
+    private let transactions: AppStoreTransactionClient
     private var productsByID: [String: Product] = [:]
     private var updatesTask: Task<Void, Never>?
 
-    init(verifierURL: URL? = AppStoreServiceEndpoint.resolve()) {
-        self.verifierURL = verifierURL
+    init(apiBaseURL: URL? = AppStoreServiceEndpoint.resolve(), session: URLSession = .shared) {
+        self.transactions = AppStoreTransactionClient(apiBaseURL: apiBaseURL, session: session)
     }
 
     deinit { updatesTask?.cancel() }
@@ -26,7 +26,7 @@ final class AppStorePurchaseController {
         return Dictionary(uniqueKeysWithValues: productsByID.map { ($0.key, $0.value.displayPrice) })
     }
 
-    func purchase(productID: String, userID: UUID, accessToken: String) async throws -> Bool {
+    func purchase(productID: String, userID: UUID, accessToken: @escaping @Sendable () async throws -> String) async throws -> Bool {
         if productsByID[productID] == nil { _ = try await loadProducts() }
         guard let product = productsByID[productID] else {
             throw AppStorePurchaseError.productUnavailable
@@ -34,7 +34,10 @@ final class AppStorePurchaseController {
         let result = try await product.purchase(options: [.appAccountToken(userID)])
         switch result {
         case .success(let verification):
-            try await submit(verification, accessToken: accessToken)
+            let result = try await submit(verification, accessToken: accessToken)
+            guard result.entitlementStatus == "active", result.bindingState == "bound" else {
+                throw AppStorePurchaseError.serverRejected
+            }
             return true
         case .pending:
             throw AppStorePurchaseError.pending
@@ -45,14 +48,14 @@ final class AppStorePurchaseController {
         }
     }
 
-    func restore(accessToken: String) async throws {
+    func restore(accessToken: @escaping @Sendable () async throws -> String) async throws {
         try await AppStore.sync()
         try await reconcileCurrentEntitlements(accessToken: accessToken)
     }
 
-    func reconcileCurrentEntitlements(accessToken: String) async throws {
+    func reconcileCurrentEntitlements(accessToken: @escaping @Sendable () async throws -> String) async throws {
         for await verification in Transaction.currentEntitlements {
-            try await submit(verification, accessToken: accessToken)
+            _ = try await submit(verification, accessToken: accessToken)
         }
     }
 
@@ -67,9 +70,9 @@ final class AppStorePurchaseController {
             for await verification in Transaction.updates {
                 guard !Task.isCancelled else { return }
                 do {
-                    try await submit(
+                    _ = try await submit(
                         verification,
-                        accessToken: try await accessToken()
+                        accessToken: accessToken
                     )
                     didChange()
                 } catch {
@@ -86,30 +89,25 @@ final class AppStorePurchaseController {
 
     private func submit(
         _ verification: VerificationResult<Transaction>,
-        accessToken: String
-    ) async throws {
+        accessToken: @Sendable () async throws -> String
+    ) async throws -> AppStoreTransactionResult {
         guard case .verified(let transaction) = verification else {
             throw AppStorePurchaseError.unverifiedTransaction
         }
         guard transaction.productID.isEmpty == false,
               CommerceCatalog.product(appStoreID: transaction.productID) != nil
         else { throw AppStorePurchaseError.productUnavailable }
-        guard let verifierURL else { throw AppStorePurchaseError.verifierNotConfigured }
-
-        var request = URLRequest(
-            url: verifierURL.appending(path: "v1/app-store/transactions")
+        let result = try await transactions.submit(
+            signedTransactionInfo: verification.jwsRepresentation,
+            accessToken: accessToken
         )
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(
-            SignedTransactionRequest(signedTransactionInfo: verification.jwsRepresentation)
-        )
-        let (_, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+        guard result.transactionId == String(transaction.id),
+              result.entitlementKey == CommerceCatalog.product(appStoreID: transaction.productID)?.entitlementKey
+        else {
             throw AppStorePurchaseError.serverRejected
         }
         await transaction.finish()
+        return result
     }
 }
 
@@ -118,33 +116,44 @@ enum AppStoreServiceEndpoint {
         environment: [String: String] = ProcessInfo.processInfo.environment,
         bundle: Bundle = .main
     ) -> URL? {
-#if DEBUG
-        let raw = environment["SIDEY_APP_STORE_VERIFIER_URL"]
-            ?? bundle.object(forInfoDictionaryKey: "SIDEYAppStoreVerifierURL") as? String
-#else
-        let raw = bundle.object(forInfoDictionaryKey: "SIDEYAppStoreVerifierURL") as? String
-#endif
-        guard let value = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !value.isEmpty,
-              let url = URL(string: value),
-              url.host != nil,
-              url.user == nil,
-              url.password == nil,
-              url.query == nil,
-              url.fragment == nil,
-              Self.isAllowed(url)
-        else { return nil }
-        return url
+        try? RuntimeConfiguration.resolve(
+            environment: environment,
+            bundleInfo: bundle.infoDictionary ?? [:]
+        ).apiBaseURL
     }
+}
 
-    private static func isAllowed(_ url: URL) -> Bool {
-        if url.scheme == "https" { return true }
-#if DEBUG
-        return url.scheme == "http"
-            && ["localhost", "127.0.0.1", "::1"].contains(url.host?.lowercased())
-#else
-        return false
-#endif
+struct AppStoreTransactionResult: Decodable, Sendable {
+    let transactionId: String
+    let entitlementKey: String
+    let entitlementStatus: String
+    let bindingState: String
+}
+
+struct AppStoreTransactionClient: Sendable {
+    let apiBaseURL: URL?
+    var session: URLSession = .shared
+
+    func submit(signedTransactionInfo: String, accessToken: @Sendable () async throws -> String) async throws -> AppStoreTransactionResult {
+        guard let apiBaseURL else { throw AppStorePurchaseError.verifierNotConfigured }
+        // StoreKit's purchase sheet and restore can outlive a 15-minute JWT.
+        // Obtain the current SIDEY credential at each actual server submission.
+        let currentToken = try await accessToken()
+        var request = URLRequest(url: apiBaseURL.appending(path: "app-store/transactions"))
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(currentToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(SignedTransactionRequest(signedTransactionInfo: signedTransactionInfo))
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw AppStorePurchaseError.serverRejected
+        }
+        let result = try JSONDecoder().decode(AppStoreTransactionResult.self, from: data)
+        guard ["active", "refunded", "revoked"].contains(result.entitlementStatus),
+              ["bound", "unbound"].contains(result.bindingState) else {
+            throw AppStorePurchaseError.serverRejected
+        }
+        return result
     }
 }
 

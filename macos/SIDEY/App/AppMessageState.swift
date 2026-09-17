@@ -10,6 +10,14 @@ final class AppMessageState {
     private(set) var bubbleLedger = ActiveBubbleLedger()
     private(set) var unreadCounts: [UUID: Int] = [:]
 
+    func reset() {
+        draft = ""
+        messageLedger = MessageLedger()
+        messageOutbox = MessageOutbox()
+        bubbleLedger = ActiveBubbleLedger()
+        unreadCounts.removeAll()
+    }
+
     func retain(roomIDs: Set<UUID>) {
         messageLedger.retain(roomIDs: roomIDs)
         messageOutbox.retain(roomIDs: roomIDs)

@@ -6,6 +6,12 @@ import Observation
 final class AppCommerceProducts {
     private(set) var commerceProducts: [CommerceProductState]
 
+    func resetOwnership() {
+        commerceProducts = commerceProducts.map {
+            CommerceProductState(product: $0.product, purchaseState: .confirming, isWorking: false)
+        }
+    }
+
     init(products: [CommerceProduct]) {
         commerceProducts = products.map {
             CommerceProductState(product: $0, purchaseState: .confirming, isWorking: false)

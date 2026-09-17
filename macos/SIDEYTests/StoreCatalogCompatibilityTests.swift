@@ -15,7 +15,7 @@ final class StoreCatalogCompatibilityTests: XCTestCase {
 
     func testOlderServerCatalogKeepsExistingProductsAvailableAndOnlyMissingOffersUnavailable() throws {
         let rows = try CommerceCatalog.products.filter { !newIDs.contains($0.id) }.map { try row($0) }
-        let states = try StoreCatalogResponse.validatedStates(Array(rows.reversed()))
+        let states = try validatedStates(Array(rows.reversed()))
         XCTAssertEqual(states.count, 24)
         XCTAssertEqual(states.map { $0.product.sortOrder }, states.map { $0.product.sortOrder }.sorted())
         for usesAppStore in [false, true] {
@@ -30,15 +30,15 @@ final class StoreCatalogCompatibilityTests: XCTestCase {
 
     func testUnknownProductsAreIgnoredWithoutGrantingTheirEntitlements() throws {
         let known = try row(.otter)
-        let unknown = try row(.otter, overrides: ["product_id": "future_product", "entitlement_key": "future:key"])
-        XCTAssertEqual(try StoreCatalogResponse.validatedStates([unknown, known, unknown]).map { $0.product.id }, [CommerceProduct.otter.id])
+        let unknown = try row(.otter, overrides: ["id": "future_product", "entitlement_key": "future:key"])
+        XCTAssertEqual(try validatedStates([unknown, known, unknown]).map { $0.product.id }, [CommerceProduct.otter.id])
     }
 
     func testDuplicateKnownProductCannotHideAMissingProductInAnEqualSizedResponse() throws {
         var rows = try CommerceCatalog.products.map { try row($0) }
         rows[rows.count - 1] = rows[0]
-        XCTAssertThrowsError(try StoreCatalogResponse.validatedStates(rows)) {
-            XCTAssertEqual($0 as? StoreCatalogResponse.ValidationError, .duplicateProduct(rows[0].productID))
+        XCTAssertThrowsError(try validatedStates(rows)) {
+            XCTAssertEqual($0 as? SpringCatalog.ValidationError, .duplicateProduct(rows[0].product.id))
         }
     }
 
@@ -49,8 +49,8 @@ final class StoreCatalogCompatibilityTests: XCTestCase {
         ]
         for override in overrides {
             let invalid = try row(.otter, overrides: override)
-            XCTAssertThrowsError(try StoreCatalogResponse.validatedStates([try row(.pig), invalid])) {
-                XCTAssertEqual($0 as? StoreCatalogResponse.ValidationError, .mismatchedProduct(CommerceProduct.otter.id))
+            XCTAssertThrowsError(try validatedStates([try row(.pig), invalid])) {
+                XCTAssertEqual($0 as? SpringCatalog.ValidationError, .mismatchedProduct(CommerceProduct.otter.id))
             }
         }
     }
@@ -63,7 +63,7 @@ final class StoreCatalogCompatibilityTests: XCTestCase {
         let rows = try CommerceCatalog.products.filter {
             !newIDs.contains($0.id) && $0.id != bubble.id
         }.map { try row($0) }
-        model.applyStoreCatalog(try StoreCatalogResponse.validatedStates(rows), usesAppStore: true)
+        model.applyStoreCatalog(try validatedStates(rows), usesAppStore: true)
         XCTAssertEqual(model.selectedCharacterID, shiba.characterID)
         XCTAssertEqual(model.equippedBubbleStyleID, bubble.catalogItemID)
         XCTAssertEqual(model.equippedThrowableID, leaf.catalogItemID)
@@ -79,7 +79,7 @@ final class StoreCatalogCompatibilityTests: XCTestCase {
         let shiba = try product("character_shiba")
         let bubble = CommerceProduct.bunnyPinkBubble
         let model = ownedModel(character: shiba, bubble: bubble, throwable: leaf)
-        model.applyStoreCatalog(try StoreCatalogResponse.validatedStates([
+        model.applyStoreCatalog(try validatedStates([
             row(shiba), row(bubble), row(leaf)
         ]), usesAppStore: true)
         XCTAssertEqual(model.selectedCharacterID, PixelCharacterCatalog.pixelHamsterID)
@@ -106,13 +106,13 @@ final class StoreCatalogCompatibilityTests: XCTestCase {
         model.failStoreCatalogLoading(productIDs: CommerceCatalog.products.map(\.id))
         XCTAssertEqual(model.commerceProduct(id: CommerceProduct.otter.id)?.purchaseState, .owned)
         XCTAssertEqual(model.commerceProduct(id: CommerceProduct.pig.id)?.purchaseState, .error("상점 상태를 불러오지 못했습니다."))
-        model.applyStoreCatalog(try StoreCatalogResponse.validatedStates(rows), usesAppStore: true)
+        model.applyStoreCatalog(try validatedStates(rows), usesAppStore: true)
         XCTAssertEqual(model.commerceProduct(id: CommerceProduct.pig.id)?.purchaseState, .available)
         XCTAssertEqual(model.commerceProduct(id: "character_shiba")?.purchaseState, .unavailable)
         let full = try CommerceCatalog.products.map {
             try row($0, overrides: $0.id == CommerceProduct.otter.id ? ["entitlement_status": "active", "is_equipped": true] : [:])
         }
-        model.applyStoreCatalog(try StoreCatalogResponse.validatedStates(full), usesAppStore: true)
+        model.applyStoreCatalog(try validatedStates(full), usesAppStore: true)
         XCTAssertEqual(model.commerceProduct(id: "character_shiba")?.purchaseState, .available)
         XCTAssertEqual(model.commerceProduct(id: CommerceProduct.otter.id)?.purchaseState, .owned)
     }
@@ -124,7 +124,7 @@ final class StoreCatalogCompatibilityTests: XCTestCase {
         model.applyStoreCatalog([], usesAppStore: true)
         XCTAssertEqual(model.commerceProduct(id: shiba.id)?.purchaseState, .unavailable)
         XCTAssertFalse(try XCTUnwrap(model.commerceProduct(id: shiba.id)).purchaseState.canStartPurchase)
-        model.applyStoreCatalog(try StoreCatalogResponse.validatedStates([row(shiba, overrides: ["google_connected": false])]), usesAppStore: true)
+        model.applyStoreCatalog(try validatedStates([row(shiba, overrides: ["google_connected": false])]), usesAppStore: true)
         XCTAssertEqual(model.commerceProduct(id: shiba.id)?.purchaseState, .available)
         XCTAssertEqual(model.commerceProduct(id: shiba.id)?.localizedPrice, "₩1,100")
     }
@@ -154,15 +154,32 @@ final class StoreCatalogCompatibilityTests: XCTestCase {
         return model
     }
 
-    private func row(_ product: CommerceProduct, overrides: [String: Any] = [:]) throws -> DatabaseCommerceState {
+    private func row(_ product: CommerceProduct, overrides: [String: Any] = [:]) throws -> CatalogRow {
         var value: [String: Any] = [
-            "product_id": product.id, "display_name": product.displayName, "product_description": product.description,
+            "id": product.id, "display_name": product.displayName, "product_description": product.description,
             "product_kind": product.kind.rawValue, "catalog_item_id": product.catalogItemID,
             "character_id": product.characterID.map { $0 as Any } ?? NSNull(), "entitlement_key": product.entitlementKey,
             "sort_order": product.sortOrder, "amount_krw": product.amountKRW, "currency": "KRW", "tax_inclusive": true,
             "google_connected": true, "entitlement_status": NSNull(), "latest_order_status": NSNull(), "is_equipped": false
         ]
         value.merge(overrides) { _, new in new }
-        return try JSONDecoder().decode(DatabaseCommerceState.self, from: JSONSerialization.data(withJSONObject: value))
+        let product = try JSONDecoder().decode(SpringProduct.self, from: JSONSerialization.data(withJSONObject: value))
+        return CatalogRow(product: product, state: CommerceState(product: product.domain,
+            googleConnected: value["google_connected"] as? Bool ?? true,
+            entitlementStatus: value["entitlement_status"] as? String,
+            latestOrderStatus: value["latest_order_status"] as? String,
+            isEquipped: value["is_equipped"] as? Bool ?? false))
+    }
+
+    private struct CatalogRow {
+        let product: SpringProduct
+        let state: CommerceState
+    }
+
+    private func validatedStates(_ rows: [CatalogRow]) throws -> [CommerceState] {
+        // Catalog identity uses the production REST decoder and validator. Ownership
+        // is a separate server snapshot, represented directly by this UI fixture.
+        let products = try SpringCatalog.validatedProducts(rows.map(\.product))
+        return products.map { product in rows.first { $0.product.id == product.id }!.state }
     }
 }

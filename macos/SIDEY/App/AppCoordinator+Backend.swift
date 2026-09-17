@@ -20,8 +20,7 @@ extension AppCoordinator {
             advanceFirstRunTransition()
             return
         }
-        let requireExistingSession = model.preferences.onboardingComplete
-            || releaseChannel.requiresAppleAuthentication
+        let requireExistingSession = true
         backendConnectionStatus = nil
         model.setActiveRoomRealtimeConnected(false)
         model.connectionState = .connecting
@@ -37,11 +36,13 @@ extension AppCoordinator {
                 if releaseChannel == .appStore, userID != nil {
                     await configureAppStoreCommerce(backend: backend)
                 }
+                guard !Task.isCancelled else { return }
                 refreshCommerceState()
                 let reconciliation = try await backend.syncRealtime(
                     rooms: snapshot.rooms,
                     activeRoomID: model.activeRoom?.id
                 )
+                guard !Task.isCancelled else { return }
                 applyBackendReconciliation(reconciliation)
                 model.setActiveRoomRealtimeConnected(true)
                 model.connectionState = .online
@@ -55,8 +56,7 @@ extension AppCoordinator {
                 advanceFirstRunTransition()
             } catch {
                 guard !Task.isCancelled else { return }
-                if releaseChannel.requiresAppleAuthentication,
-                   error as? SideyBackendError == .sessionRecoveryFailed {
+                if error as? SideyBackendError == .sessionRecoveryFailed {
                     model.authenticationRequired = true
                     model.connectionState = .idle
                     model.errorMessage = nil
@@ -312,7 +312,7 @@ extension AppCoordinator {
             overlayWindows.presentComposer()
             return
         }
-        let messageID = UUID()
+        let messageID = model.messageOutbox.retryID(roomID: roomID, senderID: senderID, body: body) ?? UUID()
         let revealMessage = !model.preferences.quietModeEnabled
         model.stageMessage(
             id: messageID,
@@ -419,6 +419,16 @@ extension AppCoordinator {
 
     func handleBackendEvent(_ event: BackendEvent) {
         switch event {
+        case .authenticationRequired:
+            roomSession.bootstrapTask?.cancel()
+            roomSession.switchPipeline?.cancel()
+            roomSession.typingTask?.cancel()
+            commerceSession.cancel(model: model)
+            _ = cancelTreeMovementRequests()
+            model.resetAccountState()
+            backendBootstrapState = .failed
+            applyRequestedOverlayVisibility()
+            refreshStatusItem()
         case .snapshot(let snapshot):
             applyBackendSnapshot(snapshot, currentUserID: model.currentUserID)
             applyRequestedOverlayVisibility()
@@ -430,6 +440,7 @@ extension AppCoordinator {
             refreshStatusItem()
             persistPreferences()
         case .message(let message):
+            guard !model.authenticationRequired, model.rooms.contains(where: { $0.id == message.roomID }) else { return }
             let isActiveRoom = message.roomID == model.activeRoom?.id
             let revealMessage = isActiveRoom && !model.preferences.quietModeEnabled
             let isNew = model.confirmMessage(message, revealBubble: revealMessage)
@@ -483,7 +494,7 @@ extension AppCoordinator {
         case .connection(let status):
             let previousStatus = backendConnectionStatus
             backendConnectionStatus = status
-            model.connectionState = status.isReady ? .online : .connecting
+            model.connectionState = model.authenticationRequired ? .idle : status.isReady ? .online : .connecting
             model.setActiveRoomRealtimeConnected(status.activeRoomTransportConnected)
             if previousStatus?.activeRoomTransportConnected == true,
                !status.activeRoomTransportConnected {

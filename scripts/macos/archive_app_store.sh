@@ -3,7 +3,7 @@ set -eu
 
 SIDEY_REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && /bin/pwd -P)
 python3 "$SIDEY_REPO_ROOT/scripts/macos/verify_content_assets.py"
-SIDEY_APP_STORE_VERIFIER_URL=${SIDEY_APP_STORE_VERIFIER_URL:-}
+SIDEY_API_BASE_URL=${SIDEY_API_BASE_URL:-}
 SIDEY_DEVELOPMENT_TEAM=${SIDEY_DEVELOPMENT_TEAM:-}
 SIDEY_SOURCE_VERSIONS=$(python3 - "$SIDEY_REPO_ROOT/macos/SIDEY.xcodeproj/project.pbxproj" <<'PYVERSIONS'
 import re
@@ -29,20 +29,20 @@ SIDEY_EXPECTED_BUILD_VERSION=${SIDEY_EXPECTED_BUILD_VERSION:-${SIDEY_SOURCE_VERS
 SIDEY_ARCHIVE_PATH=${1:-$SIDEY_REPO_ROOT/build/app-store/SIDEYAppStore.xcarchive}
 SIDEY_DERIVED_DATA=${SIDEY_DERIVED_DATA:-$SIDEY_REPO_ROOT/build/app-store-derived}
 
-if [ -z "$SIDEY_APP_STORE_VERIFIER_URL" ]; then
-	echo "SIDEY_APP_STORE_VERIFIER_URL is required" >&2
+if [ -z "$SIDEY_API_BASE_URL" ]; then
+	echo "SIDEY_API_BASE_URL is required" >&2
 	exit 64
 fi
-case "$SIDEY_APP_STORE_VERIFIER_URL" in
+case "$SIDEY_API_BASE_URL" in
 	https://*) ;;
 	*)
-		echo "SIDEY_APP_STORE_VERIFIER_URL must use HTTPS" >&2
+		echo "SIDEY_API_BASE_URL must use HTTPS" >&2
 		exit 64
 		;;
 esac
-case "$SIDEY_APP_STORE_VERIFIER_URL" in
+case "$SIDEY_API_BASE_URL" in
 	*"@"*|*"?"*|*"#"*)
-		echo "SIDEY_APP_STORE_VERIFIER_URL must not contain credentials, a query, or a fragment" >&2
+		echo "SIDEY_API_BASE_URL must not contain credentials, a query, or a fragment" >&2
 		exit 64
 		;;
 esac
@@ -71,7 +71,9 @@ xcodebuild \
 	-disableAutomaticPackageResolution \
 	-allowProvisioningUpdates \
 	"DEVELOPMENT_TEAM=$SIDEY_DEVELOPMENT_TEAM" \
-	"SIDEY_APP_STORE_VERIFIER_URL=$SIDEY_APP_STORE_VERIFIER_URL" \
+	"SIDEY_API_BASE_URL=$SIDEY_API_BASE_URL" \
+	"SIDEY_GOOGLE_CLIENT_ID=${SIDEY_GOOGLE_CLIENT_ID:-}" \
+	"SIDEY_GOOGLE_CLIENT_SECRET=${SIDEY_GOOGLE_CLIENT_SECRET:-}" \
 	"$@" \
 	archive
 
@@ -115,7 +117,7 @@ if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$SIDEY_INFO_PLIST")
 	echo "Unexpected App Store build version" >&2
 	exit 1
 fi
-if [ "$(/usr/libexec/PlistBuddy -c 'Print :SIDEYAppStoreVerifierURL' "$SIDEY_INFO_PLIST")" != "$SIDEY_APP_STORE_VERIFIER_URL" ]; then
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :SIDEYAPIBaseURL' "$SIDEY_INFO_PLIST")" != "$SIDEY_API_BASE_URL" ]; then
 	echo "App Store verifier URL was not embedded correctly" >&2
 	exit 1
 fi

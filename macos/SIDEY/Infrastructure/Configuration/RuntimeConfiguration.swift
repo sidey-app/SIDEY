@@ -1,114 +1,97 @@
 import CryptoKit
 import Foundation
 
+// Dispatch old application URLs only. New Google login uses a loopback redirect.
 enum SideyAuthCallback {
     static let productionScheme = "sidey"
-
     static var configuredScheme: String {
-        normalizedScheme(Bundle.main.object(forInfoDictionaryKey: "SIDEYAuthURLScheme") as? String)
-            ?? productionScheme
+        normalized(Bundle.main.object(forInfoDictionaryKey: "SIDEYAuthURLScheme") as? String) ?? productionScheme
     }
-
     static func callbackURL(scheme: String? = nil) -> URL {
-        let resolvedScheme = normalizedScheme(scheme) ?? configuredScheme
-        return URL(string: "\(resolvedScheme)://auth/google")!
+        URL(string: "\(normalized(scheme) ?? configuredScheme)://auth/google")!
     }
-
     static func matches(_ url: URL, scheme: String? = nil) -> Bool {
-        let expectedScheme = normalizedScheme(scheme) ?? configuredScheme
-        return url.scheme?.lowercased() == expectedScheme
-            && url.host == "auth"
-            && url.path == "/google"
+        url.scheme?.lowercased() == (normalized(scheme) ?? configuredScheme)
+            && url.host == "auth" && url.path == "/google"
     }
-
-    private static func normalizedScheme(_ value: String?) -> String? {
+    private static func normalized(_ value: String?) -> String? {
         guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-              !value.isEmpty,
-              value.first?.isLetter == true,
-              value.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "+" || $0 == "-" || $0 == "." })
-        else { return nil }
+              !value.isEmpty, value.first?.isLetter == true,
+              value.allSatisfy({ $0.isLetter || $0.isNumber || "+-.".contains($0) }) else { return nil }
         return value
     }
 }
 
 struct RuntimeConfiguration: Equatable, Sendable {
-    static let productionHost = "whtejsviizgejauasqqt.supabase.co"
-    let supabaseURL: URL
-    let supabasePublishableKey: String
+    static let productionHost = "api.sidey.app"
+    static let legacyProductionURL = URL(string: "https://whtejsviizgejauasqqt.supabase.co")!
+    static let legacyProductionKey = "sb_publishable_kkASOI4rRTX8Drob21hkCw_VwUex63Y"
+    let apiBaseURL: URL
+    var googleClientID: String = ""
+    // Google installed-desktop OAuth client configuration is public application data.
+    var googleClientSecret: String = ""
+    var legacySupabaseURL: URL = Self.legacyProductionURL
+    var legacySupabasePublishableKey: String = Self.legacyProductionKey
 
-    var backendFingerprint: String {
-        let digest = SHA256.hash(data: Data(supabaseURL.absoluteString.utf8))
-        return digest.prefix(8).map { String(format: "%02x", $0) }.joined()
-    }
+    var backendFingerprint: String { Self.fingerprint(apiBaseURL) }
+    var legacyBackendFingerprint: String { Self.fingerprint(legacySupabaseURL) }
+    var isProductionBackend: Bool { apiBaseURL.host?.lowercased() == Self.productionHost }
 
     static func resolve(
         releaseChannel: AppReleaseChannel = .resolve(),
         environment: [String: String] = ProcessInfo.processInfo.environment,
         bundleInfo: [String: Any] = Bundle.main.infoDictionary ?? [:]
     ) throws -> Self {
-        if releaseChannel == .production || releaseChannel == .appStore {
-            return Self(
-                supabaseURL: URL(string: "https://\(productionHost)")!,
-                supabasePublishableKey: "sb_publishable_kkASOI4rRTX8Drob21hkCw_VwUex63Y"
-            )
+        let production = releaseChannel == .production || releaseChannel == .appStore
+        func configured(_ environmentKey: String, _ bundleKey: String) -> String? {
+            let raw = production ? bundleInfo[bundleKey] as? String
+                : environment[environmentKey] ?? bundleInfo[bundleKey] as? String
+            guard let result = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !result.isEmpty, !result.contains("$(") else { return nil }
+            return result
         }
-
-        let environmentURL = environment["SIDEY_SUPABASE_URL"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let environmentKey = environment["SIDEY_SUPABASE_PUBLISHABLE_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let bundledURL = (bundleInfo["SIDEYSupabaseURL"] as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        let bundledKey = (bundleInfo["SIDEYSupabasePublishableKey"] as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-
-        if environmentURL != nil || environmentKey != nil {
-            guard let rawURL = environmentURL, !rawURL.isEmpty,
-                  let key = environmentKey, !key.isEmpty,
-                  let url = URL(string: rawURL), Self.isAllowedBackendURL(url)
-            else { throw RuntimeConfigurationError.incompleteEnvironment }
-            guard !Self.looksLikeSecretKey(key) else { throw RuntimeConfigurationError.secretKeyNotAllowed }
-            guard url.host?.lowercased() != Self.productionHost else {
-                throw RuntimeConfigurationError.productionBackendNotAllowedInDevelopment
-            }
-            return Self(supabaseURL: url, supabasePublishableKey: key)
+        let rawURL = configured("SIDEY_API_BASE_URL", "SIDEYAPIBaseURL")
+            ?? (production ? "https://\(productionHost)/api" : nil)
+        guard let rawURL, let url = URL(string: rawURL), isAllowedBackendURL(url), ["/api", "/api/"].contains(url.path),
+              !production || url.scheme == "https" else {
+            throw RuntimeConfigurationError.missingDevelopmentConfiguration
         }
-
-        guard let rawURL = bundledURL, !rawURL.isEmpty,
-              let key = bundledKey, !key.isEmpty,
-              let url = URL(string: rawURL), Self.isAllowedBackendURL(url)
-        else { throw RuntimeConfigurationError.missingDevelopmentConfiguration }
-        guard !Self.looksLikeSecretKey(key) else { throw RuntimeConfigurationError.secretKeyNotAllowed }
-        guard url.host?.lowercased() != Self.productionHost else {
+        if !production && url.host?.lowercased() == productionHost {
             throw RuntimeConfigurationError.productionBackendNotAllowedInDevelopment
         }
-        return Self(supabaseURL: url, supabasePublishableKey: key)
+        var result = Self(apiBaseURL: url,
+            googleClientID: configured("SIDEY_GOOGLE_CLIENT_ID", "SIDEYGoogleClientID") ?? "",
+            googleClientSecret: configured("SIDEY_GOOGLE_CLIENT_SECRET", "SIDEYGoogleClientSecret") ?? "")
+        if !production {
+            let legacyURL = configured("SIDEY_LEGACY_SUPABASE_URL", "SIDEYLegacySupabaseURL")
+            let legacyKey = configured("SIDEY_LEGACY_SUPABASE_PUBLISHABLE_KEY", "SIDEYLegacySupabasePublishableKey")
+            if legacyURL != nil || legacyKey != nil {
+                guard let legacyURL, let parsed = URL(string: legacyURL), isAllowedBackendURL(parsed),
+                      let legacyKey else { throw RuntimeConfigurationError.incompleteEnvironment }
+                guard !looksLikeSecretKey(legacyKey) else { throw RuntimeConfigurationError.secretKeyNotAllowed }
+                result.legacySupabaseURL = parsed
+                result.legacySupabasePublishableKey = legacyKey
+            }
+        }
+        return result
     }
-
-    var isProductionBackend: Bool {
-        supabaseURL.host?.lowercased() == Self.productionHost
+    private static func fingerprint(_ url: URL) -> String {
+        SHA256.hash(data: Data(url.absoluteString.utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
     }
-
     private static func isAllowedBackendURL(_ url: URL) -> Bool {
-        guard let scheme = url.scheme?.lowercased(), let host = url.host?.lowercased() else {
-            return false
-        }
-        if scheme == "https" { return true }
-        return scheme == "http" && ["localhost", "127.0.0.1", "::1"].contains(host)
+        guard let scheme = url.scheme?.lowercased(), let host = url.host?.lowercased(),
+              url.user == nil, url.password == nil, url.query == nil, url.fragment == nil else { return false }
+        return scheme == "https" || (scheme == "http" && ["localhost", "127.0.0.1", "::1", "[::1]"].contains(host))
     }
-
     private static func looksLikeSecretKey(_ value: String) -> Bool {
-        if value.hasPrefix("sb_secret_") || value.hasPrefix("service_role") {
-            return true
-        }
+        if value.hasPrefix("sb_secret_") || value.hasPrefix("service_role") { return true }
         let parts = value.split(separator: ".", omittingEmptySubsequences: false)
         guard parts.count == 3 else { return false }
-        var encodedPayload = String(parts[1])
-            .replacingOccurrences(of: "-", with: "+")
-            .replacingOccurrences(of: "_", with: "/")
-        encodedPayload += String(repeating: "=", count: (4 - encodedPayload.count % 4) % 4)
-        guard let data = Data(base64Encoded: encodedPayload),
-              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else { return false }
-        return payload["role"] as? String == "service_role"
+        var payload = String(parts[1]).replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        payload += String(repeating: "=", count: (4 - payload.count % 4) % 4)
+        guard let data = Data(base64Encoded: payload),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
+        return object["role"] as? String == "service_role"
     }
 }
 
@@ -117,17 +100,12 @@ enum RuntimeConfigurationError: LocalizedError, Equatable {
     case secretKeyNotAllowed
     case missingDevelopmentConfiguration
     case productionBackendNotAllowedInDevelopment
-
     var errorDescription: String? {
         switch self {
-        case .incompleteEnvironment:
-            "SIDEY_SUPABASE_URL과 SIDEY_SUPABASE_PUBLISHABLE_KEY를 모두 설정해야 합니다."
-        case .secretKeyNotAllowed:
-            "클라이언트에 Supabase secret/service-role 키를 사용할 수 없습니다."
-        case .missingDevelopmentConfiguration:
-            "Sidey-dev에는 SIDEY-staging URL과 publishable key가 필요합니다."
-        case .productionBackendNotAllowedInDevelopment:
-            "Sidey-dev는 production Supabase 프로젝트에 연결할 수 없습니다."
+        case .incompleteEnvironment: "기존 계정 복구용 URL과 public key를 모두 설정해야 합니다."
+        case .secretKeyNotAllowed: "클라이언트에 서버 secret/service-role 키를 사용할 수 없습니다."
+        case .missingDevelopmentConfiguration: "SIDEY_API_BASE_URL에 유효한 backend URL을 설정해 주세요."
+        case .productionBackendNotAllowedInDevelopment: "Sidey-dev는 production backend에 연결할 수 없습니다."
         }
     }
 }

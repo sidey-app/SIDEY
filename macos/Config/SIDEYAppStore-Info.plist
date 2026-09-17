@@ -28,9 +28,13 @@
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 	<key>LSUIElement</key>
 	<true/>
-	<key>SIDEYAppStoreVerifierURL</key>
-	<string>$(SIDEY_APP_STORE_VERIFIER_URL)</string>
 	<key>SIDEYReleaseChannel</key>
 	<string>app-store</string>
+	<key>SIDEYAPIBaseURL</key>
+	<string>$(SIDEY_API_BASE_URL)</string>
+	<key>SIDEYGoogleClientID</key>
+	<string>$(SIDEY_GOOGLE_CLIENT_ID)</string>
+	<key>SIDEYGoogleClientSecret</key>
+	<string>$(SIDEY_GOOGLE_CLIENT_SECRET)</string>
 </dict>
 </plist>

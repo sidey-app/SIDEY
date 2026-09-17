@@ -75,6 +75,27 @@ final class AppModel {
         preferences.overlayVisible = visibility.isVisible
     }
 
+    func resetAccountState() {
+        setActiveRoomRealtimeConnected(false)
+        apply(snapshot: BackendSnapshot(profile: nil, rooms: []), currentUserID: nil)
+        messages.reset()
+        commerce.resetOwnership()
+        treeMovement.reset()
+        characterStunState.reset()
+        cosmeticEquipmentRequests.removeAll()
+        pendingCharacterID = nil
+        nickname = ""
+        selectedCharacterID = PixelCharacterCatalog.pixelHamsterID
+        preferences.nickname = ""
+        preferences.selectedCharacterID = selectedCharacterID
+        newRoomName = ""; inviteCode = ""; lastCreatedInviteCode = nil
+        connectionState = .idle
+        authenticationRequired = true
+        isWorking = false; groupOperation = .idle
+        errorMessage = nil
+        dismissSuccess()
+    }
+
     func acceptDraft() -> String? {
         let normalized = MessageValidator.normalized(draft)
         guard MessageValidator.isValid(normalized) else { return nil }

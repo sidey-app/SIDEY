@@ -31,6 +31,14 @@ struct SettingsActions {
     var onCharacterSoundEffectsChanged: (Bool) -> Void = { _ in }
     var onCharacterImpact: (String, TimeInterval) -> Void = { _, _ in }
     var onStopCharacterSounds: () -> Void = {}
+    var onSignInWithGoogle: () -> Void
+    var onAuthenticationNonce: @MainActor () async throws -> String
+    var onRequestAccountDeletion: @MainActor () async throws -> AccountDeletionResult = {
+        throw SideyBackendError.sessionRecoveryFailed
+    }
+    var onSignOut: (Bool) -> Void = { _ in }
+    var onUnlinkGoogleIdentity: () -> Void = {}
+    var onUnlinkAppleIdentity: (AppleAuthorizationPayload) -> Void = { _ in }
 
     static let empty = SettingsActions(
         onOverlayVisibilityChanged: { _ in },
@@ -57,7 +65,9 @@ struct SettingsActions {
         onRenameRoom: { _, _ in },
         onRemoveRoomMember: { _, _ in },
         onLeaveRoom: { _ in },
-        onDeleteRoom: { _ in }
+        onDeleteRoom: { _ in },
+        onSignInWithGoogle: {},
+        onAuthenticationNonce: { throw SideyBackendError.sessionRecoveryFailed }
     )
 }
 
@@ -79,11 +89,19 @@ struct SettingsRootView: View {
     var body: some View {
         Group {
             if model.authenticationRequired {
-                AppleSignInView(model: model, onSignIn: actions.onSignInWithApple)
+                AppleSignInView(model: model, actions: actions, usesApple: storeAvailability.usesAppStore)
             } else if model.preferences.onboardingComplete {
                 settingsNavigation
             } else {
-                OnboardingView(model: model, actions: actions)
+                VStack(spacing: 0) {
+                    OnboardingView(model: model, actions: actions)
+                    HStack {
+                        Spacer()
+                        Button("로그아웃") { actions.onSignOut(false) }
+                            .disabled(model.accountOperationInProgress)
+                    }
+                    .padding()
+                }
             }
         }
     }

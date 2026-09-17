@@ -74,7 +74,19 @@ final class AppCoordinator {
             },
             onStopCharacterSounds: { [weak self] in
                 self?.model.characterImpactAudio.stopAll()
-            }
+            },
+            onSignInWithGoogle: { [weak self] in self?.signInWithGoogle() },
+            onAuthenticationNonce: { [weak self] in
+                guard let self else { throw SideyBackendError.sessionRecoveryFailed }
+                return try await self.prepareAuthenticationNonce()
+            },
+            onRequestAccountDeletion: { [weak self] in
+                guard let self else { throw SideyBackendError.sessionRecoveryFailed }
+                return try await self.requestAccountDeletion()
+            },
+            onSignOut: { [weak self] allSessions in self?.signOut(allSessions: allSessions) },
+            onUnlinkGoogleIdentity: { [weak self] in self?.unlinkGoogleIdentity() },
+            onUnlinkAppleIdentity: { [weak self] payload in self?.unlinkAppleIdentity(payload) }
         ),
         onClose: { [weak self] in self?.settingsDidClose() }
     )
@@ -304,41 +316,7 @@ final class AppCoordinator {
     }
 
     func handleOpenURL(_ url: URL) -> Bool {
-#if APP_STORE
         return false
-#else
-        guard releaseChannel.storeAvailability == .direct,
-              SideyAuthCallback.matches(url),
-              let backend
-        else { return false }
-        showStore()
-        commerceSession.authenticationTask?.cancel()
-        let previousTreeTask = cancelTreeMovementRequests()
-        let targetProductID = commerceSession.googleConnectionProductID
-        commerceSession.authenticationTask = Task { [weak self] in
-            guard let self else { return }
-            defer {
-                commerceSession.googleConnectionProductID = nil
-                commerceSession.authenticationTask = nil
-            }
-            do {
-                await previousTreeTask?.value
-                try await backend.handleAuthCallback(url)
-                refreshCommerceState()
-                model.presentSuccess("Google 계정을 연결했습니다.")
-                model.errorMessage = nil
-            } catch {
-                if let targetProductID {
-                    model.setCommercePurchaseState(
-                        .error("Google 계정 연결을 확인하지 못했습니다."),
-                        productID: targetProductID
-                    )
-                }
-                model.errorMessage = "Google 계정 연결 실패: \(error.localizedDescription)"
-            }
-        }
-        return true
-#endif
     }
 
     private func settingsDidClose() {

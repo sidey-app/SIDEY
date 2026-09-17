@@ -1,7 +1,36 @@
 import XCTest
+#if APP_STORE
+@testable import SIDEYAppStore
+#else
 @testable import SIDEY
+#endif
 
 final class MessageLedgerTests: XCTestCase {
+    @MainActor
+    func testAccountResetClearsPrivateMessagesAndOutboxWithoutResettingQuietPreference() {
+        var preferences = AppPreferences.defaults
+        let room = UUID(), user = UUID()
+        preferences.activeRoomID = room
+        preferences.quietModeEnabled = true
+        let model = AppModel(preferences: preferences)
+        model.rooms = [Self.room(id: room, name: "이전 계정")]
+        model.currentUserID = user
+        model.draft = "이전 계정 초안"
+        model.stageMessage(id: UUID(), roomID: room, senderID: user, body: "전송 중")
+        _ = model.confirmMessage(ChatMessage(id: UUID(), roomID: room, senderID: user, body: "이전 내역", createdAt: .now))
+        model.incrementUnread(in: room)
+        model.resetAccountState()
+        XCTAssertNil(model.currentUserID)
+        XCTAssertTrue(model.rooms.isEmpty)
+        XCTAssertTrue(model.draft.isEmpty)
+        XCTAssertTrue(model.messageLedger.entries.isEmpty)
+        XCTAssertTrue(model.messageOutbox.entries.isEmpty)
+        XCTAssertTrue(model.activeBubbles.isEmpty)
+        XCTAssertTrue(model.unreadCounts.isEmpty)
+        XCTAssertTrue(model.authenticationRequired)
+        XCTAssertTrue(model.preferences.quietModeEnabled)
+    }
+
     func testPostgresTimestampsDecodeFractionalAndWholeSecondsWithUTCOffsets() throws {
         let timestamps = [
             "2026-08-31T01:02:03.123Z",
@@ -37,13 +66,13 @@ final class MessageLedgerTests: XCTestCase {
     func testDistinctServerTimestampsRemainDistinctAndOrderHistoryNewestFirst() throws {
         let roomID = UUID()
         let senderID = UUID()
-        let older = try DatabaseMessage(
-            id: UUID(), roomID: roomID, senderID: senderID, body: "이전",
-            createdAt: "2026-08-31T01:02:03.123Z"
+        let older = try SpringMessage(
+            id: UUID(), roomId: roomID, senderId: senderID, body: "이전",
+            bubbleStyleId: nil, createdAt: "2026-08-31T01:02:03.123Z"
         ).domain
-        let newer = try DatabaseMessage(
-            id: UUID(), roomID: roomID, senderID: senderID, body: "최신",
-            createdAt: "2026-08-31T01:02:04.456789+00:00"
+        let newer = try SpringMessage(
+            id: UUID(), roomId: roomID, senderId: senderID, body: "최신",
+            bubbleStyleId: nil, createdAt: "2026-08-31T01:02:04.456789+00:00"
         ).domain
         var ledger = MessageLedger()
         let now = newer.createdAt.addingTimeInterval(60)

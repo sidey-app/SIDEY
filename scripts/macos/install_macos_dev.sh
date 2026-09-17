@@ -14,27 +14,28 @@ SIDEY_INSTALL_DIR=
 SIDEY_BACKUP_APP=
 SIDEY_INSTALL_COMPLETE=0
 
-if [ -z "${SIDEY_SUPABASE_URL:-}" ] || [ -z "${SIDEY_SUPABASE_PUBLISHABLE_KEY:-}" ]; then
-	echo "Sidey-dev requires SIDEY-staging SIDEY_SUPABASE_URL and SIDEY_SUPABASE_PUBLISHABLE_KEY" >&2
+if [ -z "${SIDEY_API_BASE_URL:-}" ]; then
+	echo "Sidey-dev requires SIDEY_API_BASE_URL for a local or staging Spring backend" >&2
 	exit 64
 fi
-case "$SIDEY_SUPABASE_URL" in
+case "$SIDEY_API_BASE_URL" in
 	https://*) ;;
 	http://localhost:*|http://127.0.0.1:*|http://\[::1\]:*) ;;
 	*)
-		echo "Sidey-dev Supabase URL must use HTTPS (or a loopback URL for local development)" >&2
+		echo "Sidey-dev API URL must use HTTPS (or a loopback URL for local development)" >&2
 		exit 64
 		;;
 esac
-case "$SIDEY_SUPABASE_URL" in
-	*whtejsviizgejauasqqt*)
-		echo "Refusing to build Sidey-dev against the production Supabase project" >&2
+case "$SIDEY_API_BASE_URL" in
+	*api.sidey.app*|*\?*|*\#*|*\@*)
+		echo "Refusing production or unsafe API URL in Sidey-dev" >&2
 		exit 64
 		;;
 esac
-case "$SIDEY_SUPABASE_PUBLISHABLE_KEY" in
+
+case "${SIDEY_LEGACY_SUPABASE_PUBLISHABLE_KEY:-}" in
 	sb_secret_*|service_role*)
-		echo "Refusing to embed a Supabase secret/service-role key in Sidey-dev" >&2
+		echo "Refusing a server secret in legacy account recovery configuration" >&2
 		exit 64
 		;;
 esac
@@ -80,8 +81,11 @@ xcodebuild \
 	SIDEY_DISPLAY_NAME=Sidey-dev \
 	SIDEY_LOGIN_ITEM_BUNDLE_IDENTIFIER=app.sidey.desktop.dev.login-item \
 	SIDEY_RELEASE_CHANNEL=development \
-	SIDEY_SUPABASE_URL="$SIDEY_SUPABASE_URL" \
-	SIDEY_SUPABASE_PUBLISHABLE_KEY="$SIDEY_SUPABASE_PUBLISHABLE_KEY" \
+	SIDEY_API_BASE_URL="$SIDEY_API_BASE_URL" \
+	SIDEY_GOOGLE_CLIENT_ID="${SIDEY_GOOGLE_CLIENT_ID:-}" \
+	SIDEY_GOOGLE_CLIENT_SECRET="${SIDEY_GOOGLE_CLIENT_SECRET:-}" \
+	SIDEY_LEGACY_SUPABASE_URL="${SIDEY_LEGACY_SUPABASE_URL:-}" \
+	SIDEY_LEGACY_SUPABASE_PUBLISHABLE_KEY="${SIDEY_LEGACY_SUPABASE_PUBLISHABLE_KEY:-}" \
 	build
 
 if [ ! -d "$SIDEY_PRODUCT_APP" ]; then
@@ -135,8 +139,7 @@ if [ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$SIDEY_LOGIN_INF
 	echo "Development login item must use its isolated bundle identifier" >&2
 	exit 65
 fi
-if [ "$(/usr/libexec/PlistBuddy -c 'Print :SIDEYSupabaseURL' "$SIDEY_INFO_PLIST")" != "$SIDEY_SUPABASE_URL" ] \
-	|| [ "$(/usr/libexec/PlistBuddy -c 'Print :SIDEYSupabasePublishableKey' "$SIDEY_INFO_PLIST")" != "$SIDEY_SUPABASE_PUBLISHABLE_KEY" ]; then
+if [ "$(/usr/libexec/PlistBuddy -c 'Print :SIDEYAPIBaseURL' "$SIDEY_INFO_PLIST")" != "$SIDEY_API_BASE_URL" ]; then
 	echo "Development app does not contain the requested SIDEY-staging configuration" >&2
 	exit 65
 fi

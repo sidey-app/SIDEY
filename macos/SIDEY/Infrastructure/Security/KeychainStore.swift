@@ -1,7 +1,6 @@
 import Foundation
 import LocalAuthentication
 import Security
-import Supabase
 
 protocol KeychainSecurityPerforming: Sendable {
     func copyMatching(_ query: CFDictionary) -> (status: OSStatus, data: Data?)
@@ -32,7 +31,7 @@ private struct SystemKeychainSecurity: KeychainSecurityPerforming {
 
 /// 한 번의 앱 실행에서 Keychain 인증 상태와 읽기 결과를 공유한다.
 ///
-/// Supabase Auth가 부팅 중 같은 키를 여러 번 조회하더라도 실제 Security API는
+/// 세션 복구가 부팅 중 같은 키를 여러 번 조회하더라도 실제 Security API는
 /// 한 번만 호출한다. 사용자가 인증을 거부하면 이후 요청은 시스템 창을 다시
 /// 띄우지 않고 즉시 같은 오류를 반환한다.
 final class KeychainAccessSession: @unchecked Sendable {
@@ -318,9 +317,9 @@ struct KeychainStoreError: LocalizedError, Equatable {
     }
 }
 
-/// Supabase의 전체 세션과 기존 Godot 클라이언트의 refresh token을 함께 갱신한다.
-/// 네이티브 알파를 롤백해도 익명 계정이 끊기지 않게 하는 호환 계층이다.
-struct SideyAuthStorage: AuthLocalStorage, Sendable {
+/// Legacy claim을 완료할 때까지 기존 세션과 refresh token 소유권 증명을 함께 갱신한다.
+/// 정상 SIDEY 서비스 세션 저장에는 사용하지 않는 migration 전용 호환 계층이다.
+struct SideyAuthStorage: Sendable {
     let keychain: KeychainStore
     let legacyRefreshAccount: String
 

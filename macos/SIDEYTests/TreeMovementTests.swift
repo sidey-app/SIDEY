@@ -7,16 +7,16 @@ import XCTest
 
 @MainActor
 final class TreeMovementTests: XCTestCase {
-    func testDatabaseProfilesDecodeBothPreMigrationAndInt64Revisions() throws {
+    func testSpringProfilesRequireRevisionAndPreserveInt64CAS() throws {
         let id = UUID()
-        let old = Data("{\"id\":\"\(id)\",\"nickname\":\"나무\",\"character_id\":\"pixel_tree\"}".utf8)
-        let decoded = try JSONDecoder().decode(DatabaseProfile.self, from: old).domain
-        XCTAssertFalse(decoded.treeMovementPaused)
-        XCTAssertNil(decoded.treeMovementRevision)
-        let current = Data("{\"id\":\"\(id)\",\"nickname\":\"나무\",\"character_id\":\"pixel_tree\",\"tree_movement_paused\":true,\"tree_movement_revision\":4294967297}".utf8)
-        let profile = try JSONDecoder().decode(DatabaseProfile.self, from: current).domain
-        XCTAssertTrue(profile.treeMovementPaused)
-        XCTAssertEqual(profile.treeMovementRevision, 4_294_967_297)
+        let missing = Data("{\"id\":\"\(id)\",\"nickname\":\"나무\",\"characterId\":\"pixel_tree\",\"treeMovementPaused\":false}".utf8)
+        XCTAssertThrowsError(try JSONDecoder().decode(SpringProfile.self, from: missing))
+        for revision: Int64 in [0, 4_294_967_297] {
+            let current = Data("{\"id\":\"\(id)\",\"nickname\":\"나무\",\"characterId\":\"pixel_tree\",\"treeMovementPaused\":true,\"treeMovementRevision\":\(revision)}".utf8)
+            let profile = try JSONDecoder().decode(SpringProfile.self, from: current).domain
+            XCTAssertTrue(profile.treeMovementPaused)
+            XCTAssertEqual(profile.treeMovementRevision, revision)
+        }
     }
 
     func testMissingServerCapabilityNeverStartsMigrationOrRemoteWrites() {
@@ -55,7 +55,7 @@ final class TreeMovementTests: XCTestCase {
         XCTAssertNil(state.begin(userID: id, paused: false, migrating: true))
     }
 
-    func testOlderRPCAndSnapshotsCannotUndoNewerProfileAcrossRooms() {
+    func testOlderMutationAndSnapshotsCannotUndoNewerProfileAcrossRooms() {
         let me = UUID(), friend = UUID(), first = UUID(), second = UUID()
         let model = AppModel(preferences: .defaults)
         func snapshot(_ revision: Int64, paused: Bool, rooms: [UUID]) -> BackendSnapshot {
@@ -114,6 +114,27 @@ final class TreeMovementTests: XCTestCase {
         XCTAssertFalse(model.treeMovement.finish(request))
         XCTAssertEqual(model.treeMovement.pending, current)
         XCTAssertNil(model.treeMovement.confirmed[me])
+    }
+
+    func testRemoteSessionRevocationCancelsOutstandingAccountWorkAndClearsUser() async {
+        let coordinator = AppCoordinator(updateController: NoUpdateController(),
+            preferencesStore: PreferencesStore(load: { .defaults }, save: { _ in }),
+            legacyMigrator: .none, keychainAccessSession: KeychainAccessSession(),
+            releaseChannel: .development, arguments: [])
+        let bootstrap = Task { try? await Task.sleep(for: .seconds(60)) }
+        let typing = Task { try? await Task.sleep(for: .seconds(60)) }
+        coordinator.roomSession.bootstrapTask = Task { await bootstrap.value }
+        coordinator.roomSession.typingTask = Task { await typing.value }
+        coordinator.model.currentUserID = UUID()
+        coordinator.model.draft = "이전 계정"
+        coordinator.handleBackendEvent(.authenticationRequired)
+        XCTAssertTrue(coordinator.roomSession.bootstrapTask?.isCancelled == true)
+        XCTAssertTrue(coordinator.roomSession.typingTask?.isCancelled == true)
+        XCTAssertNil(coordinator.model.currentUserID)
+        XCTAssertTrue(coordinator.model.draft.isEmpty)
+        XCTAssertTrue(coordinator.model.authenticationRequired)
+        bootstrap.cancel(); typing.cancel()
+        await bootstrap.value; await typing.value
     }
 
     func testAuthenticationTransitionCancelsAndDrainsOldRequestWithoutClearingNewOne() async throws {

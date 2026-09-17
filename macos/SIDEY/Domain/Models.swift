@@ -156,7 +156,6 @@ struct Room: Codable, Equatable, Identifiable, Sendable {
     var inviteCodeHint: String
     var inviteVersion: Int = 0
     var inviteCodeReady: Bool = true
-    var realtimeEpoch: Int = 1
 }
 
 struct RoomMember: Codable, Equatable, Identifiable, Sendable {
@@ -302,6 +301,13 @@ struct MessageOutbox: Equatable, Sendable {
 
     private(set) var entries: [OutgoingMessage] = []
 
+    func retryID(roomID: UUID, senderID: UUID, body: String, now: Date = .now) -> UUID? {
+        entries.last(where: {
+            $0.roomID == roomID && $0.senderID == senderID && $0.body == body
+                && $0.state == .failed && $0.createdAt > now.addingTimeInterval(-3 * 86_400)
+        })?.id
+    }
+
     mutating func stage(
         id: UUID,
         roomID: UUID,
@@ -309,7 +315,12 @@ struct MessageOutbox: Equatable, Sendable {
         body: String,
         createdAt: Date = .now
     ) {
-        guard !entries.contains(where: { $0.id == id }) else { return }
+        if let index = entries.firstIndex(where: { $0.id == id }) {
+            if entries[index].roomID == roomID, entries[index].senderID == senderID, entries[index].body == body {
+                entries[index].state = .pending
+            }
+            return
+        }
         entries.append(OutgoingMessage(
             id: id,
             roomID: roomID,
@@ -352,147 +363,6 @@ struct MessageOutbox: Equatable, Sendable {
     }
 }
 
-struct RealtimeRoomPlan: Equatable, Sendable {
-    let desired: Set<UUID>
-    let additions: Set<UUID>
-    let removals: Set<UUID>
-    let activeRoomID: UUID?
-
-    static func make(existing: Set<UUID>, requested: [UUID], activeRoomID: UUID?) -> Self {
-        let desired = Set(requested.prefix(5))
-        return Self(
-            desired: desired,
-            additions: desired.subtracting(existing),
-            removals: existing.subtracting(desired),
-            activeRoomID: activeRoomID.flatMap { desired.contains($0) ? $0 : nil }
-        )
-    }
-}
-
-struct RealtimeConnectionTracker: Equatable, Sendable {
-    private(set) var desiredRoomIDs: Set<UUID> = []
-    private(set) var subscribedRoomIDs: Set<UUID> = []
-
-    mutating func replaceDesiredRoomIDs(_ roomIDs: Set<UUID>) {
-        desiredRoomIDs = roomIDs
-        subscribedRoomIDs.formIntersection(roomIDs)
-    }
-
-    mutating func setSubscribed(_ subscribed: Bool, roomID: UUID) {
-        guard desiredRoomIDs.contains(roomID) else {
-            subscribedRoomIDs.remove(roomID)
-            return
-        }
-        if subscribed {
-            subscribedRoomIDs.insert(roomID)
-        } else {
-            subscribedRoomIDs.remove(roomID)
-        }
-    }
-
-    func isSubscribed(roomID: UUID) -> Bool {
-        subscribedRoomIDs.contains(roomID)
-    }
-
-    var isConnected: Bool {
-        subscribedRoomIDs == desiredRoomIDs
-    }
-}
-
-struct RealtimeTopology: Equatable, Sendable {
-    let roomEpochs: [UUID: Int]
-
-    init(rooms: some Sequence<Room>) {
-        roomEpochs = Dictionary(uniqueKeysWithValues: rooms.prefix(5).map {
-            ($0.id, $0.realtimeEpoch)
-        })
-    }
-
-    init(channelEpochs: [UUID: Int]) {
-        roomEpochs = channelEpochs
-    }
-}
-
-struct RealtimeTopologyUpdatePlan: Equatable, Sendable {
-    let additions: Set<UUID>
-    let removals: Set<UUID>
-
-    static func make(live: RealtimeTopology, requestedRooms: [Room]) -> Self {
-        let desired = RealtimeTopology(rooms: requestedRooms)
-        let additions = Set(desired.roomEpochs.compactMap { roomID, desiredEpoch in
-            live.roomEpochs[roomID] == desiredEpoch ? nil : roomID
-        })
-        let removals = Set(live.roomEpochs.compactMap { roomID, liveEpoch in
-            desired.roomEpochs[roomID] == liveEpoch ? nil : roomID
-        })
-        return Self(additions: additions, removals: removals)
-    }
-}
-
-struct RealtimeDesiredTopology: Equatable, Sendable {
-    private(set) var roomEpochs: [UUID: Int] = [:]
-
-    mutating func replace(rooms: some Sequence<Room>) {
-        roomEpochs = Dictionary(uniqueKeysWithValues: rooms.prefix(5).map {
-            ($0.id, $0.realtimeEpoch)
-        })
-    }
-
-    var roomIDs: Set<UUID> {
-        Set(roomEpochs.keys)
-    }
-
-    func epoch(for roomID: UUID) -> Int? {
-        roomEpochs[roomID]
-    }
-}
-
-enum RealtimeChannelPairPolicy {
-    static func isSubscribed(database: Bool, ephemeral: Bool) -> Bool {
-        database && ephemeral
-    }
-}
-
-enum RealtimeChannelGenerationPolicy {
-    static func accepts(
-        candidateGeneration: Int,
-        currentGeneration: Int,
-        desiredEpoch: Int?,
-        channelEpoch: Int?
-    ) -> Bool {
-        candidateGeneration == currentGeneration
-            && desiredEpoch != nil
-            && desiredEpoch == channelEpoch
-    }
-}
-
-enum RealtimeRecoveryPolicy {
-    static let watchdogInterval: TimeInterval = 5
-    static let pathRecoveryDebounce: TimeInterval = 0.35
-    static let maximumDelay: TimeInterval = 30
-
-    static func delay(forAttempt attempt: Int) -> TimeInterval {
-        let exponent = Double(max(0, min(attempt - 1, 5)))
-        return min(8 * pow(2, exponent), maximumDelay)
-    }
-}
-
-enum PresencePublicationPlan {
-    static func state(
-        for roomID: UUID,
-        activeRoomID: UUID?,
-        localPresence: PresenceState
-    ) -> PresenceState {
-        guard roomID == activeRoomID else { return .offline }
-        return localPresence == .away ? .away : .online
-    }
-}
-
-struct PresenceUpdate: Equatable, Sendable {
-    let userID: UUID
-    let state: PresenceState
-}
-
 enum TypingLeaseAction: Equatable, Sendable {
     case start(UUID)
     case stop(UUID)
@@ -514,26 +384,6 @@ struct TypingLease: Equatable, Sendable {
         roomID = requestedRoomID
         actions.append(.start(requestedRoomID))
         return actions
-    }
-}
-
-enum PresenceChangePlan {
-    /// Supabase Presence can report a state replacement as leave(old) and
-    /// join(new) for the same key in one delta. The join must win without an
-    /// intermediate/final offline overwrite.
-    static func updates(
-        joined: [UUID: PresenceState],
-        left: Set<UUID>
-    ) -> [PresenceUpdate] {
-        let offline = left.subtracting(joined.keys).map {
-            PresenceUpdate(userID: $0, state: .offline)
-        }
-        let current = joined.map {
-            PresenceUpdate(userID: $0.key, state: $0.value)
-        }
-        return (offline + current).sorted { lhs, rhs in
-            lhs.userID.uuidString < rhs.userID.uuidString
-        }
     }
 }
 
