@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 import hashlib
-import importlib.util
 import json
 import locale
 import os
@@ -19,69 +18,28 @@ import sys
 import tempfile
 import time
 
+from sidey_tools import WorkflowError
+from sidey_tools.policy import (
+    GENERAL_MARKER,
+    GENERAL_TEMPLATE,
+    PullRequestValidationError,
+    validate_message,
+    validate_pr_body,
+    validate_subject,
+)
+from sidey_tools.process import decode_output, run
+from sidey_tools.repository import (
+    platform_for as repository_platform_for,
+    validate_paths as validate_repository_paths,
+)
 from validation_scope import is_contributor_architecture_path, required_scopes
 
 
-def load_skill_script(name, path):
-    """Load one skill-owned Python helper from its non-package directory."""
-
-    spec = importlib.util.spec_from_file_location(name, path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f'Cannot load skill script: {path}')
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-SKILL_SCRIPTS = Path(__file__).resolve().parent
-commit_policy = load_skill_script(
-    'sidey_validate_commit_message',
-    SKILL_SCRIPTS / 'commit' / 'validate_commit_message.py',
-)
-pull_request_policy = load_skill_script(
-    'sidey_validate_pull_request',
-    SKILL_SCRIPTS / 'create-pr' / 'validate_pull_request.py',
-)
-validate_message = commit_policy.validate_message
-validate_subject = commit_policy.validate_subject
-GENERAL_MARKER = pull_request_policy.GENERAL_MARKER
-GENERAL_TEMPLATE = pull_request_policy.GENERAL_TEMPLATE
-PullRequestValidationError = pull_request_policy.PullRequestValidationError
-validate_pr_body = pull_request_policy.validate_pr_body
-
-
-# Compatibility aliases for callers that inspect the canonical general template.
+# Compatibility aliases for callers that inspect the canonical general
+# template.
 GENERAL_PR_TEMPLATE = GENERAL_TEMPLATE
 GENERAL_PR_MARKER = GENERAL_MARKER
-
-
-class WorkflowError(RuntimeError):
-    pass
-
-
-def decode_output(value):
-    if value is None:
-        return ''
-    encodings = ('utf-8', locale.getencoding())
-    for encoding in dict.fromkeys(encodings):
-        try:
-            decoded = value.decode(encoding)
-            return decoded.replace('\r\n', '\n').replace('\r', '\n')
-        except UnicodeDecodeError:
-            continue
-    decoded = value.decode('utf-8', errors='replace')
-    return decoded.replace('\r\n', '\n').replace('\r', '\n')
-
-
-def run(root, *args, capture=True):
-    result = subprocess.run(args, cwd=root,
-                            stdout=subprocess.PIPE if capture else None,
-                            stderr=subprocess.PIPE if capture else None)
-    stdout = decode_output(result.stdout)
-    stderr = decode_output(result.stderr)
-    if result.returncode:
-        raise WorkflowError(f"{' '.join(args[:4])} failed: {stderr.strip()}")
-    return stdout.rstrip('\n')
+GITHUB_REPOSITORY = 'sidey-app/SIDEY'
 
 
 def git(root, *args):
@@ -93,7 +51,14 @@ def root_at(path):
 
 
 def common_dir(root):
-    return Path(git(root, 'rev-parse', '--path-format=absolute', '--git-common-dir'))
+    return Path(
+        git(
+            root,
+            'rev-parse',
+            '--path-format=absolute',
+            '--git-common-dir',
+        )
+    )
 
 
 @contextmanager
@@ -122,7 +87,10 @@ def lock(root, name='state'):
 
 
 def atomic_json(path, value):
-    descriptor, temporary = tempfile.mkstemp(dir=path.parent, prefix=path.name + '.')
+    descriptor, temporary = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=path.name + '.',
+    )
     try:
         with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
             json.dump(value, stream, indent=2, ensure_ascii=False)
@@ -137,7 +105,8 @@ def read_state_file(path):
     try:
         return json.loads(raw.decode('utf-8'))
     except UnicodeDecodeError:
-        # getencoding() reports the real locale code page even when Python UTF-8 mode is enabled.
+        # getencoding() reports the real locale code page even when
+        # Python UTF-8 mode is enabled.
         legacy_encoding = locale.getencoding()
         if legacy_encoding.lower().replace('-', '') == 'utf8':
             raise
@@ -168,21 +137,62 @@ def head(root):
     return git(root, 'rev-parse', 'HEAD')
 
 
+def main_remote(root):
+    """Return the remote used to refresh canonical main."""
+
+    remotes = git(root, 'remote').splitlines()
+    for remote in ('upstream', 'origin'):
+        if remote not in remotes:
+            continue
+        try:
+            repository = github_repository_from_remote(
+                root,
+                remote,
+                push=False,
+            )
+        except WorkflowError:
+            continue
+        if repository.casefold() == GITHUB_REPOSITORY.casefold():
+            return remote
+
+    if 'origin' in remotes:
+        raise WorkflowError(
+            'Canonical main requires a remote for sidey-app/SIDEY; add it '
+            'as upstream when origin is a fork'
+        )
+    raise WorkflowError(
+        'Add the SIDEY repository as an origin or upstream remote'
+    )
+
+
 def fetch_main(root):
     # A stale remote-tracking ref is never proof of freshness.
-    git(root, 'fetch', '--no-tags', 'origin', '+refs/heads/main:refs/remotes/origin/main')
-    return git(root, 'rev-parse', 'refs/remotes/origin/main')
+    remote = main_remote(root)
+    tracking_ref = f'refs/remotes/{remote}/main'
+    git(
+        root,
+        'fetch',
+        '--no-tags',
+        remote,
+        f'+refs/heads/main:{tracking_ref}',
+    )
+    return git(root, 'rev-parse', tracking_ref)
 
 
 def is_ancestor(root, ancestor, descendant='HEAD'):
-    result = subprocess.run(['git', 'merge-base', '--is-ancestor', ancestor, descendant], cwd=root)
+    result = subprocess.run(
+        ['git', 'merge-base', '--is-ancestor', ancestor, descendant],
+        cwd=root,
+    )
     if result.returncode not in (0, 1):
         raise WorkflowError('Cannot determine commit ancestry')
     return result.returncode == 0
 
 
 def same_tree(root, left, right):
-    return git(root, 'rev-parse', f'{left}^{{tree}}') == git(root, 'rev-parse', f'{right}^{{tree}}')
+    left_tree = git(root, 'rev-parse', f'{left}^{{tree}}')
+    right_tree = git(root, 'rev-parse', f'{right}^{{tree}}')
+    return left_tree == right_tree
 
 
 def worktrees(root):
@@ -200,43 +210,66 @@ def primary_root(root):
 
 
 def dirty_paths(root):
-    # Disable rename detection so both sides of a move cross the boundary guard.
-    tracked = git(root, 'diff', '--no-renames', '--name-only', '-z', 'HEAD').split('\0')
-    others = git(root, 'ls-files', '--others', '--exclude-standard', '-z').split('\0')
+    # Disable rename detection so both sides of a move cross the
+    # boundary guard.
+    tracked = git(
+        root,
+        'diff',
+        '--no-renames',
+        '--name-only',
+        '-z',
+        'HEAD',
+    ).split('\0')
+    others = git(
+        root,
+        'ls-files',
+        '--others',
+        '--exclude-standard',
+        '-z',
+    ).split('\0')
     return sorted(set(tracked + others) - {''})
 
 
 def changed_paths(root, base, revision='HEAD', dirty=False):
     merge_base = git(root, 'merge-base', base, revision)
-    names = git(root, 'diff', '--no-renames', '--name-only', '-z', merge_base, revision).split('\0')
-    return sorted((set(names) | set(dirty_paths(root) if dirty else [])) - {''})
+    names = git(
+        root,
+        'diff',
+        '--no-renames',
+        '--name-only',
+        '-z',
+        merge_base,
+        revision,
+    ).split('\0')
+    uncommitted = dirty_paths(root) if dirty else []
+    return sorted((set(names) | set(uncommitted)) - {''})
 
 
 def platform_for(path):
-    if (path.startswith(('macos/', 'scripts/macos/')) or
-        path == '.github/workflows/validate-macos.yml'):
-        return 'macos'
-    if (path.startswith(('windows/', 'scripts/windows/')) or
-        re.fullmatch(r'\.github/workflows/(?:validate-windows|publish-windows-release)\.yml', path)):
-        return 'windows'
-    return 'shared'
+    """Return the platform boundary that owns *path*."""
+
+    return repository_platform_for(path)
 
 
 def validate_paths(branch_name, paths):
-    match = re.fullmatch(r'(shared|macos|windows)/[A-Za-z0-9][A-Za-z0-9._/-]*', branch_name)
-    if not match:
-        raise WorkflowError('Implementation requires shared/*, macos/* or windows/* (never main)')
-    platform = match[1]
-    invalid = [p for p in paths if platform_for(p) != platform]
-    if invalid:
-        raise WorkflowError(f'{branch_name} crosses its platform boundary: ' + ', '.join(invalid))
-    return platform
+    """Validate *paths* against the platform encoded in *branch_name*."""
+
+    return validate_repository_paths(branch_name, paths)
 
 
 def app_review_required(platform, paths):
     if platform == 'shared':
         return False
-    validation_workflows = {f'.github/workflows/validate-{platform}.yml'}
+    validation_workflows = {
+        'macos': {
+            '.github/workflows/macos-build-and-tests.yml',
+            '.github/workflows/validate-macos.yml',
+        },
+        'windows': {
+            '.github/workflows/validate-windows.yml',
+            '.github/workflows/windows-build-and-tests.yml',
+        },
+    }[platform]
     return any(path not in validation_workflows for path in paths)
 
 
@@ -244,7 +277,8 @@ def snapshot(root):
     digest = hashlib.sha256()
     digest.update(head(root).encode())
     digest.update(git(root, 'diff', '--binary', 'HEAD').encode())
-    # Include the index: staging after inspection also invalidates the result.
+    # Include the index: staging after inspection also invalidates the
+    # result.
     digest.update(git(root, 'diff', '--cached', '--binary').encode())
     for name in dirty_paths(root):
         path = root / name
@@ -260,48 +294,112 @@ def snapshot(root):
 
 def owned_task(root, task_id):
     task = read_state(root).get(task_id)
-    if not task or task['worktree'] != str(root.resolve()) or task['branch'] != branch(root):
-        raise WorkflowError('Task does not own this worktree and branch; use start in an isolated worktree')
+    wrong_worktree = task and task['worktree'] != str(root.resolve())
+    wrong_branch = task and task['branch'] != branch(root)
+    if not task or wrong_worktree or wrong_branch:
+        raise WorkflowError(
+            'Task does not own this worktree and branch; use start in an '
+            'isolated worktree'
+        )
     return task
 
 
 def local_checks(root, platform):
     run(root, 'git', 'diff', '--check', capture=False)
-    run(root, sys.executable, '-X', 'utf8', '-m', 'unittest', 'discover', '-s', 'scripts/tests', capture=False)
-    run(root, sys.executable, '-X', 'utf8', '-m', 'unittest', 'discover',
-        '-s', 'scripts/skills/release-notes/tests', capture=False)
-    # Native and website checks are required remotely by scope-aware validation.
+    run(
+        root,
+        sys.executable,
+        '-X',
+        'utf8',
+        '-m',
+        'unittest',
+        'discover',
+        '-s',
+        'scripts/tests',
+        capture=False,
+    )
+    run(
+        root,
+        sys.executable,
+        '-X',
+        'utf8',
+        '-m',
+        'unittest',
+        'discover',
+        '-s',
+        'scripts/skills/release-notes/tests',
+        capture=False,
+    )
+    # Native and website checks are required remotely by scope-aware
+    # validation.
     if platform == 'shared':
-        run(root, sys.executable, '-X', 'utf8', 'scripts/validate_pixel_assets.py', capture=False)
-        run(root, sys.executable, '-X', 'utf8', 'scripts/skills/verify_release_consistency.py',
-            '--allow-pending-appcast', '--allow-unreleased-source', capture=False)
+        run(
+            root,
+            sys.executable,
+            '-X',
+            'utf8',
+            'scripts/validate_pixel_assets.py',
+            capture=False,
+        )
+        run(
+            root,
+            sys.executable,
+            '-X',
+            'utf8',
+            'scripts/skills/verify_release_consistency.py',
+            '--allow-pending-appcast',
+            '--allow-unreleased-source',
+            capture=False,
+        )
 
 
 def check_task(root, task_id):
     task = owned_task(root, task_id)
     remote = fetch_main(root)
     if not is_ancestor(root, remote):
-        raise WorkflowError('Remote main advanced; preserve your changes and run sync before checking')
+        raise WorkflowError(
+            'Remote main advanced; preserve your changes and run sync before '
+            'checking'
+        )
     paths = changed_paths(root, remote, dirty=True)
     validate_paths(branch(root), paths)
     before = snapshot(root)
     checked_head = head(root)
     local_checks(root, task['platform'])
-    if fetch_main(root) != remote or head(root) != checked_head or snapshot(root) != before:
-        raise WorkflowError('Source or remote main changed during checks; results invalidated')
-    task.update(base=remote, checked={'head': checked_head, 'snapshot': before,
-                'base': remote, 'scopes': required_scopes(paths),
-                'app_review_required': app_review_required(task['platform'], paths),
-                'time': time.time()}, status='checked')
+    source_changed = (
+        fetch_main(root) != remote
+        or head(root) != checked_head
+        or snapshot(root) != before
+    )
+    if source_changed:
+        raise WorkflowError(
+            'Source or remote main changed during checks; results invalidated'
+        )
+    checked = {
+        'head': checked_head,
+        'snapshot': before,
+        'base': remote,
+        'scopes': required_scopes(paths),
+        'app_review_required': app_review_required(task['platform'], paths),
+        'time': time.time(),
+    }
+    task.update(base=remote, checked=checked, status='checked')
     update_task(root, task_id, task)
     return task
 
 
 def attest(root, task, remote):
     checked = task.get('checked', {})
-    if (checked.get('head') != head(root) or checked.get('snapshot') != snapshot(root)
-            or checked.get('base') != remote or not is_ancestor(root, remote)):
-        raise WorkflowError('Checks do not match current source/head/base; run check again')
+    invalid = (
+        checked.get('head') != head(root)
+        or checked.get('snapshot') != snapshot(root)
+        or checked.get('base') != remote
+        or not is_ancestor(root, remote)
+    )
+    if invalid:
+        raise WorkflowError(
+            'Checks do not match current source/head/base; run check again'
+        )
 
 
 def update_main(root, remote, already_locked=False):
@@ -309,10 +407,16 @@ def update_main(root, remote, already_locked=False):
 
     def apply():
         if branch(primary) != 'main' or dirty_paths(primary):
-            raise WorkflowError(f'PR integrated, but primary main is not clean: {primary}; completion pending')
+            raise WorkflowError(
+                'PR integrated, but primary main is not clean: '
+                f'{primary}; completion pending'
+            )
         git(primary, 'merge', '--ff-only', remote)
         if head(primary) != remote:
-            raise WorkflowError('Primary main differs from fetched remote main; completion pending')
+            raise WorkflowError(
+                'Primary main differs from fetched remote main; completion '
+                'pending'
+            )
     if already_locked:
         apply()
     else:
@@ -322,25 +426,55 @@ def update_main(root, remote, already_locked=False):
 
 
 def verify_windows_run(remote, metadata, jobs):
-    if (metadata.get('head_sha') != remote or metadata.get('head_branch') != 'main'
-            or metadata.get('event') != 'push' or metadata.get('status') != 'completed'
-            or metadata.get('conclusion') != 'success'
-            or metadata.get('path', '').split('@')[0] != '.github/workflows/validate-change.yml'):
-        raise WorkflowError('Windows app review requires a successful Validate change run for current main')
-    windows = [job for job in jobs if job.get('name') == 'Windows validation']
+    workflow_paths = {
+        '.github/workflows/ci.yml',
+        '.github/workflows/validate-change.yml',
+    }
+    invalid_run = (
+        metadata.get('head_sha') != remote
+        or metadata.get('head_branch') != 'main'
+        or metadata.get('event') != 'push'
+        or metadata.get('status') != 'completed'
+        or metadata.get('conclusion') != 'success'
+        or metadata.get('path', '').split('@')[0] not in workflow_paths
+    )
+    if invalid_run:
+        raise WorkflowError(
+            'Windows app review requires a successful SIDEY CI run '
+            'for current main'
+        )
+    windows_job_names = {
+        'Windows build and tests',
+        'Windows validation',
+    }
+    windows = [
+        job
+        for job in jobs
+        if job.get('name') in windows_job_names
+    ]
     if len(windows) != 1 or windows[0].get('conclusion') != 'success':
-        raise WorkflowError('Current main did not run the Windows job successfully')
-    steps = [step for step in windows[0].get('steps', []) if step.get('name') == 'Run Windows app smoke']
+        raise WorkflowError(
+            'Current main did not run the Windows job successfully'
+        )
+    steps = [
+        step
+        for step in windows[0].get('steps', [])
+        if step.get('name') == 'Run Windows app smoke'
+    ]
     if len(steps) != 1 or steps[0].get('conclusion') != 'success':
-        raise WorkflowError('Windows app startup/preview smoke is missing or did not pass')
+        raise WorkflowError(
+            'Windows app startup/preview smoke is missing or did not pass'
+        )
 
 
 def is_required_validation(check):
     """Recognize the gate before and after its workflow reaches main."""
 
     return (
-        check.get('name') == 'Required validation'
+        check.get('name') in {'Required checks', 'Required validation'}
         and check.get('workflow') in {
+            'SIDEY CI',
+            '.github/workflows/ci.yml',
             'Validate change',
             '.github/workflows/validate-change.yml',
         }
@@ -348,29 +482,76 @@ def is_required_validation(check):
 
 
 def recover_merged_task(root, task, remote):
-    # The server may merge successfully even if the client receives a timeout/503.
+    # The server may merge successfully even if the client receives a
+    # timeout/503.
     checked = task.get('checked', {})
-    if (checked.get('head') != head(root) or checked.get('snapshot') != snapshot(root)
-            or not checked.get('head')):
+    if (
+        checked.get('head') != head(root)
+        or checked.get('snapshot') != snapshot(root)
+        or not checked.get('head')
+    ):
         return None
     intent = task.get('merge_intent', {})
-    if intent.get('head') != checked['head'] or intent.get('base') != checked.get('base'):
+    if (
+        intent.get('head') != checked['head']
+        or intent.get('base') != checked.get('base')
+    ):
         return None
-    prs = json.loads(run(root, 'gh', 'pr', 'list', '--head', branch(root), '--base', 'main',
-                         '--state', 'merged', '--json', 'number,headRefOid,mergeCommit,isCrossRepository'))
-    matches = [pr for pr in prs if pr['headRefOid'] == checked['head'] and not pr['isCrossRepository']
-               and pr.get('mergeCommit') and is_ancestor(root, pr['mergeCommit']['oid'], remote)
-               and same_tree(root, checked['head'], pr['mergeCommit']['oid'])]
+    has_qualified_head = bool(
+        task.get('published', {}).get('head_ref')
+    )
+    if has_qualified_head:
+        prs = task_prs(
+            root,
+            task_pr_head(root, task),
+            state='merged',
+        )
+    else:
+        # Preserve recovery for tasks published before owner-qualified
+        # fork heads were recorded.
+        output = run(
+            root,
+            'gh',
+            'pr',
+            'list',
+            '--head',
+            branch(root),
+            '--base',
+            'main',
+            '--state',
+            'merged',
+            '--json',
+            'number,headRefOid,mergeCommit,isCrossRepository',
+        )
+        prs = json.loads(output)
+    matches = [
+        pr
+        for pr in prs
+        if pr['headRefOid'] == checked['head']
+        and (has_qualified_head or not pr['isCrossRepository'])
+        and pr.get('mergeCommit')
+        and is_ancestor(root, pr['mergeCommit']['oid'], remote)
+        and same_tree(root, checked['head'], pr['mergeCommit']['oid'])
+    ]
     if len(matches) != 1:
         return None
     pr = matches[0]
-    return {**task, 'status': 'integrated', 'pr': str(pr['number']), 'merge': pr['mergeCommit']['oid']}
+    return {
+        **task,
+        'status': 'integrated',
+        'pr': str(pr['number']),
+        'merge': pr['mergeCommit']['oid'],
+    }
 
 
 def require_valid_commit_text(label, value, *, subject_only=False):
-    violations = validate_subject(value) if subject_only else validate_message(value)
+    validator = validate_subject if subject_only else validate_message
+    violations = validator(value)
     if violations:
-        raise WorkflowError(f'{label} violates the commit policy: ' + '; '.join(violations))
+        details = '; '.join(violations)
+        raise WorkflowError(
+            f'{label} violates the commit policy: {details}'
+        )
 
 
 def require_pr_body(
@@ -401,7 +582,9 @@ def require_pr_body_file(root, value, paths):
     try:
         body = path.read_text(encoding='utf-8')
     except (OSError, UnicodeError) as error:
-        raise WorkflowError(f'Cannot read --body-file as UTF-8: {error}') from error
+        raise WorkflowError(
+            f'Cannot read --body-file as UTF-8: {error}'
+        ) from error
     require_pr_body(
         root,
         body,
@@ -411,44 +594,132 @@ def require_pr_body_file(root, value, paths):
     return path
 
 
-def open_task_prs(root):
-    return json.loads(run(
+def github_repository_from_remote(root, remote, *, push=True):
+    """Return the GitHub owner and repository for a remote."""
+
+    arguments = ['remote', 'get-url']
+    if push:
+        arguments.append('--push')
+    arguments.append(remote)
+    url = git(root, *arguments)
+    match = re.fullmatch(
+        r'(?:https?://github\.com/|ssh://git@github\.com/|'
+        r'git@github\.com:)'
+        r'(?P<owner>[A-Za-z0-9_.-]+)/'
+        r'(?P<repository>[A-Za-z0-9_.-]+?)(?:\.git)?/?',
+        url,
+    )
+    if not match:
+        raise WorkflowError(
+            f'{remote} must use a github.com URL'
+        )
+    return f"{match['owner']}/{match['repository']}"
+
+
+def publish_head(root, push_remote):
+    """Return the owner-qualified pull request head for a remote."""
+
+    repository = github_repository_from_remote(root, push_remote)
+    owner, _ = repository.split('/', 1)
+    return f'{owner}:{branch(root)}'
+
+
+def create_head(head_ref):
+    """Return the head form accepted by ``gh pr create``."""
+
+    owner, separator, branch_name = head_ref.partition(':')
+    canonical_owner, _ = GITHUB_REPOSITORY.split('/', 1)
+    if separator and owner.casefold() == canonical_owner.casefold():
+        return branch_name
+    return head_ref
+
+
+def task_pr_head(root, task):
+    """Return the persisted or legacy pull request head."""
+
+    canonical_owner, _ = GITHUB_REPOSITORY.split('/', 1)
+    published = task.get('published', {})
+    return published.get('head_ref') or f'{canonical_owner}:{branch(root)}'
+
+
+def pull_request_record(pull):
+    """Normalize one GitHub REST pull request response."""
+
+    head_repository = (pull['head'].get('repo') or {}).get(
+        'full_name',
+        '',
+    )
+    merge_commit = pull.get('merge_commit_sha')
+    return {
+        'number': pull['number'],
+        'headRefOid': pull['head']['sha'],
+        'isCrossRepository': (
+            head_repository.casefold() != GITHUB_REPOSITORY.casefold()
+        ),
+        'mergeCommit': {'oid': merge_commit} if merge_commit else None,
+    }
+
+
+def task_prs(root, head_ref, *, state='open'):
+    """List canonical-repository PRs for an owner-qualified head."""
+
+    api_state = 'closed' if state == 'merged' else state
+    output = run(
         root,
         'gh',
-        'pr',
-        'list',
-        '--head',
-        branch(root),
-        '--base',
-        'main',
-        '--state',
-        'open',
-        '--json',
-        'number,headRefOid,isCrossRepository',
-    ))
+        'api',
+        '--method',
+        'GET',
+        f'repos/{GITHUB_REPOSITORY}/pulls',
+        '-f',
+        f'state={api_state}',
+        '-f',
+        'base=main',
+        '-f',
+        'per_page=100',
+        '-f',
+        f'head={head_ref}',
+    )
+    pulls = json.loads(output)
+    if state == 'merged':
+        pulls = [pull for pull in pulls if pull.get('merged_at')]
+    return [pull_request_record(pull) for pull in pulls]
+
+
+def open_task_prs(root, head_ref=None):
+    """List open task PRs, including heads hosted in forks."""
+
+    if head_ref is None:
+        canonical_owner, _ = GITHUB_REPOSITORY.split('/', 1)
+        head_ref = f'{canonical_owner}:{branch(root)}'
+    return task_prs(root, head_ref)
 
 
 def require_exact_task_pr(root, prs):
     if len(prs) != 1 or prs[0]['headRefOid'] != head(root):
         raise WorkflowError('PR does not identify this exact task head')
-    if prs[0]['isCrossRepository']:
-        raise WorkflowError('Task workflow does not accept a cross-repository PR')
     return str(prs[0]['number'])
 
 
-def merge_task_pr(root, number, checked_head):
+def merge_task_pr(
+    root,
+    number,
+    checked_head,
+    *,
+    repository=None,
+):
     """Request a default GitHub squash merge for the exact checked head."""
 
-    run(
-        root,
+    arguments = [
         'gh',
         'pr',
         'merge',
         number,
-        '--squash',
-        '--match-head-commit',
-        checked_head,
-    )
+    ]
+    if repository:
+        arguments.extend(('--repo', repository))
+    arguments.extend(('--squash', '--match-head-commit', checked_head))
+    run(root, *arguments)
 
 
 def publish(root, args):
@@ -461,9 +732,19 @@ def publish(root, args):
     attest(root, task, remote)
     paths = changed_paths(root, remote)
     validate_paths(branch(root), paths)
-    prs = open_task_prs(root)
-    if len(prs) > 1 or any(pr['isCrossRepository'] for pr in prs):
-        raise WorkflowError('Task branch must identify at most one same-repository PR')
+    push_remote = getattr(args, 'push_remote', None) or 'origin'
+    if hasattr(args, 'push_remote'):
+        head_ref = publish_head(root, push_remote)
+    else:
+        # Preserve the same-repository head used by older Python
+        # callers.
+        canonical_owner, _ = GITHUB_REPOSITORY.split('/', 1)
+        head_ref = f'{canonical_owner}:{branch(root)}'
+    prs = open_task_prs(root, head_ref)
+    if len(prs) > 1:
+        raise WorkflowError(
+            'Task branch must identify at most one pull request'
+        )
     number = str(prs[0]['number']) if prs else None
     if not prs:
         if not args.title or not args.body_file:
@@ -484,29 +765,33 @@ def publish(root, args):
             'pr',
             'view',
             number,
+            '--repo',
+            GITHUB_REPOSITORY,
             '--json',
             'title,body',
         ))
         title = details['title']
         body = details.get('body') or ''
         require_valid_pr(root, title, body, paths)
-    git(root, 'push', '-u', 'origin', branch(root))
+    git(root, 'push', '-u', push_remote, branch(root))
     if not prs:
         run(
             root,
             'gh',
             'pr',
             'create',
+            '--repo',
+            GITHUB_REPOSITORY,
             '--base',
             'main',
             '--head',
-            branch(root),
+            create_head(head_ref),
             '--title',
             title,
             '--body-file',
             str(body_path),
         )
-    prs = open_task_prs(root)
+    prs = open_task_prs(root, head_ref)
     number = require_exact_task_pr(root, prs)
     details = json.loads(run(
         root,
@@ -514,6 +799,8 @@ def publish(root, args):
         'pr',
         'view',
         number,
+        '--repo',
+        GITHUB_REPOSITORY,
         '--json',
         'title,body',
     ))
@@ -521,6 +808,9 @@ def publish(root, args):
     task.update(status='published', pr=number, published={
         'head': head(root),
         'base': remote,
+        'repository': GITHUB_REPOSITORY,
+        'head_ref': head_ref,
+        'push_remote': push_remote,
         'time': time.time(),
     })
     update_task(root, args.task, task)
@@ -531,7 +821,8 @@ def finish(root, args):
     task = owned_task(root, args.task)
     if dirty_paths(root):
         raise WorkflowError(
-            'Finish requires a clean published task; commit, check and publish '
+            'Finish requires a clean published task; commit, check and '
+            'publish '
             'the exact head first'
         )
     remote = fetch_main(root)
@@ -547,46 +838,119 @@ def finish(root, args):
         task['status'] = 'main-updated' if needs_app_review else 'complete'
         if args.windows_run:
             if task['platform'] != 'windows':
-                raise WorkflowError('--windows-run applies only to an integrated Windows task')
-            metadata = json.loads(run(root, 'gh', 'api', f'repos/{{owner}}/{{repo}}/actions/runs/{args.windows_run}'))
-            jobs = json.loads(run(root, 'gh', 'api', f'repos/{{owner}}/{{repo}}/actions/runs/{args.windows_run}/jobs?per_page=100'))
+                raise WorkflowError(
+                    '--windows-run applies only to an integrated Windows task'
+                )
+            run_path = (
+                f'repos/{GITHUB_REPOSITORY}/actions/runs/'
+                f'{args.windows_run}'
+            )
+            metadata = json.loads(run(root, 'gh', 'api', run_path))
+            jobs = json.loads(
+                run(root, 'gh', 'api', f'{run_path}/jobs?per_page=100')
+            )
             verify_windows_run(remote, metadata, jobs['jobs'])
-            if fetch_main(root) != remote or head(primary) != remote or dirty_paths(primary):
+            main_changed = (
+                fetch_main(root) != remote
+                or head(primary) != remote
+                or dirty_paths(primary)
+            )
+            if main_changed:
                 raise WorkflowError('Main changed during Windows app review')
-            task.update(status='complete', app_review={'main': remote, 'environment': 'GitHub Actions Windows',
-                        'run': args.windows_run, 'url': metadata['html_url'], 'time': time.time()})
+            app_review = {
+                'main': remote,
+                'environment': 'GitHub Actions Windows',
+                'run': args.windows_run,
+                'url': metadata['html_url'],
+                'time': time.time(),
+            }
+            task.update(status='complete', app_review=app_review)
         update_task(root, args.task, task)
         return {'status': task['status'], 'main': str(primary), 'sha': remote}
     attest(root, task, remote)
     validate_paths(branch(root), changed_paths(root, remote))
     paths = changed_paths(root, remote)
-    prs = open_task_prs(root)
+    prs = open_task_prs(root, task_pr_head(root, task))
     if not prs:
         raise WorkflowError('No task PR exists; run publish before finish')
     number = require_exact_task_pr(root, prs)
-    # A named gate must actually exist and succeed; empty required checks never pass.
-    checks = json.loads(run(root, 'gh', 'pr', 'checks', number, '--json', 'name,bucket,workflow'))
+    # A named gate must actually exist and succeed; empty required
+    # checks never pass.
+    checks = json.loads(
+        run(
+            root,
+            'gh',
+            'pr',
+            'checks',
+            number,
+            '--repo',
+            GITHUB_REPOSITORY,
+            '--json',
+            'name,bucket,workflow',
+        )
+    )
     gate = [check for check in checks if is_required_validation(check)]
     if len(gate) != 1 or gate[0]['bucket'] != 'pass':
         raise WorkflowError(
-            f'PR #{number} Required validation is pending or failed; rerun finish '
+            f'PR #{number} Required checks are pending or failed; rerun '
+            'finish '
             'after validation passes'
         )
-    run(root, 'gh', 'pr', 'checks', number, '--required')
+    run(
+        root,
+        'gh',
+        'pr',
+        'checks',
+        number,
+        '--repo',
+        GITHUB_REPOSITORY,
+        '--required',
+    )
     checked_head = task['checked']['head']
     checked_base = task['checked']['base']
-    details = json.loads(run(root, 'gh', 'pr', 'view', number, '--json', 'title,body'))
+    details = json.loads(
+        run(
+            root,
+            'gh',
+            'pr',
+            'view',
+            number,
+            '--repo',
+            GITHUB_REPOSITORY,
+            '--json',
+            'title,body',
+        )
+    )
     pr_body = details.get('body') or ''
     require_valid_pr(root, details['title'], pr_body, paths)
     with lock(root, 'integration'):
         remote = fetch_main(root)
-        source = json.loads(run(root, 'gh', 'pr', 'view', number,
-                                '--json', 'title,body,headRefOid,baseRefOid,mergeStateStatus'))
+        source = json.loads(
+            run(
+                root,
+                'gh',
+                'pr',
+                'view',
+                number,
+                '--repo',
+                GITHUB_REPOSITORY,
+                '--json',
+                'title,body,headRefOid,baseRefOid,mergeStateStatus',
+            )
+        )
         attest(root, task, remote)
-        if (source['headRefOid'] != checked_head or source['baseRefOid'] != remote
-                or source['mergeStateStatus'] != 'CLEAN'
-                or source['title'] != details['title'] or source.get('body') != details.get('body')):
-            raise WorkflowError('PR head/base/content is not the exact checked and mergeable source')
+        source_changed = (
+            source['headRefOid'] != checked_head
+            or source['baseRefOid'] != remote
+            or source['mergeStateStatus'] != 'CLEAN'
+            or source['title'] != details['title']
+            or source.get('body') != details.get('body')
+        )
+        if source_changed:
+            raise WorkflowError(
+                'PR head/base/content is not the exact checked and '
+                'mergeable source'
+            )
         task['merge_intent'] = {
             'head': checked_head,
             'base': checked_base,
@@ -594,15 +958,33 @@ def finish(root, args):
             'time': time.time(),
         }
         update_task(root, args.task, task)
-        merge_task_pr(root, number, checked_head)
-        info = json.loads(run(root, 'gh', 'pr', 'view', number,
-                              '--json', 'state,mergeCommit,headRefOid'))
+        merge_task_pr(
+            root,
+            number,
+            checked_head,
+            repository=GITHUB_REPOSITORY,
+        )
+        info = json.loads(
+            run(
+                root,
+                'gh',
+                'pr',
+                'view',
+                number,
+                '--repo',
+                GITHUB_REPOSITORY,
+                '--json',
+                'state,mergeCommit,headRefOid',
+            )
+        )
         if info['state'] != 'MERGED' or info['headRefOid'] != checked_head:
             raise WorkflowError('Exact checked head was not confirmed merged')
         remote = fetch_main(root)
         merge_commit = info['mergeCommit']['oid']
-        if (not is_ancestor(root, merge_commit, remote)
-                or not same_tree(root, checked_head, merge_commit)):
+        if (
+            not is_ancestor(root, merge_commit, remote)
+            or not same_tree(root, checked_head, merge_commit)
+        ):
             raise WorkflowError(
                 'Merged commit does not match the exact checked task tree'
             )
@@ -613,9 +995,17 @@ def finish(root, args):
         'app_review_required', task['platform'] != 'shared')
     task['status'] = 'main-updated' if needs_app_review else 'complete'
     update_task(root, args.task, task)
-    result = {'status': task['status'], 'pr': number, 'main': str(primary), 'sha': remote}
+    result = {
+        'status': task['status'],
+        'pr': number,
+        'main': str(primary),
+        'sha': remote,
+    }
     if needs_app_review:
-        result['app'] = 'App verification is a separate required step because app inputs changed'
+        result['app'] = (
+            'App verification is a separate required step because app inputs '
+            'changed'
+        )
     return result
 
 
@@ -626,9 +1016,17 @@ def main(argv=None):
     subs.add_parser('doctor')
     start = subs.add_parser('start')
     start.add_argument('task')
-    start.add_argument('--platform', choices=['shared', 'macos', 'windows'], required=True)
+    start.add_argument(
+        '--platform',
+        choices=['shared', 'macos', 'windows'],
+        required=True,
+    )
     start.add_argument('--worktree', required=True)
-    start.add_argument('--app', default='SIDEYAppStore', choices=['SIDEYAppStore', 'SIDEY', 'sidey-reals', 'windows'])
+    start.add_argument(
+        '--app',
+        default='SIDEYAppStore',
+        choices=['SIDEYAppStore', 'SIDEY', 'sidey-reals', 'windows'],
+    )
     for command in ('sync', 'check', 'publish', 'finish'):
         sub = subs.add_parser(command)
         sub.add_argument('task', nargs='?')
@@ -640,13 +1038,31 @@ def main(argv=None):
         if command == 'publish':
             sub.add_argument('--title')
             sub.add_argument('--body-file')
+            sub.add_argument('--push-remote', default='origin')
         if command == 'finish':
-            sub.add_argument('--windows-run', type=int, help='Complete an integrated Windows task using current-main app smoke validation')
+            sub.add_argument(
+                '--windows-run',
+                type=int,
+                help=(
+                    'Complete an integrated Windows task using current-main '
+                    'app smoke validation'
+                ),
+            )
     opener = subs.add_parser('open')
-    opener.add_argument('--task', help='Complete an integrated macOS task after verified latest-main app review')
+    opener.add_argument(
+        '--task',
+        help=(
+            'Complete an integrated macOS task after verified latest-main '
+            'app review'
+        ),
+    )
     opener.add_argument('--preview', type=Path)
     opener.add_argument('--offline', action='store_true')
-    opener.add_argument('--scheme', default='SIDEYAppStore', choices=['SIDEYAppStore', 'SIDEY', 'sidey-reals'])
+    opener.add_argument(
+        '--scheme',
+        default='SIDEYAppStore',
+        choices=['SIDEYAppStore', 'SIDEY', 'sidey-reals'],
+    )
     args = parser.parse_args(argv)
     root = root_at(args.repo)
     if args.command == 'doctor':
@@ -660,31 +1076,61 @@ def main(argv=None):
             path = Path(entry['worktree'])
             entry['exists'] = path.exists()
             entry['changes'] = dirty_paths(path) if path.exists() else None
-            entry['included_in_main'] = is_ancestor(root, entry['HEAD'], remote) if remote else None
-        result = {'remote_main': remote, 'freshness': freshness, 'worktrees': entries}
+            entry['included_in_main'] = (
+                is_ancestor(root, entry['HEAD'], remote)
+                if remote
+                else None
+            )
+        result = {
+            'remote_main': remote,
+            'freshness': freshness,
+            'worktrees': entries,
+        }
     elif args.command == 'start':
         if not re.fullmatch(r'[a-z0-9][a-z0-9._-]*', args.task):
-            raise WorkflowError('Task ID must contain lowercase letters, digits, dots, underscores or hyphens')
+            raise WorkflowError(
+                'Task ID must contain lowercase letters, digits, dots, '
+                'underscores or hyphens'
+            )
         remote = fetch_main(root)
         destination = Path(args.worktree).resolve()
         name = f'{args.platform}/{args.task}'
         with lock(root) as directory:
             path = directory / 'tasks.json'
             data = read_state_file(path) if path.exists() else {}
-            if args.task in data or any(t['worktree'] == str(destination) for t in data.values()):
-                raise WorkflowError('Task/worktree already registered; resume using sync/check')
+            existing_worktree = any(
+                task['worktree'] == str(destination)
+                for task in data.values()
+            )
+            if args.task in data or existing_worktree:
+                raise WorkflowError(
+                    'Task/worktree already registered; resume using '
+                    'sync/check'
+                )
             if destination.exists():
-                raise WorkflowError('start requires a new worktree directory; existing work is preserved')
+                raise WorkflowError(
+                    'start requires a new worktree directory; existing work '
+                    'is preserved'
+                )
             git(root, 'worktree', 'add', '-b', name, str(destination), remote)
-            data[args.task] = {'worktree': str(destination), 'branch': name, 'platform': args.platform,
-                               'app': args.app, 'base': remote, 'status': 'started'}
+            data[args.task] = {
+                'worktree': str(destination),
+                'branch': name,
+                'platform': args.platform,
+                'app': args.app,
+                'base': remote,
+                'status': 'started',
+            }
             atomic_json(path, data)
         result = data[args.task]
     elif args.command == 'sync':
         task = owned_task(root, args.task)
         remote = fetch_main(root)
         if dirty_paths(root):
-            raise WorkflowError('Preserve changes in an explicit task commit before sync; no automatic stash')
+            raise WorkflowError(
+                'Preserve changes in an explicit task commit before sync; '
+                'no automatic stash'
+            )
         validate_paths(branch(root), changed_paths(root, remote))
         git(root, 'merge', '--no-edit', remote)
         task.update(base=remote, status='started')
@@ -705,38 +1151,80 @@ def main(argv=None):
         result = finish(root, args)
     else:
         if args.task and (args.offline or args.preview):
-            raise WorkflowError('Task completion requires latest main; previews remain incomplete')
+            raise WorkflowError(
+                'Task completion requires latest main; previews remain '
+                'incomplete'
+            )
         if args.offline and not args.preview:
-            raise WorkflowError('Offline mode requires an explicit --preview worktree')
+            raise WorkflowError(
+                'Offline mode requires an explicit --preview worktree'
+            )
         target = root_at(args.preview) if args.preview else primary_root(root)
         if not args.offline:
             remote = fetch_main(root)
             if not args.preview:
                 target = update_main(root, remote)
             elif not is_ancestor(target, remote):
-                raise WorkflowError('Preview is behind current remote main; sync first or explicitly use --offline')
+                raise WorkflowError(
+                    'Preview is behind current remote main; sync first or '
+                    'explicitly use --offline'
+                )
         script = target / 'scripts/macos/open_current.sh'
         if not script.exists():
-            raise WorkflowError('macOS verified opener is not installed at this revision; app was not opened')
-        command = [str(script), '--worktree', str(target), '--scheme', args.scheme]
+            raise WorkflowError(
+                'macOS verified opener is not installed at this revision; '
+                'app was not opened'
+            )
+        command = [
+            str(script),
+            '--worktree',
+            str(target),
+            '--scheme',
+            args.scheme,
+        ]
         if args.offline:
             command.append('--offline')
         task = read_state(root).get(args.task) if args.task else None
-        # Squash integration preserves the checked tree, not the branch head's ancestry.
-        if args.task and (not task or task.get('status') != 'main-updated' or task.get('platform') != 'macos'
-                          or task.get('app') != args.scheme or not task.get('merge')
-                          or not task.get('checked', {}).get('head')
-                          or not is_ancestor(root, task['merge'], remote)
-                          or not same_tree(root, task['checked']['head'], task['merge'])):
-            raise WorkflowError('Task must be integrated and awaiting its selected macOS app review')
+        # Squash integration preserves the checked tree, not the branch
+        # head's ancestry.
+        invalid_task = args.task and (
+            not task
+            or task.get('status') != 'main-updated'
+            or task.get('platform') != 'macos'
+            or task.get('app') != args.scheme
+            or not task.get('merge')
+            or not task.get('checked', {}).get('head')
+            or not is_ancestor(root, task['merge'], remote)
+            or not same_tree(
+                root,
+                task['checked']['head'],
+                task['merge'],
+            )
+        )
+        if invalid_task:
+            raise WorkflowError(
+                'Task must be integrated and awaiting its selected macOS '
+                'app review'
+            )
         run(target, *command, capture=False)
         if task:
             if fetch_main(root) != remote or head(target) != remote:
-                raise WorkflowError('Main changed during review; task completion remains pending')
-            task.update(status='complete', app_review={'main': remote, 'scheme': args.scheme,
-                        'source': str(target), 'time': time.time()})
+                raise WorkflowError(
+                    'Main changed during review; task completion remains '
+                    'pending'
+                )
+            app_review = {
+                'main': remote,
+                'scheme': args.scheme,
+                'source': str(target),
+                'time': time.time(),
+            }
+            task.update(status='complete', app_review=app_review)
             update_task(root, args.task, task)
-        result = {'target': str(target), 'freshness': 'unverified' if args.offline else 'verified'}
+        result = {
+            'target': str(target),
+            'freshness': 'unverified' if args.offline else 'verified',
+        }
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 

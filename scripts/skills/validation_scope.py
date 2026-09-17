@@ -20,6 +20,7 @@ CONTRIBUTOR_ARCHITECTURE_FILES = frozenset({
 })
 
 FULL_VALIDATION_PATHS = frozenset({
+    '.github/workflows/ci.yml',
     '.github/workflows/validate-change.yml',
     'scripts/skills/validation_scope.py',
 })
@@ -54,16 +55,20 @@ def validation_platform_for(path):
     only repository validation.
     """
 
-    if is_contributor_architecture_path(path) or is_platform_documentation_path(path):
+    contributor_only = is_contributor_architecture_path(path)
+    platform_documentation = is_platform_documentation_path(path)
+    if contributor_only or platform_documentation:
         return None
     if (
         path.startswith(('macos/', 'scripts/macos/'))
         or re.fullmatch(
-            r'scripts/(?:export_macos|install_macos_dev|package_macos_release|release_macos)\.sh',
+            r'scripts/(?:export_macos|install_macos_dev|'
+            r'package_macos_release|release_macos)\.sh',
             path,
         )
         or re.fullmatch(
-            r'\.github/workflows/validate-macos\.yml',
+            r'\.github/workflows/'
+            r'(?:macos-build-and-tests|validate-macos)\.yml',
             path,
         )
     ):
@@ -71,7 +76,9 @@ def validation_platform_for(path):
     if (
         path.startswith(('windows/', 'scripts/windows/'))
         or re.fullmatch(
-            r'\.github/workflows/(?:validate-windows|publish-windows-release)\.yml',
+            r'\.github/workflows/'
+            r'(?:publish-windows-release|validate-windows|'
+            r'windows-build-and-tests|windows-release)\.yml',
             path,
         )
     ):
@@ -87,7 +94,10 @@ def required_scopes(paths):
         platform = validation_platform_for(path)
         if platform:
             result.add(platform)
-        if path.startswith(('assets/', 'shared/character-throw/')) or path == 'scripts/validate_pixel_assets.py':
+        asset_change = path.startswith(
+            ('assets/', 'shared/character-throw/')
+        )
+        if asset_change or path == 'scripts/validate_pixel_assets.py':
             result.update(('macos', 'windows', 'web'))
         if path == 'release/macos.json':
             result.add('macos')
@@ -100,9 +110,13 @@ def required_scopes(paths):
             result.add('web')
         if path == 'website/src/pages/ko/terms.md':
             result.add('windows')
-        # Checkout attributes can change source bytes on every build host.
+        # Checkout attributes can change source bytes on every build
+        # host.
         if path == '.gitattributes' or path in FULL_VALIDATION_PATHS:
             result.update(('macos', 'windows', 'web'))
-        elif path == '.github/workflows/deploy-website.yml':
+        elif path in {
+            '.github/workflows/deploy-website.yml',
+            '.github/workflows/website-deployment.yml',
+        }:
             result.add('web')
     return sorted(result)

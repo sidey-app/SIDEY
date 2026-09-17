@@ -43,7 +43,7 @@ CI log에 넣지 않는다. App Store archive와 submission은 direct release와
 
 ### Windows
 
-`main`의 수동 [Publish Windows release workflow](../../.github/workflows/publish-windows-release.yml)를
+`main`의 수동 [SIDEY Windows release workflow](../../.github/workflows/windows-release.yml)를
 사용한다. Workflow가 전체 Windows 검사, installer 생성, draft asset 재다운로드와 hash
 대조를 한 runner에서 마친 뒤에만 publish한다. Local build나 artifact 존재만으로 공개
 release를 대체하지 않는다.

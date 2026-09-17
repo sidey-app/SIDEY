@@ -1,5 +1,5 @@
-name: Deploy website
-run-name: Deploy website | ${{ github.event_name }} | ${{ github.event.action || 'dispatch' }} | ${{ github.ref_name }}
+name: SIDEY Website deployment
+run-name: SIDEY Website deployment | ${{ github.event_name }} | ${{ github.event.action || 'dispatch' }} | ${{ github.ref_name }}
 
 on:
   push:
@@ -15,7 +15,7 @@ on:
       - 'website/pnpm-workspace.yaml'
       - 'website/tsconfig.json'
       - 'scripts/pages/**'
-      - '.github/workflows/deploy-website.yml'
+      - '.github/workflows/website-deployment.yml'
   workflow_dispatch:
   workflow_call:
 
@@ -30,7 +30,7 @@ concurrency:
 
 jobs:
   test:
-    name: Website validation
+    name: Build and test website
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -79,7 +79,7 @@ jobs:
           retention-days: 1
 
   deploy:
-    name: Website deployment
+    name: Deploy to GitHub Pages
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: test
     environment:

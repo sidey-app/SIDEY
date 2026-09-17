@@ -1,4 +1,5 @@
-name: Publish Windows release
+name: SIDEY Windows release
+run-name: "SIDEY Windows release | v${{ inputs.confirm_version }}"
 
 on:
   workflow_dispatch:
@@ -12,11 +13,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: publish-windows-release
+  group: windows-release
   cancel-in-progress: false
 
 jobs:
   validate:
+    name: Build release candidate
     runs-on: windows-latest
     timeout-minutes: 25
     outputs:
@@ -63,7 +65,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '10.0.401'
 
       - name: Restore
         run: dotnet restore windows/SIDEY.Windows.slnx
@@ -77,9 +79,6 @@ jobs:
       - name: Test
         id: tests
         run: dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build --logger trx --collect:"XPlat Code Coverage" --settings windows/coverlet.runsettings --results-directory artifacts/coverage
-
-      - name: Test compiled prerequisite installer
-        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./scripts/windows/tests/Test-PrerequisiteInstaller.ps1
 
       - name: Upload coverage
         if: ${{ always() && (steps.tests.outcome == 'success' || steps.tests.outcome == 'failure') }}
@@ -111,13 +110,11 @@ jobs:
           dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
             --configuration Release `
             --runtime win-x64 `
-            --self-contained false `
+            --self-contained true `
             --no-restore `
-            -p:WindowsAppSDKSelfContained=false `
             -p:PublishSingleFile=false `
             --output build/windows/publish
-          ./scripts/windows/tests/Test-FrameworkDependentPublish.ps1 -PublishDirectory ./build/windows/publish
-          ./scripts/windows/tests/Test-FrameworkPublishGuard.ps1 -PublishDirectory ./build/windows/publish
+          ./scripts/windows/tests/Test-SelfContainedPublish.ps1 -PublishDirectory ./build/windows/publish
           ./scripts/windows/New-WindowsInstaller.ps1 `
             -PublishDirectory ./build/windows/publish `
             -OutputDirectory ./build/windows/artifacts `
@@ -133,6 +130,7 @@ jobs:
           retention-days: 7
 
   publish:
+    name: Publish GitHub release
     needs: validate
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -211,9 +209,10 @@ jobs:
           }
 
   deploy_website:
+    name: Update release website
     needs: publish
     permissions:
       contents: read
       pages: write
       id-token: write
-    uses: ./.github/workflows/deploy-website.yml
+    uses: ./.github/workflows/website-deployment.yml

@@ -18,6 +18,13 @@ spec.loader.exec_module(w)
 
 class WorkflowTests(unittest.TestCase):
     def setUp(self):
+        remote_patch = patch.object(
+            w,
+            'main_remote',
+            return_value='origin',
+        )
+        remote_patch.start()
+        self.addCleanup(remote_patch.stop)
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -589,14 +596,24 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(w.required_scopes(['release/windows.json']), ['shared', 'windows'])
 
     def test_workflow_scopes_only_run_affected_platforms(self):
-        self.assertEqual(w.required_scopes(['.github/workflows/validate-macos.yml']),
-                         ['macos', 'shared'])
-        self.assertEqual(w.required_scopes(['.github/workflows/publish-windows-release.yml']),
-                         ['shared', 'windows'])
+        self.assertEqual(
+            w.required_scopes(
+                ['.github/workflows/macos-build-and-tests.yml']
+            ),
+            ['macos', 'shared'],
+        )
+        self.assertEqual(
+            w.required_scopes(['.github/workflows/windows-release.yml']),
+            ['shared', 'windows'],
+        )
         self.assertEqual(w.required_scopes(['.github/workflows/database.yml']),
                          ['shared'])
-        self.assertEqual(w.required_scopes(['.github/workflows/deploy-website.yml']),
-                         ['shared', 'web'])
+        self.assertEqual(
+            w.required_scopes(
+                ['.github/workflows/website-deployment.yml']
+            ),
+            ['shared', 'web'],
+        )
         self.assertEqual(w.required_scopes(['scripts/pages/prepare_release_metadata.py']),
                          ['shared', 'web'])
         self.assertEqual(w.required_scopes(['.github/workflows/download-metrics.yml']),
@@ -610,24 +627,34 @@ class WorkflowTests(unittest.TestCase):
         ]), ['shared'])
 
     def test_platform_workflow_only_changes_do_not_require_app_review(self):
-        self.assertFalse(w.app_review_required('macos', ['.github/workflows/validate-macos.yml']))
-        self.assertFalse(w.app_review_required('windows', ['.github/workflows/validate-windows.yml']))
+        self.assertFalse(
+            w.app_review_required(
+                'macos',
+                ['.github/workflows/macos-build-and-tests.yml'],
+            )
+        )
+        self.assertFalse(
+            w.app_review_required(
+                'windows',
+                ['.github/workflows/windows-build-and-tests.yml'],
+            )
+        )
         self.assertFalse(w.app_review_required('shared', ['scripts/skills/workflow.py']))
 
     def test_platform_app_inputs_still_require_app_review(self):
         self.assertTrue(w.app_review_required('macos', ['macos/Sources/SIDEY/App.swift']))
         self.assertTrue(w.app_review_required('windows', ['windows/SIDEY/App.xaml.cs']))
         self.assertTrue(w.app_review_required(
-            'windows', ['.github/workflows/publish-windows-release.yml']))
+            'windows', ['.github/workflows/windows-release.yml']))
         self.assertTrue(w.app_review_required(
             'macos', [
-                '.github/workflows/validate-macos.yml',
+                '.github/workflows/macos-build-and-tests.yml',
                 'scripts/macos/package_macos_release.sh',
             ]))
 
-    def test_validate_change_workflow_and_scope_logic_run_every_check(self):
+    def test_ci_workflow_and_scope_logic_run_every_check(self):
         every_scope = {'shared', 'macos', 'windows', 'web'}
-        self.assertEqual(set(w.required_scopes(['.github/workflows/validate-change.yml'])),
+        self.assertEqual(set(w.required_scopes(['.github/workflows/ci.yml'])),
                          every_scope)
         self.assertEqual(
             w.required_scopes(['scripts/skills/validate_change.py']),
@@ -641,22 +668,31 @@ class WorkflowTests(unittest.TestCase):
     def test_validation_contract_changes_run_all_checks(self):
         self.assertEqual(
             set(w.required_scopes([
-                '.github/workflows/validate-change.yml',
+                '.github/workflows/ci.yml',
                 'scripts/skills/validate_change.py',
             ])),
             {'shared', 'macos', 'windows', 'web'},
         )
 
-    def test_required_validation_accepts_workflow_name_and_initial_path(self):
-        for workflow in (
-            'Validate change',
-            '.github/workflows/validate-change.yml',
-        ):
-            with self.subTest(workflow=workflow):
-                self.assertTrue(w.is_required_validation({
-                    'name': 'Required validation',
-                    'workflow': workflow,
-                }))
+    def test_required_check_accepts_current_and_transition_names(self):
+        checks = (
+            {'name': 'Required checks', 'workflow': 'SIDEY CI'},
+            {
+                'name': 'Required checks',
+                'workflow': '.github/workflows/ci.yml',
+            },
+            {
+                'name': 'Required validation',
+                'workflow': 'Validate change',
+            },
+            {
+                'name': 'Required validation',
+                'workflow': '.github/workflows/validate-change.yml',
+            },
+        )
+        for check in checks:
+            with self.subTest(check=check):
+                self.assertTrue(w.is_required_validation(check))
 
     def test_policy_and_contributor_changes_are_repository_only(self):
         self.assertEqual(

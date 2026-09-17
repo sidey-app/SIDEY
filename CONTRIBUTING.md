@@ -41,6 +41,22 @@ Code, tests, documentation, translations, workflows, and other repository
 changes use the
 [general pull request template](.github/PULL_REQUEST_TEMPLATE/general.md).
 
+## Set up an external fork
+
+External contributors can fork SIDEY on GitHub, clone that fork as `origin`,
+and add the canonical repository as `upstream`:
+
+```shell
+git clone https://github.com/YOUR-GITHUB-USER/SIDEY.git
+cd SIDEY
+git remote add upstream https://github.com/sidey-app/SIDEY.git
+git remote -v
+```
+
+Keep `upstream` pointed at the canonical repository. The task workflow starts
+and checks work against canonical `upstream/main`, rather than the fork's
+possibly stale `origin/main`.
+
 ## Create an isolated worktree
 
 Do not implement changes directly on `main`. Give each task its own worktree
@@ -154,6 +170,10 @@ checked task workflow:
 ```shell
 python3 scripts/skills/workflow.py publish <task> --title "<title>" --body-file <path>
 ```
+
+For a fork clone, `publish` pushes the checked branch to `origin` and creates
+a cross-repository pull request into `sidey-app/SIDEY`. If the fork uses a
+different remote name, select it explicitly with `--push-remote <remote>`.
 
 Required CI must finish successfully before merge. SIDEY uses squash merge;
 GitHub creates the squash commit title and body from the repository's merge

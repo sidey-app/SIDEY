@@ -25,8 +25,8 @@ public sealed class WindowsReleaseContractTests
     [Fact]
     public void ReleaseAutomationUsesAPlatformScopedTag()
     {
-        string validationWorkflow = Read(".github", "workflows", "validate-windows.yml");
-        string releaseWorkflow = Read(".github", "workflows", "publish-windows-release.yml");
+        string validationWorkflow = Read(".github", "workflows", "windows-build-and-tests.yml");
+        string releaseWorkflow = Read(".github", "workflows", "windows-release.yml");
         string metadataVerifier = Read("scripts", "skills", "verify_release_consistency.py");
         string releaseVerifier = Read("scripts", "windows", "tests", "Test-WindowsRelease.ps1");
 
@@ -39,8 +39,8 @@ public sealed class WindowsReleaseContractTests
     [Fact]
     public void ReleaseWorkflowRequiresManualValidationBeforePublishing()
     {
-        string validationWorkflow = Read(".github", "workflows", "validate-windows.yml");
-        string releaseWorkflow = Read(".github", "workflows", "publish-windows-release.yml");
+        string validationWorkflow = Read(".github", "workflows", "windows-build-and-tests.yml");
+        string releaseWorkflow = Read(".github", "workflows", "windows-release.yml");
 
         Assert.Contains("workflow_dispatch:", validationWorkflow, StringComparison.Ordinal);
         Assert.DoesNotContain("  push:", validationWorkflow, StringComparison.Ordinal);
@@ -51,14 +51,14 @@ public sealed class WindowsReleaseContractTests
         Assert.Contains("--draft", releaseWorkflow, StringComparison.Ordinal);
         Assert.Contains("Get-FileHash", releaseWorkflow, StringComparison.Ordinal);
         Assert.Contains("gh release edit $tag --draft=false", releaseWorkflow, StringComparison.Ordinal);
-        Assert.Contains("uses: ./.github/workflows/deploy-website.yml", releaseWorkflow, StringComparison.Ordinal);
+        Assert.Contains("uses: ./.github/workflows/website-deployment.yml", releaseWorkflow, StringComparison.Ordinal);
         Assert.DoesNotContain("--prerelease", releaseWorkflow, StringComparison.Ordinal);
         Assert.DoesNotContain("SelfSigned", releaseWorkflow, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
-    [InlineData("validate-windows.yml")]
-    [InlineData("publish-windows-release.yml")]
+    [InlineData("windows-build-and-tests.yml")]
+    [InlineData("windows-release.yml")]
     public void CoverageUploadOnlyRunsAfterTheTestStepStarts(string workflowName)
     {
         string workflow = Read(".github", "workflows", workflowName);

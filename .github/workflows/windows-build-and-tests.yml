@@ -1,6 +1,6 @@
-name: Validate Windows
+name: SIDEY CI (Windows build and tests)
 
-# Automatic PR and main validation is owned by validate-change.yml.
+# ci.yml owns automatic pull request and main validation.
 on:
   workflow_dispatch:
 
@@ -8,11 +8,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: validate-windows-${{ github.ref }}
+  group: windows-build-and-tests-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   validate:
+    name: Windows build and tests
     runs-on: windows-latest
     timeout-minutes: 20
     defaults:
@@ -38,7 +39,7 @@ jobs:
 
       - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '10.0.401'
 
       - name: Restore
         run: dotnet restore windows/SIDEY.Windows.slnx
@@ -53,18 +54,14 @@ jobs:
         id: tests
         run: dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build --logger trx --collect:"XPlat Code Coverage" --settings windows/coverlet.runsettings --results-directory artifacts/coverage
 
-      - name: Test compiled prerequisite installer
-        run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./scripts/windows/tests/Test-PrerequisiteInstaller.ps1
-
-      - name: Publish and verify framework-dependent payload
+      - name: Publish and verify self-contained payload
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
-            --configuration Release --runtime win-x64 --self-contained false `
-            --no-restore -p:WindowsAppSDKSelfContained=false -p:PublishSingleFile=false `
+            --configuration Release --runtime win-x64 --self-contained true `
+            --no-restore -p:PublishSingleFile=false `
             --output build/windows/publish
-          ./scripts/windows/tests/Test-FrameworkDependentPublish.ps1 -PublishDirectory ./build/windows/publish
-          ./scripts/windows/tests/Test-FrameworkPublishGuard.ps1 -PublishDirectory ./build/windows/publish
+          ./scripts/windows/tests/Test-SelfContainedPublish.ps1 -PublishDirectory ./build/windows/publish
 
       - name: Compile NSIS installer
         run: |

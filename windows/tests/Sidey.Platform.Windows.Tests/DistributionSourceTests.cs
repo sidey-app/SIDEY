@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Xml.Linq;
 
 namespace Sidey.Platform.Windows.Tests;
@@ -5,14 +6,32 @@ namespace Sidey.Platform.Windows.Tests;
 public sealed class DistributionSourceTests
 {
     [Fact]
-    public void AppPublishIsMultiFileFrameworkDependentWithExternalAssets()
+    public void SelfContainedRuntimeVersionsArePinnedToStableReleases()
+    {
+        using var globalJson = JsonDocument.Parse(File.ReadAllText(RepositoryPath(
+            "windows", "global.json")));
+        JsonElement sdk = globalJson.RootElement.GetProperty("sdk");
+        Assert.Equal("10.0.401", sdk.GetProperty("version").GetString());
+        Assert.Equal("disable", sdk.GetProperty("rollForward").GetString());
+        Assert.False(sdk.GetProperty("allowPrerelease").GetBoolean());
+
+        var packages = XDocument.Load(RepositoryPath("windows", "Directory.Packages.props"));
+        XElement windowsAppSdk = packages.Descendants("PackageVersion").Single(element =>
+            (string?)element.Attribute("Include") == "Microsoft.WindowsAppSDK");
+        Assert.Equal("2.4.0", (string?)windowsAppSdk.Attribute("Version"));
+    }
+
+    [Fact]
+    public void AppPublishIsMultiFileSelfContainedWithExternalAssets()
     {
         var project = XDocument.Load(AssetPath("Sidey.App.csproj.xml"));
 
         Assert.Equal("false", Value(project, "PublishSingleFile"));
-        Assert.Equal("false", Value(project, "WindowsAppSDKSelfContained"));
-        Assert.Equal("false", Value(project, "SelfContained"));
-        Assert.Equal("true", Value(project, "WindowsAppSdkBootstrapInitialize"));
+        Assert.Equal("true", Value(project, "WindowsAppSDKSelfContained"));
+        Assert.Equal("true", Value(project, "SelfContained"));
+        Assert.Equal("10.0.12", Value(project, "SideyDotNetRuntimeVersion"));
+        Assert.Equal("true", Value(project, "TargetLatestRuntimePatch"));
+        Assert.Empty(project.Descendants("WindowsAppSdkBootstrapInitialize"));
         Assert.Equal("true", Value(project, "EnableMsixTooling"));
         Assert.Equal("false", Value(project, "IncludeAllContentForSelfExtract"));
         Assert.Equal("false", Value(project, "PublishTrimmed"));
@@ -318,7 +337,8 @@ public sealed class DistributionSourceTests
         Assert.Contains("makensis.exe", package, StringComparison.Ordinal);
         Assert.Contains("/VERSION", package, StringComparison.Ordinal);
         Assert.Contains("SideyPayloadInstall.nsh", package, StringComparison.Ordinal);
-        Assert.Contains("SideyPayloadUninstall.nsh", package, StringComparison.Ordinal);
+        Assert.Contains("SideyPayloadUninstallFiles.nsh", package, StringComparison.Ordinal);
+        Assert.Contains("SideyPayloadUninstallDirectories.nsh", package, StringComparison.Ordinal);
         Assert.Contains("Generated NSIS payload paths must use runtime transaction variables", package, StringComparison.Ordinal);
         Assert.Contains("$destination = '$StagingDirectory'", package, StringComparison.Ordinal);
         Assert.Contains("IfErrors payload_stage_failed", package, StringComparison.Ordinal);
@@ -351,13 +371,12 @@ public sealed class DistributionSourceTests
     private static string ReadSetupScript() => File.ReadAllText(AssetPath("Sidey.Setup.nsi"));
 
     [Fact]
-    public void PrerequisitesFinishBeforeStoppingOrRemovingTheExistingApp()
+    public void SelfContainedPayloadIsStagedBeforeReplacingTheExistingApp()
     {
         string setup = ReadSetupScript();
         string section = setup[setup.IndexOf("Section \"SIDEY\" MainSection", StringComparison.Ordinal)..];
         string[] operations =
         [
-            "Call EnsurePrerequisites",
             "!include \"${PAYLOAD_INSTALL_INCLUDE}\"",
             "--detect-legacy-msi",
             "Call StopSideyProcesses",
@@ -373,16 +392,9 @@ public sealed class DistributionSourceTests
             Assert.True(position > previous, $"Expected operation after the previous step: {operation}");
             previous = position;
         }
-
-        int start = setup.IndexOf("Function EnsurePrerequisites", StringComparison.Ordinal);
-        string prerequisiteFunction = setup[start..setup.IndexOf("FunctionEnd", start, StringComparison.Ordinal)];
-        Assert.Contains("--desktop-user-runner", prerequisiteFunction, StringComparison.Ordinal);
-        Assert.DoesNotContain("--provision-all-users", prerequisiteFunction, StringComparison.Ordinal);
-        Assert.Contains("Sidey.PrerequisiteInstaller.exe", prerequisiteFunction, StringComparison.Ordinal);
-        Assert.Contains("SUCCESS_REBOOT_REQUIRED", prerequisiteFunction, StringComparison.Ordinal);
-        Assert.Contains("$InstallerErrorStatus == \"SUCCESS\"", prerequisiteFunction, StringComparison.Ordinal);
-        Assert.Contains("Call ShowInstallerError", prerequisiteFunction, StringComparison.Ordinal);
-        Assert.Equal(3, prerequisiteFunction.Split("    Abort", StringSplitOptions.None).Length - 1);
+        Assert.DoesNotContain("EnsurePrerequisites", setup, StringComparison.Ordinal);
+        Assert.DoesNotContain("prerequisites.json", setup, StringComparison.Ordinal);
+        Assert.DoesNotContain("windowsappruntimeinstall", setup, StringComparison.OrdinalIgnoreCase);
 
         string uninstall = setup[setup.IndexOf("Section \"Uninstall\"", StringComparison.Ordinal)..];
         Assert.DoesNotContain("SetupRuntime.ps1", uninstall, StringComparison.Ordinal);
@@ -437,11 +449,9 @@ public sealed class DistributionSourceTests
             "windows", "installer", "Sidey.Setup", "InstallerErrors.nsh"));
         string package = File.ReadAllText(RepositoryPath(
             "scripts", "windows", "New-WindowsInstaller.ps1"));
-        string prerequisiteSetup = File.ReadAllText(RepositoryPath(
-            "scripts", "windows", "Install-WindowsPrerequisites.ps1"));
 
         Assert.Contains("Sidey.InstallTransaction.exe", setup, StringComparison.Ordinal);
-        Assert.Contains("Sidey.PrerequisiteInstaller.exe", setup, StringComparison.Ordinal);
+        Assert.Contains("Sidey.InstallerErrorHelper.exe", setup, StringComparison.Ordinal);
         Assert.Contains("Sidey.SetupSupport.exe", setup, StringComparison.Ordinal);
         Assert.Contains("--stop-sidey-processes", setup, StringComparison.Ordinal);
         Assert.Contains("ExecWait '\"$INSTDIR\\Runtime\\SIDEY.UninstallHelper.exe\" --stop-sidey-processes' $0", setup, StringComparison.Ordinal);
@@ -453,15 +463,11 @@ public sealed class DistributionSourceTests
         Assert.Contains("${If} $0 != 0", stopBlock, StringComparison.Ordinal);
         Assert.Contains("--normalize-error", errors, StringComparison.Ordinal);
         Assert.Contains("/DINSTALL_TRANSACTION_EXE=", package, StringComparison.Ordinal);
-        Assert.Contains("/DPREREQUISITE_INSTALLER_EXE=", package, StringComparison.Ordinal);
+        Assert.Contains("/DINSTALLER_ERROR_HELPER_EXE=", package, StringComparison.Ordinal);
         Assert.Contains("-HelperPath $installTransactionExecutablePath", package, StringComparison.Ordinal);
-        Assert.Contains("-HelperPath $prerequisiteInstallerExecutablePath", package, StringComparison.Ordinal);
+        Assert.Contains("-HelperPath $installerErrorHelperExecutablePath", package, StringComparison.Ordinal);
         Assert.Contains("tests/Test-PowerShellSupport.ps1", package, StringComparison.Ordinal);
         Assert.Contains("forbiddenRuntimeToken", package, StringComparison.Ordinal);
-        Assert.DoesNotContain("ProvisionAllUsers", prerequisiteSetup, StringComparison.Ordinal);
-        Assert.DoesNotContain("--provision-all-users", prerequisiteSetup, StringComparison.Ordinal);
-        Assert.Contains("Invoke-SideyWindowsProcess", prerequisiteSetup, StringComparison.Ordinal);
-        Assert.DoesNotContain("& $helperPath @helperArguments", prerequisiteSetup, StringComparison.Ordinal);
         foreach (string source in new[] { setup, errors })
         {
             Assert.DoesNotContain("powershell.exe", source, StringComparison.OrdinalIgnoreCase);
@@ -478,25 +484,13 @@ public sealed class DistributionSourceTests
         string setup = ReadSetupScript();
         string helper = File.ReadAllText(RepositoryPath(
             "windows", "src", "Sidey.Uninstaller", "Program.cs"));
-        string prerequisiteHelper = File.ReadAllText(RepositoryPath(
-            "windows", "installer", "Sidey.Setup", "PrerequisiteInstaller.cs"));
-        string prerequisiteSetup = File.ReadAllText(RepositoryPath(
-            "scripts", "windows", "Install-WindowsPrerequisites.ps1"));
 
         Assert.Contains("MUI_FINISHPAGE_RUN_FUNCTION LaunchSideyAsDesktopUser", setup, StringComparison.Ordinal);
         Assert.DoesNotContain("MUI_FINISHPAGE_RUN \"$INSTDIR\\SIDEY.exe\"", setup, StringComparison.Ordinal);
         Assert.Contains("--launch-sidey-as-desktop-user", setup, StringComparison.Ordinal);
         Assert.Contains("--cleanup-startup-as-desktop-user", setup, StringComparison.Ordinal);
-        Assert.Contains("--desktop-user-runner", setup, StringComparison.Ordinal);
-        Assert.Contains("DesktopUserIdentity.GetSecurityIdentifier()", prerequisiteHelper, StringComparison.Ordinal);
-        Assert.Contains("--run-windows-app-runtime-as-desktop-user", prerequisiteHelper, StringComparison.Ordinal);
-        Assert.Contains("--run-windows-app-runtime-as-desktop-user", helper, StringComparison.Ordinal);
-        Assert.DoesNotContain("DesktopUserIdentity.IsCurrentUser", prerequisiteHelper, StringComparison.Ordinal);
-        Assert.Contains("--desktop-user-runner", prerequisiteSetup, StringComparison.Ordinal);
-        Assert.Contains("Sidey.SetupSupport.exe", prerequisiteSetup, StringComparison.Ordinal);
         Assert.DoesNotContain("exception.Message", helper, StringComparison.Ordinal);
-        Assert.Contains("SIDEY-PrerequisiteDownloads", prerequisiteHelper, StringComparison.Ordinal);
-        Assert.Contains("SIDEY-PrerequisiteDownloads", helper, StringComparison.Ordinal);
+        Assert.DoesNotContain("--run-windows-app-runtime-as-desktop-user", helper, StringComparison.Ordinal);
 
         Assert.Contains("GetShellWindow", helper, StringComparison.Ordinal);
         Assert.Contains("GetWindowThreadProcessId", helper, StringComparison.Ordinal);
@@ -510,33 +504,16 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
-    public void PrerequisitePreparationAndPostconditionFailuresKeepComponentContext()
+    public void InstallerErrorHelperOnlyExposesNormalizationMode()
     {
         string source = File.ReadAllText(RepositoryPath(
-            "windows", "installer", "Sidey.Setup", "PrerequisiteInstaller.cs"));
+            "windows", "installer", "Sidey.Setup", "InstallerErrorNormalizer.cs"));
 
-        Assert.Contains(
-            "Windows App Runtime desktop-user identification failed.",
-            source,
-            StringComparison.Ordinal);
-        Assert.Contains("\"APPX\",", source, StringComparison.Ordinal);
-        Assert.Contains("\"Windows App Runtime x64\",", source, StringComparison.Ordinal);
-        Assert.Contains(
-            "requirement.Name + \" download preparation failed.\"",
-            source,
-            StringComparison.Ordinal);
-        Assert.Contains("\"FILESYSTEM\",", source, StringComparison.Ordinal);
-        Assert.Contains(
-            "Prepare secure prerequisite download path",
-            source,
-            StringComparison.Ordinal);
-        Assert.Contains("IsAvailableAfterSuccessfulExit", source, StringComparison.Ordinal);
-        Assert.Contains(
-            "availability check failed after successful installer exit.",
-            source,
-            StringComparison.Ordinal);
-        Assert.Contains("\"VERIFY\",", source, StringComparison.Ordinal);
-        Assert.Contains("\"0\");", source, StringComparison.Ordinal);
+        Assert.Contains("--normalize-error", source, StringComparison.Ordinal);
+        Assert.Contains("Unsupported helper mode.", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("--check-only", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("--cleanup-private-runtime", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("PrerequisiteConfiguration", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -575,9 +552,25 @@ public sealed class DistributionSourceTests
         Assert.Empty(misplacedTests);
 
         string integration = File.ReadAllText(RepositoryPath(
-            ".github", "workflows", "validate-change.yml"));
+            ".github", "workflows", "ci.yml"));
         Assert.Contains(
-            "./scripts/windows/tests/Test-FrameworkDependentPublish.ps1",
+            "./scripts/windows/tests/Test-SelfContainedPublish.ps1",
+            integration,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "Test-FrameworkDependentPublish.ps1",
+            integration,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "Test-PrerequisiteInstaller.ps1",
+            integration,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "Install-WindowsPrerequisites.ps1",
+            integration,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "--self-contained false",
             integration,
             StringComparison.Ordinal);
         Assert.Contains(
@@ -592,22 +585,26 @@ public sealed class DistributionSourceTests
         string package = File.ReadAllText(RepositoryPath(
             "scripts", "windows", "New-WindowsInstaller.ps1"));
         Assert.Contains(
-            "tests/Test-FrameworkDependentPublish.ps1",
+            "tests/Test-SelfContainedPublish.ps1",
+            package,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "tests/Test-InstallerPayloadUninstall.ps1",
             package,
             StringComparison.Ordinal);
     }
 
     [Theory]
-    [InlineData("validate-windows.yml")]
-    [InlineData("publish-windows-release.yml")]
+    [InlineData("windows-build-and-tests.yml")]
+    [InlineData("windows-release.yml")]
     public void WorkflowsValidatePublishedFilesWithoutLaunchingTheGui(string workflowName)
     {
         string workflow = File.ReadAllText(RepositoryPath(".github", "workflows", workflowName));
-        Assert.Contains("--self-contained false", workflow, StringComparison.Ordinal);
-        Assert.Contains("-p:WindowsAppSDKSelfContained=false", workflow, StringComparison.Ordinal);
-        Assert.DoesNotContain("--self-contained true", workflow, StringComparison.Ordinal);
-        Assert.Contains("Test-PrerequisiteInstaller.ps1", workflow, StringComparison.Ordinal);
-        Assert.Contains("Test-FrameworkDependentPublish.ps1", workflow, StringComparison.Ordinal);
+        Assert.Contains("--self-contained true", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("WindowsAppSDKSelfContained=false", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("--self-contained false", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Test-PrerequisiteInstaller.ps1", workflow, StringComparison.Ordinal);
+        Assert.Contains("Test-SelfContainedPublish.ps1", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("SetupRuntime.ps1", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("Test-PublishedApplication.ps1", workflow, StringComparison.Ordinal);
     }

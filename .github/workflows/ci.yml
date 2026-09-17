@@ -1,5 +1,5 @@
-name: Validate change
-run-name: "Validate change | ${{ github.event_name }} | ${{ github.ref_name }}"
+name: SIDEY CI
+run-name: "SIDEY CI | ${{ github.event_name }} | ${{ github.ref_name }}"
 
 on:
   pull_request:
@@ -11,12 +11,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: validate-change-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   scope:
-    name: Plan validation
+    name: Select required checks
     if: github.event_name != 'pull_request' || github.event.pull_request.state == 'open'
     runs-on: ubuntu-latest
     outputs:
@@ -30,7 +30,7 @@ jobs:
         run: python3 scripts/skills/validate_change.py
 
   shared:
-    name: Repository validation
+    name: Repository checks
     needs: scope
     if: contains(fromJSON(needs.scope.outputs.scopes), 'shared')
     runs-on: ubuntu-latest
@@ -48,7 +48,7 @@ jobs:
       - run: python3 scripts/skills/verify_release_consistency.py --allow-pending-appcast --allow-unreleased-source
 
   macos:
-    name: macOS validation
+    name: macOS build and tests
     needs: scope
     if: contains(fromJSON(needs.scope.outputs.scopes), 'macos')
     runs-on: macos-26
@@ -86,7 +86,7 @@ jobs:
         run: ./scripts/macos/tests/test_native.sh -clonedSourcePackagesDirPath "$RUNNER_TEMP/sidey-source-packages"
 
   windows:
-    name: Windows validation
+    name: Windows build and tests
     needs: scope
     if: contains(fromJSON(needs.scope.outputs.scopes), 'windows')
     runs-on: windows-latest
@@ -132,30 +132,14 @@ jobs:
       - name: Test Windows app smoke timeout policy
         run: powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ./scripts/windows/tests/Test-PublishedApplicationTimeouts.ps1
 
-      - name: Test framework-dependent prerequisite installer when present
-        run: |
-          if (Test-Path -LiteralPath ./scripts/windows/tests/Test-PrerequisiteInstaller.ps1) {
-            powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
-              -File ./scripts/windows/tests/Test-PrerequisiteInstaller.ps1
-          }
-
-      - name: Publish and verify Windows payload
+      - name: Publish and verify self-contained payload
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          if (Test-Path -LiteralPath ./scripts/windows/tests/Test-SelfContainedPublish.ps1) {
-            dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
-              --configuration Release --runtime win-x64 --self-contained true `
-              --no-restore -p:PublishSingleFile=false `
-              --output build/windows/publish
-            ./scripts/windows/tests/Test-SelfContainedPublish.ps1 -PublishDirectory ./build/windows/publish
-          } else {
-            dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
-              --configuration Release --runtime win-x64 --self-contained false `
-              --no-restore -p:WindowsAppSDKSelfContained=false -p:PublishSingleFile=false `
-              --output build/windows/publish
-            ./scripts/windows/tests/Test-FrameworkDependentPublish.ps1 -PublishDirectory ./build/windows/publish
-            ./scripts/windows/tests/Test-FrameworkPublishGuard.ps1 -PublishDirectory ./build/windows/publish
-          }
+          dotnet publish windows/src/Sidey.App/Sidey.App.csproj `
+            --configuration Release --runtime win-x64 --self-contained true `
+            --no-restore -p:PublishSingleFile=false `
+            --output build/windows/publish
+          ./scripts/windows/tests/Test-SelfContainedPublish.ps1 -PublishDirectory ./build/windows/publish
 
       - name: Run Windows app smoke
         if: github.event_name == 'push'
@@ -164,10 +148,6 @@ jobs:
           SIDEY_OVERLAY_STARTUP_SMOKE: '1'
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          if (-not (Test-Path -LiteralPath ./scripts/windows/tests/Test-SelfContainedPublish.ps1)) {
-            $version = ([xml](Get-Content ./windows/src/Sidey.App/Sidey.App.csproj -Raw)).Project.PropertyGroup.Version | Where-Object { $_ }
-            ./scripts/windows/Install-WindowsPrerequisites.ps1 -Version $version
-          }
           ./scripts/windows/tests/Test-PublishedApplication.ps1 -PublishDirectory ./build/windows/publish -TimeoutSeconds 120
 
       - name: Compile NSIS installer
@@ -188,7 +168,7 @@ jobs:
           if-no-files-found: error
 
   web:
-    name: Website validation
+    name: Website build and tests
     needs: scope
     if: contains(fromJSON(needs.scope.outputs.scopes), 'web')
     runs-on: ubuntu-latest
@@ -229,7 +209,7 @@ jobs:
         run: python3 -m unittest discover -s scripts/pages/tests
 
   gate:
-    name: Required validation
+    name: Required checks
     if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.state == 'open') }}
     needs: [scope, shared, macos, windows, web]
     runs-on: ubuntu-latest

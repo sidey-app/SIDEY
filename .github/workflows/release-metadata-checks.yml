@@ -1,7 +1,7 @@
-name: Validate release metadata
+name: SIDEY CI (release metadata checks)
 
 on:
-  # PR and main validation is owned by validate-change.yml to avoid duplicate runs.
+  # ci.yml owns pull request and main validation to avoid duplicate runs.
   workflow_dispatch:
 
 permissions:
@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   validate:
-    name: Release metadata validation
+    name: Release metadata checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

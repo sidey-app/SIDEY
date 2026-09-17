@@ -1,6 +1,6 @@
-name: Validate macOS
+name: SIDEY CI (macOS build and tests)
 
-# Automatic PR and main validation is owned by validate-change.yml.
+# ci.yml owns automatic pull request and main validation.
 on:
   workflow_dispatch:
 
@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   tests:
-    name: Native tests
+    name: macOS build and tests
     runs-on: macos-26
     timeout-minutes: 30
     steps:
