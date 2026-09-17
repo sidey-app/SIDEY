@@ -3,12 +3,18 @@ import AppKit
 @MainActor
 final class AppCoordinator {
     let model: AppModel
+    var latestMembershipRevision: UInt64 = 0
 
     let preferencesStore: PreferencesStore
     private let legacyMigrator: LegacySettingsMigrator
     private let updateController: any AppUpdateChecking
     let releaseChannel: AppReleaseChannel
-    var backend: SideyBackend?
+    var backend: SideyBackend? {
+        didSet {
+            // Revisions are local to one gateway instance, not a server epoch.
+            if oldValue !== backend { latestMembershipRevision = 0 }
+        }
+    }
     private let runtimeConfiguration: RuntimeConfiguration?
     let configurationError: Error?
     let keychainAccessSession: KeychainAccessSession
@@ -24,7 +30,18 @@ final class AppCoordinator {
         onRegionChanged: { [weak self] in self?.persistPreferences() },
         onTreeMovementToggle: { [weak self] in self?.toggleTreeMovement() }
     )
-    private lazy var historyWindow = makeHistoryWindow()
+    private var historyWindowStorage: HistoryWindowController?
+    private var historyWindow: HistoryWindowController {
+        if let historyWindowStorage { return historyWindowStorage }
+        let window = makeHistoryWindow()
+        historyWindowStorage = window
+        return window
+    }
+    func invalidateHistoryRooms() { historyWindowStorage?.historyStore.roomDidChange(to: nil) }
+    func revokeHistoryRoom(_ roomID: UUID) {
+        guard historyWindowStorage?.historyStore.roomID == roomID else { return }
+        historyWindowStorage?.historyStore.roomDidChange(to: nil)
+    }
     lazy var settingsWindow = SettingsWindowController(
         model: model,
         actions: SettingsActions(
@@ -456,6 +473,7 @@ final class AppCoordinator {
     private func makeHistoryWindow() -> HistoryWindowController {
         HistoryWindowController(
             model: model,
+            onRetry: { [weak self] roomID, messageID in self?.retryMessage(roomID: roomID, messageID: messageID) },
             loadPage: { [weak self] roomID, cursor, pageSize in
                 guard let backend = self?.backend else {
                     throw SideyBackendError.realtimeUnavailable

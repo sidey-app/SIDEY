@@ -499,6 +499,7 @@ final class HistoryWindowController: NSWindowController, NSWindowDelegate {
 
     init(
         model: AppModel,
+        onRetry: @escaping (UUID, UUID) -> Void = { _, _ in },
         loadPage: @escaping MessageHistoryPageLoader
     ) {
         self.model = model
@@ -520,6 +521,7 @@ final class HistoryWindowController: NSWindowController, NSWindowDelegate {
             rootView: OverlayHistoryView(
                 model: model,
                 history: historyStore,
+                onRetry: onRetry,
                 onClose: { [weak window] in
                     historyStore.deactivate()
                     window?.orderOut(nil)

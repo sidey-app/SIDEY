@@ -472,6 +472,40 @@ final class AppModel {
         realtime.setConnected(connected, activeRoomID: activeRoom?.id, currentUserID: currentUserID, rooms: &rooms)
     }
 
+    func stageNewMessage(roomID: UUID, senderID: UUID, body: String, revealBubble: Bool = true, now: Date = .now) -> OutgoingMessage {
+        messages.stageNewMessage(roomID: roomID, senderID: senderID, body: body, revealBubble: revealBubble,
+            now: now, activeRoomID: activeRoom?.id, equippedBubbleStyleID: equippedBubbleStyleID)
+    }
+
+    func retryMessage(id: UUID, roomID: UUID, revealBubble: Bool = true, now: Date = .now) -> OutgoingMessage? {
+        guard rooms.contains(where: { $0.id == roomID }), let currentUserID else { return nil }
+        return messages.retryMessage(id: id, roomID: roomID, senderID: currentUserID, revealBubble: revealBubble,
+            now: now, activeRoomID: activeRoom?.id, equippedBubbleStyleID: equippedBubbleStyleID)
+    }
+
+    func invalidateRoomState() {
+        rooms = realtime.reconcile([])
+        messages.reset()
+        preferences.activeRoomID = nil
+        preferences.onboardingComplete = false
+        groupOperation = .idle
+        setActiveRoomRealtimeConnected(false)
+    }
+
+    func revokeRoom(_ roomID: UUID) {
+        let wasActive = activeRoom?.id == roomID || realtimeActiveRoomID == roomID
+        rooms = realtime.reconcile(rooms.filter { $0.id != roomID })
+        messages.retain(roomIDs: Set(rooms.map(\.id)))
+        if wasActive {
+            messages.clearBubbles()
+            draft = ""
+            preferences.activeRoomID = nil
+            groupOperation = .idle
+            setActiveRoomRealtimeConnected(false)
+        }
+        preferences.onboardingComplete = hasProfile && !rooms.isEmpty
+    }
+
     func stageMessage(id: UUID, roomID: UUID, senderID: UUID, body: String,
                       revealBubble: Bool = true, now: Date = .now) {
         messages.stageMessage(id: id, roomID: roomID, senderID: senderID, body: body,

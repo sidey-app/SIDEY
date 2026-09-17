@@ -222,7 +222,7 @@ enum MessageHistoryMerge {
         for entry in ledger.entries where entry.roomID == roomID && entry.createdAt >= cutoff {
             byID[entry.id] = entry
         }
-        for message in outbox.entries where message.roomID == roomID && message.createdAt >= cutoff {
+        for message in outbox.entries where message.roomID == roomID && message.createdAt > cutoff {
             guard byID[message.id] == nil else { continue }
             byID[message.id] = MessageLedgerEntry(
                 id: message.id,

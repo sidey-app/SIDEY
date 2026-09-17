@@ -11,8 +11,7 @@ actor SideyBackend {
     private let networkPathMonitor: any NetworkPathMonitoring
     private var reader: Task<Void, Never>?
     private var networkReader: Task<Void, Never>?
-    private var membershipPoll: Task<Void, Never>?
-    private let membershipPollInterval: Duration
+    private var membershipRevision: UInt64 = 0
     private var lifecycle = UUID()
     private var authorizedRooms: Set<UUID> = []
     private var latestSnapshot: BackendSnapshot?
@@ -33,14 +32,12 @@ actor SideyBackend {
     init(configuration: RuntimeConfiguration, keychain: KeychainStore = KeychainStore(),
          authCallbackURL: URL = SideyAuthCallback.callbackURL(),
          networkPathMonitor: any NetworkPathMonitoring = SystemNetworkPathMonitor(),
-         session: SideySessionClient? = nil, transport: SpringRealtimeTransport = SpringRealtimeTransport(),
-         membershipPollInterval: Duration = .seconds(30)) {
+         session: SideySessionClient? = nil, transport: SpringRealtimeTransport = SpringRealtimeTransport()) {
         self.configuration = configuration
         self.keychain = keychain
         self.session = session ?? SideySessionClient(configuration: configuration, keychain: keychain)
         self.transport = transport
         self.networkPathMonitor = networkPathMonitor
-        self.membershipPollInterval = membershipPollInterval
         let pair = AsyncStream<BackendEvent>.makeStream(bufferingPolicy: .bufferingNewest(256))
         events = pair.stream
         continuation = pair.continuation
@@ -84,14 +81,17 @@ actor SideyBackend {
     }
 
     func loadSnapshot() async throws -> BackendSnapshot {
+        let revision = membershipRevision
         let profile: Profile?
         do { profile = try await profileRequest(method: "GET", path: "/profile") }
         catch SideyBackendError.remote("profile_missing") { profile = nil }
         catch SideyBackendError.remote("profile_required") { profile = nil }
         let rooms: [SpringRoom] = try await request("GET", "/rooms")
         let entitlements: [DatabaseCommerceEntitlement] = try await request("GET", "/commerce/entitlements")
+        try ensureMembershipRevision(revision)
         return BackendSnapshot(profile: profile, rooms: rooms.map(\.domain),
-            activeEntitlementKeys: Set(entitlements.filter { $0.status == "active" }.map(\.entitlementKey)))
+            activeEntitlementKeys: Set(entitlements.filter { $0.status == "active" }.map(\.entitlementKey)),
+            membershipRevision: revision)
     }
 
     func upsertProfile(nickname: String, characterID: String = "pixel_hamster") async throws -> Profile {
@@ -167,6 +167,8 @@ actor SideyBackend {
     }
 
     func syncRealtime(rooms: [Room], activeRoomID: UUID?) async throws -> BackendReconciliation {
+        try Task.checkCancellation()
+        guard !stopping else { throw SideyBackendError.realtimeUnavailable }
         self.activeRoomID = activeRoomID
         stateRevision += 1
         startReaders()
@@ -265,21 +267,14 @@ actor SideyBackend {
         latestSnapshot = snapshot
     }
 
-    private func checkMembership() async {
-        guard !stopping, pathAvailable, recovery == nil else { return }
-        let current = lifecycle
-        do {
-            let snapshot = try await loadSnapshot()
-            try ensureCurrent(current)
-            guard snapshot != latestSnapshot else { return }
-            adoptAuthorization(snapshot)
-            stateRevision += 1
-            emit(.snapshot(snapshot))
-            scheduleRecovery()
-        } catch { _ = await authenticationLost() }
+    private func ensureMembershipRevision(_ revision: UInt64) throws {
+        try Task.checkCancellation()
+        guard revision == membershipRevision else { throw CancellationError() }
     }
 
     func setActiveRoom(_ roomID: UUID?) async throws {
+        try Task.checkCancellation()
+        if let roomID, !authorizedRooms.contains(roomID) { throw SideyBackendError.membershipRequired }
         activeRoomID = roomID
         try await publishPresence()
     }
@@ -303,17 +298,21 @@ actor SideyBackend {
     }
     func sendMessage(roomID: UUID, body: String, id: UUID = UUID()) async throws -> ChatMessage {
         let current = lifecycle
+        let revision = membershipRevision
+        guard authorizedRooms.contains(roomID) else { throw SideyBackendError.membershipRequired }
         let normalized = MessageValidator.normalized(body)
         guard MessageValidator.isValid(normalized) else { throw SideyBackendError.remote("메시지는 200자·3줄 이하로 입력해 주세요.") }
         let payload: [String: Any] = ["type": "message.send", "id": id.uuidString, "roomId": roomID.uuidString, "body": normalized]
         do {
             let data = try await command(payload)
             try ensureCurrent(current)
+            try ensureMembershipRevision(revision)
             let ack = try JSONDecoder().decode(SpringMessageAck.self, from: data)
             try merge(ack.message, emitLive: true)
             return try ack.message.domain
         } catch {
             try ensureCurrent(current)
+            try ensureMembershipRevision(revision)
             if error as? SideyBackendError == .remote("message_id_conflict") { throw error }
             // An ACK may have been lost after COMMIT. The UUID is kept by the
             // caller; a lookup can confirm this attempt without a second insert.
@@ -326,8 +325,10 @@ actor SideyBackend {
         }
     }
     func message(id: UUID, roomID: UUID) async throws -> ChatMessage? {
+        let revision = membershipRevision
         do {
             let value: SpringMessage = try await request("GET", "/rooms/\(roomID)/messages/\(id)")
+            try ensureMembershipRevision(revision)
             return try value.domain
         } catch SideyBackendError.remote("message_missing") { return nil }
     }
@@ -338,9 +339,11 @@ actor SideyBackend {
         return try await historyPage(roomID: roomID, before: nil, pageSize: limit).messages.reversed()
     }
     func historyPage(roomID: UUID, before: MessageHistoryCursor?, pageSize: Int) async throws -> MessageHistoryPage {
+        let revision = membershipRevision
         let before = before.map { SpringCursor(createdAt: $0.rawCreatedAt, id: $0.id) }
             ?? SpringCursor(createdAt: PostgresTimestampEncoder.encode(Date().addingTimeInterval(86_400)), id: UUID(uuidString: "ffffffff-ffff-ffff-ffff-ffffffffffff")!)
         let page = try await messagePage(roomID: roomID, before: before, limit: min(max(1, pageSize), 200))
+        try ensureMembershipRevision(revision)
         return try page.domain
     }
     private func messagePage(roomID: UUID, after: SpringCursor? = nil, before: SpringCursor? = nil,
@@ -360,14 +363,6 @@ actor SideyBackend {
     }
 
     private func startReaders() {
-        if membershipPoll == nil {
-            membershipPoll = Task { [weak self, membershipPollInterval] in
-                while !Task.isCancelled {
-                    do { try await Task.sleep(for: membershipPollInterval) } catch { return }
-                    await self?.checkMembership()
-                }
-            }
-        }
         if reader == nil {
             reader = Task { [weak self, transport] in
                 for await event in transport.events {
@@ -398,10 +393,13 @@ actor SideyBackend {
             do {
                 let event = try JSONDecoder().decode(SpringEvent.self, from: data)
                 if event.type == "error", let code = event.code {
-                    if ["membership_required", "room_missing"].contains(code) { await checkMembership() }
+                    if ["membership_required", "room_missing"].contains(code) { stateRevision += 1; scheduleRecovery() }
                     emit(.technicalError(SideyBackendError.business(code: code).localizedDescription))
                     return
                 }
+                // This control event is sent to every user connection, including
+                // connections that have not subscribed to this room yet.
+                if event.type == "room.revoked", let room = event.roomId { revokeLocalRoom(room); return }
                 if event.type == "message.created", let message = event.message {
                     guard authorizedRooms.contains(message.roomId) else { return }
                     try merge(message, emitLive: true); return
@@ -446,6 +444,7 @@ actor SideyBackend {
         }
     }
     private func expireTyping(key: String, room: UUID, user: UUID) {
+        guard authorizedRooms.contains(room) else { return }
         typingExpiry.removeValue(forKey: key)
         emit(.typing(roomID: room, userID: user, active: false))
     }
@@ -497,7 +496,6 @@ actor SideyBackend {
         retry?.cancel(); retry = nil
         recovery?.cancel(); recovery = nil; recoveryID = UUID()
         typingExpiry.values.forEach { $0.cancel() }; typingExpiry.removeAll()
-        membershipPoll?.cancel(); membershipPoll = nil
         authorizedRooms.removeAll(); latestSnapshot = nil
         await transport.disconnect()
         connected = false
@@ -552,14 +550,22 @@ actor SideyBackend {
         }
     }
     private func revokeLocalRoom(_ room: UUID) {
+        membershipRevision &+= 1
+        retry?.cancel(); retry = nil
+        recovery?.cancel(); recovery = nil; recoveryID = UUID()
+        subscribed.remove(room)
+        try? keychain.delete(account: inviteAccount(room))
+        for (key, task) in typingExpiry where key.hasPrefix("\(room):") {
+            task.cancel(); typingExpiry.removeValue(forKey: key)
+        }
         authorizedRooms.remove(room)
         ledgers.removeValue(forKey: room)
         if activeRoomID == room { activeRoomID = nil }
         if var snapshot = latestSnapshot {
             snapshot.rooms.removeAll { $0.id == room }
             adoptAuthorization(snapshot)
-            emit(.snapshot(snapshot))
         }
+        emit(.roomRevoked(roomID: room, revision: membershipRevision))
         emit(.messagesReplaced(roomID: room, messages: []))
         stateRevision += 1
         scheduleRecovery()
@@ -574,7 +580,18 @@ actor SideyBackend {
     }
     private func emit(_ event: BackendEvent) {
         switch continuation.yield(event) {
-        case .dropped: stateRevision += 1; scheduleRecovery()
+        case .dropped(let displaced):
+            stateRevision += 1
+            scheduleRecovery()
+            switch displaced {
+            case .roomRevoked, .roomStateInvalidated:
+                // A bounded stream may evict data, but it must retain a control
+                // that clears revoked state even while REST recovery is blocked.
+                // One reset covers every displaced per-room revocation. If this
+                // reset is evicted later, this same branch puts it back.
+                if case .terminated = continuation.yield(.roomStateInvalidated(revision: membershipRevision)) { stopping = true }
+            default: break
+            }
         case .terminated: stopping = true
         default: break
         }

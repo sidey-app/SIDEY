@@ -3,6 +3,7 @@ import SwiftUI
 struct OverlayHistoryView: View {
     @Bindable var model: AppModel
     @Bindable var history: MessageHistoryStore
+    var onRetry: (UUID, UUID) -> Void = { _, _ in }
     let onClose: () -> Void
 
     var body: some View {
@@ -84,7 +85,8 @@ struct OverlayHistoryView: View {
                 ForEach(entries) { entry in
                     HistoryMessageCard(
                         entry: entry,
-                        participant: participant(for: entry.senderID)
+                        participant: participant(for: entry.senderID),
+                        onRetry: { onRetry(entry.roomID, entry.id) }
                     )
                 }
                 paginationFooter
@@ -159,6 +161,7 @@ struct OverlayHistoryView: View {
 private struct HistoryMessageCard: View {
     let entry: MessageLedgerEntry
     let participant: MessageHistoryParticipant
+    let onRetry: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -215,9 +218,12 @@ private struct HistoryMessageCard: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         case .failed:
-            Label("전송 실패", systemImage: "exclamationmark.triangle.fill")
-                .font(.caption2)
-                .foregroundStyle(.red)
+            HStack {
+                Label("전송 실패", systemImage: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+                if participant.isCurrentUser { Button("재전송", action: onRetry).buttonStyle(.link) }
+            }
+            .font(.caption2)
         case .confirmed:
             EmptyView()
         }

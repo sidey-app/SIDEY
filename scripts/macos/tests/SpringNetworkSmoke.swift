@@ -48,6 +48,8 @@ private actor Probe {
         switch event {
         case .message(let message): messages.insert(message.id)
         case .snapshot(let snapshot): rooms = Set(snapshot.rooms.map(\.id))
+        case .roomRevoked(let room, _): rooms.remove(room)
+        case .roomStateInvalidated: rooms.removeAll()
         case .reconciliation(let value): rooms = Set(value.snapshot.rooms.map(\.id))
         case .typing(_, let user, let active): if active { typing.insert(user) }
         case .presence(_, let user, let state): if state == .online { online.insert(user) }
@@ -88,7 +90,7 @@ private func wait(_ message: String, _ condition: @escaping @Sendable () async -
             let keychain = KeychainStore(service: UUID().uuidString, session: KeychainAccessSession(security: storage))
             let socket = SpringRealtimeTransport()
             clients.append(SideyBackend(configuration: configuration, keychain: keychain,
-                networkPathMonitor: LocalNetworkMonitor(), transport: socket, membershipPollInterval: .milliseconds(250)))
+                networkPathMonitor: LocalNetworkMonitor(), transport: socket))
             sockets.append(socket)
         }
         let first = clients[0], second = clients[1]
@@ -132,13 +134,13 @@ private func wait(_ message: String, _ condition: @escaping @Sendable () async -
         try require(recovered.activeMessages.contains { $0.id == missing.id }, "Recovery lost committed message")
         report("PASS disconnect and subscribe-first REST recovery")
         try await first.removeRoomMember(room.roomID, userID: secondUser)
-        // The server may silently remove subscriptions; real REST reconciliation must notice.
-        try await wait("Silent kick retained local room") { !(await probe.hasRoom(room.roomID)) }
+        // The server sends room.revoked directly even after removing the subscription.
+        try await wait("Direct revocation retained local room") { !(await probe.hasRoom(room.roomID)) }
         do {
             _ = try await second.sendMessage(roomID: room.roomID, body: "차단 확인", id: UUID())
             throw SmokeFailure.failed("Removed member sent message")
         } catch SideyBackendError.membershipRequired {}
-        report("PASS silent kick reconciliation and server authorization")
+        report("PASS direct revocation cleanup and server authorization")
         try await first.deleteAccount()
         try await second.deleteAccount()
         await first.shutdown(); await second.shutdown()

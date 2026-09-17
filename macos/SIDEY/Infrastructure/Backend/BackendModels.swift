@@ -4,6 +4,8 @@ struct BackendSnapshot: Equatable, Sendable {
     var profile: Profile?
     var rooms: [Room]
     var activeEntitlementKeys: Set<String> = []
+    // Local ordering only; never sent to the server.
+    var membershipRevision: UInt64 = 0
 }
 
 struct BackendReconciliation: Equatable, Sendable {
@@ -44,6 +46,8 @@ struct MessageHistoryPage: Equatable, Sendable {
 
 enum BackendEvent: Sendable {
     case authenticationRequired
+    case roomRevoked(roomID: UUID, revision: UInt64)
+    case roomStateInvalidated(revision: UInt64)
     case snapshot(BackendSnapshot)
     case reconciliation(BackendReconciliation)
     case message(ChatMessage)

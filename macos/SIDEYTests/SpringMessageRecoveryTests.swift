@@ -44,24 +44,35 @@ final class SpringMessageRecoveryTests: XCTestCase {
         XCTAssertEqual(ledger.confirmedCursor, completed)
     }
 
-    func testFailedRetryRetainsUUIDOnlyForSameRoomSenderBodyWithinRetention() {
-        let fixture = RecoveryFixtureData()
-        let now = Date(timeIntervalSince1970: 1_000_000)
-        let id = fixture.id(1)
+    func testFreshSameBodySendIsNewWhileExplicitRetryKeepsOriginalSnapshot() throws {
+        let state = AppMessageState(), room = UUID(), sender = UUID(), now = Date(timeIntervalSince1970: 1_000_000)
+        let first = state.stageNewMessage(roomID: room, senderID: sender, body: "same", now: now, activeRoomID: room, equippedBubbleStyleID: nil)
+        _ = state.failMessage(id: first.id, roomID: room)
+        let second = state.stageNewMessage(roomID: room, senderID: sender, body: "same", now: now.addingTimeInterval(1), activeRoomID: room, equippedBubbleStyleID: nil)
+        XCTAssertNotEqual(first.id, second.id)
+        let retried = try XCTUnwrap(state.retryMessage(id: first.id, roomID: room, senderID: sender,
+            now: now.addingTimeInterval(2), activeRoomID: room, equippedBubbleStyleID: nil))
+        XCTAssertEqual(retried.id, first.id)
+        XCTAssertEqual(retried.body, first.body)
+        XCTAssertEqual(retried.createdAt, first.createdAt)
+        XCTAssertEqual(state.messageOutbox.entries.first(where: { $0.id == first.id })?.state, .pending)
+        XCTAssertNil(state.retryMessage(id: first.id, roomID: room, senderID: sender, now: now, activeRoomID: room, equippedBubbleStyleID: nil))
+    }
+
+    func testFailedRetryCandidatesRejectWrongOwnerRoomExpiredAndOverCapacity() {
+        let data = RecoveryFixtureData(), now = Date(timeIntervalSince1970: 1_000_000)
         var outbox = MessageOutbox()
-        outbox.stage(id: id, roomID: fixture.room, senderID: fixture.user, body: "original", createdAt: now)
-        XCTAssertNil(outbox.retryID(roomID: fixture.room, senderID: fixture.user, body: "original", now: now))
-        _ = outbox.fail(id: id, roomID: fixture.room)
-        XCTAssertEqual(outbox.retryID(roomID: fixture.room, senderID: fixture.user, body: "original", now: now.addingTimeInterval(60)), id)
-        XCTAssertNil(outbox.retryID(roomID: fixture.room, senderID: fixture.user, body: "edited", now: now))
-        XCTAssertNil(outbox.retryID(roomID: fixture.id(2), senderID: fixture.user, body: "original", now: now))
-        XCTAssertNil(outbox.retryID(roomID: fixture.room, senderID: fixture.id(2), body: "original", now: now))
-        XCTAssertNil(outbox.retryID(roomID: fixture.room, senderID: fixture.user, body: "original", now: now.addingTimeInterval(3 * 86_400)))
-        outbox.stage(id: id, roomID: fixture.room, senderID: fixture.user, body: "original", createdAt: now.addingTimeInterval(60))
-        XCTAssertEqual(outbox.entries.count, 1)
-        XCTAssertEqual(outbox.entries.first?.state, .pending)
-        XCTAssertEqual(outbox.entries.first?.createdAt, now, "Restaging cannot extend the original retention guarantee")
-        XCTAssertNil(outbox.retryID(roomID: fixture.room, senderID: fixture.user, body: "original", now: now))
+        for index in 0...50 {
+            outbox.stage(id: data.id(index), roomID: data.room, senderID: data.user, body: "same", createdAt: now.addingTimeInterval(Double(index)))
+            _ = outbox.fail(id: data.id(index), roomID: data.room)
+        }
+        XCTAssertEqual(outbox.entries.count, 50)
+        XCTAssertNil(outbox.retryCandidate(id: data.id(0), roomID: data.room, senderID: data.user, now: now))
+        XCTAssertNil(outbox.retryCandidate(id: data.id(1), roomID: UUID(), senderID: data.user, now: now))
+        XCTAssertNil(outbox.retryCandidate(id: data.id(1), roomID: data.room, senderID: UUID(), now: now))
+        XCTAssertNil(outbox.retryCandidate(id: data.id(1), roomID: data.room, senderID: data.user, now: now.addingTimeInterval(1 + MessageLedger.retentionInterval)))
+        outbox.pruneFailed(now: now.addingTimeInterval(50 + MessageLedger.retentionInterval))
+        XCTAssertTrue(outbox.entries.isEmpty)
     }
 
     func testGatewaySubscribesBeforeReadingAllPagesAndMergesLiveBeyondCheckpoint() async throws {
@@ -110,28 +121,219 @@ final class SpringMessageRecoveryTests: XCTestCase {
         fixture.close()
     }
 
-    func testSilentMembershipRemovalRefreshesSnapshotAndClearsRoomWithoutSocketEvent() async throws {
-        let fixture = try RecoveryGatewayFixture(membershipPollInterval: .milliseconds(20))
+    func testDirectRoomRevocationClearsCachedMessagesWithoutSnapshotPoll() async throws {
+        let fixture = try RecoveryGatewayFixture()
         let snapshot = try await fixture.backend.boot()
         _ = try await fixture.backend.syncRealtime(rooms: snapshot.rooms, activeRoomID: fixture.data.room)
-        var removed = false
+        let revoked = expectation(description: "Direct revocation received")
+        let observed = Task { @MainActor in
+            for await event in fixture.backend.events {
+                if case .roomRevoked(let room, _) = event, room == fixture.data.room { revoked.fulfill(); return }
+            }
+        }
+        defer { observed.cancel() }
+        fixture.server.removeMembership()
+        await fulfillment(of: [revoked], timeout: 2)
+        XCTAssertFalse(fixture.server.returnedRemovedSnapshot, "Revocation must act immediately without a REST poll")
+        do { _ = try await fixture.backend.recentMessages(roomID: fixture.data.room); XCTFail("Removed cache remained readable") }
+        catch { XCTAssertEqual(error as? SideyBackendError, .membershipRequired) }
+        do { try await fixture.backend.setActiveRoom(fixture.data.room); XCTFail("A late focus callback restored revoked active room") }
+        catch { XCTAssertEqual(error as? SideyBackendError, .membershipRequired) }
+        let attempts = fixture.server.messageAttempts.count
+        do { _ = try await fixture.backend.sendMessage(roomID: fixture.data.room, body: "blocked"); XCTFail("Revoked room allowed send") }
+        catch { XCTAssertEqual(error as? SideyBackendError, .membershipRequired) }
+        XCTAssertEqual(fixture.server.messageAttempts.count, attempts)
+        fixture.server.restoreMembership()
+        let rejoined = try await fixture.backend.syncRealtime(rooms: snapshot.rooms, activeRoomID: fixture.data.room)
+        XCTAssertEqual(rejoined.snapshot.rooms.map(\.id), [fixture.data.room], "A fresh authoritative rejoin must be allowed after revocation")
+        XCTAssertEqual(rejoined.activeMessages.count, 231)
+        await fixture.backend.shutdown(); fixture.close()
+    }
+
+    func testDirectRoomRevocationIsHandledWithoutRoomSubscription() async throws {
+        let fixture = try RecoveryGatewayFixture(emptyRooms: true)
+        let snapshot = try await fixture.backend.boot()
+        _ = try await fixture.backend.syncRealtime(rooms: snapshot.rooms, activeRoomID: nil)
+        let revoked = expectation(description: "Direct revocation received")
+        let observed = Task { @MainActor in
+            for await event in fixture.backend.events {
+                if case .roomRevoked(let room, _) = event, room == fixture.data.room { revoked.fulfill(); return }
+            }
+        }
+        defer { observed.cancel() }
+        fixture.server.removeMembership()
+        await fulfillment(of: [revoked], timeout: 2)
+        XCTAssertTrue(fixture.server.historyQueries.isEmpty)
+        await fixture.backend.shutdown(); fixture.close()
+    }
+
+    func testRevocationCancelsInFlightRecoveryAndRejectsLateHistoryOrSnapshot() async throws {
+        for holdSnapshot in [false, true] {
+            let fixture = try RecoveryGatewayFixture(holdHistory: !holdSnapshot)
+            let snapshot = try await fixture.backend.boot()
+            if holdSnapshot {
+                _ = try await fixture.backend.syncRealtime(rooms: snapshot.rooms, activeRoomID: fixture.data.room)
+                fixture.server.holdNextSnapshot()
+            }
+            let recovering = Task { try await fixture.backend.syncRealtime(rooms: snapshot.rooms, activeRoomID: fixture.data.room) }
+            let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+            while !fixture.server.historyResponseHeld {
+                guard ContinuousClock.now < deadline else { return XCTFail("Recovery request did not reach gate") }
+                try await Task.sleep(for: .milliseconds(2))
+            }
+            let revoked = expectation(description: "Recovery interrupted by revocation")
+            let observed = Task { @MainActor in
+                for await event in fixture.backend.events {
+                    if case .roomRevoked = event { revoked.fulfill(); return }
+                }
+            }
+            defer { observed.cancel() }
+            fixture.server.removeMembership()
+            await fulfillment(of: [revoked], timeout: 2)
+            fixture.server.releaseHistory()
+            do { _ = try await recovering.value; XCTFail("Revoked recovery returned stale messages") }
+            catch { /* Cancellation or membership denial both reject stale recovery. */ }
+            let current = try await fixture.backend.syncRealtime(rooms: [], activeRoomID: nil)
+            XCTAssertTrue(current.snapshot.rooms.isEmpty)
+            XCTAssertTrue(current.activeMessages.isEmpty)
+            XCTAssertNil(current.activeRoomID)
+            await fixture.backend.shutdown(); fixture.close()
+        }
+    }
+
+    func testRoomRevocationPurgesFailedMessagesPresenceTypingAndActiveRoom() throws {
+        let data = RecoveryFixtureData()
+        let room = try JSONDecoder().decode(SpringRoom.self, from: JSONSerialization.data(withJSONObject: data.roomJSON)).domain
+        let model = AppModel(preferences: .defaults)
+        model.rooms = [room]; model.currentUserID = data.user; model.preferences.activeRoomID = room.id
+        model.draft = "removed room draft"
+        model.updatePresence(roomID: room.id, userID: data.user, state: .away)
+        model.updateTyping(roomID: room.id, userID: data.user, active: true)
+        let pending = model.stageNewMessage(roomID: room.id, senderID: data.user, body: "failed")
+        _ = model.failMessage(id: pending.id, roomID: room.id)
+        _ = model.confirmMessage(try data.message(1).domain)
+        model.incrementUnread(in: room.id)
+        model.revokeRoom(room.id)
+        XCTAssertTrue(model.rooms.isEmpty)
+        XCTAssertNil(model.activeRoom)
+        XCTAssertTrue(model.draft.isEmpty)
+        XCTAssertTrue(model.messageOutbox.entries.isEmpty)
+        XCTAssertTrue(model.messageLedger.entries.isEmpty)
+        XCTAssertTrue(model.unreadCounts.isEmpty)
+        XCTAssertTrue(model.activeBubbles.isEmpty)
+        model.apply(snapshot: BackendSnapshot(profile: nil, rooms: [room]), currentUserID: data.user)
+        XCTAssertEqual(model.rooms.first?.members.first?.presence, .offline, "Rejoin cannot inherit revoked presence or typing")
+    }
+
+    func testRevokingInactiveRoomPreservesOtherRoomDraftAndMessages() throws {
+        let data = RecoveryFixtureData()
+        let room = try JSONDecoder().decode(SpringRoom.self, from: JSONSerialization.data(withJSONObject: data.roomJSON)).domain
+        let other = Room(id: UUID(), name: "other", ownerID: data.user, members: room.members, inviteCodeHint: "TEST")
+        let model = AppModel(preferences: .defaults)
+        model.rooms = [room, other]; model.currentUserID = data.user; model.preferences.activeRoomID = other.id
+        model.draft = "active room draft"
+        let active = model.stageNewMessage(roomID: other.id, senderID: data.user, body: "keep")
+        _ = model.stageNewMessage(roomID: room.id, senderID: data.user, body: "remove")
+        model.revokeRoom(room.id)
+        XCTAssertEqual(model.activeRoom?.id, other.id)
+        XCTAssertEqual(model.draft, "active room draft")
+        XCTAssertEqual(model.messageOutbox.entries.map(\.id), [active.id])
+    }
+
+    func testQueuedOldReconciliationCannotRestoreRevokedRoomButFreshRejoinCan() throws {
+        let data = RecoveryFixtureData()
+        let room = try JSONDecoder().decode(SpringRoom.self, from: JSONSerialization.data(withJSONObject: data.roomJSON)).domain
+        let coordinator = AppCoordinator(updateController: NoUpdateController(),
+            preferencesStore: PreferencesStore(load: { .defaults }, save: { _ in }),
+            legacyMigrator: .none, keychainAccessSession: KeychainAccessSession(),
+            releaseChannel: .development, arguments: [])
+        coordinator.model.currentUserID = data.user
+        let old = BackendSnapshot(profile: nil, rooms: [room])
+        coordinator.applyBackendSnapshot(old, currentUserID: data.user)
+        coordinator.handleBackendEvent(.roomRevoked(roomID: room.id, revision: 1))
+        coordinator.applyBackendReconciliation(BackendReconciliation(snapshot: old, activeRoomID: room.id, activeMessages: [try data.message(1).domain]))
+        XCTAssertTrue(coordinator.model.rooms.isEmpty)
+        XCTAssertTrue(coordinator.model.messageLedger.entries.isEmpty)
+        var fresh = old; fresh.membershipRevision = 1
+        coordinator.applyBackendReconciliation(BackendReconciliation(snapshot: fresh, activeRoomID: room.id, activeMessages: []))
+        XCTAssertEqual(coordinator.model.rooms.map(\.id), [room.id])
+    }
+
+    func testReplacementBackendStartsANewLocalMembershipRevision() throws {
+        let fixture = try RecoveryGatewayFixture()
+        defer { fixture.close() }
+        let coordinator = AppCoordinator(updateController: NoUpdateController(),
+            preferencesStore: PreferencesStore(load: { .defaults }, save: { _ in }),
+            legacyMigrator: .none, keychainAccessSession: KeychainAccessSession(),
+            releaseChannel: .development, arguments: [])
+        coordinator.latestMembershipRevision = 5
+        coordinator.backend = fixture.backend
+        XCTAssertEqual(coordinator.latestMembershipRevision, 0)
+        let room = try JSONDecoder().decode(SpringRoom.self, from: JSONSerialization.data(withJSONObject: fixture.data.roomJSON)).domain
+        XCTAssertTrue(coordinator.applyBackendSnapshot(BackendSnapshot(profile: nil, rooms: [room]), currentUserID: fixture.data.user))
+        XCTAssertEqual(coordinator.model.rooms.map(\.id), [room.id])
+    }
+
+    func testRevocationSurvivesBoundedEventOverflowWhileRecoveryIsBlocked() async throws {
+        let fixture = try RecoveryGatewayFixture()
+        let snapshot = try await fixture.backend.boot()
+        _ = try await fixture.backend.syncRealtime(rooms: snapshot.rooms, activeRoomID: fixture.data.room)
+        // Do not consume events yet: the UI is a slow consumer. Hold the next
+        // REST snapshot so a dropped control cannot be repaired by recovery.
+        fixture.server.holdNextSnapshot()
+        fixture.server.removeMembership()
+        let deadline = ContinuousClock.now.advanced(by: .seconds(3))
+        while !fixture.server.historyResponseHeld {
+            guard ContinuousClock.now < deadline else { return XCTFail("Recovery snapshot was not blocked") }
+            try await Task.sleep(for: .milliseconds(2))
+        }
+        for _ in 0..<600 {
+            fixture.server.publishTransientError()
+            // Allow the socket reader to advance while the UI remains blocked.
+            try await Task.sleep(for: .milliseconds(1))
+        }
+        let coordinator = AppCoordinator(updateController: NoUpdateController(),
+            preferencesStore: PreferencesStore(load: { .defaults }, save: { _ in }),
+            legacyMigrator: .none, keychainAccessSession: KeychainAccessSession(),
+            releaseChannel: .development, arguments: [])
+        coordinator.applyBackendSnapshot(snapshot, currentUserID: fixture.data.user)
+        let cleared = expectation(description: "Revocation retained despite UI stream overflow")
         let reader = Task { @MainActor in
             for await event in fixture.backend.events {
-                if case .snapshot(let snapshot) = event, snapshot.rooms.isEmpty { removed = true; return }
+                if case .roomStateInvalidated = event {
+                    coordinator.handleBackendEvent(event)
+                    cleared.fulfill(); return
+                }
             }
         }
         defer { reader.cancel() }
-        fixture.server.removeMembership()
-        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
-        while !removed {
-            guard ContinuousClock.now < deadline else { return XCTFail("Membership poll never observed removal") }
-            try await Task.sleep(for: .milliseconds(5))
-        }
-        XCTAssertTrue(fixture.server.returnedRemovedSnapshot)
-        do { _ = try await fixture.backend.recentMessages(roomID: fixture.data.room); XCTFail("Removed room cache must not remain readable") }
-        catch { XCTAssertEqual(error as? SideyBackendError, .membershipRequired) }
+        await fulfillment(of: [cleared], timeout: 2)
+        XCTAssertTrue(coordinator.model.rooms.isEmpty)
+        XCTAssertTrue(coordinator.model.messageLedger.entries.isEmpty)
+        XCTAssertTrue(fixture.server.historyResponseHeld, "UI must clear without waiting for the blocked REST response")
         await fixture.backend.shutdown()
+        fixture.server.releaseHistory()
         fixture.close()
+    }
+
+    func testLostAckRetrievesCommittedCanonicalUUIDAndConflictNeverFallsBack() async throws {
+        for mode in [RecoveryMessageMode.loseAck, .canonical] {
+            let fixture = try RecoveryGatewayFixture(messageMode: mode)
+            let snapshot = try await fixture.backend.boot()
+            _ = try await fixture.backend.syncRealtime(rooms: snapshot.rooms, activeRoomID: fixture.data.room)
+            let id = UUID()
+            let first = try await fixture.backend.sendMessage(roomID: fixture.data.room, body: "original", id: id)
+            XCTAssertEqual(first.id, id)
+            let before = fixture.server.lookupCount
+            do { _ = try await fixture.backend.sendMessage(roomID: fixture.data.room, body: "edited", id: id); XCTFail("Changed payload accepted") }
+            catch { XCTAssertEqual(error as? SideyBackendError, .remote("message_id_conflict")) }
+            if mode == .canonical { XCTAssertEqual(fixture.server.lookupCount, before, "Explicit conflict must not be hidden by lookup") }
+            let same = try await fixture.backend.sendMessage(roomID: fixture.data.room, body: "original", id: id)
+            XCTAssertEqual(same.id, first.id)
+            XCTAssertEqual(same.createdAt, first.createdAt)
+            XCTAssertEqual(fixture.server.committedMessageCount, 1)
+            await fixture.backend.shutdown(); fixture.close()
+        }
     }
 
     func testCheckoutPollingReadsExactServerOrder() async throws {
@@ -224,11 +426,11 @@ private final class RecoveryGatewayFixture {
     private let network: URLSession
     private let host: String
     init(failSecondPageOnce: Bool = false, accountStatus: Int = 204, accountCode: String = "",
-         membershipPollInterval: Duration = .seconds(30)) throws {
+         emptyRooms: Bool = false, holdHistory: Bool = false, messageMode: RecoveryMessageMode = .rejectFirst) throws {
         host = "recovery-\(UUID().uuidString.lowercased()).invalid"
         let config = RuntimeConfiguration(apiBaseURL: URL(string: "https://\(host)/api")!)
         server = RecoveryProtocolServer(data: data, failSecondPageOnce: failSecondPageOnce,
-            accountStatus: accountStatus, accountCode: accountCode)
+            accountStatus: accountStatus, accountCode: accountCode, emptyRooms: emptyRooms, holdHistory: holdHistory, messageMode: messageMode)
         RecoveryURLProtocol.servers.register(server, host: host)
         let networkConfig = URLSessionConfiguration.ephemeral
         networkConfig.protocolClasses = [RecoveryURLProtocol.self]
@@ -242,7 +444,7 @@ private final class RecoveryGatewayFixture {
         let socket = RecoveryProtocolSocket(server: server)
         let transport = SpringRealtimeTransport(heartbeatInterval: .seconds(3_600), socketFactory: { _ in socket })
         backend = SideyBackend(configuration: config, keychain: keychain, networkPathMonitor: RecoveryNetworkMonitor(),
-            session: session, transport: transport, membershipPollInterval: membershipPollInterval)
+            session: session, transport: transport)
     }
     func close() {
         network.invalidateAndCancel()
@@ -250,10 +452,20 @@ private final class RecoveryGatewayFixture {
     }
 }
 
+private enum RecoveryMessageMode { case rejectFirst, loseAck, canonical }
+
 private final class RecoveryProtocolServer: @unchecked Sendable {
     let data: RecoveryFixtureData
     private let lock = NSLock()
     private var subscribed = false
+    private var publish: (@Sendable (Data) -> Void)?
+    private var heldHistory: (@Sendable () -> Void)?
+    private var shouldHoldSnapshot = false
+    private var shouldHoldHistory: Bool
+    private let emptyRooms: Bool
+    private let messageMode: RecoveryMessageMode
+    private var committed: [String: [String: Any]] = [:]
+    private var lookups = 0
     private var queries: [[String: String]] = []
     private var attempts: [[String: String]] = []
     private var ordered = true
@@ -264,7 +476,10 @@ private final class RecoveryProtocolServer: @unchecked Sendable {
     private let accountStatus: Int
     private let accountCode: String
     private let failSecondPageOnce: Bool
-    init(data: RecoveryFixtureData, failSecondPageOnce: Bool, accountStatus: Int, accountCode: String) {
+    init(data: RecoveryFixtureData, failSecondPageOnce: Bool, accountStatus: Int, accountCode: String, emptyRooms: Bool, holdHistory: Bool, messageMode: RecoveryMessageMode) {
+        self.emptyRooms = emptyRooms
+        self.shouldHoldHistory = holdHistory
+        self.messageMode = messageMode
         self.data = data
         self.failSecondPageOnce = failSecondPageOnce
         self.accountStatus = accountStatus
@@ -276,7 +491,30 @@ private final class RecoveryProtocolServer: @unchecked Sendable {
     var receivedEquipmentClear: Bool { lock.withLock { equipmentClear } }
     var receivedAuthenticatedDelete: Bool { lock.withLock { authenticatedDelete } }
     var returnedRemovedSnapshot: Bool { lock.withLock { removedSnapshot } }
-    func removeMembership() { lock.withLock { membershipRemoved = true } }
+    var lookupCount: Int { lock.withLock { lookups } }
+    var committedMessageCount: Int { lock.withLock { committed.count } }
+    var shouldLoseAck: Bool { lock.withLock { messageMode == .loseAck && attempts.count == 1 } }
+    var historyResponseHeld: Bool { lock.withLock { heldHistory != nil } }
+    func attach(_ publish: @escaping @Sendable (Data) -> Void) { lock.withLock { self.publish = publish } }
+    func holdNextSnapshot() { lock.withLock { shouldHoldSnapshot = true } }
+    func holdHistoryResponse(path: String, _ callback: @escaping @Sendable () -> Void) -> Bool {
+        lock.withLock {
+            if path.hasSuffix("/messages"), shouldHoldHistory { shouldHoldHistory = false }
+            else if path == "/api/rooms", shouldHoldSnapshot { shouldHoldSnapshot = false }
+            else { return false }
+            heldHistory = callback; return true
+        }
+    }
+    func releaseHistory() { let callback = lock.withLock { let value = heldHistory; heldHistory = nil; return value }; callback?() }
+    func publishTransientError() {
+        let sink = lock.withLock { publish }
+        sink?(Data(#"{"type":"error","code":"transient_rate_limited"}"#.utf8))
+    }
+    func restoreMembership() { lock.withLock { membershipRemoved = false } }
+    func removeMembership() {
+        let sink = lock.withLock { membershipRemoved = true; return publish }
+        sink?(try! JSONSerialization.data(withJSONObject: ["type": "room.revoked", "roomId": data.room.uuidString]))
+    }
 
     func reply(_ request: URLRequest) throws -> (Int, Data) {
         let result: (Int, Any) = lock.withLock {
@@ -309,12 +547,17 @@ private final class RecoveryProtocolServer: @unchecked Sendable {
             }
             if url.path == "/api/rooms" {
                 if membershipRemoved { removedSnapshot = true; return (200, []) }
-                return (200, [data.roomJSON])
+                return (200, emptyRooms ? [] : [data.roomJSON])
             }
             if url.path == "/api/commerce/orders/\(data.id(800))" {
                 return (200, ["id": data.id(800).uuidString, "status": "failed"])
             }
             if url.path == "/api/commerce/entitlements" { return (200, []) }
+            if url.path.contains("/messages/") {
+                lookups += 1
+                if membershipRemoved { return (403, ["code": "membership_required"]) }
+                if let message = committed[url.lastPathComponent.lowercased()] { return (200, message) }
+            }
             if url.path.hasSuffix("/messages") {
                 if membershipRemoved { return (403, ["code": "membership_required"]) }
                 ordered = ordered && subscribed
@@ -350,12 +593,20 @@ private final class RecoveryProtocolServer: @unchecked Sendable {
             }
             if type == "message.send" {
                 attempts.append(body)
-                if attempts.count == 1 {
+                if messageMode == .rejectFirst && attempts.count == 1 {
                     return [try JSONSerialization.data(withJSONObject: ["type": "error", "requestId": body["requestId"]!, "code": "internal_error"])]
+                }
+                let key = body["id"]!.lowercased()
+                if let message = committed[key] {
+                    if message["body"] as? String != body["body"] {
+                        return [try JSONSerialization.data(withJSONObject: ["type": "error", "requestId": body["requestId"]!, "code": "message_id_conflict"])]
+                    }
+                    return [try JSONSerialization.data(withJSONObject: ["type": "message.ack", "requestId": body["requestId"]!, "message": message])]
                 }
                 var message = data.messageJSON(999)
                 message["id"] = body["id"]
                 message["body"] = body["body"]
+                committed[key] = message
                 return [try JSONSerialization.data(withJSONObject: ["type": "message.ack", "requestId": body["requestId"]!, "message": message])]
             }
             return []
@@ -374,23 +625,36 @@ private final class RecoveryURLProtocol: URLProtocol, @unchecked Sendable {
     static let servers = RecoveryServerRegistry()
     override class func canInit(with request: URLRequest) -> Bool { request.url?.host?.hasSuffix(".invalid") == true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    private let deliveryLock = NSLock()
+    private var stopped = false
     override func startLoading() {
         do {
             guard let url = request.url, let server = Self.servers.server(host: url.host ?? "") else { throw URLError(.badURL) }
             let (status, data) = try server.reply(request)
             let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: ["Content-Type": "application/json"])!
-            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-            client?.urlProtocol(self, didLoad: data)
-            client?.urlProtocolDidFinishLoading(self)
+            let deliver: @Sendable () -> Void = { [self] in
+                deliveryLock.withLock {
+                    guard !stopped else { return }
+                    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+                    client?.urlProtocol(self, didLoad: data)
+                    client?.urlProtocolDidFinishLoading(self)
+                }
+            }
+            if server.holdHistoryResponse(path: url.path, deliver) { return }
+            deliver()
         } catch { client?.urlProtocol(self, didFailWithError: error) }
     }
-    override func stopLoading() {}
+    override func stopLoading() { deliveryLock.withLock { stopped = true } }
 }
 
 private final class RecoveryProtocolSocket: SpringRealtimeSocket, @unchecked Sendable {
     private let server: RecoveryProtocolServer
     private let stream = AsyncThrowingStream<Data, Error>.makeStream()
-    init(server: RecoveryProtocolServer) { self.server = server }
+    init(server: RecoveryProtocolServer) {
+        self.server = server
+        let continuation = stream.continuation
+        server.attach { continuation.yield($0) }
+    }
     func resume() { stream.continuation.yield(Data(#"{"type":"connected","connectionId":"test"}"#.utf8)) }
     func cancel() { stream.continuation.finish(throwing: CancellationError()) }
     func receive() async throws -> Data {
@@ -399,7 +663,9 @@ private final class RecoveryProtocolSocket: SpringRealtimeSocket, @unchecked Sen
         return next
     }
     func send(_ text: String) async throws {
-        for frame in try server.command(text) { stream.continuation.yield(frame) }
+        let frames = try server.command(text)
+        if text.contains("message.send"), server.shouldLoseAck { throw URLError(.networkConnectionLost) }
+        for frame in frames { stream.continuation.yield(frame) }
     }
 }
 private struct RecoveryNetworkMonitor: NetworkPathMonitoring {

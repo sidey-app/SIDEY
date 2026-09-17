@@ -301,11 +301,16 @@ struct MessageOutbox: Equatable, Sendable {
 
     private(set) var entries: [OutgoingMessage] = []
 
-    func retryID(roomID: UUID, senderID: UUID, body: String, now: Date = .now) -> UUID? {
-        entries.last(where: {
-            $0.roomID == roomID && $0.senderID == senderID && $0.body == body
-                && $0.state == .failed && $0.createdAt > now.addingTimeInterval(-3 * 86_400)
-        })?.id
+    func retryCandidate(id: UUID, roomID: UUID, senderID: UUID, now: Date = .now) -> OutgoingMessage? {
+        entries.first {
+            $0.id == id && $0.roomID == roomID && $0.senderID == senderID
+                && $0.state == .failed && $0.createdAt > now.addingTimeInterval(-MessageLedger.retentionInterval)
+        }
+    }
+
+    mutating func pruneFailed(now: Date = .now) {
+        entries.removeAll { $0.state == .failed && $0.createdAt <= now.addingTimeInterval(-MessageLedger.retentionInterval) }
+        for roomID in Set(entries.map(\.roomID)) { pruneFailed(roomID: roomID) }
     }
 
     mutating func stage(
