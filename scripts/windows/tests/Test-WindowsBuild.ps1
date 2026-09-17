@@ -56,6 +56,7 @@ try {
         ) `
         -Description 'Windows smoke publish'
     & (Join-Path $PSScriptRoot 'Test-PowerShellSupport.ps1')
+    & (Join-Path $PSScriptRoot 'Test-PublishedApplicationTimeouts.ps1')
     & (Join-Path $PSScriptRoot 'Test-SelfContainedPublish.ps1') `
         -PublishDirectory $publishDirectory
     & (Join-Path $PSScriptRoot 'Test-PublishedApplication.ps1') `

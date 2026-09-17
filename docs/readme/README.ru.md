@@ -1,17 +1,10 @@
+[**한국어**](../../README.md) | [**English**](README.en.md) | [**日本語**](README.ja.md) | [**简体中文**](README.zh-Hans.md) | [**繁體中文**](README.zh-Hant.md) | **Русский** | [**Українська**](README.uk.md)
+
 <p align="center">
     <picture>
       <img src="../../website/public/assets/app-icon.png" width="128" height="128" alt="SIDEY">
   </picture>
 </p>
-
-```text
-███████╗██╗██████╗ ███████╗██╗   ██╗        /\_/\
-██╔════╝██║██╔══██╗██╔════╝╚██╗ ██╔╝       ( •.• )
-███████╗██║██║  ██║█████╗   ╚████╔╝         > ^ <
-╚════██║██║██║  ██║██╔══╝    ╚██╔╝                    ʕ•ᴥ•ʔ
-███████║██║██████╔╝███████╗   ██║                     /| |\
-╚══════╝╚═╝╚═════╝ ╚══════╝   ╚═╝                      / \          ●  your friends, beside you.
-```
 
 <h1 align="center">
   <span>SIDEY</span>
@@ -32,14 +25,22 @@
 
 <p align="center">
   <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
-    <img src="../assets/mac-app-store-badge.svg" height="48" alt="Скачать SIDEY в Mac App Store">
+    <img src="../assets/mac-app-store/mac-app-store.ru.svg" height="48" alt="Скачать SIDEY в Mac App Store">
   </a>
-  <img src="../assets/microsoft-store-badge.svg" height="48" alt="Скачать SIDEY в Microsoft Store (скоро)">
+  <span>
+    <img src="../assets/microsoft-store/microsoft-store.ru.svg" height="48" alt="Скачать SIDEY в Microsoft Store (скоро)">
+    <small>Microsoft Store: скоро</small>
+  </span>
 </p>
 
-<p align="center">
-  Читать на другом языке: <a href="../../README.md">한국어</a> | <a href="README.en.md">English</a> | <a href="README.ja.md">日本語</a> | <a href="README.zh-Hans.md">简体中文</a> | <a href="README.zh-Hant.md">繁體中文</a> | <a href="README.ru.md">Русский</a> | <a href="README.uk.md">Українська</a>
-</p>
+```text
+███████╗██╗██████╗ ███████╗██╗   ██╗        /\_/\
+██╔════╝██║██╔══██╗██╔════╝╚██╗ ██╔╝       ( •.• )
+███████╗██║██║  ██║█████╗   ╚████╔╝         > ^ <
+╚════██║██║██║  ██║██╔══╝    ╚██╔╝                    ʕ•ᴥ•ʔ
+███████║██║██████╔╝███████╗   ██║                     /| |\
+╚══════╝╚═╝╚═════╝ ╚══════╝   ╚═╝                      / \          ●  your friends, beside you.
+```
 
 ## О приложении
 
@@ -63,7 +64,7 @@ SIDEY — мессенджер для macOS и Windows, в котором вы �
   <p>Приложение легко установить из Mac App Store:</p>
   <p>
     <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
-      <img src="../assets/mac-app-store-badge.svg" height="48" alt="Скачать SIDEY в Mac App Store">
+      <img src="../assets/mac-app-store/mac-app-store.ru.svg" height="48" alt="Скачать SIDEY в Mac App Store">
     </a>
   </p>
   <p>Обновления могут выходить позже, поскольку проходят проверку Apple.</p>
@@ -98,9 +99,9 @@ SIDEY — мессенджер для macOS и Windows, в котором вы �
   <br/>
   <p>Готовим выпуск в Microsoft Store:</p>
   <p>
-    <img src="../assets/microsoft-store-badge.svg" height="48" alt="Скачать SIDEY в Microsoft Store (скоро)">
+    <img src="../assets/microsoft-store/microsoft-store.ru.svg" height="48" alt="Скачать SIDEY в Microsoft Store (скоро)">
   </p>
-  <p>После выхода обновления могут появляться позже, поскольку будут проходить проверку Microsoft.</p>
+  <p>Обновления могут появляться позже, поскольку проходят проверку Microsoft.</p>
 </details>
 
 <details>

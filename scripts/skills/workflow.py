@@ -367,40 +367,6 @@ def recover_merged_task(root, task, remote):
     return {**task, 'status': 'integrated', 'pr': str(pr['number']), 'merge': pr['mergeCommit']['oid']}
 
 
-def parsed_trailers(root, message):
-    parsed = subprocess.run(['git', 'interpret-trailers', '--parse'], cwd=root, input=message,
-                            text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if parsed.returncode:
-        raise WorkflowError(f'Cannot parse commit trailers: {(parsed.stderr or "").strip()}')
-    return parsed.stdout.splitlines()
-
-
-def parsed_coauthors(root, message):
-    result = []
-    for line in parsed_trailers(root, message):
-        match = re.fullmatch(r'Co-authored-by:\s*(.+?)\s*<([^>]+)>', line, re.IGNORECASE)
-        if match:
-            result.append(f'Co-authored-by: {match[1]} <{match[2]}>')
-    return result
-
-
-def coauthor_trailers(root, messages):
-    result = []
-    seen = set()
-    for message in messages:
-        for line in parsed_coauthors(root, message):
-            email = re.search(r'<([^>]+)>$', line)[1].casefold()
-            if email not in seen:
-                seen.add(email)
-                result.append(line)
-    return result
-
-
-def commit_messages(root, base, checked_head):
-    return [message for message in git(root, 'log', '--format=%B%x00',
-                                       f'{base}..{checked_head}').split('\0') if message.strip()]
-
-
 def require_valid_commit_text(label, value, *, subject_only=False):
     violations = validate_subject(value) if subject_only else validate_message(value)
     if violations:
@@ -443,36 +409,6 @@ def require_pr_body_file(root, value, paths):
         label='--body-file',
     )
     return path
-
-
-def pr_body_with_coauthors(root, body, messages):
-    """Append missing commit-range co-authors to a pull request body."""
-
-    body_message = f'Pull request body\n\n{body}'
-    required_coauthors = coauthor_trailers(root, [body_message] + messages)
-    existing_coauthors = parsed_coauthors(root, body_message)
-    if required_coauthors == existing_coauthors:
-        return body
-    trailers = parsed_trailers(root, body_message)
-    clean_body = body.rstrip()
-    if trailers:
-        lines = clean_body.splitlines()
-        separator = max(
-            (index for index, line in enumerate(lines) if not line.strip()),
-            default=-1,
-        )
-        clean_body = '\n'.join(lines[:separator + 1]).rstrip()
-    other_trailers = [
-        trailer
-        for trailer in trailers
-        if not re.match(r'Co-authored-by:', trailer, re.IGNORECASE)
-    ]
-    final_trailers = other_trailers + required_coauthors
-    return (
-        (clean_body + '\n\n' if clean_body else '')
-        + '\n'.join(final_trailers)
-        + '\n'
-    )
 
 
 def open_task_prs(root):
@@ -541,7 +477,6 @@ def publish(root, args):
             paths,
         )
         title = args.title
-        body = body_path.read_text(encoding='utf-8')
     else:
         details = json.loads(run(
             root,
@@ -555,55 +490,22 @@ def publish(root, args):
         title = details['title']
         body = details.get('body') or ''
         require_valid_pr(root, title, body, paths)
-    messages = commit_messages(
-        root,
-        task['checked']['base'],
-        task['checked']['head'],
-    )
-    prepared_body = pr_body_with_coauthors(root, body, messages)
-    require_pr_body(
-        root,
-        prepared_body,
-        paths,
-    )
-    temporary_body = None
-    try:
-        if not prs or prepared_body != body:
-            descriptor, temporary_body = tempfile.mkstemp(
-                prefix='sidey-pr-',
-                suffix='.md',
-            )
-            with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
-                stream.write(prepared_body)
-        git(root, 'push', '-u', 'origin', branch(root))
-        if not prs:
-            run(
-                root,
-                'gh',
-                'pr',
-                'create',
-                '--base',
-                'main',
-                '--head',
-                branch(root),
-                '--title',
-                title,
-                '--body-file',
-                temporary_body,
-            )
-        elif temporary_body:
-            run(
-                root,
-                'gh',
-                'pr',
-                'edit',
-                number,
-                '--body-file',
-                temporary_body,
-            )
-    finally:
-        if temporary_body:
-            Path(temporary_body).unlink(missing_ok=True)
+    git(root, 'push', '-u', 'origin', branch(root))
+    if not prs:
+        run(
+            root,
+            'gh',
+            'pr',
+            'create',
+            '--base',
+            'main',
+            '--head',
+            branch(root),
+            '--title',
+            title,
+            '--body-file',
+            str(body_path),
+        )
     prs = open_task_prs(root)
     number = require_exact_task_pr(root, prs)
     details = json.loads(run(
