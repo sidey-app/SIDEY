@@ -1,17 +1,10 @@
+**한국어** | [**English**](docs/readme/README.en.md) | [**日本語**](docs/readme/README.ja.md) | [**简体中文**](docs/readme/README.zh-Hans.md) | [**繁體中文**](docs/readme/README.zh-Hant.md) | [**Русский**](docs/readme/README.ru.md) | [**Українська**](docs/readme/README.uk.md)
+
 <p align="center">
     <picture>
       <img src="website/public/assets/app-icon.png" width="128" height="128" alt="SIDEY">
   </picture>
 </p>
-
-```text
-███████╗██╗██████╗ ███████╗██╗   ██╗        /\_/\
-██╔════╝██║██╔══██╗██╔════╝╚██╗ ██╔╝       ( •.• )
-███████╗██║██║  ██║█████╗   ╚████╔╝         > ^ <
-╚════██║██║██║  ██║██╔══╝    ╚██╔╝                    ʕ•ᴥ•ʔ
-███████║██║██████╔╝███████╗   ██║                     /| |\
-╚══════╝╚═╝╚═════╝ ╚══════╝   ╚═╝                      / \          ●  your friends, beside you.
-```
 
 <h1 align="center">
   <span>SIDEY</span>
@@ -32,14 +25,22 @@
 
 <p align="center">
   <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
-    <img src="docs/assets/mac-app-store-badge-ko.svg" height="48" alt="Mac App Store에서 SIDEY 다운로드">
+    <img src="docs/assets/mac-app-store/mac-app-store.ko.svg" height="48" alt="Mac App Store에서 SIDEY 다운로드">
   </a>
-  <img src="docs/assets/microsoft-store-badge.svg" height="48" alt="Microsoft Store에서 SIDEY 다운로드 (준비 중)">
+  <span>
+    <img src="docs/assets/microsoft-store/microsoft-store.ko.svg" height="48" alt="Microsoft Store에서 SIDEY 다운로드 (준비 중)">
+    <small>Microsoft Store: 준비 중</small>
+  </span>
 </p>
 
-<p align="center">
-  다른 언어로 읽어요: <a href="README.md">한국어</a> | <a href="docs/readme/README.en.md">English</a> | <a href="docs/readme/README.ja.md">日本語</a> | <a href="docs/readme/README.zh-Hans.md">简体中文</a> | <a href="docs/readme/README.zh-Hant.md">繁體中文</a> | <a href="docs/readme/README.ru.md">Русский</a> | <a href="docs/readme/README.uk.md">Українська</a>
-</p>
+```text
+███████╗██╗██████╗ ███████╗██╗   ██╗        /\_/\
+██╔════╝██║██╔══██╗██╔════╝╚██╗ ██╔╝       ( •.• )
+███████╗██║██║  ██║█████╗   ╚████╔╝         > ^ <
+╚════██║██║██║  ██║██╔══╝    ╚██╔╝                    ʕ•ᴥ•ʔ
+███████║██║██████╔╝███████╗   ██║                     /| |\
+╚══════╝╚═╝╚═════╝ ╚══════╝   ╚═╝                      / \          ●  your friends, beside you.
+```
 
 ## 소개
 
@@ -63,7 +64,7 @@ SIDEY는 macOS·Windows 데스크톱 메신저예요. 화면 가장자리의 2D 
   <p>Mac용 App Store에서 쉽게 설치할 수 있어요:</p>
   <p>
     <a href="https://apps.apple.com/kr/app/sidey/id6808528060">
-      <img src="docs/assets/mac-app-store-badge-ko.svg" height="48" alt="Mac App Store에서 SIDEY 다운로드">
+      <img src="docs/assets/mac-app-store/mac-app-store.ko.svg" height="48" alt="Mac App Store에서 SIDEY 다운로드">
     </a>
   </p>
   <p>Apple의 심사를 거치므로 업데이트가 느릴 수 있어요.</p>
@@ -98,9 +99,9 @@ SIDEY는 macOS·Windows 데스크톱 메신저예요. 화면 가장자리의 2D 
   <br/>
   <p>Microsoft Store 배포는 준비 중이에요:</p>
   <p>
-    <img src="docs/assets/microsoft-store-badge.svg" height="48" alt="Microsoft Store에서 SIDEY 다운로드 (준비 중)">
+    <img src="docs/assets/microsoft-store/microsoft-store.ko.svg" height="48" alt="Microsoft Store에서 SIDEY 다운로드 (준비 중)">
   </p>
-  <p>출시 후에는 Microsoft의 심사를 거치므로 업데이트가 느릴 수 있어요.</p>
+  <p>Microsoft의 심사를 거치므로 업데이트가 느릴 수 있어요.</p>
 </details>
 
 <details>

@@ -179,33 +179,6 @@ class WorkflowTests(unittest.TestCase):
                     w.main(['--repo', str(path), 'open', '--task', 'task'])
                 self.assertEqual(w.read_state(path)['task'], state)
 
-    def test_coauthors_come_from_real_trailer_blocks_and_deduplicate_email(self):
-        messages = [
-            'Example\nCo-authored-by: Not A Trailer <fake@example.test>\nMore text',
-            'Change\n\nCo-authored-by: Codex <codex@openai.com>',
-            'Another\n\nco-authored-by: codex <CODEX@OPENAI.COM>',
-            'Third\n\nCo-authored-by: Person <person@example.test>',
-        ]
-        self.assertEqual(w.coauthor_trailers(self.primary, messages), [
-            'Co-authored-by: Codex <codex@openai.com>',
-            'Co-authored-by: Person <person@example.test>',
-        ])
-
-    def test_publish_body_appends_missing_commit_coauthors_once(self):
-        body = (
-            'Summary\n\n'
-            'Co-authored-by: Codex <codex@openai.com>\n'
-        )
-        messages = [
-            'Change\n\nCo-authored-by: codex <CODEX@OPENAI.COM>',
-            'Another\n\nCo-authored-by: Person <person@example.test>',
-        ]
-        self.assertEqual(
-            w.pr_body_with_coauthors(self.primary, body, messages),
-            body.rstrip()
-            + '\nCo-authored-by: Person <person@example.test>\n',
-        )
-
     def test_merge_uses_github_squash_defaults_without_message_overrides(self):
         with patch.object(w, 'run') as run:
             w.merge_task_pr(self.primary, '108', 'checked-head')
@@ -220,10 +193,9 @@ class WorkflowTests(unittest.TestCase):
         self.assertNotIn('--subject', command)
         self.assertNotIn('--body-file', command)
 
-    def test_publish_updates_existing_pr_coauthors_without_merging(self):
+    def test_publish_preserves_existing_pr_body_without_editing_or_merging(self):
         template = self.write_general_pr_template()
         body = template.read_text(encoding='utf-8')
-        updated_body = body + '\nCo-authored-by: Person <person@example.test>\n'
         task = {
             'checked': {'base': 'base', 'head': 'checked-head'},
             'status': 'checked',
@@ -236,7 +208,7 @@ class WorkflowTests(unittest.TestCase):
         current_pr = {**old_pr, 'headRefOid': 'checked-head'}
         views = iter((
             {'title': 'fix(auth): 인증 오류 수정', 'body': body},
-            {'title': 'fix(auth): 인증 오류 수정', 'body': updated_body},
+            {'title': 'fix(auth): 인증 오류 수정', 'body': body},
         ))
         commands = []
 
@@ -257,8 +229,6 @@ class WorkflowTests(unittest.TestCase):
             patch.object(w, 'open_task_prs', side_effect=([old_pr], [current_pr])),
             patch.object(w, 'branch', return_value='shared/task'),
             patch.object(w, 'head', return_value='checked-head'),
-            patch.object(w, 'commit_messages', return_value=['commit']),
-            patch.object(w, 'pr_body_with_coauthors', return_value=updated_body),
             patch.object(w, 'git') as git,
             patch.object(w, 'update_task') as update_task,
             patch.object(w, 'run', side_effect=response),
@@ -272,7 +242,7 @@ class WorkflowTests(unittest.TestCase):
             'origin',
             'shared/task',
         )
-        self.assertTrue(any(command[:3] == ('gh', 'pr', 'edit') for command in commands))
+        self.assertFalse(any(command[:3] == ('gh', 'pr', 'edit') for command in commands))
         self.assertFalse(any(command[:3] == ('gh', 'pr', 'merge') for command in commands))
         self.assertFalse(any(command[:3] == ('gh', 'pr', 'create') for command in commands))
         self.assertEqual(result, {
@@ -281,6 +251,57 @@ class WorkflowTests(unittest.TestCase):
             'head': 'checked-head',
         })
         self.assertEqual(update_task.call_args.args[2]['status'], 'published')
+
+    def test_publish_creates_pr_with_exact_validated_body_file(self):
+        template = self.write_general_pr_template()
+        body = template.read_text(encoding='utf-8')
+        task = {
+            'checked': {'base': 'base', 'head': 'checked-head'},
+            'status': 'checked',
+        }
+        current_pr = {
+            'number': 42,
+            'headRefOid': 'checked-head',
+            'isCrossRepository': False,
+        }
+        commands = []
+
+        def response(root, *args, **kwargs):
+            commands.append(args)
+            if args[:3] == ('gh', 'pr', 'view'):
+                return json.dumps({
+                    'title': 'fix(auth): 인증 오류 수정',
+                    'body': body,
+                })
+            return ''
+
+        args = w.argparse.Namespace(
+            task='task',
+            title='fix(auth): 인증 오류 수정',
+            body_file=str(template),
+        )
+        with (
+            patch.object(w, 'owned_task', return_value=task),
+            patch.object(w, 'dirty_paths', return_value=[]),
+            patch.object(w, 'fetch_main', return_value='base'),
+            patch.object(w, 'attest'),
+            patch.object(w, 'changed_paths', return_value=['docs/guide.md']),
+            patch.object(w, 'validate_paths'),
+            patch.object(w, 'open_task_prs', side_effect=([], [current_pr])),
+            patch.object(w, 'branch', return_value='shared/task'),
+            patch.object(w, 'head', return_value='checked-head'),
+            patch.object(w, 'git'),
+            patch.object(w, 'update_task'),
+            patch.object(w, 'run', side_effect=response),
+        ):
+            w.publish(self.primary, args)
+
+        create = next(command for command in commands if command[:3] == ('gh', 'pr', 'create'))
+        body_file = Path(create[create.index('--body-file') + 1])
+        self.assertEqual(body_file, template.resolve())
+        self.assertEqual(body_file.read_text(encoding='utf-8'), body)
+        self.assertNotIn('Co-authored-by:', body)
+        self.assertFalse(any(command[:3] == ('gh', 'pr', 'edit') for command in commands))
 
     def advance(self):
         (self.other / 'advance.md').write_text('remote update\n')
