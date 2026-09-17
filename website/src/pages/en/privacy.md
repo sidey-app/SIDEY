@@ -28,9 +28,9 @@ SIDEY does not handle personal information for interest-based advertising, perso
 ## 2. Information handled
 
 - **Profile:** nickname and selected character
-- **Google account connection:** Google account identifier and email address
+- **Google sign-in and account linking:** Google account identifier, email address when provided, and authentication result
 - **Sign in with Apple:** Apple account identifier and, when Apple provides it, an email address
-- **Account and session:** anonymous user UUID, sign-in provider, and session identifiers
+- **Account and session:** provider-independent SIDEY user UUID, linked sign-in providers, and session identifiers
 - **Groups:** Group name, Group and membership identifiers, owner status, and join time
 - **Messages and real-time state:** message text, creation time, sender and Group identifiers, presence, and typing signals generated only in the SIDEY message field
 - **Purchases:** order and transaction identifiers, product, amount, payment, cancellation and refund status, and the time and content of policy consent
@@ -41,7 +41,7 @@ Elapsed time since the last system input and screen-lock state are checked local
 
 ## 3. How information is collected
 
-Information is collected when you create a profile or Group, send a message, connect a Google account, use Sign in with Apple, request payment, restoration, or a refund, or contact support. Presence and typing signals are processed in real time while connected to the Service.
+Information is collected when you sign in with Google or Apple, link another sign-in account, create a profile or Group, send a message, request payment, restoration, or a refund, or contact support. New anonymous Accounts are not created. Existing anonymous Accounts require proof of ownership using their existing credentials and a linked Google or Apple account; they retain the same SIDEY user UUID. Presence and typing signals are processed in real time while connected to the Service.
 
 SIDEY does not collect screen contents, lists of active apps, keys pressed in other apps, global pointer coordinates, file contents, microphone audio, or camera video. It does not inspect what you type outside the SIDEY message field.
 
@@ -50,7 +50,6 @@ SIDEY does not collect screen contents, lists of active apps, keys pressed in ot
 - **Messages:** three days after creation
 - **Presence and typing signals:** processed only while the real-time display is active and not retained persistently
 - **Account, profile, Group, and membership:** until Account deletion or termination of the Service; a membership link is deleted when you leave a Group
-- **Incomplete anonymous Account without a profile or Group:** may be removed after seven days
 - **Sign-in session stored on a device:** until sign-out, Account deletion, or deletion of app data
 
 Records that must be retained by law are used only for that purpose. Display and advertising records may be kept for six months; contract or cancellation records and payment or digital-delivery records for five years; and consumer complaint or dispute records for three years.
@@ -71,13 +70,14 @@ Information may be disclosed within the scope and period permitted by law when a
 
 The Operator uses the following providers only as needed to provide the Service. Changes to the provider or purpose will be disclosed through this Policy.
 
-- **Supabase Inc.:** handles Account UUIDs, profiles, Groups, messages, purchase status, and connection information for authentication, database, and real-time communication. Data is retained until Account deletion, termination of the Service, or the end of the service contract; messages are deleted after three days.
-- **Google LLC:** handles the account identifier, email address, and authentication result for Google account connection until disconnection, Account deletion, or completion of the purpose.
+- **Supabase Inc.:** handles existing account identifiers and credentials to verify ownership of existing Accounts. It is not used for new Account creation or ordinary message and Group communication. This integration ends when existing-account verification is no longer needed.
+- **Google LLC:** handles the account identifier, email address, and authentication result for Google sign-in and account linking until disconnection, Account deletion, or completion of the purpose.
+- **Cloudflare, Inc.:** processes IP addresses, connection information, and transmitted requests and messages to secure and relay service connections under [Cloudflare's Privacy Policy](https://www.cloudflare.com/privacypolicy/).
 - **Apple Inc.:** handles Account and transaction identifiers and authentication and payment status for Sign in with Apple, App Store payment, and purchase restoration until Account deletion or for the period required by law and Apple's policies.
 - **Korea PortOne Co., Ltd. and connected payment service providers:** handle order and payment identifiers, amount, and payment result for payment, cancellation, and refund in a direct distribution build, retaining them for the period required by e-commerce law.
 - **GitHub, Inc.:** may generate IP addresses and connection information while hosting the public website and may retain them under GitHub's privacy practices and applicable law.
 
-Supabase, Google, Apple, and GitHub are based in the United States, and information may be transmitted over communications networks when their services are used. Where law requires separate notice or consent for overseas handling, the recipient, country, items, purpose, method, and retention period will be disclosed before the relevant feature is used. You may choose not to connect Google, but refusing overseas handling essential to authentication or data storage may limit or prevent use of part or all of SIDEY.
+Account, Group, message, and purchase state is stored on servers managed by the Operator. Supabase, Google, Apple, and GitHub are based in the United States; information may be transmitted overseas through those services and Cloudflare. Where law requires separate notice or consent for overseas handling, the recipient, country, items, purpose, method, and retention period will be disclosed before the relevant feature is used. You must use a supported Google or Apple sign-in; refusing authentication or communication processing essential to the Service may limit or prevent use of part or all of SIDEY.
 
 ## 7. Payment information and outside services
 
@@ -101,7 +101,7 @@ Deleting an Account removes the profile, Group connections, and active SIDEY ent
 
 ## 10. Security measures
 
-The Operator limits access to personal information to what is needed for the work and separates operational privileges and secrets. SIDEY uses database row-level access controls, server-side Group capacity and membership checks, encrypted transport, and operating-system secure storage. Invitation codes are not stored in plaintext on the server, and payment secret keys and administrative privileges are not included in the app or public website.
+The Operator limits access to personal information to what is needed for the work and separates operational privileges and secrets. SIDEY uses server-side Account and session authentication, Group capacity and membership checks, database integrity constraints, encrypted transport, and operating-system secure storage. Invitation codes are not stored in plaintext on the server, and payment secret keys and administrative privileges are not included in the app or public website.
 
 SIDEY is not represented as a service with implemented and verified end-to-end encryption.
 

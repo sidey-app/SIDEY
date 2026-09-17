@@ -16,19 +16,26 @@
   메시징 웹 클라이언트가 아니다.
 - 이 공개 저장소는 네이티브 클라이언트, 공개 웹, client-facing contract, 승인된
   asset 원본과 commerce catalog를 소유한다.
-- Supabase schema·migration·RLS·Edge Functions, App Store 거래 검증, 서버 운영 도구는
-  비공개 [`sidey-app/sidey-backend`](https://github.com/sidey-app/sidey-backend)가
-  소유한다. 공개/비공개 저장소의 작업 경계와 catalog handoff는
-  [`BACKEND.md`](BACKEND.md)를 따른다.
+- 독립 Spring Boot backend의 REST·raw WebSocket·인증 계약과 PostgreSQL schema,
+  결제·App Store 검증, 운영 도구는 sibling `sidey-server`가 소유한다.
+  서버의 `CONTRACT.md`와 실제 controller·service가 클라이언트 계약의 기준이다.
+  공개/비공개 저장소의 작업 경계와 catalog handoff는 [`BACKEND.md`](BACKEND.md)를 따른다.
 - 독립 로컬 운영 도구는 `sidey-admin` 저장소가 소유하고, 그 도구가 사용하는 서버
   조회·집계 계약은 backend 저장소가 소유한다.
 
 ## 데이터와 실시간 경계
 
-Postgres가 영구 메시지와 계정·방 상태의 원본이다. Presence는 연결 및 활동 상태,
-Broadcast는 SIDEY 입력창의 typing과 캐릭터 상호작용 같은 일시 이벤트에만 사용한다.
-클라이언트는 서버가 확인한 membership, rate limit, entitlement 및 equipped state를
-표현하며 이를 로컬 상태만으로 부여하지 않는다.
+PostgreSQL이 영구 메시지와 계정·방 상태의 원본이다. 일반 요청과 메시지 복구는
+REST를, 메시지 전송과 presence·typing·캐릭터 상호작용은 raw WebSocket을 사용한다.
+메시지는 DB commit 뒤 ACK와 live event로 전달하며 UUID로 중복을 제거한다.
+재연결에서는 live 구독을 먼저 등록하고 서버 checkpoint까지 REST cursor를 끝까지
+조회한 뒤 준비 상태로 전환한다. 상세 복구 규칙은 [messaging.md](product/messaging.md)를 따른다.
+
+서버가 SIDEY access/refresh session을 발급한다. Google·Apple은 identity proof이며
+email로 계정을 합치지 않는다. 클라이언트는 서버가 확인한 membership, rate limit,
+entitlement 및 equipped state를 표현하며 이를 로컬 상태만으로 부여하지 않는다.
+Presence·typing·일시 상호작용은 서버 JVM memory에서 관리한다. 기존 Supabase credential은
+기존 계정 claim에만 사용하고 일반 통신에는 사용하지 않는다.
 
 클라이언트와 공개 웹에 필요한 계약만 이 저장소에 둔다. 비공개 schema, secret,
 운영 데이터 또는 backend 배포 절차를 공개 문서에 복제하지 않는다.
