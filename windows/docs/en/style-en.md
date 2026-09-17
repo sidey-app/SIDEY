@@ -15,13 +15,15 @@ The repository follows Microsoft's [C# identifier naming rules](https://learn.mi
 - Match namespaces to the folder structure.
 - Treat `CA2012` and `CA2025` violations as build errors.
 
-Use the following commands instead of checking formatting by eye:
+From the repository root, use the following commands instead of checking formatting by eye. Entering `windows/` makes the .NET CLI apply the SDK policy in `windows/global.json`:
 
 ```powershell
-dotnet restore windows/SIDEY.Windows.slnx
-dotnet format windows/SIDEY.Windows.slnx --verify-no-changes --no-restore
-dotnet build windows/SIDEY.Windows.slnx --configuration Release --no-restore
-dotnet test windows/SIDEY.Windows.slnx --configuration Release --no-restore --no-build
+Push-Location windows
+dotnet restore SIDEY.Windows.slnx
+dotnet format SIDEY.Windows.slnx --verify-no-changes --no-restore
+dotnet build SIDEY.Windows.slnx --configuration Release --no-restore
+dotnet test SIDEY.Windows.slnx --configuration Release --no-restore --no-build
+Pop-Location
 ```
 
 Automated checks cannot judge whether a name or structure is easy to understand. Use the following principles for those decisions.

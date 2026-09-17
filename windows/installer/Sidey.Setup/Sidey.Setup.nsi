@@ -15,8 +15,11 @@ Unicode true
 !ifndef PAYLOAD_INSTALL_INCLUDE
   !error "PAYLOAD_INSTALL_INCLUDE is required."
 !endif
-!ifndef PAYLOAD_UNINSTALL_INCLUDE
-  !error "PAYLOAD_UNINSTALL_INCLUDE is required."
+!ifndef PAYLOAD_UNINSTALL_FILES_INCLUDE
+  !error "PAYLOAD_UNINSTALL_FILES_INCLUDE is required."
+!endif
+!ifndef PAYLOAD_UNINSTALL_DIRECTORIES_INCLUDE
+  !error "PAYLOAD_UNINSTALL_DIRECTORIES_INCLUDE is required."
 !endif
 !ifndef TERMS_LICENSE_FILE
   !error "TERMS_LICENSE_FILE is required."
@@ -27,8 +30,8 @@ Unicode true
 !ifndef INSTALL_TRANSACTION_EXE
   !error "INSTALL_TRANSACTION_EXE is required."
 !endif
-!ifndef PREREQUISITE_INSTALLER_EXE
-  !error "PREREQUISITE_INSTALLER_EXE is required."
+!ifndef INSTALLER_ERROR_HELPER_EXE
+  !error "INSTALLER_ERROR_HELPER_EXE is required."
 !endif
 
 !define PRODUCT_NAME "SIDEY"
@@ -38,6 +41,10 @@ Unicode true
 !define PRODUCT_UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\SIDEY"
 !define PRODUCT_PROTOCOL_KEY "Software\Classes\sidey"
 !define LEGACY_MSI_UPGRADE_CODE "{E744D02B-C3CF-41CE-A4C9-9BA1EB10C6B9}"
+!define SETUP_ACTIVATION_PROPERTY "SIDEY.Setup.Activation.1"
+!ifndef SETUP_MUTEX_NAME
+  !define SETUP_MUTEX_NAME "Global\SIDEY.Setup.InstallTransaction"
+!endif
 
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
@@ -83,6 +90,7 @@ VIAddVersionKey /LANG=1033 "FileVersion" "${APP_FILE_VERSION}"
 !define MUI_LANGDLL_REGISTRY_KEY "${PRODUCT_REGISTRY_KEY}"
 !define MUI_LANGDLL_REGISTRY_VALUENAME "Language"
 !define MUI_CUSTOMFUNCTION_GUIINIT ShowInstallerAfterLanguageSelection
+!define MUI_CUSTOMFUNCTION_UNGUIINIT un.MarkUninstallerWindow
 
 !insertmacro MUI_PAGE_WELCOME
 Page custom MaintenancePageCreate
@@ -144,10 +152,8 @@ LangString DowngradeBlocked ${LANG_ENGLISH} "A newer version of SIDEY is already
 LangString DowngradeBlocked ${LANG_KOREAN} "더 새로운 버전의 SIDEY가 이미 설치되어 있어 아무것도 변경하지 않았습니다. ${APP_VERSION} 버전을 설치하려면 Windows 설정 > 앱에서 현재 SIDEY를 제거한 뒤 이 설치 프로그램을 다시 실행하세요."
 LangString LegacyMigrationManual ${LANG_ENGLISH} "A previous SIDEY MSI is installed, so Setup made no changes. Uninstall it from Windows Settings > Apps, then run this Setup again. Do not delete SIDEY installation files manually."
 LangString LegacyMigrationManual ${LANG_KOREAN} "이전 SIDEY MSI가 설치되어 있어 아무것도 변경하지 않았습니다. Windows 설정 > 앱에서 제거한 뒤 이 설치 프로그램을 다시 실행하세요. SIDEY 설치 파일을 직접 삭제하지 마세요."
-LangString ExistingRemovalFailed ${LANG_ENGLISH} "The existing uninstaller could not finish because required SIDEY files may be missing or in use. Run this Setup again and complete Repair, then run Setup again and choose Uninstall. If repair fails, restart Windows and try once more. If the problem continues, contact support and include error code: $0"
-LangString ExistingRemovalFailed ${LANG_KOREAN} "필요한 SIDEY 설치 파일이 없거나 사용 중일 수 있어 기존 제거 프로그램을 완료하지 못했습니다. 이 설치 프로그램을 다시 실행해 복구를 먼저 완료한 뒤, 다시 실행하여 삭제를 선택해 주세요. 복구에 실패하면 Windows를 다시 시작하고 한 번 더 시도해 주세요. 그래도 해결되지 않으면 오류 코드 $0를 적어 문의해 주세요."
-LangString PrerequisitesStatus ${LANG_ENGLISH} "Checking required runtimes; missing runtimes will be downloaded from Microsoft..."
-LangString PrerequisitesStatus ${LANG_KOREAN} "필수 런타임을 확인하고 있습니다. 없는 런타임은 Microsoft에서 다운로드합니다..."
+LangString ExistingRemovalFailed ${LANG_ENGLISH} "The existing SIDEY installation could not be removed. Required installation files may be missing or in use.$\r$\n$\r$\nRun this Setup again and complete Repair, then run it again and choose Uninstall. If Repair fails, restart Windows and try once more.$\r$\n$\r$\nIf the problem continues, open a GitHub issue and include a screenshot of this window and the diagnostic data.$\r$\nDo not delete SIDEY installation files manually."
+LangString ExistingRemovalFailed ${LANG_KOREAN} "기존 프로그램을 제거할 수 없습니다. 필요한 설치 파일이 없거나 사용 중일 수 있습니다.$\r$\n$\r$\n이 설치 프로그램을 다시 실행해 복구를 완료한 뒤, 다시 실행하여 삭제를 선택하세요. 복구에 실패하면 Windows를 다시 시작하고 한 번 더 시도하세요.$\r$\n$\r$\n문제가 계속되면 이 창의 스크린샷과 진단 데이터를 첨부하여 GitHub 이슈를 남겨주세요.$\r$\n설치 파일을 직접 삭제하지 마세요."
 LangString CleanupTitle ${LANG_ENGLISH} "Remove optional SIDEY data"
 LangString CleanupTitle ${LANG_KOREAN} "SIDEY 선택 데이터 삭제"
 LangString CleanupSubtitle ${LANG_ENGLISH} "Choose the current-user data to remove."
@@ -158,32 +164,40 @@ LangString DeleteLocalData ${LANG_ENGLISH} "Delete settings and logs (%LOCALAPPD
 LangString DeleteLocalData ${LANG_KOREAN} "설정과 로그 삭제 (%LOCALAPPDATA%\SIDEY)"
 LangString DeleteCredentials ${LANG_ENGLISH} "Delete saved SIDEY sign-in credentials"
 LangString DeleteCredentials ${LANG_KOREAN} "저장된 SIDEY 로그인 자격 증명 삭제"
-LangString CleanupFailed ${LANG_ENGLISH} "SIDEY removal will continue, but the following current-user items could not be removed. The listed error code belongs to that item:$\r$\n$CleanupFailureDetails"
-LangString CleanupFailed ${LANG_KOREAN} "SIDEY 제거는 계속되지만 다음 현재 사용자 항목을 삭제하지 못했습니다. 표시된 오류 코드는 해당 항목의 코드입니다:$\r$\n$CleanupFailureDetails"
-LangString CleanupLocalDataFailure ${LANG_ENGLISH} "- Settings and logs (%LOCALAPPDATA%\SIDEY), error code: $0"
-LangString CleanupLocalDataFailure ${LANG_KOREAN} "- 설정과 로그 (%LOCALAPPDATA%\SIDEY), 오류 코드: $0"
-LangString CleanupCredentialsFailure ${LANG_ENGLISH} "- Saved SIDEY sign-in credentials, error code: $0"
-LangString CleanupCredentialsFailure ${LANG_KOREAN} "- 저장된 SIDEY 로그인 자격 증명, 오류 코드: $0"
-LangString CleanupStartupFailure ${LANG_ENGLISH} "- SIDEY startup entry, error code: $0"
-LangString CleanupStartupFailure ${LANG_KOREAN} "- SIDEY 시작프로그램 항목, 오류 코드: $0"
-LangString LaunchFailed ${LANG_ENGLISH} "SIDEY was installed successfully, but it could not be started as the desktop user. Restart Windows, then start SIDEY from the Start menu. If it still does not start, contact support with error code: $0"
-LangString LaunchFailed ${LANG_KOREAN} "SIDEY 설치는 완료했지만 데스크톱 사용자 권한으로 실행하지 못했습니다. Windows를 다시 시작한 뒤 시작 메뉴에서 SIDEY를 실행하세요. 계속 실행되지 않으면 오류 코드 $0을 포함해 고객지원에 문의하세요."
-LangString TransactionFailed ${LANG_ENGLISH} "SIDEY installation was not completed. If SIDEY was already installed, the previous installation was kept or restored. Error code: $0"
-LangString TransactionFailed ${LANG_KOREAN} "SIDEY 설치를 완료하지 못했습니다. SIDEY가 이미 설치되어 있었다면 이전 설치를 유지하거나 복원했습니다. 오류 코드: $0"
-LangString TransactionStateUnknown ${LANG_ENGLISH} "Setup could not confirm the final SIDEY installation state. Restart Windows, then run the latest SIDEY Setup again. If Setup offers Repair, complete it. Do not delete installation files manually. If Setup cannot continue, contact support with error code: $0"
-LangString TransactionStateUnknown ${LANG_KOREAN} "SIDEY의 최종 설치 상태를 확인하지 못했습니다. Windows를 다시 시작한 뒤 최신 SIDEY 설치 프로그램을 다시 실행하세요. 복구가 표시되면 완료하세요. 설치 파일을 직접 삭제하지 마세요. 설치를 계속할 수 없으면 오류 코드 $0을 포함해 고객지원에 문의하세요."
-LangString TransactionRecoveryFailed ${LANG_ENGLISH} "Setup could not recover an interrupted SIDEY installation. Restart Windows, then run the latest SIDEY Setup again. Do not delete installation files manually. If the problem continues, contact support with error code: $0"
-LangString TransactionRecoveryFailed ${LANG_KOREAN} "중단된 SIDEY 설치를 복구하지 못했습니다. Windows를 다시 시작한 뒤 최신 SIDEY 설치 프로그램을 다시 실행하세요. 설치 파일을 직접 삭제하지 마세요. 문제가 계속되면 오류 코드 $0을 포함해 고객지원에 문의하세요."
-LangString UninstallPreflightFailed ${LANG_ENGLISH} "SIDEY could not prepare for removal, so no uninstall changes were made. Close SIDEY, restart Windows, and try again. If the problem continues, contact support with error code: $0"
-LangString UninstallPreflightFailed ${LANG_KOREAN} "SIDEY 제거를 준비하지 못해 제거 작업을 시작하지 않았습니다. SIDEY를 종료하고 Windows를 다시 시작한 뒤 다시 시도하세요. 문제가 계속되면 오류 코드 $0을 포함해 고객지원에 문의하세요."
-LangString UninstallStateUnknown ${LANG_ENGLISH} "Setup could not confirm the final SIDEY removal state. Restart Windows, then run the latest SIDEY Setup again. Do not delete installation files manually. If the problem continues, contact support with error code: $0"
-LangString UninstallStateUnknown ${LANG_KOREAN} "SIDEY의 최종 제거 상태를 확인하지 못했습니다. Windows를 다시 시작한 뒤 최신 SIDEY 설치 프로그램을 다시 실행하세요. 설치 파일을 직접 삭제하지 마세요. 문제가 계속되면 오류 코드 $0을 포함해 고객지원에 문의하세요."
-LangString SetupAlreadyRunning ${LANG_ENGLISH} "Another SIDEY Setup or uninstaller is already running. Close it before continuing."
-LangString SetupAlreadyRunning ${LANG_KOREAN} "다른 SIDEY 설치 프로그램 또는 제거 프로그램이 실행 중입니다. 먼저 종료한 뒤 다시 시도해 주세요."
-LangString SetupInitializationFailed ${LANG_ENGLISH} "SIDEY Setup could not initialize the installation lock. Restart Windows and run Setup again. If the problem continues, contact support with error code: $1"
-LangString SetupInitializationFailed ${LANG_KOREAN} "SIDEY 설치 잠금을 초기화하지 못했습니다. Windows를 다시 시작한 뒤 설치 프로그램을 다시 실행하세요. 문제가 계속되면 오류 코드 $1을 포함해 고객지원에 문의하세요."
-LangString CleanupPending ${LANG_ENGLISH} "SIDEY was installed, but the previous-version backup could not be removed. Setup will retry cleanup next time."
-LangString CleanupPending ${LANG_KOREAN} "SIDEY를 설치했지만 이전 버전 백업을 정리하지 못했습니다. 다음 설치 실행 때 정리를 다시 시도합니다."
+LangString CleanupFailed ${LANG_ENGLISH} "The SIDEY app was removed, but some selected user data could not be deleted.$\r$\n$\r$\nThe items that remain are listed below. They do not affect removal of the SIDEY app.$\r$\n$CleanupFailureDetails$\r$\n$\r$\nIf the problem continues, open a GitHub issue and include a screenshot of this window and the diagnostic data."
+LangString CleanupFailed ${LANG_KOREAN} "SIDEY 앱은 제거했지만 선택한 사용자 데이터 일부를 삭제하지 못했습니다.$\r$\n$\r$\n삭제하지 못한 항목은 아래에 표시됩니다. 해당 데이터가 남아 있어도 SIDEY 앱 제거에는 영향을 주지 않습니다.$\r$\n$CleanupFailureDetails$\r$\n$\r$\n문제가 계속되면 이 창의 스크린샷과 진단 데이터를 첨부하여 GitHub 이슈를 남겨주세요."
+LangString CleanupLocalDataFailure ${LANG_ENGLISH} "- Settings and logs (%LOCALAPPDATA%\SIDEY)"
+LangString CleanupLocalDataFailure ${LANG_KOREAN} "- 설정과 로그 (%LOCALAPPDATA%\SIDEY)"
+LangString CleanupCredentialsFailure ${LANG_ENGLISH} "- Saved SIDEY sign-in credentials"
+LangString CleanupCredentialsFailure ${LANG_KOREAN} "- 저장된 SIDEY 로그인 자격 증명"
+LangString CleanupStartupFailure ${LANG_ENGLISH} "- SIDEY startup entry"
+LangString CleanupStartupFailure ${LANG_KOREAN} "- SIDEY 시작프로그램 항목"
+LangString LaunchFailed ${LANG_ENGLISH} "SIDEY was installed, but the app could not be started.$\r$\n$\r$\nRestart Windows, then start SIDEY from the Start menu.$\r$\n$\r$\nIf the problem continues, open a GitHub issue and include a screenshot of this window and the diagnostic data."
+LangString LaunchFailed ${LANG_KOREAN} "프로그램 설치는 완료했지만 앱을 실행하지 못했습니다.$\r$\n$\r$\nWindows를 다시 시작한 뒤 시작 메뉴에서 프로그램을 실행하세요.$\r$\n$\r$\n문제가 계속되면 이 창의 스크린샷과 진단 데이터를 첨부하여 GitHub 이슈를 남겨주세요."
+LangString TransactionFailed ${LANG_ENGLISH} "SIDEY installation was not completed. If SIDEY was already installed, the previous installation was kept or restored.$\r$\n$\r$\nRun Setup again.$\r$\n$\r$\nIf the problem continues, open a GitHub issue and include a screenshot of this window and the diagnostic data."
+LangString TransactionFailed ${LANG_KOREAN} "SIDEY 설치를 완료하지 못했습니다. 기존 SIDEY가 있었다면 이전 설치를 유지하거나 복원했습니다.$\r$\n$\r$\n설치 프로그램을 다시 실행하세요.$\r$\n$\r$\n문제가 계속되면 이 창의 스크린샷과 진단 데이터를 첨부하여 GitHub 이슈를 남겨주세요."
+LangString TransactionStateUnknown ${LANG_ENGLISH} "A problem occurred during installation. Setup could not confirm the final SIDEY installation state.$\r$\n$\r$\nRestart Windows, then run the latest SIDEY Setup. Complete Repair if it is offered.$\r$\n$\r$\nIf the problem continues, open a GitHub issue and include a screenshot of this window and the diagnostic data.$\r$\nDo not delete SIDEY installation files manually."
+LangString TransactionStateUnknown ${LANG_KOREAN} "설치 중 문제가 발생했습니다. 프로그램의 최종 설치 상태를 확인하지 못했습니다.$\r$\n$\r$\nWindows를 다시 시작한 뒤 최신 설치 프로그램을 실행하세요. 복구가 표시되면 완료하세요.$\r$\n$\r$\n문제가 계속되면 이 창의 스크린샷과 진단 데이터를 첨부하여 GitHub 이슈를 남겨주세요.$\r$\n설치 파일을 직접 삭제하지 마세요."
+LangString TransactionRecoveryFailed ${LANG_ENGLISH} "Setup could not recover an interrupted SIDEY installation. The final installation state could not be confirmed.$\r$\n$\r$\nRestart Windows, then run the latest SIDEY Setup again.$\r$\n$\r$\nIf the problem continues, open a GitHub issue and include a screenshot of this window and the diagnostic data.$\r$\nDo not delete SIDEY installation files manually."
+LangString TransactionRecoveryFailed ${LANG_KOREAN} "중단된 프로그램 설치를 복구하지 못했습니다. 최종 설치 상태를 확인할 수 없습니다.$\r$\n$\r$\nWindows를 다시 시작한 뒤 최신 설치 프로그램을 다시 실행하세요.$\r$\n$\r$\n문제가 계속되면 이 창의 스크린샷과 진단 데이터를 첨부하여 GitHub 이슈를 남겨주세요.$\r$\n설치 파일을 직접 삭제하지 마세요."
+LangString UninstallPreflightFailed ${LANG_ENGLISH} "SIDEY removal could not be started. No uninstall changes were made.$\r$\n$\r$\nClose SIDEY, restart Windows, then try removing it again.$\r$\n$\r$\nIf the problem continues, open a GitHub issue and include a screenshot of this window and the diagnostic data.$\r$\nDo not delete SIDEY installation files manually."
+LangString UninstallPreflightFailed ${LANG_KOREAN} "프로그램 제거를 시작할 수 없습니다. 제거 작업은 적용되지 않았습니다.$\r$\n$\r$\n프로그램을 종료하고 Windows를 다시 시작한 뒤 제거를 다시 시도하세요.$\r$\n$\r$\n문제가 계속되면 이 창의 스크린샷과 진단 데이터를 첨부하여 GitHub 이슈를 남겨주세요.$\r$\n설치 파일을 직접 삭제하지 마세요."
+LangString UninstallStateUnknown ${LANG_ENGLISH} "A problem occurred during removal. Setup could not confirm the final SIDEY removal state.$\r$\n$\r$\nRestart Windows, then run the latest SIDEY Setup and try removing SIDEY again.$\r$\n$\r$\nIf the problem continues, open a GitHub issue and include a screenshot of this window and the diagnostic data.$\r$\nDo not delete SIDEY installation files manually."
+LangString UninstallStateUnknown ${LANG_KOREAN} "제거 중 문제가 발생했습니다. 프로그램의 최종 제거 상태를 확인하지 못했습니다.$\r$\n$\r$\nWindows를 다시 시작한 뒤 최신 설치 프로그램을 실행하여 제거를 다시 시도하세요.$\r$\n$\r$\n문제가 계속되면 이 창의 스크린샷과 진단 데이터를 첨부하여 GitHub 이슈를 남겨주세요.$\r$\n설치 파일을 직접 삭제하지 마세요."
+LangString SetupAlreadyRunning ${LANG_ENGLISH} "Another SIDEY Setup or uninstaller is already running.$\r$\n$\r$\nClose it before continuing.$\r$\n$\r$\nSIDEY error code: 0x51DE2007"
+LangString SetupAlreadyRunning ${LANG_KOREAN} "다른 설치 프로그램 또는 제거 프로그램이 실행 중입니다.$\r$\n$\r$\n먼저 종료한 뒤 다시 시도하세요.$\r$\n$\r$\n오류 코드: 0x51DE2007"
+LangString SetupInitializationFailed ${LANG_ENGLISH} "SIDEY Setup could not initialize the installation lock.$\r$\n$\r$\nRestart Windows and run Setup again.$\r$\n$\r$\nIf the problem continues, open a GitHub issue and include a screenshot of this window.$\r$\n$\r$\nSIDEY error code: 0x51DE2008"
+LangString SetupInitializationFailed ${LANG_KOREAN} "설치 잠금을 초기화하지 못했습니다.$\r$\n$\r$\nWindows를 다시 시작한 뒤 설치 프로그램을 다시 실행하세요.$\r$\n$\r$\n문제가 계속되면 이 창의 스크린샷과 함께 GitHub 이슈를 남겨주세요.$\r$\n$\r$\n오류 코드: 0x51DE2008"
+LangString CleanupPending ${LANG_ENGLISH} "SIDEY was installed, but the previous-version backup could not be removed.$\r$\n$\r$\nNo action is required. Setup will retry cleanup the next time it runs."
+LangString CleanupPending ${LANG_KOREAN} "SIDEY 설치는 완료했지만 이전 버전의 백업을 삭제하지 못했습니다.$\r$\n$\r$\n별도 작업은 필요하지 않습니다. 다음에 설치 프로그램을 실행할 때 정리를 다시 시도합니다."
+LangString PayloadStageFailed ${LANG_ENGLISH} "SIDEY application files could not be prepared. The existing installation was not replaced.$\r$\n$\r$\nFree space on the Windows system drive and the SIDEY installation drive, then run Setup again."
+LangString PayloadStageFailed ${LANG_KOREAN} "프로그램을 설치하지 못했습니다. 기존 설치는 교체하지 않았습니다.$\r$\n$\r$\nWindows 시스템 드라이브와 설치 드라이브에 여유 공간을 확보한 뒤 설치 프로그램을 다시 실행하세요."
+LangString ProcessStopFailed ${LANG_ENGLISH} "SIDEY application files could not be updated because a SIDEY process is still running. The existing installation was kept.$\r$\n$\r$\nClose SIDEY and run Setup again. If SIDEY is not visible, restart Windows and retry."
+LangString ProcessStopFailed ${LANG_KOREAN} "프로그램이 실행 중이어서 앱 파일을 업데이트하지 못했습니다. 기존 설치는 유지했습니다.$\r$\n$\r$\n프로그램을 종료한 뒤 설치 프로그램을 다시 실행하세요. 프로그램이 보이지 않으면 Windows를 다시 시작한 뒤 시도하세요."
+LangString PayloadActivationFailed ${LANG_ENGLISH} "The prepared SIDEY application files could not be activated. The previous installation was kept or restored.$\r$\n$\r$\nRestart Windows, then run Setup again."
+LangString PayloadActivationFailed ${LANG_KOREAN} "준비한 SIDEY 앱 파일을 적용하지 못했습니다. 이전 설치는 유지하거나 복원했습니다.$\r$\n$\r$\nWindows를 다시 시작한 뒤 설치 프로그램을 다시 실행하세요."
+LangString RegistrationFailed ${LANG_ENGLISH} "SIDEY shortcuts or Windows registration could not be updated. The previous installation was kept or restored.$\r$\n$\r$\nRestart Windows, then run Setup again. If this PC is managed, contact your system administrator."
+LangString RegistrationFailed ${LANG_KOREAN} "SIDEY 바로가기 또는 Windows 등록 정보를 업데이트하지 못했습니다. 이전 설치는 유지하거나 복원했습니다.$\r$\n$\r$\nWindows를 다시 시작한 뒤 설치 프로그램을 다시 실행하세요. 관리되는 PC라면 시스템 관리자에게 문의하세요."
 
 !include "${__FILEDIR__}\Languages.nsh"
 !include "${__FILEDIR__}\InstallerErrors.nsh"
@@ -200,12 +214,13 @@ Var DeleteCredentialsCheckbox
 Var DeleteLocalData
 Var DeleteCredentials
 Var CleanupFailureDetails
+Var CleanupFailureDiagnosticDetails
 Var StagingDirectory
 Var RollbackDirectory
 Var SetupMutexHandle
 
-!macro AcquireSetupMutex HANDLE
-  System::Call 'kernel32::CreateMutexW(p0, i0, w "Global\SIDEY.Setup.InstallTransaction") p.r0 ?e'
+!macro AcquireSetupMutex HANDLE ACTIVATE_FUNCTION
+  System::Call 'kernel32::CreateMutexW(p0, i0, w "${SETUP_MUTEX_NAME}") p.r0 ?e'
   Pop $1
   StrCpy ${HANDLE} $0
   ${If} $1 == 183
@@ -213,7 +228,13 @@ Var SetupMutexHandle
       System::Call 'kernel32::CloseHandle(p ${HANDLE})'
       StrCpy ${HANDLE} 0
     ${EndIf}
-    MessageBox MB_OK|MB_ICONSTOP "$(SetupAlreadyRunning)" /SD IDOK
+    ${IfNot} ${Silent}
+      Call ${ACTIVATE_FUNCTION}
+      ${If} $0 != 0
+        MessageBox MB_OK|MB_ICONSTOP "$(SetupAlreadyRunning)" /SD IDOK
+      ${EndIf}
+    ${EndIf}
+    SetErrorLevel 1618
     Abort
   ${ElseIf} ${HANDLE} == 0
     SetErrorLevel $1
@@ -233,8 +254,13 @@ Var SetupMutexHandle
 Function .onInit
   SetRegView 64
   SetShellVarContext all
+  ReadRegStr $LANGUAGE HKLM "${PRODUCT_REGISTRY_KEY}" "Language"
+  ${If} $LANGUAGE == ""
+    StrCpy $LANGUAGE ${LANG_ENGLISH}
+  ${EndIf}
+  Call PrepareInstallerActivation
+  !insertmacro AcquireSetupMutex $SetupMutexHandle ActivateExistingInstaller
   Call SelectInstallerLanguage
-  !insertmacro AcquireSetupMutex $SetupMutexHandle
   Call InitializeInstallerErrorHandling
 
   StrCpy $InstallState "fresh"
@@ -357,6 +383,7 @@ FunctionEnd
 
 Function TermsPagePre
   ${If} $InstallState == "remove"
+    System::Call 'user32::RemovePropW(p $HWNDPARENT, w "${SETUP_ACTIVATION_PROPERTY}") p.r0'
     HideWindow
     ; Hand ownership to the installed uninstaller, which acquires the same
     ; machine-wide mutex before it changes transaction or installation state.
@@ -368,6 +395,8 @@ Function TermsPagePre
     ${EndIf}
     ${If} $0 != 0
       StrCpy $1 $0
+      ShowWindow $HWNDPARENT ${SW_SHOW}
+      System::Call 'user32::SetPropW(p $HWNDPARENT, w "${SETUP_ACTIVATION_PROPERTY}", p1) p.r0'
       Call ResetInstallerError
       StrCpy $0 $1
       StrCpy $InstallerErrorNativeCode $1
@@ -383,6 +412,7 @@ Function TermsPagePre
     ${EndIf}
     Quit
   ${ElseIf} $InstallState == "close"
+    System::Call 'user32::RemovePropW(p $HWNDPARENT, w "${SETUP_ACTIVATION_PROPERTY}") p.r0'
     HideWindow
     Quit
   ${ElseIf} $InstallState == "repair"
@@ -426,15 +456,25 @@ Function LaunchSideyAsDesktopUser
     StrCpy $0 5
   ${EndIf}
   ${If} $0 != 0
-    MessageBox MB_OK|MB_ICONEXCLAMATION "$(LaunchFailed)" /SD IDOK
+    StrCpy $1 $0
+    Call ResetInstallerError
+    StrCpy $InstallerErrorStatus "COMPLETED_WITH_WARNINGS"
+    StrCpy $InstallerErrorCategory "LAUNCH_FAILED"
+    StrCpy $InstallerErrorSource "UNINSTALL_HELPER"
+    StrCpy $InstallerErrorNativeCode $1
+    StrCpy $InstallerErrorExitCode $1
+    StrCpy $InstallerErrorStage "LAUNCH"
+    StrCpy $InstallerErrorSymbol "LAUNCH_FAILED"
+    StrCpy $InstallerErrorTarget "SIDEY.exe"
+    StrCpy $InstallerErrorCommand "SIDEY.UninstallHelper.exe --launch-sidey-as-desktop-user"
+    StrCpy $InstallerErrorMessage "$(LaunchFailed)"
+    Call ShowLifecycleError
   ${EndIf}
 FunctionEnd
 
 Function SelectInstallerLanguage
   ; Select before NSIS initializes its language tables. LangDLL sorts its combo
   ; internally, so reuse its native template with explicitly ordered insertions.
-  InitPluginsDir
-  File /oname=$PLUGINSDIR\Sidey.SetupLanguage.exe "${LANGUAGE_SELECTOR_EXE}"
   ReadRegStr $0 HKLM "${PRODUCT_REGISTRY_KEY}" "Language"
   System::Call 'kernel32::GetCurrentProcessId() i.r2'
   ClearErrors
@@ -458,7 +498,21 @@ FunctionEnd
 Function ShowInstallerAfterLanguageSelection
   ; The selector grants this process foreground access before closing. Wait for
   ; the NSIS window to exist before restoring and activating it.
+  System::Call 'user32::SetPropW(p $HWNDPARENT, w "${SETUP_ACTIVATION_PROPERTY}", p1) p.r0'
   BringToFront
+FunctionEnd
+
+Function PrepareInstallerActivation
+  InitPluginsDir
+  File /oname=$PLUGINSDIR\Sidey.SetupLanguage.exe "${LANGUAGE_SELECTOR_EXE}"
+FunctionEnd
+
+Function ActivateExistingInstaller
+  ClearErrors
+  ExecWait '"$PLUGINSDIR\Sidey.SetupLanguage.exe" --activate-existing' $0
+  ${If} ${Errors}
+    StrCpy $0 1
+  ${EndIf}
 FunctionEnd
 
 Function PrepareInstallerHelpers
@@ -467,50 +521,14 @@ Function PrepareInstallerHelpers
   ; the installer itself before launching any helper or removing the old app.
   SetOutPath "$PLUGINSDIR"
   File /oname=$PLUGINSDIR\Sidey.InstallTransaction.exe "${INSTALL_TRANSACTION_EXE}"
-  File /oname=$PLUGINSDIR\Sidey.PrerequisiteInstaller.exe "${PREREQUISITE_INSTALLER_EXE}"
+  File /oname=$PLUGINSDIR\Sidey.InstallerErrorHelper.exe "${INSTALLER_ERROR_HELPER_EXE}"
   File /oname=$PLUGINSDIR\Sidey.SetupSupport.exe "${PUBLISH_DIR}\Uninstall.exe"
-  File /oname=$PLUGINSDIR\prerequisites.json "${__FILEDIR__}\prerequisites.json"
-FunctionEnd
-
-Function EnsurePrerequisites
-  Call PrepareInstallerHelpers
-  Call ResetInstallerError
-  StrCpy $InstallerErrorSource "PREREQUISITE"
-  StrCpy $InstallerErrorStage "INSTALL"
-  StrCpy $InstallerErrorTarget "SIDEY required runtimes"
-  StrCpy $InstallerErrorCommand "Install-SideyPrerequisites"
-  DetailPrint "$(PrerequisitesStatus)"
-  ClearErrors
-  ExecWait '"$PLUGINSDIR\Sidey.PrerequisiteInstaller.exe" --desktop-user-runner "$PLUGINSDIR\Sidey.SetupSupport.exe" --config "$PLUGINSDIR\prerequisites.json" --download-directory "$PLUGINSDIR" --result-path "$InstallerErrorResultPath" --log-path "$InstallerErrorLogPath" --installer-version "${APP_VERSION}"' $0
-  ${If} ${Errors}
-    StrCpy $0 5
-  ${EndIf}
-  StrCpy $InstallerErrorExitCode $0
-  StrCpy $InstallerErrorNativeCode $0
-  Call LoadInstallerResult
-  ${If} $InstallerErrorStatus == "SUCCESS"
-  ${AndIf} $0 == 0
-    Return
-  ${ElseIf} $InstallerErrorStatus == "SUCCESS_REBOOT_REQUIRED"
-    SetErrorLevel 3010
-    Call ShowInstallerError
-    Abort
-  ${ElseIf} $InstallerErrorCategory == "USER_CANCELLED"
-    SetErrorLevel 1602
-    Call ShowInstallerError
-    Abort
-  ${Else}
-    SetErrorLevel 1
-    Call ShowInstallerError
-    Abort
-  ${EndIf}
 FunctionEnd
 
 Section "SIDEY" MainSection
   SetRegView 64
   SetShellVarContext all
   SetOverwrite on
-  Call EnsurePrerequisites
   Call InitializeInstallTransaction
   !insertmacro RunInstallTransaction "Prepare" $0
   ${If} $0 != 0
@@ -521,6 +539,8 @@ Section "SIDEY" MainSection
     StrCpy $InstallerErrorStage "PREPARE"
     StrCpy $InstallerErrorTarget "$(InstallerComponentInstallation)"
     StrCpy $InstallerErrorCommand "Sidey.InstallTransaction.exe --action Prepare"
+    StrCpy $InstallerErrorSymbol "PAYLOAD_ACTIVATION_FAILED"
+    StrCpy $InstallerErrorMessage "$(PayloadActivationFailed)"
     Goto transaction_failed
   ${EndIf}
 
@@ -563,6 +583,8 @@ Section "SIDEY" MainSection
     StrCpy $InstallerErrorStage "PREFLIGHT"
     StrCpy $InstallerErrorTarget "$(InstallerComponentProcesses)"
     StrCpy $InstallerErrorCommand "Sidey.SetupSupport.exe --stop-sidey-processes"
+    StrCpy $InstallerErrorSymbol "PROCESS_STOP_FAILED"
+    StrCpy $InstallerErrorMessage "$(ProcessStopFailed)"
     Goto registration_rollback_failed
   ${EndIf}
 
@@ -575,6 +597,8 @@ Section "SIDEY" MainSection
     StrCpy $InstallerErrorStage "ACTIVATE"
     StrCpy $InstallerErrorTarget "$(InstallerComponentInstallation)"
     StrCpy $InstallerErrorCommand "Sidey.InstallTransaction.exe --action Activate"
+    StrCpy $InstallerErrorSymbol "PAYLOAD_ACTIVATION_FAILED"
+    StrCpy $InstallerErrorMessage "$(PayloadActivationFailed)"
     Goto transaction_failed
   ${EndIf}
 
@@ -587,6 +611,8 @@ Section "SIDEY" MainSection
     StrCpy $InstallerErrorStage "BEGIN_REGISTRATION"
     StrCpy $InstallerErrorTarget "$(InstallerComponentRegistration)"
     StrCpy $InstallerErrorCommand "Sidey.InstallTransaction.exe --action BeginRegistration"
+    StrCpy $InstallerErrorSymbol "REGISTRATION_FAILED"
+    StrCpy $InstallerErrorMessage "$(RegistrationFailed)"
     Goto registration_rollback_failed
   ${EndIf}
 
@@ -623,12 +649,26 @@ Section "SIDEY" MainSection
     StrCpy $InstallerErrorStage "COMMIT"
     StrCpy $InstallerErrorTarget "$(InstallerComponentRegistration)"
     StrCpy $InstallerErrorCommand "Sidey.InstallTransaction.exe --action Commit"
+    StrCpy $InstallerErrorSymbol "REGISTRATION_FAILED"
+    StrCpy $InstallerErrorMessage "$(RegistrationFailed)"
     Goto registration_rollback_failed
   ${EndIf}
 
   !insertmacro RunInstallTransaction "Complete" $0
   ${If} $0 != 0
-    MessageBox MB_OK|MB_ICONEXCLAMATION "$(CleanupPending)" /SD IDOK
+    StrCpy $1 $0
+    Call ResetInstallerError
+    StrCpy $InstallerErrorStatus "COMPLETED_WITH_WARNINGS"
+    StrCpy $InstallerErrorCategory "CLEANUP_PENDING"
+    StrCpy $InstallerErrorSource "TRANSACTION"
+    StrCpy $InstallerErrorNativeCode $1
+    StrCpy $InstallerErrorExitCode $1
+    StrCpy $InstallerErrorStage "COMPLETE"
+    StrCpy $InstallerErrorSymbol "CLEANUP_PENDING"
+    StrCpy $InstallerErrorTarget "$(InstallerComponentInstallation)"
+    StrCpy $InstallerErrorCommand "Sidey.InstallTransaction.exe --action Complete"
+    StrCpy $InstallerErrorMessage "$(CleanupPending)"
+    Call ShowLifecycleError
   ${EndIf}
   Goto install_complete
 
@@ -639,6 +679,8 @@ Section "SIDEY" MainSection
     StrCpy $InstallerErrorStage "STAGE"
     StrCpy $InstallerErrorTarget "$(InstallerComponentPayload)"
     StrCpy $InstallerErrorCommand "Stage SIDEY application files"
+    StrCpy $InstallerErrorSymbol "PAYLOAD_STAGE_FAILED"
+    StrCpy $InstallerErrorMessage "$(PayloadStageFailed)"
     Call RollbackInstallTransaction
     ${If} $0 != 0
       Goto transaction_state_unknown
@@ -653,6 +695,8 @@ Section "SIDEY" MainSection
     StrCpy $InstallerErrorStage "REGISTER"
     StrCpy $InstallerErrorTarget "$(InstallerComponentRegistration)"
     StrCpy $InstallerErrorCommand "Register SIDEY shortcuts and Windows metadata"
+    StrCpy $InstallerErrorSymbol "REGISTRATION_FAILED"
+    StrCpy $InstallerErrorMessage "$(RegistrationFailed)"
 
   registration_rollback_failed:
     StrCpy $1 $0
@@ -689,8 +733,10 @@ Section "SIDEY" MainSection
     StrCpy $InstallerErrorResultLoaded "false"
     StrCpy $InstallerErrorNativeCode $1
     StrCpy $InstallerErrorExitCode $1
-    StrCpy $InstallerErrorSymbol "TRANSACTION_FAILED"
-    StrCpy $InstallerErrorMessage "$(TransactionFailed)"
+    ${If} $InstallerErrorSymbol == ""
+      StrCpy $InstallerErrorSymbol "TRANSACTION_FAILED"
+      StrCpy $InstallerErrorMessage "$(TransactionFailed)"
+    ${EndIf}
     Call ShowLifecycleError
     SetErrorLevel 1
     Abort
@@ -734,23 +780,45 @@ Function .onInstFailed
 FunctionEnd
 
 Function .onGUIEnd
+  System::Call 'user32::RemovePropW(p $HWNDPARENT, w "${SETUP_ACTIVATION_PROPERTY}") p.r0'
   Call ReleaseSetupMutex
 FunctionEnd
 
 Function un.onInit
   SetRegView 64
   SetShellVarContext all
-  !insertmacro AcquireSetupMutex $SetupMutexHandle
   ReadRegStr $0 HKLM "${PRODUCT_REGISTRY_KEY}" "Language"
   ${If} $0 != ""
     StrCpy $LANGUAGE $0
+  ${Else}
+    StrCpy $LANGUAGE ${LANG_ENGLISH}
   ${EndIf}
+  Call un.PrepareInstallerActivation
+  !insertmacro AcquireSetupMutex $SetupMutexHandle un.ActivateExistingInstaller
   Call un.InitializeInstallerErrorHandling
   StrCpy $DeleteLocalData 0
   StrCpy $DeleteCredentials 0
 FunctionEnd
 
+Function un.MarkUninstallerWindow
+  System::Call 'user32::SetPropW(p $HWNDPARENT, w "${SETUP_ACTIVATION_PROPERTY}", p1) p.r0'
+FunctionEnd
+
+Function un.PrepareInstallerActivation
+  InitPluginsDir
+  File /oname=$PLUGINSDIR\Sidey.SetupLanguage.exe "${LANGUAGE_SELECTOR_EXE}"
+FunctionEnd
+
+Function un.ActivateExistingInstaller
+  ClearErrors
+  ExecWait '"$PLUGINSDIR\Sidey.SetupLanguage.exe" --activate-existing' $0
+  ${If} ${Errors}
+    StrCpy $0 1
+  ${EndIf}
+FunctionEnd
+
 Function un.onGUIEnd
+  System::Call 'user32::RemovePropW(p $HWNDPARENT, w "${SETUP_ACTIVATION_PROPERTY}") p.r0'
   ${If} $SetupMutexHandle != 0
     System::Call 'kernel32::CloseHandle(p $SetupMutexHandle)'
   ${EndIf}
@@ -827,6 +895,7 @@ Section "Uninstall"
   ${EndIf}
 
   StrCpy $CleanupFailureDetails ""
+  StrCpy $CleanupFailureDiagnosticDetails ""
   ${If} $DeleteLocalData == ${BST_CHECKED}
     ClearErrors
     ExecWait '"$INSTDIR\Runtime\SIDEY.UninstallHelper.exe" --cleanup-local-data-as-desktop-user' $0
@@ -835,6 +904,7 @@ Section "Uninstall"
     ${EndIf}
     ${If} $0 != 0
       StrCpy $CleanupFailureDetails "$(CleanupLocalDataFailure)"
+      StrCpy $CleanupFailureDiagnosticDetails "localDataExitCode=$0"
     ${EndIf}
   ${EndIf}
   ${If} $DeleteCredentials == ${BST_CHECKED}
@@ -848,6 +918,11 @@ Section "Uninstall"
         StrCpy $CleanupFailureDetails "$(CleanupCredentialsFailure)"
       ${Else}
         StrCpy $CleanupFailureDetails "$CleanupFailureDetails$\r$\n$(CleanupCredentialsFailure)"
+      ${EndIf}
+      ${If} $CleanupFailureDiagnosticDetails == ""
+        StrCpy $CleanupFailureDiagnosticDetails "credentialsExitCode=$0"
+      ${Else}
+        StrCpy $CleanupFailureDiagnosticDetails "$CleanupFailureDiagnosticDetails; credentialsExitCode=$0"
       ${EndIf}
     ${EndIf}
   ${EndIf}
@@ -865,7 +940,64 @@ Section "Uninstall"
     ${Else}
       StrCpy $CleanupFailureDetails "$CleanupFailureDetails$\r$\n$(CleanupStartupFailure)"
     ${EndIf}
+    ${If} $CleanupFailureDiagnosticDetails == ""
+      StrCpy $CleanupFailureDiagnosticDetails "startupExitCode=$0"
+    ${Else}
+      StrCpy $CleanupFailureDiagnosticDetails "$CleanupFailureDiagnosticDetails; startupExitCode=$0"
+    ${EndIf}
   ${EndIf}
+  ClearErrors
+  Delete "$SMPROGRAMS\SIDEY\SIDEY.lnk"
+  Delete "$SMPROGRAMS\SIDEY\Uninstall SIDEY.lnk"
+  ${If} ${Errors}
+    StrCpy $0 5
+    StrCpy $2 "FILESYSTEM"
+    Goto uninstall_owned_state_unknown
+  ${EndIf}
+  ClearErrors
+  RMDir "$SMPROGRAMS\SIDEY"
+  ClearErrors
+  !include "${PAYLOAD_UNINSTALL_FILES_INCLUDE}"
+  ${If} ${Errors}
+    StrCpy $0 5
+    StrCpy $2 "FILESYSTEM"
+    Goto uninstall_owned_state_unknown
+  ${EndIf}
+
+  ; Empty owned directories are pruned separately. A non-recursive RMDir may
+  ; fail because an unowned file remains, which must not invalidate removal of
+  ; the SIDEY-owned payload.
+  ClearErrors
+  !include "${PAYLOAD_UNINSTALL_DIRECTORIES_INCLUDE}"
+  ClearErrors
+
+  ; Keep the helper and root uninstaller available until every checked registry
+  ; operation succeeds, so a partial removal retains a working retry path.
+  ClearErrors
+  DeleteRegKey HKLM "${PRODUCT_PROTOCOL_KEY}"
+  DeleteRegKey HKLM "${PRODUCT_REGISTRY_KEY}"
+  ${If} ${Errors}
+    StrCpy $0 5
+    StrCpy $2 "REGISTRY"
+    Goto uninstall_owned_state_unknown
+  ${EndIf}
+  DeleteRegKey HKLM "${PRODUCT_UNINSTALL_KEY}"
+  ${If} ${Errors}
+    StrCpy $0 5
+    StrCpy $2 "REGISTRY"
+    Goto uninstall_owned_state_unknown
+  ${EndIf}
+
+  ; Registration is now gone. Schedule locked owned executables for deletion
+  ; rather than recreating an uninstall entry solely for cleanup residue.
+  ClearErrors
+  Delete /REBOOTOK "$INSTDIR\Runtime\SIDEY.UninstallHelper.exe"
+  RMDir "$INSTDIR\Runtime"
+  Delete /REBOOTOK "$INSTDIR\Uninstall.exe"
+  ; Preserve unowned files without treating a non-empty install root as a
+  ; failed removal after all SIDEY-owned files and registration are gone.
+  RMDir "$INSTDIR"
+  ClearErrors
   ${If} $CleanupFailureDetails != ""
     Call un.ResetInstallerError
     StrCpy $InstallerErrorStatus "COMPLETED_WITH_WARNINGS"
@@ -874,24 +1006,30 @@ Section "Uninstall"
     StrCpy $InstallerErrorNativeCode "MULTIPLE"
     StrCpy $InstallerErrorStage "CLEANUP"
     StrCpy $InstallerErrorSymbol "OPTIONAL_CLEANUP_FAILED"
-    StrCpy $InstallerErrorDetail $CleanupFailureDetails
+    StrCpy $InstallerErrorDetail $CleanupFailureDiagnosticDetails
     StrCpy $InstallerErrorTarget "$(InstallerComponentCurrentUserData)"
     StrCpy $InstallerErrorCommand "SIDEY.UninstallHelper.exe"
     StrCpy $InstallerErrorMessage "$(CleanupFailed)"
     Call un.ShowLifecycleError
   ${EndIf}
-  Delete "$SMPROGRAMS\SIDEY\SIDEY.lnk"
-  Delete "$SMPROGRAMS\SIDEY\Uninstall SIDEY.lnk"
-  RMDir "$SMPROGRAMS\SIDEY"
-  Delete "$INSTDIR\Runtime\SIDEY.UninstallHelper.exe"
-  !include "${PAYLOAD_UNINSTALL_INCLUDE}"
-  Delete "$INSTDIR\Uninstall.exe"
-  RMDir "$INSTDIR\Runtime"
-  RMDir "$INSTDIR"
-  DeleteRegKey HKLM "${PRODUCT_UNINSTALL_KEY}"
-  DeleteRegKey HKLM "${PRODUCT_PROTOCOL_KEY}"
-  DeleteRegKey HKLM "${PRODUCT_REGISTRY_KEY}"
   Goto uninstall_complete
+
+  uninstall_owned_state_unknown:
+    StrCpy $1 $0
+    StrCpy $3 $2
+    Call un.ResetInstallerError
+    StrCpy $InstallerErrorSource $3
+    StrCpy $InstallerErrorNativeCode $1
+    StrCpy $InstallerErrorExitCode $1
+    StrCpy $InstallerErrorStage "CLEANUP"
+    StrCpy $InstallerErrorSymbol "UNINSTALL_STATE_UNKNOWN"
+    StrCpy $InstallerErrorDetail "One or more SIDEY-owned files, directories, shortcuts, or registry entries could not be removed."
+    StrCpy $InstallerErrorTarget "$(InstallerComponentRemovalState)"
+    StrCpy $InstallerErrorCommand "Remove installed SIDEY payload and registration"
+    StrCpy $InstallerErrorMessage "$(UninstallStateUnknown)"
+    Call un.ShowLifecycleError
+    SetErrorLevel 1
+    Abort
 
   uninstall_preflight_failed:
     StrCpy $1 $0

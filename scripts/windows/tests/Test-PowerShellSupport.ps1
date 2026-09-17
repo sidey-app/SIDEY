@@ -49,13 +49,13 @@ $logPath = Join-Path $testRoot 'process log with spaces.log'
 try {
     [IO.Directory]::CreateDirectory($testRoot) | Out-Null
     if ([string]::IsNullOrWhiteSpace($HelperPath)) {
-        $HelperPath = Join-Path $testRoot 'Sidey.PrerequisiteInstaller.exe'
+        $HelperPath = Join-Path $testRoot 'Sidey.InstallerErrorHelper.exe'
         & (Join-Path $repositoryRootPath 'scripts/windows/New-SideyHelperExecutable.ps1') `
-            -SourcePath (Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup/PrerequisiteInstaller.cs') `
+            -SourcePath (Join-Path $repositoryRootPath 'windows/installer/Sidey.Setup/InstallerErrorNormalizer.cs') `
             -OutputPath $HelperPath `
             -Version $version -FileVersion $fileVersion `
-            -Title 'SIDEY Prerequisite Installer' `
-            -Description 'SIDEY prerequisite installer process probe' `
+            -Title 'SIDEY Installer Error Helper' `
+            -Description 'SIDEY installer error process probe' `
             -IconPath (Join-Path $repositoryRootPath 'windows/src/Sidey.App/Assets/Icons/SideyAppIcon.ico')
     }
     $HelperPath = (Resolve-Path -LiteralPath $HelperPath).Path

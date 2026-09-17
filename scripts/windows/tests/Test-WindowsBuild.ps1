@@ -46,9 +46,8 @@ try {
             (Join-Path $repositoryRootPath 'windows/src/Sidey.App/Sidey.App.csproj'),
             '--configuration', 'Release',
             '--runtime', 'win-x64',
-            '--self-contained', 'false',
+            '--self-contained', 'true',
             '--no-restore',
-            '-p:WindowsAppSDKSelfContained=false',
             "-p:Version=$Version",
             "-p:FileVersion=$Version.0",
             "-p:AssemblyVersion=$Version.0",
@@ -58,10 +57,8 @@ try {
         -Description 'Windows smoke publish'
     & (Join-Path $PSScriptRoot 'Test-PowerShellSupport.ps1')
     & (Join-Path $PSScriptRoot 'Test-PublishedApplicationTimeouts.ps1')
-    & (Join-Path $PSScriptRoot 'Test-PrerequisiteInstaller.ps1')
-    & (Join-Path $PSScriptRoot 'Test-FrameworkDependentPublish.ps1') `
+    & (Join-Path $PSScriptRoot 'Test-SelfContainedPublish.ps1') `
         -PublishDirectory $publishDirectory
-    & (Join-Path $PSScriptRoot '../Install-WindowsPrerequisites.ps1') -Version $Version
     & (Join-Path $PSScriptRoot 'Test-PublishedApplication.ps1') `
         -PublishDirectory $publishDirectory
 }

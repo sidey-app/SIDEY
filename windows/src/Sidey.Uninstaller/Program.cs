@@ -23,8 +23,6 @@ namespace Sidey.Uninstaller
             "--cleanup-startup-as-desktop-user";
         private const string LaunchSideyAsDesktopUserArgument =
             "--launch-sidey-as-desktop-user";
-        private const string RunWindowsAppRuntimeAsDesktopUserArgument =
-            "--run-windows-app-runtime-as-desktop-user";
         private const string LegacyMsiDetectArgument = "--detect-legacy-msi";
         private const string StopSideyProcessesArgument = "--stop-sidey-processes";
         private const string CredentialFilter = "SIDEY/*";
@@ -57,14 +55,6 @@ namespace Sidey.Uninstaller
         [STAThread]
         public static int Main(string[] arguments)
         {
-            if (arguments.Length == 2
-                && string.Equals(
-                    arguments[0],
-                    RunWindowsAppRuntimeAsDesktopUserArgument,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                return RunWindowsAppRuntimeAsDesktopUser(arguments[1]);
-            }
             if (arguments.Length == 1
                 && string.Equals(
                     arguments[0],
@@ -243,41 +233,6 @@ namespace Sidey.Uninstaller
                     helperPath,
                     QuoteArgument(argument),
                     Path.GetDirectoryName(helperPath),
-                    waitForExit: true);
-            }
-            catch (Exception exception)
-            {
-                return GetDesktopUserRunnerErrorCode(exception);
-            }
-        }
-
-        private static int RunWindowsAppRuntimeAsDesktopUser(string installerPath)
-        {
-            try
-            {
-                string fullInstallerPath = Path.GetFullPath(installerPath);
-                string expectedInstallerDirectory = Path.GetFullPath(Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-                    "SIDEY-PrerequisiteDownloads"));
-                if (!string.Equals(
-                        Path.GetDirectoryName(fullInstallerPath),
-                        expectedInstallerDirectory,
-                        StringComparison.OrdinalIgnoreCase)
-                    || !string.Equals(
-                        Path.GetFileName(fullInstallerPath),
-                        "windowsappruntimeinstall-x64.exe",
-                        StringComparison.OrdinalIgnoreCase)
-                    || !File.Exists(fullInstallerPath)
-                    || (File.GetAttributes(fullInstallerPath) & FileAttributes.ReparsePoint) != 0
-                    || (File.GetAttributes(expectedInstallerDirectory) & FileAttributes.ReparsePoint) != 0)
-                {
-                    return 64;
-                }
-
-                return DesktopUserProcess.Start(
-                    fullInstallerPath,
-                    "--quiet",
-                    expectedInstallerDirectory,
                     waitForExit: true);
             }
             catch (Exception exception)

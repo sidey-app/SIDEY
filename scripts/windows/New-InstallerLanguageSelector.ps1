@@ -56,6 +56,7 @@ $manifest.Save($manifestPath)
 & (Join-Path $PSScriptRoot 'New-SideyHelperExecutable.ps1') `
     -SourcePath @(
         (Join-Path $installerSourceDirectory 'InstallerLanguages.cs'),
+        (Join-Path $installerSourceDirectory 'InstallerWindowActivation.cs'),
         (Join-Path $installerSourceDirectory 'LanguageSelector.cs')
     ) `
     -OutputPath $outputFilePath -Version $Version -FileVersion $FileVersion `
