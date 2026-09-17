@@ -5,11 +5,14 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$PublishDirectory,
 
-    [int]$TimeoutSeconds = 30
+    [int]$TimeoutSeconds = 30,
+
+    [int]$OverallTimeoutSeconds = 300
 )
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path $PSScriptRoot 'PublishedApplicationSmoke.psm1') -Force
 $publishDirectoryPath = (Resolve-Path -LiteralPath $PublishDirectory).Path
 $launcherExecutablePath = Join-Path $publishDirectoryPath 'SIDEY.exe'
 $hostExecutablePath = Join-Path $publishDirectoryPath 'Runtime\SIDEY.Host.exe'
@@ -22,9 +25,10 @@ if (-not (Test-Path -LiteralPath $launcherExecutablePath -PathType Leaf)) {
 if (-not (Test-Path -LiteralPath $hostExecutablePath -PathType Leaf)) {
     throw "Runtime/SIDEY.Host.exe was not found in the publish directory: $publishDirectoryPath"
 }
-if ($TimeoutSeconds -lt 5 -or $TimeoutSeconds -gt 120) {
-    throw "Startup smoke timeout must be between 5 and 120 seconds."
-}
+$timeoutState = New-SideyStartupSmokeTimeoutState `
+    -StartedAt ([DateTimeOffset]::UtcNow) `
+    -InactivityTimeoutSeconds $TimeoutSeconds `
+    -OverallTimeoutSeconds $OverallTimeoutSeconds
 
 $smokeDataRoot = Join-Path ([IO.Path]::GetTempPath()) "SIDEY-Smoke-$([Guid]::NewGuid().ToString('N'))"
 $logDirectory = Join-Path $smokeDataRoot 'SIDEY/Logs'
@@ -46,9 +50,22 @@ try {
     if (-not $launcherProcess.WaitForExit(5000) -or $launcherProcess.ExitCode -ne 0) {
         throw "SIDEY launcher did not forward startup successfully."
     }
-    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+    $observation = Resolve-SideyStartupSmokeObservation `
+        -State $timeoutState `
+        -ObservedAt ([DateTimeOffset]::UtcNow) `
+        -HasProgress
+    $timeoutState = $observation.State
+    $timeoutReason = $observation.TimeoutReason
+    $lastStageObservation = $null
     $ready = $false
-    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+    while ($null -eq $timeoutReason) {
+        $observation = Resolve-SideyStartupSmokeObservation `
+            -State $timeoutState `
+            -ObservedAt ([DateTimeOffset]::UtcNow)
+        $timeoutReason = $observation.TimeoutReason
+        if ($null -ne $timeoutReason) {
+            break
+        }
         if ($null -eq $process) {
             $process = Get-Process -Name 'SIDEY.Host' -ErrorAction SilentlyContinue |
                 Where-Object {
@@ -61,6 +78,15 @@ try {
             if ($null -eq $process) {
                 Start-Sleep -Milliseconds 250
                 continue
+            }
+            $observation = Resolve-SideyStartupSmokeObservation `
+                -State $timeoutState `
+                -ObservedAt ([DateTimeOffset]::UtcNow) `
+                -HasProgress
+            $timeoutState = $observation.State
+            $timeoutReason = $observation.TimeoutReason
+            if ($null -ne $timeoutReason) {
+                break
             }
         }
         $process.Refresh()
@@ -85,12 +111,31 @@ try {
                 Get-Content -LiteralPath $_.FullName -Raw
             }) -join [Environment]::NewLine
             $pidPattern = [regex]::Escape("pid=$($process.Id)")
+            $stageObservation = (($log -split '\r?\n') | Where-Object {
+                $_ -match "$pidPattern .*stage="
+            }) -join [Environment]::NewLine
+            $hasProgress = $stageObservation -and $stageObservation -cne $lastStageObservation
+            if ($hasProgress) {
+                $lastStageObservation = $stageObservation
+            }
             if ($log -match "$pidPattern fatal ") {
                 throw "SIDEY startup composer probe failed.`n$log"
             }
-            if ($log -match "$pidPattern .*stage=composer-smoke-complete" -and
-                $log -match "$pidPattern .*stage=external-assets-smoke-complete") {
-                $ready = $true
+            $hasCompleted = (
+                $log -match "$pidPattern .*stage=composer-smoke-complete" -and
+                $log -match "$pidPattern .*stage=external-assets-smoke-complete")
+            $observation = Resolve-SideyStartupSmokeObservation `
+                -State $timeoutState `
+                -ObservedAt ([DateTimeOffset]::UtcNow) `
+                -HasProgress:$hasProgress `
+                -HasCompleted:$hasCompleted
+            $timeoutState = $observation.State
+            $timeoutReason = $observation.TimeoutReason
+            if ($null -ne $timeoutReason) {
+                break
+            }
+            if ($observation.Ready) {
+                $ready = $observation.Ready
                 break
             }
         }
@@ -107,7 +152,13 @@ try {
         else {
             '(SIDEY session log not found)'
         }
-        throw "SIDEY.exe did not complete its startup composer probe within $TimeoutSeconds seconds.`n$tail"
+        $timeout = if ($timeoutReason -ceq 'Overall') {
+            "the $OverallTimeoutSeconds-second overall limit"
+        }
+        else {
+            "$TimeoutSeconds seconds without progress"
+        }
+        throw "SIDEY.exe did not complete its startup composer probe before $timeout.`n$tail"
     }
     Write-Host "StartupSmokeTest=true"
     Write-Host "ProcessId=$($process.Id)"
