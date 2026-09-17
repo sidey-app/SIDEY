@@ -39,6 +39,45 @@ public sealed class AtomicPreferencesStoreTests
             Assert.Null(preferences.Language);
             Assert.True(preferences.CharacterSoundEffectsEnabled);
             Assert.Equal(100, preferences.CharacterSoundEffectsVolume);
+            Assert.Equal(GlobalShortcutPreferences.Empty, preferences.GlobalShortcuts);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task UnusableShortcutTextIsDroppedWithoutFailingTheLoad()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), $"sidey-preferences-{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "preferences.json");
+        Directory.CreateDirectory(directory);
+        await File.WriteAllTextAsync(
+            path,
+            """
+            {
+              "schemaVersion": 5,
+              "onboardingCompleted": true,
+              "installationSeed": 1234,
+              "overlayVisible": true,
+              "quietMode": false,
+              "showOfflineMembers": true,
+              "startAtLogin": false,
+              "activeRoomId": null,
+              "overlayRegion": { "edge": "bottom", "span": "full", "monitorIdentifier": null },
+              "globalShortcuts": { "compose": "Ctrl+Alt+Delete", "toggleOverlay": "alt+shift+o", "futureAction": "Ctrl+Shift+F" }
+            }
+            """);
+
+        try
+        {
+            AppPreferences preferences = await new AtomicPreferencesStore(path).LoadAsync();
+
+            Assert.Equal(AppPreferences.CurrentSchemaVersion, preferences.SchemaVersion);
+            Assert.Null(preferences.GlobalShortcuts.Compose);
+            Assert.Equal("Alt+Shift+O", preferences.GlobalShortcuts.ToggleOverlay);
+            Assert.Null(preferences.GlobalShortcuts.ToggleQuietMode);
         }
         finally
         {
@@ -68,6 +107,13 @@ public sealed class AtomicPreferencesStoreTests
             CachedCharacterId = "pixel_penguin",
             ActiveRoomId = activeRoomId,
             OverlayRegion = new OverlayRegionPreference(OverlayEdge.Left, OverlaySpan.Half, "monitor-2"),
+            GlobalShortcuts = GlobalShortcutPreferences.Empty
+                .With(GlobalShortcutAction.Compose, new GlobalShortcut(
+                    GlobalShortcutModifiers.Control | GlobalShortcutModifiers.Shift,
+                    0x4D))
+                .With(GlobalShortcutAction.ToggleQuietMode, new GlobalShortcut(
+                    GlobalShortcutModifiers.Alt | GlobalShortcutModifiers.Shift,
+                    0x70)),
         };
 
         try

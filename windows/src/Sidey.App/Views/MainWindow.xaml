@@ -996,6 +996,34 @@
                 </StackPanel>
               </Border>
 
+              <StackPanel Spacing="4">
+                <TextBlock AutomationProperties.HeadingLevel="Level2" Style="{ThemeResource SubtitleTextBlockStyle}" Text="{Binding Value, Source={i18n:I18n Key=settings.shortcutsTitle}, Mode=OneWay}" />
+                <TextBlock Foreground="{ThemeResource TextFillColorSecondaryBrush}" Text="{Binding Value, Source={i18n:I18n Key=settings.shortcutsDescription}, Mode=OneWay}" TextWrapping="Wrap" />
+              </StackPanel>
+              <Border Style="{StaticResource SideySettingsCardStyle}">
+                <ItemsControl IsTabStop="False" ItemsSource="{Binding GlobalShortcuts}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Spacing="16" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Grid ColumnSpacing="8" RowSpacing="4">
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <TextBlock Margin="0,0,12,0" VerticalAlignment="Center" FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
+                        <controls:ShortcutRecorder Grid.Column="1" MinWidth="160" VerticalAlignment="Center" Content="{Binding ShortcutText}" Command="{Binding StartRecordingCommand}" RecordCommand="{Binding RecordCommand}" CancelCommand="{Binding CancelRecordingCommand}" IsRecording="{Binding IsRecording}" ToolTipService.ToolTip="{Binding RecordTooltip}" AutomationProperties.Name="{Binding Title}" AutomationProperties.HelpText="{Binding ShortcutText}" />
+                        <Button Grid.Column="2" Width="36" Height="36" Padding="0" VerticalAlignment="Center" Style="{StaticResource SubtleButtonStyle}" Command="{Binding ClearCommand}" ToolTipService.ToolTip="{Binding ClearText}" AutomationProperties.Name="{Binding ClearText}">
+                          <SymbolIcon Symbol="Cancel" />
+                        </Button>
+                        <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Foreground="{ThemeResource SystemFillColorCautionBrush}" Text="{Binding StatusText}" TextWrapping="Wrap" Visibility="{Binding HasStatus, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </Border>
+
               <Border Style="{StaticResource SideySettingsCardStyle}" Visibility="{Binding IsValidationMode, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel Spacing="8">
                   <TextBlock AutomationProperties.HeadingLevel="Level2" Style="{ThemeResource SubtitleTextBlockStyle}" Text="{Binding Value, Source={i18n:I18n Key=settings.rendererMetrics}, Mode=OneWay}" />

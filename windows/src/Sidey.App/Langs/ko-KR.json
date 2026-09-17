@@ -13,7 +13,8 @@
     "settingsTitle": "SIDEY 설정",
     "composerTitle": "SIDEY 메시지 입력",
     "historyTitle": "SIDEY 최근 기록",
-    "onboardingTitle": "SIDEY 시작하기"
+    "onboardingTitle": "SIDEY 시작하기",
+    "statusNoticeTitle": "SIDEY 상태 안내"
   },
   "launcher": {
     "runtimeMissing": "SIDEY Runtime\\SIDEY.Host.exe를 찾을 수 없습니다. 프로그램을 다시 설치해 주세요.",
@@ -362,16 +363,41 @@
     "rendererMetrics": "내부 renderer 계측",
     "exportMetrics": "현재 계측 JSON 내보내기",
     "exportMetricsTooltip": "현재 렌더링 성능 계측을 JSON 파일로 저장합니다.",
-    "saved": "설정을 저장했습니다."
+    "saved": "설정을 저장했습니다.",
+    "shortcutsTitle": "단축키",
+    "shortcutsDescription": "다른 앱을 쓰는 중에도 SIDEY 기능을 바로 실행합니다. 지정한 조합만 Windows에 등록하며 다른 키 입력은 확인하지 않습니다.",
+    "shortcutCompose": "메시지 작성 창 열기·닫기",
+    "shortcutToggleOverlay": "픽셀 월드 보이기·숨기기",
+    "shortcutToggleQuietMode": "조용히 모드 켜기·끄기",
+    "shortcutNone": "지정 안 함",
+    "shortcutRecording": "조합을 누르세요…",
+    "shortcutRecordTooltip": "선택한 뒤 새 조합을 누르면 지정됩니다. Esc를 누르면 취소합니다.",
+    "shortcutClear": "단축키 지우기",
+    "shortcutTooFewModifiers": "Ctrl+Shift 또는 Alt+Shift와 함께 눌러 주세요.",
+    "shortcutWindowsKey": "Windows 키가 들어간 조합은 사용할 수 없습니다.",
+    "shortcutControlAlt": "Ctrl+Alt 조합은 AltGr 입력과 겹쳐 사용할 수 없습니다.",
+    "shortcutUnsupportedKey": "영문자, 숫자, F1~F11, Space 중 하나를 사용해 주세요.",
+    "shortcutDuplicate": "이미 “{0}”에 지정한 조합입니다.",
+    "shortcutInUse": "다른 프로그램이 이미 사용 중인 조합입니다. 다른 조합을 지정해 주세요.",
+    "shortcutUnavailable": "단축키를 등록하지 못했습니다. SIDEY를 다시 시작한 뒤 다시 시도해 주세요."
   },
   "composer": {
     "closeTooltip": "메시지 입력 닫기",
     "placeholder": "메시지를 입력해 주세요",
     "sendTooltip": "메시지 전송",
-    "activeRoomRequired": "활성 그룹과 프로필이 필요합니다."
+    "activeRoomRequired": "활성 그룹과 프로필이 필요합니다.",
+    "waitingForGroups": "그룹 정보를 불러온 뒤 보낼 수 있습니다.",
+    "groupRequired": "그룹을 만들거나 참가하면 보낼 수 있습니다.",
+    "openGroupsTooltip": "그룹 설정 열기"
   },
   "tray": {
     "open": "열기", "hideOverlay": "오버레이 숨기기", "showOverlay": "오버레이 보이기", "compose": "메시지 작성…", "noGroups": "연결된 그룹 없음", "activeGroup": "활성 그룹", "quietMode": "조용히 모드", "history": "최근 기록…", "store": "상점…", "groups": "그룹 설정…", "startup": "로그인 시 자동 실행", "checkUpdates": "업데이트 확인…", "settings": "설정…", "exit": "종료", "unreadTooltip": "SIDEY · 미확인 메시지 {0}개", "connectionFailedTitle": "SIDEY 연결 안 됨", "connectionFailedBody": "연결 상태에서 재연결을 눌러 주세요. 그래도 연결되지 않으면 진단 로그를 첨부해 문의해 주세요.", "updateLatest": "최신 버전입니다.", "updateAvailable": "업데이트가 있습니다. {0}", "updateCheckFailed": "업데이트 확인에 실패했습니다. 잠시 후 다시 시도해 주세요."
+  },
+  "notice": {
+    "quietModeOnTitle": "조용히 모드 켜짐",
+    "quietModeOnDetail": "새 메시지 말풍선을 숨깁니다.",
+    "quietModeOffTitle": "조용히 모드 꺼짐",
+    "quietModeOffDetail": "새 메시지 말풍선을 다시 표시합니다."
   },
   "history": {
     "retentionNotice": "메시지는 서버에서 3일 후 자동 삭제됩니다.",

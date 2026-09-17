@@ -32,7 +32,9 @@ public sealed record AppPreferences(
     public bool CharacterSoundEffectsEnabled { get; init; } = true;
     public int CharacterSoundEffectsVolume { get; init; } = 100;
 
-    public const int CurrentSchemaVersion = 5;
+    public GlobalShortcutPreferences GlobalShortcuts { get; init; } = GlobalShortcutPreferences.Empty;
+
+    public const int CurrentSchemaVersion = 6;
 
     public static AppPreferences CreateDefault(long? installationSeed = null) => new(
         SchemaVersion: CurrentSchemaVersion,
@@ -65,5 +67,6 @@ public sealed record AppPreferences(
             ? null
             : PixelCharacterCatalog.NormalizeId(CachedCharacterId),
         OverlayRegion = OverlayRegion ?? OverlayRegionPreference.Default,
+        GlobalShortcuts = (GlobalShortcuts ?? GlobalShortcutPreferences.Empty).Normalize(),
     };
 }

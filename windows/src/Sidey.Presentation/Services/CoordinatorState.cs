@@ -45,6 +45,9 @@ public sealed record CoordinatorState(
 {
     public RemoteContentLoadingState ContentLoading { get; init; } = RemoteContentLoadingState.Initial;
 
+    public IReadOnlyDictionary<GlobalShortcutAction, GlobalShortcutRegistrationStatus> GlobalShortcutStatuses { get; init; } =
+        new Dictionary<GlobalShortcutAction, GlobalShortcutRegistrationStatus>();
+
     public bool Connected => RealtimeConnection.IsReady;
 
     public bool ActiveRoomConnected => RealtimeConnection.ActiveRoomTransportConnected;

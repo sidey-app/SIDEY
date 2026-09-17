@@ -34,6 +34,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     private readonly ICredentialStore _credentialStore;
     private readonly RoomSessionLifetime _roomSession = new();
     private readonly WindowsStartupService _startup = new();
+    private IGlobalShortcutRegistrar? _globalShortcuts;
     private readonly DiagnosticDataExporter _diagnosticDataExporter = new();
     private readonly IActivityMonitor _activityMonitor = new WindowsActivityMonitor();
     private readonly MessageLedger _messages = new();
@@ -1169,6 +1170,104 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             SetState(_state with { Preferences = _state.Preferences with { Theme = previousTheme } });
             throw;
         }
+    }
+
+    /// <summary>
+    /// Registers the saved combinations once the shortcut thread is available. A
+    /// combination that cannot be registered stays saved and its status is shown in settings.
+    /// </summary>
+    public void AttachGlobalShortcuts(IGlobalShortcutRegistrar? registrar)
+    {
+        _globalShortcuts = registrar;
+        var statuses = new Dictionary<GlobalShortcutAction, GlobalShortcutRegistrationStatus>();
+        foreach (GlobalShortcutAction action in GlobalShortcutPreferences.Actions)
+        {
+            statuses[action] = RegisterGlobalShortcut(action, _state.Preferences.GlobalShortcuts.Get(action));
+        }
+        SetState(_state with { GlobalShortcutStatuses = statuses });
+    }
+
+    public async Task<GlobalShortcutRegistrationStatus> SetGlobalShortcutAsync(
+        GlobalShortcutAction action,
+        GlobalShortcut? shortcut,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Enum.IsDefined(action))
+        {
+            throw new ArgumentOutOfRangeException(nameof(action));
+        }
+
+        GlobalShortcutPreferences previous = _state.Preferences.GlobalShortcuts;
+        if (shortcut is { } requested
+            && (requested.Validate() != GlobalShortcutValidation.Valid
+                || previous.FindAction(requested) is { } owner && owner != action))
+        {
+            throw new ArgumentException("The shortcut is invalid or already assigned.", nameof(shortcut));
+        }
+
+        GlobalShortcutRegistrationStatus status = RegisterGlobalShortcut(action, shortcut);
+        if (shortcut is not null && status != GlobalShortcutRegistrationStatus.Registered)
+        {
+            // The registrar keeps the previous combination, so the saved value stays unchanged.
+            return status;
+        }
+
+        SetGlobalShortcutState(previous.With(action, shortcut), action, status);
+        if (previous.Get(action) == shortcut)
+        {
+            return status;
+        }
+
+        try
+        {
+            await PersistPreferencesAsync(cancellationToken);
+        }
+        catch
+        {
+            GlobalShortcut? restored = previous.Get(action);
+            SetGlobalShortcutState(previous, action, RegisterGlobalShortcut(action, restored));
+            throw;
+        }
+        return status;
+    }
+
+    private GlobalShortcutRegistrationStatus RegisterGlobalShortcut(
+        GlobalShortcutAction action,
+        GlobalShortcut? shortcut)
+    {
+        GlobalShortcutRegistrationStatus unavailable = shortcut is null
+            ? GlobalShortcutRegistrationStatus.NotSet
+            : GlobalShortcutRegistrationStatus.Unavailable;
+        if (_globalShortcuts is null)
+        {
+            return unavailable;
+        }
+
+        try
+        {
+            return _globalShortcuts.Register(action, shortcut);
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal($"global-shortcut-register action={action}", exception);
+            return unavailable;
+        }
+    }
+
+    private void SetGlobalShortcutState(
+        GlobalShortcutPreferences shortcuts,
+        GlobalShortcutAction action,
+        GlobalShortcutRegistrationStatus status)
+    {
+        var statuses = new Dictionary<GlobalShortcutAction, GlobalShortcutRegistrationStatus>(_state.GlobalShortcutStatuses)
+        {
+            [action] = status,
+        };
+        SetState(_state with
+        {
+            Preferences = _state.Preferences with { GlobalShortcuts = shortcuts },
+            GlobalShortcutStatuses = statuses,
+        });
     }
 
     public void RefreshDisplayTopology()

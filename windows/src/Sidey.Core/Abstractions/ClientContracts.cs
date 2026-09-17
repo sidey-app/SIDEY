@@ -180,3 +180,12 @@ public interface IPreferencesStore
     public ValueTask<AppPreferences> LoadAsync(CancellationToken cancellationToken = default);
     public ValueTask SaveAsync(AppPreferences preferences, CancellationToken cancellationToken = default);
 }
+
+public interface IGlobalShortcutRegistrar
+{
+    /// <summary>
+    /// Replaces the combination for one action. If the new combination cannot be
+    /// registered, the previous combination for that action stays registered.
+    /// </summary>
+    public GlobalShortcutRegistrationStatus Register(GlobalShortcutAction action, GlobalShortcut? shortcut);
+}

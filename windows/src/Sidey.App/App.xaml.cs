@@ -24,9 +24,11 @@ public partial class App : Application
     private OnboardingWindow? _onboardingWindow;
     private HistoryWindow? _historyWindow;
     private ComposerWindow? _composer;
+    private StatusNoticeWindow? _statusNotice;
     private AppCoordinator? _coordinator;
     private SingleInstanceGuard? _singleInstance;
     private TrayIconService? _tray;
+    private GlobalHotkeyService? _globalShortcuts;
 #if DEBUG
     private DevelopmentUpdateService? _developmentUpdate;
 #endif
@@ -206,6 +208,7 @@ public partial class App : Application
                 I18n.Get("error.trayStart"),
                 exception));
         }
+        StartGlobalShortcuts(coordinator);
 #if DEBUG
         _developmentUpdate = DevelopmentUpdateService.Start(OnDevelopmentUpdateAccepted);
 #endif
@@ -402,6 +405,7 @@ public partial class App : Application
             StartupDiagnostics.NonFatal("failed-launch-tray-dispose", exception);
         }
         _tray = null;
+        DisposeGlobalShortcuts("failed-launch-global-shortcuts-dispose");
 
         if (_coordinator is not null)
         {
@@ -473,6 +477,7 @@ public partial class App : Application
             var viewModel = new ComposerViewModel();
             viewModel.SendRequested += OnSendRequested;
             viewModel.TypingChanged += OnTypingChanged;
+            viewModel.GroupSettingsRequested += OnComposerGroupSettingsRequested;
             try
             {
                 StartupDiagnostics.Stage("composer-window-create-started");
@@ -484,12 +489,14 @@ public partial class App : Application
             {
                 viewModel.SendRequested -= OnSendRequested;
                 viewModel.TypingChanged -= OnTypingChanged;
+                viewModel.GroupSettingsRequested -= OnComposerGroupSettingsRequested;
                 viewModel.Dispose();
                 StartupDiagnostics.NonFatal("composer-window-create", exception);
                 return;
             }
         }
 
+        _composer.ViewModel.ApplyState(_coordinator.State);
         _composer.ShowAndFocus(
             _coordinator.State.Preferences.OverlayRegion.MonitorIdentifier);
     }
@@ -631,6 +638,18 @@ public partial class App : Application
     }
 
     private void OnSendRequested(string body) => _ = SendAsync(body);
+
+    private void OnComposerGroupSettingsRequested()
+    {
+        if (_shuttingDown)
+        {
+            return;
+        }
+
+        // Keep the draft in the hidden composer while the user sets up a group.
+        _composer?.HideComposer();
+        HandleTrayCommand(TrayCommand.Groups);
+    }
 
     private async Task SendAsync(string body)
     {
@@ -938,6 +957,8 @@ public partial class App : Application
             _mainWindow?.ApplyState(state);
             _onboardingWindow?.ApplyState(state);
             _composer?.ApplyTheme(state.Preferences.Theme);
+            _composer?.ViewModel.ApplyState(state);
+            _statusNotice?.ApplyTheme(state.Preferences.Theme);
             _historyWindow?.ApplyState(state);
             _tray?.SetState(new TrayMenuState(
                 state.Preferences.OverlayVisible,
@@ -1085,6 +1106,137 @@ public partial class App : Application
         timer.Tick -= OnDisplayTopologyRefreshElapsed;
         timer.Stop();
         _displayTopologyRefreshTimer = null;
+    }
+
+    private void StartGlobalShortcuts(AppCoordinator coordinator)
+    {
+        try
+        {
+            _globalShortcuts = GlobalHotkeyService.Start(StartupDiagnostics.NonFatal);
+            _globalShortcuts.Pressed += OnGlobalShortcutPressed;
+            StartupDiagnostics.Stage("global-shortcuts-started");
+        }
+        catch (Exception exception)
+        {
+            // Launch continues; settings show saved shortcuts as unavailable.
+            StartupDiagnostics.NonFatal("global-shortcuts-start", exception);
+        }
+        coordinator.AttachGlobalShortcuts(_globalShortcuts);
+    }
+
+    private void DisposeGlobalShortcuts(string stage)
+    {
+        if (_globalShortcuts is null)
+        {
+            return;
+        }
+
+        _globalShortcuts.Pressed -= OnGlobalShortcutPressed;
+        try
+        {
+            _globalShortcuts.Dispose();
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal(stage, exception);
+        }
+        _globalShortcuts = null;
+    }
+
+    private void OnGlobalShortcutPressed(GlobalShortcutAction action)
+    {
+        if (!_shuttingDown)
+        {
+            _dispatcherQueue.TryEnqueue(() =>
+            {
+                if (!_shuttingDown)
+                {
+                    HandleGlobalShortcut(action);
+                }
+            });
+        }
+    }
+
+    private void HandleGlobalShortcut(GlobalShortcutAction action)
+    {
+        if (_coordinator is null
+            || _mainWindow?.ViewModel.TryRecordRegisteredGlobalShortcut(action) == true)
+        {
+            return;
+        }
+
+        switch (action)
+        {
+            case GlobalShortcutAction.Compose:
+                if (_composer?.IsComposerVisible == true)
+                {
+                    // The draft stays in the composer, as when it closes after losing focus.
+                    _composer.HideComposer();
+                }
+                else
+                {
+                    // A shortcut is pressed without seeing the tray menu, so it always shows the
+                    // composer. Without a group the composer explains why it cannot send.
+                    HandleTrayCommand(TrayCommand.Compose);
+                }
+                break;
+            case GlobalShortcutAction.ToggleOverlay:
+                HandleTrayCommand(TrayCommand.ToggleOverlay);
+                break;
+            case GlobalShortcutAction.ToggleQuietMode:
+                if (_onboardingWindow is null && _coordinator.State.Preferences.OnboardingCompleted)
+                {
+                    _ = ToggleQuietModeWithNoticeAsync(_coordinator);
+                }
+                else
+                {
+                    HandleTrayCommand(TrayCommand.ToggleQuietMode);
+                }
+                break;
+        }
+    }
+
+    private async Task ToggleQuietModeWithNoticeAsync(AppCoordinator coordinator)
+    {
+        // Quiet mode changes nothing on screen until a message arrives, so confirm it.
+        bool enabled = !coordinator.State.Preferences.QuietMode;
+        bool applied = false;
+        await RunCoordinatorCommandAsync(async () =>
+        {
+            await coordinator.SetQuietModeAsync(enabled);
+            applied = true;
+        });
+        if (applied && !_shuttingDown)
+        {
+            _dispatcherQueue.TryEnqueue(() => ShowQuietModeNotice(enabled));
+        }
+    }
+
+    private void ShowQuietModeNotice(bool enabled)
+    {
+        if (_shuttingDown || _coordinator is null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (_statusNotice is null)
+            {
+                _statusNotice = new StatusNoticeWindow();
+                _statusNotice.ApplyTheme(_coordinator.State.Preferences.Theme);
+            }
+
+            _statusNotice.ShowNotice(
+                I18n.Get(enabled ? "notice.quietModeOnTitle" : "notice.quietModeOffTitle"),
+                I18n.Get(enabled ? "notice.quietModeOnDetail" : "notice.quietModeOffDetail"),
+                _coordinator.State.Preferences.OverlayRegion.MonitorIdentifier,
+                belowComposer: _composer?.IsComposerVisible == true);
+        }
+        catch (Exception exception)
+        {
+            StartupDiagnostics.NonFatal("status-notice", exception);
+        }
     }
 
     private void HandleTrayCommand(TrayCommand command)
@@ -1346,13 +1498,18 @@ public partial class App : Application
             }
             _tray = null;
         }
+        DisposeGlobalShortcuts("shutdown-global-shortcuts-dispose");
         if (_composer is not null)
         {
             _composer.ViewModel.SendRequested -= OnSendRequested;
             _composer.ViewModel.TypingChanged -= OnTypingChanged;
+            _composer.ViewModel.GroupSettingsRequested -= OnComposerGroupSettingsRequested;
             _composer.CloseForExit();
             _composer = null;
         }
+
+        _statusNotice?.CloseForExit();
+        _statusNotice = null;
 
         _historyWindow?.Close();
         _historyWindow = null;

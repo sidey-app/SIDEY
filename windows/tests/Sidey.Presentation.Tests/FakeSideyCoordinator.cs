@@ -188,6 +188,36 @@ internal sealed class FakeSideyCoordinator : IMainWindowCoordinator, IHistoryCoo
         return Task.CompletedTask;
     }
 
+    public GlobalShortcutRegistrationStatus GlobalShortcutRegistrationResult { get; set; } =
+        GlobalShortcutRegistrationStatus.Registered;
+    public List<(GlobalShortcutAction Action, GlobalShortcut? Shortcut)> GlobalShortcutChanges { get; } = [];
+    public Task<GlobalShortcutRegistrationStatus> SetGlobalShortcutAsync(
+        GlobalShortcutAction action,
+        GlobalShortcut? shortcut,
+        CancellationToken cancellationToken = default)
+    {
+        GlobalShortcutChanges.Add((action, shortcut));
+        GlobalShortcutRegistrationStatus status = shortcut is null
+            ? GlobalShortcutRegistrationStatus.NotSet
+            : GlobalShortcutRegistrationResult;
+        if (shortcut is null || status == GlobalShortcutRegistrationStatus.Registered)
+        {
+            State = State with
+            {
+                Preferences = State.Preferences with
+                {
+                    GlobalShortcuts = State.Preferences.GlobalShortcuts.With(action, shortcut),
+                },
+                GlobalShortcutStatuses = new Dictionary<GlobalShortcutAction, GlobalShortcutRegistrationStatus>(
+                    State.GlobalShortcutStatuses)
+                {
+                    [action] = status,
+                },
+            };
+        }
+        return Task.FromResult(status);
+    }
+
     public Task SetRegionAsync(
         OverlayRegionPreference preference,
         CancellationToken cancellationToken = default) => Task.CompletedTask;

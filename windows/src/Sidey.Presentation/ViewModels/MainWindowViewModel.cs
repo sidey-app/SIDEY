@@ -334,6 +334,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
         RefreshVisibleStoreProducts();
         RefreshMonitors();
+        GlobalShortcuts = [.. GlobalShortcutPreferences.Actions.Select(action =>
+            new GlobalShortcutSettingViewModel(action, coordinator, CancelOtherGlobalShortcutRecordings))];
         ApplyState(coordinator.State);
         UpdateCharacterSelectionState();
         RefreshUpdateInformation();
@@ -356,6 +358,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public ObservableCollection<MonitorOption> Monitors { get; } = [];
 
     public ObservableCollection<RoomCardViewModel> Rooms { get; } = [];
+
+    public IReadOnlyList<GlobalShortcutSettingViewModel> GlobalShortcuts { get; }
 
     public bool IsValidationMode => _coordinator.IsValidationMode;
 
@@ -475,6 +479,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 language => string.Equals(language, selectedLanguage, StringComparison.OrdinalIgnoreCase));
             SelectedLanguageIndex = Math.Max(0, selectedLanguageIndex);
             SelectedThemeIndex = (int)state.Preferences.Theme;
+            foreach (GlobalShortcutSettingViewModel shortcut in GlobalShortcuts)
+            {
+                shortcut.Apply(state);
+            }
             SelectedEdgeIndex = (int)state.Preferences.OverlayRegion.Edge;
             SelectedSpanIndex = (int)state.Preferences.OverlayRegion.Span;
             string? preferredMonitor = state.Preferences.OverlayRegion.MonitorIdentifier;
@@ -827,6 +835,42 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         if (!_isApplyingState && IsThemeSelectionEnabled && Enum.IsDefined((AppThemePreference)value))
             _ = SaveThemeAsync((AppThemePreference)value);
+    }
+
+    public void CancelGlobalShortcutRecording()
+    {
+        foreach (GlobalShortcutSettingViewModel shortcut in GlobalShortcuts)
+        {
+            shortcut.CancelRecordingCommand.Execute(null);
+        }
+    }
+
+    /// <summary>
+    /// Windows delivers a combination SIDEY has already registered to the shortcut
+    /// service instead of the focused recorder, so the app forwards it here.
+    /// </summary>
+    public bool TryRecordRegisteredGlobalShortcut(GlobalShortcutAction pressedAction)
+    {
+        GlobalShortcutSettingViewModel? recording = GlobalShortcuts.FirstOrDefault(shortcut => shortcut.IsRecording);
+        if (recording is null
+            || _coordinator.State.Preferences.GlobalShortcuts.Get(pressedAction) is not { } pressedShortcut)
+        {
+            return false;
+        }
+
+        recording.RecordCommand.Execute(pressedShortcut);
+        return true;
+    }
+
+    private void CancelOtherGlobalShortcutRecordings(GlobalShortcutSettingViewModel recording)
+    {
+        foreach (GlobalShortcutSettingViewModel shortcut in GlobalShortcuts)
+        {
+            if (!ReferenceEquals(shortcut, recording))
+            {
+                shortcut.CancelRecordingCommand.Execute(null);
+            }
+        }
     }
 
     private async Task SaveThemeAsync(AppThemePreference theme)

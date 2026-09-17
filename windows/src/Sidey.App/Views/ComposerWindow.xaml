@@ -45,7 +45,8 @@
             Text="{Binding Draft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
             TextWrapping="Wrap"
             VerticalAlignment="Center"
-            VerticalContentAlignment="Center">
+            VerticalContentAlignment="Center"
+            Visibility="{Binding CanCompose, Converter={StaticResource BooleanToVisibilityConverter}}">
           <TextBox.Resources>
             <SolidColorBrush x:Key="TextControlBackground" Color="Transparent" />
             <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="Transparent" />
@@ -53,6 +54,32 @@
             <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="Transparent" />
           </TextBox.Resources>
         </TextBox>
+
+        <TextBlock
+            x:Name="WaitingForGroupsText"
+            Grid.Column="1"
+            Margin="10,0"
+            VerticalAlignment="Center"
+            FontSize="13"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            MaxLines="2"
+            Text="{Binding Value, Source={i18n:I18n Key=composer.waitingForGroups}, Mode=OneWay}"
+            TextTrimming="CharacterEllipsis"
+            TextWrapping="Wrap"
+            Visibility="{Binding IsWaitingForGroups, Converter={StaticResource BooleanToVisibilityConverter}}" />
+
+        <TextBlock
+            x:Name="GroupRequiredText"
+            Grid.Column="1"
+            Margin="10,0"
+            VerticalAlignment="Center"
+            FontSize="13"
+            Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+            MaxLines="2"
+            Text="{Binding Value, Source={i18n:I18n Key=composer.groupRequired}, Mode=OneWay}"
+            TextTrimming="CharacterEllipsis"
+            TextWrapping="Wrap"
+            Visibility="{Binding IsGroupRequired, Converter={StaticResource BooleanToVisibilityConverter}}" />
 
         <Button
             x:Name="SendButton"
@@ -65,8 +92,25 @@
             BorderThickness="0"
             Command="{Binding SendCommand}"
             IsTabStop="False"
-            ToolTipService.ToolTip="{Binding Value, Source={i18n:I18n Key=composer.sendTooltip}, Mode=OneWay}">
+            ToolTipService.ToolTip="{Binding Value, Source={i18n:I18n Key=composer.sendTooltip}, Mode=OneWay}"
+            Visibility="{Binding CanCompose, Converter={StaticResource BooleanToVisibilityConverter}}">
           <SymbolIcon Symbol="Send" />
+        </Button>
+
+        <Button
+            x:Name="GroupSettingsButton"
+            Grid.Column="2"
+            Width="28"
+            Height="34"
+            Padding="0"
+            AutomationProperties.Name="{Binding Value, Source={i18n:I18n Key=composer.openGroupsTooltip}, Mode=OneWay}"
+            Background="Transparent"
+            BorderThickness="0"
+            Command="{Binding OpenGroupSettingsCommand}"
+            PreviewKeyDown="OnGroupSettingsButtonPreviewKeyDown"
+            ToolTipService.ToolTip="{Binding Value, Source={i18n:I18n Key=composer.openGroupsTooltip}, Mode=OneWay}"
+            Visibility="{Binding CanCompose, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+          <SymbolIcon Symbol="People" />
         </Button>
       </Grid>
     </Border>

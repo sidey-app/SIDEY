@@ -55,6 +55,11 @@ public interface IMainWindowCoordinator : IOnboardingCoordinator
 
     public Task SetThemeAsync(AppThemePreference theme, CancellationToken cancellationToken = default);
 
+    public Task<GlobalShortcutRegistrationStatus> SetGlobalShortcutAsync(
+        GlobalShortcutAction action,
+        GlobalShortcut? shortcut,
+        CancellationToken cancellationToken = default);
+
     public Task SetRegionAsync(
         OverlayRegionPreference preference,
         CancellationToken cancellationToken = default);

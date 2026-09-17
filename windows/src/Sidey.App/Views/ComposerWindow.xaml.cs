@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -13,8 +14,9 @@ namespace Sidey.App.Views;
 
 public sealed partial class ComposerWindow : Window
 {
+    internal const int ComposerHeight = 56;
+    internal const int TopMargin = 10;
     private const int ComposerWidth = 400;
-    private const int ComposerHeight = 56;
     private const int FocusAttemptCount = 3;
 
     private readonly Microsoft.UI.Dispatching.DispatcherQueue _uiDispatcherQueue;
@@ -47,6 +49,7 @@ public sealed partial class ComposerWindow : Window
             WinRT.Interop.WindowNative.GetWindowHandle(this));
 
         ViewModel.CloseRequested += OnCloseRequested;
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
         MessageInput.Loaded += OnMessageInputLoaded;
         Activated += OnWindowActivated;
         AppWindow.Closing += OnAppWindowClosing;
@@ -54,6 +57,8 @@ public sealed partial class ComposerWindow : Window
     }
 
     public ComposerViewModel ViewModel { get; }
+
+    public bool IsComposerVisible => _isVisible && !_isClosed;
 
     public void ApplyTheme(AppThemePreference theme)
     {
@@ -76,7 +81,7 @@ public sealed partial class ComposerWindow : Window
         AppWindow.Show();
         Activate();
         SideyWindowActivation.BringToForeground(this);
-        RequestMessageInputFocus();
+        RequestInputFocus();
     }
 
     public void HideComposer()
@@ -115,7 +120,7 @@ public sealed partial class ComposerWindow : Window
         AppWindow.Show();
         Activate();
         SideyWindowActivation.BringToForeground(this);
-        RequestMessageInputFocus();
+        RequestInputFocus();
     }
 
     public void CloseForExit()
@@ -160,7 +165,27 @@ public sealed partial class ComposerWindow : Window
         if (ViewModel.SendCommand.CanExecute(null))
         {
             ViewModel.SendCommand.Execute(null);
-            RequestMessageInputFocus();
+            RequestInputFocus();
+        }
+    }
+
+    private void OnGroupSettingsButtonPreviewKeyDown(object sender, KeyRoutedEventArgs args)
+    {
+        _ = sender;
+        if (args.Key == VirtualKey.Escape)
+        {
+            args.Handled = true;
+            ViewModel.CloseCommand.Execute(null);
+        }
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        _ = sender;
+        if (args.PropertyName == nameof(ComposerViewModel.Availability) && !_isClosed && _isVisible)
+        {
+            // The message box and the group settings button swap places; keep keyboard focus inside.
+            RequestInputFocus();
         }
     }
 
@@ -179,7 +204,7 @@ public sealed partial class ComposerWindow : Window
 
         if (_isVisible)
         {
-            RequestMessageInputFocus();
+            RequestInputFocus();
         }
     }
 
@@ -187,7 +212,7 @@ public sealed partial class ComposerWindow : Window
     {
         if (!_isClosed && _isVisible)
         {
-            RequestMessageInputFocus();
+            RequestInputFocus();
         }
     }
 
@@ -235,18 +260,19 @@ public sealed partial class ComposerWindow : Window
         _isVisible = false;
         AppWindow.Closing -= OnAppWindowClosing;
         MessageInput.Loaded -= OnMessageInputLoaded;
+        ViewModel.PropertyChanged -= OnViewModelPropertyChanged;
         ViewModel.CloseRequested -= OnCloseRequested;
         ViewModel.Dispose();
     }
 
-    private void RequestMessageInputFocus()
+    private void RequestInputFocus()
     {
         _focusRequested = true;
         int requestId = ++_focusRequestId;
-        QueueMessageInputFocus(requestId, FocusAttemptCount);
+        QueueInputFocus(requestId, FocusAttemptCount);
     }
 
-    private void QueueMessageInputFocus(int requestId, int attemptsRemaining)
+    private void QueueInputFocus(int requestId, int attemptsRemaining)
     {
         DispatcherQueue.TryEnqueue(() =>
         {
@@ -255,7 +281,15 @@ public sealed partial class ComposerWindow : Window
                 return;
             }
 
-            if (MessageInput.Focus(FocusState.Programmatic))
+            if (!ViewModel.CanCompose)
+            {
+                if (GroupSettingsButton.Focus(FocusState.Programmatic))
+                {
+                    _focusRequested = false;
+                    return;
+                }
+            }
+            else if (MessageInput.Focus(FocusState.Programmatic))
             {
                 MessageInput.SelectionStart = MessageInput.Text.Length;
                 _focusRequested = false;
@@ -264,7 +298,7 @@ public sealed partial class ComposerWindow : Window
 
             if (attemptsRemaining > 0)
             {
-                QueueMessageInputFocus(requestId, attemptsRemaining - 1);
+                QueueInputFocus(requestId, attemptsRemaining - 1);
             }
             else
             {
@@ -285,6 +319,6 @@ public sealed partial class ComposerWindow : Window
         Windows.Graphics.SizeInt32 windowSize = AppWindow.Size;
         AppWindow.Move(new Windows.Graphics.PointInt32(
             workArea.X + ((workArea.Width - windowSize.Width) / 2),
-            workArea.Y + (int)Math.Round(10 * scale)));
+            workArea.Y + (int)Math.Round(TopMargin * scale)));
     }
 }

@@ -38,6 +38,25 @@ public sealed class AppPreferencesTests
         Assert.Null(preferences.CachedCharacterId);
         Assert.Null(preferences.ActiveRoomId);
         Assert.Equal(OverlayRegionPreference.Default, preferences.OverlayRegion);
+        Assert.Equal(GlobalShortcutPreferences.Empty, preferences.GlobalShortcuts);
+    }
+
+    [Fact]
+    public void GlobalShortcutPreferenceIsNormalizedWithoutDefaults()
+    {
+        AppPreferences missing = (AppPreferences.Default with { GlobalShortcuts = null! }).Normalize();
+        AppPreferences edited = (AppPreferences.Default with
+        {
+            GlobalShortcuts = new GlobalShortcutPreferences
+            {
+                Compose = "shift+ctrl+m",
+                ToggleOverlay = "Win+Shift+O",
+            },
+        }).Normalize();
+
+        Assert.Equal(GlobalShortcutPreferences.Empty, missing.GlobalShortcuts);
+        Assert.Equal("Ctrl+Shift+M", edited.GlobalShortcuts.Compose);
+        Assert.Null(edited.GlobalShortcuts.ToggleOverlay);
     }
 
     [Theory]

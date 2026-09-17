@@ -99,6 +99,7 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
             minimumWindowSize);
         ApplyBackdrop();
         AppWindow.Closing += OnAppWindowClosing;
+        Activated += OnWindowActivated;
         Closed += OnWindowClosed;
         ViewModel.NoticeRaised += OnNoticeRaised;
         ViewModel.StorePreviewRequested += OnStorePreviewRequested;
@@ -1939,12 +1940,23 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         return minimumWindowSize;
     }
 
+    private void OnWindowActivated(object sender, WindowActivatedEventArgs args)
+    {
+        _ = sender;
+        // Recording must not keep waiting for keys that another app now receives.
+        if (args.WindowActivationState == WindowActivationState.Deactivated)
+        {
+            ViewModel.CancelGlobalShortcutRecording();
+        }
+    }
+
     private void OnWindowClosed(object sender, WindowEventArgs args)
     {
         _ = sender;
         _ = args;
         PrepareForClose();
         AppWindow.Closing -= OnAppWindowClosing;
+        Activated -= OnWindowActivated;
         Closed -= OnWindowClosed;
         ViewModel.NoticeRaised -= OnNoticeRaised;
         ViewModel.StorePreviewRequested -= OnStorePreviewRequested;

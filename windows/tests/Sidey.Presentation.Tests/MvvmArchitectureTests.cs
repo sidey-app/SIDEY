@@ -67,6 +67,8 @@ public sealed class MvvmArchitectureTests
     [Theory]
     [InlineData("MainWindow.xaml", "SaveProfileCommand")]
     [InlineData("MainWindow.xaml", "CreateRoomCommand")]
+    [InlineData("MainWindow.xaml", "StartRecordingCommand")]
+    [InlineData("MainWindow.xaml", "ClearCommand")]
     [InlineData("ComposerWindow.xaml", "SendCommand")]
     [InlineData("OnboardingWindow.xaml", "SkipGroupCommand")]
     public void ViewActionsUseCommandBindings(string fileName, string commandName)
