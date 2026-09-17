@@ -1,7 +1,7 @@
 # Contributing to SIDEY
 
-SIDEY welcomes contributions to code, tests, documentation, translations, and
-character assets.
+SIDEY welcomes contributions to code, tests, documentation, and translations.
+External asset contributions are not accepted.
 
 Start with the problem you want to solve. Search the existing
 [issues](https://github.com/sidey-app/SIDEY/issues) before opening a new one.
@@ -32,14 +32,26 @@ identity, security, distribution or source-of-truth boundary. Machine-readable s
 code own exact values; decision records explain rationale rather than overriding current
 state. Keep a change focused on the issue it addresses.
 
-Character contributions follow the [asset creation guide](assets/README.md)
-and use the
-[character asset pull request template](.github/PULL_REQUEST_TEMPLATE/character_asset.md).
-Discuss sales, payment, and distribution rights before submitting a paid
-asset.
 Code, tests, documentation, translations, workflows, and other repository
 changes use the
 [general pull request template](.github/PULL_REQUEST_TEMPLATE/general.md).
+
+## Contribution licensing
+
+SIDEY software source code is licensed under GNU AGPL version 3 only
+(`AGPL-3.0-only`); see [LICENSE](LICENSE) and the
+[licensing scope](LICENSING.md). By intentionally submitting code for inclusion,
+you agree to license your contribution under those terms and confirm that you
+have the right to do so. Identify any third-party material and its license in
+your pull request, and preserve its existing notices.
+
+Contributors retain their copyright. A code contribution does not transfer
+copyright, grant SIDEY a separate proprietary license, or by itself create an
+entitlement to payment, revenue sharing or ownership of the business.
+
+Do not submit character, bubble, throwable, audio, logo or other asset files.
+Existing assets and their mirrors remain available for maintainer-controlled
+maintenance under their existing licenses; this is not an asset intake process.
 
 ## Set up an external fork
 

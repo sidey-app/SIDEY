@@ -118,13 +118,12 @@ SIDEY 是一款适用于 macOS 和 Windows 的桌面聊天应用，让你通过�
 
 ## 参与贡献
 
-欢迎你以各种方式参与，包括修复问题、改进文档、翻译和制作角色。
+欢迎提交错误修复、功能改进、文档改进和翻译。我们不接受角色或素材贡献。
 
 开始前，请先阅读[贡献指南](../../CONTRIBUTING.md)，了解讨论、分支、提交、验证和 Pull Request 流程。
 
 - 提出新功能前，请先在 [Issue](https://github.com/sidey-app/SIDEY/issues) 中一起讨论它的用途和具体行为。
 - 修改代码或文档时，请使用[通用 PR 模板](../../.github/PULL_REQUEST_TEMPLATE/general.md)，说明修改原因和验证情况。
-- 如果你想制作角色，请先阅读[素材制作指南](../../assets/README.md)和[角色素材 PR 模板](../../.github/PULL_REQUEST_TEMPLATE/character_asset.md)。付费素材需要在提交前协商销售与结算条件。
 
 ## 特别感谢
 
@@ -138,7 +137,9 @@ SIDEY 是一款适用于 macOS 和 Windows 的桌面聊天应用，让你通过�
 
 ## 许可证
 
-有关素材的复制、修改、再分发和商业使用条件，请参阅 [SIDEY Paid Asset License 1.0](../../assets/PAID_ASSET_LICENSE.md)。
+除非另有说明，SIDEY 源代码采用 [GNU AGPL 仅限第 3.0 版（AGPL-3.0-only）](../../LICENSE)。适用范围请参阅[许可说明](../../LICENSING.md)。
+
+品牌、素材和第三方内容仍分别适用其现有条款。有关素材的复制、修改、再分发和商业使用条件，请参阅 [SIDEY Paid Asset License 1.0](../../assets/PAID_ASSET_LICENSE.md)。
 
 ---
 

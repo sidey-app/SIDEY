@@ -9,11 +9,8 @@ sys.path.insert(
 )
 
 from validate_pull_request import (  # noqa: E402
-    CHARACTER_ASSET_MARKER,
     GENERAL_MARKER,
     PullRequestValidationError,
-    is_character_asset_change,
-    required_template_for_paths,
     validate_pr_body,
 )
 
@@ -32,98 +29,59 @@ class PullRequestValidationTests(unittest.TestCase):
             '## Validation\n\nList checks.\n',
             encoding='utf-8',
         )
-        (templates / 'character_asset.md').write_text(
-            f'{CHARACTER_ASSET_MARKER}\n\n'
-            '# Character asset PR\n\n'
-            '## Asset details\n\nDescribe the asset.\n\n'
-            '## Checklist\n\n- [ ] Validated\n',
-            encoding='utf-8',
-        )
 
     def body(self, name):
         return (
             self.root / f'.github/PULL_REQUEST_TEMPLATE/{name}.md'
         ).read_text(encoding='utf-8')
 
-    def test_general_template_is_required_for_non_character_change(self):
-        paths = ['windows/src/App.cs']
-        self.assertEqual(required_template_for_paths(paths), 'general')
-        self.assertEqual(
-            validate_pr_body(
-                self.root,
-                self.body('general'),
-                paths,
-            ),
-            'general',
+    def test_general_template_accepts_code_and_maintainer_asset_changes(self):
+        for paths in (
+            ['windows/src/App.cs'],
+            ['assets/v1/characters/capybara/idle.png', 'assets/v1/manifest.json'],
+            ['assets/v1/throwables/ball/idle.png'],
+            ['assets/v1/characters/capybara/idle.png',
+             'scripts/validate_pixel_assets.py'],
+        ):
+            with self.subTest(paths=paths):
+                self.assertEqual(
+                    validate_pr_body(self.root, self.body('general'), paths),
+                    'general',
+                )
+
+    def test_retired_asset_marker_is_rejected_alone_or_with_general_body(self):
+        marker = '<!-- SIDEY_CHARACTER_ASSET_PR_TEMPLATE: keep -->'
+        for body in (marker, self.body('general') + marker):
+            with self.subTest(body=body):
+                with self.assertRaisesRegex(
+                    PullRequestValidationError, 'retired asset template',
+                ):
+                    validate_pr_body(
+                        self.root, body,
+                        ['assets/v1/characters/capybara/idle.png'],
+                    )
+
+    def test_missing_or_duplicate_markers_are_rejected(self):
+        for body, message in (
+            ('## Type\n', 'exactly one'),
+            (self.body('general') + GENERAL_MARKER, 'duplicated'),
+        ):
+            with self.subTest(body=body):
+                with self.assertRaisesRegex(PullRequestValidationError, message):
+                    validate_pr_body(self.root, body, ['docs/guide.md'])
+
+    def test_default_github_template_matches_validated_general_template(self):
+        root = Path(__file__).parents[2]
+        body = (root / '.github/pull_request_template.md').read_text(
+            encoding='utf-8',
         )
-
-    def test_character_template_is_required_for_character_asset_change(self):
-        paths = [
-            'assets/v1/characters/capybara/idle.png',
-            'assets/v1/manifest.json',
-        ]
-        self.assertTrue(is_character_asset_change(paths))
-        self.assertEqual(required_template_for_paths(paths), 'character_asset')
         self.assertEqual(
-            validate_pr_body(
-                self.root,
-                self.body('character_asset'),
-                paths,
+            body,
+            (root / '.github/PULL_REQUEST_TEMPLATE/general.md').read_text(
+                encoding='utf-8',
             ),
-            'character_asset',
         )
-
-    def test_character_template_is_required_for_mixed_character_change(self):
-        paths = [
-            'assets/v1/characters/capybara/idle.png',
-            'scripts/validate_pixel_assets.py',
-        ]
-        self.assertEqual(
-            validate_pr_body(
-                self.root,
-                self.body('character_asset'),
-                paths,
-            ),
-            'character_asset',
-        )
-
-    def test_general_template_rejects_character_asset_change(self):
-        with self.assertRaisesRegex(
-            PullRequestValidationError,
-            'character_asset.md',
-        ):
-            validate_pr_body(
-                self.root,
-                self.body('general'),
-                ['assets/v1/throwables/ball/idle.png'],
-            )
-
-    def test_character_template_rejects_non_character_change(self):
-        with self.assertRaisesRegex(
-            PullRequestValidationError,
-            'general.md',
-        ):
-            validate_pr_body(
-                self.root,
-                self.body('character_asset'),
-                ['assets/v1/manifest.json'],
-            )
-
-    def test_missing_or_multiple_markers_are_rejected(self):
-        with self.assertRaisesRegex(
-            PullRequestValidationError,
-            'exactly one',
-        ):
-            validate_pr_body(self.root, '## Type\n', ['docs/guide.md'])
-        with self.assertRaisesRegex(
-            PullRequestValidationError,
-            'exactly one',
-        ):
-            validate_pr_body(
-                self.root,
-                self.body('general') + self.body('character_asset'),
-                ['assets/v1/characters/capybara/idle.png'],
-            )
+        self.assertEqual(validate_pr_body(root, body, ['docs/guide.md']), 'general')
 
     def test_missing_or_reordered_sections_are_rejected(self):
         body = self.body('general')

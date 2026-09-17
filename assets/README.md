@@ -10,8 +10,8 @@
 
 [공개 에셋 프리뷰어](https://sidey-app.github.io/SIDEY/contribute/asset-previewer/)는
 파일을 서버로 보내거나 저장하지 않고 현재 브라우저의 메모리에서만 처리합니다.
-SIDEY 웹 클라이언트가 아니라, 에셋을 제출하기 전에 실제 동작을 확인하는
-컨트리뷰터용 도구입니다.
+SIDEY 웹 클라이언트가 아니라, 기존 에셋의 규격과 동작을 확인하는 검토 도구입니다.
+외부 에셋 기여는 받지 않습니다.
 
 ![햄스터 기본·throw/hit·패치 말랑공 공식 8배 참고 이미지](v1/reference/pixel_hamster_reference.png)
 
@@ -26,8 +26,9 @@ SIDEY 웹 클라이언트가 아니라, 에셋을 제출하기 전에 실제 동
 수 없으며, 앱·웹·Windows BGRA mirror에도 같은 조건이 적용됩니다.
 
 이 라이선스는 manifest에 유료로 지정되지 않은 에셋이나 소프트웨어 코드에는
-적용되지 않습니다. 해당 파일은 별도 라이선스가 명시되지 않았다면 기본 저작권
-조건을 따릅니다.
+적용되지 않습니다. 다른 에셋은 별도 라이선스가 명시되지 않았다면 기본 저작권
+조건을 따릅니다. SIDEY 소스 코드의 AGPLv3 적용 범위와 제3자 자료의 구분은
+[라이선스 안내](../LICENSING.md)를 확인해 주세요.
 
 ## 프레임 계약
 
@@ -75,19 +76,16 @@ SIDEY 웹 클라이언트가 아니라, 에셋을 제출하기 전에 실제 동
 별빛 우파루파처럼 idle 상태에서 후광처럼 보이는 ambient sparkle과 더블클릭
 particle burst 효과를 제안할 수 있습니다. 이러한 효과는 PNG 프레임이 아니라
 별도의 렌더러 기능입니다. 성능·색상·밀도·지속 시간 검토와 macOS·Windows별
-구현이 필요하며, 에셋 제출만으로 제품에서 자동 활성화되지는 않습니다.
+구현이 필요하며, 에셋 파일만으로 제품에서 자동 활성화되지는 않습니다.
 
-## 신규 제출 절차
+## 유지관리자의 에셋 검증
 
-1. 종류에 맞는 `assets/v1/characters`, `bubbles`, `throwables` 하위 경로에 원본을 추가합니다.
-2. `manifest.json`에 상대 경로, SHA-256과 `supported_platforms`를 등록합니다.
-3. 캐릭터는 시그니처 투척물 매핑과 fallback도 갱신합니다.
-4. 공용 브랜치에서는 `python3 scripts/validate_pixel_assets.py --canonical-only`, 플랫폼 mirror가 합쳐진 브랜치에서는 옵션 없이 전체 검사를 실행합니다.
-5. PR 유형에서 `캐릭터 에셋`을 선택하고
-   [캐릭터 에셋 전용 PR 양식](../.github/PULL_REQUEST_TEMPLATE/character_asset.md)에
-   원본 전체본과 프리뷰어 검사 결과를 첨부합니다.
-6. 중앙 변경을 먼저 리뷰한 뒤 플랫폼별 catalog와 배포 복사본은 별도 후속 PR에서
-   갱신합니다.
+기존 에셋을 유지보수할 때는 manifest의 경로·SHA-256·플랫폼 지원 정보와 캐릭터별
+투척물 매핑을 함께 확인합니다. 공용 원본은
+`python3 scripts/validate_pixel_assets.py --canonical-only`, 플랫폼 mirror까지 포함한
+검증은 옵션 없이 실행합니다. 변경 이유와 검증 결과는
+[일반 PR 양식](../.github/PULL_REQUEST_TEMPLATE/general.md)에 기록합니다.
+공용 변경과 각 플랫폼의 배포 복사본 갱신은 별도 PR로 순차 진행합니다.
 
 검사 통과를 위해 규격을 억지로 재인코딩하지 말고 원본 제작 파일에서 문제를
 바로잡아 주세요. 승인된 `v1` 파일을 변경해야 한다면 기존 hash를 조용히 덮지

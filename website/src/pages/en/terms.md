@@ -13,7 +13,7 @@ originalLabel: View the original document
 
 ## 1. Purpose and scope
 
-These Terms govern the SIDEY app, website, and related services (collectively, the “Service”) provided by the operator of SIDEY (the “Operator”). By installing the app or using the Service, you agree to these Terms and any separately disclosed operating policies. If applicable law gives you greater protection than these Terms, that law will apply.
+These Terms govern the SIDEY app, website, and related services (collectively, the “Service”) provided by the operator of SIDEY (the “Operator”). By using the official Service, you agree to these Terms and any separately disclosed operating policies. If applicable law gives you greater protection than these Terms, that law will apply.
 
 ## 2. Key terms
 
@@ -53,13 +53,13 @@ A minor who needs consent from a legal representative must obtain that consent b
 
 ## 11. Software license and intellectual property
 
-Subject to these Terms, the Operator grants you a limited, non-exclusive, non-transferable license to install and run SIDEY on a supported personal computer. Individuals and organizations may use the app for ordinary work and non-work communication within friend Groups. A paid customization item grants only the right to use it through the purchasing Account and does not transfer ownership or copyright in its files, characters, or designs.
+Software within the [licensing scope](https://github.com/sidey-app/SIDEY/blob/main/LICENSING.md) of the SIDEY public source repository is licensed under the [GNU Affero General Public License version 3 only (AGPL-3.0-only)](https://github.com/sidey-app/SIDEY/blob/main/LICENSE). That license governs the rights and conditions to run, copy, modify, and distribute the covered software; these Terms impose no additional restrictions on those rights. Third-party components remain subject to their respective licenses and notices.
 
-You may not copy, sell, rent, redistribute, or sublicense the app or paid assets without permission, or bypass purchase, ownership, or security controls. Except where expressly permitted by law, you may not reverse engineer, disassemble, or modify the software or remove rights notices. Rights in the SIDEY name, app, interface, pixel characters, and customization assets belong to the Operator or their lawful owners. The licenses and notices for third-party open-source components continue to apply to those components.
+Paid customization items grant only the right to use them through the purchasing Account and do not transfer ownership or copyright in their files, characters, or designs. The source-code license does not grant trademark rights in the SIDEY name or logo, or rights to character and customization assets supplied under separate terms. You may not copy, sell, rent, redistribute, sublicense, or remove rights notices from those assets without the rights holder's permission. You must not bypass purchase, entitlement, or security controls of the official Service. These restrictions must not be interpreted to limit software rights granted by applicable open-source licenses.
 
-## 12. Restrictions, termination, and Account deletion
+## 12. Access restrictions and Account deletion
 
-If a material violation of law or these Terms, or conduct threatening the safety of the Service, is confirmed, the Operator may restrict or terminate access and the software license after notice and a reasonable opportunity to cure. An urgent security risk or risk of harm to others may be restricted first and explained afterward. When the license ends, you must stop using the app and delete installed copies.
+If a material violation of law or these Terms, or conduct threatening the safety of the Service, is confirmed, the Operator may restrict or terminate access to the official Service after notice and a reasonable opportunity to cure. An urgent security risk or risk of harm to others may be restricted first and explained afterward. Restricting service access or deleting an Account does not itself terminate an open-source software license; termination of that license is governed by the applicable open-source license.
 
 An Account may be deleted through the process provided in the app. Account deletion is separate from a refund request, and whether a purchase can be restored depends on the applicable release channel and payment provider. Provisions that by their nature should survive termination—including intellectual-property, liability, and dispute provisions—remain in effect.
 
@@ -75,6 +75,6 @@ Some features may be limited or behave differently depending on the device, oper
 
 These Terms are governed by the laws of the Republic of Korea. The parties will first attempt to resolve a dispute in good faith. If it remains unresolved, it will be heard by a court having jurisdiction under the Korean Civil Procedure Act and other applicable law. Users may also use legally available consumer-dispute resolution procedures, including those offered by the Korea Consumer Agency.
 
-## 16. Effective date
+## 16. Effective date and proposed revision
 
-These Terms take effect on September 4, 2026.
+The original Terms took effect on September 4, 2026. This proposed revision was prepared on September 17, 2026 to distinguish AGPLv3 software rights from the terms governing the official Service and paid assets. Its effective date will be announced separately with the change notice under Section 3. Preparing this proposal does not itself amend the existing Terms or apply changes retroactively to past purchases.
