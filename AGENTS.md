@@ -34,9 +34,9 @@ values in documentation.
 
 ## Backend ownership
 
-Backend implementation lives in the private [sidey-app/sidey-backend](https://github.com/sidey-app/sidey-backend) repository. Supabase migrations, RLS, Edge Functions, App Store verification, database tests, operational metrics and backend deployment tools must be changed and verified in a current checkout of that repository under its own `AGENTS.md` and CI. Do not recreate backend implementation here or deploy from historical SIDEY copies.
+Backend implementation lives in the sibling `sidey-server` Spring Boot checkout, with private remote [sidey-app/sidey-backend](https://github.com/sidey-app/sidey-backend). Its `CONTRACT.md`, controllers, services and tests own the REST, raw WebSocket and SIDEY session contracts. PostgreSQL/Flyway schema, provider verification, database tests, operational metrics and deployment tools belong there under its own instructions and CI. The older Supabase checkout is a migration reference, not the current transport contract. Do not recreate backend implementation here or deploy from historical SIDEY copies.
 
-Keep native Supabase clients, the public website and client-facing product contracts here. The canonical product and asset definitions remain `assets/v1/commerce-catalog.json` and `assets/v1/manifest.json`; backend catalog updates use a reviewed public commit snapshot with recorded provenance. This repository generates only public web and native mirrors. See [docs/BACKEND.md](docs/BACKEND.md) for repository boundaries and catalog handoff. Repository migration does not itself deploy backend changes or remove previously public Git history.
+Keep native REST/raw WebSocket clients, the public website and client-facing product contracts here. The canonical product and asset definitions remain `assets/v1/commerce-catalog.json` and `assets/v1/manifest.json`; backend catalog updates use a reviewed public commit snapshot with recorded provenance. This repository generates only public web and native mirrors. See [docs/BACKEND.md](docs/BACKEND.md) for repository boundaries and catalog handoff. Repository migration does not itself deploy backend changes or remove previously public Git history.
 
 ## Work lifecycle
 
@@ -91,9 +91,9 @@ Codex-assisted new commits must include `Co-authored-by: codex <codex@openai.com
 - Do not expand the MVP without an explicit product decision. In particular, do not add mobile/web clients, public discovery, groups over twelve, media/file transfer, calls, AI companions, or user-uploaded avatars.
 - Keep the working macOS client native in SwiftUI/AppKit/SpriteKit and build the Windows client natively in C#/.NET/WinUI 3 with Win32 platform services. Do not reintroduce Godot.
 - Build Windows on the shared `PixelCharacterCatalog` renderer with all five current characters from the first functional build. Validate the same renderer in an internal one-character hamster mode before promotion; do not create a hamster-only product implementation or expose that mode in Release builds. The existing macOS five-character client remains untouched while Windows validation runs.
-- Treat Postgres as the source of truth for messages. Presence is for connection/activity state; Broadcast is for transient events such as typing.
+- Treat PostgreSQL as the source of truth for messages. Send durable messages over authenticated WebSocket commands and recover via REST cursors after subscribing. Presence and transient events such as typing use server-managed WebSocket state.
 - Enforce room membership, the twelve-member limit, and the five-room-per-user limit on the server. Client-only validation is insufficient. Nicknames and character choices may be duplicated.
-- Apply Supabase RLS to user and room data. Never store invite codes in plaintext.
+- Require server-side SIDEY session and membership authorization for user and room data. Never store invite codes in plaintext in the database. Legacy Supabase credentials authorize only the existing-account claim boundary.
 - Do not claim end-to-end encryption unless E2EE has actually been designed, implemented, and verified.
 - Never collect screen contents, active application lists, keys typed in other applications, mouse coordinates, file contents, microphone audio, or camera video.
 - The only global activity signals in scope are elapsed time since last system input and screen lock state. Typing status comes only from the SIDEY input field.
