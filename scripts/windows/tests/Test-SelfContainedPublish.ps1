@@ -107,6 +107,9 @@ $nativeRuntimeNames = @(
 )
 $nativeRuntimeImports = [Collections.Generic.HashSet[string]]::new(
     [StringComparer]::OrdinalIgnoreCase)
+# PowerShell 7 callers may promote findstr's expected no-match exit code to an
+# error record. Keep the explicit 0/1/>1 contract below in both supported hosts.
+$PSNativeCommandUseErrorActionPreference = $false
 foreach ($runtimeName in $nativeRuntimeNames) {
     $matches = @(& findstr.exe /S /M /I "/C:$runtimeName" `
         (Join-Path $runtimeDirectoryPath '*.dll') `
