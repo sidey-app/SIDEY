@@ -118,13 +118,12 @@ Found a bug or have a feature in mind? Let us know on [GitHub Issues](https://gi
 
 ## Contribute
 
-Contributions are welcome, whether you’re fixing bugs, improving docs, translating, or creating characters.
+We welcome bug fixes, feature improvements, documentation improvements, and translations. We do not accept character or asset contributions.
 
 Before you begin, read the [contribution guide](../../CONTRIBUTING.md) for the discussion, branch, commit, validation, and pull request workflow.
 
 - Before starting a new feature, open an [issue](https://github.com/sidey-app/SIDEY/issues) to discuss what it’s for and how it should work.
 - For code and documentation changes, use the [general PR template](../../.github/PULL_REQUEST_TEMPLATE/general.md) to explain your changes and how you checked them.
-- To create a character, read the [asset creation guide](../../assets/README.md) and [character asset PR template](../../.github/PULL_REQUEST_TEMPLATE/character_asset.md). For paid assets, discuss sales and payment terms before submitting.
 
 ## Special thanks
 
@@ -138,7 +137,9 @@ And thank you to everyone who reports bugs, improves the wording, and shares the
 
 ## License
 
-For the terms governing asset copying, modification, redistribution, and commercial use, see the [SIDEY Paid Asset License 1.0](../../assets/PAID_ASSET_LICENSE.md).
+Unless otherwise noted, SIDEY source code is provided under [GNU AGPL v3.0 only (AGPL-3.0-only)](../../LICENSE). See the [licensing guide](../../LICENSING.md) for its scope.
+
+Branding, assets, and third-party materials remain subject to their separate existing terms. For asset copying, modification, redistribution, and commercial use, see the [SIDEY Paid Asset License 1.0](../../assets/PAID_ASSET_LICENSE.md).
 
 ---
 

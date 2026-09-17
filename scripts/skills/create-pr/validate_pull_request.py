@@ -8,10 +8,6 @@ import re
 
 GENERAL_TEMPLATE = Path(".github/PULL_REQUEST_TEMPLATE/general.md")
 GENERAL_MARKER = "<!-- SIDEY_GENERAL_PR_TEMPLATE: keep -->"
-CHARACTER_ASSET_TEMPLATE = Path(
-    ".github/PULL_REQUEST_TEMPLATE/character_asset.md"
-)
-CHARACTER_ASSET_MARKER = "<!-- SIDEY_CHARACTER_ASSET_PR_TEMPLATE: keep -->"
 
 
 class PullRequestValidationError(ValueError):
@@ -59,21 +55,6 @@ def _validate_sections(body: str, headings: list[str], label: str) -> None:
         )
 
 
-def is_character_asset_change(paths: list[str]) -> bool:
-    """Return whether a diff must use the character asset template."""
-
-    return any(
-        path.startswith(("assets/v1/characters/", "assets/v1/throwables/"))
-        for path in paths
-    )
-
-
-def required_template_for_paths(paths: list[str]) -> str:
-    """Return the pull request template required by the changed paths."""
-
-    return "character_asset" if is_character_asset_change(paths) else "general"
-
-
 def validate_pr_body(
     root: Path,
     body: str,
@@ -81,41 +62,24 @@ def validate_pr_body(
     *,
     label: str = "PR body",
 ) -> str:
-    """Validate *body* and return the selected template name."""
+    """Validate the general template for every changed-path set."""
 
-    marker_counts = {
-        "general": body.count(GENERAL_MARKER),
-        "character_asset": body.count(CHARACTER_ASSET_MARKER),
-    }
-    if any(count > 1 for count in marker_counts.values()):
+    if "<!-- SIDEY_CHARACTER_ASSET_PR_TEMPLATE: keep -->" in body:
+        raise PullRequestValidationError(
+            f"{label} uses a retired asset template; use "
+            f"{GENERAL_TEMPLATE.as_posix()}"
+        )
+    marker_count = body.count(GENERAL_MARKER)
+    if marker_count > 1:
         raise PullRequestValidationError(
             f"{label} contains a duplicated pull request template marker"
         )
-    selected = [name for name, count in marker_counts.items() if count == 1]
-    if len(selected) != 1:
+    if marker_count != 1:
         raise PullRequestValidationError(
             f"{label} must preserve exactly one SIDEY pull request template "
             "marker"
         )
 
-    template_name = selected[0]
-    required_template = required_template_for_paths(paths)
-    if template_name != required_template:
-        required_path = (
-            CHARACTER_ASSET_TEMPLATE
-            if required_template == "character_asset"
-            else GENERAL_TEMPLATE
-        )
-        raise PullRequestValidationError(f"{label} must use {
-                required_path.as_posix()} for the changed paths")
-
-    if template_name == "general":
-        template_path = GENERAL_TEMPLATE
-        marker = GENERAL_MARKER
-    else:
-        template_path = CHARACTER_ASSET_TEMPLATE
-        marker = CHARACTER_ASSET_MARKER
-
-    template = _read_template(root, template_path, marker)
-    _validate_sections(body, _headings(template, template_path), label)
-    return template_name
+    template = _read_template(root, GENERAL_TEMPLATE, GENERAL_MARKER)
+    _validate_sections(body, _headings(template, GENERAL_TEMPLATE), label)
+    return "general"

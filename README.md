@@ -118,13 +118,12 @@ SIDEY는 macOS·Windows 데스크톱 메신저예요. 화면 가장자리의 2D 
 
 ## 기여하기
 
-버그 수정, 문서 개선, 번역, 캐릭터 제작 등 다양한 기여를 환영해요.
+버그 수정, 기능 개선, 문서 개선, 번역 기여를 환영해요. 캐릭터와 에셋 기여는 받지 않아요.
 
 작업을 시작하기 전에 [기여 가이드](CONTRIBUTING.md)에서 논의, 브랜치, 커밋, 검증, PR 절차를 확인해 주세요.
 
 - 새 기능을 제안할 때는 먼저 [이슈](https://github.com/sidey-app/SIDEY/issues)에서 사용 목적과 동작을 함께 논의해 주세요.
 - 코드와 문서 변경은 [일반 PR 양식](.github/PULL_REQUEST_TEMPLATE/general.md)에 따라 변경 이유와 확인한 내용을 적어 주세요.
-- 캐릭터를 제작하려면 [에셋 제작 안내](assets/README.md)와 [캐릭터 에셋 PR 양식](.github/PULL_REQUEST_TEMPLATE/character_asset.md)을 확인해 주세요. 유료 에셋은 제출 전에 판매·정산 조건 협의가 필요해요.
 
 ## 감사한 분들
 
@@ -138,7 +137,9 @@ SIDEY의 개발과 캐릭터 제작에 참여해 주신 분들께 감사드려�
 
 ## 라이선스
 
-에셋의 복제·수정·재배포·상업 이용 조건은 [SIDEY Paid Asset License 1.0](assets/PAID_ASSET_LICENSE.md)을 확인해 주세요.
+별도 표시가 없는 SIDEY 소스코드는 [GNU AGPL v3.0 전용(AGPL-3.0-only)](LICENSE)으로 제공해요. 적용 범위는 [라이선스 안내](LICENSING.md)를 확인해 주세요.
+
+브랜드·에셋·서드파티 자료에는 각각의 기존 조건이 별도로 적용돼요. 에셋의 복제·수정·재배포·상업 이용 조건은 [SIDEY Paid Asset License 1.0](assets/PAID_ASSET_LICENSE.md)을 확인해 주세요.
 
 ---
 

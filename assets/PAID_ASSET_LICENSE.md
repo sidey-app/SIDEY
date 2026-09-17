@@ -23,8 +23,8 @@ Subject to this license, you may:
 
 1. view the Paid Assets through this public repository;
 2. make temporary local copies and display them in a local development build
-   solely to evaluate SIDEY, report a defect, or prepare a contribution to
-   SIDEY; and
+   solely to evaluate SIDEY, report a defect, or develop and test SIDEY
+   software; and
 3. use and display the Paid Assets through unmodified official SIDEY software
    only as allowed by SIDEY's account and entitlement rules. This includes
    SIDEY displaying an entitled user's selected character to other members of
@@ -55,13 +55,11 @@ permissions that must be granted to GitHub under GitHub's Terms of Service.
 Those platform permissions do not grant a right to use the Paid Assets outside
 GitHub or official SIDEY software.
 
-## 4. Contributions
+## 4. External asset submissions
 
-Submitting a Paid Asset or a change to one does not by itself transfer
-copyright, authorize SIDEY to sell it, or create a right to payment or revenue
-share. Paid Asset contributions are accepted only under a separate written
-agreement covering ownership or license rights, distribution, pricing,
-settlement, refunds, and termination.
+SIDEY does not accept external Paid Asset contributions or changes to Paid
+Assets. This policy does not change existing ownership, attribution, or
+separately executed agreements with asset creators.
 
 ## 5. Ownership and trademarks
 
