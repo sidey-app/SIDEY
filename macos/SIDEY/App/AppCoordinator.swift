@@ -74,6 +74,18 @@ final class AppCoordinator {
             },
             onStopCharacterSounds: { [weak self] in
                 self?.model.characterImpactAudio.stopAll()
+            },
+            onBeginGlobalShortcutRecording: { [weak self] action in
+                self?.globalShortcutController.beginRecording(action)
+            },
+            onRecordGlobalShortcut: { [weak self] action, shortcut in
+                self?.globalShortcutController.record(shortcut, for: action)
+            },
+            onCancelGlobalShortcutRecording: { [weak self] action in
+                self?.globalShortcutController.cancelRecording(action)
+            },
+            onClearGlobalShortcut: { [weak self] action in
+                self?.globalShortcutController.clear(action)
             }
         ),
         onClose: { [weak self] in self?.settingsDidClose() }
@@ -96,6 +108,25 @@ final class AppCoordinator {
         onOpenSettings: { [weak self] in self?.showSettings() },
         onQuit: { NSApplication.shared.terminate(nil) }
     )
+    private lazy var globalShortcutController = GlobalShortcutController(
+        model: model,
+        registrar: CarbonGlobalHotKeyRegistrar(),
+        commands: GlobalShortcutCommands(
+            isComposerVisible: { [weak self] in self?.overlayWindows.composerVisible ?? false },
+            openComposer: { [weak self] in self?.focusMessageField() },
+            dismissComposer: { [weak self] in self?.overlayWindows.dismissComposer() },
+            openMainWindow: { [weak self] in self?.showSettings() },
+            openGroupSettings: { [weak self] in self?.showGroupSettings() },
+            groupsLoaded: { [weak self] in self?.backendBootstrapState == .ready },
+            toggleOverlay: { [weak self] in self?.toggleOverlay() },
+            toggleQuietMode: { [weak self] in
+                self?.setQuietMode(!(self?.model.preferences.quietModeEnabled ?? false))
+            },
+            showNotice: { [weak self] notice in self?.showShortcutNotice(notice) }
+        ),
+        onPreferencesChanged: { [weak self] in self?.persistPreferences() }
+    )
+    private lazy var statusNotice = StatusNoticeWindowController()
     let commerceSession = CommerceSession()
     let roomSession = RoomSessionLifetime()
     var treeMovementTask: Task<Void, Never>?
@@ -189,6 +220,7 @@ final class AppCoordinator {
 
         mainThreadProbe.start()
         statusItemController.install()
+        globalShortcutController.start()
         overlayWindows.restore(preference: model.preferences.overlayRegion)
         model.launchAtLogin = launchAtLoginController.isEnabled
         model.preferences.launchAtLogin = model.launchAtLogin
@@ -342,6 +374,7 @@ final class AppCoordinator {
     }
 
     private func settingsDidClose() {
+        globalShortcutController.cancelRecording()
         NSApplication.shared.setActivationPolicy(.accessory)
     }
 
@@ -352,6 +385,18 @@ final class AppCoordinator {
     private func focusMessageField() {
         if !model.overlayVisible { setOverlayVisible(true) }
         overlayWindows.focusMessageField()
+    }
+
+    private func showShortcutNotice(_ notice: GlobalShortcutNotice) {
+        // Show the notice where the composer appears while the overlay is on screen,
+        // otherwise on the screen the pointer is on.
+        let composerVisible = overlayWindows.composerVisible
+        let pointerScreen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) }
+        guard let visibleFrame = (model.overlayVisible ? overlayWindows.overlayScreenVisibleFrame : nil)
+            ?? pointerScreen?.visibleFrame
+            ?? NSScreen.main?.visibleFrame
+        else { return }
+        statusNotice.show(notice, in: visibleFrame, belowComposer: composerVisible)
     }
 
     private func markActiveRoomRead() {

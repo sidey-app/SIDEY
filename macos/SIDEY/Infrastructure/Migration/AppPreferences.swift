@@ -18,7 +18,7 @@ struct CodableRect: Codable, Equatable, Sendable {
 }
 
 struct AppPreferences: Codable, Equatable, Sendable {
-    static let currentSchemaVersion = 9
+    static let currentSchemaVersion = 10
     var characterSoundEffectsEnabled = true
     var treeMovementPaused = false
 
@@ -35,6 +35,7 @@ struct AppPreferences: Codable, Equatable, Sendable {
     var overlayScale = 1.5
     var quietModeEnabled = false
     var launchAtLogin = false
+    var globalShortcuts = GlobalShortcutAssignments()
     var overlayFrame: CodableRect?
     var overlayScreenIdentifier: String?
     var nickname = "나"
@@ -59,6 +60,7 @@ struct AppPreferences: Codable, Equatable, Sendable {
         case overlayScale
         case quietModeEnabled
         case launchAtLogin
+        case globalShortcuts
         case overlayFrame
         case overlayScreenIdentifier
         case nickname
@@ -93,6 +95,11 @@ struct AppPreferences: Codable, Equatable, Sendable {
         overlayScale = try values.decodeIfPresent(Double.self, forKey: .overlayScale) ?? 1.5
         quietModeEnabled = try values.decodeIfPresent(Bool.self, forKey: .quietModeEnabled) ?? false
         launchAtLogin = try values.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? false
+        // Shortcuts arrived in schema 10. A damaged value must not reset every other preference.
+        globalShortcuts = (try? values.decodeIfPresent(
+            GlobalShortcutAssignments.self,
+            forKey: .globalShortcuts
+        )) ?? GlobalShortcutAssignments()
         overlayFrame = try values.decodeIfPresent(CodableRect.self, forKey: .overlayFrame)
         overlayScreenIdentifier = try values.decodeIfPresent(String.self, forKey: .overlayScreenIdentifier)
         overlayRegion = try values.decodeIfPresent(

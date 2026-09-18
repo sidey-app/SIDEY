@@ -258,6 +258,14 @@ final class OverlayWindowGroup {
         presentComposer()
     }
 
+    /// The visible frame of the screen that shows the overlay and its composer.
+    var overlayScreenVisibleFrame: CGRect? {
+        OverlayRegionLayout.screen(
+            for: model.preferences.overlayRegion,
+            screens: screenGeometries
+        )?.visibleFrame
+    }
+
     func presentComposer() {
         guard overlayVisible, model.activeRoom != nil else { return }
         cancelComposerAutoDismiss()

@@ -85,4 +85,16 @@ final class PreferencesTests: XCTestCase {
         XCTAssertTrue(value.keychainTransitionComplete)
         XCTAssertFalse(value.requiresRightClickToThrow)
     }
+
+    func testVersionNinePreferencesDecodeWithoutGlobalShortcuts() throws {
+        let json = #"{"schemaVersion":9,"characterSoundEffectsEnabled":false,"quietModeEnabled":true,"nickname":"민지"}"#
+        let value = try JSONDecoder().decode(AppPreferences.self, from: Data(json.utf8))
+
+        XCTAssertEqual(value.schemaVersion, AppPreferences.currentSchemaVersion)
+        XCTAssertEqual(value.globalShortcuts, GlobalShortcutAssignments())
+        XCTAssertEqual(AppPreferences.defaults.globalShortcuts, GlobalShortcutAssignments())
+        XCTAssertFalse(value.characterSoundEffectsEnabled)
+        XCTAssertTrue(value.quietModeEnabled)
+        XCTAssertEqual(value.nickname, "민지")
+    }
 }

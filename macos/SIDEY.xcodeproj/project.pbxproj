@@ -21,6 +21,7 @@
 		3000000000000000000000CD /* TreeMovementTests.swift */ = {isa = PBXBuildFile; fileRef = 300000000000000000000069 /* TreeMovementTests.swift */; };
 		3000000000000000000000CE /* approved-impact-sounds.json */ = {isa = PBXBuildFile; fileRef = 30000000000000000000006A /* approved-impact-sounds.json */; };
 		3000000000000000000000CF /* StoreCatalogCompatibilityTests.swift */ = {isa = PBXBuildFile; fileRef = 30000000000000000000006B /* StoreCatalogCompatibilityTests.swift */; };
+		3000000000000000000000D0 /* GlobalShortcutTests.swift */ = {isa = PBXBuildFile; fileRef = 30000000000000000000006C /* GlobalShortcutTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -76,6 +77,7 @@
 		300000000000000000000069 /* TreeMovementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SIDEYTests/TreeMovementTests.swift"; sourceTree = SOURCE_ROOT; };
 		30000000000000000000006A /* approved-impact-sounds.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "SIDEYTests/Fixtures/approved-impact-sounds.json"; sourceTree = SOURCE_ROOT; };
 		30000000000000000000006B /* StoreCatalogCompatibilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SIDEYTests/StoreCatalogCompatibilityTests.swift"; sourceTree = SOURCE_ROOT; };
+		30000000000000000000006C /* GlobalShortcutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SIDEYTests/GlobalShortcutTests.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 
@@ -163,7 +165,7 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		300000000000000000000099 /* App Store Tests */ = {isa = PBXGroup; children = (30000000000000000000006B /* StoreCatalogCompatibilityTests.swift */,300000000000000000000064 /* CharacterStunTests.swift */,300000000000000000000065 /* CharacterImpactAudioTests.swift */,300000000000000000000066 /* CharacterThrowAssetTests.swift */,300000000000000000000067 /* PixelHamsterAssetTests.swift */,300000000000000000000068 /* NewCharacterIntegrationTests.swift */,300000000000000000000069 /* TreeMovementTests.swift */,30000000000000000000006A /* approved-impact-sounds.json */,); name = "App Store Tests"; sourceTree = "<group>"; };
+		300000000000000000000099 /* App Store Tests */ = {isa = PBXGroup; children = (30000000000000000000006B /* StoreCatalogCompatibilityTests.swift */,30000000000000000000006C /* GlobalShortcutTests.swift */,300000000000000000000064 /* CharacterStunTests.swift */,300000000000000000000065 /* CharacterImpactAudioTests.swift */,300000000000000000000066 /* CharacterThrowAssetTests.swift */,300000000000000000000067 /* PixelHamsterAssetTests.swift */,300000000000000000000068 /* NewCharacterIntegrationTests.swift */,300000000000000000000069 /* TreeMovementTests.swift */,30000000000000000000006A /* approved-impact-sounds.json */,); name = "App Store Tests"; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -459,6 +461,7 @@
 				3000000000000000000000CC /* NewCharacterIntegrationTests.swift */,
 				3000000000000000000000CD /* TreeMovementTests.swift */,
 				3000000000000000000000CF /* StoreCatalogCompatibilityTests.swift */,
+				3000000000000000000000D0 /* GlobalShortcutTests.swift */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

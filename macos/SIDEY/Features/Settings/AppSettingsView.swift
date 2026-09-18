@@ -92,6 +92,28 @@ struct AppSettingsView: View {
                 )
             }
 
+            SettingsSection(
+                title: "단축키",
+                subtitle: "다른 앱을 쓰는 중에도 SIDEY를 바로 조작합니다. 지정한 조합이 눌렸는지만 전달받고 다른 키 입력은 읽지 않습니다.",
+                systemImage: "keyboard"
+            ) {
+                ForEach(GlobalShortcutAction.allCases) { action in
+                    if action != GlobalShortcutAction.allCases.first {
+                        Divider()
+                    }
+                    GlobalShortcutSettingsRow(
+                        action: action,
+                        shortcut: model.preferences.globalShortcuts[action],
+                        status: model.globalShortcutStatuses[action],
+                        isRecording: model.recordingGlobalShortcutAction == action,
+                        onBeginRecording: { actions.onBeginGlobalShortcutRecording(action) },
+                        onRecord: { actions.onRecordGlobalShortcut(action, $0) },
+                        onCancelRecording: { actions.onCancelGlobalShortcutRecording(action) },
+                        onClear: { actions.onClearGlobalShortcut(action) }
+                    )
+                }
+            }
+
             if !storeAvailability.usesAppStore {
                 SettingsSection(
                     title: "업데이트",

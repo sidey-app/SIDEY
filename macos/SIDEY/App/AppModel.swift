@@ -49,6 +49,8 @@ final class AppModel {
     var inviteCode = ""
     var lastCreatedInviteCode: String?
     var launchAtLogin: Bool
+    var globalShortcutStatuses: [GlobalShortcutAction: GlobalShortcutStatus] = [:]
+    var recordingGlobalShortcutAction: GlobalShortcutAction?
     var unreadCounts: [UUID: Int] { messages.unreadCounts }
     private let realtime = RoomPresenceState()
 
