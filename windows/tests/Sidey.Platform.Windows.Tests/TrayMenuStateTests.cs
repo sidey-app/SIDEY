@@ -5,6 +5,16 @@ namespace Sidey.Platform.Windows.Tests;
 
 public sealed class TrayMenuStateTests
 {
+    [Fact]
+    public void GoogleSignInCompletionConfirmsSuccessAndOpensSideyWhenClicked()
+    {
+        (string Title, string Body, TrayCommand ClickCommand) notification = TrayIconService.GoogleSignInCompleteNotification();
+
+        Assert.Equal("SIDEY", notification.Title);
+        Assert.Equal("Google 로그인이 완료되었습니다. 브라우저의 로그인 탭을 닫아도 됩니다.", notification.Body);
+        Assert.Equal(TrayCommand.Open, notification.ClickCommand);
+    }
+
     [Theory]
     [InlineData(false, true, 0x0000u)]
     [InlineData(true, true, 0x0008u)]
@@ -46,7 +56,11 @@ public sealed class TrayMenuStateTests
         (int)TrayUpdateNotification.Failed,
         "",
         "업데이트 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.")]
-    public void UpdateNotificationsDescribeTheCompletedCheck(
+    [InlineData(
+        (int)TrayUpdateNotification.Installed,
+        "1.3.2",
+        "SIDEY 1.3.2 업데이트를 완료했습니다. 클릭해 변경 내용을 확인하세요.")]
+    public void UpdateNotificationsUseTheLocalizedBody(
         int notification,
         string version,
         string expected)
@@ -54,5 +68,19 @@ public sealed class TrayMenuStateTests
         Assert.Equal(
             expected,
             TrayIconService.UpdateNotificationBody((TrayUpdateNotification)notification, version));
+    }
+
+    [Theory]
+    [InlineData((int)TrayUpdateNotification.Available, TrayCommand.Open)]
+    [InlineData((int)TrayUpdateNotification.Latest, TrayCommand.Open)]
+    [InlineData((int)TrayUpdateNotification.Failed, TrayCommand.Open)]
+    [InlineData((int)TrayUpdateNotification.Installed, TrayCommand.ReleaseNotes)]
+    public void CompletedUpdateNotificationOpensReleaseNotes(
+        int notification,
+        TrayCommand expected)
+    {
+        Assert.Equal(
+            expected,
+            TrayIconService.NotificationClickCommand((TrayUpdateNotification)notification));
     }
 }

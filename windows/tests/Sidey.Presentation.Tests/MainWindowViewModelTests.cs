@@ -469,7 +469,7 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
-    public void PublicBuildKeepsAllStoreActionsLocked()
+    public void DisabledCommerceKeepsAllStoreActionsLocked()
     {
         (FakeSideyCoordinator coordinator, _) = CreateRoomState();
         var viewModel = new MainWindowViewModel(
@@ -485,6 +485,169 @@ public sealed class MainWindowViewModelTests
         });
     }
 
+    [Fact]
+    public void EnablingCommerceRemovesPreviewOnlyNoticeAndUpdatesOpenProductDetails()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        StoreProductPreviewViewModel product = viewModel.StoreProducts[0];
+        Assert.True(viewModel.IsStorePreviewOnly);
+        Assert.Equal("구매 준비 중", product.DetailStatusText);
+        var changes = new List<string?>();
+        product.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
+
+        viewModel.ApplyState(state with
+        {
+            DevelopmentCommerceEnabled = true,
+            CommerceProducts = [.. WindowsCommerceCatalog.Products.Select(item =>
+                new CommerceProductState(item, GoogleConnected: true, CommercePurchaseState.Available))],
+        });
+
+        Assert.False(viewModel.IsStorePreviewOnly);
+        Assert.False(product.IsPreviewOnlyVisible);
+        Assert.True(product.ActionCommand.CanExecute(null));
+        Assert.Equal(product.ActionText, product.DetailStatusText);
+        Assert.Contains(product.FormattedPrice, product.DetailStatusText, StringComparison.Ordinal);
+        Assert.Contains(nameof(product.DetailStatusText), changes);
+
+        viewModel.ApplyState(state);
+
+        Assert.True(viewModel.IsStorePreviewOnly);
+        Assert.True(product.IsPreviewOnlyVisible);
+        Assert.False(product.ActionCommand.CanExecute(null));
+        Assert.Equal("구매 준비 중", product.DetailStatusText);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UnavailableStoreActionRefreshesTheCatalogWithoutCreatingAnOrder(bool missingProductState)
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        coordinator.State = state with
+        {
+            DevelopmentCommerceEnabled = true,
+            CommerceProducts = missingProductState ? [] : WindowsCommerceCatalog.LockedStates(),
+        };
+        var viewModel = new MainWindowViewModel(
+            coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        StoreProductPreviewViewModel product = viewModel.StoreProducts[0];
+        var notices = new List<NoticeMessage>();
+        viewModel.NoticeRaised += notices.Add;
+
+        Assert.False(product.IsPreviewOnlyVisible);
+        Assert.Equal("다시 시도", product.ActionText);
+        Assert.Equal("다시 시도", product.DetailStatusText);
+        Assert.True(product.ActionCommand.CanExecute(null));
+
+        await product.ActionCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, coordinator.RefreshStoreCallCount);
+        Assert.Equal(0, coordinator.ActivateStoreProductCallCount);
+        Assert.Empty(notices);
+    }
+
+    [Theory]
+    [InlineData(990, "990원", "₩990")]
+    [InlineData(1900, "1,900원", "₩1,900")]
+    [InlineData(2900, "2,900원", "₩2,900")]
+    public void ServerPriceUpdatesExistingStoreCardsAndSurvivesLanguageRefresh(
+        int serverPrice, string koreanPrice, string englishPrice)
+    {
+        string previous = Sidey.Core.Localization.I18n.Language;
+        try
+        {
+            Sidey.Core.Localization.I18n.SetLanguage("ko-KR");
+            (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+            var viewModel = new MainWindowViewModel(
+                coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+            StoreProductPreviewViewModel product = viewModel.StoreProducts[0];
+            var changes = new List<string?>();
+            product.PropertyChanged += (_, args) => changes.Add(args.PropertyName);
+            coordinator.State = state with
+            {
+                DevelopmentCommerceEnabled = true,
+                CommerceProducts = [.. WindowsCommerceCatalog.Products.Select(item =>
+                    new CommerceProductState(item with { AmountKrw = serverPrice },
+                        GoogleConnected: true, CommercePurchaseState.Available))],
+            };
+
+            viewModel.ApplyState(coordinator.State);
+
+            Assert.Same(product, viewModel.StoreProducts[0]);
+            Assert.Equal(serverPrice, product.AmountKrw);
+            Assert.Equal(koreanPrice, product.FormattedPrice);
+            Assert.Equal($"{koreanPrice} 구매", product.ActionText);
+            Assert.Equal(product.ActionText, product.DetailStatusText);
+            Assert.Contains(nameof(StoreProductPreviewViewModel.FormattedPrice), changes);
+            Assert.Contains(nameof(StoreProductPreviewViewModel.DetailStatusText), changes);
+
+            Sidey.Core.Localization.I18n.SetLanguage("en-US");
+            viewModel.RefreshLocalizedText();
+
+            Assert.Same(product, viewModel.StoreProducts[0]);
+            Assert.Equal(serverPrice, product.AmountKrw);
+            Assert.Equal(englishPrice, product.FormattedPrice);
+            Assert.Equal($"Buy for {englishPrice}", product.ActionText);
+            Assert.Equal(product.ActionText, product.DetailStatusText);
+
+            Sidey.Core.Localization.I18n.SetLanguage("ko-KR");
+            viewModel.RefreshLocalizedText();
+
+            Assert.Equal(serverPrice, product.AmountKrw);
+            Assert.Equal(koreanPrice, product.FormattedPrice);
+            Assert.Equal($"{koreanPrice} 구매", product.DetailStatusText);
+        }
+        finally
+        {
+            Sidey.Core.Localization.I18n.SetLanguage(previous);
+        }
+    }
+
+    [Fact]
+    public void OwnedEntitlementKeepsUnavailableProductMarkedOwnedAndDisablesItsAction()
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        CommerceProduct ownedProduct = WindowsCommerceCatalog.Products[0];
+        coordinator.State = state with
+        {
+            DevelopmentCommerceEnabled = true,
+            CommerceProducts = WindowsCommerceCatalog.LockedStates(),
+            ActiveEntitlementKeys = new HashSet<string>(StringComparer.Ordinal) { ownedProduct.EntitlementKey },
+        };
+        var viewModel = new MainWindowViewModel(
+            coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        StoreProductPreviewViewModel product = viewModel.StoreProducts.Single(item => item.ProductId == ownedProduct.Id);
+
+        Assert.True(product.IsOwned);
+        Assert.False(product.IsPreviewOnlyVisible);
+        Assert.False(product.IsActionEnabled);
+        Assert.False(product.ActionCommand.CanExecute(null));
+        Assert.Equal("보유 중", product.ActionText);
+        Assert.Equal("보유 중", product.DetailStatusText);
+    }
+
+    [Theory]
+    [InlineData(CommercePurchaseState.GoogleConnectionRequired, "Google 계정 연결")]
+    [InlineData(CommercePurchaseState.OpeningCheckout, "결제창 여는 중…")]
+    [InlineData(CommercePurchaseState.Confirming, "결제 확인 중…")]
+    [InlineData(CommercePurchaseState.Owned, "보유 중")]
+    [InlineData(CommercePurchaseState.Error, "다시 시도")]
+    public void EnabledStoreDetailsFollowPurchaseState(CommercePurchaseState purchaseState, string expected)
+    {
+        (FakeSideyCoordinator coordinator, CoordinatorState state) = CreateRoomState();
+        var viewModel = new MainWindowViewModel(
+            coordinator, new FakeMainWindowDialogService(), new FakeUpdateService());
+        viewModel.ApplyState(state with
+        {
+            DevelopmentCommerceEnabled = true,
+            CommerceProducts = [.. WindowsCommerceCatalog.Products.Select(item =>
+                new CommerceProductState(item, GoogleConnected: true, purchaseState))],
+        });
+
+        Assert.All(viewModel.StoreProducts, product => Assert.Equal(expected, product.DetailStatusText));
+    }
     [Fact]
     public void KeepsakeOwnershipIsIndependentOfCharacterAndDisappearsAfterRevocation()
     {
@@ -1388,7 +1551,7 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
-    public async Task StartupUpdateCheckOnlyNotifiesWhenAnUpdateExists()
+    public async Task StartupUpdateCheckReturnsAvailableUpdateWithoutAnInAppNotice()
     {
         (FakeSideyCoordinator coordinator, _) = CreateRoomState();
         var updates = new FakeUpdateService
@@ -1399,14 +1562,13 @@ public sealed class MainWindowViewModelTests
             coordinator,
             new FakeMainWindowDialogService(),
             updates);
-        NoticeMessage? notice = null;
-        viewModel.NoticeRaised += value => notice = value;
+        int noticeCount = 0;
+        viewModel.NoticeRaised += _ => noticeCount++;
 
-        await viewModel.CheckForUpdatesOnStartupAsync();
+        AvailableUpdate? update = await viewModel.CheckForUpdatesOnStartupAsync();
 
-        Assert.NotNull(notice);
-        Assert.Equal(NoticeKind.Informational, notice.Kind);
-        Assert.Contains("0.3.0-alpha.3", notice.Message, StringComparison.Ordinal);
+        Assert.Equal("0.3.0-alpha.3", update?.Version);
+        Assert.Equal(0, noticeCount);
         Assert.Equal(0, updates.InstallerLaunchCount);
     }
 

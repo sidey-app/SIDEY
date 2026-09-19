@@ -3,6 +3,8 @@ using Sidey.Core.Domain;
 
 namespace Sidey.Presentation.Services;
 
+public enum GoogleAuthenticationState { Checking, Required, SigningIn, Verified }
+
 public enum GroupOperation
 {
     Idle,
@@ -44,6 +46,10 @@ public sealed record CoordinatorState(
     string? ErrorMessage)
 {
     public RemoteContentLoadingState ContentLoading { get; init; } = RemoteContentLoadingState.Initial;
+
+    public GoogleAuthenticationState GoogleAuthentication { get; init; } = GoogleAuthenticationState.Checking;
+    public bool GoogleVerified => GoogleAuthentication == GoogleAuthenticationState.Verified;
+    public bool NeedsOnboarding => !GoogleVerified || !Preferences.OnboardingCompleted;
 
     public bool Connected => RealtimeConnection.IsReady;
 

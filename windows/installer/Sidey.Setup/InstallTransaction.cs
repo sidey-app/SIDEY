@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -8,6 +9,7 @@ using System.Runtime.InteropServices.ComTypes;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
+using System.Threading;
 using Microsoft.Win32;
 
 namespace Sidey.Installer
@@ -116,6 +118,7 @@ namespace Sidey.Installer
         {
             public int SchemaVersion;
             public string Phase;
+            public string CompletionId;
             public string Version;
             public string InstallDirectory;
             public string StagingDirectory;
@@ -126,6 +129,10 @@ namespace Sidey.Installer
 
         private sealed class InstallTransaction
         {
+            // A stopped framework-dependent host or a security scanner can keep
+            // the previous Runtime tree busy briefly. Keep replacement bounded.
+            private const int ActivationMoveAttempts = 20;
+            private const int ActivationMoveRetryDelayMilliseconds = 250;
             private const string TransactionRegistryPath = @"Software\SIDEY\InstallerTransaction";
             private const string InstallerRegistryPath = @"Software\SIDEY\Installer";
             private const string UninstallRegistryPath =
@@ -145,6 +152,7 @@ namespace Sidey.Installer
             private PreviousRegistration previousRegistration;
             private bool previousInstallExisted;
             private string transactionStagingPath;
+            private string completionId;
 
             public InstallTransaction(TransactionOptions options)
             {
@@ -201,6 +209,7 @@ namespace Sidey.Installer
                     AssertSecureTransactionParent();
                     RecoverInterruptedTransaction();
                     transactionStagingPath = stagingPath;
+                    completionId = Guid.NewGuid().ToString("N");
                     previousInstallExisted = Directory.Exists(installPath);
                     previousRegistration = GetPreviousRegistration();
                     SetPendingInstallLocation();
@@ -262,6 +271,7 @@ namespace Sidey.Installer
                     }
                     try
                     {
+                        CompleteDesktopRegistration(state);
                         RemoveTransactionDirectory(rollbackPath);
                         RemoveTransactionDirectory(AssertStagingDirectoryPath(state.StagingDirectory));
                         RemoveState();
@@ -329,11 +339,11 @@ namespace Sidey.Installer
                 {
                     if (Directory.Exists(installPath))
                     {
-                        Directory.Move(installPath, rollbackPath);
+                        MoveDirectoryForActivation(installPath, rollbackPath);
                         WriteState("previous-moved");
                     }
                     WriteState("activating");
-                    Directory.Move(stagingPath, installPath);
+                    MoveDirectoryForActivation(stagingPath, installPath);
                     WriteState("active");
                 }
                 catch
@@ -345,6 +355,29 @@ namespace Sidey.Installer
                     }
                     throw;
                 }
+            }
+
+            private static void MoveDirectoryForActivation(string source, string destination)
+            {
+                for (int attempt = 1; ; attempt++)
+                {
+                    try
+                    {
+                        Directory.Move(source, destination);
+                        return;
+                    }
+                    catch (Exception exception) when (
+                        IsRetryableMoveFailure(exception)
+                        && attempt < ActivationMoveAttempts)
+                    {
+                        Thread.Sleep(ActivationMoveRetryDelayMilliseconds);
+                    }
+                }
+            }
+
+            private static bool IsRetryableMoveFailure(Exception exception)
+            {
+                return exception is IOException || exception is UnauthorizedAccessException;
             }
 
             private void CleanupForUninstall()
@@ -394,12 +427,59 @@ namespace Sidey.Installer
                         UndoTransaction(state);
                         return;
                     }
+                    CompleteDesktopRegistration(state);
                     RemoveTransactionDirectory(rollbackPath);
                     RemoveTransactionDirectory(recordedStaging);
                     RemoveState();
                     return;
                 }
                 UndoTransaction(state);
+            }
+
+            private void CompleteDesktopRegistration(TransactionState state)
+            {
+                if (allowUserWritableParentForTests || string.IsNullOrWhiteSpace(state.CompletionId))
+                {
+                    // Older transaction schemas did not request desktop completion.
+                    return;
+                }
+                // This phase is retried on committed recovery, before discarding
+                // transaction state. Never roll back a committed installation.
+                bool fresh = !state.PreviousInstallExisted
+                    && (state.PreviousRegistration == null || !state.PreviousRegistration.Existed);
+                Version prior;
+                Version current;
+                bool upgrade = state.PreviousInstallExisted
+                    && state.PreviousRegistration != null
+                    && Version.TryParse(state.PreviousRegistration.Version, out prior)
+                    && Version.TryParse(state.Version, out current)
+                    && current > prior;
+                string markerPath = Path.Combine(installPath, "install-completion.txt");
+                File.WriteAllLines(markerPath, new[]
+                {
+                    fresh ? "fresh" : (upgrade ? "upgrade" : "repair"),
+                    state.Version,
+                    state.CompletionId,
+                });
+                using (Process helper = Process.Start(new ProcessStartInfo
+                {
+                    FileName = Path.Combine(installPath, @"Runtime\SIDEY.UninstallHelper.exe"),
+                    Arguments = "--complete-install-as-desktop-user",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                }))
+                {
+                    if (helper == null)
+                    {
+                        throw new InvalidOperationException("Desktop registration did not start.");
+                    }
+                    helper.WaitForExit();
+                    if (helper.ExitCode != 0)
+                    {
+                        throw new InvalidOperationException("Desktop registration is pending recovery.");
+                    }
+                }
+                File.Delete(markerPath);
             }
 
             private void UndoTransaction(TransactionState state)
@@ -901,6 +981,7 @@ namespace Sidey.Installer
                 {
                     SchemaVersion = 1,
                     Phase = phase,
+                    CompletionId = completionId,
                     Version = version,
                     InstallDirectory = installPath,
                     StagingDirectory = transactionStagingPath,
@@ -937,6 +1018,7 @@ namespace Sidey.Installer
                         "The SIDEY install transaction state is invalid.");
                 }
                 transactionStagingPath = AssertStagingDirectoryPath(state.StagingDirectory);
+                completionId = state.CompletionId;
                 previousRegistration = state.PreviousRegistration;
                 previousInstallExisted = state.PreviousInstallExisted;
                 return state;
@@ -983,6 +1065,7 @@ namespace Sidey.Installer
                 builder.Append('{');
                 Property(builder, "schemaVersion", state.SchemaVersion.ToString(CultureInfo.InvariantCulture), false);
                 Property(builder, "phase", String(state.Phase), true);
+                Property(builder, "completionId", String(state.CompletionId), true);
                 Property(builder, "version", String(state.Version), true);
                 Property(builder, "installDirectory", String(state.InstallDirectory), true);
                 Property(builder, "stagingDirectory", String(state.StagingDirectory), true);
@@ -1019,6 +1102,7 @@ namespace Sidey.Installer
                 {
                     SchemaVersion = Integer(root, "schemaVersion"),
                     Phase = Text(root, "phase"),
+                    CompletionId = OptionalText(root, "completionId"),
                     Version = Text(root, "version"),
                     InstallDirectory = Text(root, "installDirectory"),
                     StagingDirectory = Text(root, "stagingDirectory"),

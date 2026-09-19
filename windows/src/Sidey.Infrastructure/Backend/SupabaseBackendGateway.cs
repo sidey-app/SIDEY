@@ -138,16 +138,15 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         }
     }
 
-#if SIDEY_DEVELOPMENT_COMMERCE
     public async Task<IReadOnlyList<CommerceProductState>> GetWindowsCommerceStateAsync(
         CancellationToken cancellationToken = default)
     {
-        using var request = await CreateRequestAsync(
+        using HttpRequestMessage request = await CreateRequestAsync(
             HttpMethod.Post,
             "/rest/v1/rpc/get_store_state",
             cancellationToken).ConfigureAwait(false);
         request.Content = JsonContent.Create(new { }, options: s_jsonOptions);
-        using var response = await _httpClient.SendAsync(request, cancellationToken)
+        using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken)
             .ConfigureAwait(false);
         DatabaseCommerceState[] rows = await ReadRequiredAsync<DatabaseCommerceState[]>(
             response,
@@ -168,7 +167,7 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                 || !StringComparer.Ordinal.Equals(row.CharacterId, expectedCharacterId)
                 || !StringComparer.Ordinal.Equals(row.EntitlementKey, product.EntitlementKey)
                 || row.SortOrder != product.SortOrder
-                || row.AmountKrw != product.AmountKrw
+                || row.AmountKrw <= 0
                 || !StringComparer.Ordinal.Equals(row.Currency, "KRW"))
             {
                 throw new InvalidDataException("Windows commerce catalog does not match the server.");
@@ -181,7 +180,10 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
                     : row.GoogleConnected
                         ? CommercePurchaseState.Available
                         : CommercePurchaseState.GoogleConnectionRequired;
-            states.Add(new CommerceProductState(product, row.GoogleConnected, purchaseState));
+            states.Add(new CommerceProductState(
+                product with { AmountKrw = row.AmountKrw },
+                row.GoogleConnected,
+                purchaseState));
         }
         return states;
     }
@@ -195,25 +197,29 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             throw new ArgumentOutOfRangeException(nameof(productId));
         }
 
-        using var request = await CreateRequestAsync(
+        using HttpRequestMessage request = await CreateRequestAsync(
             HttpMethod.Post,
             "/functions/v1/commerce-order",
             cancellationToken).ConfigureAwait(false);
         request.Content = JsonContent.Create(new { product_id = productId }, options: s_jsonOptions);
-        using var response = await _httpClient.SendAsync(request, cancellationToken)
+        using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken)
             .ConfigureAwait(false);
         CommerceOrderResponse order = await ReadRequiredAsync<CommerceOrderResponse>(
             response,
             cancellationToken).ConfigureAwait(false);
         if (order.OrderId == Guid.Empty
             || !Uri.TryCreate(order.CheckoutUrl, UriKind.Absolute, out Uri? checkoutUri)
-            || checkoutUri.Scheme != Uri.UriSchemeHttps)
+            || checkoutUri.Scheme != Uri.UriSchemeHttps
+            || !checkoutUri.IsDefaultPort
+            || checkoutUri.Host != "sidey-app.github.io"
+            || checkoutUri.AbsolutePath != "/SIDEY/checkout/"
+            || !string.IsNullOrEmpty(checkoutUri.UserInfo)
+            || !string.IsNullOrEmpty(checkoutUri.Query))
         {
             throw new InvalidDataException("Commerce checkout URL is invalid.");
         }
         return new CommerceCheckout(order.OrderId, checkoutUri);
     }
-#endif
 
     public async Task<Profile> SetTreeMovementPausedAsync(
         bool paused, long expectedRevision, CancellationToken cancellationToken = default)
@@ -1032,7 +1038,6 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         [property: JsonPropertyName("entitlement_key")] string EntitlementKey,
         string Status);
 
-#if SIDEY_DEVELOPMENT_COMMERCE
     private sealed record DatabaseCommerceState(
         [property: JsonPropertyName("product_id")] string ProductId,
         [property: JsonPropertyName("product_kind")] string ProductKind,
@@ -1049,7 +1054,6 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
     private sealed record CommerceOrderResponse(
         [property: JsonPropertyName("order_id")] Guid OrderId,
         [property: JsonPropertyName("checkout_url")] string CheckoutUrl);
-#endif
 
     private sealed record DatabaseRoom(
         Guid Id,

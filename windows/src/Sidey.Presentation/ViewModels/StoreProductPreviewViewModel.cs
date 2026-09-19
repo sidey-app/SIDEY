@@ -33,7 +33,8 @@ public sealed partial class StoreProductPreviewViewModel : ObservableObject
     }
 
     public StoreProductPreviewViewModel? RelatedKeepsake { get; internal set; }
-    public string DetailStatusText => I18n.Get(IsOwned ? "store.owned" : "store.comingSoon");
+    public string DetailStatusText => IsOwned ? I18n.Get("store.owned")
+        : IsPreviewOnlyVisible ? I18n.Get("store.comingSoon") : ActionText;
 
     public bool IsKeepsake { get; }
     public string ProductId { get; }
@@ -41,7 +42,7 @@ public sealed partial class StoreProductPreviewViewModel : ObservableObject
     public CommerceProductKind Kind { get; }
     public string CatalogItemId { get; }
     public int SortOrder { get; }
-    public int AmountKrw { get; }
+    public int AmountKrw { get; private set; }
     [ObservableProperty]
     public partial string DisplayName { get; set; }
     [ObservableProperty]
@@ -53,6 +54,7 @@ public sealed partial class StoreProductPreviewViewModel : ObservableObject
     public IRelayCommand PreviewCommand { get; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DetailStatusText))]
     public partial string ActionText { get; set; } = string.Empty;
 
     [ObservableProperty]
@@ -62,6 +64,7 @@ public sealed partial class StoreProductPreviewViewModel : ObservableObject
     public partial bool IsWorking { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DetailStatusText))]
     public partial bool IsPreviewOnlyVisible { get; set; } = true;
 
     [ObservableProperty]
@@ -70,20 +73,25 @@ public sealed partial class StoreProductPreviewViewModel : ObservableObject
 
     public void Apply(CommerceProductState state, bool commerceEnabled, bool isOwned)
     {
+        AmountKrw = state.Product.AmountKrw;
+        FormattedPrice = I18n.Format("store.priceKrw", AmountKrw);
         IsPreviewOnlyVisible = !commerceEnabled;
         IsOwned = isOwned;
         IsWorking = state.IsWorking;
         bool isActionEnabled = commerceEnabled
+            && !isOwned
             && !state.IsWorking
             && state.PurchaseState is (
-                CommercePurchaseState.GoogleConnectionRequired
+                CommercePurchaseState.Unavailable
+                or CommercePurchaseState.GoogleConnectionRequired
                 or CommercePurchaseState.Available
                 or CommercePurchaseState.Refunded
                 or CommercePurchaseState.Error);
         bool actionAvailabilityChanged = IsActionEnabled != isActionEnabled;
         IsActionEnabled = isActionEnabled;
-        ActionText = state.PurchaseState switch
+        ActionText = isOwned ? I18n.Get("store.owned") : state.PurchaseState switch
         {
+            CommercePurchaseState.Unavailable when commerceEnabled => I18n.Get("store.retry"),
             CommercePurchaseState.GoogleConnectionRequired => I18n.Get("store.connectGoogle"),
             CommercePurchaseState.Available or CommercePurchaseState.Refunded =>
                 I18n.Format("store.purchase", FormattedPrice),

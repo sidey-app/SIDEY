@@ -19,6 +19,7 @@ public partial class App : Application
 
     private readonly DispatcherQueue _dispatcherQueue;
     private readonly WindowsUpdateServiceAdapter _updateService;
+    private readonly WindowsUpdateCompletionTracker _updateCompletionTracker;
     private Window? _window;
     private MainWindow? _mainWindow;
     private OnboardingWindow? _onboardingWindow;
@@ -45,6 +46,7 @@ public partial class App : Application
     {
         _dispatcherQueue = DispatcherQueue.GetForCurrentThread();
         _updateService = new WindowsUpdateServiceAdapter();
+        _updateCompletionTracker = new WindowsUpdateCompletionTracker();
         StartupDiagnostics.BeginSession();
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
@@ -93,8 +95,11 @@ public partial class App : Application
             Environment.GetCommandLineArgs());
         bool backgroundLaunch = WindowsStartupService.IsBackgroundLaunch(args.Arguments)
             || WindowsStartupService.IsBackgroundLaunch(processArguments);
+        bool updateShutdown = WindowsStartupService.IsUpdateShutdown(args.Arguments)
+            || WindowsStartupService.IsUpdateShutdown(processArguments);
         StartupDiagnostics.Stage("launch-entered");
-        StartupDiagnostics.Stage($"launch-mode background={backgroundLaunch}");
+        StartupDiagnostics.Stage(
+            $"launch-mode background={backgroundLaunch} updateShutdown={updateShutdown}");
         _singleInstance = SingleInstanceGuard.Acquire(
             Environment.GetEnvironmentVariable(WindowsVersionGuard.StartupSmokeEnvironmentVariable) == "1"
                 ? Environment.GetEnvironmentVariable("SIDEY_STARTUP_SMOKE_DATA_ROOT") : null);
@@ -110,6 +115,16 @@ public partial class App : Application
         }
         StartupDiagnostics.Stage("single-instance-acquired");
 
+        if (updateShutdown)
+        {
+            StartupDiagnostics.Stage("update-shutdown-no-primary");
+            _singleInstance.Dispose();
+            _singleInstance = null;
+            StartupDiagnostics.CompleteSession();
+            Exit();
+            return;
+        }
+
         if (!WindowsVersionGuard.CanLaunchMainWindow())
         {
             _window = new UnsupportedWindowsWindow();
@@ -121,7 +136,13 @@ public partial class App : Application
             return;
         }
 
-        var coordinator = new AppCoordinator();
+        var coordinator = new AppCoordinator(dispatchTypingFeedback: action =>
+        {
+            if (_dispatcherQueue.HasThreadAccess)
+                action();
+            else
+                _dispatcherQueue.TryEnqueue(() => action());
+        });
         _coordinator = coordinator;
         await coordinator.LoadCachedStateAsync();
         if (_shuttingDown || !ReferenceEquals(_coordinator, coordinator))
@@ -134,6 +155,8 @@ public partial class App : Application
         StartupDiagnostics.Stage(
             $"language-initialized language={I18n.Language} "
             + $"saved={(coordinator.State.Preferences.Language is not null).ToString().ToLowerInvariant()}");
+        string? completedUpdateVersion = _updateCompletionTracker.PendingNotificationVersion(
+            _updateService.CurrentVersion);
         coordinator.ComposerRequested += RequestComposer;
         coordinator.PulseRequested += RequestPulse;
         coordinator.TreeMovementToggleRequested += RequestTreeMovementToggle;
@@ -144,7 +167,7 @@ public partial class App : Application
         coordinator.StateChanged += OnCoordinatorStateChanged;
         coordinator.LanguageChanged += OnLanguageChanged;
         coordinator.ShowStartupOverlay();
-        if (!coordinator.State.Preferences.OnboardingCompleted)
+        if (coordinator.State.NeedsOnboarding)
         {
             CreateOnboardingWindow(coordinator);
             _window = _onboardingWindow;
@@ -194,6 +217,11 @@ public partial class App : Application
             _tray.DisplayTopologyChanged += OnDisplayTopologyChanged;
             _mainWindow?.SetTrayAvailable(true);
             StartupDiagnostics.Stage("tray-started");
+            if (completedUpdateVersion is not null)
+            {
+                _tray.NotifyUpdateInstalled(completedUpdateVersion);
+                StartupDiagnostics.Stage("update-completed-notification-posted");
+            }
             if (_pendingUpdateNotificationVersion is { } pendingVersion)
             {
                 PostUpdateNotification(pendingVersion);
@@ -202,9 +230,16 @@ public partial class App : Application
         catch (Exception exception)
         {
             StartupDiagnostics.NonFatal("tray-start", exception);
-            EnsureMainWindow().ShowFatalError(new InvalidOperationException(
-                I18n.Get("error.trayStart"),
-                exception));
+            var error = new InvalidOperationException(I18n.Get("error.trayStart"), exception);
+            if (coordinator.State.NeedsOnboarding)
+                _onboardingWindow?.ShowError(error);
+            else
+                EnsureMainWindow().ShowFatalError(error);
+        }
+        if (completedUpdateVersion is null || _tray is not null)
+        {
+            StartupDiagnostics.Stage(
+                $"update-completion-state-saved result={_updateCompletionTracker.TryMarkLaunched(_updateService.CurrentVersion).ToString().ToLowerInvariant()}");
         }
 #if DEBUG
         _developmentUpdate = DevelopmentUpdateService.Start(OnDevelopmentUpdateAccepted);
@@ -220,6 +255,7 @@ public partial class App : Application
             StartupDiagnostics.Stage("coordinator-initialized");
 #if SIDEY_DEVELOPMENT_COMMERCE
             if (coordinator.State.DevelopmentCommerceEnabled
+                && coordinator.AuthCallbackScheme == WindowsAuthCallback.DevelopmentScheme
                 && Environment.ProcessPath is { } executablePath)
             {
                 WindowsProtocolRegistration.EnsureCurrentUserDevelopmentCallback(executablePath);
@@ -235,8 +271,10 @@ public partial class App : Application
                 return;
             }
 
-            EnsureMainWindow().ShowFatalError(exception);
-            _onboardingWindow?.ShowError(exception);
+            if (coordinator.State.NeedsOnboarding)
+                _onboardingWindow?.ShowError(exception);
+            else
+                EnsureMainWindow().ShowFatalError(exception);
         }
 
         if (_shuttingDown || !ReferenceEquals(_coordinator, coordinator))
@@ -463,7 +501,7 @@ public partial class App : Application
 
     private void ShowComposer()
     {
-        if (_shuttingDown || _coordinator is null)
+        if (_shuttingDown || _coordinator is null || _coordinator.State.NeedsOnboarding)
         {
             return;
         }
@@ -506,6 +544,7 @@ public partial class App : Application
             window.Content = host;
             window.Activate();
             await Task.Delay(80);
+            await MainWindow.VerifyStorePurchaseButtonAsync(host.XamlRoot);
             async Task VerifyDialogAsync(Controls.StorePreviewStage stage)
             {
                 stage.CharacterImpact += _coordinator!.PlayImpactSound;
@@ -788,7 +827,7 @@ public partial class App : Application
 
     private void OnOnboardingCompleted()
     {
-        if (_shuttingDown || _onboardingWindow is null)
+        if (_shuttingDown || _onboardingWindow is null || _coordinator?.State.NeedsOnboarding != false)
         {
             return;
         }
@@ -840,6 +879,13 @@ public partial class App : Application
                 return;
             }
 
+            if (WindowsStartupService.IsUpdateShutdown(activationArgument))
+            {
+                StartupDiagnostics.Stage("update-shutdown-requested");
+                BeginShutdown();
+                return;
+            }
+
             if (await TryHandleActivationRequestAsync(activationArgument))
             {
                 return;
@@ -851,7 +897,7 @@ public partial class App : Application
 
             if (_onboardingWindow is null
                 && _coordinator is not null
-                && !_coordinator.State.Preferences.OnboardingCompleted)
+                && _coordinator.State.NeedsOnboarding)
             {
                 CreateOnboardingWindow(_coordinator);
                 _window = _onboardingWindow;
@@ -873,9 +919,57 @@ public partial class App : Application
         {
             return false;
         }
-        string expectedScheme = _coordinator.State.DevelopmentCommerceEnabled
-            ? WindowsAuthCallback.DevelopmentScheme
-            : WindowsAuthCallback.ProductionScheme;
+        string expectedScheme = _coordinator.AuthCallbackScheme;
+        if (WindowsAuthCallback.TryGetError(
+            activationArgument,
+            expectedScheme,
+            out _,
+            out string? errorCode))
+        {
+            // OAuth errors carry no PKCE correlation; an older browser attempt must not cancel the current one.
+            StartupDiagnostics.Stage($"oauth-callback-error code={errorCode ?? "unspecified"}");
+            ShowPrimaryWindow();
+            if (errorCode == "identity_already_exists")
+            {
+                try
+                {
+                    if (await _coordinator.RecoverGoogleIdentityLinkAsync())
+                    {
+                        StartupDiagnostics.Stage("oauth-callback-recovery result=success");
+                        ShowGoogleSignInCompleted();
+                        return true;
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    StartupDiagnostics.Stage("oauth-callback-recovery result=canceled");
+                    return true;
+                }
+                catch (Exception exception)
+                {
+                    if (!_shuttingDown)
+                    {
+                        StartupDiagnostics.Stage($"oauth-callback-recovery result=failed type={exception.GetType().Name}");
+                        StartupDiagnostics.NonFatal("oauth-callback-recovery", exception);
+                        ShowActivationError(exception);
+                    }
+                    return true;
+                }
+            }
+            if (_shuttingDown)
+            {
+                return true;
+            }
+            string message = errorCode == "identity_already_exists"
+                ? I18n.Get("auth.googleAlreadyLinked")
+                : I18n.Get("auth.googleCancelled");
+            if (errorCode is not null && errorCode != "identity_already_exists")
+            {
+                message = $"{message} [{errorCode}]";
+            }
+            ShowActivationError(new InvalidOperationException(message));
+            return true;
+        }
         if (!WindowsAuthCallback.TryGetCode(
             activationArgument,
             expectedScheme,
@@ -885,24 +979,56 @@ public partial class App : Application
             return false;
         }
 
-        MainWindow mainWindow = EnsureMainWindow();
-        mainWindow.ShowPage("store");
         try
         {
+            StartupDiagnostics.Stage("oauth-callback-code received=true");
+            // Use the callback process's foreground grant before awaiting network work.
+            ShowPrimaryWindow();
             await _coordinator.CompleteGoogleIdentityLinkAsync(callbackUri!);
-            if (!_shuttingDown && ReferenceEquals(_mainWindow, mainWindow))
-            {
-                mainWindow.ViewModel.ReportSuccess(I18n.Get("store.googleConnected"));
-            }
+            StartupDiagnostics.Stage("oauth-callback-complete result=success");
+            ShowGoogleSignInCompleted();
         }
         catch (Exception exception)
         {
-            if (!_shuttingDown && ReferenceEquals(_mainWindow, mainWindow))
+            if (!_shuttingDown)
             {
-                mainWindow.ViewModel.ReportError(exception);
+                StartupDiagnostics.Stage($"oauth-callback-complete result=failed type={exception.GetType().Name}");
+                StartupDiagnostics.NonFatal("oauth-callback-complete", exception);
+                ShowActivationError(exception);
             }
         }
         return true;
+    }
+
+    private void ShowGoogleSignInCompleted()
+    {
+        if (_shuttingDown || _coordinator?.State.GoogleVerified != true)
+        {
+            return;
+        }
+
+        if (!_coordinator.State.NeedsOnboarding)
+            OnOnboardingCompleted();
+        ShowPrimaryWindow();
+        if (_onboardingWindow is { } onboarding)
+            onboarding.ShowGoogleSignInComplete();
+        else
+            _mainWindow?.ViewModel.ReportSuccess(I18n.Get("auth.googleSignInComplete"));
+        _tray?.NotifyGoogleSignInComplete();
+    }
+
+    private void ShowActivationError(Exception exception)
+    {
+        if (_onboardingWindow is { } onboarding)
+        {
+            onboarding.ShowAndActivate();
+            onboarding.ShowError(exception);
+            return;
+        }
+
+        MainWindow mainWindow = EnsureMainWindow();
+        mainWindow.ShowFatalError(exception);
+        ShowPrimaryWindow();
     }
 
     private void ShowPrimaryWindow()
@@ -912,6 +1038,13 @@ public partial class App : Application
             return;
         }
 
+        if (_coordinator is { State.NeedsOnboarding: true } coordinator)
+        {
+            if (_onboardingWindow is null)
+                CreateOnboardingWindow(coordinator);
+            _onboardingWindow!.ShowAndActivate();
+            return;
+        }
         MainWindow mainWindow = EnsureMainWindow();
         _window = mainWindow;
         mainWindow.AppWindow.Show();
@@ -937,6 +1070,8 @@ public partial class App : Application
             UpdateConnectionFailureNotification(state.Connected);
             _mainWindow?.ApplyState(state);
             _onboardingWindow?.ApplyState(state);
+            if (!state.NeedsOnboarding && _onboardingWindow is not null)
+                OnOnboardingCompleted();
             _composer?.ApplyTheme(state.Preferences.Theme);
             _historyWindow?.ApplyState(state);
             _tray?.SetState(new TrayMenuState(
@@ -1094,7 +1229,7 @@ public partial class App : Application
             return;
         }
         if (_onboardingWindow is null
-            && !_coordinator.State.Preferences.OnboardingCompleted
+            && _coordinator.State.NeedsOnboarding
             && command != TrayCommand.Exit)
         {
             CreateOnboardingWindow(_coordinator);
@@ -1143,9 +1278,28 @@ public partial class App : Application
             case TrayCommand.Store:
                 EnsureMainWindow().ShowPage("store");
                 break;
+            case TrayCommand.ReleaseNotes:
+                _ = OpenCurrentReleaseNotesFromTrayAsync();
+                break;
             case TrayCommand.Exit:
                 BeginShutdown();
                 break;
+        }
+    }
+
+    private async Task OpenCurrentReleaseNotesFromTrayAsync()
+    {
+        try
+        {
+            await _updateService.OpenReleaseNotesAsync(_updateService.CurrentReleaseNotesUri);
+        }
+        catch (Exception exception)
+        {
+            MainWindow mainWindow = EnsureMainWindow();
+            mainWindow.ShowPage("about");
+            mainWindow.ViewModel.ReportError(new InvalidOperationException(
+                I18n.Format("update.releaseNotesFailed", exception.Message),
+                exception));
         }
     }
 
@@ -1238,7 +1392,7 @@ public partial class App : Application
 
     private void ShowHistory()
     {
-        if (_shuttingDown || _coordinator is null)
+        if (_shuttingDown || _coordinator is null || _coordinator.State.NeedsOnboarding)
         {
             return;
         }

@@ -6,6 +6,18 @@ namespace Sidey.Presentation.Tests;
 
 internal sealed class FakeSideyCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 {
+    public int GoogleStartCount { get; private set; }
+    public Task BeginGoogleAuthenticationAsync(CancellationToken cancellationToken = default)
+    {
+        GoogleStartCount++;
+        State = State with { GoogleAuthentication = GoogleAuthenticationState.SigningIn };
+        return Task.CompletedTask;
+    }
+    public Task CancelGoogleAuthenticationAsync()
+    {
+        State = State with { GoogleAuthentication = GoogleAuthenticationState.Required };
+        return Task.CompletedTask;
+    }
     public int ConnectionRetryCount { get; private set; }
     public List<Uri> OpenedExternalUris { get; } = [];
     public Func<Task<string>>? DiagnosticExportHandler { get; set; }
@@ -30,7 +42,7 @@ internal sealed class FakeSideyCoordinator : IMainWindowCoordinator, IHistoryCoo
     }
     public void PlayImpactSound(string id, Guid scope, long requestedAt) => PreviewedSounds.Add(id);
     public void StopImpactSounds(Guid? scope = null) { }
-    public CoordinatorState State { get; set; } = CoordinatorState.Initial;
+    public CoordinatorState State { get; set; } = CoordinatorState.Initial with { GoogleAuthentication = GoogleAuthenticationState.Verified };
 
     public IReadOnlyList<ChatMessage> MessagePage { get; set; } = [];
 
@@ -203,6 +215,14 @@ internal sealed class FakeSideyCoordinator : IMainWindowCoordinator, IHistoryCoo
         return Task.CompletedTask;
     }
 
+    public int RefreshStoreCallCount { get; private set; }
+
+    public Task RefreshStoreAsync(CancellationToken cancellationToken = default)
+    {
+        RefreshStoreCallCount++;
+        return Task.CompletedTask;
+    }
+
     public CommerceProductKind? LastEquippedCosmeticKind { get; private set; }
     public string? LastEquippedCosmeticId { get; private set; }
     public int SetEquippedCosmeticCallCount { get; private set; }
@@ -225,6 +245,9 @@ internal sealed class FakeSideyCoordinator : IMainWindowCoordinator, IHistoryCoo
     public Task CompleteGoogleIdentityLinkAsync(
         Uri callbackUri,
         CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+    public Task<bool> RecoverGoogleIdentityLinkAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult(false);
 
     public IReadOnlyList<MonitorOption> GetMonitors() => Monitors;
 

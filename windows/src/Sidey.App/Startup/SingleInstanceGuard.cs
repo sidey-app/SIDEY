@@ -1,4 +1,5 @@
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Sidey.App.Startup;
@@ -10,16 +11,20 @@ internal sealed class SingleInstanceGuard : IDisposable
     private const int MaximumActivationBytes = 4096;
     private readonly Mutex _mutex;
     private readonly string _activationPipeName;
+    private readonly ISingleInstanceForegroundPermission _foregroundPermission;
     private readonly CancellationTokenSource _listening = new();
     private Task? _activationTask;
 
     private SingleInstanceGuard(
         Mutex mutex,
-        bool isPrimary, string activationPipeName)
+        bool isPrimary,
+        string activationPipeName,
+        ISingleInstanceForegroundPermission foregroundPermission)
     {
         _mutex = mutex;
         IsPrimary = isPrimary;
         _activationPipeName = activationPipeName;
+        _foregroundPermission = foregroundPermission;
     }
 
     public bool IsPrimary { get; }
@@ -30,7 +35,11 @@ internal sealed class SingleInstanceGuard : IDisposable
         string suffix = string.IsNullOrWhiteSpace(smokeDataRoot) ? string.Empty
             : ".smoke." + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(smokeDataRoot)))[..24];
         var mutex = new Mutex(initiallyOwned: true, MutexName + suffix, out bool createdNew);
-        return new SingleInstanceGuard(mutex, createdNew, ActivationPipeName + suffix);
+        return new SingleInstanceGuard(
+            mutex,
+            createdNew,
+            ActivationPipeName + suffix,
+            new NativeSingleInstanceForegroundPermission());
     }
 
     public void StartListening(Action<string?> activate)
@@ -46,6 +55,16 @@ internal sealed class SingleInstanceGuard : IDisposable
 
     public void Signal(string? activationArgument)
     {
+        Signal(_activationPipeName, activationArgument, _foregroundPermission);
+    }
+
+    internal static void Signal(
+        string activationPipeName,
+        string? activationArgument,
+        ISingleInstanceForegroundPermission foregroundPermission)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(activationPipeName);
+        ArgumentNullException.ThrowIfNull(foregroundPermission);
         byte[] payload = Encoding.UTF8.GetBytes(activationArgument ?? string.Empty);
         if (payload.Length > MaximumActivationBytes)
         {
@@ -53,11 +72,30 @@ internal sealed class SingleInstanceGuard : IDisposable
         }
         using var pipe = new NamedPipeClientStream(
             ".",
-            _activationPipeName,
+            activationPipeName,
             PipeDirection.Out,
             PipeOptions.CurrentUserOnly);
         pipe.Connect(10000);
+        TryGrantForegroundPermission(pipe, foregroundPermission);
         pipe.Write(payload);
+    }
+
+    private static void TryGrantForegroundPermission(
+        NamedPipeClientStream pipe,
+        ISingleInstanceForegroundPermission foregroundPermission)
+    {
+        try
+        {
+            if (foregroundPermission.TryGetServerProcessId(pipe, out uint processId)
+                && processId != 0)
+            {
+                _ = foregroundPermission.AllowSetForegroundWindow(processId);
+            }
+        }
+        catch (Exception)
+        {
+            // Foreground permission is best effort; activation delivery must still continue.
+        }
     }
 
     private async Task ListenAsync(
@@ -116,5 +154,34 @@ internal sealed class SingleInstanceGuard : IDisposable
         }
         _listening.Dispose();
         _mutex.Dispose();
+    }
+}
+
+internal interface ISingleInstanceForegroundPermission
+{
+    public bool TryGetServerProcessId(NamedPipeClientStream pipe, out uint processId);
+
+    public bool AllowSetForegroundWindow(uint processId);
+}
+
+internal sealed class NativeSingleInstanceForegroundPermission : ISingleInstanceForegroundPermission
+{
+    public bool TryGetServerProcessId(NamedPipeClientStream pipe, out uint processId) =>
+        NativeMethods.GetNamedPipeServerProcessId(pipe.SafePipeHandle, out processId);
+
+    public bool AllowSetForegroundWindow(uint processId) =>
+        NativeMethods.AllowSetForegroundWindow(processId);
+
+    private static class NativeMethods
+    {
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetNamedPipeServerProcessId(
+            Microsoft.Win32.SafeHandles.SafePipeHandle pipe,
+            out uint serverProcessId);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool AllowSetForegroundWindow(uint processId);
     }
 }

@@ -2,6 +2,9 @@ namespace Sidey.Presentation.Services;
 
 public interface IOnboardingCoordinator : ICoordinatorStateSource
 {
+    public Task BeginGoogleAuthenticationAsync(CancellationToken cancellationToken = default);
+    public Task CancelGoogleAuthenticationAsync();
+
     public Task CompleteOnboardingAsync(CancellationToken cancellationToken = default);
 
     public Task SaveProfileAsync(

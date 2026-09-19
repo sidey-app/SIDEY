@@ -33,13 +33,17 @@ public sealed class RuntimeConfigurationTests
     }
 
     [Theory]
-    [InlineData("https://staging.example.com", "1", true, true)]
+    [InlineData("https://fjglrvhvdthntkvrduyi.supabase.co", "1", true, true)]
     [InlineData("http://localhost:54321", "1", true, true)]
-    [InlineData("https://whtejsviizgejauasqqt.supabase.co", "1", true, false)]
-    [InlineData("https://staging.example.com", "true", true, false)]
-    [InlineData("https://staging.example.com", "1", false, false)]
+    [InlineData("https://whtejsviizgejauasqqt.supabase.co", null, false, true)]
+    [InlineData("https://attacker.supabase.co", "1", true, false)]
+    [InlineData("https://whtejsviizgejauasqqt.supabase.co:8443", "1", true, false)]
+    [InlineData("https://user@whtejsviizgejauasqqt.supabase.co", "1", true, false)]
+    [InlineData("https://whtejsviizgejauasqqt.supabase.co/path", "1", true, false)]
+    [InlineData("https://fjglrvhvdthntkvrduyi.supabase.co", "true", true, false)]
+    [InlineData("https://fjglrvhvdthntkvrduyi.supabase.co", "1", false, false)]
     [InlineData("http://staging.example.com", "1", true, false)]
-    public void DevelopmentCommerceRequiresCompileRuntimeAndNonProductionGates(
+    public void CommerceAllowsProductionAndExplicitKnownDevelopmentOrigins(
         string backendUrl,
         string? optIn,
         bool compiledSupport,
@@ -55,19 +59,14 @@ public sealed class RuntimeConfigurationTests
     }
 
     [Fact]
-    public void CommerceNetworkSurfaceMatchesTheCompileTimeGate()
+    public void CommerceNetworkSurfaceIsAvailableInRelease()
     {
         MethodInfo? commerceStateMethod = typeof(SupabaseBackendGateway).GetMethod(
             "GetWindowsCommerceStateAsync");
         MethodInfo? identityLinkMethod = typeof(SupabaseAnonymousAuthService).GetMethod(
             "BeginGoogleIdentityLinkAsync");
 
-#if SIDEY_DEVELOPMENT_COMMERCE
         Assert.NotNull(commerceStateMethod);
         Assert.NotNull(identityLinkMethod);
-#else
-        Assert.Null(commerceStateMethod);
-        Assert.Null(identityLinkMethod);
-#endif
     }
 }

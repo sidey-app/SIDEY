@@ -62,7 +62,7 @@ public sealed class WindowPolicyTests
     [Fact]
     public void CurrentWindowsSourceVersionIsOneThreeOne()
     {
-        Assert.Equal("1.3.1", WindowsUpdateService.CurrentVersion);
+        Assert.Equal("1.4.0", WindowsUpdateService.CurrentVersion);
     }
 
     [Theory]
@@ -184,6 +184,93 @@ public sealed class WindowPolicyTests
                 fullScreenWorkArea,
                 OverlayEdge.Bottom,
                 [new NativePixelRect(0, 1078, 1920, 2)]));
+    }
+
+    [Fact]
+    public void RevealedAutoHideTaskbarCoversOverlayWhileCharactersMoveAboveIt()
+    {
+        var monitor = new NativePixelRect(0, 0, 1920, 1080);
+        nint taskbar = 101;
+
+        WindowsTaskbarPresentation presentation = WindowsTaskbarService.Presentation(
+            monitor,
+            monitor,
+            OverlayEdge.Bottom,
+            [new WindowsTaskbarWindow(taskbar, new NativePixelRect(0, 1032, 1920, 48))],
+            autoHideWindows: [taskbar]);
+
+        Assert.Equal(48, presentation.EdgeInset);
+        Assert.Equal(taskbar, presentation.RevealedAutoHideWindow);
+    }
+
+    [Fact]
+    public void HiddenAutoHideTaskbarRestoresOverlayTopmostAtTheScreenEdge()
+    {
+        var monitor = new NativePixelRect(0, 0, 1920, 1080);
+        nint taskbar = 101;
+
+        WindowsTaskbarPresentation presentation = WindowsTaskbarService.Presentation(
+            monitor,
+            monitor,
+            OverlayEdge.Bottom,
+            [new WindowsTaskbarWindow(taskbar, new NativePixelRect(0, 1078, 1920, 2))],
+            autoHideWindows: [taskbar]);
+
+        Assert.Equal(0, presentation.EdgeInset);
+        Assert.Equal(nint.Zero, presentation.RevealedAutoHideWindow);
+    }
+
+    [Fact]
+    public void FixedTaskbarMovesCharactersWithoutLoweringOverlay()
+    {
+        var monitor = new NativePixelRect(0, 0, 1920, 1080);
+
+        WindowsTaskbarPresentation presentation = WindowsTaskbarService.Presentation(
+            monitor,
+            monitor,
+            OverlayEdge.Bottom,
+            [new WindowsTaskbarWindow(101, new NativePixelRect(0, 1032, 1920, 48))],
+            autoHideWindows: []);
+
+        Assert.Equal(48, presentation.EdgeInset);
+        Assert.Equal(nint.Zero, presentation.RevealedAutoHideWindow);
+    }
+
+    [Fact]
+    public void AutoHideTaskbarOnAnotherMonitorDoesNotLowerThisOverlay()
+    {
+        var monitor = new NativePixelRect(0, 0, 1920, 1080);
+        nint otherMonitorTaskbar = 202;
+
+        WindowsTaskbarPresentation presentation = WindowsTaskbarService.Presentation(
+            monitor,
+            monitor,
+            OverlayEdge.Bottom,
+            [
+                new WindowsTaskbarWindow(101, new NativePixelRect(0, 1032, 1920, 48)),
+                new WindowsTaskbarWindow(otherMonitorTaskbar, new NativePixelRect(1920, 1032, 1920, 48)),
+            ],
+            autoHideWindows: [otherMonitorTaskbar]);
+
+        Assert.Equal(48, presentation.EdgeInset);
+        Assert.Equal(nint.Zero, presentation.RevealedAutoHideWindow);
+    }
+
+    [Fact]
+    public void RevealedAutoHideTaskbarOnAnotherEdgeStillCoversOverlay()
+    {
+        var monitor = new NativePixelRect(0, 0, 1920, 1080);
+        nint taskbar = 101;
+
+        WindowsTaskbarPresentation presentation = WindowsTaskbarService.Presentation(
+            monitor,
+            monitor,
+            OverlayEdge.Bottom,
+            [new WindowsTaskbarWindow(taskbar, new NativePixelRect(0, 0, 48, 1080))],
+            autoHideWindows: [taskbar]);
+
+        Assert.Equal(0, presentation.EdgeInset);
+        Assert.Equal(taskbar, presentation.RevealedAutoHideWindow);
     }
 
     [Fact]

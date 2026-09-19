@@ -1,0 +1,58 @@
+using Sidey.Platform.Windows.Deployment;
+
+namespace Sidey.Platform.Windows.Tests;
+
+public sealed class WindowsUpdateCompletionTrackerTests : IDisposable
+{
+    private readonly string _directory = Path.Combine(
+        Path.GetTempPath(), $"sidey-update-completion-{Guid.NewGuid():N}");
+
+    [Fact]
+    public void RetainedUserDataWithoutInstallerMarkerDoesNotReportUpdate()
+    {
+        Directory.CreateDirectory(_directory);
+        File.WriteAllText(Path.Combine(_directory, "last-launched-version.txt"), "1.0.0");
+        var tracker = new WindowsUpdateCompletionTracker(StatePath());
+
+        Assert.Null(tracker.PendingNotificationVersion("1.4.0"));
+        Assert.True(tracker.TryMarkLaunched("1.4.0"));
+        Assert.False(File.Exists(StatePath()));
+    }
+
+    [Fact]
+    public void InstallerUpgradeMarkerIsConsumedOnce()
+    {
+        Directory.CreateDirectory(_directory);
+        File.WriteAllText(StatePath(), "1.4.0");
+        var tracker = new WindowsUpdateCompletionTracker(StatePath());
+
+        Assert.Equal("1.4.0", tracker.PendingNotificationVersion("1.4.0"));
+        Assert.True(tracker.TryMarkLaunched("1.4.0"));
+        Assert.Null(tracker.PendingNotificationVersion("1.4.0"));
+    }
+
+    [Theory]
+    [InlineData("1.3.2")]
+    [InlineData("1.5.0")]
+    [InlineData("invalid")]
+    public void StaleOrInvalidMarkerDoesNotReportDifferentUpdate(string marker)
+    {
+        Directory.CreateDirectory(_directory);
+        File.WriteAllText(StatePath(), marker);
+        var tracker = new WindowsUpdateCompletionTracker(StatePath());
+
+        Assert.Null(tracker.PendingNotificationVersion("1.4.0"));
+        Assert.True(tracker.TryMarkLaunched("1.4.0"));
+        Assert.False(File.Exists(StatePath()));
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_directory))
+        {
+            Directory.Delete(_directory, recursive: true);
+        }
+    }
+
+    private string StatePath() => Path.Combine(_directory, "pending-installed-update.txt");
+}
