@@ -219,3 +219,15 @@ test("checkout CSP permits PortOne preparation and its hosted payment frame", ()
   assert.ok(directives["connect-src"].includes("https://whtejsviizgejauasqqt.supabase.co"));
   assert.ok(!directives["connect-src"].includes("https://*.supabase.co"));
 });
+
+
+test("checkout controls use same-origin scripts accepted by its CSP", () => {
+  for (const page of ["checkout", "checkout-result"]) {
+    const html = read(`${page}/index.html`);
+    assert.match(html, /src="\/SIDEY\/assets\/site-theme\.js"/);
+    assert.match(html, /src="\/SIDEY\/assets\/site-header\.js"/);
+    for (const script of html.matchAll(/<script([^>]*)>([\s\S]*?)<\/script>/g)) {
+      assert.equal(script[2].trim(), "", "strict CSP pages must not contain inline JavaScript");
+    }
+  }
+});
