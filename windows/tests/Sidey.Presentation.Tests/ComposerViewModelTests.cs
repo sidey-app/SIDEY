@@ -5,6 +5,24 @@ namespace Sidey.Presentation.Tests;
 public sealed class ComposerViewModelTests
 {
     [Fact]
+    public void RestoreShowAndUnchangedTextDoNotStartTypingButImeAndPasteDo()
+    {
+        using var viewModel = new ComposerViewModel();
+        var states = new List<bool>();
+        viewModel.TypingChanged += states.Add;
+        viewModel.RestoreDraft("복원");
+        viewModel.OnShown();
+        viewModel.Draft = "복원";
+        Assert.Empty(states);
+        viewModel.Draft = "ㅎ";
+        viewModel.Draft = "하";
+        viewModel.Draft = "한";
+        viewModel.Draft = "한글 붙여넣기";
+        viewModel.Draft = "";
+        Assert.Equal([true, true, true, true, false], states);
+    }
+
+    [Fact]
     public void ComposerCanHideAndReuseAfterSending()
     {
         using var viewModel = new ComposerViewModel();

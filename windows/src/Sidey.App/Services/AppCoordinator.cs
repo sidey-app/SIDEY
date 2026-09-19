@@ -40,7 +40,9 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     private readonly ActiveBubbleLedger _bubbles = new();
     private readonly CharacterPulseCooldown _pulseCooldown = new();
     private readonly CharacterThrowCooldown _throwCooldown = new();
-    private readonly TypingLease _typingLease = new();
+    private readonly TypingActivityController _typingActivity;
+    private readonly Lock _localTypingGate = new();
+    private Guid? _localTypingRoom;
     private readonly List<CharacterPulseEvent> _pendingPulses = [];
     private readonly List<CharacterThrowEvent> _pendingThrows = [];
     private readonly HashSet<(Guid RoomId, Guid UserId)> _typing = [];
@@ -75,6 +77,14 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         _credentialStore = credentialStore ?? new WindowsCredentialStore();
         _startup = startupService ?? new WindowsStartupService();
         _audio = new WindowsImpactAudio(StartupDiagnostics.NonFatal);
+        _typingActivity = new TypingActivityController(
+            (roomId, active, keepalive, token) => _backend?.BroadcastTypingAsync(roomId, active, keepalive, token) ?? Task.CompletedTask,
+            (roomId, active) =>
+            {
+                lock (_localTypingGate)
+                    _localTypingRoom = active ? roomId : null;
+                ApplyWorldSnapshot();
+            });
         _animations.Changed += OnAnimationsChanged;
 #if DEBUG
         _validationMode = string.Equals(
@@ -763,6 +773,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             return;
         }
 
+        _typingActivity.Stop();
         long operationGeneration = Interlocked.Increment(ref _groupOperationGeneration);
         SetState(_state with
         {
@@ -830,6 +841,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         CancellationToken cancellationToken)
     {
         EnsureMutationsAvailable();
+        _typingActivity.Stop();
         SetState(_state with
         {
             GroupOperation = GroupOperation.Mutating,
@@ -907,6 +919,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             throw new ArgumentException(I18n.Get("validation.messageLength"), nameof(body));
         }
 
+        _typingActivity.Stop();
         var id = Guid.NewGuid();
         _messages.Stage(id, roomId, profile.Id, normalized, bubbleStyleId: profile.EquippedBubbleStyleId);
         _bubbles.Show(profile.Id, id, normalized, bubbleStyleId: profile.EquippedBubbleStyleId);
@@ -1204,45 +1217,14 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         }
     }
 
-    public async Task SetTypingAsync(bool active, CancellationToken cancellationToken = default)
+    public Task SetTypingAsync(bool active, CancellationToken cancellationToken = default)
     {
-        if (_backend is null)
-        {
-            return;
-        }
-
-        IReadOnlyList<TypingLeaseAction> actions = _typingLease.Update(active, _state.ActiveRoomId);
-        foreach (TypingLeaseAction action in actions)
-        {
-            switch (action)
-            {
-                case TypingLeaseAction.Start start:
-                    try
-                    {
-                        await _backend.BroadcastTypingAsync(
-                            start.RoomId,
-                            active: true,
-                            keepalive: false,
-                            cancellationToken);
-                        StartTypingKeepalive(start.RoomId);
-                    }
-                    catch
-                    {
-                        _typingLease.Update(active: false, requestedRoomId: null);
-                        StopTypingKeepalive();
-                        throw;
-                    }
-                    break;
-                case TypingLeaseAction.Stop stop:
-                    StopTypingKeepalive();
-                    await _backend.BroadcastTypingAsync(
-                        stop.RoomId,
-                        active: false,
-                        keepalive: false,
-                        cancellationToken);
-                    break;
-            }
-        }
+        if (active && !cancellationToken.IsCancellationRequested && _backend is not null
+            && _state.GroupOperation == GroupOperation.Idle && _state.ActiveRoomId is { } roomId)
+            _typingActivity.Edit(roomId);
+        else
+            _typingActivity.Stop();
+        return Task.CompletedTask;
     }
 
     public async Task SetRegionAsync(
@@ -1402,6 +1384,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         _animations.Dispose();
         _audio.Dispose();
         CancelTreeMovementRequest();
+        await _typingActivity.DisposeAsync().ConfigureAwait(false);
         await _roomSession.DisposeAsync().ConfigureAwait(false);
         await Task.WhenAll(_treeMovementOperations).ConfigureAwait(false);
         if (_backend is SupabaseBackendGateway supabase)
@@ -1518,6 +1501,9 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                             presence.State);
                         break;
                     case BackendEvent.TypingChanged typing:
+                        // Local activity owns self feedback; delayed echoes/TTL cannot revive it.
+                        if (typing.UserId == _state.Profile?.Id)
+                            break;
                         if (typing.Active)
                         {
                             _typing.Add((typing.RoomId, typing.UserId));
@@ -1853,8 +1839,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         StartTreeMovementMigration();
         if (_state.ActiveRoomId != previousActiveRoomId)
         {
-            StopTypingKeepalive();
-            _typingLease.Update(active: false, requestedRoomId: null);
+            _typingActivity.Stop();
             _typing.Clear();
             _bubbles.Clear();
             _roomSession.SwitchPipeline?.InitializeCommittedRoom(_state.ActiveRoomId);
@@ -2159,7 +2144,8 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                 member.Nickname,
                 PixelCharacterCatalog.NormalizeId(member.CharacterId),
                 LocalPresenceProjection.ForOverlay(member.Presence, _state.ActiveRoomConnected),
-                IsTyping: _state.ActiveRoomConnected && room is not null && _typing.Contains((room.Id, member.UserId)),
+                IsTyping: _state.ActiveRoomConnected && room is not null
+                    && (member.UserId == _state.Profile?.Id ? IsLocallyTyping(room.Id) : _typing.Contains((room.Id, member.UserId))),
                 IsCurrentUser: member.UserId == _state.Profile?.Id,
                 EquippedBubbleStyleId: member.EquippedBubbleStyleId,
                 TreeMovementPaused: member.TreeMovementPaused,
@@ -2287,44 +2273,6 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 
     private void PublishState() => SetState(_state);
 
-    private void StartTypingKeepalive(Guid roomId)
-    {
-        _roomSession.StartTyping(token => RunTypingKeepaliveAsync(roomId, token));
-    }
-
-    private async Task RunTypingKeepaliveAsync(Guid roomId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var timer = new PeriodicTimer(TypingLease.KeepaliveInterval);
-            while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
-            {
-                if (_typingLease.RoomId != roomId || _backend is null)
-                {
-                    return;
-                }
-
-                await _backend.BroadcastTypingAsync(
-                    roomId,
-                    active: true,
-                    keepalive: true,
-                    cancellationToken).ConfigureAwait(false);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception exception)
-        {
-            _typingLease.Update(active: false, requestedRoomId: null);
-            SetState(_state with
-            {
-                RealtimeConnection = RealtimeConnectionStatus.Disconnected,
-                ErrorMessage = I18n.Format("error.typingUpdateFailed", exception.Message),
-            });
-        }
-    }
-
     private async Task PersistCommittedRoomAsync()
     {
         try
@@ -2340,9 +2288,10 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         }
     }
 
-    private void StopTypingKeepalive()
+    private bool IsLocallyTyping(Guid roomId)
     {
-        _roomSession.StopTyping();
+        lock (_localTypingGate)
+            return _localTypingRoom == roomId;
     }
 
     private static Guid? SelectActiveRoom(Guid? requested, IReadOnlyList<Room> rooms) =>

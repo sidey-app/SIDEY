@@ -116,7 +116,7 @@ public abstract record TypingLeaseAction(Guid RoomId)
 public sealed class TypingLease
 {
     public static readonly TimeSpan KeepaliveInterval = TimeSpan.FromSeconds(2);
-    public static readonly TimeSpan RemoteExpiry = TimeSpan.FromSeconds(4);
+    public static readonly TimeSpan RemoteExpiry = TimeSpan.FromSeconds(6);
 
     public Guid? RoomId { get; private set; }
 
