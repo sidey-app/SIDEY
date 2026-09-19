@@ -656,9 +656,9 @@ public sealed class DistributionSourceTests
     }
 
     [Theory]
-    [InlineData("windows-build-and-tests.yml")]
-    [InlineData("windows-release.yml")]
-    public void WorkflowsValidatePublishedFilesWithoutLaunchingTheGui(string workflowName)
+    [InlineData("windows-build-and-tests.yml", true)]
+    [InlineData("windows-release.yml", false)]
+    public void WorkflowsValidatePublishedFilesAndLimitGuiSmokeToManualCandidates(string workflowName, bool runsManualSmoke)
     {
         string workflow = File.ReadAllText(RepositoryPath(".github", "workflows", workflowName));
         Assert.Contains("--self-contained true", workflow, StringComparison.Ordinal);
@@ -667,7 +667,30 @@ public sealed class DistributionSourceTests
         Assert.DoesNotContain("Test-PrerequisiteInstaller.ps1", workflow, StringComparison.Ordinal);
         Assert.Contains("Test-SelfContainedPublish.ps1", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("SetupRuntime.ps1", workflow, StringComparison.Ordinal);
-        Assert.DoesNotContain("Test-PublishedApplication.ps1", workflow, StringComparison.Ordinal);
+        if (runsManualSmoke)
+        {
+            Assert.Contains("workflow_dispatch:", workflow, StringComparison.Ordinal);
+            Assert.Contains("Test-PublishedApplication.ps1", workflow, StringComparison.Ordinal);
+            Assert.Contains("SIDEY_STORE_PREVIEW_SMOKE: '1'", workflow, StringComparison.Ordinal);
+            Assert.Contains("SIDEY_OVERLAY_STARTUP_SMOKE: '1'", workflow, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.DoesNotContain("Test-PublishedApplication.ps1", workflow, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void ManualCandidateWorkflowUploadsOnlyEncryptedInstallerArchives()
+    {
+        string workflow = File.ReadAllText(RepositoryPath(".github", "workflows", "windows-build-and-tests.yml"));
+        int encryptionStep = workflow.IndexOf("- name: Encrypt owner-only test candidate", StringComparison.Ordinal);
+        int uploadStep = workflow.IndexOf("- name: Upload encrypted manual test candidate", StringComparison.Ordinal);
+        Assert.True(encryptionStep >= 0 && uploadStep > encryptionStep);
+        Assert.Contains("-t7z -mhe=on", workflow, StringComparison.Ordinal);
+        Assert.Contains("IsNullOrWhiteSpace($env:SIDEY_DEV_ARTIFACT_PASSWORD)", workflow, StringComparison.Ordinal);
+        Assert.Contains("path: ${{ runner.temp }}/sidey-windows-private-${{ github.sha }}.7z", workflow[uploadStep..], StringComparison.Ordinal);
+        Assert.DoesNotContain("*Setup.exe", workflow[uploadStep..], StringComparison.Ordinal);
     }
 
     private static string Value(XDocument document, string name) =>
