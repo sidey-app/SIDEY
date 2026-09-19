@@ -88,11 +88,30 @@ jobs:
           path: artifacts/coverage/**/coverage.cobertura.xml
           if-no-files-found: error
 
-      - name: Upload manual test candidate
+      - name: Encrypt owner-only test candidate
+        env:
+          SIDEY_DEV_ARTIFACT_PASSWORD: ${{ secrets.SIDEY_DEV_ARTIFACT_PASSWORD }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          if ([string]::IsNullOrWhiteSpace($env:SIDEY_DEV_ARTIFACT_PASSWORD)) {
+            throw 'A private candidate password must be configured before uploading.'
+          }
+          $sevenZip = Join-Path $env:ProgramFiles '7-Zip/7z.exe'
+          if (-not (Test-Path -LiteralPath $sevenZip -PathType Leaf)) {
+            throw 'The runner must provide 7-Zip for encrypted candidate delivery.'
+          }
+          $installers = @(Get-ChildItem -LiteralPath ./build/windows/artifacts -Filter '*Setup.exe' -File)
+          if ($installers.Count -ne 1) { throw 'Expected exactly one candidate installer.' }
+          $archive = Join-Path $env:RUNNER_TEMP "sidey-windows-private-$env:GITHUB_SHA.7z"
+          if (Test-Path -LiteralPath $archive) { throw 'Candidate archive already exists.' }
+          & $sevenZip a -t7z -mhe=on "-p$env:SIDEY_DEV_ARTIFACT_PASSWORD" $archive $installers[0].FullName
+          & $sevenZip t "-p$env:SIDEY_DEV_ARTIFACT_PASSWORD" $archive
+
+      - name: Upload encrypted manual test candidate
         uses: actions/upload-artifact@v5
         with:
-          name: sidey-windows-candidate-${{ github.sha }}
-          path: |
-            build/windows/artifacts/*Setup.exe
+          name: sidey-windows-private-${{ github.sha }}
+          path: ${{ runner.temp }}/sidey-windows-private-${{ github.sha }}.7z
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7
