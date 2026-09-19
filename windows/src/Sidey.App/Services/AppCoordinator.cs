@@ -2215,7 +2215,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         }
         IReadOnlyList<CommerceProductState> presentedProducts = workingProductId is null
             ? products
-            : products.Select(product =>
+            : [.. products.Select(product =>
                 StringComparer.Ordinal.Equals(product.Product.Id, workingProductId)
                     && product.PurchaseState != CommercePurchaseState.Owned
                     ? product with
@@ -2223,7 +2223,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                         PurchaseState = CommercePurchaseState.Confirming,
                         IsWorking = true,
                     }
-                    : product).ToArray();
+                    : product)];
         SetState(_state with
         {
             CommerceProducts = presentedProducts,
@@ -2237,10 +2237,10 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     {
         SetState(_state with
         {
-            CommerceProducts = _state.CommerceProducts.Select(item =>
+            CommerceProducts = [.. _state.CommerceProducts.Select(item =>
                 StringComparer.Ordinal.Equals(item.Product.Id, productState.Product.Id)
                     ? productState
-                    : item).ToArray(),
+                    : item)],
         });
     }
 

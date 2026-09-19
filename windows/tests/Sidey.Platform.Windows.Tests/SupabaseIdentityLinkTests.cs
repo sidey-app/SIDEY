@@ -11,7 +11,7 @@ public sealed class SupabaseIdentityLinkTests
     [Fact]
     public async Task PkceIdentityLinkPreservesTheAnonymousUser()
     {
-        Guid userId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
         var credentials = new MemoryCredentialStore(SessionJson(userId, "old-token"));
         var handler = new IdentityLinkHandler(userId);
         using var client = new HttpClient(handler);
@@ -39,7 +39,7 @@ public sealed class SupabaseIdentityLinkTests
     [Fact]
     public async Task IdentityLinkRejectsAChangedUserWithoutReplacingTheStoredSession()
     {
-        Guid originalUserId = Guid.NewGuid();
+        var originalUserId = Guid.NewGuid();
         string originalSession = SessionJson(originalUserId, "old-token");
         var credentials = new MemoryCredentialStore(originalSession);
         var handler = new IdentityLinkHandler(Guid.NewGuid());

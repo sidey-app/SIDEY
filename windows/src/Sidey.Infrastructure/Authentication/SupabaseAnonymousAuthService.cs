@@ -123,11 +123,11 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
                 $"code_challenge={Uri.EscapeDataString(challenge)}",
                 "code_challenge_method=s256",
                 "skip_http_redirect=true");
-            using var request = CreateRequest(
+            using HttpRequestMessage request = CreateRequest(
                 HttpMethod.Get,
                 $"/auth/v1/user/identities/authorize?{query}",
                 session.AccessToken);
-            using var response = await _httpClient.SendAsync(request, cancellationToken)
+            using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken)
                 .ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
             IdentityLinkEnvelope envelope =

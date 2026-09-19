@@ -5,7 +5,7 @@ namespace Sidey.Core.Tests;
 
 public sealed class TypingActivityControllerTests(ITestOutputHelper output)
 {
-    private static readonly Guid Room = Guid.NewGuid();
+    private static readonly Guid s_room = Guid.NewGuid();
 
     [Fact]
     public async Task ShortEditShowsLocallyWithoutRemoteStart()
@@ -16,7 +16,7 @@ public sealed class TypingActivityControllerTests(ITestOutputHelper output)
         await using var controller = new TypingActivityController(
             (_, active, _, _) => { remote.Add(active); return Task.CompletedTask; },
             (_, active) => local.Add(active), clock);
-        controller.Edit(Room);
+        controller.Edit(s_room);
         Assert.Equal([true], local);
         clock.Advance(499);
         controller.Stop();
@@ -32,11 +32,11 @@ public sealed class TypingActivityControllerTests(ITestOutputHelper output)
         var calls = new List<(long At, bool Active)>();
         await using var controller = new TypingActivityController(
             (_, active, _, _) => { calls.Add((clock.Milliseconds, active)); return Task.CompletedTask; }, (_, _) => { }, clock);
-        controller.Edit(Room);
+        controller.Edit(s_room);
         for (int index = 0; index < 30; index++)
         {
             clock.Advance(100);
-            controller.Edit(Room);
+            controller.Edit(s_room);
         }
         Assert.Equal([(500L, true), (2500L, true)], calls);
         clock.Advance(2000);
@@ -54,7 +54,7 @@ public sealed class TypingActivityControllerTests(ITestOutputHelper output)
         var calls = new List<(long At, bool Active)>();
         await using var controller = new TypingActivityController(
             (_, active, _, _) => { calls.Add((clock.Milliseconds, active)); return Task.CompletedTask; }, (_, _) => { }, clock);
-        controller.Edit(Room);
+        controller.Edit(s_room);
         clock.Advance(10000);
         Assert.Equal([(500L, true), (5000L, false)], calls);
     }
@@ -66,7 +66,7 @@ public sealed class TypingActivityControllerTests(ITestOutputHelper output)
         var first = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var newStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var second = Guid.NewGuid();
-        var calls = new List<(Guid Room, bool Active)>();
+        var calls = new List<(Guid s_room, bool Active)>();
         await using var controller = new TypingActivityController((room, active, _, _) =>
         {
             calls.Add((room, active));
@@ -76,7 +76,7 @@ public sealed class TypingActivityControllerTests(ITestOutputHelper output)
                 newStarted.TrySetResult();
             return Task.CompletedTask;
         }, (_, _) => { }, clock);
-        controller.Edit(Room);
+        controller.Edit(s_room);
         clock.Advance(500);
         controller.Stop();
         controller.Edit(second);
@@ -84,7 +84,7 @@ public sealed class TypingActivityControllerTests(ITestOutputHelper output)
         Assert.Single(calls);
         first.SetException(new IOException("delayed transient failure"));
         await newStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal([(Room, true), (Room, false), (second, true)], calls);
+        Assert.Equal([(s_room, true), (s_room, false), (second, true)], calls);
     }
 
     [Fact]
@@ -98,10 +98,10 @@ public sealed class TypingActivityControllerTests(ITestOutputHelper output)
                 starts++;
             return Task.FromException(new IOException("offline"));
         }, (_, _) => { }, clock);
-        controller.Edit(Room);
+        controller.Edit(s_room);
         clock.Advance(3000);
         Assert.Equal(1, starts);
-        controller.Edit(Room);
+        controller.Edit(s_room);
         clock.Advance(0);
         Assert.Equal(2, starts);
         clock.Advance(5000);
@@ -117,7 +117,7 @@ public sealed class TypingActivityControllerTests(ITestOutputHelper output)
         await using var controller = new TypingActivityController(
             (_, active, _, _) => active ? response.Task : Task.CompletedTask,
             (_, active) => local.Add((clock.Milliseconds, active)), clock);
-        controller.Edit(Room);
+        controller.Edit(s_room);
         clock.Advance(5000);
         Assert.Equal([(0L, true), (5000L, false)], local);
         response.SetResult();
@@ -138,10 +138,10 @@ public sealed class TypingActivityControllerTests(ITestOutputHelper output)
             stopped.TrySetResult();
             return Task.CompletedTask;
         }, (_, _) => { }, clock);
-        controller.Edit(Room);
+        controller.Edit(s_room);
         clock.Advance(500);
         controller.Stop();
-        controller.Edit(Room);
+        controller.Edit(s_room);
         clock.Advance(500);
         controller.Stop();
         response.SetResult();
@@ -179,7 +179,7 @@ public sealed class TypingActivityControllerTests(ITestOutputHelper output)
         }, (_, _) => { }, clock);
         void Edit()
         {
-            foreach (TypingLeaseAction action in baseline.Update(true, Room))
+            foreach (TypingLeaseAction action in baseline.Update(true, s_room))
             {
                 if (action is TypingLeaseAction.Start)
                 {
@@ -187,7 +187,7 @@ public sealed class TypingActivityControllerTests(ITestOutputHelper output)
                     keepalive.Change(TypingLease.KeepaliveInterval, TypingLease.KeepaliveInterval);
                 }
             }
-            controller.Edit(Room);
+            controller.Edit(s_room);
         }
         Edit();
         if (trace == "continuous")
@@ -199,7 +199,7 @@ public sealed class TypingActivityControllerTests(ITestOutputHelper output)
             }
         }
         clock.Advance(trace == "short" ? 499 : trace == "idle" ? 10001 : 5001);
-        baselineStops += baseline.Update(false, Room).Count;
+        baselineStops += baseline.Update(false, s_room).Count;
         keepalive.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         controller.Stop();
         Assert.Equal((oldStart, oldRefresh, oldStop), (baselineStarts, baselineRefreshes, baselineStops));

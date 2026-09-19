@@ -141,12 +141,12 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
     public async Task<IReadOnlyList<CommerceProductState>> GetWindowsCommerceStateAsync(
         CancellationToken cancellationToken = default)
     {
-        using var request = await CreateRequestAsync(
+        using HttpRequestMessage request = await CreateRequestAsync(
             HttpMethod.Post,
             "/rest/v1/rpc/get_windows_store_state",
             cancellationToken).ConfigureAwait(false);
         request.Content = JsonContent.Create(new { }, options: s_jsonOptions);
-        using var response = await _httpClient.SendAsync(request, cancellationToken)
+        using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken)
             .ConfigureAwait(false);
         DatabaseCommerceState[] rows = await ReadRequiredAsync<DatabaseCommerceState[]>(
             response,
@@ -194,12 +194,12 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             throw new ArgumentOutOfRangeException(nameof(productId));
         }
 
-        using var request = await CreateRequestAsync(
+        using HttpRequestMessage request = await CreateRequestAsync(
             HttpMethod.Post,
             "/functions/v1/commerce-order",
             cancellationToken).ConfigureAwait(false);
         request.Content = JsonContent.Create(new { product_id = productId }, options: s_jsonOptions);
-        using var response = await _httpClient.SendAsync(request, cancellationToken)
+        using HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken)
             .ConfigureAwait(false);
         CommerceOrderResponse order = await ReadRequiredAsync<CommerceOrderResponse>(
             response,
