@@ -174,3 +174,48 @@ test("preview sound responds to clicks, motion preference, product changes and d
   open(undefined, "character");
   assert.equal(sound.hidden, true, "characters do not expose a sound toggle");
 });
+
+test("checkout ignores injected API origins and sends tokens only to SIDEY production", async () => {
+  const { runInNewContext } = await import("node:vm");
+  for (const name of ["checkout", "checkout-result"]) {
+    let source = readFileSync(new URL(`../public/assets/${name}.js`, import.meta.url), "utf8");
+    source = source.replace(/^import .*;\n/, "const commerceProducts = {};\n");
+    source = source.replaceAll("import.meta.url", '"https://sidey-app.github.io/SIDEY/assets/checkout.js"');
+    const requests = [];
+    const element = () => ({ addEventListener() {}, dataset: {} });
+    runInNewContext(source, {
+      URL, URLSearchParams, Intl,
+      document: { querySelector: element },
+      window: {
+        location: {
+          search: "?api=https://attacker.supabase.co/functions/v1&result=complete&paymentId=payment-test",
+          hash: `#token=${"a".repeat(43)}`,
+          pathname: `/SIDEY/${name}/`, origin: "https://sidey-app.github.io",
+        },
+        history: { replaceState() {} },
+      },
+      console: { error() {} },
+      fetch: async (url) => {
+        requests.push(url);
+        return { ok: false, status: 410, json: async () => ({ error: "checkout_expired" }) };
+      },
+    });
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0], `https://whtejsviizgejauasqqt.supabase.co/functions/v1/${name === "checkout" ? "commerce-checkout" : "commerce-complete"}`);
+  }
+});
+
+
+test("checkout CSP permits PortOne preparation and its hosted payment frame", () => {
+  const page = readFileSync(new URL("../src/pages/checkout.astro", import.meta.url), "utf8");
+  const policy = page.match(/content="(default-src[^"]+)"/)[1];
+  const directives = Object.fromEntries(policy.split(";").map((part) => {
+    const [name, ...values] = part.trim().split(/\s+/);
+    return [name, values];
+  }));
+  for (const directive of ["connect-src", "frame-src"]) {
+    assert.ok(directives[directive].includes("https://checkout-service.prod.iamport.co"));
+  }
+  assert.ok(directives["connect-src"].includes("https://whtejsviizgejauasqqt.supabase.co"));
+  assert.ok(!directives["connect-src"].includes("https://*.supabase.co"));
+});

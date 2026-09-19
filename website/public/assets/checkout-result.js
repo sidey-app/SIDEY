@@ -3,7 +3,7 @@ import { commerceProducts } from "./commerce-products.js";
 (() => {
   "use strict";
 
-  const productionHost = "whtejsviizgejauasqqt.supabase.co";
+  const productionAPIBase = "https://whtejsviizgejauasqqt.supabase.co/functions/v1";
   const productNames = Object.fromEntries(Object.entries(commerceProducts).map(([id, product]) => [id, product.name]));
   const results = {
     success: (name) => ({
@@ -38,26 +38,10 @@ import { commerceProducts } from "./commerce-products.js";
     document.title = `${result.title} · SIDEY`;
   }
 
-  function validAPIBase(value) {
-    try {
-      const url = new URL(value);
-      const loopback = url.protocol === "http:"
-        && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
-      const staging = url.protocol === "https:"
-        && url.hostname.endsWith(".supabase.co")
-        && url.hostname !== productionHost;
-      return (loopback || staging) && url.pathname === "/functions/v1"
-        ? url.toString().replace(/\/$/, "")
-        : "";
-    } catch {
-      return "";
-    }
-  }
-
   async function completeRedirect(query, productID) {
     const token = new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "";
     const paymentID = query.get("paymentId") ?? "";
-    const apiBase = validAPIBase(query.get("api") ?? "");
+    const apiBase = productionAPIBase;
     window.history.replaceState(null, "", window.location.pathname);
     if (!apiBase || !/^[A-Za-z0-9_-]{43}$/.test(token) || paymentID.length < 6 || query.get("code")) {
       render(query.get("code") ? "canceled" : "invalid", productID);
