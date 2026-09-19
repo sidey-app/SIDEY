@@ -6,9 +6,14 @@
   사용한다. 지원이 종료된 직접 배포판
   계정과 App Store 계정은 자동 이전하거나 병합하지 않는다. 같은 사람이 두 계정으로
   한 방에 참가하면 별도 member로 센다.
-- Windows는 저장된 익명 session을 먼저 복구하고 신규 설치에서만 새 익명 계정을
-  만든다. token과 재사용이 필요한 invite code는 Windows Credential Manager에만
-  보관한다.
+- Windows는 온보딩에서 Google 로그인을 요구하며 익명 사용을 제공하지 않는다.
+  기존 설치의 익명 session은 먼저 복구한 뒤 같은 사용자 UUID에 Google identity를
+  연결한다. 방 membership, 채팅 기록과 구매 권한을 다른 계정으로 옮기지 않는다.
+  연결 취소·실패에서는 저장된 session과 사용자 데이터를 보존한다.
+- Windows에 저장된 session이 없으면 Google 로그인으로 신규 계정을 만들거나 기존
+  계정을 복구한다. 로그인 확인 전에는 저장된 온보딩 완료 설정만으로 방이나 overlay에
+  진입하지 않는다. 기존 사용자는 연결 후 원래 온보딩 완료 상태와 방으로 복귀한다.
+  token과 재사용이 필요한 invite code는 Windows Credential Manager에만 보관한다.
 - 서로 다른 플랫폼의 별도 사용자 UUID 사이에는 account migration을 제공하지 않는다.
 
 App Store 계정 삭제는 방 탈퇴, 필요한 owner 이전, 개인 데이터 제거와 인증 사용자

@@ -35,6 +35,8 @@ ID 또는 metadata 불일치는 오류다.
 - Windows 후보는 운영 Supabase와 PortOne V2 결제를 사용한다. Windows 지원 상품만
   서버의 별도 판매 허용 목록으로 조회·주문하며 신규 상품의 Apple 판매와 분리한다.
   판매 잠금과 서버 가격 검증은 유지한다. 공개 판매 여부는 운영 설정과 검증된 배포본을 따른다.
+  주문과 구매 권한은 Google이 연결된 SIDEY 사용자 UUID에 저장한다. Google 이메일을
+  소유권 키로 사용하지 않으며 기존 익명 UUID에 Google을 연결해도 구매 ledger는 유지된다.
 - 공개 웹은 catalog를 소개하지만 entitlement를 직접 발급하지 않는다.
 
 Account 삭제는 자동 환불이 아니다. 환불·회수·복원은 원래 payment source와 서버
