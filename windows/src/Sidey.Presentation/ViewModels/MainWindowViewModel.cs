@@ -238,6 +238,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public partial bool IsStoreLoading { get; set; }
 
     [ObservableProperty]
+    public partial bool IsStorePreviewOnly { get; set; } = true;
+
+    [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RetryConnectionCommand))]
     public partial bool IsConnected { get; set; }
 
@@ -400,6 +403,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IsThrowableSelectionsLoading = state.ContentLoading.Snapshot.NeedsSkeleton;
         IsRoomsLoading = state.ContentLoading.Snapshot.NeedsSkeleton;
         IsStoreLoading = state.ContentLoading.Store.NeedsSkeleton;
+        IsStorePreviewOnly = !state.DevelopmentCommerceEnabled;
         if (_selectionUserId != state.Profile?.Id)
         {
             _selectionUserId = state.Profile?.Id;
@@ -655,12 +659,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             AvailableUpdate? update = await _updates.CheckAsync();
             _lastAvailableUpdate = update;
-            if (update is not null)
-            {
-                RaiseNotice(
-                    I18n.Format("update.startupAvailable", update.Version),
-                    NoticeKind.Informational);
-            }
             return update;
         }
         finally
@@ -915,6 +913,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         CommerceProductState? state = _coordinator.State.CommerceProducts.FirstOrDefault(product =>
             StringComparer.Ordinal.Equals(product.Product.Id, productId));
+        if (state?.PurchaseState is null or CommercePurchaseState.Unavailable)
+        {
+            // Reload first; a retry after a failed catalog request must not create an order.
+            await RunCommandAsync(() => _coordinator.RefreshStoreAsync(), successMessage: null);
+            return;
+        }
         string successMessage = state?.GoogleConnected == true
             ? I18n.Get("store.purchaseCompleted")
             : I18n.Get("store.googleConnectionOpened");

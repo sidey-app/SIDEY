@@ -9,6 +9,7 @@ using Sidey.Infrastructure;
 using Sidey.Overlay;
 using Sidey.Platform.Windows;
 using Sidey.Platform.Windows.Diagnostics;
+using Sidey.Platform.Windows.Shell;
 using Sidey.Presentation.Services;
 using Windows.ApplicationModel.DataTransfer;
 
@@ -33,14 +34,17 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     private readonly IPreferencesStore _preferencesStore;
     private readonly ICredentialStore _credentialStore;
     private readonly RoomSessionLifetime _roomSession = new();
-    private readonly WindowsStartupService _startup = new();
+    private readonly IWindowsStartupService _startup;
     private readonly DiagnosticDataExporter _diagnosticDataExporter = new();
     private readonly IActivityMonitor _activityMonitor = new WindowsActivityMonitor();
     private readonly MessageLedger _messages = new();
     private readonly ActiveBubbleLedger _bubbles = new();
     private readonly CharacterPulseCooldown _pulseCooldown = new();
     private readonly CharacterThrowCooldown _throwCooldown = new();
-    private readonly TypingLease _typingLease = new();
+    private readonly TypingActivityController _typingActivity;
+    private readonly TypingFeedbackDispatcher _typingFeedback;
+    private readonly Lock _localTypingGate = new();
+    private Guid? _localTypingRoom;
     private readonly List<CharacterPulseEvent> _pendingPulses = [];
     private readonly List<CharacterThrowEvent> _pendingThrows = [];
     private readonly HashSet<(Guid RoomId, Guid UserId)> _typing = [];
@@ -68,11 +72,26 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 
     public AppCoordinator(
         IPreferencesStore? preferencesStore = null,
-        ICredentialStore? credentialStore = null)
+        ICredentialStore? credentialStore = null,
+        IWindowsStartupService? startupService = null,
+        Action<Action>? dispatchTypingFeedback = null)
     {
         _preferencesStore = preferencesStore ?? new AtomicPreferencesStore();
         _credentialStore = credentialStore ?? new WindowsCredentialStore();
+        _startup = startupService ?? new WindowsStartupService();
         _audio = new WindowsImpactAudio(StartupDiagnostics.NonFatal);
+        // The UI host supplies its dispatcher; headless coordinators have no overlay owner.
+        _typingFeedback = new TypingFeedbackDispatcher(
+            dispatchTypingFeedback ?? (_ => { }),
+            (roomId, active) =>
+            {
+                lock (_localTypingGate)
+                    _localTypingRoom = active ? roomId : null;
+                ApplyWorldSnapshot();
+            });
+        _typingActivity = new TypingActivityController(
+            (roomId, active, keepalive, token) => _backend?.BroadcastTypingAsync(roomId, active, keepalive, token) ?? Task.CompletedTask,
+            _typingFeedback.Publish);
         _animations.Changed += OnAnimationsChanged;
 #if DEBUG
         _validationMode = string.Equals(
@@ -266,6 +285,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         _audio.SetEnabled(preferences.CharacterSoundEffectsEnabled);
         _audio.SetVolume(preferences.CharacterSoundEffectsVolume);
         bool startAtLogin = _startup.IsEnabled();
+        bool startupMirrorChanged = preferences.StartAtLogin != startAtLogin;
         if (startAtLogin)
         {
             _startup.UpgradeEnabledRegistration();
@@ -273,6 +293,17 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         preferences = preferences with { StartAtLogin = startAtLogin };
         SetState(_state with { Preferences = preferences });
         _cachedStateLoaded = true;
+        if (startupMirrorChanged)
+        {
+            try
+            {
+                await _preferencesStore.SaveAsync(preferences, cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                StartupDiagnostics.NonFatal("startup-preference-mirror", exception);
+            }
+        }
     }
 
     private Task? _initializationTask;
@@ -347,6 +378,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         {
             StartupDiagnostics.Stage("server-configuration result=missing");
 #if DEBUG
+            SetState(_state with { GoogleAuthentication = GoogleAuthenticationState.Verified });
             StartPreviewOverlay(preferences);
             SetState(_state with
             {
@@ -364,6 +396,8 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         }
 
         bool developmentCommerceEnabled = WindowsCommerceConfiguration.IsEnabled(configuration);
+        AuthCallbackScheme = WindowsCommerceConfiguration.IsProduction(configuration)
+            ? WindowsAuthCallback.ProductionScheme : WindowsAuthCallback.DevelopmentScheme;
         SetState(_state with
         {
             DevelopmentCommerceEnabled = developmentCommerceEnabled,
@@ -374,28 +408,20 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 
         if (_backend is not SupabaseBackendGateway)
         {
-            var auth = new SupabaseAnonymousAuthService(configuration, _credentialStore);
-            try
+            SupabaseAnonymousAuthService auth = _auth as SupabaseAnonymousAuthService
+                ?? new SupabaseAnonymousAuthService(configuration, _credentialStore);
+            _auth = auth;
+            SetState(_state with { GoogleAuthentication = GoogleAuthenticationState.Checking });
+            // Never bootstrap a replacement anonymous user. Restoring errors retain credentials.
+            AuthSession? restored = await auth.RestoreSessionAsync(cancellationToken);
+            if (restored is null || !await auth.HasGoogleIdentityAsync(cancellationToken))
             {
-                StartupDiagnostics.Stage("auth-session-read-started");
-                string? stored = await _credentialStore.ReadAsync(
-                    CredentialKey.SupabaseSession,
-                    cancellationToken);
-                bool restoringSession = !string.IsNullOrWhiteSpace(stored);
-                StartupDiagnostics.Stage(
-                    $"auth-session-read-completed result={(restoringSession ? "present" : "missing")}");
-                StartupDiagnostics.Stage(
-                    $"auth-session-bootstrap-started mode={(restoringSession ? "restore" : "create")}");
-                await AnonymousSessionBootstrapper.RestoreOrCreateAsync(
-                    auth,
-                    hasStoredSession: restoringSession,
-                    cancellationToken);
-                StartupDiagnostics.Stage(
-                    $"auth-session-bootstrap-completed mode={(restoringSession ? "restore" : "create")}");
-                _backend = new SupabaseBackendGateway(configuration, auth, _credentialStore);
-                _auth = auth;
+                SetState(_state with { GoogleAuthentication = GoogleAuthenticationState.Required });
+                return;
             }
-            catch { auth.Dispose(); throw; }
+            SetState(_state with { GoogleAuthentication = GoogleAuthenticationState.Verified, ErrorMessage = null });
+            ShowStartupOverlay();
+            _backend = new SupabaseBackendGateway(configuration, auth, _credentialStore);
         }
         var backend = (SupabaseBackendGateway)_backend;
 
@@ -406,9 +432,13 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         Guid? activeRoomId = SelectActiveRoom(preferences.ActiveRoomId, snapshot.Rooms);
         _state = _state with { ActiveRoomId = activeRoomId };
         ApplySnapshot(snapshot);
+        if (snapshot.Profile is not null && !_state.Preferences.OnboardingCompleted)
+        {
+            SetState(_state with { Preferences = _state.Preferences with { OnboardingCompleted = true } });
+            await PersistPreferencesAsync(cancellationToken);
+        }
         StartTreeMovementMigration();
         string? commerceStateError = null;
-#if SIDEY_DEVELOPMENT_COMMERCE
         if (developmentCommerceEnabled)
         {
             try
@@ -417,10 +447,10 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             }
             catch (Exception exception) when (exception is not OperationCanceledException)
             {
+                StartupDiagnostics.NonFatal("store-state-load", exception);
                 commerceStateError = I18n.Get("store.stateUnavailable");
             }
         }
-#endif
         _state = _state with
         {
             ActiveRoomId = activeRoomId,
@@ -489,11 +519,18 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         ApplyWorldSnapshot();
     }
 
+    public string AuthCallbackScheme { get; private set; } = WindowsAuthCallback.ProductionScheme;
+
+    public async Task RefreshStoreAsync(CancellationToken cancellationToken = default)
+    {
+        using var refresh = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _roomSession.Token);
+        await RefreshDevelopmentCommerceStateAsync(refresh.Token);
+    }
+
     public async Task ActivateStoreProductAsync(
         string productId,
         CancellationToken cancellationToken = default)
     {
-#if SIDEY_DEVELOPMENT_COMMERCE
         if (!_state.DevelopmentCommerceEnabled
             || WindowsCommerceCatalog.Find(productId) is null
             || _backend is not SupabaseBackendGateway backend
@@ -514,9 +551,9 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             try
             {
                 Uri authorizationUri = await auth.BeginGoogleIdentityLinkAsync(
-                    new Uri("sidey-dev://auth/google"),
+                    new Uri($"{AuthCallbackScheme}://auth/google"),
                     cancellationToken);
-                OpenExternalUri(authorizationUri);
+                await OpenExternalUriAsync(authorizationUri);
             }
             catch
             {
@@ -551,7 +588,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             CommerceCheckout checkout = await backend.CreateWindowsCommerceOrderAsync(
                 productId,
                 cancellationToken);
-            OpenExternalUri(checkout.CheckoutUri);
+            await OpenExternalUriAsync(checkout.CheckoutUri);
             SetCommerceProductState(state with
             {
                 PurchaseState = CommercePurchaseState.Confirming,
@@ -589,12 +626,6 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             }
             throw;
         }
-#else
-        _ = productId;
-        _ = cancellationToken;
-        await Task.CompletedTask;
-        throw new InvalidOperationException(I18n.Get("store.unavailable"));
-#endif
     }
 
     public async Task SetEquippedCosmeticAsync(
@@ -641,33 +672,138 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         ApplyWorldSnapshot();
     }
 
-    public async Task CompleteGoogleIdentityLinkAsync(
-        Uri callbackUri,
-        CancellationToken cancellationToken = default)
+    private CancellationTokenSource? _googleAuthenticationAttempt;
+    private readonly SemaphoreSlim _googleIdentityRecoveryGate = new(1, 1);
+
+    public async Task BeginGoogleAuthenticationAsync(CancellationToken cancellationToken = default)
     {
-#if SIDEY_DEVELOPMENT_COMMERCE
-        if (!_state.DevelopmentCommerceEnabled
-            || _auth is not SupabaseAnonymousAuthService auth
-            || !WindowsAuthCallback.TryGetCode(
-                callbackUri.AbsoluteUri,
-                WindowsAuthCallback.DevelopmentScheme,
-                out _,
-                out string? code))
+        if (_googleAuthenticationAttempt is not null || _state.GoogleVerified)
+            return;
+        bool needsReauthentication = false;
+        try
         {
-            throw new InvalidOperationException(I18n.Get("store.unavailable"));
+            if (_initializationTask is null || _initializationTask.IsFaulted || _initializationTask.IsCanceled)
+                await InitializeAsync(cancellationToken);
+            else
+                await _initializationTask;
         }
-        await auth.CompleteGoogleIdentityLinkAsync(code!, cancellationToken);
-        await RefreshDevelopmentCommerceStateAsync(cancellationToken);
-#else
-        _ = callbackUri;
-        _ = cancellationToken;
-        await Task.CompletedTask;
-        throw new InvalidOperationException(I18n.Get("store.unavailable"));
-#endif
+        catch (HttpRequestException exception) when (exception.StatusCode is
+            System.Net.HttpStatusCode.BadRequest or System.Net.HttpStatusCode.Unauthorized)
+        {
+            // Reauthenticate only the preserved user after a permanent auth rejection.
+            // Transport failures retain the normal restore/retry path.
+            needsReauthentication = true;
+        }
+        if (_state.GoogleVerified)
+            return;
+        if (_auth is not SupabaseAnonymousAuthService auth)
+            throw new InvalidOperationException(I18n.Get("error.serverNotConfigured"));
+        var attempt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _roomSession.Token);
+        _googleAuthenticationAttempt = attempt;
+        SetState(_state with { GoogleAuthentication = GoogleAuthenticationState.SigningIn, ErrorMessage = null });
+        try
+        {
+            Uri redirect = new($"{AuthCallbackScheme}://auth/google");
+            Uri uri;
+            if (needsReauthentication)
+                uri = await auth.BeginGoogleReauthenticationAsync(redirect, attempt.Token);
+            else
+            {
+                AuthSession? session = await auth.RestoreSessionAsync(attempt.Token);
+                uri = session is null
+                    ? await auth.BeginGoogleSignInAsync(redirect, attempt.Token)
+                    : await auth.BeginGoogleIdentityLinkAsync(redirect, attempt.Token);
+            }
+            attempt.Token.ThrowIfCancellationRequested();
+            await OpenExternalUriAsync(uri);
+        }
+        catch (OperationCanceledException) when (attempt.IsCancellationRequested)
+        {
+            if (ReferenceEquals(_googleAuthenticationAttempt, attempt))
+                await CancelGoogleAuthenticationAsync();
+        }
+        catch
+        {
+            if (ReferenceEquals(_googleAuthenticationAttempt, attempt))
+                await CancelGoogleAuthenticationAsync();
+            throw;
+        }
+    }
+
+    public async Task CancelGoogleAuthenticationAsync()
+    {
+        CancellationTokenSource? attempt = _googleAuthenticationAttempt;
+        attempt?.Cancel();
+        if (_auth is SupabaseAnonymousAuthService auth)
+            await auth.CancelGoogleAuthenticationAsync();
+        if (ReferenceEquals(_googleAuthenticationAttempt, attempt))
+            _googleAuthenticationAttempt = null;
+        attempt?.Dispose();
+        if (!_state.GoogleVerified)
+            SetState(_state with { GoogleAuthentication = GoogleAuthenticationState.Required });
+    }
+
+    public async Task CompleteGoogleIdentityLinkAsync(Uri callbackUri, CancellationToken cancellationToken = default)
+    {
+        if (_auth is not SupabaseAnonymousAuthService auth
+            || !WindowsAuthCallback.TryGetCode(callbackUri.AbsoluteUri, AuthCallbackScheme, out _, out string? code))
+            throw new InvalidOperationException(I18n.Get("auth.identityLinkExpired"));
+        CancellationTokenSource? attempt = _googleAuthenticationAttempt;
+        using var completion = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _roomSession.Token, attempt?.Token ?? CancellationToken.None);
+        await auth.CompleteGoogleIdentityLinkAsync(code!, completion.Token);
+        if (attempt is not null && !ReferenceEquals(_googleAuthenticationAttempt, attempt))
+            return;
+        _googleAuthenticationAttempt = null;
+        attempt?.Dispose();
+        _initializationTask = null;
+        await InitializeAsync(completion.Token);
+    }
+
+    public async Task<bool> RecoverGoogleIdentityLinkAsync(CancellationToken cancellationToken = default)
+    {
+        await _googleIdentityRecoveryGate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_state.GoogleVerified)
+            {
+                return true;
+            }
+            if (_auth is not SupabaseAnonymousAuthService auth)
+            {
+                return false;
+            }
+
+            CancellationTokenSource? attempt = _googleAuthenticationAttempt;
+            using var recovery = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken, _roomSession.Token, attempt?.Token ?? CancellationToken.None);
+            if (!await auth.HasGoogleIdentityAsync(recovery.Token))
+            {
+                return false;
+            }
+
+            _googleAuthenticationAttempt = null;
+            _initializationTask = null;
+            try
+            {
+                await InitializeAsync(recovery.Token);
+                return _state.GoogleVerified;
+            }
+            finally
+            {
+                attempt?.Dispose();
+            }
+        }
+        finally
+        {
+            _googleIdentityRecoveryGate.Release();
+        }
     }
 
     public async Task CompleteOnboardingAsync(CancellationToken cancellationToken = default)
     {
+        if (!_state.GoogleVerified)
+            throw new InvalidOperationException(I18n.Get("auth.googleRequired"));
         AppPreferences previousPreferences = _state.Preferences;
         SetState(_state with
         {
@@ -749,6 +885,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             return;
         }
 
+        _typingActivity.Stop();
         long operationGeneration = Interlocked.Increment(ref _groupOperationGeneration);
         SetState(_state with
         {
@@ -816,6 +953,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         CancellationToken cancellationToken)
     {
         EnsureMutationsAvailable();
+        _typingActivity.Stop();
         SetState(_state with
         {
             GroupOperation = GroupOperation.Mutating,
@@ -893,6 +1031,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             throw new ArgumentException(I18n.Get("validation.messageLength"), nameof(body));
         }
 
+        _typingActivity.Stop();
         var id = Guid.NewGuid();
         _messages.Stage(id, roomId, profile.Id, normalized, bubbleStyleId: profile.EquippedBubbleStyleId);
         _bubbles.Show(profile.Id, id, normalized, bubbleStyleId: profile.EquippedBubbleStyleId);
@@ -1190,45 +1329,14 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         }
     }
 
-    public async Task SetTypingAsync(bool active, CancellationToken cancellationToken = default)
+    public Task SetTypingAsync(bool active, CancellationToken cancellationToken = default)
     {
-        if (_backend is null)
-        {
-            return;
-        }
-
-        IReadOnlyList<TypingLeaseAction> actions = _typingLease.Update(active, _state.ActiveRoomId);
-        foreach (TypingLeaseAction action in actions)
-        {
-            switch (action)
-            {
-                case TypingLeaseAction.Start start:
-                    try
-                    {
-                        await _backend.BroadcastTypingAsync(
-                            start.RoomId,
-                            active: true,
-                            keepalive: false,
-                            cancellationToken);
-                        StartTypingKeepalive(start.RoomId);
-                    }
-                    catch
-                    {
-                        _typingLease.Update(active: false, requestedRoomId: null);
-                        StopTypingKeepalive();
-                        throw;
-                    }
-                    break;
-                case TypingLeaseAction.Stop stop:
-                    StopTypingKeepalive();
-                    await _backend.BroadcastTypingAsync(
-                        stop.RoomId,
-                        active: false,
-                        keepalive: false,
-                        cancellationToken);
-                    break;
-            }
-        }
+        if (active && _state.GoogleVerified && !cancellationToken.IsCancellationRequested && _backend is not null
+            && _state.GroupOperation == GroupOperation.Idle && _state.ActiveRoomId is { } roomId)
+            _typingActivity.Edit(roomId);
+        else
+            _typingActivity.Stop();
+        return Task.CompletedTask;
     }
 
     public async Task SetRegionAsync(
@@ -1373,27 +1481,27 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         CancellationToken cancellationToken = default) =>
         _diagnosticDataExporter.ExportAsync(cancellationToken);
 
-    public async Task OpenExternalUriAsync(Uri uri)
+    public Task OpenExternalUriAsync(Uri uri)
     {
-        ArgumentNullException.ThrowIfNull(uri);
-        if (!await Windows.System.Launcher.LaunchUriAsync(uri))
-        {
-            throw new InvalidOperationException("The default browser could not be opened.");
-        }
+        WindowsExternalUriLauncher.Open(uri);
+        return Task.CompletedTask;
     }
 
     public async ValueTask DisposeAsync()
     {
+        _typingFeedback.Dispose();
         _animations.Changed -= OnAnimationsChanged;
         _animations.Dispose();
-        _audio.Dispose();
         CancelTreeMovementRequest();
+        await _typingActivity.DisposeAsync().ConfigureAwait(false);
+        _audio.Dispose();
         await _roomSession.DisposeAsync().ConfigureAwait(false);
         await Task.WhenAll(_treeMovementOperations).ConfigureAwait(false);
         if (_backend is SupabaseBackendGateway supabase)
         {
             await supabase.DisposeAsync().ConfigureAwait(false);
         }
+        await CancelGoogleAuthenticationAsync();
         if (_auth is IDisposable disposableAuth)
         {
             disposableAuth.Dispose();
@@ -1504,6 +1612,9 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                             presence.State);
                         break;
                     case BackendEvent.TypingChanged typing:
+                        // Local activity owns self feedback; delayed echoes/TTL cannot revive it.
+                        if (typing.UserId == _state.Profile?.Id)
+                            break;
                         if (typing.Active)
                         {
                             _typing.Add((typing.RoomId, typing.UserId));
@@ -1839,8 +1950,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         StartTreeMovementMigration();
         if (_state.ActiveRoomId != previousActiveRoomId)
         {
-            StopTypingKeepalive();
-            _typingLease.Update(active: false, requestedRoomId: null);
+            _typingActivity.Stop();
             _typing.Clear();
             _bubbles.Clear();
             _roomSession.SwitchPipeline?.InitializeCommittedRoom(_state.ActiveRoomId);
@@ -1916,7 +2026,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         if (Environment.GetEnvironmentVariable("SIDEY_WINDOWS_VALIDATION_MODE") == "1")
             return; // The dedicated validation scene selects its own character set.
 #endif
-        if (_overlay is not null || _initialSnapshotReceived || _previewSnapshot is not null)
+        if (!_state.GoogleVerified || _overlay is not null || _initialSnapshotReceived || _previewSnapshot is not null)
             return;
         if (CachedStartupWorld.Create(_state.Preferences) is { } snapshot)
         {
@@ -1939,6 +2049,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         {
             _state = CoordinatorState.Initial with
             {
+                GoogleAuthentication = GoogleAuthenticationState.Verified,
                 Preferences = saved.Preferences with
                 {
                     OnboardingCompleted = true,
@@ -2009,7 +2120,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     private void StartOverlay(WorldSnapshot snapshot, IReadOnlySet<string>? validationIds = null)
     {
         StopOverlayAudio();
-        if (!_state.Preferences.OverlayVisible)
+        if (!_state.GoogleVerified || !_state.Preferences.OverlayVisible)
         {
             return;
         }
@@ -2145,7 +2256,8 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                 member.Nickname,
                 PixelCharacterCatalog.NormalizeId(member.CharacterId),
                 LocalPresenceProjection.ForOverlay(member.Presence, _state.ActiveRoomConnected),
-                IsTyping: _state.ActiveRoomConnected && room is not null && _typing.Contains((room.Id, member.UserId)),
+                IsTyping: _state.ActiveRoomConnected && room is not null
+                    && (member.UserId == _state.Profile?.Id ? IsLocallyTyping(room.Id) : _typing.Contains((room.Id, member.UserId))),
                 IsCurrentUser: member.UserId == _state.Profile?.Id,
                 EquippedBubbleStyleId: member.EquippedBubbleStyleId,
                 TreeMovementPaused: member.TreeMovementPaused,
@@ -2184,9 +2296,9 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         await _preferencesStore.SaveAsync(_state.Preferences, cancellationToken).ConfigureAwait(false);
 
     private IBackendGateway RequiredBackend() =>
+        !_state.GoogleVerified ? throw new InvalidOperationException(I18n.Get("auth.googleRequired")) :
         _backend ?? throw new InvalidOperationException(I18n.Get("error.serverConnectionNotConfigured"));
 
-#if SIDEY_DEVELOPMENT_COMMERCE
     private async Task<IReadOnlyList<CommerceProductState>> RefreshDevelopmentCommerceStateAsync(
         CancellationToken cancellationToken,
         string? workingProductId = null)
@@ -2215,7 +2327,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         }
         IReadOnlyList<CommerceProductState> presentedProducts = workingProductId is null
             ? products
-            : products.Select(product =>
+            : [.. products.Select(product =>
                 StringComparer.Ordinal.Equals(product.Product.Id, workingProductId)
                     && product.PurchaseState != CommercePurchaseState.Owned
                     ? product with
@@ -2223,7 +2335,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                         PurchaseState = CommercePurchaseState.Confirming,
                         IsWorking = true,
                     }
-                    : product).ToArray();
+                    : product)];
         SetState(_state with
         {
             CommerceProducts = presentedProducts,
@@ -2237,28 +2349,17 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     {
         SetState(_state with
         {
-            CommerceProducts = _state.CommerceProducts.Select(item =>
+            CommerceProducts = [.. _state.CommerceProducts.Select(item =>
                 StringComparer.Ordinal.Equals(item.Product.Id, productState.Product.Id)
                     ? productState
-                    : item).ToArray(),
+                    : item)],
         });
     }
-
-    private static void OpenExternalUri(Uri uri)
-    {
-        using Process? process = Process.Start(new ProcessStartInfo(uri.AbsoluteUri)
-        {
-            UseShellExecute = true,
-        });
-        if (process is null)
-        {
-            throw new InvalidOperationException(I18n.Get("store.browserOpenFailed"));
-        }
-    }
-#endif
 
     private void EnsureMutationsAvailable()
     {
+        if (!_state.GoogleVerified)
+            throw new InvalidOperationException(I18n.Get("auth.googleRequired"));
         if (_state.GroupOperation != GroupOperation.Idle)
         {
             throw new InvalidOperationException(I18n.Get("groups.operationBusy"));
@@ -2272,44 +2373,6 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     }
 
     private void PublishState() => SetState(_state);
-
-    private void StartTypingKeepalive(Guid roomId)
-    {
-        _roomSession.StartTyping(token => RunTypingKeepaliveAsync(roomId, token));
-    }
-
-    private async Task RunTypingKeepaliveAsync(Guid roomId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var timer = new PeriodicTimer(TypingLease.KeepaliveInterval);
-            while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
-            {
-                if (_typingLease.RoomId != roomId || _backend is null)
-                {
-                    return;
-                }
-
-                await _backend.BroadcastTypingAsync(
-                    roomId,
-                    active: true,
-                    keepalive: true,
-                    cancellationToken).ConfigureAwait(false);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception exception)
-        {
-            _typingLease.Update(active: false, requestedRoomId: null);
-            SetState(_state with
-            {
-                RealtimeConnection = RealtimeConnectionStatus.Disconnected,
-                ErrorMessage = I18n.Format("error.typingUpdateFailed", exception.Message),
-            });
-        }
-    }
 
     private async Task PersistCommittedRoomAsync()
     {
@@ -2326,9 +2389,10 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         }
     }
 
-    private void StopTypingKeepalive()
+    private bool IsLocallyTyping(Guid roomId)
     {
-        _roomSession.StopTyping();
+        lock (_localTypingGate)
+            return _localTypingRoom == roomId;
     }
 
     private static Guid? SelectActiveRoom(Guid? requested, IReadOnlyList<Room> rooms) =>

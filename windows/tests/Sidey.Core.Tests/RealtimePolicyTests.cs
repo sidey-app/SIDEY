@@ -119,7 +119,7 @@ public sealed class RealtimePolicyTests
         Assert.Equal([new TypingLeaseAction.Stop(second)], lease.Update(false, second));
         Assert.Empty(lease.Update(false, null));
         Assert.Equal(TimeSpan.FromSeconds(2), TypingLease.KeepaliveInterval);
-        Assert.Equal(TimeSpan.FromSeconds(4), TypingLease.RemoteExpiry);
+        Assert.Equal(TimeSpan.FromSeconds(6), TypingLease.RemoteExpiry);
     }
 
     [Fact]

@@ -122,7 +122,7 @@ function Get-InputEvidence([string]$Path) {
         $stream.Dispose()
     }
 }
-$referencePaths = @(Get-Content -LiteralPath (Join-Path $intermediatePath 'references.txt') | Sort-Object -Unique)
+$referencePaths = @(Get-Content -LiteralPath (Join-Path $intermediatePath 'references.txt') -Encoding UTF8 | Sort-Object -Unique)
 $buildEvidence = [ordered]@{
     schemaVersion = 1
     sdkVersion = $sdkVersion

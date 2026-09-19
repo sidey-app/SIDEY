@@ -9,6 +9,7 @@
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
     <RootNamespace>Sidey.Platform.Windows.Tests</RootNamespace>
+    <DefineConstants>$(DefineConstants);SIDEY_LAUNCHER_FOREGROUND_TEST</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="coverlet.collector">
@@ -24,6 +25,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../../src/Sidey.App/Services/AppCoordinator.cs" Link="AppCoordinator.cs" />
+    <Compile Include="../../src/Sidey.App/Startup/SingleInstanceGuard.cs" Link="SingleInstanceGuard.cs" />
+    <Compile Include="../../src/Sidey.Launcher/Program.cs" Link="SideyLauncherProgram.cs" />
     <Compile Include="../../installer/Sidey.Setup/InstallerLanguages.cs" Link="InstallerLanguages.cs" />
     <Compile Include="../../installer/Sidey.Setup/InstallerWindowActivation.cs" Link="InstallerWindowActivation.cs" />
     <ProjectReference Include="../../src/Sidey.Presentation/Sidey.Presentation.csproj" />

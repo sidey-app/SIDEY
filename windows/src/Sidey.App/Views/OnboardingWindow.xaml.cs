@@ -67,7 +67,17 @@ public sealed partial class OnboardingWindow : Window
     {
         if (!_isClosed)
         {
+            GoogleSignInInfoBar.IsOpen = false;
             ViewModel.ReportError(exception);
+        }
+    }
+
+    public void ShowGoogleSignInComplete()
+    {
+        if (!_isClosed)
+        {
+            ViewModel.ErrorMessage = null;
+            GoogleSignInInfoBar.IsOpen = true;
         }
     }
 

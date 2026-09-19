@@ -8,6 +8,7 @@ using System.Text.RegularExpressions;
 using Microsoft.Win32;
 using Sidey.Installer;
 
+#if !SIDEY_LAUNCHER_FOREGROUND_TEST
 public static class Program
 {
     private const string LanguageEnvironmentVariable = "SIDEY_LANGUAGE";
@@ -41,7 +42,14 @@ public static class Program
                 Arguments = JoinArguments(arguments),
             };
             start.EnvironmentVariables[LanguageEnvironmentVariable] = language;
-            Process.Start(start);
+            Process process = Process.Start(start);
+            if (process != null)
+            {
+                using (process)
+                {
+                    LauncherForegroundPermission.TryGrantToProcess(process.Id);
+                }
+            }
             return 0;
         }
         catch (Exception exception)
@@ -196,4 +204,48 @@ public static class Program
         string text,
         string caption,
         uint type);
+}
+#endif
+
+internal interface ILauncherForegroundPermissionApi
+{
+    public bool AllowSetForegroundWindow(uint processId);
+}
+
+internal static class LauncherForegroundPermission
+{
+    internal static void TryGrantToProcess(int processId) =>
+        TryGrantToProcess(processId, new NativeLauncherForegroundPermissionApi());
+
+    internal static void TryGrantToProcess(
+        int processId,
+        ILauncherForegroundPermissionApi api)
+    {
+        if (processId <= 0)
+        {
+            return;
+        }
+
+        try
+        {
+            _ = api.AllowSetForegroundWindow((uint)processId);
+        }
+        catch (Exception)
+        {
+            // Foreground permission is best effort; the host must still be allowed to start.
+        }
+    }
+
+    private sealed class NativeLauncherForegroundPermissionApi : ILauncherForegroundPermissionApi
+    {
+        public bool AllowSetForegroundWindow(uint processId) =>
+            NativeMethods.AllowSetForegroundWindow(processId);
+    }
+
+    private static class NativeMethods
+    {
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool AllowSetForegroundWindow(uint processId);
+    }
 }
