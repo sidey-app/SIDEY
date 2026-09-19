@@ -51,7 +51,11 @@
     "connected": "Підключено",
     "disconnected": "Не підключено",
     "serverConnected": "Підключено до SIDEY",
-    "serverConnecting": "Підключаємося до SIDEY…"
+    "serverConnecting": "Підключаємося до SIDEY…",
+    "googleContinue": "Продовжити з Google",
+    "googleDescription": "Підключіть Google, щоб користуватися SIDEY. Ваш профіль, групи та історія чатів збережуться.",
+    "googlePending": "Завершіть вхід через Google у браузері.",
+    "googleCancel": "Скасувати вхід"
   },
   "profile": {
     "equipped": "Використовується",
@@ -284,7 +288,10 @@
   "validation": { "nicknameLength": "Псевдонім має містити 2–8 символів.", "roomNameLength": "Назва групи має містити 1–20 символів.", "messageLength": "Повідомлення має містити 1–200 символів.", "invalidInviteCode": "Введіть дійсний код запрошення." },
   "platform": { "noMonitor": "Немає доступного монітора." },
   "preferences": { "readFailed": "Не вдалося прочитати файл налаштувань SIDEY.", "invalidFolder": "Шлях до папки налаштувань недійсний." },
-  "auth": { "restoreFailed": "Не вдалося відновити наявний сеанс SIDEY. Новий обліковий запис не буде створено автоматично.", "cannotReplaceStoredSession": "Не можна створити новий анонімний обліковий запис, коли на цьому пристрої збережено сеанс.", "requestFailed": "Не вдалася анонімна автентифікація Supabase. HTTP {0}.", "emptyResponse": "Відповідь автентифікації Supabase порожня.", "missingSessionValues": "У відповіді автентифікації Supabase немає потрібних значень сеансу.", "invalidStoredSession": "Не вдалося прочитати збережений сеанс SIDEY.", "sessionMissing": "Сеанс Supabase відсутній.", "identityLinkExpired": "Термін дії запиту на підключення Google минув. Почніть знову з крамниці.", "identityChanged": "Після підключення Google ідентифікатор користувача SIDEY змінився, тому сеанс не збережено." },
+  "auth": { "restoreFailed": "Не вдалося відновити наявний сеанс SIDEY. Новий обліковий запис не буде створено автоматично.", "cannotReplaceStoredSession": "Не можна створити новий анонімний обліковий запис, коли на цьому пристрої збережено сеанс.", "requestFailed": "Помилка автентифікації SIDEY. HTTP {0}.", "emptyResponse": "Відповідь автентифікації Supabase порожня.", "missingSessionValues": "У відповіді автентифікації Supabase немає потрібних значень сеансу.", "invalidStoredSession": "Не вдалося прочитати збережений сеанс SIDEY.", "sessionMissing": "Сеанс Supabase відсутній.", "identityLinkExpired": "Термін запиту входу через Google минув. Скасуйте вхід і спробуйте знову.", "identityChanged": "Після підключення Google ідентифікатор користувача SIDEY змінився, тому сеанс не збережено.",
+    "googleRequired": "Для використання SIDEY підключіть Google.",
+    "googleCancelled": "Вхід через Google скасовано або не завершено. Спробуйте ще раз."
+  },
   "backend": { "invalidOverride": "Для перевизначення Supabase потрібні URL-адреса HTTPS (або HTTP для localhost) і публічний ключ. Секретні ключі та ключі service-role заборонено.", "createdRoomMissing": "Щойно створеної групи немає у знімку сервера.", "joinFailed": "Не вдалося приєднатися до групи: {0}", "joinRoomIdMissing": "У відповіді на приєднання немає room_id.", "joinedRoomMissing": "Групи, до якої ви приєдналися, немає у знімку сервера.", "emptyInviteCode": "Новий код запрошення порожній.", "messageRecheckFailed": "Не вдалося повторно перевірити повідомлення через RLS: {0}", "expiredMessagesFailed": "Не вдалося повторно прочитати прострочені повідомлення: {0}", "realtimeResyncFailed": "Не вдалося повторно синхронізувати стан у реальному часі: {0}", "roomSnapshotFailed": "Не вдалося повторно прочитати знімок групи: {0}", "realtimeEpochMissing": "Для підписаної групи відсутня епоха Realtime.", "realtimeUnavailable": "Підключення Supabase Realtime недоступне." },
   "development": { "metricsPreview": "Внутрішній режим показників рендерера лише з хом’ячком. Ручну перевірку ще не зафіксовано.", "localPreview": "Змінних середовища сервера немає, тому запущено локальний перегляд дванадцяти персонажів." },
   "error": { "generic": "Сталася помилка: {0}", "startup": "Не вдалося запустити SIDEY.", "fatalTitle": "Помилка запуску SIDEY", "missingConfiguration": "Налаштування підключення SIDEY не знайдено.", "launch": "Під час запуску SIDEY сталася помилка. Закрийте застосунок і спробуйте ще раз.", "trayStart": "Не вдалося запустити піктограму в області сповіщень. Закриття вікна завершить роботу SIDEY.", "serverNotConfigured": "Сервер SIDEY не налаштовано. Перевірте конфігурацію розгортання.", "serverConnectionNotConfigured": "Підключення до сервера SIDEY не налаштовано.", "typingUpdateFailed": "Не вдалося оновити стан набору: {0}", "preferencesSaveFailed": "Не вдалося зберегти налаштування: {0}", "messageSendFailed": "Не вдалося надіслати повідомлення: {0}", "startupWithLog": "Не вдалося запустити SIDEY.\n\nЖурнал діагностики: {0}" }

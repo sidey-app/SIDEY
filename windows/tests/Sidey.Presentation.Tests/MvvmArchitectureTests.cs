@@ -358,7 +358,7 @@ public sealed class MvvmArchitectureTests
         XElement description = Assert.Single(
             landing.Descendants(),
             element => element.Attribute("Text")?.Value.Contains(
-                "Key=onboarding.landingDescription",
+                "Key=onboarding.googleDescription",
                 StringComparison.Ordinal) == true);
 
         Assert.Equal(

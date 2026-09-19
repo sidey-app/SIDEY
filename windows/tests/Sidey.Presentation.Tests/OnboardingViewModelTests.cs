@@ -8,6 +8,49 @@ namespace Sidey.Presentation.Tests;
 public sealed class OnboardingViewModelTests
 {
     [Fact]
+    public async Task UnverifiedCompletedInstallationMustConnectBeforeSetupOrFinish()
+    {
+        var coordinator = new FakeSideyCoordinator
+        {
+            State = CoordinatorState.Initial with
+            {
+                GoogleAuthentication = GoogleAuthenticationState.Required,
+                Preferences = AppPreferences.Default with { OnboardingCompleted = true },
+                RealtimeConnection = ConnectedStatus(),
+            },
+        };
+        using var viewModel = new OnboardingViewModel(coordinator);
+        Assert.True(coordinator.State.NeedsOnboarding);
+        await viewModel.BeginCommand.ExecuteAsync(null);
+        Assert.Equal(1, coordinator.GoogleStartCount);
+        Assert.True(viewModel.IsLanding);
+        Assert.True(viewModel.IsGooglePending);
+        Assert.False(viewModel.CanBegin);
+        viewModel.Nickname = "친구";
+        Assert.False(viewModel.CanSaveProfile);
+        viewModel.Step = 3;
+        await viewModel.FinishCommand.ExecuteAsync(null);
+        Assert.Equal(0, coordinator.CompleteOnboardingCallCount);
+        viewModel.ApplyState(coordinator.State);
+        await viewModel.CancelGoogleCommand.ExecuteAsync(null);
+        Assert.True(viewModel.IsLanding);
+        Assert.True(viewModel.CanBegin);
+        Assert.True(coordinator.State.Preferences.OnboardingCompleted);
+    }
+
+    [Fact]
+    public void VerifiedNewInstallationAdvancesWhileExistingCompletedInstallationKeepsItsCompletion()
+    {
+        var coordinator = new FakeSideyCoordinator { State = CoordinatorState.Initial };
+        using var viewModel = new OnboardingViewModel(coordinator);
+        coordinator.State = coordinator.State with { GoogleAuthentication = GoogleAuthenticationState.Verified };
+        viewModel.ApplyState(coordinator.State);
+        Assert.True(viewModel.IsProfileStep);
+        Assert.True(coordinator.State.NeedsOnboarding);
+        Assert.False((coordinator.State with { Preferences = AppPreferences.Default with { OnboardingCompleted = true } }).NeedsOnboarding);
+    }
+
+    [Fact]
     public void CharacterPickerKeepsTheFiveFreeWindowsSelections()
     {
         var viewModel = new OnboardingViewModel(new FakeSideyCoordinator());
@@ -24,6 +67,7 @@ public sealed class OnboardingViewModelTests
         {
             State = CoordinatorState.Initial with
             {
+                GoogleAuthentication = GoogleAuthenticationState.Verified,
                 ActiveEntitlementKeys = new HashSet<string>(StringComparer.Ordinal)
                 {
                     "character:pixel_starlight_upalupa",
@@ -68,6 +112,7 @@ public sealed class OnboardingViewModelTests
         {
             State = CoordinatorState.Initial with
             {
+                GoogleAuthentication = GoogleAuthenticationState.Verified,
                 Profile = profile,
                 Rooms = [room],
                 ActiveRoomId = room.Id,
@@ -142,7 +187,7 @@ public sealed class OnboardingViewModelTests
     {
         var coordinator = new FakeSideyCoordinator
         {
-            State = CoordinatorState.Initial with { RealtimeConnection = ConnectedStatus() },
+            State = CoordinatorState.Initial with { GoogleAuthentication = GoogleAuthenticationState.Verified, RealtimeConnection = ConnectedStatus() },
         };
         var viewModel = new OnboardingViewModel(coordinator)
         {
@@ -180,6 +225,7 @@ public sealed class OnboardingViewModelTests
         {
             State = CoordinatorState.Initial with
             {
+                GoogleAuthentication = GoogleAuthenticationState.Verified,
                 Profile = profile,
                 RealtimeConnection = ConnectedStatus(),
             },
@@ -206,7 +252,7 @@ public sealed class OnboardingViewModelTests
             TaskCreationOptions.RunContinuationsAsynchronously);
         var coordinator = new FakeSideyCoordinator
         {
-            State = CoordinatorState.Initial with { RealtimeConnection = ConnectedStatus() },
+            State = CoordinatorState.Initial with { GoogleAuthentication = GoogleAuthenticationState.Verified, RealtimeConnection = ConnectedStatus() },
             SaveProfileHandler = (_, _, _) => completion.Task,
         };
         var viewModel = new OnboardingViewModel(coordinator)

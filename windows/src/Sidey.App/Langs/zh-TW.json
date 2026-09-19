@@ -51,7 +51,11 @@
     "connected": "已連線",
     "disconnected": "未連線",
     "serverConnected": "已連線至 SIDEY",
-    "serverConnecting": "正在連線至 SIDEY…"
+    "serverConnecting": "正在連線至 SIDEY…",
+    "googleContinue": "透過Google繼續",
+    "googleDescription": "連接Google以使用SIDEY。現有個人資料、群組和聊天記錄會保留。",
+    "googlePending": "請在瀏覽器中完成Google登入。",
+    "googleCancel": "取消登入"
   },
   "profile": {
     "equipped": "使用中",
@@ -284,7 +288,10 @@
   "validation": { "nicknameLength": "暱稱應為 2–8 個字元。", "roomNameLength": "群組名稱應為 1–20 個字元。", "messageLength": "訊息應為 1–200 個字元。", "invalidInviteCode": "請輸入有效的邀請碼。" },
   "platform": { "noMonitor": "沒有可用的顯示器。" },
   "preferences": { "readFailed": "無法讀取 SIDEY 設定檔。", "invalidFolder": "設定資料夾路徑無效。" },
-  "auth": { "restoreFailed": "無法還原現有 SIDEY 工作階段，系統不會自動建立新帳號。", "cannotReplaceStoredSession": "此裝置已儲存工作階段，無法建立新的匿名帳號。", "requestFailed": "Supabase 匿名驗證失敗。HTTP {0}。", "emptyResponse": "Supabase 驗證回應為空白。", "missingSessionValues": "Supabase 驗證回應缺少必要的工作階段值。", "invalidStoredSession": "無法解析已儲存的 SIDEY 工作階段。", "sessionMissing": "缺少 Supabase 工作階段。", "identityLinkExpired": "Google 帳號連結要求已過期，請從商店重新開始。", "identityChanged": "連結 Google 帳號後 SIDEY 使用者 ID 發生變化，因此未儲存工作階段。" },
+  "auth": { "restoreFailed": "無法還原現有 SIDEY 工作階段，系統不會自動建立新帳號。", "cannotReplaceStoredSession": "此裝置已儲存工作階段，無法建立新的匿名帳號。", "requestFailed": "SIDEY身分驗證失敗。HTTP {0}。", "emptyResponse": "Supabase 驗證回應為空白。", "missingSessionValues": "Supabase 驗證回應缺少必要的工作階段值。", "invalidStoredSession": "無法解析已儲存的 SIDEY 工作階段。", "sessionMissing": "缺少 Supabase 工作階段。", "identityLinkExpired": "Google登入請求已過期。請取消登入後重試。", "identityChanged": "連結 Google 帳號後 SIDEY 使用者 ID 發生變化，因此未儲存工作階段。",
+    "googleRequired": "使用SIDEY需要連接Google。",
+    "googleCancelled": "Google登入已取消或未能完成。請重試。"
+  },
   "backend": { "invalidOverride": "Supabase 覆寫設定需要 HTTPS（localhost 可使用 HTTP）網址和可公開金鑰。禁止使用 secret 和 service-role 金鑰。", "createdRoomMissing": "伺服器快照中缺少剛建立的群組。", "joinFailed": "無法加入群組：{0}", "joinRoomIdMissing": "加入回應中缺少 room_id。", "joinedRoomMissing": "伺服器快照中缺少剛加入的群組。", "emptyInviteCode": "新邀請碼為空白。", "messageRecheckFailed": "RLS 訊息重新檢查失敗：{0}", "expiredMessagesFailed": "無法重新讀取已過期的訊息：{0}", "realtimeResyncFailed": "即時狀態重新同步失敗：{0}", "roomSnapshotFailed": "無法重新讀取群組快照：{0}", "realtimeEpochMissing": "缺少已訂閱群組的 Realtime epoch。", "realtimeUnavailable": "Supabase 即時連線無法使用。" },
   "development": { "metricsPreview": "內部倉鼠限定算繪指標模式，尚未記錄手動驗證結果。", "localPreview": "因缺少後端環境變數，目前正在執行十二角色本機預覽。" },
   "error": { "generic": "發生錯誤：{0}", "startup": "無法啟動 SIDEY。", "fatalTitle": "SIDEY 啟動錯誤", "missingConfiguration": "找不到 SIDEY 連線設定。", "launch": "啟動 SIDEY 時發生錯誤，請關閉應用程式後再試。", "trayStart": "無法啟動系統匣圖示。關閉視窗將結束 SIDEY。", "serverNotConfigured": "SIDEY 伺服器尚未設定，請檢查部署設定。", "serverConnectionNotConfigured": "SIDEY 伺服器連線尚未設定。", "typingUpdateFailed": "更新輸入狀態失敗：{0}", "preferencesSaveFailed": "無法儲存設定：{0}", "messageSendFailed": "傳送訊息失敗：{0}", "startupWithLog": "無法啟動 SIDEY。\n\n診斷記錄：{0}" }

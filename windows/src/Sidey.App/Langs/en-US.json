@@ -58,7 +58,11 @@
     "connected": "Connected",
     "disconnected": "Disconnected",
     "serverConnected": "Connected to SIDEY",
-    "serverConnecting": "Connecting to SIDEY…"
+    "serverConnecting": "Connecting to SIDEY…",
+    "googleContinue": "Continue with Google",
+    "googleDescription": "Connect Google to use SIDEY. Your existing profile, groups, and chat history are preserved.",
+    "googlePending": "Complete Google sign-in in your browser.",
+    "googleCancel": "Cancel sign-in"
   },
   "profile": {
     "equipped": "Equipped",
@@ -291,7 +295,10 @@
   "validation": { "nicknameLength": "Enter a nickname with 2–8 characters.", "roomNameLength": "Enter a group name with 1–20 characters.", "messageLength": "Enter a message with 1–200 characters.", "invalidInviteCode": "Enter a valid invitation code." },
   "platform": { "noMonitor": "No display is available." },
   "preferences": { "readFailed": "The SIDEY preferences file could not be read.", "invalidFolder": "The preferences folder path is invalid." },
-  "auth": { "restoreFailed": "The existing SIDEY session could not be restored. A new account will not be created automatically.", "cannotReplaceStoredSession": "A new anonymous account cannot be created when this installation has a stored session.", "requestFailed": "Supabase anonymous authentication failed. HTTP {0}.", "emptyResponse": "The Supabase authentication response is empty.", "missingSessionValues": "The Supabase authentication response is missing required session values.", "invalidStoredSession": "The stored SIDEY session could not be parsed.", "sessionMissing": "The Supabase session is missing.", "identityLinkExpired": "The Google linking request expired. Start it again from the store.", "identityChanged": "The SIDEY user ID changed after Google linking, so the session was not stored." },
+  "auth": { "restoreFailed": "The existing SIDEY session could not be restored. A new account will not be created automatically.", "cannotReplaceStoredSession": "A new anonymous account cannot be created when this installation has a stored session.", "requestFailed": "SIDEY authentication failed. HTTP {0}.", "emptyResponse": "The Supabase authentication response is empty.", "missingSessionValues": "The Supabase authentication response is missing required session values.", "invalidStoredSession": "The stored SIDEY session could not be parsed.", "sessionMissing": "The Supabase session is missing.", "identityLinkExpired": "The Google sign-in request expired. Cancel sign-in and try again.", "identityChanged": "The SIDEY user ID changed after Google linking, so the session was not stored.",
+    "googleRequired": "Connect Google to use SIDEY.",
+    "googleCancelled": "Google sign-in was cancelled or could not be completed. Please try again."
+  },
   "backend": { "invalidOverride": "A Supabase override requires an HTTPS (or localhost HTTP) URL and publishable key. Secret and service-role keys are forbidden.", "createdRoomMissing": "The created group is missing from the server snapshot.", "joinFailed": "Could not join group: {0}", "joinRoomIdMissing": "The join response is missing room_id.", "joinedRoomMissing": "The joined group is missing from the server snapshot.", "emptyInviteCode": "The new invitation code is empty.", "messageRecheckFailed": "RLS message recheck failed: {0}", "expiredMessagesFailed": "Could not reread expired messages: {0}", "realtimeResyncFailed": "Realtime state resynchronization failed: {0}", "roomSnapshotFailed": "Could not reread the group snapshot: {0}", "realtimeEpochMissing": "The subscribed group’s Realtime epoch is missing.", "realtimeUnavailable": "The Supabase Realtime connection is unavailable." },
   "development": { "metricsPreview": "Internal hamster-limited renderer metrics mode. Manual verification has not been recorded.", "localPreview": "Running the twelve-character local preview because backend environment variables are absent." },
   "error": { "generic": "An error occurred: {0}", "startup": "SIDEY could not start.", "fatalTitle": "SIDEY Startup Error", "missingConfiguration": "SIDEY connection settings were not found.", "launch": "An error occurred while starting SIDEY. Close the app and try again.", "trayStart": "The tray icon could not start. Closing the window will exit SIDEY.", "serverNotConfigured": "The SIDEY server is not configured. Check the deployment configuration.", "serverConnectionNotConfigured": "The SIDEY server connection is not configured.", "typingUpdateFailed": "Typing status update failed: {0}", "preferencesSaveFailed": "Could not save settings: {0}", "messageSendFailed": "Message send failed: {0}", "startupWithLog": "SIDEY could not start.\n\nDiagnostic log: {0}" }

@@ -10,6 +10,61 @@ namespace Sidey.Platform.Windows.Tests;
 
 public sealed class OnboardingGroupIntegrationTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task StartupRequiresGoogleWithoutCreatingOrReplacingAnAnonymousSession(bool existingUser)
+    {
+        var userId = Guid.NewGuid();
+        var preferences = new MemoryPreferences();
+        await preferences.SaveAsync(AppPreferences.Default with
+        {
+            OnboardingCompleted = existingUser,
+            OverlayVisible = false,
+            CachedNickname = "친구",
+        });
+        ICredentialStore credentials = DispatchProxy.Create<ICredentialStore, AuthCredentials>();
+        var saved = (AuthCredentials)credentials;
+        saved.Session = existingUser ? System.Text.Json.JsonSerializer.Serialize(new StoredSupabaseSession(
+            "old-token", "refresh-token", userId, DateTimeOffset.UtcNow.AddHours(1)),
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)) : null;
+        string? original = saved.Session;
+        using var handler = new AnonymousIdentityHandler(userId);
+        using var client = new HttpClient(handler);
+        var auth = new SupabaseAnonymousAuthService(new SupabaseRuntimeConfiguration(
+            new Uri("https://test.example.com"), "test-key"), credentials, client);
+        await using var coordinator = new AppCoordinator(preferences, credentials, new DisabledStartup());
+        SetField(coordinator, "_auth", auth);
+
+        await coordinator.InitializeAsync();
+
+        Assert.Equal(GoogleAuthenticationState.Required, coordinator.State.GoogleAuthentication);
+        Assert.True(coordinator.State.NeedsOnboarding);
+        Assert.Equal(existingUser, coordinator.State.Preferences.OnboardingCompleted);
+        Assert.False(coordinator.State.Connected);
+        Assert.Null(coordinator.State.Profile);
+        Assert.Equal(original, saved.Session);
+        Assert.Equal(0, saved.Writes);
+        Assert.Equal(existingUser ? 1 : 0, handler.Requests);
+    }
+
+    [Fact]
+    public async Task CachedCompletionCannotAuthorizeMutationsOrCompleteOnboarding()
+    {
+        await using var coordinator = new AppCoordinator(new MemoryPreferences());
+        IBackendGateway backend = DispatchProxy.Create<IBackendGateway, GroupBackend>();
+        SetField(coordinator, "_backend", backend);
+        SetField(coordinator, "_state", CoordinatorState.Initial with
+        {
+            GoogleAuthentication = GoogleAuthenticationState.Required,
+            Preferences = AppPreferences.Default with { OnboardingCompleted = true, OverlayVisible = false },
+        });
+        Assert.True(coordinator.State.NeedsOnboarding);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.CompleteOnboardingAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.SaveProfileAsync("친구", "pixel_cat"));
+        Assert.True(coordinator.State.Preferences.OnboardingCompleted);
+    }
+
     [Fact]
     public async Task TypingFeedbackWaitsForInjectedPresentationDispatcher()
     {
@@ -22,6 +77,7 @@ public sealed class OnboardingGroupIntegrationTests
         SetField(coordinator, "_backend", backend);
         SetField(coordinator, "_state", CoordinatorState.Initial with
         {
+            GoogleAuthentication = GoogleAuthenticationState.Verified,
             Profile = server.Profile,
             ActiveRoomId = roomId,
             Preferences = AppPreferences.Default with { OverlayVisible = false },
@@ -50,6 +106,7 @@ public sealed class OnboardingGroupIntegrationTests
         SetField(coordinator, "_backend", backend);
         SetField(coordinator, "_state", CoordinatorState.Initial with
         {
+            GoogleAuthentication = GoogleAuthenticationState.Verified,
             DevelopmentCommerceEnabled = developmentCommerce,
             Preferences = AppPreferences.Default with { OverlayVisible = false },
         });
@@ -81,6 +138,7 @@ public sealed class OnboardingGroupIntegrationTests
         SetField(coordinator, "_backend", backend);
         SetField(coordinator, "_state", CoordinatorState.Initial with
         {
+            GoogleAuthentication = GoogleAuthenticationState.Verified,
             Profile = server.Profile,
             Rooms = [room],
             Preferences = AppPreferences.Default with { OverlayVisible = false },
@@ -108,6 +166,7 @@ public sealed class OnboardingGroupIntegrationTests
         SetField(coordinator, "_backend", backend);
         SetField(coordinator, "_state", CoordinatorState.Initial with
         {
+            GoogleAuthentication = GoogleAuthenticationState.Verified,
             Profile = server.Profile,
             Rooms = server.Rooms,
             ActiveRoomId = previous?.Id,
@@ -183,6 +242,43 @@ public sealed class OnboardingGroupIntegrationTests
         {
             _saved = preferences;
             return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class DisabledStartup : IWindowsStartupService
+    {
+        public bool IsEnabled() => false;
+        public void SetEnabled(bool value) { }
+        public void UpgradeEnabledRegistration() { }
+    }
+
+    private sealed class AnonymousIdentityHandler(Guid userId) : HttpMessageHandler
+    {
+        public int Requests { get; private set; }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Requests++;
+            Assert.Equal(HttpMethod.Get, request.Method);
+            Assert.Equal("/auth/v1/user", request.RequestUri?.AbsolutePath);
+            Assert.Equal("old-token", request.Headers.Authorization?.Parameter);
+            return Task.FromResult(new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(System.Text.Json.JsonSerializer.Serialize(new { id = userId, identities = Array.Empty<object>() }),
+                    System.Text.Encoding.UTF8, "application/json"),
+            });
+        }
+    }
+
+    public class AuthCredentials : DispatchProxy
+    {
+        public string? Session { get; set; }
+        public int Writes { get; private set; }
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        {
+            if (targetMethod!.Name == nameof(ICredentialStore.ReadAsync))
+                return ValueTask.FromResult(Session);
+            Writes++;
+            throw new InvalidOperationException("Startup must not replace credentials before Google authentication.");
         }
     }
 

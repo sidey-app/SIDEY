@@ -167,7 +167,7 @@ public partial class App : Application
         coordinator.StateChanged += OnCoordinatorStateChanged;
         coordinator.LanguageChanged += OnLanguageChanged;
         coordinator.ShowStartupOverlay();
-        if (!coordinator.State.Preferences.OnboardingCompleted)
+        if (coordinator.State.NeedsOnboarding)
         {
             CreateOnboardingWindow(coordinator);
             _window = _onboardingWindow;
@@ -230,9 +230,11 @@ public partial class App : Application
         catch (Exception exception)
         {
             StartupDiagnostics.NonFatal("tray-start", exception);
-            EnsureMainWindow().ShowFatalError(new InvalidOperationException(
-                I18n.Get("error.trayStart"),
-                exception));
+            var error = new InvalidOperationException(I18n.Get("error.trayStart"), exception);
+            if (coordinator.State.NeedsOnboarding)
+                _onboardingWindow?.ShowError(error);
+            else
+                EnsureMainWindow().ShowFatalError(error);
         }
         if (completedUpdateVersion is null || _tray is not null)
         {
@@ -269,8 +271,10 @@ public partial class App : Application
                 return;
             }
 
-            EnsureMainWindow().ShowFatalError(exception);
-            _onboardingWindow?.ShowError(exception);
+            if (coordinator.State.NeedsOnboarding)
+                _onboardingWindow?.ShowError(exception);
+            else
+                EnsureMainWindow().ShowFatalError(exception);
         }
 
         if (_shuttingDown || !ReferenceEquals(_coordinator, coordinator))
@@ -497,7 +501,7 @@ public partial class App : Application
 
     private void ShowComposer()
     {
-        if (_shuttingDown || _coordinator is null)
+        if (_shuttingDown || _coordinator is null || _coordinator.State.NeedsOnboarding)
         {
             return;
         }
@@ -822,7 +826,7 @@ public partial class App : Application
 
     private void OnOnboardingCompleted()
     {
-        if (_shuttingDown || _onboardingWindow is null)
+        if (_shuttingDown || _onboardingWindow is null || _coordinator?.State.NeedsOnboarding != false)
         {
             return;
         }
@@ -892,7 +896,7 @@ public partial class App : Application
 
             if (_onboardingWindow is null
                 && _coordinator is not null
-                && !_coordinator.State.Preferences.OnboardingCompleted)
+                && _coordinator.State.NeedsOnboarding)
             {
                 CreateOnboardingWindow(_coordinator);
                 _window = _onboardingWindow;
@@ -915,6 +919,12 @@ public partial class App : Application
             return false;
         }
         string expectedScheme = _coordinator.AuthCallbackScheme;
+        if (WindowsAuthCallback.IsErrorCallback(activationArgument, expectedScheme))
+        {
+            // OAuth errors carry no PKCE correlation; an older browser attempt must not cancel the current one.
+            _onboardingWindow?.ShowError(new InvalidOperationException(I18n.Get("auth.googleCancelled")));
+            return true;
+        }
         if (!WindowsAuthCallback.TryGetCode(
             activationArgument,
             expectedScheme,
@@ -924,22 +934,16 @@ public partial class App : Application
             return false;
         }
 
-        MainWindow mainWindow = EnsureMainWindow();
-        mainWindow.ShowPage("store");
         try
         {
             await _coordinator.CompleteGoogleIdentityLinkAsync(callbackUri!);
-            if (!_shuttingDown && ReferenceEquals(_mainWindow, mainWindow))
-            {
-                mainWindow.ViewModel.ReportSuccess(I18n.Get("store.googleConnected"));
-            }
+            if (!_shuttingDown && !_coordinator.State.NeedsOnboarding)
+                OnOnboardingCompleted();
         }
         catch (Exception exception)
         {
-            if (!_shuttingDown && ReferenceEquals(_mainWindow, mainWindow))
-            {
-                mainWindow.ViewModel.ReportError(exception);
-            }
+            if (!_shuttingDown)
+                _onboardingWindow?.ShowError(exception);
         }
         return true;
     }
@@ -951,6 +955,13 @@ public partial class App : Application
             return;
         }
 
+        if (_coordinator is { State.NeedsOnboarding: true } coordinator)
+        {
+            if (_onboardingWindow is null)
+                CreateOnboardingWindow(coordinator);
+            _onboardingWindow!.ShowAndActivate();
+            return;
+        }
         MainWindow mainWindow = EnsureMainWindow();
         _window = mainWindow;
         mainWindow.AppWindow.Show();
@@ -976,6 +987,8 @@ public partial class App : Application
             UpdateConnectionFailureNotification(state.Connected);
             _mainWindow?.ApplyState(state);
             _onboardingWindow?.ApplyState(state);
+            if (!state.NeedsOnboarding && _onboardingWindow is not null)
+                OnOnboardingCompleted();
             _composer?.ApplyTheme(state.Preferences.Theme);
             _historyWindow?.ApplyState(state);
             _tray?.SetState(new TrayMenuState(
@@ -1133,7 +1146,7 @@ public partial class App : Application
             return;
         }
         if (_onboardingWindow is null
-            && !_coordinator.State.Preferences.OnboardingCompleted
+            && _coordinator.State.NeedsOnboarding
             && command != TrayCommand.Exit)
         {
             CreateOnboardingWindow(_coordinator);
@@ -1296,7 +1309,7 @@ public partial class App : Application
 
     private void ShowHistory()
     {
-        if (_shuttingDown || _coordinator is null)
+        if (_shuttingDown || _coordinator is null || _coordinator.State.NeedsOnboarding)
         {
             return;
         }

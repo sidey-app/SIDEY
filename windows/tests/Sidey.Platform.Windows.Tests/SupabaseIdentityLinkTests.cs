@@ -25,7 +25,7 @@ public sealed class SupabaseIdentityLinkTests
         await auth.CompleteGoogleIdentityLinkAsync("returned-code");
 
         Assert.Equal("accounts.google.com", authorization.Host);
-        Assert.Equal(2, handler.RequestCount);
+        Assert.Equal(3, handler.RequestCount);
         Assert.Contains("/auth/v1/user/identities/authorize", handler.AuthorizationRequestUri);
         Assert.Contains("provider=google", handler.AuthorizationRequestUri);
         Assert.Contains("redirect_to=sidey-dev%3A%2F%2Fauth%2Fgoogle", handler.AuthorizationRequestUri);
@@ -56,6 +56,189 @@ public sealed class SupabaseIdentityLinkTests
         Assert.Equal(originalSession, credentials.SessionJson);
     }
 
+    [Fact]
+    public async Task FreshGoogleSignInUsesPkceWithoutCreatingAnAnonymousUser()
+    {
+        var userId = Guid.NewGuid();
+        var credentials = new MemoryCredentialStore(null);
+        var handler = new IdentityLinkHandler(userId);
+        using var client = new HttpClient(handler);
+        using var auth = new SupabaseAnonymousAuthService(
+            new SupabaseRuntimeConfiguration(new Uri("https://staging.example.com"), "test-key"), credentials, client);
+        Uri uri = await auth.BeginGoogleSignInAsync(new Uri("sidey://auth/google"));
+        Assert.Equal("/auth/v1/authorize", uri.AbsolutePath);
+        Assert.Contains("provider=google", uri.Query);
+        Assert.Contains("code_challenge_method=s256", uri.Query);
+        Assert.Null(credentials.SessionJson);
+        Assert.Equal(0, handler.RequestCount);
+
+        await auth.CompleteGoogleIdentityLinkAsync("returned-code");
+
+        Assert.Equal(2, handler.RequestCount);
+        using JsonDocument exchange = JsonDocument.Parse(handler.ExchangeBody);
+        string verifier = exchange.RootElement.GetProperty("code_verifier").GetString()!;
+        string challenge = Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(verifier)))
+            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        Assert.Contains($"code_challenge={challenge}", uri.Query);
+        Assert.Contains(userId.ToString(), credentials.SessionJson!);
+    }
+
+    [Theory]
+    [InlineData(true, false, true)]
+    [InlineData(false, true, true)]
+    [InlineData(false, false, false)]
+    public async Task LinkFailureOrUnverifiedProviderPreservesOriginalCredentials(bool exchangeFailure, bool verificationFailure, bool google)
+    {
+        var userId = Guid.NewGuid();
+        string original = SessionJson(userId, "old-token");
+        var credentials = new MemoryCredentialStore(original);
+        var handler = new IdentityLinkHandler(userId)
+        {
+            FailExchange = exchangeFailure,
+            FailVerification = verificationFailure,
+            GoogleIdentity = google,
+        };
+        using var client = new HttpClient(handler);
+        using var auth = new SupabaseAnonymousAuthService(
+            new SupabaseRuntimeConfiguration(new Uri("https://staging.example.com"), "test-key"), credentials, client);
+        await auth.BeginGoogleIdentityLinkAsync(new Uri("sidey://auth/google"));
+
+        await Assert.ThrowsAnyAsync<Exception>(() => auth.CompleteGoogleIdentityLinkAsync("returned-code"));
+
+        Assert.Equal(original, credentials.SessionJson);
+        await Assert.ThrowsAnyAsync<Exception>(() => auth.CompleteGoogleIdentityLinkAsync("returned-code"));
+        Assert.Equal(original, credentials.SessionJson);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CancelDiscardsPendingPkceButKeepsTheExistingSession(bool existingUser)
+    {
+        var userId = Guid.NewGuid();
+        string? original = existingUser ? SessionJson(userId, "old-token") : null;
+        var credentials = new MemoryCredentialStore(original);
+        var handler = new IdentityLinkHandler(userId);
+        using var client = new HttpClient(handler);
+        using var auth = new SupabaseAnonymousAuthService(
+            new SupabaseRuntimeConfiguration(new Uri("https://staging.example.com"), "test-key"), credentials, client);
+        if (existingUser)
+            await auth.BeginGoogleIdentityLinkAsync(new Uri("sidey://auth/google"));
+        else
+            await auth.BeginGoogleSignInAsync(new Uri("sidey://auth/google"));
+        await auth.CancelGoogleAuthenticationAsync();
+        int requests = handler.RequestCount;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => auth.CompleteGoogleIdentityLinkAsync("late-code"));
+
+        Assert.Equal(original, credentials.SessionJson);
+        Assert.Equal(requests, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task ExistingCredentialsCannotUseReplacementSignIn()
+    {
+        var userId = Guid.NewGuid();
+        string original = SessionJson(userId, "old-token");
+        var credentials = new MemoryCredentialStore(original);
+        var handler = new IdentityLinkHandler(userId);
+        using var client = new HttpClient(handler);
+        using var auth = new SupabaseAnonymousAuthService(
+            new SupabaseRuntimeConfiguration(new Uri("https://staging.example.com"), "test-key"), credentials, client);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => auth.BeginGoogleSignInAsync(new Uri("sidey://auth/google")));
+        Assert.Equal(0, handler.RequestCount);
+        Assert.Equal(original, credentials.SessionJson);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RestoreChecksServerIdentitiesRatherThanUserMetadata(bool google)
+    {
+        var userId = Guid.NewGuid();
+        var credentials = new MemoryCredentialStore(SessionJson(userId, "old-token"));
+        var handler = new IdentityLinkHandler(userId) { GoogleIdentity = google };
+        using var client = new HttpClient(handler);
+        using var auth = new SupabaseAnonymousAuthService(
+            new SupabaseRuntimeConfiguration(new Uri("https://staging.example.com"), "test-key"), credentials, client);
+        Assert.Equal(google, await auth.HasGoogleIdentityAsync());
+        Assert.Equal(1, handler.RequestCount);
+    }
+
+    [Fact]
+    public async Task CancelDuringServerVerificationCannotReplaceCredentials()
+    {
+        var userId = Guid.NewGuid();
+        string original = SessionJson(userId, "old-token");
+        var credentials = new MemoryCredentialStore(original);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var handler = new IdentityLinkHandler(userId) { VerificationStarted = started };
+        using var client = new HttpClient(handler);
+        using var auth = new SupabaseAnonymousAuthService(
+            new SupabaseRuntimeConfiguration(new Uri("https://staging.example.com"), "test-key"), credentials, client);
+        await auth.BeginGoogleIdentityLinkAsync(new Uri("sidey://auth/google"));
+        using var cancellation = new CancellationTokenSource();
+        Task completion = auth.CompleteGoogleIdentityLinkAsync("returned-code", cancellation.Token);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        cancellation.Cancel();
+        await auth.CancelGoogleAuthenticationAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => completion);
+        Assert.Equal(original, credentials.SessionJson);
+    }
+
+    [Fact]
+    public async Task LateCancelledCodeCannotConsumeTheNextAttemptsVerifier()
+    {
+        var userId = Guid.NewGuid();
+        var credentials = new MemoryCredentialStore(null);
+        var handler = new IdentityLinkHandler(userId);
+        using var client = new HttpClient(handler);
+        using var auth = new SupabaseAnonymousAuthService(
+            new SupabaseRuntimeConfiguration(new Uri("https://staging.example.com"), "test-key"), credentials, client);
+        await auth.BeginGoogleSignInAsync(new Uri("sidey://auth/google"));
+        await auth.CancelGoogleAuthenticationAsync();
+        Uri current = await auth.BeginGoogleSignInAsync(new Uri("sidey://auth/google"));
+        await Assert.ThrowsAsync<HttpRequestException>(() => auth.CompleteGoogleIdentityLinkAsync("stale-code"));
+        Assert.Null(credentials.SessionJson);
+
+        await auth.CompleteGoogleIdentityLinkAsync("current-code");
+
+        Assert.Contains("new-token", credentials.SessionJson!);
+        using JsonDocument exchange = JsonDocument.Parse(handler.ExchangeBody);
+        string verifier = exchange.RootElement.GetProperty("code_verifier").GetString()!;
+        string challenge = Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(verifier)))
+            .TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        Assert.Contains($"code_challenge={challenge}", current.Query);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ReauthenticationCanOnlyRestoreThePreservedUser(bool matchingUser)
+    {
+        var oldUser = Guid.NewGuid();
+        string original = SessionJson(oldUser, "old-token");
+        var credentials = new MemoryCredentialStore(original);
+        var handler = new IdentityLinkHandler(matchingUser ? oldUser : Guid.NewGuid());
+        using var client = new HttpClient(handler);
+        using var auth = new SupabaseAnonymousAuthService(
+            new SupabaseRuntimeConfiguration(new Uri("https://staging.example.com"), "test-key"), credentials, client);
+        Uri uri = await auth.BeginGoogleReauthenticationAsync(new Uri("sidey://auth/google"));
+        Assert.Equal("/auth/v1/authorize", uri.AbsolutePath);
+        Assert.Equal(original, credentials.SessionJson);
+        if (matchingUser)
+        {
+            await auth.CompleteGoogleIdentityLinkAsync("returned-code");
+            Assert.Contains(oldUser.ToString(), credentials.SessionJson!);
+            Assert.Contains("new-token", credentials.SessionJson!);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => auth.CompleteGoogleIdentityLinkAsync("returned-code"));
+            Assert.Equal(original, credentials.SessionJson);
+        }
+    }
+
     private static string SessionJson(Guid userId, string accessToken) => JsonSerializer.Serialize(
         new StoredSupabaseSession(
             accessToken,
@@ -66,6 +249,10 @@ public sealed class SupabaseIdentityLinkTests
 
     private sealed class IdentityLinkHandler(Guid exchangeUserId) : HttpMessageHandler
     {
+        public TaskCompletionSource? VerificationStarted { get; set; }
+        public bool GoogleIdentity { get; set; } = true;
+        public bool FailExchange { get; set; }
+        public bool FailVerification { get; set; }
         public int RequestCount { get; private set; }
         public string AuthorizationRequestUri { get; private set; } = string.Empty;
         public string ExchangeBody { get; private set; } = string.Empty;
@@ -76,15 +263,38 @@ public sealed class SupabaseIdentityLinkTests
         {
             RequestCount++;
             Assert.Equal("test-key", Assert.Single(request.Headers.GetValues("apikey")));
-            if (RequestCount == 1)
+            if (request.RequestUri?.AbsolutePath == "/auth/v1/user")
+            {
+                Assert.NotNull(request.Headers.Authorization?.Parameter);
+                if (VerificationStarted is not null)
+                {
+                    VerificationStarted.TrySetResult();
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                }
+                if (FailVerification)
+                    return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+                string provider = GoogleIdentity ? "google" : "email";
+                return JsonResponse(JsonSerializer.Serialize(new
+                {
+                    id = exchangeUserId,
+                    identities = new[] { new { provider } },
+                    user_metadata = new { provider = "google" }
+                }));
+            }
+            if (request.RequestUri?.AbsolutePath == "/auth/v1/user/identities/authorize")
             {
                 Assert.Equal("old-token", request.Headers.Authorization?.Parameter);
                 AuthorizationRequestUri = request.RequestUri?.AbsoluteUri ?? string.Empty;
                 return JsonResponse("""{"url":"https://accounts.google.com/o/oauth2/v2/auth"}""");
             }
 
+            Assert.Equal("/auth/v1/token", request.RequestUri?.AbsolutePath);
+            if (FailExchange)
+                return new HttpResponseMessage(HttpStatusCode.BadRequest);
             Assert.Null(request.Headers.Authorization);
             ExchangeBody = await request.Content!.ReadAsStringAsync(cancellationToken);
+            if (ExchangeBody.Contains("stale-code", StringComparison.Ordinal))
+                return new HttpResponseMessage(HttpStatusCode.BadRequest);
             return JsonResponse($$"""
                 {
                   "access_token": "new-token",

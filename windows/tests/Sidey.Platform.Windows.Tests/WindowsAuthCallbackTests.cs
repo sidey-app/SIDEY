@@ -4,6 +4,18 @@ namespace Sidey.Platform.Windows.Tests;
 
 public sealed class WindowsAuthCallbackTests
 {
+    [Theory]
+    [InlineData("sidey://auth/google?error=access_denied&error_code=otp_expired", true)]
+    [InlineData("sidey://auth/google#error=access_denied&error_description=cancelled", true)]
+    [InlineData("sidey-dev://auth/google?error=access_denied", false)]
+    [InlineData("sidey://auth/google?code=abc&error=access_denied", false)]
+    [InlineData("sidey://auth/google?error=access_denied#error=access_denied", false)]
+    [InlineData("sidey://evil/google?error=access_denied", false)]
+    public void OAuthErrorsUseOnlyTheExactCallbackAndKnownErrorFields(string uri, bool expected)
+    {
+        Assert.Equal(expected, WindowsAuthCallback.IsErrorCallback(uri, WindowsAuthCallback.ProductionScheme));
+    }
+
     [Fact]
     public void DevelopmentCallbackAcceptsOnlyTheExactGoogleRouteAndOneCode()
     {

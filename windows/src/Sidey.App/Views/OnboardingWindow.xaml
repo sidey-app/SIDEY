@@ -65,6 +65,8 @@
           HorizontalAlignment="Right"
           VerticalAlignment="Bottom"
           Fill="{ThemeResource SideyOnboardingDecorationSecondaryBrush}" />
+      <ScrollViewer Margin="0,48,0,0" VerticalScrollBarVisibility="Auto"
+          HorizontalScrollBarVisibility="Disabled" VerticalContentAlignment="Center">
       <StackPanel
           MaxWidth="560"
           Margin="32"
@@ -106,15 +108,23 @@
             Foreground="{ThemeResource TextFillColorSecondaryBrush}"
             TextAlignment="Center"
             TextWrapping="Wrap"
-            Text="{Binding Value, Source={i18n:I18n Key=onboarding.landingDescription}, Mode=OneWay}" />
+            Text="{Binding Value, Source={i18n:I18n Key=onboarding.googleDescription}, Mode=OneWay}" />
         <Button
             MinWidth="152"
             HorizontalAlignment="Center"
-            AutomationProperties.Name="{Binding Value, Source={i18n:I18n Key=onboarding.getStarted}, Mode=OneWay}"
+            AutomationProperties.Name="{Binding BeginLabel}"
             Command="{Binding BeginCommand}"
-            Content="{Binding Value, Source={i18n:I18n Key=onboarding.getStarted}, Mode=OneWay}"
+            Content="{Binding BeginLabel}"
             Style="{StaticResource AccentButtonStyle}" />
+        <TextBlock HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+            Visibility="{Binding IsGooglePending, Converter={StaticResource BooleanToVisibilityConverter}}"
+            Text="{Binding Value, Source={i18n:I18n Key=onboarding.googlePending}, Mode=OneWay}" />
+        <Button HorizontalAlignment="Center" Command="{Binding CancelGoogleCommand}"
+            Visibility="{Binding IsGooglePending, Converter={StaticResource BooleanToVisibilityConverter}}"
+            Content="{Binding Value, Source={i18n:I18n Key=onboarding.googleCancel}, Mode=OneWay}" />
+        <InfoBar IsOpen="{Binding HasError}" Severity="Error" IsClosable="False" Message="{Binding ErrorMessage}" />
       </StackPanel>
+      </ScrollViewer>
     </Grid>
 
     <Grid

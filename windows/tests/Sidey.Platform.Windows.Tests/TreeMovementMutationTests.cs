@@ -207,6 +207,7 @@ public sealed class TreeMovementMutationTests
             SetField("_backend", backend);
             SetField("_state", CoordinatorState.Initial with
             {
+                GoogleAuthentication = GoogleAuthenticationState.Verified,
                 Preferences = AppPreferences.Default with { OverlayVisible = false, TreeMovementPaused = legacyPaused },
             });
             Apply(Profile, RoomId);
