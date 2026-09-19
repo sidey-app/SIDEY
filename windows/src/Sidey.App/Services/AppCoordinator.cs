@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using Microsoft.UI.Dispatching;
 using Sidey.Core.Abstractions;
 using Sidey.Core.Domain;
 using Sidey.Core.Localization;
@@ -41,6 +42,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     private readonly CharacterPulseCooldown _pulseCooldown = new();
     private readonly CharacterThrowCooldown _throwCooldown = new();
     private readonly TypingActivityController _typingActivity;
+    private readonly TypingFeedbackDispatcher _typingFeedback;
     private readonly Lock _localTypingGate = new();
     private Guid? _localTypingRoom;
     private readonly List<CharacterPulseEvent> _pendingPulses = [];
@@ -77,14 +79,24 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         _credentialStore = credentialStore ?? new WindowsCredentialStore();
         _startup = startupService ?? new WindowsStartupService();
         _audio = new WindowsImpactAudio(StartupDiagnostics.NonFatal);
-        _typingActivity = new TypingActivityController(
-            (roomId, active, keepalive, token) => _backend?.BroadcastTypingAsync(roomId, active, keepalive, token) ?? Task.CompletedTask,
+        var dispatcher = DispatcherQueue.GetForCurrentThread();
+        _typingFeedback = new TypingFeedbackDispatcher(
+            action =>
+            {
+                if (dispatcher?.HasThreadAccess == true)
+                    action();
+                else
+                    dispatcher?.TryEnqueue(() => action());
+            },
             (roomId, active) =>
             {
                 lock (_localTypingGate)
                     _localTypingRoom = active ? roomId : null;
                 ApplyWorldSnapshot();
             });
+        _typingActivity = new TypingActivityController(
+            (roomId, active, keepalive, token) => _backend?.BroadcastTypingAsync(roomId, active, keepalive, token) ?? Task.CompletedTask,
+            _typingFeedback.Publish);
         _animations.Changed += OnAnimationsChanged;
 #if DEBUG
         _validationMode = string.Equals(
@@ -1368,11 +1380,12 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 
     public async ValueTask DisposeAsync()
     {
+        _typingFeedback.Dispose();
         _animations.Changed -= OnAnimationsChanged;
         _animations.Dispose();
-        _audio.Dispose();
         CancelTreeMovementRequest();
         await _typingActivity.DisposeAsync().ConfigureAwait(false);
+        _audio.Dispose();
         await _roomSession.DisposeAsync().ConfigureAwait(false);
         await Task.WhenAll(_treeMovementOperations).ConfigureAwait(false);
         if (_backend is SupabaseBackendGateway supabase)
