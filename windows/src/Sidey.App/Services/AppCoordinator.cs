@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Globalization;
-using Microsoft.UI.Dispatching;
 using Sidey.Core.Abstractions;
 using Sidey.Core.Domain;
 using Sidey.Core.Localization;
@@ -73,21 +72,16 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     public AppCoordinator(
         IPreferencesStore? preferencesStore = null,
         ICredentialStore? credentialStore = null,
-        IWindowsStartupService? startupService = null)
+        IWindowsStartupService? startupService = null,
+        Action<Action>? dispatchTypingFeedback = null)
     {
         _preferencesStore = preferencesStore ?? new AtomicPreferencesStore();
         _credentialStore = credentialStore ?? new WindowsCredentialStore();
         _startup = startupService ?? new WindowsStartupService();
         _audio = new WindowsImpactAudio(StartupDiagnostics.NonFatal);
-        var dispatcher = DispatcherQueue.GetForCurrentThread();
+        // The UI host supplies its dispatcher; headless coordinators have no overlay owner.
         _typingFeedback = new TypingFeedbackDispatcher(
-            action =>
-            {
-                if (dispatcher?.HasThreadAccess == true)
-                    action();
-                else
-                    dispatcher?.TryEnqueue(() => action());
-            },
+            dispatchTypingFeedback ?? (_ => { }),
             (roomId, active) =>
             {
                 lock (_localTypingGate)

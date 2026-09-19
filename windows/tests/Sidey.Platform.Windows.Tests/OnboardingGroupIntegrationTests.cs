@@ -10,6 +10,35 @@ namespace Sidey.Platform.Windows.Tests;
 
 public sealed class OnboardingGroupIntegrationTests
 {
+    [Fact]
+    public async Task TypingFeedbackWaitsForInjectedPresentationDispatcher()
+    {
+        var pending = new Queue<Action>();
+        await using var coordinator = new AppCoordinator(
+            new MemoryPreferences(), dispatchTypingFeedback: pending.Enqueue);
+        IBackendGateway backend = DispatchProxy.Create<IBackendGateway, GroupBackend>();
+        var server = (GroupBackend)backend;
+        var roomId = Guid.NewGuid();
+        SetField(coordinator, "_backend", backend);
+        SetField(coordinator, "_state", CoordinatorState.Initial with
+        {
+            Profile = server.Profile,
+            ActiveRoomId = roomId,
+            Preferences = AppPreferences.Default with { OverlayVisible = false },
+        });
+        Func<Guid, bool> isLocallyTyping = Bind<Func<Guid, bool>>(coordinator, "IsLocallyTyping");
+
+        await coordinator.SetTypingAsync(true);
+
+        Assert.False(isLocallyTyping(roomId));
+        Assert.Single(pending);
+        pending.Dequeue()();
+        Assert.True(isLocallyTyping(roomId));
+        await coordinator.SetTypingAsync(false);
+        pending.Dequeue()();
+        Assert.False(isLocallyTyping(roomId));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

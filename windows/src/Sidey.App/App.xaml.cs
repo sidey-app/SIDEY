@@ -136,7 +136,13 @@ public partial class App : Application
             return;
         }
 
-        var coordinator = new AppCoordinator();
+        var coordinator = new AppCoordinator(dispatchTypingFeedback: action =>
+        {
+            if (_dispatcherQueue.HasThreadAccess)
+                action();
+            else
+                _dispatcherQueue.TryEnqueue(() => action());
+        });
         _coordinator = coordinator;
         await coordinator.LoadCachedStateAsync();
         if (_shuttingDown || !ReferenceEquals(_coordinator, coordinator))
