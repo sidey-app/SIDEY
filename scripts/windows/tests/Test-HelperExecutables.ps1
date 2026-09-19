@@ -84,4 +84,52 @@ $mappedError = [int]$errorMapper.Invoke(
 if ($mappedError -ne 193) {
     throw "Desktop-user runner did not preserve ERROR_BAD_EXE_FORMAT (193): $mappedError"
 }
+# Exercise the compiled helper with temporary data and an injected startup
+# writer. Never read or change this machine's real Run key or SIDEY user data.
+$completion = $uninstallerProgram.GetMethod(
+    'ApplyInstallationCompletion',
+    [Reflection.BindingFlags]'NonPublic,Static')
+$startupProbe = @{ Calls = 0; Result = 0 }
+$startupWriter = [Func[int]]{
+    $startupProbe.Calls++
+    return [int]$startupProbe.Result
+}
+function Invoke-CompletionProbe([string]$Kind, [string]$Id, [string]$Directory) {
+    return [int]$completion.Invoke($null, [object[]]@(
+        [string[]]@($Kind, '9.8.7', $Id), $Directory, $startupWriter))
+}
+$freshData = Join-Path $probeRoot 'fresh user data'
+if ((Invoke-CompletionProbe 'fresh' 'fresh-1' $freshData) -ne 0 -or $startupProbe.Calls -ne 1) {
+    throw 'Fresh setup did not enable startup once.'
+}
+if ((Invoke-CompletionProbe 'fresh' 'fresh-1' $freshData) -ne 0 -or $startupProbe.Calls -ne 1) {
+    throw 'Committed recovery repeated startup registration.'
+}
+$pendingUpdate = Join-Path $freshData 'pending-installed-update.txt'
+if (Test-Path -LiteralPath $pendingUpdate) { throw 'Fresh setup reported an update.' }
+if ((Invoke-CompletionProbe 'upgrade' 'upgrade-1' $freshData) -ne 0 -or $startupProbe.Calls -ne 1) {
+    throw 'Upgrade overwrote the existing startup choice.'
+}
+if ([IO.File]::ReadAllText($pendingUpdate) -cne '9.8.7') {
+    throw 'Upgrade did not record the installed version.'
+}
+[IO.File]::Delete($pendingUpdate)
+if ((Invoke-CompletionProbe 'upgrade' 'upgrade-1' $freshData) -ne 0 -or
+    (Test-Path -LiteralPath $pendingUpdate)) {
+    throw 'Recovery reposted a consumed update notification.'
+}
+if ((Invoke-CompletionProbe 'repair' 'repair-1' $freshData) -ne 0 -or $startupProbe.Calls -ne 1 -or
+    (Test-Path -LiteralPath $pendingUpdate)) {
+    throw 'Repair changed startup or reported an update.'
+}
+$retryData = Join-Path $probeRoot 'retry user data'
+$startupProbe.Result = 5
+if ((Invoke-CompletionProbe 'fresh' 'retry-1' $retryData) -ne 5 -or
+    (Test-Path -LiteralPath (Join-Path $retryData 'last-completed-install.txt'))) {
+    throw 'A failed startup registration was marked complete.'
+}
+$startupProbe.Result = 0
+if ((Invoke-CompletionProbe 'fresh' 'retry-1' $retryData) -ne 0 -or $startupProbe.Calls -ne 3) {
+    throw 'Recovery did not retry failed startup registration.'
+}
 Write-Host "Helper verification passed. Evidence directory: $probeRoot"

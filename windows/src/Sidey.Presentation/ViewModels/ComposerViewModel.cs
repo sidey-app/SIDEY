@@ -10,6 +10,7 @@ public sealed partial class ComposerViewModel : ObservableObject, IDisposable
     private DelayedAction? _autoClose;
     private string _draft = string.Empty;
     private bool _disposed;
+    private bool _restoringDraft;
 
     public string Draft
     {
@@ -29,7 +30,8 @@ public sealed partial class ComposerViewModel : ObservableObject, IDisposable
 
             SendCommand.NotifyCanExecuteChanged();
             CancelAutoClose();
-            TypingChanged?.Invoke(!string.IsNullOrWhiteSpace(MessageValidator.Normalize(value)));
+            if (!_restoringDraft)
+                TypingChanged?.Invoke(!string.IsNullOrWhiteSpace(MessageValidator.Normalize(value)));
         }
     }
 
@@ -52,7 +54,10 @@ public sealed partial class ComposerViewModel : ObservableObject, IDisposable
 
     public void RestoreDraft(string body)
     {
-        Draft = MessageValidator.IsValidDraft(body) ? body : string.Empty;
+        _restoringDraft = true;
+        try
+        { Draft = MessageValidator.IsValidDraft(body) ? body : string.Empty; }
+        finally { _restoringDraft = false; }
     }
 
     [RelayCommand(CanExecute = nameof(CanSend))]
@@ -72,7 +77,11 @@ public sealed partial class ComposerViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    private void Close() => CloseRequested?.Invoke();
+    private void Close()
+    {
+        TypingChanged?.Invoke(false);
+        CloseRequested?.Invoke();
+    }
 
     private bool CanSend() => MessageValidator.IsValid(MessageValidator.Normalize(Draft));
 
@@ -98,6 +107,7 @@ public sealed partial class ComposerViewModel : ObservableObject, IDisposable
         }
 
         _disposed = true;
+        TypingChanged?.Invoke(false);
         CancelAutoClose();
     }
 }

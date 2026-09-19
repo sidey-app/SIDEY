@@ -35,9 +35,9 @@ public sealed class DistributionSourceTests
         Assert.Equal("true", Value(project, "EnableMsixTooling"));
         Assert.Equal("false", Value(project, "IncludeAllContentForSelfExtract"));
         Assert.Equal("false", Value(project, "PublishTrimmed"));
-        Assert.Equal("1.3.1", Value(project, "Version"));
-        Assert.Equal("1.3.1.0", Value(project, "FileVersion"));
-        Assert.Equal("1.3.1.0", Value(project, "AssemblyVersion"));
+        Assert.Equal("1.4.0", Value(project, "Version"));
+        Assert.Equal("1.4.0.0", Value(project, "FileVersion"));
+        Assert.Equal("1.4.0.0", Value(project, "AssemblyVersion"));
         Assert.Equal("SIDEY.Host", Value(project, "AssemblyName"));
         Assert.Equal("SIDEY", Value(project, "AssemblyTitle"));
         Assert.Equal("SIDEY", Value(project, "Product"));
@@ -432,13 +432,34 @@ public sealed class DistributionSourceTests
                 < onInit.IndexOf("\"InstalledVersion\"", StringComparison.Ordinal),
             "Interrupted installation recovery must precede version classification.");
 
-        Assert.Contains("Directory.Move(installPath, rollbackPath)", transaction, StringComparison.Ordinal);
-        Assert.Contains("Directory.Move(stagingPath, installPath)", transaction, StringComparison.Ordinal);
         Assert.Contains("UndoTransaction", transaction, StringComparison.Ordinal);
         Assert.Contains("FileAttributes.ReparsePoint", transaction, StringComparison.Ordinal);
         Assert.Contains("AssertSecureTransactionParent", transaction, StringComparison.Ordinal);
         Assert.Contains("ProtectStagingDirectory", transaction, StringComparison.Ordinal);
         Assert.Contains("previousRegistration", transaction, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SuccessfulSetupRemovesMachineWideInstallerDiagnosticsAfterLaunchHandling()
+    {
+        string setup = ReadSetupScript();
+        int mainSectionStart = setup.IndexOf("Section \"SIDEY\" MainSection", StringComparison.Ordinal);
+        string mainSection = setup[mainSectionStart..setup.IndexOf("SectionEnd", mainSectionStart, StringComparison.Ordinal)];
+        int complete = mainSection.IndexOf("RunInstallTransaction \"Complete\"", StringComparison.Ordinal);
+        int completedCleanly = mainSection.IndexOf("StrCpy $InstallerCompletedCleanly 1", StringComparison.Ordinal);
+        Assert.True(complete >= 0 && completedCleanly > complete,
+            "Installer diagnostics may only become disposable after transaction cleanup succeeds.");
+
+        int launchStart = setup.IndexOf("Function LaunchSideyAsDesktopUser", StringComparison.Ordinal);
+        string launch = setup[launchStart..setup.IndexOf("FunctionEnd", launchStart, StringComparison.Ordinal)];
+        Assert.Contains("StrCpy $InstallerCompletedCleanly 0", launch, StringComparison.Ordinal);
+
+        int guiEndStart = setup.IndexOf("Function .onGUIEnd", StringComparison.Ordinal);
+        string guiEnd = setup[guiEndStart..setup.IndexOf("FunctionEnd", guiEndStart, StringComparison.Ordinal)];
+        Assert.Contains("${If} $InstallerCompletedCleanly == 1", guiEnd, StringComparison.Ordinal);
+        Assert.Contains("Sidey.InstallerErrorHelper.exe", guiEnd, StringComparison.Ordinal);
+        Assert.Contains("--remove-installer-logs", guiEnd, StringComparison.Ordinal);
+        Assert.DoesNotContain("RMDir /r", guiEnd, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -488,6 +509,8 @@ public sealed class DistributionSourceTests
         Assert.Contains("MUI_FINISHPAGE_RUN_FUNCTION LaunchSideyAsDesktopUser", setup, StringComparison.Ordinal);
         Assert.DoesNotContain("MUI_FINISHPAGE_RUN \"$INSTDIR\\SIDEY.exe\"", setup, StringComparison.Ordinal);
         Assert.Contains("--launch-sidey-as-desktop-user", setup, StringComparison.Ordinal);
+        Assert.Contains("--request-shutdown-as-desktop-user", setup, StringComparison.Ordinal);
+        Assert.Contains("--complete-install-as-desktop-user", helper, StringComparison.Ordinal);
         Assert.Contains("--cleanup-startup-as-desktop-user", setup, StringComparison.Ordinal);
         Assert.DoesNotContain("exception.Message", helper, StringComparison.Ordinal);
         Assert.DoesNotContain("--run-windows-app-runtime-as-desktop-user", helper, StringComparison.Ordinal);
@@ -504,12 +527,50 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
-    public void InstallerErrorHelperOnlyExposesNormalizationMode()
+    public void SetupCompletesDesktopRegistrationThroughRecoverableTransaction()
+    {
+        string setup = ReadSetupScript();
+        string helper = File.ReadAllText(RepositoryPath(
+            "windows", "src", "Sidey.Uninstaller", "Program.cs"));
+        int mainSectionStart = setup.IndexOf("Section \"SIDEY\" MainSection", StringComparison.Ordinal);
+        string mainSection = setup[mainSectionStart..setup.IndexOf(
+            "SectionEnd",
+            mainSectionStart,
+            StringComparison.Ordinal)];
+
+        int commit = mainSection.IndexOf(
+            "RunInstallTransaction \"Commit\"",
+            StringComparison.Ordinal);
+        int complete = mainSection.IndexOf(
+            "RunInstallTransaction \"Complete\"",
+            StringComparison.Ordinal);
+        Assert.True(
+            commit >= 0 && complete > commit,
+            "Desktop registration belongs to the recoverable committed completion phase.");
+
+        Assert.Contains("--complete-install", helper, StringComparison.Ordinal);
+        int requestShutdown = mainSection.IndexOf(
+            "--request-shutdown-as-desktop-user",
+            StringComparison.Ordinal);
+        int forceStop = mainSection.IndexOf("Call StopSideyProcesses", StringComparison.Ordinal);
+        Assert.True(
+            requestShutdown >= 0 && forceStop > requestShutdown,
+            "Setup must request a settings-flushing shutdown before the bounded force-stop fallback.");
+        Assert.DoesNotContain(
+            "Goto ",
+            mainSection[requestShutdown..forceStop],
+            StringComparison.Ordinal);
+        Assert.Contains("--shutdown-for-update", helper, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InstallerErrorHelperExposesNormalizationAndSafeLogCleanup()
     {
         string source = File.ReadAllText(RepositoryPath(
             "windows", "installer", "Sidey.Setup", "InstallerErrorNormalizer.cs"));
 
         Assert.Contains("--normalize-error", source, StringComparison.Ordinal);
+        Assert.Contains("--remove-installer-logs", source, StringComparison.Ordinal);
         Assert.Contains("Unsupported helper mode.", source, StringComparison.Ordinal);
         Assert.DoesNotContain("--check-only", source, StringComparison.Ordinal);
         Assert.DoesNotContain("--cleanup-private-runtime", source, StringComparison.Ordinal);
@@ -595,9 +656,9 @@ public sealed class DistributionSourceTests
     }
 
     [Theory]
-    [InlineData("windows-build-and-tests.yml")]
-    [InlineData("windows-release.yml")]
-    public void WorkflowsValidatePublishedFilesWithoutLaunchingTheGui(string workflowName)
+    [InlineData("windows-build-and-tests.yml", true)]
+    [InlineData("windows-release.yml", false)]
+    public void WorkflowsValidatePublishedFilesAndLimitGuiSmokeToManualCandidates(string workflowName, bool runsManualSmoke)
     {
         string workflow = File.ReadAllText(RepositoryPath(".github", "workflows", workflowName));
         Assert.Contains("--self-contained true", workflow, StringComparison.Ordinal);
@@ -606,7 +667,30 @@ public sealed class DistributionSourceTests
         Assert.DoesNotContain("Test-PrerequisiteInstaller.ps1", workflow, StringComparison.Ordinal);
         Assert.Contains("Test-SelfContainedPublish.ps1", workflow, StringComparison.Ordinal);
         Assert.DoesNotContain("SetupRuntime.ps1", workflow, StringComparison.Ordinal);
-        Assert.DoesNotContain("Test-PublishedApplication.ps1", workflow, StringComparison.Ordinal);
+        if (runsManualSmoke)
+        {
+            Assert.Contains("workflow_dispatch:", workflow, StringComparison.Ordinal);
+            Assert.Contains("Test-PublishedApplication.ps1", workflow, StringComparison.Ordinal);
+            Assert.Contains("SIDEY_STORE_PREVIEW_SMOKE: '1'", workflow, StringComparison.Ordinal);
+            Assert.Contains("SIDEY_OVERLAY_STARTUP_SMOKE: '1'", workflow, StringComparison.Ordinal);
+        }
+        else
+        {
+            Assert.DoesNotContain("Test-PublishedApplication.ps1", workflow, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void ManualCandidateWorkflowUploadsOnlyEncryptedInstallerArchives()
+    {
+        string workflow = File.ReadAllText(RepositoryPath(".github", "workflows", "windows-build-and-tests.yml"));
+        int encryptionStep = workflow.IndexOf("- name: Encrypt owner-only test candidate", StringComparison.Ordinal);
+        int uploadStep = workflow.IndexOf("- name: Upload encrypted manual test candidate", StringComparison.Ordinal);
+        Assert.True(encryptionStep >= 0 && uploadStep > encryptionStep);
+        Assert.Contains("-t7z -mhe=on", workflow, StringComparison.Ordinal);
+        Assert.Contains("IsNullOrWhiteSpace($env:SIDEY_DEV_ARTIFACT_PASSWORD)", workflow, StringComparison.Ordinal);
+        Assert.Contains("path: ${{ runner.temp }}/sidey-windows-private-${{ github.sha }}.7z", workflow[uploadStep..], StringComparison.Ordinal);
+        Assert.DoesNotContain("*Setup.exe", workflow[uploadStep..], StringComparison.Ordinal);
     }
 
     private static string Value(XDocument document, string name) =>

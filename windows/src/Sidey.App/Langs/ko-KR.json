@@ -81,7 +81,11 @@
     "connected": "연결됨",
     "disconnected": "연결 끊김",
     "serverConnected": "SIDEY 서버에 연결됨",
-    "serverConnecting": "SIDEY 서버에 연결하는 중…"
+    "serverConnecting": "SIDEY 서버에 연결하는 중…",
+    "googleContinue": "Google로 계속",
+    "googleDescription": "Google에 연결해 SIDEY를 시작하세요. 기존 프로필과 그룹, 대화 기록은 그대로 유지됩니다.",
+    "googlePending": "브라우저에서 Google 로그인을 완료해 주세요.",
+    "googleCancel": "로그인 취소"
   },
   "profile": {
     "equipped": "장착됨",
@@ -371,7 +375,7 @@
     "activeRoomRequired": "활성 그룹과 프로필이 필요합니다."
   },
   "tray": {
-    "open": "열기", "hideOverlay": "오버레이 숨기기", "showOverlay": "오버레이 보이기", "compose": "메시지 작성…", "noGroups": "연결된 그룹 없음", "activeGroup": "활성 그룹", "quietMode": "조용히 모드", "history": "최근 기록…", "store": "상점…", "groups": "그룹 설정…", "startup": "로그인 시 자동 실행", "checkUpdates": "업데이트 확인…", "settings": "설정…", "exit": "종료", "unreadTooltip": "SIDEY · 미확인 메시지 {0}개", "connectionFailedTitle": "SIDEY 연결 안 됨", "connectionFailedBody": "연결 상태에서 재연결을 눌러 주세요. 그래도 연결되지 않으면 진단 로그를 첨부해 문의해 주세요.", "updateLatest": "최신 버전입니다.", "updateAvailable": "업데이트가 있습니다. {0}", "updateCheckFailed": "업데이트 확인에 실패했습니다. 잠시 후 다시 시도해 주세요."
+    "open": "열기", "hideOverlay": "오버레이 숨기기", "showOverlay": "오버레이 보이기", "compose": "메시지 작성…", "noGroups": "연결된 그룹 없음", "activeGroup": "활성 그룹", "quietMode": "조용히 모드", "history": "최근 기록…", "store": "상점…", "groups": "그룹 설정…", "startup": "로그인 시 자동 실행", "checkUpdates": "업데이트 확인…", "settings": "설정…", "exit": "종료", "unreadTooltip": "SIDEY · 미확인 메시지 {0}개", "connectionFailedTitle": "SIDEY 연결 안 됨", "connectionFailedBody": "연결 상태에서 재연결을 눌러 주세요. 그래도 연결되지 않으면 진단 로그를 첨부해 문의해 주세요.", "updateLatest": "최신 버전입니다.", "updateAvailable": "업데이트가 있습니다. {0}", "updateInstalled": "SIDEY {0} 업데이트를 완료했습니다. 클릭해 변경 내용을 확인하세요.", "updateCheckFailed": "업데이트 확인에 실패했습니다. 잠시 후 다시 시도해 주세요."
   },
   "history": {
     "retentionNotice": "메시지는 서버에서 3일 후 자동 삭제됩니다.",
@@ -483,13 +487,17 @@
   "auth": {
     "restoreFailed": "기존 SIDEY 세션을 복구하지 못했습니다. 새 계정으로 자동 대체하지 않습니다.",
     "cannotReplaceStoredSession": "저장된 세션이 있는 설치에서는 익명 계정을 새로 만들 수 없습니다.",
-    "requestFailed": "Supabase 익명 인증 요청이 실패했습니다. HTTP {0}.",
+    "requestFailed": "SIDEY 인증 요청이 실패했습니다. HTTP {0}.",
     "emptyResponse": "Supabase 인증 응답이 비어 있습니다.",
     "missingSessionValues": "Supabase 인증 응답에 필요한 세션 값이 없습니다.",
     "invalidStoredSession": "저장된 SIDEY 세션을 해석할 수 없습니다.",
     "sessionMissing": "Supabase 세션이 없습니다.",
-    "identityLinkExpired": "Google 계정 연결 요청이 만료되었습니다. 상점에서 다시 시작해 주세요.",
-    "identityChanged": "Google 연결 후 SIDEY 사용자 ID가 달라져 세션을 저장하지 않았습니다."
+    "identityLinkExpired": "Google 로그인 요청이 만료되었습니다. 로그인 취소 후 다시 시작해 주세요.",
+    "identityChanged": "Google 연결 후 SIDEY 사용자 ID가 달라져 세션을 저장하지 않았습니다.",
+    "googleRequired": "SIDEY를 사용하려면 Google 연결이 필요합니다.",
+    "googleCancelled": "Google 로그인이 취소되었거나 완료되지 않았습니다. 다시 시도해 주세요.",
+    "googleAlreadyLinked": "이 Google 계정은 SIDEY 프로필에 이미 연결되어 있습니다. 현재 프로필과 데이터는 변경되지 않았습니다.",
+    "googleSignInComplete": "Google 로그인이 완료되었습니다. 브라우저의 로그인 탭을 닫아도 됩니다."
   },
   "backend": {
     "invalidOverride": "Supabase override는 HTTPS(또는 localhost HTTP) URL과 publishable key를 함께 사용해야 하며 secret/service-role 키는 금지됩니다.",

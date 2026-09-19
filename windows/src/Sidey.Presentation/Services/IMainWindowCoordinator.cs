@@ -63,6 +63,8 @@ public interface IMainWindowCoordinator : IOnboardingCoordinator
         string productId,
         CancellationToken cancellationToken = default);
 
+    public Task RefreshStoreAsync(CancellationToken cancellationToken = default);
+
     public Task SetEquippedCosmeticAsync(
         CommerceProductKind kind,
         string? catalogItemId,
@@ -71,6 +73,8 @@ public interface IMainWindowCoordinator : IOnboardingCoordinator
     public Task CompleteGoogleIdentityLinkAsync(
         Uri callbackUri,
         CancellationToken cancellationToken = default);
+
+    public Task<bool> RecoverGoogleIdentityLinkAsync(CancellationToken cancellationToken = default);
 
     public IReadOnlyList<MonitorOption> GetMonitors();
 

@@ -976,6 +976,53 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
         StartupDiagnostics.Stage("store-detail-layout-smoke-complete");
     }
 
+    internal static async Task VerifyStorePurchaseButtonAsync(XamlRoot xamlRoot)
+    {
+        CommerceProduct catalogProduct = WindowsCommerceCatalog.Products[0];
+        int calls = 0;
+        var invoked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var product = new StoreProductPreviewViewModel(catalogProduct, "Purchase smoke", "", "",
+            () => { calls++; invoked.TrySetResult(); return Task.CompletedTask; }, () => { });
+        var state = new CommerceProductState(catalogProduct, GoogleConnected: true, CommercePurchaseState.Available);
+        product.Apply(state, commerceEnabled: true, isOwned: false);
+        Border card = CreateStoreDetailCard(product, isKeepsake: false);
+        var dialog = new ContentDialog { XamlRoot = xamlRoot, Content = card, CloseButtonText = "Close" };
+        var opened = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        dialog.Opened += (_, _) => opened.TrySetResult();
+        Windows.Foundation.IAsyncOperation<ContentDialogResult> showing = dialog.ShowAsync();
+        try
+        {
+            await opened.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            var footer = (StackPanel)((Grid)card.Child).Children.Last();
+            if (footer.Children.Last() is not Button button
+                || !ReferenceEquals(button.Command, product.ActionCommand)
+                || !button.IsEnabled || !Equals(button.Content, product.DetailStatusText))
+                throw new InvalidOperationException("Store purchase button is not connected.");
+            var peer = new Microsoft.UI.Xaml.Automation.Peers.ButtonAutomationPeer(button);
+            var invoke = (Microsoft.UI.Xaml.Automation.Provider.IInvokeProvider)peer.GetPattern(
+                Microsoft.UI.Xaml.Automation.Peers.PatternInterface.Invoke);
+            invoke.Invoke();
+            await invoked.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            if (calls != 1)
+                throw new InvalidOperationException("Store purchase button did not invoke exactly once.");
+            product.Apply(state with { IsWorking = true }, commerceEnabled: true, isOwned: false);
+            if (button.IsEnabled)
+                throw new InvalidOperationException("Working store product remains purchasable.");
+            product.Apply(state, commerceEnabled: true, isOwned: true);
+            if (button.IsEnabled || !Equals(button.Content, product.DetailStatusText))
+                throw new InvalidOperationException("Owned store product remains purchasable.");
+            product.Apply(state, commerceEnabled: false, isOwned: false);
+            if (button.IsEnabled)
+                throw new InvalidOperationException("Preview-only store product remains purchasable.");
+            StartupDiagnostics.Stage("store-purchase-button-smoke-complete");
+        }
+        finally
+        {
+            dialog.Hide();
+            await showing;
+        }
+    }
+
     private static Border CreateStoreDetailCard(StoreProductPreviewViewModel product, bool isKeepsake)
     {
         var content = new Grid { RowSpacing = 12 };
@@ -1049,20 +1096,26 @@ public sealed partial class MainWindow : Window, IMainWindowDialogService
                 Style = (Style)Application.Current.Resources["SideyStoreSecondaryTextStyle"],
             });
         }
-        var status = new TextBlock
+        var purchase = new Button
         {
-            TextAlignment = TextAlignment.Center,
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 12,
-            Style = (Style)Application.Current.Resources["SideyStoreSecondaryTextStyle"],
+            Command = product.ActionCommand,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Style = (Style)Application.Current.Resources["AccentButtonStyle"],
         };
-        status.SetBinding(TextBlock.TextProperty, new Microsoft.UI.Xaml.Data.Binding
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetAutomationId(purchase, "StorePurchase_" + product.ProductId);
+        purchase.SetBinding(ContentControl.ContentProperty, new Microsoft.UI.Xaml.Data.Binding
         {
             Source = product,
             Path = new PropertyPath(nameof(product.DetailStatusText)),
             Mode = Microsoft.UI.Xaml.Data.BindingMode.OneWay,
         });
-        footer.Children.Add(status);
+        purchase.SetBinding(Control.IsEnabledProperty, new Microsoft.UI.Xaml.Data.Binding
+        {
+            Source = product,
+            Path = new PropertyPath(nameof(product.IsActionEnabled)),
+            Mode = Microsoft.UI.Xaml.Data.BindingMode.OneWay,
+        });
+        footer.Children.Add(purchase);
         Grid.SetRow(footer, 4);
         content.Children.Add(footer);
         return new Border

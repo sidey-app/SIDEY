@@ -51,7 +51,11 @@
     "connected": "已连接",
     "disconnected": "未连接",
     "serverConnected": "已连接到 SIDEY",
-    "serverConnecting": "正在连接 SIDEY…"
+    "serverConnecting": "正在连接 SIDEY…",
+    "googleContinue": "通过Google继续",
+    "googleDescription": "连接Google以使用SIDEY。现有个人资料、群组和聊天记录会保留。",
+    "googlePending": "请在浏览器中完成Google登录。",
+    "googleCancel": "取消登录"
   },
   "profile": {
     "equipped": "使用中",
@@ -272,7 +276,7 @@
     "saved": "设置已保存。"
   },
   "composer": { "closeTooltip": "关闭消息输入框", "placeholder": "输入消息…", "sendTooltip": "发送消息", "activeRoomRequired": "请先设置个人资料并选择一个群组。" },
-  "tray": { "open": "打开", "hideOverlay": "隐藏浮层", "showOverlay": "显示浮层", "compose": "编写消息…", "noGroups": "没有已连接的群组", "activeGroup": "当前群组", "quietMode": "安静模式", "history": "最近消息…", "store": "商店…", "groups": "群组设置…", "startup": "登录时启动", "checkUpdates": "检查更新…", "settings": "设置…", "exit": "退出 SIDEY", "unreadTooltip": "SIDEY · {0} 条未读消息", "connectionFailedTitle": "SIDEY 连接已断开", "connectionFailedBody": "请在连接状态中选择“重新连接”。如果 SIDEY 仍无法连接，请附上诊断日志联系我们。", "updateLatest": "已是最新版本。", "updateAvailable": "有可用更新。{0}", "updateCheckFailed": "无法检查更新，请稍后重试。" },
+  "tray": { "open": "打开", "hideOverlay": "隐藏浮层", "showOverlay": "显示浮层", "compose": "编写消息…", "noGroups": "没有已连接的群组", "activeGroup": "当前群组", "quietMode": "安静模式", "history": "最近消息…", "store": "商店…", "groups": "群组设置…", "startup": "登录时启动", "checkUpdates": "检查更新…", "settings": "设置…", "exit": "退出 SIDEY", "unreadTooltip": "SIDEY · {0} 条未读消息", "connectionFailedTitle": "SIDEY 连接已断开", "connectionFailedBody": "请在连接状态中选择“重新连接”。如果 SIDEY 仍无法连接，请附上诊断日志联系我们。", "updateLatest": "已是最新版本。", "updateAvailable": "有可用更新。{0}", "updateInstalled": "SIDEY 已更新至 {0}。点击查看更新内容。", "updateCheckFailed": "无法检查更新，请稍后重试。" },
   "history": { "retentionNotice": "消息会在 3 天后从服务器自动删除。", "title": "{0} · 消息记录", "empty": "暂无消息", "emptyDescription": "此群组的最近消息会显示在这里。", "sent": "已发送", "delivered": "已送达", "read": "已读", "recentTitle": "最近消息", "roomTitle": "最近消息 · {0}", "retryDescription": "请稍后重新打开消息记录。", "unknownUser": "未知成员", "sending": "正在发送", "failed": "发送失败", "loading": "正在加载最近消息…", "loadingMore": "正在加载更早的消息…", "initialFailed": "无法加载消息记录", "loadMoreFailed": "无法加载更早的消息", "retry": "重试", "exhausted": "最近 3 天的消息已全部显示", "noActiveRoom": "没有当前群组", "joinPrompt": "加入群组后即可查看最近消息。" },
   "characters": {"hamster": "仓鼠宝宝", "cat": "猫咪宝宝", "dog": "狗狗宝宝", "rabbit": "兔兔宝宝", "penguin": "企鹅宝宝", "guineaPig": "豚鼠宝宝", "monkey": "猴子宝宝", "chinchilla": "龙猫宝宝", "starlightUpalupa": "星光美西螈", "otter": "小水獭", "pig": "小猪", "tree": "小树"},
   "overlay": { "currentUser": "{0} · 我" },
@@ -284,7 +288,12 @@
   "validation": { "nicknameLength": "昵称应为 2–8 个字符。", "roomNameLength": "群组名称应为 1–20 个字符。", "messageLength": "消息应为 1–200 个字符。", "invalidInviteCode": "请输入有效的邀请码。" },
   "platform": { "noMonitor": "没有可用的显示器。" },
   "preferences": { "readFailed": "无法读取 SIDEY 设置文件。", "invalidFolder": "设置文件夹路径无效。" },
-  "auth": { "restoreFailed": "无法恢复现有 SIDEY 会话，系统不会自动创建新账号。", "cannotReplaceStoredSession": "此设备已保存会话，无法创建新的匿名账号。", "requestFailed": "Supabase 匿名身份验证失败。HTTP {0}。", "emptyResponse": "Supabase 身份验证响应为空。", "missingSessionValues": "Supabase 身份验证响应缺少必要的会话值。", "invalidStoredSession": "无法解析已保存的 SIDEY 会话。", "sessionMissing": "缺少 Supabase 会话。", "identityLinkExpired": "Google 账号关联请求已过期，请从商店重新开始。", "identityChanged": "关联 Google 账号后 SIDEY 用户 ID 发生变化，因此未保存会话。" },
+  "auth": { "restoreFailed": "无法恢复现有 SIDEY 会话，系统不会自动创建新账号。", "cannotReplaceStoredSession": "此设备已保存会话，无法创建新的匿名账号。", "requestFailed": "SIDEY身份验证失败。HTTP {0}。", "emptyResponse": "Supabase 身份验证响应为空。", "missingSessionValues": "Supabase 身份验证响应缺少必要的会话值。", "invalidStoredSession": "无法解析已保存的 SIDEY 会话。", "sessionMissing": "缺少 Supabase 会话。", "identityLinkExpired": "Google登录请求已过期。请取消登录后重试。", "identityChanged": "关联 Google 账号后 SIDEY 用户 ID 发生变化，因此未保存会话。",
+    "googleRequired": "使用SIDEY需要连接Google。",
+    "googleCancelled": "Google登录已取消或未能完成。请重试。",
+    "googleAlreadyLinked": "此 Google 账号已关联到一个 SIDEY 个人资料。当前个人资料和数据未被更改。",
+    "googleSignInComplete": "Google 登录已完成。您可以关闭浏览器中的登录标签页。"
+  },
   "backend": { "invalidOverride": "Supabase 覆盖配置需要 HTTPS（localhost 可使用 HTTP）网址和可公开密钥。禁止使用 secret 和 service-role 密钥。", "createdRoomMissing": "服务器快照中缺少刚创建的群组。", "joinFailed": "无法加入群组：{0}", "joinRoomIdMissing": "加入响应中缺少 room_id。", "joinedRoomMissing": "服务器快照中缺少刚加入的群组。", "emptyInviteCode": "新邀请码为空。", "messageRecheckFailed": "RLS 消息复查失败：{0}", "expiredMessagesFailed": "无法重新读取已过期的消息：{0}", "realtimeResyncFailed": "实时状态重新同步失败：{0}", "roomSnapshotFailed": "无法重新读取群组快照：{0}", "realtimeEpochMissing": "缺少已订阅群组的 Realtime epoch。", "realtimeUnavailable": "Supabase 实时连接不可用。" },
   "development": { "metricsPreview": "内部仓鼠限定渲染指标模式，尚未记录手动验证结果。", "localPreview": "由于缺少后端环境变量，正在运行十二角色本地预览。" },
   "error": { "generic": "发生错误：{0}", "startup": "无法启动 SIDEY。", "fatalTitle": "SIDEY 启动错误", "missingConfiguration": "找不到 SIDEY 连接设置。", "launch": "启动 SIDEY 时出错，请关闭应用后重试。", "trayStart": "无法启动托盘图标。关闭窗口将退出 SIDEY。", "serverNotConfigured": "SIDEY 服务器尚未配置，请检查部署配置。", "serverConnectionNotConfigured": "SIDEY 服务器连接尚未配置。", "typingUpdateFailed": "更新输入状态失败：{0}", "preferencesSaveFailed": "无法保存设置：{0}", "messageSendFailed": "发送消息失败：{0}", "startupWithLog": "无法启动 SIDEY。\n\n诊断日志：{0}" }

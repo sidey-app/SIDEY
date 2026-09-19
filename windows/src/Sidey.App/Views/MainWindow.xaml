@@ -858,6 +858,7 @@
                   HorizontalAlignment="Center"
                   Foreground="{ThemeResource TextFillColorSecondaryBrush}"
                   Text="{Binding Value, Source={i18n:I18n Key=store.comingSoonDescription}, Mode=OneWay}"
+                  Visibility="{Binding IsStorePreviewOnly, Converter={StaticResource BooleanToVisibilityConverter}}"
                   TextAlignment="Center"
                   TextWrapping="Wrap" />
               </StackPanel>

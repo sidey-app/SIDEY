@@ -51,7 +51,11 @@
     "connected": "接続済み",
     "disconnected": "未接続",
     "serverConnected": "SIDEYに接続しました",
-    "serverConnecting": "SIDEYに接続中…"
+    "serverConnecting": "SIDEYに接続中…",
+    "googleContinue": "Googleで続ける",
+    "googleDescription": "Googleと連携してSIDEYを始めましょう。既存のプロフィール、グループ、会話履歴は保持されます。",
+    "googlePending": "ブラウザでGoogleログインを完了してください。",
+    "googleCancel": "ログインをキャンセル"
   },
   "profile": {
     "equipped": "装着中",
@@ -272,7 +276,7 @@
     "saved": "設定を保存しました。"
   },
   "composer": { "closeTooltip": "メッセージ入力欄を閉じる", "placeholder": "メッセージを入力…", "sendTooltip": "メッセージを送信", "activeRoomRequired": "プロフィールを設定して、表示するグループを選んでください。" },
-  "tray": { "open": "開く", "hideOverlay": "オーバーレイを隠す", "showOverlay": "オーバーレイを表示", "compose": "メッセージを書く…", "noGroups": "接続中のグループなし", "activeGroup": "表示中のグループ", "quietMode": "サイレントモード", "history": "最近のメッセージ…", "store": "ストア…", "groups": "グループ設定…", "startup": "サインイン時に自動起動", "checkUpdates": "アップデートを確認…", "settings": "設定…", "exit": "終了", "unreadTooltip": "SIDEY · 未読 {0}件", "connectionFailedTitle": "SIDEYの接続が切れました", "connectionFailedBody": "接続状態で「再接続」を選んでください。それでも接続できない場合は、診断ログを添えてお問い合わせください。", "updateLatest": "最新バージョンです。", "updateAvailable": "アップデートがあります。{0}", "updateCheckFailed": "アップデートを確認できませんでした。しばらくしてからお試しください。" },
+  "tray": { "open": "開く", "hideOverlay": "オーバーレイを隠す", "showOverlay": "オーバーレイを表示", "compose": "メッセージを書く…", "noGroups": "接続中のグループなし", "activeGroup": "表示中のグループ", "quietMode": "サイレントモード", "history": "最近のメッセージ…", "store": "ストア…", "groups": "グループ設定…", "startup": "サインイン時に自動起動", "checkUpdates": "アップデートを確認…", "settings": "設定…", "exit": "終了", "unreadTooltip": "SIDEY · 未読 {0}件", "connectionFailedTitle": "SIDEYの接続が切れました", "connectionFailedBody": "接続状態で「再接続」を選んでください。それでも接続できない場合は、診断ログを添えてお問い合わせください。", "updateLatest": "最新バージョンです。", "updateAvailable": "アップデートがあります。{0}", "updateInstalled": "SIDEY {0} へのアップデートが完了しました。クリックして変更内容を確認できます。", "updateCheckFailed": "アップデートを確認できませんでした。しばらくしてからお試しください。" },
   "history": { "retentionNotice": "メッセージは3日後にサーバーから自動削除されます。", "title": "{0} · メッセージ履歴", "empty": "まだメッセージがありません。", "emptyDescription": "このグループの最近のメッセージがここに表示されます。", "sent": "送信済み", "delivered": "配信済み", "read": "既読", "recentTitle": "最近のメッセージ", "roomTitle": "最近のメッセージ · {0}", "retryDescription": "しばらくしてから履歴を開き直してください。", "unknownUser": "不明なユーザー", "sending": "送信中", "failed": "送信失敗", "loading": "最近のメッセージを読み込み中…", "loadingMore": "以前のメッセージを読み込み中…", "initialFailed": "メッセージ履歴を読み込めませんでした", "loadMoreFailed": "以前のメッセージを読み込めませんでした", "retry": "再試行", "exhausted": "過去3日分の履歴はここまでです", "noActiveRoom": "表示中のグループがありません", "joinPrompt": "グループに参加すると、最近のメッセージを確認できます。" },
   "characters": {"hamster": "ちびハムスター", "cat": "子ねこ", "dog": "子いぬ", "rabbit": "子うさぎ", "penguin": "ペンギンのヒナ", "guineaPig": "ちびモルモット", "monkey": "子ざる", "chinchilla": "ちびチンチラ", "starlightUpalupa": "星あかりのウーパールーパー", "otter": "赤ちゃんラッコ", "pig": "子ぶた", "tree": "木"},
   "overlay": { "currentUser": "{0} · 自分" },
@@ -284,7 +288,12 @@
   "validation": { "nicknameLength": "ニックネームを2〜8文字で入力してください。", "roomNameLength": "グループ名を1〜20文字で入力してください。", "messageLength": "メッセージを1〜200文字で入力してください。", "invalidInviteCode": "有効な招待コードを入力してください。" },
   "platform": { "noMonitor": "利用できるディスプレイがありません。" },
   "preferences": { "readFailed": "SIDEYの設定ファイルを読み込めませんでした。", "invalidFolder": "設定フォルダーのパスが正しくありません。" },
-  "auth": { "restoreFailed": "SIDEYの既存セッションを復元できませんでした。新しいアカウントは自動作成されません。", "cannotReplaceStoredSession": "保存済みセッションがあるため、新しい匿名アカウントを作成できません。", "requestFailed": "Supabaseの匿名認証に失敗しました。HTTP {0}。", "emptyResponse": "Supabaseの認証応答が空です。", "missingSessionValues": "Supabaseの認証応答に必要なセッション情報がありません。", "invalidStoredSession": "保存済みのSIDEYセッションを読み取れませんでした。", "sessionMissing": "Supabaseのセッションがありません。", "identityLinkExpired": "Google連携の有効期限が切れました。ストアからやり直してください。", "identityChanged": "Google連携後にSIDEYのユーザーIDが変わったため、セッションを保存しませんでした。" },
+  "auth": { "restoreFailed": "SIDEYの既存セッションを復元できませんでした。新しいアカウントは自動作成されません。", "cannotReplaceStoredSession": "保存済みセッションがあるため、新しい匿名アカウントを作成できません。", "requestFailed": "SIDEYの認証に失敗しました。HTTP {0}。", "emptyResponse": "Supabaseの認証応答が空です。", "missingSessionValues": "Supabaseの認証応答に必要なセッション情報がありません。", "invalidStoredSession": "保存済みのSIDEYセッションを読み取れませんでした。", "sessionMissing": "Supabaseのセッションがありません。", "identityLinkExpired": "Googleログインのリクエストが期限切れです。ログインをキャンセルして、もう一度お試しください。", "identityChanged": "Google連携後にSIDEYのユーザーIDが変わったため、セッションを保存しませんでした。",
+    "googleRequired": "SIDEYを利用するにはGoogleとの連携が必要です。",
+    "googleCancelled": "Googleログインがキャンセルされたか、完了できませんでした。もう一度お試しください。",
+    "googleAlreadyLinked": "この Google アカウントはすでに SIDEY プロフィールに連携されています。現在のプロフィールとデータは変更されていません。",
+    "googleSignInComplete": "Googleログインが完了しました。ブラウザーのログインタブを閉じてもかまいません。"
+  },
   "backend": { "invalidOverride": "Supabaseの上書き設定にはHTTPS（localhostはHTTP可）のURLと公開可能キーが必要です。シークレットキーとservice-roleキーは使用できません。", "createdRoomMissing": "作成したグループがサーバーのデータに見つかりません。", "joinFailed": "グループに参加できませんでした：{0}", "joinRoomIdMissing": "参加応答にroom_idがありません。", "joinedRoomMissing": "参加したグループがサーバーのデータに見つかりません。", "emptyInviteCode": "新しい招待コードが空です。", "messageRecheckFailed": "RLSによるメッセージの再確認に失敗しました：{0}", "expiredMessagesFailed": "期限切れメッセージを再読み込みできませんでした：{0}", "realtimeResyncFailed": "リアルタイム状態の再同期に失敗しました：{0}", "roomSnapshotFailed": "グループのデータを再読み込みできませんでした：{0}", "realtimeEpochMissing": "接続したグループのRealtime epochがありません。", "realtimeUnavailable": "Supabaseのリアルタイム接続を利用できません。" },
   "development": { "metricsPreview": "内部検証用のハムスター限定レンダリング計測モードです。手動検証はまだ記録されていません。", "localPreview": "バックエンドの環境変数がないため、12種類のキャラクターのローカルプレビューを実行しています。" },
   "error": { "generic": "エラーが発生しました：{0}", "startup": "SIDEYを起動できませんでした。", "fatalTitle": "SIDEY 起動エラー", "missingConfiguration": "SIDEYの接続設定が見つかりません。", "launch": "SIDEYの起動中にエラーが発生しました。アプリを閉じて、もう一度お試しください。", "trayStart": "トレイアイコンを起動できませんでした。ウィンドウを閉じるとSIDEYが終了します。", "serverNotConfigured": "SIDEYのサーバーが設定されていません。配布時の設定をご確認ください。", "serverConnectionNotConfigured": "SIDEYのサーバー接続が設定されていません。", "typingUpdateFailed": "入力状態を更新できませんでした：{0}", "preferencesSaveFailed": "設定を保存できませんでした：{0}", "messageSendFailed": "メッセージを送信できませんでした：{0}", "startupWithLog": "SIDEYを起動できませんでした。\n\n診断ログ：{0}" }

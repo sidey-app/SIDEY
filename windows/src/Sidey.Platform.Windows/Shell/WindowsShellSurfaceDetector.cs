@@ -6,29 +6,96 @@ namespace Sidey.Platform.Windows.Shell;
 
 public static class WindowsShellSurfaceDetector
 {
-    private static readonly Lock s_cacheGate = new();
-    private static nint s_cachedWindow;
-    private static bool s_cachedShouldYield;
+    private static readonly WindowsShellSurfaceResolver s_resolver = new(
+        VisibleSurface,
+        ForegroundRoot,
+        IsShellSurface,
+        CanCoverOverlay);
 
-    public static nint ForegroundSurface()
+    public static nint ForegroundSurface(NativePixelRect monitorBounds)
     {
         if (!OperatingSystem.IsWindows())
         {
             return nint.Zero;
         }
 
-        nint taskbar = VisibleTaskbarSurface();
-        if (taskbar != nint.Zero)
+        return s_resolver.ForegroundSurface(monitorBounds);
+    }
+
+    private static nint VisibleSurface(NativePixelRect monitorBounds)
+    {
+        nint surface = nint.Zero;
+        _ = NativeMethods.EnumWindows((window, _) =>
         {
-            return taskbar;
+            if (!NativeMethods.IsWindowVisible(window))
+            {
+                return true;
+            }
+
+            var className = new StringBuilder(256);
+            _ = NativeMethods.GetClassName(window, className, className.Capacity);
+            string windowClass = className.ToString();
+            nint style = NativeMethods.GetWindowLongPtr(window, -16);
+            nint extendedStyle = NativeMethods.GetWindowLongPtr(window, -20);
+            if (!WindowsShellSurfacePolicy.IsTransientPopup(
+                    windowClass,
+                    style,
+                    extendedStyle)
+                || !CanCoverOverlay(window, monitorBounds))
+            {
+                return true;
+            }
+
+            if (!WindowsShellSurfacePolicy.ShouldYieldTransientSurface(
+                    ProcessName(window),
+                    windowClass,
+                    style,
+                    extendedStyle))
+            {
+                return true;
+            }
+
+            surface = window;
+            return false;
+        }, nint.Zero);
+        return surface;
+    }
+
+    private static bool CanCoverOverlay(nint window, NativePixelRect monitorBounds)
+    {
+        if (!NativeMethods.IsWindowVisible(window))
+        {
+            return false;
         }
 
-        nint transientPopup = VisibleTransientPopup();
-        if (transientPopup != nint.Zero)
+        if (!NativeMethods.GetWindowRect(window, out NativeMethods.Rect bounds))
         {
-            return transientPopup;
+            return false;
         }
 
+        const uint DwmwaCloaked = 14;
+        int cloakReasons = 0;
+        int result = NativeMethods.DwmGetWindowAttribute(
+            window,
+            DwmwaCloaked,
+            out cloakReasons,
+            sizeof(int));
+        if (result < 0)
+        {
+            return false;
+        }
+
+        return WindowsShellSurfacePolicy.CanCoverOverlay(
+            isVisible: true,
+            isCloaked: cloakReasons != 0,
+            (long)bounds._right - bounds._left,
+            (long)bounds._bottom - bounds._top)
+            && WindowsShellSurfacePolicy.IntersectsMonitor(
+                bounds._left, bounds._top, bounds._right, bounds._bottom, monitorBounds);
+    }
+
+    private static nint ForegroundRoot()
+    {
         nint foreground = NativeMethods.GetForegroundWindow();
         if (foreground == nint.Zero)
         {
@@ -36,101 +103,46 @@ public static class WindowsShellSurfaceDetector
         }
 
         nint root = NativeMethods.GetAncestor(foreground, 2);
-        if (root != nint.Zero)
-        {
-            foreground = root;
-        }
-
-        lock (s_cacheGate)
-        {
-            if (foreground == s_cachedWindow)
-            {
-                return s_cachedShouldYield ? foreground : nint.Zero;
-            }
-
-            s_cachedWindow = foreground;
-            s_cachedShouldYield = IsShellSurface(foreground);
-            return s_cachedShouldYield ? foreground : nint.Zero;
-        }
-    }
-
-    private static nint VisibleTransientPopup()
-    {
-        nint popup = nint.Zero;
-        _ = NativeMethods.EnumWindows((window, _) =>
-        {
-            if (!NativeMethods.IsWindowVisible(window))
-            {
-                return true;
-            }
-
-            var className = new StringBuilder(256);
-            _ = NativeMethods.GetClassName(window, className, className.Capacity);
-            nint style = NativeMethods.GetWindowLongPtr(window, -16);
-            nint extendedStyle = NativeMethods.GetWindowLongPtr(window, -20);
-            if (!WindowsShellSurfacePolicy.IsTransientPopup(
-                    className.ToString(),
-                    style,
-                    extendedStyle))
-            {
-                return true;
-            }
-
-            popup = window;
-            return false;
-        }, nint.Zero);
-        return popup;
-    }
-
-    private static nint VisibleTaskbarSurface()
-    {
-        nint taskbar = nint.Zero;
-        _ = NativeMethods.EnumWindows((window, _) =>
-        {
-            if (!NativeMethods.IsWindowVisible(window))
-            {
-                return true;
-            }
-
-            var className = new StringBuilder(256);
-            _ = NativeMethods.GetClassName(window, className, className.Capacity);
-            if (!WindowsShellSurfacePolicy.IsTaskbarWindow(className.ToString()))
-            {
-                return true;
-            }
-
-            taskbar = window;
-            return true;
-        }, nint.Zero);
-        return taskbar;
+        return root != nint.Zero ? root : foreground;
     }
 
     private static bool IsShellSurface(nint window)
     {
+        string? processName = ProcessName(window);
+        if (processName is null)
+        {
+            return false;
+        }
+
+        var className = new StringBuilder(256);
+        _ = NativeMethods.GetClassName(window, className, className.Capacity);
+        return WindowsShellSurfacePolicy.ShouldYield(processName, className.ToString());
+    }
+
+    private static string? ProcessName(nint window)
+    {
         _ = NativeMethods.GetWindowThreadProcessId(window, out uint processId);
         if (processId == 0)
         {
-            return false;
+            return null;
         }
 
         try
         {
             using var process = Process.GetProcessById((int)processId);
-            var className = new StringBuilder(256);
-            _ = NativeMethods.GetClassName(window, className, className.Capacity);
-            return WindowsShellSurfacePolicy.ShouldYield(process.ProcessName, className.ToString());
+            return process.ProcessName;
         }
         catch (ArgumentException)
         {
-            return false;
+            return null;
         }
         catch (InvalidOperationException)
         {
-            return false;
+            return null;
         }
         catch (System.ComponentModel.Win32Exception)
         {
-            return false;
+            return null;
         }
     }
 
@@ -156,10 +168,69 @@ public static class WindowsShellSurfaceDetector
         [return: MarshalAs(UnmanagedType.Bool)]
         internal static extern bool IsWindowVisible(nint window);
 
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        internal static extern bool GetWindowRect(nint window, out Rect bounds);
+
+        [DllImport("dwmapi.dll")]
+        internal static extern int DwmGetWindowAttribute(
+            nint window,
+            uint attribute,
+            out int attributeValue,
+            uint attributeSize);
+
         [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
         internal static extern nint GetWindowLongPtr(nint window, int index);
 
         internal delegate bool EnumWindowsCallback(nint window, nint parameter);
+
+        [StructLayout(LayoutKind.Sequential)]
+        internal struct Rect
+        {
+            internal int _left;
+            internal int _top;
+            internal int _right;
+            internal int _bottom;
+        }
+    }
+}
+
+internal sealed class WindowsShellSurfaceResolver(
+    Func<NativePixelRect, nint> visibleSurface,
+    Func<nint> foregroundRoot,
+    Func<nint, bool> shouldYield,
+    Func<nint, NativePixelRect, bool>? canCoverOverlay = null)
+{
+    private readonly Lock _cacheGate = new();
+    private nint _cachedWindow;
+    private bool _cachedShouldYield;
+
+    internal nint ForegroundSurface(NativePixelRect monitorBounds = default)
+    {
+        nint transientPopup = visibleSurface(monitorBounds);
+        if (transientPopup != nint.Zero)
+        {
+            return transientPopup;
+        }
+
+        nint foreground = foregroundRoot();
+        if (foreground == nint.Zero
+            || (canCoverOverlay is not null && !canCoverOverlay(foreground, monitorBounds)))
+        {
+            return nint.Zero;
+        }
+
+        lock (_cacheGate)
+        {
+            if (foreground == _cachedWindow)
+            {
+                return _cachedShouldYield ? foreground : nint.Zero;
+            }
+
+            _cachedWindow = foreground;
+            _cachedShouldYield = shouldYield(foreground);
+            return _cachedShouldYield ? foreground : nint.Zero;
+        }
     }
 }
 
@@ -195,6 +266,37 @@ public static class WindowsShellSurfacePolicy
 
         return StringComparer.OrdinalIgnoreCase.Equals(processName, "explorer")
             && IsExplorerTaskbarSurface(windowClass);
+    }
+
+    internal static bool IntersectsMonitor(
+        long left, long top, long right, long bottom, NativePixelRect monitorBounds) =>
+        monitorBounds.IsValid && right > left && bottom > top
+        && left < (long)monitorBounds.X + monitorBounds.Width
+        && right > monitorBounds.X
+        && top < (long)monitorBounds.Y + monitorBounds.Height
+        && bottom > monitorBounds.Y;
+
+    internal static bool CanCoverOverlay(
+        bool isVisible,
+        bool isCloaked,
+        long width,
+        long height) =>
+        isVisible && !isCloaked && width > 0 && height > 0;
+
+    internal static bool ShouldYieldTransientSurface(
+        string? processName,
+        string? windowClass,
+        nint style = default,
+        nint extendedStyle = default)
+    {
+        if (!IsTransientPopup(windowClass, style, extendedStyle)
+            || string.IsNullOrWhiteSpace(processName))
+        {
+            return false;
+        }
+
+        return s_shellProcesses.Contains(processName)
+            || StringComparer.OrdinalIgnoreCase.Equals(processName, "explorer");
     }
 
     public static bool IsTaskbarWindow(string? windowClass) =>

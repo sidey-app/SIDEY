@@ -73,6 +73,10 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(HasError))]
     public partial string? ErrorMessage { get; set; }
 
+    public bool IsGooglePending => _state.GoogleAuthentication == GoogleAuthenticationState.SigningIn;
+    public bool CanBegin => !IsWorking && !IsGooglePending;
+    public string BeginLabel => I18n.Get(_state.GoogleVerified ? "onboarding.getStarted" : "onboarding.googleContinue");
+
     public bool IsLanding => Step == 0;
 
     public bool IsSetupVisible => Step > 0;
@@ -88,17 +92,20 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
     public bool CanGoBack => Step is 1 or 2;
 
     public bool CanSaveProfile =>
-        IsConnected
+        _state.GoogleVerified
+        && IsConnected
         && !IsWorking
         && ProfileValidator.IsValidNickname(Nickname);
 
     public bool CanCreateRoom =>
-        IsConnected
+        _state.GoogleVerified
+        && IsConnected
         && !IsWorking
         && RoomNameValidator.IsValid(RoomName);
 
     public bool CanJoinRoom =>
-        IsConnected
+        _state.GoogleVerified
+        && IsConnected
         && !IsWorking
         && !string.IsNullOrWhiteSpace(InviteCode);
 
@@ -121,7 +128,16 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         _syncedProfileCharacterId = syncedCharacterId;
         _syncedRoomName = syncedRoomName;
 
+        bool becameVerified = !_state.GoogleVerified && state.GoogleVerified;
         _state = state;
+        if (!state.GoogleVerified)
+            Step = 0;
+        else if (becameVerified && !state.Preferences.OnboardingCompleted)
+            Step = 1;
+        OnPropertyChanged(nameof(IsGooglePending));
+        OnPropertyChanged(nameof(CanBegin));
+        OnPropertyChanged(nameof(BeginLabel));
+        BeginCommand.NotifyCanExecuteChanged();
         RefreshCharacterSelections(state.ActiveEntitlementKeys);
         IsConnected = state.Connected;
         OnPropertyChanged(nameof(ConnectionText));
@@ -154,16 +170,34 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         }
     }
 
-    [RelayCommand]
-    private void Begin()
+    [RelayCommand(CanExecute = nameof(CanBegin))]
+    private async Task BeginAsync()
     {
-        if (_disposed)
+        if (_disposed || !CanBegin)
+            return;
+        if (_state.GoogleVerified)
         {
+            ErrorMessage = null;
+            Step = 1;
             return;
         }
+        await RunAsync(async () =>
+        {
+            await _coordinator.BeginGoogleAuthenticationAsync();
+            ApplyState(_coordinator.State);
+        });
+    }
 
-        ErrorMessage = null;
-        Step = 1;
+    [RelayCommand]
+    private async Task CancelGoogleAsync()
+    {
+        if (_disposed || !IsGooglePending)
+            return;
+        await RunAsync(async () =>
+        {
+            await _coordinator.CancelGoogleAuthenticationAsync();
+            ApplyState(_coordinator.State);
+        });
     }
 
     [RelayCommand]
@@ -257,12 +291,12 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
         Step = 3;
     }
 
-    private bool CanSkipGroup() => Step == 2 && !IsWorking;
+    private bool CanSkipGroup() => _state.GoogleVerified && Step == 2 && !IsWorking;
 
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task FinishAsync()
     {
-        if (_disposed || Step != 3)
+        if (_disposed || !_state.GoogleVerified || Step != 3)
         {
             return;
         }
@@ -275,6 +309,12 @@ public sealed partial class OnboardingViewModel : ObservableObject, IDisposable
                 Completed?.Invoke();
             }
         });
+    }
+
+    partial void OnIsWorkingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanBegin));
+        BeginCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedCharacterIdChanged(string value) => UpdateCharacterSelectionState();
