@@ -21,6 +21,13 @@ import { commerceProducts } from "./commerce-products.js";
   let token = "";
   let apiBase = "";
   let prepared = null;
+  let inFlight = false;
+  let awaitingConfirmation = false;
+
+  function updateControls() {
+    payButton.disabled = inFlight || awaitingConfirmation || !prepared || !consent.checked;
+    consent.disabled = inFlight || awaitingConfirmation;
+  }
 
   function showError(message) {
     loading.hidden = true;
@@ -61,10 +68,13 @@ import { commerceProducts } from "./commerce-products.js";
     try {
       const redirect = new URL(config.redirect_url);
       return validPrepared(config)
+        && config.product_id === prepared.product_id
+        && config.amount === prepared.amount
+        && config.policy_version === prepared.policy_version
         && typeof config.store_id === "string"
         && typeof config.channel_key === "string"
         && typeof config.payment_id === "string"
-        && config.pay_method === "EASY_PAY"
+        && config.pay_method === "CARD"
         && config.portone_currency === "CURRENCY_KRW"
         && redirect.origin === window.location.origin
         && redirect.pathname.endsWith("/checkout-result/");
@@ -103,7 +113,7 @@ import { commerceProducts } from "./commerce-products.js";
       policyNotice.textContent = prepared.policy_notice;
       meta.textContent = `부가세 포함 · 1회 구매 · PortOne ${prepared.payment_environment === "test" ? "테스트" : "실결제"}`;
       payButton.textContent = `${amount.textContent}원 동의하고 결제창 열기`;
-      payButton.disabled = !consent.checked;
+      updateControls();
       loading.hidden = true;
       product.hidden = false;
     } catch (requestError) {
@@ -115,12 +125,15 @@ import { commerceProducts } from "./commerce-products.js";
   }
 
   payButton.addEventListener("click", async () => {
+    if (inFlight || awaitingConfirmation || !prepared) return;
     if (!consent.checked) {
       status.textContent = "구매 조건과 환불 안내에 먼저 동의해 주세요.";
       consent.focus();
       return;
     }
-    payButton.disabled = true;
+    inFlight = true;
+    updateControls();
+    let phase = "authorize";
     status.textContent = "PortOne 결제창을 준비하고 있어요…";
     try {
       const config = await request("commerce-checkout", {
@@ -131,6 +144,7 @@ import { commerceProducts } from "./commerce-products.js";
       if (!validAuthorized(config) || typeof window.PortOne?.requestPayment !== "function") {
         throw new Error("portone_sdk_unavailable");
       }
+      phase = "payment";
       const response = await window.PortOne.requestPayment({
         storeId: config.store_id,
         channelKey: config.channel_key,
@@ -142,23 +156,28 @@ import { commerceProducts } from "./commerce-products.js";
         redirectUrl: config.redirect_url,
       });
       if (response?.code !== undefined) {
-        payButton.disabled = !consent.checked;
         status.textContent = response.message || "결제를 완료하지 않았습니다.";
         return;
       }
+      phase = "confirm";
+      awaitingConfirmation = true;
       if (response?.paymentId !== config.payment_id) throw new Error("payment_id_mismatch");
       status.textContent = "SIDEY 서버가 결제 상태를 확인하고 있어요…";
       await completePayment(config, response.paymentId);
     } catch (paymentError) {
       console.error(paymentError);
-      payButton.disabled = !consent.checked;
-      status.textContent = "결제 상태를 확인하지 못했습니다. 중복 결제하지 말고 상점 상태를 먼저 새로고침해 주세요.";
+      status.textContent = phase === "confirm"
+        ? "결제 결과를 서버에서 확인하지 못했습니다. 다시 결제하지 말고 SIDEY 상점에서 구매 상태를 확인해 주세요."
+        : phase === "payment"
+          ? `결제창을 열거나 진행하지 못했습니다. ${paymentError.message || "잠시 후 다시 시도해 주세요."} 승인 알림을 받았다면 다시 결제하지 말고 SIDEY 상점에서 구매 상태를 확인해 주세요.`
+          : "결제 요청을 준비하지 못했습니다. SIDEY 앱 상점에서 새 주문으로 다시 시도해 주세요.";
+    } finally {
+      inFlight = false;
+      updateControls();
     }
   });
 
-  consent.addEventListener("change", () => {
-    payButton.disabled = !consent.checked || prepared === null;
-  });
+  consent.addEventListener("change", updateControls);
 
   start();
 })();

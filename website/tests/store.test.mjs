@@ -8,6 +8,116 @@ const manifest = JSON.parse(readFileSync(new URL("../../assets/v1/manifest.json"
 const root = new URL("../../", import.meta.url);
 const included = { characters: 5, throwables: 1, bubbles: 1 };
 
+const checkoutPrepared = {
+  product_id: "fixture-product",
+  order_name: "Fixture product",
+  amount: 1100,
+  currency: "KRW",
+  policy_version: "fixture-policy",
+  policy_notice: "Fixture purchase policy",
+  payment_environment: "test",
+};
+
+const checkoutAuthorized = {
+  ...checkoutPrepared,
+  store_id: "store-fixture",
+  channel_key: "channel-fixture",
+  payment_id: "payment-fixture",
+  pay_method: "CARD",
+  portone_currency: "CURRENCY_KRW",
+  redirect_url: "https://sidey-app.github.io/SIDEY/checkout-result/",
+};
+
+const jsonResponse = (payload, status = 200) => ({
+  ok: status >= 200 && status < 300,
+  status,
+  json: async () => payload,
+});
+
+async function waitFor(predicate, message) {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    if (predicate()) return;
+    await new Promise(resolve => setImmediate(resolve));
+  }
+  assert.fail(message);
+}
+
+async function createCheckoutHarness({ fetchResponse, requestPayment } = {}) {
+  const { runInNewContext } = await import("node:vm");
+  let source = readFileSync(new URL("../public/assets/checkout.js", import.meta.url), "utf8");
+  source = source.replace(/^import .*;\r?\n/, `const commerceProducts = ${JSON.stringify({
+    "fixture-product": { name: "Fixture product", image: "assets/store/fixture.png", kind: "character" },
+    "other-fixture-product": { name: "Other fixture product", image: "assets/store/other-fixture.png", kind: "character" },
+  })};\n`);
+  source = source.replaceAll("import.meta.url", '"https://sidey-app.github.io/SIDEY/assets/checkout.js"');
+
+  class Element {
+    constructor(values = {}) { Object.assign(this, values); }
+    listeners = {};
+    dataset = {};
+    hidden = false;
+    disabled = false;
+    checked = false;
+    value = "";
+    textContent = "";
+    focused = 0;
+    addEventListener(name, listener) { this.listeners[name] = listener; }
+    focus() { this.focused++; }
+  }
+
+  const elements = Object.fromEntries([
+    "loading", "error", "error-message", "product", "product-image", "preview-frame",
+    "order-name", "amount", "meta", "consent", "policy-notice", "pay", "status",
+  ].map(id => [`#checkout-${id}`, new Element()]));
+  elements["#checkout-error"].hidden = true;
+  elements["#checkout-product"].hidden = true;
+
+  const requests = [];
+  const paymentRequests = [];
+  const assigned = [];
+  const defaultFetchResponse = async (url, init, body) => {
+    if (url.endsWith("/commerce-checkout") && body.action === "prepare") return jsonResponse(checkoutPrepared);
+    if (url.endsWith("/commerce-checkout") && body.action === "authorize") return jsonResponse(checkoutAuthorized);
+    if (url.endsWith("/commerce-complete")) {
+      return jsonResponse({ result_url: "https://sidey-app.github.io/SIDEY/checkout-result/?result=success" });
+    }
+    return jsonResponse({ error: "unexpected_request" }, 500);
+  };
+  const location = {
+    hash: `#token=${"a".repeat(43)}`,
+    pathname: "/SIDEY/checkout/",
+    origin: "https://sidey-app.github.io",
+    assign(url) { assigned.push(url); },
+  };
+  const sdkRequest = requestPayment ?? (async () => ({ code: "USER_CANCEL", message: "결제가 취소되었습니다." }));
+
+  runInNewContext(source, {
+    URL,
+    URLSearchParams,
+    Intl,
+    document: { querySelector: selector => elements[selector] },
+    window: {
+      location,
+      history: { replaceState() {} },
+      PortOne: {
+        async requestPayment(request) {
+          paymentRequests.push(request);
+          return sdkRequest(request);
+        },
+      },
+    },
+    console: { error() {} },
+    fetch: async (url, init) => {
+      const body = JSON.parse(init.body);
+      requests.push({ url, body });
+      return (fetchResponse ?? defaultFetchResponse)(url, init, body);
+    },
+  });
+
+  await waitFor(() => elements["#checkout-product"].hidden === false || elements["#checkout-error"].hidden === false, "checkout did not finish preparing");
+  return { elements, requests, paymentRequests, assigned };
+}
+
 for (const locale of ["ko", "en", "ja"]) {
   for (const category of Object.keys(included)) {
     test(`${locale}/${category}: complete catalog, exact direct prices, assets, separate keepsakes`, () => {
@@ -175,6 +285,156 @@ test("preview sound responds to clicks, motion preference, product changes and d
   assert.equal(sound.hidden, true, "characters do not expose a sound toggle");
 });
 
+test("checkout sends the server-authorized amount as a fixed CARD request without easy-pay options", async () => {
+  const harness = await createCheckoutHarness();
+  const consent = harness.elements["#checkout-consent"];
+  const pay = harness.elements["#checkout-pay"];
+  consent.checked = true;
+  consent.listeners.change();
+  await pay.listeners.click();
+
+  assert.equal(harness.paymentRequests.length, 1);
+  assert.equal(harness.paymentRequests[0].payMethod, "CARD");
+  assert.equal(harness.paymentRequests[0].totalAmount, checkoutPrepared.amount, "authorized server amount is authoritative");
+  assert.equal(Object.hasOwn(harness.paymentRequests[0], "easyPay"), false);
+});
+
+test("checkout blocks missing consent before authorization", async () => {
+  const harness = await createCheckoutHarness();
+  await harness.elements["#checkout-pay"].listeners.click();
+  assert.match(harness.elements["#checkout-status"].textContent, /먼저 동의/);
+  assert.equal(harness.elements["#checkout-consent"].focused, 1);
+  assert.equal(harness.requests.filter(request => request.body.action === "authorize").length, 0);
+  assert.equal(harness.paymentRequests.length, 0);
+});
+
+test("checkout rejects unsupported server payment methods before invoking PortOne", async () => {
+  for (const payMethod of ["EASY_PAY", "TRANSFER", undefined]) {
+    const harness = await createCheckoutHarness({
+      fetchResponse: async (url, init, body) => {
+        if (body.action === "prepare") return jsonResponse(checkoutPrepared);
+        return jsonResponse({ ...checkoutAuthorized, pay_method: payMethod });
+      },
+    });
+    harness.elements["#checkout-consent"].checked = true;
+    await harness.elements["#checkout-pay"].listeners.click();
+    assert.match(harness.elements["#checkout-status"].textContent, /결제 요청을 준비하지 못했습니다/, String(payMethod));
+    assert.equal(harness.paymentRequests.length, 0, String(payMethod));
+  }
+});
+
+test("checkout rejects authorization details that differ from the prepared order", async () => {
+  for (const [field, value] of [
+    ["product_id", "other-fixture-product"],
+    ["amount", 2200],
+    ["policy_version", "different-policy"],
+  ]) {
+    const harness = await createCheckoutHarness({
+      fetchResponse: async (url, init, body) => {
+        if (body.action === "prepare") return jsonResponse(checkoutPrepared);
+        return jsonResponse({ ...checkoutAuthorized, [field]: value });
+      },
+    });
+    harness.elements["#checkout-consent"].checked = true;
+    await harness.elements["#checkout-pay"].listeners.click();
+    assert.match(harness.elements["#checkout-status"].textContent, /결제 요청을 준비하지 못했습니다/, field);
+    assert.equal(harness.paymentRequests.length, 0, field);
+  }
+});
+
+test("checkout distinguishes authorization failures from payment SDK failures", async () => {
+  const authorizationFailure = await createCheckoutHarness({
+    fetchResponse: async (url, init, body) => {
+      if (body.action === "prepare") return jsonResponse(checkoutPrepared);
+      return jsonResponse({ error: "authorize_failed" }, 500);
+    },
+  });
+  authorizationFailure.elements["#checkout-consent"].checked = true;
+  await authorizationFailure.elements["#checkout-pay"].listeners.click();
+  assert.match(authorizationFailure.elements["#checkout-status"].textContent, /결제 요청을 준비하지 못했습니다/);
+
+  const sdkFailure = await createCheckoutHarness({
+    requestPayment: async () => { throw new Error("sdk_fixture_failure"); },
+  });
+  sdkFailure.elements["#checkout-consent"].checked = true;
+  await sdkFailure.elements["#checkout-pay"].listeners.click();
+  assert.match(sdkFailure.elements["#checkout-status"].textContent, /결제창을 열거나 진행하지 못했습니다/);
+  assert.match(sdkFailure.elements["#checkout-status"].textContent, /sdk_fixture_failure/);
+});
+
+test("checkout locks controls and ignores duplicate clicks and consent changes while authorizing", async () => {
+  let releaseAuthorization;
+  const authorization = new Promise(resolve => { releaseAuthorization = resolve; });
+  const harness = await createCheckoutHarness({
+    fetchResponse: async (url, init, body) => {
+      if (body.action === "prepare") return jsonResponse(checkoutPrepared);
+      if (body.action === "authorize") return authorization;
+      return jsonResponse({ error: "unexpected_request" }, 500);
+    },
+  });
+  const consent = harness.elements["#checkout-consent"];
+  const pay = harness.elements["#checkout-pay"];
+  consent.checked = true;
+
+  const firstClick = pay.listeners.click();
+  await waitFor(() => harness.requests.some(request => request.body.action === "authorize"), "authorization did not start");
+  assert.equal(pay.disabled, true);
+  assert.equal(consent.disabled, true);
+  consent.listeners.change();
+  await pay.listeners.click();
+  assert.equal(harness.requests.filter(request => request.body.action === "authorize").length, 1);
+  assert.equal(pay.disabled, true, "change events cannot unlock an active request");
+
+  releaseAuthorization(jsonResponse(checkoutAuthorized));
+  await firstClick;
+  assert.equal(harness.paymentRequests.length, 1);
+});
+
+test("checkout re-enables valid controls after an SDK cancellation response", async () => {
+  const harness = await createCheckoutHarness();
+  const consent = harness.elements["#checkout-consent"];
+  const pay = harness.elements["#checkout-pay"];
+  consent.checked = true;
+
+  await pay.listeners.click();
+  assert.equal(harness.elements["#checkout-status"].textContent, "결제가 취소되었습니다.");
+  assert.equal(pay.disabled, false);
+  assert.equal(consent.disabled, false);
+});
+
+test("checkout prevents retries after an accepted SDK result cannot be confirmed", async () => {
+  for (const failure of ["payment ID mismatch", "completion failure"]) {
+    const harness = await createCheckoutHarness({
+      requestPayment: async () => ({
+        paymentId: failure === "payment ID mismatch" ? "different-payment" : checkoutAuthorized.payment_id,
+      }),
+      fetchResponse: async (url, init, body) => {
+        if (body.action === "prepare") return jsonResponse(checkoutPrepared);
+        if (body.action === "authorize") return jsonResponse(checkoutAuthorized);
+        return jsonResponse({ error: "complete_fixture_failure" }, 500);
+      },
+    });
+    harness.elements["#checkout-consent"].checked = true;
+    await harness.elements["#checkout-pay"].listeners.click();
+    assert.match(harness.elements["#checkout-status"].textContent, /다시 결제하지 말고 SIDEY 상점에서 구매 상태를 확인/);
+    assert.equal(harness.elements["#checkout-pay"].disabled, true, failure);
+    assert.equal(harness.elements["#checkout-consent"].disabled, true, failure);
+    await harness.elements["#checkout-pay"].listeners.click();
+    assert.equal(harness.requests.filter(request => request.body.action === "authorize").length, 1, failure);
+    assert.equal(harness.paymentRequests.length, 1, failure);
+  }
+});
+
+test("checkout redirects only after successful server completion", async () => {
+  const harness = await createCheckoutHarness({
+    requestPayment: async () => ({ paymentId: checkoutAuthorized.payment_id }),
+  });
+  harness.elements["#checkout-consent"].checked = true;
+  await harness.elements["#checkout-pay"].listeners.click();
+  assert.deepEqual(harness.assigned, ["https://sidey-app.github.io/SIDEY/checkout-result/?result=success"]);
+  assert.equal(harness.elements["#checkout-pay"].disabled, true);
+});
+
 test("checkout ignores injected API origins and sends tokens only to SIDEY production", async () => {
   const { runInNewContext } = await import("node:vm");
   for (const name of ["checkout", "checkout-result"]) {
@@ -217,4 +477,20 @@ test("checkout CSP permits PortOne preparation and its hosted payment frame", ()
   }
   assert.ok(directives["connect-src"].includes("https://whtejsviizgejauasqqt.supabase.co"));
   assert.ok(!directives["connect-src"].includes("https://*.supabase.co"));
+});
+
+test("generated checkout pages use external executable scripts under strict CSP", () => {
+  for (const page of ["checkout", "checkout-result"]) {
+    const html = read(`${page}/index.html`);
+    const policy = html.match(/http-equiv="Content-Security-Policy" content="([^"]+)"/)?.[1];
+    assert.ok(policy, `${page}: CSP is present`);
+    assert.doesNotMatch(policy, /'unsafe-inline'/, `${page}: inline script execution stays disabled`);
+    assert.match(html, /<script[^>]+src="\/SIDEY\/assets\/site-theme\.js"[^>]*><\/script>/);
+    assert.match(html, /<script[^>]+src="\/SIDEY\/assets\/site-header\.js"[^>]*><\/script>/);
+    assert.match(html, new RegExp(`<script[^>]+src="(?:/SIDEY/|\\.\\./)assets/${page}\\.js"[^>]*></script>`));
+    for (const [, attributes, body] of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)) {
+      assert.match(attributes, /\bsrc="[^"]+"/, `${page}: every executable script has an external source`);
+      assert.equal(body.trim(), "", `${page}: executable script body is empty`);
+    }
+  }
 });
