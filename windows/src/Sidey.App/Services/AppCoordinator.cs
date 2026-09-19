@@ -741,7 +741,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             throw new InvalidOperationException(I18n.Get("auth.identityLinkExpired"));
         CancellationTokenSource? attempt = _googleAuthenticationAttempt;
         using var completion = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken, attempt?.Token ?? _roomSession.Token);
+            cancellationToken, _roomSession.Token, attempt?.Token ?? CancellationToken.None);
         await auth.CompleteGoogleIdentityLinkAsync(code!, completion.Token);
         if (attempt is not null && !ReferenceEquals(_googleAuthenticationAttempt, attempt))
             return;
