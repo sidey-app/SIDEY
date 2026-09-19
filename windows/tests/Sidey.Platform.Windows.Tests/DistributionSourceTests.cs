@@ -432,13 +432,34 @@ public sealed class DistributionSourceTests
                 < onInit.IndexOf("\"InstalledVersion\"", StringComparison.Ordinal),
             "Interrupted installation recovery must precede version classification.");
 
-        Assert.Contains("Directory.Move(installPath, rollbackPath)", transaction, StringComparison.Ordinal);
-        Assert.Contains("Directory.Move(stagingPath, installPath)", transaction, StringComparison.Ordinal);
         Assert.Contains("UndoTransaction", transaction, StringComparison.Ordinal);
         Assert.Contains("FileAttributes.ReparsePoint", transaction, StringComparison.Ordinal);
         Assert.Contains("AssertSecureTransactionParent", transaction, StringComparison.Ordinal);
         Assert.Contains("ProtectStagingDirectory", transaction, StringComparison.Ordinal);
         Assert.Contains("previousRegistration", transaction, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SuccessfulSetupRemovesMachineWideInstallerDiagnosticsAfterLaunchHandling()
+    {
+        string setup = ReadSetupScript();
+        int mainSectionStart = setup.IndexOf("Section \"SIDEY\" MainSection", StringComparison.Ordinal);
+        string mainSection = setup[mainSectionStart..setup.IndexOf("SectionEnd", mainSectionStart, StringComparison.Ordinal)];
+        int complete = mainSection.IndexOf("RunInstallTransaction \"Complete\"", StringComparison.Ordinal);
+        int completedCleanly = mainSection.IndexOf("StrCpy $InstallerCompletedCleanly 1", StringComparison.Ordinal);
+        Assert.True(complete >= 0 && completedCleanly > complete,
+            "Installer diagnostics may only become disposable after transaction cleanup succeeds.");
+
+        int launchStart = setup.IndexOf("Function LaunchSideyAsDesktopUser", StringComparison.Ordinal);
+        string launch = setup[launchStart..setup.IndexOf("FunctionEnd", launchStart, StringComparison.Ordinal)];
+        Assert.Contains("StrCpy $InstallerCompletedCleanly 0", launch, StringComparison.Ordinal);
+
+        int guiEndStart = setup.IndexOf("Function .onGUIEnd", StringComparison.Ordinal);
+        string guiEnd = setup[guiEndStart..setup.IndexOf("FunctionEnd", guiEndStart, StringComparison.Ordinal)];
+        Assert.Contains("${If} $InstallerCompletedCleanly == 1", guiEnd, StringComparison.Ordinal);
+        Assert.Contains("Sidey.InstallerErrorHelper.exe", guiEnd, StringComparison.Ordinal);
+        Assert.Contains("--remove-installer-logs", guiEnd, StringComparison.Ordinal);
+        Assert.DoesNotContain("RMDir /r", guiEnd, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -488,6 +509,8 @@ public sealed class DistributionSourceTests
         Assert.Contains("MUI_FINISHPAGE_RUN_FUNCTION LaunchSideyAsDesktopUser", setup, StringComparison.Ordinal);
         Assert.DoesNotContain("MUI_FINISHPAGE_RUN \"$INSTDIR\\SIDEY.exe\"", setup, StringComparison.Ordinal);
         Assert.Contains("--launch-sidey-as-desktop-user", setup, StringComparison.Ordinal);
+        Assert.Contains("--request-shutdown-as-desktop-user", setup, StringComparison.Ordinal);
+        Assert.Contains("--complete-install-as-desktop-user", helper, StringComparison.Ordinal);
         Assert.Contains("--cleanup-startup-as-desktop-user", setup, StringComparison.Ordinal);
         Assert.DoesNotContain("exception.Message", helper, StringComparison.Ordinal);
         Assert.DoesNotContain("--run-windows-app-runtime-as-desktop-user", helper, StringComparison.Ordinal);
@@ -504,12 +527,50 @@ public sealed class DistributionSourceTests
     }
 
     [Fact]
-    public void InstallerErrorHelperOnlyExposesNormalizationMode()
+    public void SetupCompletesDesktopRegistrationThroughRecoverableTransaction()
+    {
+        string setup = ReadSetupScript();
+        string helper = File.ReadAllText(RepositoryPath(
+            "windows", "src", "Sidey.Uninstaller", "Program.cs"));
+        int mainSectionStart = setup.IndexOf("Section \"SIDEY\" MainSection", StringComparison.Ordinal);
+        string mainSection = setup[mainSectionStart..setup.IndexOf(
+            "SectionEnd",
+            mainSectionStart,
+            StringComparison.Ordinal)];
+
+        int commit = mainSection.IndexOf(
+            "RunInstallTransaction \"Commit\"",
+            StringComparison.Ordinal);
+        int complete = mainSection.IndexOf(
+            "RunInstallTransaction \"Complete\"",
+            StringComparison.Ordinal);
+        Assert.True(
+            commit >= 0 && complete > commit,
+            "Desktop registration belongs to the recoverable committed completion phase.");
+
+        Assert.Contains("--complete-install", helper, StringComparison.Ordinal);
+        int requestShutdown = mainSection.IndexOf(
+            "--request-shutdown-as-desktop-user",
+            StringComparison.Ordinal);
+        int forceStop = mainSection.IndexOf("Call StopSideyProcesses", StringComparison.Ordinal);
+        Assert.True(
+            requestShutdown >= 0 && forceStop > requestShutdown,
+            "Setup must request a settings-flushing shutdown before the bounded force-stop fallback.");
+        Assert.DoesNotContain(
+            "Goto ",
+            mainSection[requestShutdown..forceStop],
+            StringComparison.Ordinal);
+        Assert.Contains("--shutdown-for-update", helper, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void InstallerErrorHelperExposesNormalizationAndSafeLogCleanup()
     {
         string source = File.ReadAllText(RepositoryPath(
             "windows", "installer", "Sidey.Setup", "InstallerErrorNormalizer.cs"));
 
         Assert.Contains("--normalize-error", source, StringComparison.Ordinal);
+        Assert.Contains("--remove-installer-logs", source, StringComparison.Ordinal);
         Assert.Contains("Unsupported helper mode.", source, StringComparison.Ordinal);
         Assert.DoesNotContain("--check-only", source, StringComparison.Ordinal);
         Assert.DoesNotContain("--cleanup-private-runtime", source, StringComparison.Ordinal);
