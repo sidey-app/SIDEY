@@ -1,4 +1,3 @@
-#if SIDEY_DEVELOPMENT_COMMERCE
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -166,4 +165,3 @@ public sealed class SupabaseIdentityLinkTests
         }
     }
 }
-#endif

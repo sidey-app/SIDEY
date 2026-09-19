@@ -247,6 +247,7 @@ public partial class App : Application
             StartupDiagnostics.Stage("coordinator-initialized");
 #if SIDEY_DEVELOPMENT_COMMERCE
             if (coordinator.State.DevelopmentCommerceEnabled
+                && coordinator.AuthCallbackScheme == WindowsAuthCallback.DevelopmentScheme
                 && Environment.ProcessPath is { } executablePath)
             {
                 WindowsProtocolRegistration.EnsureCurrentUserDevelopmentCallback(executablePath);
@@ -907,9 +908,7 @@ public partial class App : Application
         {
             return false;
         }
-        string expectedScheme = _coordinator.State.DevelopmentCommerceEnabled
-            ? WindowsAuthCallback.DevelopmentScheme
-            : WindowsAuthCallback.ProductionScheme;
+        string expectedScheme = _coordinator.AuthCallbackScheme;
         if (!WindowsAuthCallback.TryGetCode(
             activationArgument,
             expectedScheme,

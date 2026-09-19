@@ -388,6 +388,8 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         }
 
         bool developmentCommerceEnabled = WindowsCommerceConfiguration.IsEnabled(configuration);
+        AuthCallbackScheme = WindowsCommerceConfiguration.IsProduction(configuration)
+            ? WindowsAuthCallback.ProductionScheme : WindowsAuthCallback.DevelopmentScheme;
         SetState(_state with
         {
             DevelopmentCommerceEnabled = developmentCommerceEnabled,
@@ -432,7 +434,6 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         ApplySnapshot(snapshot);
         StartTreeMovementMigration();
         string? commerceStateError = null;
-#if SIDEY_DEVELOPMENT_COMMERCE
         if (developmentCommerceEnabled)
         {
             try
@@ -444,7 +445,6 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                 commerceStateError = I18n.Get("store.stateUnavailable");
             }
         }
-#endif
         _state = _state with
         {
             ActiveRoomId = activeRoomId,
@@ -513,11 +513,12 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         ApplyWorldSnapshot();
     }
 
+    public string AuthCallbackScheme { get; private set; } = WindowsAuthCallback.ProductionScheme;
+
     public async Task ActivateStoreProductAsync(
         string productId,
         CancellationToken cancellationToken = default)
     {
-#if SIDEY_DEVELOPMENT_COMMERCE
         if (!_state.DevelopmentCommerceEnabled
             || WindowsCommerceCatalog.Find(productId) is null
             || _backend is not SupabaseBackendGateway backend
@@ -538,9 +539,9 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             try
             {
                 Uri authorizationUri = await auth.BeginGoogleIdentityLinkAsync(
-                    new Uri("sidey-dev://auth/google"),
+                    new Uri($"{AuthCallbackScheme}://auth/google"),
                     cancellationToken);
-                OpenExternalUri(authorizationUri);
+                await OpenExternalUriAsync(authorizationUri);
             }
             catch
             {
@@ -575,7 +576,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             CommerceCheckout checkout = await backend.CreateWindowsCommerceOrderAsync(
                 productId,
                 cancellationToken);
-            OpenExternalUri(checkout.CheckoutUri);
+            await OpenExternalUriAsync(checkout.CheckoutUri);
             SetCommerceProductState(state with
             {
                 PurchaseState = CommercePurchaseState.Confirming,
@@ -613,12 +614,6 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
             }
             throw;
         }
-#else
-        _ = productId;
-        _ = cancellationToken;
-        await Task.CompletedTask;
-        throw new InvalidOperationException(I18n.Get("store.unavailable"));
-#endif
     }
 
     public async Task SetEquippedCosmeticAsync(
@@ -669,12 +664,11 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         Uri callbackUri,
         CancellationToken cancellationToken = default)
     {
-#if SIDEY_DEVELOPMENT_COMMERCE
         if (!_state.DevelopmentCommerceEnabled
             || _auth is not SupabaseAnonymousAuthService auth
             || !WindowsAuthCallback.TryGetCode(
                 callbackUri.AbsoluteUri,
-                WindowsAuthCallback.DevelopmentScheme,
+                AuthCallbackScheme,
                 out _,
                 out string? code))
         {
@@ -682,12 +676,6 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
         }
         await auth.CompleteGoogleIdentityLinkAsync(code!, cancellationToken);
         await RefreshDevelopmentCommerceStateAsync(cancellationToken);
-#else
-        _ = callbackUri;
-        _ = cancellationToken;
-        await Task.CompletedTask;
-        throw new InvalidOperationException(I18n.Get("store.unavailable"));
-#endif
     }
 
     public async Task CompleteOnboardingAsync(CancellationToken cancellationToken = default)
@@ -2186,7 +2174,6 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
     private IBackendGateway RequiredBackend() =>
         _backend ?? throw new InvalidOperationException(I18n.Get("error.serverConnectionNotConfigured"));
 
-#if SIDEY_DEVELOPMENT_COMMERCE
     private async Task<IReadOnlyList<CommerceProductState>> RefreshDevelopmentCommerceStateAsync(
         CancellationToken cancellationToken,
         string? workingProductId = null)
@@ -2243,19 +2230,6 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
                     : item).ToArray(),
         });
     }
-
-    private static void OpenExternalUri(Uri uri)
-    {
-        using Process? process = Process.Start(new ProcessStartInfo(uri.AbsoluteUri)
-        {
-            UseShellExecute = true,
-        });
-        if (process is null)
-        {
-            throw new InvalidOperationException(I18n.Get("store.browserOpenFailed"));
-        }
-    }
-#endif
 
     private void EnsureMutationsAvailable()
     {

@@ -63,6 +63,14 @@ jobs:
             --output build/windows/publish
           ./scripts/windows/tests/Test-SelfContainedPublish.ps1 -PublishDirectory ./build/windows/publish
 
+      - name: Run Windows app smoke
+        env:
+          SIDEY_STORE_PREVIEW_SMOKE: '1'
+          SIDEY_OVERLAY_STARTUP_SMOKE: '1'
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          ./scripts/windows/tests/Test-PublishedApplication.ps1 -PublishDirectory ./build/windows/publish -TimeoutSeconds 120
+
       - name: Compile NSIS installer
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
@@ -79,3 +87,12 @@ jobs:
           name: windows-code-coverage
           path: artifacts/coverage/**/coverage.cobertura.xml
           if-no-files-found: error
+
+      - name: Upload manual test candidate
+        uses: actions/upload-artifact@v5
+        with:
+          name: sidey-windows-candidate-${{ github.sha }}
+          path: |
+            build/windows/artifacts/*Setup.exe
+          if-no-files-found: error
+          retention-days: 14

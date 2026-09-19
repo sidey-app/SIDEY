@@ -138,13 +138,12 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         }
     }
 
-#if SIDEY_DEVELOPMENT_COMMERCE
     public async Task<IReadOnlyList<CommerceProductState>> GetWindowsCommerceStateAsync(
         CancellationToken cancellationToken = default)
     {
         using var request = await CreateRequestAsync(
             HttpMethod.Post,
-            "/rest/v1/rpc/get_store_state",
+            "/rest/v1/rpc/get_windows_store_state",
             cancellationToken).ConfigureAwait(false);
         request.Content = JsonContent.Create(new { }, options: s_jsonOptions);
         using var response = await _httpClient.SendAsync(request, cancellationToken)
@@ -207,13 +206,17 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
             cancellationToken).ConfigureAwait(false);
         if (order.OrderId == Guid.Empty
             || !Uri.TryCreate(order.CheckoutUrl, UriKind.Absolute, out Uri? checkoutUri)
-            || checkoutUri.Scheme != Uri.UriSchemeHttps)
+            || checkoutUri.Scheme != Uri.UriSchemeHttps
+            || !checkoutUri.IsDefaultPort
+            || checkoutUri.Host != "sidey-app.github.io"
+            || checkoutUri.AbsolutePath != "/SIDEY/checkout/"
+            || !string.IsNullOrEmpty(checkoutUri.UserInfo)
+            || !string.IsNullOrEmpty(checkoutUri.Query))
         {
             throw new InvalidDataException("Commerce checkout URL is invalid.");
         }
         return new CommerceCheckout(order.OrderId, checkoutUri);
     }
-#endif
 
     public async Task<Profile> SetTreeMovementPausedAsync(
         bool paused, long expectedRevision, CancellationToken cancellationToken = default)
@@ -1032,7 +1035,6 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
         [property: JsonPropertyName("entitlement_key")] string EntitlementKey,
         string Status);
 
-#if SIDEY_DEVELOPMENT_COMMERCE
     private sealed record DatabaseCommerceState(
         [property: JsonPropertyName("product_id")] string ProductId,
         [property: JsonPropertyName("product_kind")] string ProductKind,
@@ -1049,7 +1051,6 @@ public sealed class SupabaseBackendGateway : IBackendGateway, IAsyncDisposable
     private sealed record CommerceOrderResponse(
         [property: JsonPropertyName("order_id")] Guid OrderId,
         [property: JsonPropertyName("checkout_url")] string CheckoutUrl);
-#endif
 
     private sealed record DatabaseRoom(
         Guid Id,

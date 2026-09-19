@@ -28,9 +28,7 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
     private readonly HttpClient _httpClient;
     private readonly bool _ownsHttpClient;
     private readonly SemaphoreSlim _gate = new(1, 1);
-#if SIDEY_DEVELOPMENT_COMMERCE
     private PendingIdentityLink? _pendingIdentityLink;
-#endif
 
     public SupabaseAnonymousAuthService(
         SupabaseRuntimeConfiguration configuration,
@@ -106,7 +104,6 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
         }
     }
 
-#if SIDEY_DEVELOPMENT_COMMERCE
     public async Task<Uri> BeginGoogleIdentityLinkAsync(
         Uri redirectUri,
         CancellationToken cancellationToken = default)
@@ -198,7 +195,6 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
         .TrimEnd('=')
         .Replace('+', '-')
         .Replace('/', '_');
-#endif
 
     async ValueTask<StoredSupabaseSession?> IAuthSessionAccessor.GetStoredSessionAsync(
         CancellationToken cancellationToken)
@@ -333,11 +329,9 @@ public sealed class SupabaseAnonymousAuthService : IAuthService, IAuthSessionAcc
 
     private sealed record AuthUser([property: JsonPropertyName("id")] Guid Id);
 
-#if SIDEY_DEVELOPMENT_COMMERCE
     private sealed record IdentityLinkEnvelope(string? Url);
     private sealed record PendingIdentityLink(
         Guid UserId,
         string CodeVerifier,
         DateTimeOffset ExpiresAt);
-#endif
 }
