@@ -23,8 +23,7 @@ public sealed class OnboardingGroupIntegrationTests
             OverlayVisible = false,
             CachedNickname = "친구",
         });
-        ICredentialStore credentials = DispatchProxy.Create<ICredentialStore, AuthCredentials>();
-        var saved = (AuthCredentials)credentials;
+        var saved = new AuthCredentials();
         saved.Session = existingUser ? System.Text.Json.JsonSerializer.Serialize(new StoredSupabaseSession(
             "old-token", "refresh-token", userId, DateTimeOffset.UtcNow.AddHours(1)),
             new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)) : null;
@@ -32,8 +31,8 @@ public sealed class OnboardingGroupIntegrationTests
         using var handler = new AnonymousIdentityHandler(userId);
         using var client = new HttpClient(handler);
         var auth = new SupabaseAnonymousAuthService(new SupabaseRuntimeConfiguration(
-            new Uri("https://test.example.com"), "test-key"), credentials, client);
-        await using var coordinator = new AppCoordinator(preferences, credentials, new DisabledStartup());
+            new Uri("https://test.example.com"), "test-key"), saved, client);
+        await using var coordinator = new AppCoordinator(preferences, saved, new DisabledStartup());
         SetField(coordinator, "_auth", auth);
 
         await coordinator.InitializeAsync();
@@ -269,16 +268,26 @@ public sealed class OnboardingGroupIntegrationTests
         }
     }
 
-    public class AuthCredentials : DispatchProxy
+    private sealed class AuthCredentials : ICredentialStore
     {
         public string? Session { get; set; }
         public int Writes { get; private set; }
-        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
+        public ValueTask<string?> ReadAsync(CredentialKey key, CancellationToken cancellationToken = default) =>
+            ValueTask.FromResult(Session);
+        public ValueTask WriteAsync(CredentialKey key, string value, CancellationToken cancellationToken = default) =>
+            throw UnexpectedWrite();
+        public ValueTask DeleteAsync(CredentialKey key, CancellationToken cancellationToken = default) =>
+            throw UnexpectedWrite();
+        public ValueTask<string?> ReadInviteCodeAsync(Guid roomId, CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException("Startup must not read invite codes before Google authentication.");
+        public ValueTask WriteInviteCodeAsync(Guid roomId, string inviteCode, CancellationToken cancellationToken = default) =>
+            throw UnexpectedWrite();
+        public ValueTask DeleteInviteCodeAsync(Guid roomId, CancellationToken cancellationToken = default) =>
+            throw UnexpectedWrite();
+        private InvalidOperationException UnexpectedWrite()
         {
-            if (targetMethod!.Name == nameof(ICredentialStore.ReadAsync))
-                return ValueTask.FromResult(Session);
             Writes++;
-            throw new InvalidOperationException("Startup must not replace credentials before Google authentication.");
+            return new InvalidOperationException("Startup must not replace credentials before Google authentication.");
         }
     }
 

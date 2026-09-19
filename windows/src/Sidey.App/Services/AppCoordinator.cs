@@ -407,7 +407,7 @@ public sealed class AppCoordinator : IMainWindowCoordinator, IHistoryCoordinator
 
         if (_backend is not SupabaseBackendGateway)
         {
-            var auth = _auth as SupabaseAnonymousAuthService
+            SupabaseAnonymousAuthService auth = _auth as SupabaseAnonymousAuthService
                 ?? new SupabaseAnonymousAuthService(configuration, _credentialStore);
             _auth = auth;
             SetState(_state with { GoogleAuthentication = GoogleAuthenticationState.Checking });

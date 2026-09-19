@@ -75,7 +75,7 @@ public sealed class SupabaseIdentityLinkTests
         await auth.CompleteGoogleIdentityLinkAsync("returned-code");
 
         Assert.Equal(2, handler.RequestCount);
-        using JsonDocument exchange = JsonDocument.Parse(handler.ExchangeBody);
+        using var exchange = JsonDocument.Parse(handler.ExchangeBody);
         string verifier = exchange.RootElement.GetProperty("code_verifier").GetString()!;
         string challenge = Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(verifier)))
             .TrimEnd('=').Replace('+', '-').Replace('/', '_');
@@ -204,7 +204,7 @@ public sealed class SupabaseIdentityLinkTests
         await auth.CompleteGoogleIdentityLinkAsync("current-code");
 
         Assert.Contains("new-token", credentials.SessionJson!);
-        using JsonDocument exchange = JsonDocument.Parse(handler.ExchangeBody);
+        using var exchange = JsonDocument.Parse(handler.ExchangeBody);
         string verifier = exchange.RootElement.GetProperty("code_verifier").GetString()!;
         string challenge = Convert.ToBase64String(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(verifier)))
             .TrimEnd('=').Replace('+', '-').Replace('/', '_');
