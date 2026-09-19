@@ -30,10 +30,11 @@ ID 또는 metadata 불일치는 오류다.
 
 - Mac App Store판은 StoreKit의 비소모성 상품과 Apple이 반환한 localized price를
   사용한다. Apple에서 상품을 받지 못하면 다른 채널의 가격을 대신 표시하지 않는다.
-- 직접 배포판의 production purchase availability는 build가 결정하며 remote response만으로
-  열리지 않는다. 이미 가진 상품의 장착은 판매 잠금과 별개다.
-- Windows Release는 구매를 지원하지 않는다. 개발 전용 staging 구매 흐름만 명시적으로
-  opt-in한 환경에서 사용할 수 있다.
+- macOS 직접 배포판의 신규 개발·배포는 종료한다. 기존 구매 원본과 지급 권리는
+  보존하며, App Store 전환을 이유로 기존 entitlement를 회수하지 않는다.
+- Windows 후보는 운영 Supabase와 PortOne V2 결제를 사용한다. Windows 지원 상품만
+  서버의 별도 판매 허용 목록으로 조회·주문하며 신규 상품의 Apple 판매와 분리한다.
+  판매 잠금과 서버 가격 검증은 유지한다. 공개 판매 여부는 운영 설정과 검증된 배포본을 따른다.
 - 공개 웹은 catalog를 소개하지만 entitlement를 직접 발급하지 않는다.
 
 Account 삭제는 자동 환불이 아니다. 환불·회수·복원은 원래 payment source와 서버
