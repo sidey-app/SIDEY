@@ -3,7 +3,7 @@ import { commerceProducts } from "./commerce-products.js";
 (() => {
   "use strict";
 
-  const productionHost = "whtejsviizgejauasqqt.supabase.co";
+  const productionAPIBase = "https://whtejsviizgejauasqqt.supabase.co/functions/v1";
   const products = commerceProducts;
   const loading = document.querySelector("#checkout-loading");
   const error = document.querySelector("#checkout-error");
@@ -27,20 +27,6 @@ import { commerceProducts } from "./commerce-products.js";
     product.hidden = true;
     errorMessage.textContent = message;
     error.hidden = false;
-  }
-
-  function validAPIBase(value) {
-    try {
-      const url = new URL(value);
-      const loopback = url.protocol === "http:"
-        && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
-      const staging = url.protocol === "https:"
-        && url.hostname.endsWith(".supabase.co")
-        && url.hostname !== productionHost;
-      return (loopback || staging) && url.pathname === "/functions/v1" ? url.toString().replace(/\/$/, "") : "";
-    } catch {
-      return "";
-    }
   }
 
   async function request(path, body) {
@@ -97,9 +83,8 @@ import { commerceProducts } from "./commerce-products.js";
   }
 
   async function start() {
-    const query = new URLSearchParams(window.location.search);
     token = new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "";
-    apiBase = validAPIBase(query.get("api") ?? "");
+    apiBase = productionAPIBase;
     window.history.replaceState(null, "", window.location.pathname);
     if (!/^[A-Za-z0-9_-]{43}$/.test(token) || !apiBase) {
       showError("SIDEY 앱에서 새 주문을 만들어 접근해 주세요. 공개 구매 링크는 지원하지 않습니다.");

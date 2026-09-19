@@ -35,6 +35,8 @@ ID 또는 metadata 불일치는 오류다.
 - Windows Release는 구매를 지원하지 않는다. 개발 전용 staging 구매 흐름만 명시적으로
   opt-in한 환경에서 사용할 수 있다.
 - 공개 웹은 catalog를 소개하지만 entitlement를 직접 발급하지 않는다.
+  결제·결제 결과 페이지는 고정된 SIDEY 운영 결제 API만 호출하며 URL로 전달된
+  API 주소는 사용하지 않는다. 실제 구매 가능 여부와 결제 승인은 서버가 확인한다.
 
 Account 삭제는 자동 환불이 아니다. 환불·회수·복원은 원래 payment source와 서버
 ledger를 기준으로 처리한다. 실제 settlement와 회계는 payment provider의 보고서를
