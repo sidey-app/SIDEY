@@ -1,0 +1,64 @@
+name: 버그 신고
+description: 재현 가능한 SIDEY 제품 문제를 알려 주세요.
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        기능 제안과 소스 기여는 받지 않습니다. 보안·개인정보 문제는 공개 Issue 대신 SECURITY.md의 비공개 연락처를 사용해 주세요.
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 플랫폼
+      options:
+        - macOS
+        - Windows
+    validations:
+      required: true
+  - type: input
+    id: sidey-version
+    attributes:
+      label: SIDEY 버전
+      placeholder: "예: 1.2.1 또는 2.0.0"
+    validations:
+      required: true
+  - type: input
+    id: os-version
+    attributes:
+      label: 운영체제 버전
+      placeholder: "예: macOS 26.0 또는 Windows 11 24H2"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 방법
+      description: 문제를 반복해서 확인할 수 있도록 순서대로 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 예상한 동작
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 실제 동작
+    validations:
+      required: true
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 추가 정보
+      description: 개인정보와 비밀정보를 제거한 로그나 화면만 첨부해 주세요.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 공개 정보 확인
+      options:
+        - label: 접근 토큰, 초대 코드, 메시지 내용과 개인정보를 제거했습니다.
+          required: true
