@@ -1,7 +1,18 @@
 {
   "source_repository": "sidey-app/SIDEY",
   "captured_at": "2026-09-20T14:00:06.968Z",
+  "latest_release_tag": "windows-v2.0.0",
   "note": "Download counts are historical source-repository values captured before the public distribution repository cutover.",
+  "compliance_archives": [
+    {
+      "tag_name": "windows-v2.0.0",
+      "commit": "92088b671cebd073623701d15442b1ba3c8638e8",
+      "agpl_introduction_commit": "43c489ff2da69745c8bc7122795019f77ade6239",
+      "name": "SIDEY-windows-v2.0.0-source.tar.gz",
+      "size": 21935912,
+      "digest": "sha256:c26c72d1035d9d01f234016079c7ad7433e86d9d8ba3d3f12d81ba1539ccf17f"
+    }
+  ],
   "releases": [
     {
       "tag_name": "v0.2.0",
@@ -737,4 +748,3 @@
     }
   ]
 }
-
