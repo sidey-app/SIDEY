@@ -1,0 +1,740 @@
+{
+  "source_repository": "sidey-app/SIDEY",
+  "captured_at": "2026-09-20T14:00:06.968Z",
+  "note": "Download counts are historical source-repository values captured before the public distribution repository cutover.",
+  "releases": [
+    {
+      "tag_name": "v0.2.0",
+      "name": "SIDEY v0.2.0",
+      "published_at": "2026-09-01T00:10:16Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-macOS-arm64-v0.2.0.dmg",
+          "size": 5086958,
+          "digest": "sha256:8fa6a3ef037888fbbda44d5143dd79f89f3527701f82d206f313e1ff91046036",
+          "download_count": 2
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v0.2.0.dmg.sha256",
+          "size": 95,
+          "digest": "sha256:35eafd0df47f3db6e04d67cdafc9cc5eafde3be46ef2d69862089456b264f6ce",
+          "download_count": 1
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v0.2.0.zip",
+          "size": 5148098,
+          "digest": "sha256:82a19a609577c90f6b7e169af29f48a7c189899185f9236b6f8cac166d95150b",
+          "download_count": 2
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v0.2.0.zip.sha256",
+          "size": 95,
+          "digest": "sha256:0a35a0386dfc64174692b57f7c5f80ce655519e43db6dbb0dfa17db71c587529",
+          "download_count": 0
+        }
+      ]
+    },
+    {
+      "tag_name": "v1.0.0",
+      "name": "SIDEY v1.0.0",
+      "published_at": "2026-09-01T01:25:16Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.0.dmg",
+          "size": 5087033,
+          "digest": "sha256:83f9b574487fab26d9a145ff3803ff7f0df89f09b1923142bde2ab45f2b831fc",
+          "download_count": 2
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.0.dmg.sha256",
+          "size": 95,
+          "digest": "sha256:88096fd929ab0f18b6bda3eba6463a8f2ad548f5b6190b2a997e18b95d078faf",
+          "download_count": 0
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.0.zip",
+          "size": 5148115,
+          "digest": "sha256:ef1fb5fe6a787442021d5b61bd74f1edf506a7ec476076fab18e9ef96810dd82",
+          "download_count": 4
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.0.zip.sha256",
+          "size": 95,
+          "digest": "sha256:7c1ede24d9fde9d10044db99d8f7bf19e109160f977fde015855668b81655953",
+          "download_count": 0
+        }
+      ]
+    },
+    {
+      "tag_name": "v1.0.1",
+      "name": "SIDEY v1.0.1",
+      "published_at": "2026-09-01T03:58:13Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.1.dmg",
+          "size": 5158980,
+          "digest": "sha256:81f2341d01d825335769a7acdfda8aa96e0807f3f474cceb69ba6458c6294fcf",
+          "download_count": 5
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.1.dmg.sha256",
+          "size": 95,
+          "digest": "sha256:ad1fe49de7204c55b42dbcf649a2b1e6765b4dfc6c50603055acd9031e6b0292",
+          "download_count": 0
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.1.zip",
+          "size": 5208990,
+          "digest": "sha256:96376e65b50de703ecd812a94c8c9d243acc3e5c32faf72c0efab84748620d10",
+          "download_count": 4
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.1.zip.sha256",
+          "size": 95,
+          "digest": "sha256:4eec6d9f89846078d943b27c9263ea77ff97c42f677fcb851e9ce0f0ddc31ba8",
+          "download_count": 0
+        }
+      ]
+    },
+    {
+      "tag_name": "v1.0.2",
+      "name": "SIDEY v1.0.2",
+      "published_at": "2026-09-01T07:46:59Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.2.dmg",
+          "size": 5158598,
+          "digest": "sha256:6140e00ffd11d4797a25fe50f9bb48aa2959b94c62dd2426d3e3c1c76bb50959",
+          "download_count": 3
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.2.dmg.sha256",
+          "size": 95,
+          "digest": "sha256:c4c27acf554c8c3cfb55fe1d84dc69de99b1c0880f7e0237aa8613af95d7c6cf",
+          "download_count": 0
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.2.zip",
+          "size": 5208795,
+          "digest": "sha256:d459e1e4adaad08c5c79657ffbd1e4ac84c2b740c79cd950392216fe944bea58",
+          "download_count": 1
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.2.zip.sha256",
+          "size": 95,
+          "digest": "sha256:8c648bce36aac79d46e4413ce21f3da469367833d496293645173179b4d106d2",
+          "download_count": 0
+        }
+      ]
+    },
+    {
+      "tag_name": "v1.0.3",
+      "name": "SIDEY v1.0.3",
+      "published_at": "2026-09-01T12:35:00Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.3.dmg",
+          "size": 5208409,
+          "digest": "sha256:b888c26b44f77a304f3f8cce76eab2a41ff7ca50e027ea5b2beba877a47dbec4",
+          "download_count": 3
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.3.dmg.sha256",
+          "size": 95,
+          "digest": "sha256:8e268a59d48299a4b60e51acc790125b09248a59e034913966b57ad4545682ed",
+          "download_count": 0
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.3.zip",
+          "size": 5264851,
+          "digest": "sha256:4fcae51a90ea34d0eac7ce7a671083b32b8c0c3e9c9e5ec11de664251a70a6a6",
+          "download_count": 4
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.3.zip.sha256",
+          "size": 95,
+          "digest": "sha256:9ec869d7b3bb4e31d01bea733bd515fa367d3b8bb0703fece16af4a41ab1400a",
+          "download_count": 0
+        }
+      ]
+    },
+    {
+      "tag_name": "windows-v0.3.0-alpha.7",
+      "name": "SIDEY Windows v0.3.0-alpha.7 — Device Test",
+      "published_at": "2026-09-02T10:32:15Z",
+      "prerelease": true,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-SelfSigned-CodeSigning.cer",
+          "size": 1012,
+          "digest": "sha256:e604dfc4fc5a37bb63b234e1832956bf195e993e558fc09f541420fc6f9b1572",
+          "download_count": 2
+        },
+        {
+          "name": "SIDEY-Windows-x64-v0.3.0-alpha.7-Setup.exe",
+          "size": 78129712,
+          "digest": "sha256:30af0b889ee56ff58934337f01b39275cf5c72a8ea5aa4b37a83eef7b11f9e81",
+          "download_count": 6
+        },
+        {
+          "name": "SIDEY-Windows-x64-v0.3.0-alpha.7-Setup.exe.sha256",
+          "size": 110,
+          "digest": "sha256:6016a3d0f13c6c3dabe32400e35aa3c9e568a5bd5e1d9b2ff7762573323dc9fb",
+          "download_count": 2
+        }
+      ]
+    },
+    {
+      "tag_name": "windows-v1.0.3",
+      "name": "SIDEY Windows v1.0.3",
+      "published_at": "2026-09-02T13:05:08Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-Windows-x64-v1.0.3.msi",
+          "size": 77920077,
+          "digest": "sha256:e787571a955030d9378e18533a05a99e083dd9b0b7415200b05152027272b792",
+          "download_count": 13
+        }
+      ]
+    },
+    {
+      "tag_name": "v1.0.4",
+      "name": "SIDEY v1.0.4",
+      "published_at": "2026-09-02T13:21:34Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.4.dmg",
+          "size": 5368382,
+          "digest": "sha256:b3b7bf7645473afd9c0f48d87421fbcdd27693fece7f5c67a38e439935c9fd93",
+          "download_count": 3
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.4.dmg.sha256",
+          "size": 95,
+          "digest": "sha256:90402ba34427faefc8181cda8d1398217ae6faa337df3d8ebc7f97de5cb46d2d",
+          "download_count": 0
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.4.zip",
+          "size": 5429977,
+          "digest": "sha256:12cb07612a28ab56e2e3edbc8be4a6758ba34272e1f730adbd260976bd75b21b",
+          "download_count": 5
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.4.zip.sha256",
+          "size": 95,
+          "digest": "sha256:d4371c26e8cdb59dfbd59ace4d6cf99a13c15f83c0e391cac672a8b08abc2654",
+          "download_count": 0
+        }
+      ]
+    },
+    {
+      "tag_name": "v1.0.5",
+      "name": "SIDEY v1.0.5",
+      "published_at": "2026-09-03T07:26:36Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.5.dmg",
+          "size": 5434777,
+          "digest": "sha256:425a42785196800a6980980e5e7c94ced18e0b9263da1661003fe891c99b62d5",
+          "download_count": 1
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.5.dmg.sha256",
+          "size": 95,
+          "digest": "sha256:5499476ad80dc3efd3b18b03f2adfd053e500da0bade66aa33807572255a74ac",
+          "download_count": 1
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.5.zip",
+          "size": 5489752,
+          "digest": "sha256:65ed3f674fb4189e451678f4fc6fd8c161cbfa6b2a45b1c27453521d55bd138b",
+          "download_count": 7
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.5.zip.sha256",
+          "size": 95,
+          "digest": "sha256:d4795b659d762163db691ddf1e752a9a1d4684efb1e2831f640b2660d0affdf9",
+          "download_count": 1
+        }
+      ]
+    },
+    {
+      "tag_name": "windows-v1.0.4",
+      "name": "SIDEY Windows v1.0.4",
+      "published_at": "2026-09-03T08:23:28Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-Windows-x64-v1.0.4.msi",
+          "size": 78057484,
+          "digest": "sha256:2132b0dc398a1901adc396939fdd0f6351de329eccda6a708ca3c3b868924310",
+          "download_count": 10
+        }
+      ]
+    },
+    {
+      "tag_name": "windows-v1.0.5",
+      "name": "SIDEY Windows v1.0.5",
+      "published_at": "2026-09-03T09:28:02Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-Windows-x64-v1.0.5.msi",
+          "size": 78045196,
+          "digest": "sha256:74b7911622c8ff70eb9eec3c6b855059a8aa138e5d74ab3413f7a1d2770570cc",
+          "download_count": 13
+        }
+      ]
+    },
+    {
+      "tag_name": "v1.0.6",
+      "name": "SIDEY v1.0.6",
+      "published_at": "2026-09-03T16:44:43Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.6.dmg",
+          "size": 5436786,
+          "digest": "sha256:f37003ba6d514edcbd3cf0a1ebf214e6beb7b0577b9462a4ecc15380844ca705",
+          "download_count": 3
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.6.dmg.sha256",
+          "size": 95,
+          "digest": "sha256:8b81081607a8f05e77bedae7c7593aa6b5dc2c921d10147a06a945a0207760dc",
+          "download_count": 2
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.6.zip",
+          "size": 5492005,
+          "digest": "sha256:7635a30769d74d83f2c23ac5ad1d0d4cd9d649b931b3dc01e1c322b8986b2e5d",
+          "download_count": 6
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.6.zip.sha256",
+          "size": 95,
+          "digest": "sha256:1881304446b34402c046af782ea933a518772a40bb4bfce68cc8bc7343bfb8f0",
+          "download_count": 2
+        }
+      ]
+    },
+    {
+      "tag_name": "windows-v1.0.6",
+      "name": "SIDEY Windows v1.0.6",
+      "published_at": "2026-09-04T02:12:51Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-Windows-x64-v1.0.6-Setup.exe",
+          "size": 64053161,
+          "digest": "sha256:269a9f292fffd9e1a1ee205fe068b82f2a16d798eb4e64bd9025f8157d0fa0fb",
+          "download_count": 30
+        }
+      ]
+    },
+    {
+      "tag_name": "v1.0.7",
+      "name": "SIDEY v1.0.7",
+      "published_at": "2026-09-04T05:29:28Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.7.dmg",
+          "size": 5448186,
+          "digest": "sha256:59e109c56b873c67502e0393b8863cdea215894136375960fd149a112cbf9890",
+          "download_count": 8
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.7.dmg.sha256",
+          "size": 95,
+          "digest": "sha256:f7db280d285d8ccecb356a875fd033b8a6e447a54c5422871f7afae3cb3ea1f1",
+          "download_count": 1
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.7.zip",
+          "size": 5505964,
+          "digest": "sha256:2f10ff9b647c1db2e4d36c504a3a9bc2466909a1c1c2241ec247a8b895e5c80f",
+          "download_count": 5
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.7.zip.sha256",
+          "size": 95,
+          "digest": "sha256:572130ad786455df063998715b1a1f28e8fbb3db69b22f78f55c4c01639fe2fd",
+          "download_count": 0
+        }
+      ]
+    },
+    {
+      "tag_name": "v1.0.8",
+      "name": "SIDEY macOS v1.0.8",
+      "published_at": "2026-09-05T10:38:51Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.8.dmg",
+          "size": 5596934,
+          "digest": "sha256:f268621890a57ceaaf247675e354fa0dcef60ecca567ff65360d49b68100d66b",
+          "download_count": 3
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.8.dmg.sha256",
+          "size": 95,
+          "digest": "sha256:9a493f6ee9fe9b6d3d01c7c02f57f0cb37fec1ae140b471a44fe41eec169ddef",
+          "download_count": 2
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.8.zip",
+          "size": 5652563,
+          "digest": "sha256:b2b6277a5eb18eaf8bc35cd77d889bbbe1337222713f838d1199276e2b9e3e22",
+          "download_count": 4
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.8.zip.sha256",
+          "size": 95,
+          "digest": "sha256:0b8a1884348a31d80c82465a623beff0fd504d0a4401fb612b5b50867511f819",
+          "download_count": 2
+        }
+      ]
+    },
+    {
+      "tag_name": "v1.0.9",
+      "name": "SIDEY macOS v1.0.9",
+      "published_at": "2026-09-05T11:28:52Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.9.dmg",
+          "size": 5619111,
+          "digest": "sha256:3b8a78bf8b22f17a472ba515da22086bafb1912fb98f60872021b22066ca5de9",
+          "download_count": 3
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.9.dmg.sha256",
+          "size": 95,
+          "digest": "sha256:0d2d30e23449fdaddd6ea340c0bb6f3afe0959935552d1b14a12781d479f6266",
+          "download_count": 2
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.9.zip",
+          "size": 5687131,
+          "digest": "sha256:ad9d25ccf6a04a7cbe8f9c61cc6ef44e10cf03b8f48f793c1718bf4c7a4172bf",
+          "download_count": 7
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.9.zip.sha256",
+          "size": 95,
+          "digest": "sha256:cebec5549ceedefe79ce0384293ddb614515e50452189f4c6641f33c4610d3c6",
+          "download_count": 2
+        }
+      ]
+    },
+    {
+      "tag_name": "v1.0.10",
+      "name": "SIDEY macOS v1.0.10",
+      "published_at": "2026-09-05T15:13:16Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.10.dmg",
+          "size": 5664161,
+          "digest": "sha256:0842eec1973871e9a091c15cf303e79c40e17e6cadba7f49f545ee253b8d6111",
+          "download_count": 14
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.10.dmg.sha256",
+          "size": 96,
+          "digest": "sha256:2be515dad567f784a71c6a68a2eba18635c4e072ff27fbcb1f57e39c9796fa63",
+          "download_count": 3
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.10.zip",
+          "size": 5732912,
+          "digest": "sha256:fc6d6f109b4210fd81d98cb0c1fff989e2a15684f26abb8b4969651c92662912",
+          "download_count": 7
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.0.10.zip.sha256",
+          "size": 96,
+          "digest": "sha256:b70e608356fdbac8a39a13d1f3583689036868966c7bbf32bb8df5b76e217bfa",
+          "download_count": 2
+        }
+      ]
+    },
+    {
+      "tag_name": "windows-v1.0.7",
+      "name": "SIDEY Windows v1.0.7",
+      "published_at": "2026-09-06T06:09:49Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-Windows-x64-v1.0.7-Setup.exe",
+          "size": 71721791,
+          "digest": "sha256:9e53272124f0861e232c54c004e40d0c9ecd657f99d97e1fc3ecba0bf3285b45",
+          "download_count": 8
+        }
+      ]
+    },
+    {
+      "tag_name": "windows-v1.0.8",
+      "name": "SIDEY Windows v1.0.8",
+      "published_at": "2026-09-06T07:47:37Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-Windows-x64-v1.0.8-Setup.exe",
+          "size": 71755309,
+          "digest": "sha256:7035ce1a72cf6c7664f99c76953818984ec618e0c9c474bb82d99f528c8ea844",
+          "download_count": 11
+        }
+      ]
+    },
+    {
+      "tag_name": "windows-v1.0.10",
+      "name": "SIDEY Windows v1.0.10",
+      "published_at": "2026-09-07T06:11:45Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-Windows-x64-v1.0.10-Setup.exe",
+          "size": 71769347,
+          "digest": "sha256:0387b26e01b6b9afbcbff3514fcc3b95e1dda2c55e920cc3a6518f00d0927ee8",
+          "download_count": 13
+        }
+      ]
+    },
+    {
+      "tag_name": "windows-v1.1.0",
+      "name": "SIDEY Windows v1.1.0",
+      "published_at": "2026-09-07T11:50:44Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-Windows-x64-v1.1.0-Setup.exe",
+          "size": 71793119,
+          "digest": "sha256:9eba89c49c32626441c09d5ad6bbeb51c966f3f6b84431a09641d7f52a5d89db",
+          "download_count": 9
+        }
+      ]
+    },
+    {
+      "tag_name": "windows-v1.1.1",
+      "name": "SIDEY Windows v1.1.1",
+      "published_at": "2026-09-07T13:32:34Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-Windows-x64-v1.1.1-Setup.exe",
+          "size": 8761943,
+          "digest": "sha256:736212f02212b5543ced191c6184a4fffe617f6333fb6fac1fdd2ef2645f43df",
+          "download_count": 8
+        }
+      ]
+    },
+    {
+      "tag_name": "v1.1.0",
+      "name": "SIDEY macOS v1.1.0",
+      "published_at": "2026-09-10T04:13:01Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-macOS-arm64-v1.1.0.dmg",
+          "size": 5827007,
+          "digest": "sha256:5eebac02920f681f02ef247644aff65debe418865491fb1211cd55352940bade",
+          "download_count": 6
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.1.0.dmg.sha256",
+          "size": 95,
+          "digest": "sha256:2c0e68daecd646fab087178a905229f6481d9ebefa0798b8c3bf4068cb070572",
+          "download_count": 1
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.1.0.zip",
+          "size": 5890648,
+          "digest": "sha256:48bbfb8022a86141ef9ff3fb074d4c9d5ed05974e28b53831ee0697f46f8f013",
+          "download_count": 7
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.1.0.zip.sha256",
+          "size": 95,
+          "digest": "sha256:f133df82e80ac7af4d1b0e2e78eeb54f47b3c5bf39955f40a4624dbb792909be",
+          "download_count": 1
+        }
+      ]
+    },
+    {
+      "tag_name": "windows-v1.2.0",
+      "name": "SIDEY Windows v1.2.0",
+      "published_at": "2026-09-10T13:55:54Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-Windows-x64-v1.2.0-Setup.exe",
+          "size": 8894062,
+          "digest": "sha256:5604cea93266243713b054b7e9a61c95acf6673dbd6b80815beccca42ee77aee",
+          "download_count": 12
+        }
+      ]
+    },
+    {
+      "tag_name": "windows-v1.2.1",
+      "name": "SIDEY Windows v1.2.1",
+      "published_at": "2026-09-11T01:38:16Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-Windows-x64-v1.2.1-Setup.exe",
+          "size": 8932989,
+          "digest": "sha256:883bb61416d0902031f4d4e092cdcd6ecf24083088d1604095659804d80e6d91",
+          "download_count": 32
+        }
+      ]
+    },
+    {
+      "tag_name": "v1.2.0",
+      "name": "SIDEY macOS v1.2.0",
+      "published_at": "2026-09-11T17:22:00Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-macOS-arm64-v1.2.0.dmg",
+          "size": 6078806,
+          "digest": "sha256:cf81b648d9d2d7876f09e70183064d31e3ce495ac0af28019447af88d1a5caab",
+          "download_count": 5
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.2.0.dmg.sha256",
+          "size": 95,
+          "digest": "sha256:dc9fd41df31970f263abb4cba85bdee339247ed491dd03a897d4436e5c0920ac",
+          "download_count": 2
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.2.0.zip",
+          "size": 6130528,
+          "digest": "sha256:01282d450509cf997e920debbecabf9a5b421cce3548712668f80d9310750836",
+          "download_count": 4
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.2.0.zip.sha256",
+          "size": 95,
+          "digest": "sha256:8669492bdb8cf9d9a4017021a1a3c4d34b684b1c0af66e68b5980bf6a6850b88",
+          "download_count": 2
+        }
+      ]
+    },
+    {
+      "tag_name": "v1.2.1",
+      "name": "SIDEY macOS v1.2.1",
+      "published_at": "2026-09-11T20:05:48Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-macOS-arm64-v1.2.1.dmg",
+          "size": 6081264,
+          "digest": "sha256:aba27e2915c61ccd5efa0cad412623409094e189d078bf0790ef1b52e2678e73",
+          "download_count": 446
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.2.1.dmg.sha256",
+          "size": 95,
+          "digest": "sha256:d5234667c88fc4c4a84fe5580f8d61773b1690214d5ca5883104b56a7866d407",
+          "download_count": 1
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.2.1.zip",
+          "size": 6132641,
+          "digest": "sha256:d4ca9bb7ea365031a250cffef770a28f8787aace6f7cb0ba8dd3176cbb1b0b92",
+          "download_count": 6
+        },
+        {
+          "name": "SIDEY-macOS-arm64-v1.2.1.zip.sha256",
+          "size": 95,
+          "digest": "sha256:2a71d7566b11abb26c6786360e29fc88ebd8dedd69c897024502293dfda81b84",
+          "download_count": 2
+        }
+      ]
+    },
+    {
+      "tag_name": "windows-v1.3.0",
+      "name": "SIDEY Windows v1.3.0",
+      "published_at": "2026-09-14T02:39:39Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-Windows-x64-v1.3.0-Setup.exe",
+          "size": 9132664,
+          "digest": "sha256:64d224547769402b4c35a9b2b576b17bdacf8eeafed2fb163a573a724ba64f4b",
+          "download_count": 1682
+        }
+      ]
+    },
+    {
+      "tag_name": "windows-v1.3.1",
+      "name": "SIDEY Windows v1.3.1",
+      "published_at": "2026-09-15T03:15:38Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-Windows-x64-v1.3.1-Setup.exe",
+          "size": 9142128,
+          "digest": "sha256:34e0e6a324438afa936d8e256fffc426510b75e2ec672a423b1d75d5f542d057",
+          "download_count": 5899
+        }
+      ]
+    },
+    {
+      "tag_name": "windows-v2.0.0",
+      "name": "SIDEY Windows v2.0.0",
+      "published_at": "2026-09-20T13:38:34Z",
+      "prerelease": false,
+      "draft": false,
+      "assets": [
+        {
+          "name": "SIDEY-Windows-x64-v2.0.0-Setup.exe",
+          "size": 72773989,
+          "digest": "sha256:233625e7de24c19a4ee28bcfd8940e56eb9033fefb7417b301d6b1ac0a623387",
+          "download_count": 6
+        }
+      ]
+    }
+  ]
+}
+
