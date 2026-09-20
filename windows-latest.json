@@ -1,0 +1,7 @@
+{
+  "channel": "production",
+  "version": "2.0.0",
+  "tag": "windows-v2.0.0",
+  "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v2.0.0/SIDEY-Windows-x64-v2.0.0-Setup.exe",
+  "sha256": "233625e7de24c19a4ee28bcfd8940e56eb9033fefb7417b301d6b1ac0a623387"
+}

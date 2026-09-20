@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <meta name="robots" content="noindex, nofollow">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://cdn.portone.io; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; connect-src https://whtejsviizgejauasqqt.supabase.co https://api.portone.io https://*.portone.io https://checkout-service.prod.iamport.co; frame-src https://*.portone.io https://checkout-service.prod.iamport.co; form-action 'none'; base-uri 'self'">
+    <title>SIDEY 디지털 꾸미기 결제</title>
+    <meta name="theme-color" content="#f7f7ff" data-site-theme-color>
+<script src="/SIDEY/assets/site-theme.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Asta+Sans:wght@300..800&family=M+PLUS+1p:wght@300;400;500;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0,0&icon_names=add,arrow_outward,check,close,content_copy,dark_mode,download,expand_less,expand_more,light_mode&display=block" rel="stylesheet">
+    <link rel="icon" type="image/png" href="../assets/app-icon.png">
+    <script src="https://cdn.portone.io/v2/browser-sdk.js" defer></script><script src="../assets/checkout.js?v=ddbac67c85d8" type="module"></script><link rel="stylesheet" href="/SIDEY/_astro/SiteTheme.BAW-Czub.css"></head>
+  <body class="checkout-body">
+    <a class="skip-link" href="#main">본문으로 건너뛰기</a>
+    <header class="site-header site-header-unified" data-site-header>
+  <nav class="nav-shell" aria-label="주요 메뉴">
+    <a class="brand-link" href="/SIDEY/ko/" aria-label="SIDEY 홈">
+      <img src="/SIDEY/assets/app-icon.png" alt="" width="32" height="32">
+      <span>SIDEY</span>
+    </a>
+    <ul class="nav-links" id="site-navigation-links" data-nav-menu>
+      <li><a href="/SIDEY/ko/#features" data-nav-section="features">기능</a></li>
+      <li><a href="/SIDEY/ko/#download" data-nav-section="download">다운로드</a></li>
+      <li><a href="/SIDEY/ko/#faq" data-nav-section="faq">자주 묻는 질문</a></li>
+      <li class="nav-separator" aria-hidden="true"></li>
+      <li><a href="/SIDEY/ko/whats-new/">새로운 기능</a></li>
+      <li><a href="/SIDEY/ko/store/">상점</a></li>
+      <li><a class="nav-external" href="https://github.com/sidey-app/SIDEY"><span>GitHub</span><span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a></li>
+    </ul>
+    <div class="nav-controls">
+      <span class="nav-controls-separator" aria-hidden="true"></span>
+      <button class="theme-toggle" type="button" aria-label="다크 모드로 전환" data-theme-toggle data-light-label="라이트 모드로 전환" data-dark-label="다크 모드로 전환">
+        <span class="material-symbols-rounded" aria-hidden="true" data-theme-icon>dark_mode</span>
+      </button>
+      <button class="nav-menu-toggle" type="button" aria-expanded="false" aria-controls="site-navigation-links" aria-label="메뉴 열기" data-nav-menu-toggle data-open-label="메뉴 열기" data-close-label="메뉴 닫기">
+        <span aria-hidden="true"></span><span aria-hidden="true"></span>
+      </button>
+    </div>
+  </nav>
+  
+</header>
+
+<script src="/SIDEY/assets/site-header.js" defer></script>
+    <main class="checkout-shell" id="main">
+      <section class="checkout-card" aria-labelledby="checkout-title">
+        <div id="checkout-loading" class="checkout-state" role="status">
+          <span class="checkout-state-icon" aria-hidden="true">✦</span>
+          <h1 id="checkout-title">주문을 확인하고 있어요.</h1>
+          <p>잠시만 기다려주세요.</p>
+        </div>
+
+        <div id="checkout-error" class="checkout-state" role="alert" hidden>
+          <span class="checkout-state-icon checkout-state-warning" aria-hidden="true">!</span>
+          <h1>결제창을 열 수 없어요.</h1>
+          <p id="checkout-error-message">이 창을 닫고 SIDEY 상점에서 다시 시도해주세요.</p>
+        </div>
+
+        <div id="checkout-product" hidden>
+          <p class="section-kicker">SIDEY 꾸미기·상점</p>
+          <div class="checkout-product-row">
+            <div id="checkout-preview-frame" class="checkout-sprite-frame" data-product-kind="character" aria-hidden="true">
+              <img id="checkout-product-image" src="../assets/characters/pixel_starlight_upalupa.png" alt="">
+            </div>
+            <div>
+              <h1 id="checkout-order-name">SIDEY 디지털 꾸미기</h1>
+              <p class="checkout-price"><span id="checkout-amount">0</span>원</p>
+              <p class="checkout-meta">부가세 포함</p>
+            </div>
+          </div>
+          <p class="checkout-policy">
+            <a href="../ko/store/" target="_blank" rel="noopener">상품 안내</a> ·
+            <a href="../ko/terms/" target="_blank" rel="noopener">이용약관</a> ·
+            <a href="../ko/privacy/" target="_blank" rel="noopener">개인정보 처리방침</a> ·
+            <a href="../ko/refund/" target="_blank" rel="noopener">환불 정책</a>
+          </p>
+          <label class="checkout-consent">
+            <input id="checkout-consent" type="checkbox">
+            <span id="checkout-policy-notice">구매 조건과 환불 안내를 확인하고 동의합니다.</span>
+          </label>
+          <button id="checkout-pay" class="button button-primary checkout-pay" type="button" disabled>
+            결제하기
+          </button>
+          <p id="checkout-status" class="checkout-status" role="status"></p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

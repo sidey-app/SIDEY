@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SIDEY</title>
+    <meta name="description" content="SIDEY language selection">
+    <link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/">
+    <link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/">
+    <link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/">
+    <link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/">
+    <script>(function(){const koreanTarget = "/SIDEY/ko/";
+const englishTarget = "/SIDEY/en/";
+const japaneseTarget = "/SIDEY/ja/";
+
+      (() => {
+        const preferredLanguage = navigator.languages?.[0] ?? navigator.language ?? "";
+        const language = preferredLanguage.toLowerCase();
+        const destination = language.startsWith("ko")
+          ? koreanTarget
+          : language.startsWith("ja")
+            ? japaneseTarget
+            : englishTarget;
+        const target = new URL(destination, window.location.origin);
+        target.search = window.location.search;
+        target.hash = window.location.hash;
+        window.location.replace(target.href);
+      })();
+    })();</script></head>
+  <body>
+    <main>
+      <p>
+        <a href="/SIDEY/ko/" lang="ko" hreflang="ko">한국어</a>
+        ·
+        <a href="/SIDEY/en/" lang="en" hreflang="en">English</a>
+        ·
+        <a href="/SIDEY/ja/" lang="ja" hreflang="ja">日本語</a>
+      </p>
+    </main>
+  </body>
+</html>
