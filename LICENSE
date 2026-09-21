@@ -3,13 +3,14 @@ SIDEY PUBLIC DISTRIBUTION NOTICE
 Copyright (c) 2026 the respective SIDEY copyright holders. All rights reserved.
 
 This public repository distributes the SIDEY website, policy documents,
-release metadata, and released binaries. It does not provide or license the
-current SIDEY application or website source code.
+release metadata, and released binaries. The current SIDEY application and
+website source code are private proprietary software and are not provided
+or licensed by this repository.
 
-Historical source archives included with particular releases remain governed
-by the license contained in each archive, including GNU Affero General Public
-License version 3 only (AGPL-3.0-only) where stated. This notice does not
-withdraw or restrict rights already granted for those historical revisions.
+Public access to the website, policy documents, release metadata, or
+installers does not grant permission to use, copy, modify, or distribute
+the current source code.
 
-Third-party software, non-code assets, branding, and released binaries may be
-subject to separate terms. See LICENSING.md for the detailed boundaries.
+Third-party software, the SIDEY name and logo, characters, customization
+assets, other non-code materials, and released binaries may be subject to
+separate licenses and terms.

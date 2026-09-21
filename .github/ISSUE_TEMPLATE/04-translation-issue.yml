@@ -1,0 +1,60 @@
+name: 🌐 Localization/Translation Issue
+description: Report an incorrect, unclear, or unnatural translation
+labels:
+  - bug
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before opening a new issue, please [search existing issues](https://github.com/sidey-app/SIDEY/issues) to see if the same translation problem has already been reported.
+        If it has, add a 👍 reaction to the existing issue instead. No comment is needed.
+
+  - type: input
+    id: version
+    attributes:
+      label: 🏷️ What version of SIDEY are you using?
+      description: |
+        You can find the app version here:
+
+        **macOS**
+
+        Select `SIDEY.app` in Finder and press `⌘I`, or right-click it and choose **Get Info**.
+
+        **Windows**
+
+        In SIDEY, go to `Settings → About → Updates`.
+      placeholder: Enter the app version
+    validations:
+      required: true
+
+  - type: input
+    id: language
+    attributes:
+      label: 🌐 Affected language
+      placeholder: English
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: ❌ Actual phrase(s)
+      description: What does SIDEY currently show? A screenshot is especially helpful.
+      placeholder: Enter the current phrase(s)
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: ✅ Expected phrase(s)
+      description: What should it say instead?
+      placeholder: Enter the expected phrase(s)
+
+  - type: textarea
+    id: reason
+    attributes:
+      label: ℹ️ What's wrong with the current translation?
+      description: Explain what makes the current translation incorrect, unclear, or unnatural.
+      placeholder: Explain the problem with the current translation

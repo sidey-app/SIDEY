@@ -1,8 +1,1 @@
 blank_issues_enabled: false
-contact_links:
-  - name: SIDEY 공식 웹사이트
-    url: https://sidey-app.github.io/SIDEY/
-    about: 설치, 정책과 최신 제품 정보를 확인합니다.
-  - name: 보안 및 개인정보 문제
-    url: https://github.com/sidey-app/SIDEY/security/policy
-    about: 공개하면 안 되는 보안·개인정보 문제를 비공개로 신고합니다.
