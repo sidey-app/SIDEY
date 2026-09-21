@@ -1,0 +1,23 @@
+name: 🎁 기능 및 개선 제안
+description: Propose a new feature
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        새 이슈를 등록하기 전에, 이미 비슷한 기능 제안이 보고되었는지 기존 이슈를 먼저 검색해 주세요.
+        이미 등록된 이슈가 있다면, 새로 이슈를 만드는 대신 기존 이슈에 👍 리액션을 남겨주세요. (댓글은 작성하지 않으셔도 돼요!)
+
+  - type: textarea
+    id: feature
+    attributes:
+      label: 어떤 기능이 추가되거나 개선되면 좋을까요?
+      description: 추가하면 좋을 기능이나 개선 방안에 대해서 간단하고 명료하게 알려주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: 참고 사항
+      description: 문제와 관련해 다른 사항이 있다면 알려주세요.

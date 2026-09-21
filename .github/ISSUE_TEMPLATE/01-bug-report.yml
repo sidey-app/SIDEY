@@ -1,64 +1,112 @@
-name: 버그 신고
-description: 재현 가능한 SIDEY 제품 문제를 알려 주세요.
-title: "[Bug] "
+name: 🪲 버그 리포트
+description: Report an issue
 labels:
   - bug
+
 body:
   - type: markdown
     attributes:
       value: |
-        기능 제안과 소스 기여는 받지 않습니다. 보안·개인정보 문제는 공개 Issue 대신 SECURITY.md의 비공개 연락처를 사용해 주세요.
-  - type: dropdown
+        새 이슈를 등록하기 전에 이미 동일한 문제가 보고되었는지 기존 이슈를 먼저 검색해 주세요.
+        이미 등록된 이슈가 있다면 새로 이슈를 만드는 대신 기존 이슈에 👍 리액션을 남겨주세요. (댓글은 작성하지 않으셔도 돼요!)
+
+  - type: input
     id: platform
     attributes:
-      label: 플랫폼
-      options:
-        - macOS
-        - Windows
+      label: 컴퓨터의 운영체제는 무엇인가요?
+      description: |
+        아래 명령어를 실행한 후 출력된 결과를 그대로 복사해 붙여넣어 주세요.
+
+        **macOS (ZShell)**
+
+        ```shell
+        uname -mprs
+        ```
+
+        **Windows (PowerShell)**
+
+        ```powershell
+        "$(
+          [Environment]::OSVersion.VersionString
+        ) $(
+          if ([Environment]::Is64BitOperatingSystem) {
+            'x64'
+          } else {
+            'x86'
+          }
+        )"
+        ```
+      placeholder: 명령어를 실행한 후 출력된 운영체제 정보를 그대로 복사해 붙여넣어 주세요.
     validations:
       required: true
+
   - type: input
-    id: sidey-version
+    id: version
     attributes:
-      label: SIDEY 버전
-      placeholder: "예: 1.2.1 또는 2.0.0"
+      label: 사용 중인 애플리케이션 버전이 무엇인가요?
+      description: |
+        애플리케이션 버전은 다음 방법으로 확인해 주세요.
+
+        **macOS**
+
+        Finder에서 SIDEY.app을 우클릭한 후 `⌘I`(정보 가져오기)를 선택해 주세요.
+
+        **Windows**
+
+        `설정 → 정보 → 업데이트`에서 확인해 주세요.
+      placeholder: 확인한 애플리케이션 버전을 넣어주세요.
     validations:
       required: true
-  - type: input
-    id: os-version
-    attributes:
-      label: 운영체제 버전
-      placeholder: "예: macOS 26.0 또는 Windows 11 24H2"
-    validations:
-      required: true
-  - type: textarea
-    id: steps
-    attributes:
-      label: 재현 방법
-      description: 문제를 반복해서 확인할 수 있도록 순서대로 적어 주세요.
-    validations:
-      required: true
-  - type: textarea
-    id: expected
-    attributes:
-      label: 예상한 동작
-    validations:
-      required: true
+
   - type: textarea
     id: actual
     attributes:
-      label: 실제 동작
+      label: 어떤 문제가 발생하고 있나요?
+      description: |
+        알기 쉽고 간결하게 발생하는 버그에 대한 내용을 알려주세요. 로그와 동영상이나 스크린샷을 첨부해 주시면 더욱 도움이 됩니다.
+
+        **macOS (ZShell)**
+
+        터미널에서 다음 명령어를 실행해 주세요.
+
+        ```shell
+        log show --last 30m \
+          --style compact \
+          --predicate 'subsystem == "app.sidey.desktop"' \
+          > ~/Desktop/SIDEY-Diagnostics-$(date +%Y%m%d-%H%M%S).log
+        ```
+
+        바탕화면에 `SIDEY-Diagnostics-20260924-001500.log`와 같은 최근 30분 동안의 로그를 담은 파일이 생성돼요.
+
+        **Windows**
+
+        `설정 → 정보 → 진단 정보 내보내기`를 선택해 주세요.
+
+        바탕화면에 진단 로그 파일 모음이 생성돼요.
+      placeholder: 알기 쉽고 간결하게 발생하는 버그에 대한 내용을 알려주세요. 로그와 동영상이나 스크린샷을 첨부해 주시면 더욱 도움이 됩니다.
     validations:
       required: true
+
   - type: textarea
-    id: additional-context
+    id: steps
     attributes:
-      label: 추가 정보
-      description: 개인정보와 비밀정보를 제거한 로그나 화면만 첨부해 주세요.
-  - type: checkboxes
-    id: privacy
+      label: 버그를 어떻게 재현할 수 있나요?
+      description: 구체적으로 해당 증상을 재현하는 방법을 단계별로 최대한 상세하게 알려주세요.
+      placeholder: |
+        구체적으로 해당 증상을 재현하는 방법을 단계별로 최대한 상세하게 알려주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
     attributes:
-      label: 공개 정보 확인
-      options:
-        - label: 접근 토큰, 초대 코드, 메시지 내용과 개인정보를 제거했습니다.
-          required: true
+      label: 원래 예상했던 동작은 무엇인가요?
+      description: 버그가 발생하지 않았다면, 원래 어떻게 동작해야 하는지 간단하고 명확하게 알려주세요.
+      placeholder: |
+        버그가 발생하지 않았다면, 원래 어떻게 동작해야 하는지 간단하고 명확하게 알려주세요.
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: 참고 사항
+      description: 문제와 관련해 다른 사항이 있다면 알려주세요.
