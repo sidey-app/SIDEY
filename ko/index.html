@@ -15,12 +15,13 @@
     <link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/">
     <link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/">
     <link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/">
+    <link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/">
     <link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/">
     <link rel="icon" type="image/png" href="/SIDEY/assets/app-icon.png">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="SIDEY">
     <meta property="og:locale" content="ko_KR">
-    <meta property="og:locale:alternate" content="en_US"><meta property="og:locale:alternate" content="ja_JP">
+    <meta property="og:locale:alternate" content="en_US"><meta property="og:locale:alternate" content="ja_JP"><meta property="og:locale:alternate" content="zh_TW">
     <meta property="og:url" content="https://sidey-app.github.io/SIDEY/ko/">
     <meta property="og:title" content="SIDEY — 친구가 화면 한쪽에 총총.">
     <meta property="og:description" content="가까운 친구의 지금과 짧은 메시지를 작은 픽셀 동물로 만나는 데스크톱 메신저.">
@@ -49,6 +50,7 @@
       <li class="nav-separator" aria-hidden="true"></li>
       <li><a href="/SIDEY/ko/whats-new/">새로운 기능</a></li>
       <li><a href="/SIDEY/ko/store/">상점</a></li>
+      <li><a href="/SIDEY/ko/support/">지원</a></li>
       <li><a class="nav-external" href="https://github.com/sidey-app/SIDEY"><span>GitHub</span><span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a></li>
     </ul>
     <div class="nav-controls">
@@ -74,7 +76,7 @@
     <p>친구들이 조그만 픽셀 캐릭터가 되어 화면 가장자리를 돌아다녀요. 일하다 슬쩍 보고, 생각나면 짧게 한마디 건네 보세요.</p>
     <div class="hero-actions" aria-label="다운로드 선택">
       <div class="download-selector" data-download-selector>
-        <a class="button download-button download-button-simple primary-download-action" id="primary-download-action" href="https://apps.apple.com/kr/app/sidey/id6808528060?mt=12" data-auto-download data-macos-url="https://apps.apple.com/kr/app/sidey/id6808528060?mt=12" data-windows-url="https://github.com/sidey-app/SIDEY/releases/download/windows-v2.0.0/SIDEY-Windows-x64-v2.0.0-Setup.exe" data-macos-label="App Store 다운로드" data-windows-label="Windows 다운로드" data-choose-label="운영체제 선택" aria-describedby="hero-download-license">
+        <a class="button download-button download-button-simple primary-download-action" id="primary-download-action" href="https://apps.apple.com/kr/app/sidey/id6808528060?mt=12" data-app-store-link data-auto-download data-macos-url="https://apps.apple.com/kr/app/sidey/id6808528060?mt=12" data-windows-url="https://github.com/sidey-app/SIDEY/releases/download/windows-v2.0.0/SIDEY-Windows-x64-v2.0.0-Setup.exe" data-macos-label="App Store 다운로드" data-windows-label="Windows 다운로드" data-choose-label="운영체제 선택" aria-describedby="hero-download-license">
           <img class="download-platform-logo download-platform-logo-macos" data-download-logo src="/SIDEY/assets/platforms/macos-light.svg" data-macos-logo="/SIDEY/assets/platforms/macos-light.svg" data-windows-logo="/SIDEY/assets/platforms/windows-light.svg" alt="" width="18" height="18">
           <span class="download-button-label" data-download-label>App Store 다운로드</span>
         </a>
@@ -85,11 +87,12 @@
           </span>
         </button>
         <div class="download-platform-menu" id="hero-platform-menu" data-download-menu hidden aria-label="운영체제 직접 선택">
-          <a href="https://apps.apple.com/kr/app/sidey/id6808528060?mt=12"><img class="download-platform-logo download-platform-logo-macos" src="/SIDEY/assets/platforms/macos-light.svg" alt="" width="18" height="18"><span>App Store 다운로드</span></a>
+          <a href="https://apps.apple.com/kr/app/sidey/id6808528060?mt=12" data-app-store-link><img class="download-platform-logo download-platform-logo-macos" src="/SIDEY/assets/platforms/macos-light.svg" alt="" width="18" height="18"><span>App Store 다운로드</span></a>
           <a href="https://github.com/sidey-app/SIDEY/releases/download/windows-v2.0.0/SIDEY-Windows-x64-v2.0.0-Setup.exe"><img class="download-platform-logo download-platform-logo-windows" src="/SIDEY/assets/platforms/windows-light.svg" alt="" width="18" height="18"><span>Windows 다운로드</span></a>
         </div>
         <span class="download-license-tooltip" id="hero-download-license" role="note">
   SIDEY 공식 서비스를 이용하면 <a href="/SIDEY/ko/terms/">이용약관</a> 및 <a href="/SIDEY/ko/privacy/">개인정보 처리방침</a>에 동의하게 됩니다.
+  
   
   
 </span>
@@ -205,13 +208,14 @@
     <article class="download-card">
       <span class="platform-label"><img class="platform-logo platform-logo-macos" src="/SIDEY/assets/platforms/macos-dark.svg" alt="" width="16" height="16">macOS</span><h3>SIDEY</h3>
       <div class="download-actions"><span class="download-license-wrap">
-  <a class="button button-primary download-button" id="macos-download-action" href="https://apps.apple.com/kr/app/sidey/id6808528060?mt=12" aria-describedby="macos-download-action-license">
+  <a class="button button-primary download-button" id="macos-download-action" href="https://apps.apple.com/kr/app/sidey/id6808528060?mt=12" data-app-store-link="true" aria-describedby="macos-download-action-license">
       <img class="download-platform-logo download-platform-logo-macos" src="/SIDEY/assets/platforms/macos-light.svg" alt="" width="18" height="18">
       <span class="download-button-label">Mac App Store</span>
       <span class="download-button-circle" aria-hidden="true"><span class="material-symbols-rounded">download</span></span>
     </a>
   <span class="download-license-tooltip" id="macos-download-action-license" role="note">
   SIDEY 공식 서비스를 이용하면 <a href="/SIDEY/ko/terms/">이용약관</a> 및 <a href="/SIDEY/ko/privacy/">개인정보 처리방침</a>에 동의하게 됩니다.
+  
   
   
 </span>
@@ -230,9 +234,10 @@
   SIDEY 공식 서비스를 이용하면 <a href="/SIDEY/ko/terms/">이용약관</a> 및 <a href="/SIDEY/ko/privacy/">개인정보 처리방침</a>에 동의하게 됩니다.
   
   
+  
 </span>
 </span><a class="button button-text" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v2.0.0">릴리스 정보<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a></div>
-      <p class="system-note" id="windows-card-status">Windows 11 25H2 이상 · x64</p>
+      <p class="system-note" id="windows-card-status">Windows 10 1809(build 17763) 이상 · x64</p>
       <div class="download-checksum">
   <span>SHA-256</span>
   <div class="checksum-value">
@@ -258,7 +263,7 @@
         <div class="faq-answer"><div class="faq-answer-inner"><p>가까운 친구들이 작은 픽셀 캐릭터가 되어 화면 가장자리에 머무는 초대 전용 데스크톱 메신저예요. 한 그룹에는 최대 12명까지 함께할 수 있어요.</p></div></div>
       </details><details class="faq-item">
         <summary><span>어떤 컴퓨터에서 사용할 수 있나요?</span><span class="material-symbols-rounded" aria-hidden="true">add</span></summary>
-        <div class="faq-answer"><div class="faq-answer-inner"><p>Apple Silicon을 탑재한 macOS 26 이상과 x64 기반 Windows 11 25H2 이상을 지원해요. Intel Mac은 현재 지원하지 않아요.</p></div></div>
+        <div class="faq-answer"><div class="faq-answer-inner"><p>Apple Silicon을 탑재한 macOS 26 이상과 x64 기반 Windows 10 1809(build 17763) 이상을 지원해요. Intel Mac은 현재 지원하지 않아요.</p></div></div>
       </details><details class="faq-item">
         <summary><span>친구는 어떻게 초대하나요?</span><span class="material-symbols-rounded" aria-hidden="true">add</span></summary>
         <div class="faq-answer"><div class="faq-answer-inner"><p>비공개 그룹을 만들고 초대 코드를 친구에게 보내면 돼요. 한 그룹에는 최대 12명, 한 사람은 최대 5개 그룹에 참여할 수 있어요.</p></div></div>
@@ -276,16 +281,25 @@
 </section>
   </main>
   <footer class="site-footer">
-  
-      <div class="footer-commerce-policy" aria-label="배송 및 교환·환불 안내">
-        <p><strong>배송일자</strong><span>디지털 상품으로 결제 완료 즉시 사용 가능</span></p>
-        <p><strong>교환·환불</strong><span>결제 확인과 동시에 사용권 제공이 시작되어 단순 변심에 따른 환불은 불가합니다. 다만 미제공·계약 불일치·중복 또는 무단 결제 등 관련 법령상 사유가 확인되면 전액 환불합니다. <a href="/SIDEY/ko/refund/">자세한 규정</a></span></p>
-      </div>
-      <dl class="footer-details footer-details-business">
-        <div><dt>상호명</dt><dd>싸이디(SIDEY)</dd></div><div><dt>사업자등록번호</dt><dd>388-53-01259</dd></div><div><dt>연락처</dt><dd><a href="tel:+821092702973">010-9270-2973</a> · <a href="mailto:ryu200112@gmail.com">ryu200112@gmail.com</a></dd></div><div><dt>사업장 주소</dt><dd>경기도 용인시 기흥구 서천동로21번길 20-6</dd></div><div><dt>대표자명</dt><dd>류태현</dd></div><div><dt>통신판매업 신고번호</dt><dd>신고 면제(간이과세자)</dd></div>
-      </dl>
-      <div class="footer-row"><div class="footer-brand"><img src="/SIDEY/assets/app-icon.png" alt="" width="36" height="36"><strong>SIDEY</strong></div><div class="footer-links"><a href="/SIDEY/ko/terms/">이용약관</a><a href="/SIDEY/ko/privacy/">개인정보 처리방침</a><a href="/SIDEY/ko/refund/">청약철회 및 환불 정책</a></div></div>
-    
+  <div class="footer-commerce-policy" aria-label="배송 및 교환·환불 안내">
+    <p><strong>배송일자</strong><span>디지털 상품으로 결제 완료 즉시 사용 가능</span></p>
+    <p><strong>교환·환불</strong><span>결제 확인과 동시에 사용권 제공이 시작되어 단순 변심에 따른 환불은 불가합니다. 다만 미제공·계약 불일치·중복 또는 무단 결제 등 관련 법령상 사유가 확인되면 전액 환불합니다. <a href="/SIDEY/ko/refund/">자세한 규정</a></span></p>
+  </div>
+  <dl class="footer-details footer-details-business">
+    <div><dt>상호명</dt><dd><span lang="ko">싸이디</span>(SIDEY)</dd></div>
+    <div><dt>사업자등록번호</dt><dd>388-53-01259</dd></div>
+    <div><dt>연락처</dt><dd><a href="tel:+821092702973">010-9270-2973</a> · <a href="mailto:ryu200112@gmail.com">ryu200112@gmail.com</a></dd></div>
+    <div><dt>사업장 주소</dt><dd>경기도 용인시 기흥구 서천동로21번길 20-6</dd></div>
+    <div><dt>대표자명</dt><dd><span lang="ko">류태현</span></dd></div>
+    <div><dt>통신판매업 신고번호</dt><dd>신고 면제(간이과세자)</dd></div>
+  </dl>
+  <div class="footer-row">
+    <div class="footer-brand"><img src="/SIDEY/assets/app-icon.png" alt="" width="36" height="36"><strong>SIDEY</strong></div>
+    <div class="footer-links">
+      <a href="/SIDEY/ko/terms/">이용약관</a><a href="/SIDEY/ko/privacy/">개인정보 처리방침</a><a href="/SIDEY/ko/refund/">청약철회 및 환불 정책</a><a href="/SIDEY/ko/support/">지원</a>
+      
+    </div>
+  </div>
 </footer>
 
   </body>

@@ -15,12 +15,13 @@
     <link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/">
     <link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/">
     <link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/">
+    <link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/">
     <link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/">
     <link rel="icon" type="image/png" href="/SIDEY/assets/app-icon.png">
     <meta property="og:type" content="website">
     <meta property="og:site_name" content="SIDEY">
     <meta property="og:locale" content="ja_JP">
-    <meta property="og:locale:alternate" content="ko_KR"><meta property="og:locale:alternate" content="en_US">
+    <meta property="og:locale:alternate" content="ko_KR"><meta property="og:locale:alternate" content="en_US"><meta property="og:locale:alternate" content="zh_TW">
     <meta property="og:url" content="https://sidey-app.github.io/SIDEY/ja/">
     <meta property="og:title" content="SIDEY — 画面の端を歩く、小さな友だち。">
     <meta property="og:description" content="仲のいい友だちの今と短いメッセージを、小さなピクセルキャラクターで感じられます。">
@@ -33,7 +34,7 @@
     <meta name="twitter:description" content="仲のいい友だちの今と短いメッセージを、小さなピクセルキャラクターで感じられます。">
     <meta name="twitter:image" content="https://sidey-app.github.io/SIDEY/assets/og.png">
     <meta name="twitter:image:alt" content="5匹のピクセルキャラクターが画面の端に並ぶSIDEYのソーシャルカード">
-    <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"SIDEY","applicationCategory":"CommunicationApplication","operatingSystem":"macOS 26 or later","inLanguage":"ja","url":"https://sidey-app.github.io/SIDEY/ja/","downloadUrl":"https://apps.apple.com/kr/app/sidey/id6808528060?mt=12","description":"仲のいい友だちの様子や短いメッセージを、小さなピクセルキャラクターで届けるデスクトップメッセンジャー、SIDEY。"}</script><script src="/SIDEY/assets/script.js" defer></script><link rel="stylesheet" href="/SIDEY/_astro/SiteTheme.BAW-Czub.css"></head>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"SIDEY","applicationCategory":"CommunicationApplication","operatingSystem":"macOS 26 or later","inLanguage":"ja","url":"https://sidey-app.github.io/SIDEY/ja/","downloadUrl":"https://apps.apple.com/jp/app/sidey/id6808528060?mt=12","description":"仲のいい友だちの様子や短いメッセージを、小さなピクセルキャラクターで届けるデスクトップメッセンジャー、SIDEY。"}</script><script src="/SIDEY/assets/script.js" defer></script><link rel="stylesheet" href="/SIDEY/_astro/SiteTheme.BAW-Czub.css"></head>
   <body class="landing-page route-content-enter">
     <a class="skip-link" href="#main">本文へスキップ</a>
     <header class="site-header site-header-unified" data-site-header>
@@ -49,6 +50,7 @@
       <li class="nav-separator" aria-hidden="true"></li>
       <li><a href="/SIDEY/ja/whats-new/">新機能</a></li>
       <li><a href="/SIDEY/ja/store/">ストア</a></li>
+      <li><a href="/SIDEY/ja/support/">サポート</a></li>
       <li><a class="nav-external" href="https://github.com/sidey-app/SIDEY"><span>GitHub</span><span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a></li>
     </ul>
     <div class="nav-controls">
@@ -83,7 +85,7 @@
     <p>友だちが小さなピクセルキャラクターになって、画面の端を歩き回ります。作業の合間にちらっと眺めたり、思い立ったときに短いひと言を送ったり。</p>
     <div class="hero-actions" aria-label="ダウンロードを選択">
       <div class="download-selector" data-download-selector>
-        <a class="button download-button download-button-simple primary-download-action" id="primary-download-action" href="https://apps.apple.com/kr/app/sidey/id6808528060?mt=12" data-auto-download data-macos-url="https://apps.apple.com/kr/app/sidey/id6808528060?mt=12" data-windows-url="https://github.com/sidey-app/SIDEY/releases/download/windows-v2.0.0/SIDEY-Windows-x64-v2.0.0-Setup.exe" data-macos-label="App Storeでダウンロード" data-windows-label="Windows版をダウンロード" data-choose-label="OSを選択" aria-describedby="hero-download-license">
+        <a class="button download-button download-button-simple primary-download-action" id="primary-download-action" href="https://apps.apple.com/jp/app/sidey/id6808528060?mt=12" data-app-store-link data-auto-download data-macos-url="https://apps.apple.com/jp/app/sidey/id6808528060?mt=12" data-windows-url="https://github.com/sidey-app/SIDEY/releases/download/windows-v2.0.0/SIDEY-Windows-x64-v2.0.0-Setup.exe" data-macos-label="App Storeでダウンロード" data-windows-label="Windows版をダウンロード" data-choose-label="OSを選択" aria-describedby="hero-download-license">
           <img class="download-platform-logo download-platform-logo-macos" data-download-logo src="/SIDEY/assets/platforms/macos-light.svg" data-macos-logo="/SIDEY/assets/platforms/macos-light.svg" data-windows-logo="/SIDEY/assets/platforms/windows-light.svg" alt="" width="18" height="18">
           <span class="download-button-label" data-download-label>App Storeでダウンロード</span>
         </a>
@@ -94,13 +96,14 @@
           </span>
         </button>
         <div class="download-platform-menu" id="hero-platform-menu" data-download-menu hidden aria-label="OSを選択してください">
-          <a href="https://apps.apple.com/kr/app/sidey/id6808528060?mt=12"><img class="download-platform-logo download-platform-logo-macos" src="/SIDEY/assets/platforms/macos-light.svg" alt="" width="18" height="18"><span>App Storeでダウンロード</span></a>
+          <a href="https://apps.apple.com/jp/app/sidey/id6808528060?mt=12" data-app-store-link><img class="download-platform-logo download-platform-logo-macos" src="/SIDEY/assets/platforms/macos-light.svg" alt="" width="18" height="18"><span>App Storeでダウンロード</span></a>
           <a href="https://github.com/sidey-app/SIDEY/releases/download/windows-v2.0.0/SIDEY-Windows-x64-v2.0.0-Setup.exe"><img class="download-platform-logo download-platform-logo-windows" src="/SIDEY/assets/platforms/windows-light.svg" alt="" width="18" height="18"><span>Windows版をダウンロード</span></a>
         </div>
         <span class="download-license-tooltip" id="hero-download-license" role="note">
   
   
   SIDEYの公式サービスを利用すると、<a href="/SIDEY/ja/terms/">利用規約</a>および<a href="/SIDEY/ja/privacy/">プライバシーポリシー</a>に同意したものとみなされます。
+  
 </span>
       </div>
     </div>
@@ -253,7 +256,7 @@
     <article class="download-card">
       <span class="platform-label"><img class="platform-logo platform-logo-macos" src="/SIDEY/assets/platforms/macos-dark.svg" alt="" width="16" height="16">macOS</span><h3>SIDEY</h3>
       <div class="download-actions"><span class="download-license-wrap">
-  <a class="button button-primary download-button" id="macos-download-action" href="https://apps.apple.com/kr/app/sidey/id6808528060?mt=12" aria-describedby="macos-download-action-license">
+  <a class="button button-primary download-button" id="macos-download-action" href="https://apps.apple.com/jp/app/sidey/id6808528060?mt=12" data-app-store-link="true" aria-describedby="macos-download-action-license">
       <img class="download-platform-logo download-platform-logo-macos" src="/SIDEY/assets/platforms/macos-light.svg" alt="" width="18" height="18">
       <span class="download-button-label">Mac App Store</span>
       <span class="download-button-circle" aria-hidden="true"><span class="material-symbols-rounded">download</span></span>
@@ -262,6 +265,7 @@
   
   
   SIDEYの公式サービスを利用すると、<a href="/SIDEY/ja/terms/">利用規約</a>および<a href="/SIDEY/ja/privacy/">プライバシーポリシー</a>に同意したものとみなされます。
+  
 </span>
 </span></div>
       <p class="system-note">macOS 26以降 · Appleシリコン（arm64）</p>
@@ -278,9 +282,10 @@
   
   
   SIDEYの公式サービスを利用すると、<a href="/SIDEY/ja/terms/">利用規約</a>および<a href="/SIDEY/ja/privacy/">プライバシーポリシー</a>に同意したものとみなされます。
+  
 </span>
 </span><a class="button button-text" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v2.0.0">リリースノート<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a></div>
-      <p class="system-note" id="windows-card-status">Windows 11 25H2以降 · x64</p>
+      <p class="system-note" id="windows-card-status">Windows 10 1809（ビルド17763）以降 · x64</p>
       <div class="download-checksum">
   <span>SHA-256</span>
   <div class="checksum-value">
@@ -306,7 +311,7 @@
         <div class="faq-answer"><div class="faq-answer-inner"><p>仲のいい友だちが小さなピクセルキャラクターになって画面の端にいる、招待制のデスクトップメッセンジャーです。1つのグループには最大12人まで参加できます。</p></div></div>
       </details><details class="faq-item">
         <summary><span>どのパソコンで使えますか？</span><span class="material-symbols-rounded" aria-hidden="true">add</span></summary>
-        <div class="faq-answer"><div class="faq-answer-inner"><p>Appleシリコン搭載のmacOS 26以降と、x64版Windows 11 25H2以降に対応しています。Intel Macには現在対応していません。</p></div></div>
+        <div class="faq-answer"><div class="faq-answer-inner"><p>Appleシリコン搭載のmacOS 26以降と、x64版Windows 10 1809（ビルド17763）以降に対応しています。Intel Macには現在対応していません。</p></div></div>
       </details><details class="faq-item">
         <summary><span>友だちを招待するには？</span><span class="material-symbols-rounded" aria-hidden="true">add</span></summary>
         <div class="faq-answer"><div class="faq-answer-inner"><p>非公開グループを作り、招待コードを友だちに直接送ります。1グループは最大12人、1人につき最大5グループまで参加できます。</p></div></div>
@@ -324,7 +329,25 @@
 </section>
   </main>
   <footer class="site-footer">
-  <div class="footer-row"><div class="footer-brand"><img src="/SIDEY/assets/app-icon.png" alt="" width="38" height="38"><strong>SIDEY</strong></div><div class="footer-links"><a href="/SIDEY/ja/terms/">利用規約</a><a href="/SIDEY/ja/privacy/">プライバシーポリシー</a><a href="/SIDEY/ja/refund/">キャンセル・返金ポリシー</a><a href="/SIDEY/ko/" lang="ko" hreflang="ko">한국어</a></div></div>
+  <div class="footer-commerce-policy" aria-label="提供時期およびキャンセル・返金のご案内">
+    <p><strong>提供時期</strong><span>デジタル商品は決済完了後、すぐに利用できます。</span></p>
+    <p><strong>キャンセル・返金</strong><span>決済確認と同時にデジタル利用権の提供が始まるため、自己都合による返金はできません。ただし、未提供、契約内容との不一致、重複決済または未承認決済など、法令上認められる理由が確認された場合は全額返金します。 <a href="/SIDEY/ja/refund/">詳しい規定</a></span></p>
+  </div>
+  <dl class="footer-details footer-details-business">
+    <div><dt>商号</dt><dd><span lang="ko">싸이디</span>(SIDEY)</dd></div>
+    <div><dt>韓国事業者登録番号</dt><dd>388-53-01259</dd></div>
+    <div><dt>連絡先</dt><dd><a href="tel:+821092702973">010-9270-2973</a> · <a href="mailto:ryu200112@gmail.com">ryu200112@gmail.com</a></dd></div>
+    <div><dt>事業所所在地</dt><dd>大韓民国 京畿道 龍仁市 器興区 西川洞路21番ギル 20-6</dd></div>
+    <div><dt>代表者</dt><dd><span lang="ko">류태현</span></dd></div>
+    <div><dt>通信販売業届出番号</dt><dd>届出免除（簡易課税者）</dd></div>
+  </dl>
+  <div class="footer-row">
+    <div class="footer-brand"><img src="/SIDEY/assets/app-icon.png" alt="" width="36" height="36"><strong>SIDEY</strong></div>
+    <div class="footer-links">
+      <a href="/SIDEY/ja/terms/">利用規約</a><a href="/SIDEY/ja/privacy/">プライバシーポリシー</a><a href="/SIDEY/ja/refund/">キャンセル・返金ポリシー</a><a href="/SIDEY/ja/support/">サポート</a>
+      <a href="/SIDEY/ko/" lang="ko" hreflang="ko">한국어</a>
+    </div>
+  </div>
 </footer>
 
   </body>

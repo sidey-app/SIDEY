@@ -12,7 +12,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Asta+Sans:wght@300..800&family=M+PLUS+1p:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0,0&icon_names=add,arrow_outward,check,close,content_copy,dark_mode,download,expand_less,expand_more,light_mode&display=block" rel="stylesheet">
     <link rel="canonical" href="https://sidey-app.github.io/SIDEY/en/whats-new/windows/">
-    <link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/whats-new/windows/"><link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/whats-new/windows/"><link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/whats-new/windows/">
+    <link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/whats-new/windows/"><link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/whats-new/windows/"><link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/whats-new/windows/"><link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/whats-new/windows/">
     <link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/whats-new/windows/">
     <link rel="icon" type="image/png" href="/SIDEY/assets/app-icon.png">
   <link rel="stylesheet" href="/SIDEY/_astro/SiteTheme.BAW-Czub.css"></head>
@@ -31,6 +31,7 @@
       <li class="nav-separator" aria-hidden="true"></li>
       <li><a href="/SIDEY/en/whats-new/" aria-current="page">What&#39;s New</a></li>
       <li><a href="/SIDEY/en/store/">Store</a></li>
+      <li><a href="/SIDEY/en/support/">Support</a></li>
       <li><a class="nav-external" href="https://github.com/sidey-app/SIDEY"><span>GitHub</span><span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a></li>
     </ul>
     <div class="nav-controls">
@@ -65,18 +66,9 @@
           </div>
           <span class="update-toggle-label"><span class="when-closed">Show changes</span><span class="when-open">Hide changes</span><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></span>
         </summary>
-        <div class="update-answer"><div class="update-copy" lang="ko">
-          <p>Google 계정 연결과 계정 관리 흐름을 정리하고, 채팅·단축키·오버레이 사용성을 크게 개선했습니다.</p>
-          <section class="release-section">
-              <h3>변경사항</h3>
-              <p>전체 변경 내역: https://github.com/sidey-app/SIDEY/compare/windows-v1.3.1...windows-v2.0.0</p>
-              <ul><li>Google 로그인을 필수 온보딩으로 통합하고, 저장된 로그인 상태를 확인하는 동안 로그인 버튼을 잠가 중복 인증을 막았습니다. ( #217, @aryu1217 )</li><li>설정에서 로그아웃하거나 회원 탈퇴할 수 있으며, 계정 연결을 해제하면 실시간 연결과 로컬 상태를 정리한 뒤 로그인 화면으로 돌아갑니다. ( #224, @aryu1217 )</li><li>최근 기록에서 바로 메시지를 보내고, 채팅 입력창을 끌어 옮긴 위치를 다음 실행에도 유지할 수 있습니다. ( #224, @aryu1217 )</li><li>캐릭터를 한 번 클릭할 때만 채팅 입력창이 열리도록 동작을 바로잡았습니다. ( #224, @aryu1217 )</li><li>오버레이·조용히 모드·메시지 입력창·최근 기록 단축키를 원하는 키 조합으로 직접 기록하고 중복 조합을 교환할 수 있습니다. ( #224, @aryu1217 )</li><li>조용히 모드에서는 입력 중 표시를 숨기고, 오버레이를 닫을 때 애니메이션이 끝까지 자연스럽게 재생됩니다. ( #224, @aryu1217 )</li><li>이미 실행 중인 앱을 다시 열어도 기존 창으로 안전하게 전환되도록 수정했습니다. ( #224, @aryu1217 )</li><li>앱에서 상품 가격과 보유 상태를 확인하고 웹 구매 화면으로 이동할 수 있으며, 인증 콜백 복귀와 실시간 타이핑 반응을 개선했습니다. ( #217, @aryu1217 )</li><li>설치 파일에 필요한 Windows App SDK와 .NET 런타임을 포함하고, 업데이트·복구·제거 실패 시 복원과 안내를 강화했습니다. ( #197, @patulus )</li><li>실시간 연결 오류를 원인별로 안내하고, 앱이 재연결하며 만든 불필요한 오류 메시지는 표시하지 않도록 개선했습니다. ( #169, @patulus )</li><li>내 나무의 걷기 상태가 같은 그룹의 사용자에게 공유되도록 개선했습니다. ( #148, @aryu1217 )</li><li>밝은 테마와 어두운 테마에서 앱 안의 상태 알림을 더 쉽게 읽을 수 있도록 개선했습니다. ( #166, @patulus )</li></ul>
-            </section><section class="release-section">
-              <h3>소스 코드 및 라이선스</h3>
-              <p>이 릴리스에는 GNU AGPLv3 적용 코드가 포함되어 있습니다. 이 릴리스 태그(windows-v2.0.0, commit 92088b671cebd073623701d15442b1ba3c8638e8)에 대응하는 정확한 소스는 첨부된 SIDEY-windows-v2.0.0-corresponding-source.tar에서 확인할 수 있습니다. 라이선스 조건과 고지는 압축 파일의 LICENSE 및 LICENSING.md를 확인하세요.</p>
-              
-            </section>
-          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v2.0.0">View the full GitHub Release<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
+        <div class="update-answer"><div class="update-copy">
+          <p>Full release notes are currently available in the original Korean.</p>
+          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v2.0.0">View the Korean original<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
         </div></div>
       </details><details class="update-card" data-release-item>
         <summary>
@@ -86,22 +78,9 @@
           </div>
           <span class="update-toggle-label"><span class="when-closed">Show changes</span><span class="when-open">Hide changes</span><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></span>
         </summary>
-        <div class="update-answer"><div class="update-copy" lang="ko">
-          <p>2026년 9월 15일</p><p>Windows 실행 호환 범위를 넓히고 창 크기 변경, 프로필 선택과 투척물 표시의 안정성을 개선했습니다.</p>
-          <section class="release-section">
-              <h3>설치</h3>
-              <p>설치 대상은 Windows 10 1809 이상 x64 PC입니다. 첨부된 SIDEY-Windows-x64-v1.3.1-Setup.exe를 실행하세요. 기존 버전 위에 설치하면 설정과 로그인 정보가 유지됩니다.</p>
-              
-            </section><section class="release-section">
-              <h3>변경 사항</h3>
-              
-              <ul><li>Windows 10 1809 이상 x64로 실행 호환 범위를 넓히고, 지원하지 않는 배경 효과와 아이콘을 기본 표시로 대체했습니다.</li><li>창 크기를 바꿀 때 앱이 종료되는 문제를 수정하고, 좁은 창에서도 프로필 입력창과 선택 항목이 잘 보이도록 배치를 개선했습니다.</li><li>밝은 테마와 어두운 테마에서 창 버튼을 구분하기 쉽게 하고, 프로필·그룹·상점의 로딩 표시를 개선했습니다.</li><li>프로필 갱신 중 캐릭터 선택이 바뀌는 문제를 수정하고, 저장한 닉네임과 캐릭터가 내 그룹에도 함께 반영되도록 개선했습니다.</li><li>투척물이 다른 물건으로 표시되는 문제와 상점에서 연속으로 물건을 던질 때 동작이 끊기는 문제를 수정했습니다.</li><li>설치 파일과 내부 안정성을 개선했습니다.</li></ul>
-            </section><section class="release-section">
-              <h3>알아두세요</h3>
-              <p>전체 변경 내역</p>
-              <ul><li>Windows 앱에서는 구매를 지원하지 않으며, 유료 상품은 연결한 계정의 보유 내역을 확인한 뒤 사용할 수 있습니다.</li><li>Windows 버전은 공인 코드 서명 전 정식판으로, SmartScreen 경고가 표시되거나 일부 보안 설정에서 실행이 차단될 수 있습니다.</li></ul>
-            </section>
-          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.3.1">View the full GitHub Release<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
+        <div class="update-answer"><div class="update-copy">
+          <p>Full release notes are currently available in the original Korean.</p>
+          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.3.1">View the Korean original<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
         </div></div>
       </details><details class="update-card" data-release-item>
         <summary>
@@ -111,22 +90,9 @@
           </div>
           <span class="update-toggle-label"><span class="when-closed">Show changes</span><span class="when-open">Hide changes</span><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></span>
         </summary>
-        <div class="update-answer"><div class="update-copy" lang="ko">
-          <p>2026년 9월 14일</p><p>새 캐릭터와 투척물을 지원하고 테마 선택과 상점 사용성을 개선했습니다.</p>
-          <section class="release-section">
-              <h3>설치</h3>
-              <p>Windows 11 25H2 이상 x64 PC에서 첨부된 SIDEY-Windows-x64-v1.3.0-Setup.exe를 실행하세요. 기존 버전 위에 설치하면 설정과 로그인 정보가 유지됩니다.</p><p>1.3.0 설치 중 오류가 발생했다면 이 릴리스의 설치 파일을 다시 내려받아 실행하세요.</p><p>v1.0.3·v1.0.4는 앱 안에서 업데이트 파일을 내려받지 못하므로 최신 설치 파일을 직접 받아 설치해야 합니다.</p>
-              
-            </section><section class="release-section">
-              <h3>변경 사항</h3>
-              
-              <ul><li>아기 수달·아기 돼지·나무와 눈송이·야구공·왁뿌볼·두쫀쿠, 캐릭터별 애착 물건 7종을 미리 보고 보유 상품을 사용할 수 있습니다.</li><li>캐릭터와 별도로 판매되는 애착 물건의 가격·보유 상태를 함께 확인하며, 투척물을 장착하지 않으면 기본 말랑공을 사용합니다.</li><li>내 나무를 한 번 우클릭하면 걷기를 멈추거나 다시 시작하며, 더블 우클릭 후 던지기를 켜면 내 캐릭터를 두 번 우클릭한 뒤 친구를 클릭해 물건을 던집니다.</li><li>밝게·어둡게·Windows 기본값 테마를 선택하고 입력창과 최근 기록에도 적용할 수 있습니다.</li><li>상점의 긴 상품명·미리보기·스크롤과 로딩 표시를 개선했습니다.</li><li>트레이에서 업데이트를 확인하면 설정창을 열지 않고 Windows 알림으로 결과를 받습니다.</li><li>정보 화면에서 문제 확인에 필요한 진단 데이터를 내보낼 수 있습니다.</li><li>설치 오류 안내와 내부 안정성을 개선했습니다.</li><li>앱 안에서 업데이트할 때 설치가 중단되던 문제를 수정했습니다.</li></ul>
-            </section><section class="release-section">
-              <h3>알아두세요</h3>
-              <p>전체 변경 내역</p>
-              <ul><li>Windows 앱에서는 구매를 지원하지 않으며, 유료 상품은 연결한 계정의 보유 내역을 확인한 뒤 사용할 수 있습니다.</li><li>Windows 버전은 공인 코드 서명 전 정식판으로, SmartScreen 경고가 표시되거나 일부 보안 설정에서 실행이 차단될 수 있습니다.</li></ul>
-            </section>
-          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.3.0">View the full GitHub Release<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
+        <div class="update-answer"><div class="update-copy">
+          <p>Full release notes are currently available in the original Korean.</p>
+          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.3.0">View the Korean original<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
         </div></div>
       </details><details class="update-card" data-release-item hidden>
         <summary>
@@ -136,18 +102,9 @@
           </div>
           <span class="update-toggle-label"><span class="when-closed">Show changes</span><span class="when-open">Hide changes</span><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></span>
         </summary>
-        <div class="update-answer"><div class="update-copy" lang="ko">
-          
-          <section class="release-section">
-              <h3>설치</h3>
-              <p>Windows 11 25H2 이상 x64 PC에서 첨부된 SIDEY-Windows-x64-v1.2.1-Setup.exe를 실행하세요. 기존 버전 위에 설치하면 설정과 로그인 정보가 유지됩니다.</p>
-              
-            </section><section class="release-section">
-              <h3>변경 사항</h3>
-              <p>전체 변경 내역: https://github.com/sidey-app/SIDEY/compare/windows-v1.2.0...windows-v1.2.1</p>
-              <ul><li>앱과 설치 프로그램에서 한국어·영어·일본어·중국어 간체·중국어 번체·우크라이나어·러시아어를 지원합니다.</li><li>설치할 때 선택한 언어로 앱을 처음 열며, 앱을 바로 실행하지 않아도 다음 실행에 반영됩니다.</li><li>설정에서 언어를 바꾸면 창과 연결을 다시 시작하지 않고 문구가 즉시 바뀝니다.</li><li>한국어 문구를 macOS와 자연스럽게 맞추고 각 언어권에 어울리는 표현으로 다듬었습니다.</li><li>오버레이가 부드럽게 나타나며 Windows에서 애니메이션 효과를 끄면 오버레이와 작업 표시줄 전환도 즉시 표시됩니다.</li><li>그룹을 만들거나 초대 코드로 참여한 뒤 다음 화면으로 넘어가지 않던 문제를 수정했습니다.</li></ul>
-            </section>
-          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.2.1">View the full GitHub Release<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
+        <div class="update-answer"><div class="update-copy">
+          <p>Full release notes are currently available in the original Korean.</p>
+          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.2.1">View the Korean original<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
         </div></div>
       </details><details class="update-card" data-release-item hidden>
         <summary>
@@ -157,14 +114,9 @@
           </div>
           <span class="update-toggle-label"><span class="when-closed">Show changes</span><span class="when-open">Hide changes</span><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></span>
         </summary>
-        <div class="update-answer"><div class="update-copy" lang="ko">
-          
-          <section class="release-section">
-              <h3>변경 사항</h3>
-              <p>전체 변경 내역: https://github.com/sidey-app/SIDEY/compare/windows-v1.1.1...windows-v1.2.0</p>
-              <ul><li>캐릭터 피격음 8종과 음소거·음량 조절을 추가했습니다.</li><li>상점에서 투척물을 맞히거나 음량 조절을 마치면 효과음을 확인할 수 있습니다.</li><li>10초 안에 10번 맞으면 별과 링을 표시하고, 6초 동안 이동·확대·던지기를 제한합니다.</li><li>캐릭터마다 닉네임의 높이를 일정하게 맞추고 기절 효과가 가려지지 않도록 개선했습니다.</li><li>캐릭터·말풍선·투척물을 장착하는 동안 진행 상태를 표시합니다.</li><li>Windows에서 애니메이션을 끄면 상점 미리보기와 기절 효과도 정적으로 표시합니다.</li><li>앱 시작 시 캐릭터를 회색 연결 대기 상태로 먼저 표시합니다.</li><li>네트워크 단절 감지와 재연결을 개선하고 연결 상태를 눌러 다시 시도할 수 있게 했습니다.</li><li>설치기에 7개 언어 선택을 추가하고 필수 구성 요소 설치를 개선했습니다.</li></ul>
-            </section>
-          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.2.0">View the full GitHub Release<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
+        <div class="update-answer"><div class="update-copy">
+          <p>Full release notes are currently available in the original Korean.</p>
+          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.2.0">View the Korean original<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
         </div></div>
       </details><details class="update-card" data-release-item hidden>
         <summary>
@@ -174,14 +126,9 @@
           </div>
           <span class="update-toggle-label"><span class="when-closed">Show changes</span><span class="when-open">Hide changes</span><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></span>
         </summary>
-        <div class="update-answer"><div class="update-copy" lang="ko">
-          
-          <section class="release-section">
-              <h3>변경 사항</h3>
-              <p>전체 변경 내역: https://github.com/sidey-app/SIDEY/compare/windows-v1.1.0...windows-v1.1.1</p>
-              <ul><li>메시지 전송 후 입력창이 자동으로 닫힐 때 앱이 종료되는 문제를 수정했습니다.</li></ul>
-            </section>
-          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.1.1">View the full GitHub Release<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
+        <div class="update-answer"><div class="update-copy">
+          <p>Full release notes are currently available in the original Korean.</p>
+          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.1.1">View the Korean original<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
         </div></div>
       </details><details class="update-card" data-release-item hidden>
         <summary>
@@ -191,14 +138,9 @@
           </div>
           <span class="update-toggle-label"><span class="when-closed">Show changes</span><span class="when-open">Hide changes</span><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></span>
         </summary>
-        <div class="update-answer"><div class="update-copy" lang="ko">
-          
-          <section class="release-section">
-              <h3>변경 사항</h3>
-              <p>전체 변경 내역: https://github.com/sidey-app/SIDEY/compare/windows-v1.0.10...windows-v1.1.0</p>
-              <ul><li>설정 페이지 하단에서 한국어·영어·일본어를 선택하면 재실행 없이 적용됩니다.</li><li>영어와 일본어 문구를 자연스럽게 다듬고, 날짜와 시간은 앱 언어와 무관하게 컴퓨터 설정을 따르도록 했습니다.</li><li>메시지 입력창의 비정상 종료 문제를 수정하고 제목 표시줄 없이 둥근 모서리로 표시합니다.</li><li>캐릭터의 방향 전환과 휴식, 투척 궤도와 대포 방향을 macOS와 맞췄습니다.</li><li>상점 캐릭터 미리보기에서 상품 캐릭터를 더블클릭하면 커지고, 친구 캐릭터를 클릭하면 투척물을 던집니다.</li><li>미리보기 투척물이 보이지 않거나 깜빡이는 문제와 확대 시 흐려지는 문제를 수정하고, 확대 중에도 닉네임을 표시합니다.</li><li>별빛 우파루파의 평상시 반짝임과 확대 효과, 투척물 충돌 효과를 개선했습니다.</li><li>프로필의 말풍선·투척물에도 마우스를 올렸을 때 반응을 표시하고, 활성 그룹은 같은 아이콘의 색상으로 구분합니다.</li><li>업데이트 확인 상태를 마지막 확인 시간 자리에 표시하고, 다운로드 중에는 진행 비율을 보여줍니다.</li><li>업데이트 설치 취소와 오류를 알기 쉬운 문구로 안내하며, 설치가 끝난 이전 업데이트 파일은 다음 앱 실행 때 정리합니다.</li></ul>
-            </section>
-          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.1.0">View the full GitHub Release<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
+        <div class="update-answer"><div class="update-copy">
+          <p>Full release notes are currently available in the original Korean.</p>
+          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.1.0">View the Korean original<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
         </div></div>
       </details><details class="update-card" data-release-item hidden>
         <summary>
@@ -208,26 +150,9 @@
           </div>
           <span class="update-toggle-label"><span class="when-closed">Show changes</span><span class="when-open">Hide changes</span><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></span>
         </summary>
-        <div class="update-answer"><div class="update-copy" lang="ko">
-          <p>보유한 말풍선과 투척물을 Windows에서도 장착하고, 상점의 모든 꾸미기를 애니메이션 무대로 확인할 수 있습니다.</p>
-          <section class="release-section">
-              <h3>설치</h3>
-              <p>Release의 SIDEY-Windows-x64-v1.0.8-Setup.exe를 받아 실행하세요. 설치와 제거에는 관리자 승인이 필요하며, 신규 설치와 업데이트를 계속하려면 설치 화면에서 이용약관에 동의해야 합니다.</p><p>기존 SIDEY를 업데이트하면 설정과 로그인 정보를 유지합니다. Windows v1.0.3 또는 v1.0.4는 앱 내 업데이트가 실패하므로 이번 Setup EXE를 직접 받아 설치하세요.</p>
-              
-            </section><section class="release-section">
-              <h3>변경 사항</h3>
-              
-              <ul><li>내 프로필에 말풍선·투척물 선택 영역을 추가했습니다. 계정이 보유한 꾸미기만 표시하며 기본 말풍선과 캐릭터 기본 투척물로 언제든 돌아갈 수 있습니다.</li><li>장착한 말풍선의 색상·글자색·픽셀 장식을 메시지와 타이핑 표시에 적용합니다.</li><li>통통 하트, 미니 대포, 삑삑 오리를 실제 오버레이 투척에 적용합니다. 미니 대포는 전용 발사 장치와 충돌 효과를 함께 표시합니다.</li><li>상점을 캐릭터 4종·말풍선 3종·투척물 3종으로 확장하고, 각 상품의 움직임을 확인하는 30 FPS 상세 미리보기 무대를 추가했습니다.</li><li>Windows 상점은 계속 미리보기만 제공하며 구매 기능은 사용할 수 없습니다.</li></ul>
-            </section><section class="release-section">
-              <h3>제거</h3>
-              <p>Windows 설정 또는 Uninstall.exe로 제거할 때 설정·로그와 로그인 정보를 각각 삭제할지 선택할 수 있습니다. 두 옵션은 기본적으로 선택되어 있지 않으며, 선택한 데이터는 영구 삭제됩니다.</p>
-              
-            </section><section class="release-section">
-              <h3>지원 환경</h3>
-              
-              <ul><li>Windows 11 25H2 이상 x64 PC를 지원합니다.</li><li>이 버전은 아직 공인 코드 서명이 없어 SmartScreen 경고가 표시되거나 일부 보안 설정에서 실행이 차단될 수 있습니다.</li></ul>
-            </section>
-          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.8">View the full GitHub Release<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
+        <div class="update-answer"><div class="update-copy">
+          <p>Full release notes are currently available in the original Korean.</p>
+          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.8">View the Korean original<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
         </div></div>
       </details><details class="update-card" data-release-item hidden>
         <summary>
@@ -237,22 +162,9 @@
           </div>
           <span class="update-toggle-label"><span class="when-closed">Show changes</span><span class="when-open">Hide changes</span><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></span>
         </summary>
-        <div class="update-answer"><div class="update-copy" lang="ko">
-          <p>말풍선·온보딩·연결 복구를 다듬고 최근 기록을 서버의 3일 보관 정책과 맞췄습니다.</p>
-          <section class="release-section">
-              <h3>설치</h3>
-              
-              <ul><li>SIDEY-Windows-x64-v1.0.7-Setup.exe를 실행하세요.</li><li>기존 설치 위에 업데이트하면 설정과 로그인 정보가 유지됩니다.</li><li>Windows 11 25H2 이상 x64 PC를 지원합니다.</li></ul>
-            </section><section class="release-section">
-              <h3>변경 사항</h3>
-              
-              <ul><li>긴 메시지와 여러 말풍선의 배치와 표시를 개선했습니다.</li><li>기존 프로필과 그룹을 온보딩에서 확인할 수 있고 그룹 설정은 건너뛸 수 있습니다.</li><li>네트워크와 모니터 구성이 바뀐 뒤 연결과 오버레이를 더 안정적으로 복구합니다.</li><li>최근 메시지와 기록의 조회·로컬 보관 기간을 생성 후 3일로 맞췄습니다.</li><li>추가 캐릭터 네 종은 계속 미리보기로 제공하며 Windows 구매 기능은 아직 제공하지 않습니다.</li></ul>
-            </section><section class="release-section">
-              <h3>현재 제한</h3>
-              
-              <ul><li>이 설치 파일은 아직 공인 코드 서명이 없어 SmartScreen 경고가 표시될 수 있습니다.</li><li>보안 화면, 권한이 더 높은 앱, 모든 독점 전체화면 게임 위 표시를 보장하지 않습니다.</li></ul>
-            </section>
-          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.7">View the full GitHub Release<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
+        <div class="update-answer"><div class="update-copy">
+          <p>Full release notes are currently available in the original Korean.</p>
+          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.7">View the Korean original<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
         </div></div>
       </details><details class="update-card" data-release-item hidden>
         <summary>
@@ -262,26 +174,9 @@
           </div>
           <span class="update-toggle-label"><span class="when-closed">Show changes</span><span class="when-open">Hide changes</span><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></span>
         </summary>
-        <div class="update-answer"><div class="update-copy" lang="ko">
-          <p>설정 화면과 연결 복구를 개선하고, 계정에 지급된 캐릭터 선택과 그룹 나가기를 추가했습니다.</p>
-          <section class="release-section">
-              <h3>설치</h3>
-              <p>Release의 SIDEY-Windows-x64-v1.0.6-Setup.exe를 받아 실행하세요. 설치와 제거에는 관리자 승인이 필요하며, 신규 설치와 업데이트를 계속하려면 설치 화면에서 이용약관에 동의해야 합니다.</p><p>기존 정식 MSI는 Setup EXE가 제거한 뒤 같은 위치에 새 버전을 설치하며 설정과 로그인 정보를 보존합니다. v1.0.3 또는 v1.0.4는 앱 내 업데이트가 실패하므로 이번 Setup EXE를 직접 받아 설치하세요. 과거 per-user 또는 Burn 방식의 테스트 버전은 먼저 Windows 설정에서 제거해야 합니다.</p>
-              
-            </section><section class="release-section">
-              <h3>변경 사항</h3>
-              
-              <ul><li>설정 창이 좁아지면 탐색 메뉴가 아이콘으로 접히고 연결 상태가 겹치거나 잘리지 않습니다.</li><li>일시적인 연결 끊김은 조용히 복구하고, 오래 끊긴 경우에만 알림을 표시합니다.</li><li>무료 캐릭터와 계정에 지급된 캐릭터를 프로필에서 선택할 수 있습니다.</li><li>추가 캐릭터 네 종을 상점에서 미리 볼 수 있으며 Windows 구매 기능은 아직 제공하지 않습니다.</li><li>그룹 나가기와 작업 중 중복 요청 방지를 추가하고 메시지 입력창 포커스와 전송 아이콘을 개선했습니다.</li><li>설치 위치 선택, 같은 버전 복구·제거와 이전 정식 MSI 업데이트를 지원하는 Setup EXE로 설치 프로그램을 바꿨습니다.</li></ul>
-            </section><section class="release-section">
-              <h3>제거</h3>
-              <p>Windows 설정 또는 Uninstall.exe로 제거할 때 설정·로그와 로그인 정보를 각각 삭제할지 선택할 수 있습니다. 두 옵션은 기본적으로 선택되어 있지 않으며, 선택한 데이터는 영구 삭제됩니다.</p>
-              
-            </section><section class="release-section">
-              <h3>지원 환경</h3>
-              
-              <ul><li>Windows 11 25H2 이상 x64 PC를 지원합니다.</li><li>이 버전은 아직 공인 코드 서명이 없어 SmartScreen 경고가 표시되거나 일부 보안 설정에서 실행이 차단될 수 있습니다.</li></ul>
-            </section>
-          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.6">View the full GitHub Release<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
+        <div class="update-answer"><div class="update-copy">
+          <p>Full release notes are currently available in the original Korean.</p>
+          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.6">View the Korean original<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
         </div></div>
       </details><details class="update-card" data-release-item hidden>
         <summary>
@@ -291,26 +186,9 @@
           </div>
           <span class="update-toggle-label"><span class="when-closed">Show changes</span><span class="when-open">Hide changes</span><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></span>
         </summary>
-        <div class="update-answer"><div class="update-copy" lang="ko">
-          <p>업데이트 설치 파일을 내려받을 때 파일 사용 중 오류로 중단되던 문제를 수정했습니다.</p>
-          <section class="release-section">
-              <h3>설치</h3>
-              <p>Release의 SIDEY-Windows-x64-v1.0.5.msi를 직접 받아 실행하세요. 설치와 제거에는 관리자 승인이 필요합니다.</p><p>v1.0.3 또는 v1.0.4의 앱 내 업데이트에는 같은 오류가 있으므로 v1.0.5를 한 번 수동 설치해야 합니다. 기존 버전 위에 설치하면 현재 설정과 로그인 정보가 유지되며, 이후 업데이트부터는 앱 안에서 받을 수 있습니다.</p>
-              
-            </section><section class="release-section">
-              <h3>변경 사항</h3>
-              
-              <ul><li>업데이트 파일 다운로드와 무결성 확인 뒤 설치기를 정상적으로 실행합니다.</li><li>v1.0.4의 물체 던지기와 아홉 캐릭터 표시는 그대로 제공됩니다.</li></ul>
-            </section><section class="release-section">
-              <h3>제거</h3>
-              <p>Windows 설정, MSI 또는 Uninstall.exe로 제거할 때 설정, 로그와 로그인 정보도 삭제할지 선택할 수 있습니다. 이 옵션은 기본적으로 선택되어 있지 않으며, 선택한 경우 현재 사용자의 SIDEY 데이터가 영구 삭제됩니다.</p>
-              
-            </section><section class="release-section">
-              <h3>지원 환경</h3>
-              
-              <ul><li>Windows 11 25H2 이상 x64 PC를 지원합니다.</li><li>이 버전은 아직 공인 코드 서명이 없어 SmartScreen 경고가 표시되거나 일부 보안 설정에서 실행이 차단될 수 있습니다.</li><li>기존 per-user 또는 Burn 방식의 Windows 테스트 버전이 설치되어 있다면 먼저 제거하세요.</li></ul>
-            </section>
-          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.5">View the full GitHub Release<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
+        <div class="update-answer"><div class="update-copy">
+          <p>Full release notes are currently available in the original Korean.</p>
+          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.5">View the Korean original<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
         </div></div>
       </details><details class="update-card" data-release-item hidden>
         <summary>
@@ -320,26 +198,9 @@
           </div>
           <span class="update-toggle-label"><span class="when-closed">Show changes</span><span class="when-open">Hide changes</span><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></span>
         </summary>
-        <div class="update-answer"><div class="update-copy" lang="ko">
-          <p>Windows에서도 친구 캐릭터와 물체를 주고받을 수 있습니다.</p>
-          <section class="release-section">
-              <h3>설치</h3>
-              <p>Release의 SIDEY-Windows-x64-v1.0.4.msi를 받아 실행하세요. 설치와 제거에는 관리자 승인이 필요합니다. 기존 v1.0.3 위에 설치하면 현재 설정과 로그인 정보를 유지한 채 업데이트됩니다.</p>
-              
-            </section><section class="release-section">
-              <h3>변경 사항</h3>
-              
-              <ul><li>친구 캐릭터를 클릭하면 바로 물체를 던집니다.</li><li>설정에서 우클릭 후 던지기를 켜면 내 캐릭터를 우클릭한 뒤 10초 동안만 던질 수 있습니다.</li><li>온라인·자리 비움·오프라인·연결 중인 친구 모두를 대상으로 선택할 수 있습니다.</li><li>macOS에서 선택한 기니피그·원숭이·친칠라·별빛 우파루파를 Windows에서도 실제 모습과 각 캐릭터의 전용 물체로 표시합니다.</li><li>Windows의 캐릭터 선택 목록은 기존 무료 5종을 유지하며 구매는 지원하지 않습니다.</li></ul>
-            </section><section class="release-section">
-              <h3>제거</h3>
-              <p>Windows 설정, MSI 또는 Uninstall.exe로 제거할 때 설정, 로그와 로그인 정보도 삭제할지 선택할 수 있습니다. 이 옵션은 기본적으로 선택되어 있지 않으며, 선택한 경우 현재 사용자의 SIDEY 데이터가 영구 삭제됩니다.</p>
-              
-            </section><section class="release-section">
-              <h3>지원 환경</h3>
-              
-              <ul><li>Windows 11 25H2 이상 x64 PC를 지원합니다.</li><li>이 버전은 아직 공인 코드 서명이 없어 SmartScreen 경고가 표시되거나 일부 보안 설정에서 실행이 차단될 수 있습니다.</li><li>기존 per-user 또는 Burn 방식의 Windows 테스트 버전이 설치되어 있다면 먼저 제거하세요.</li></ul>
-            </section>
-          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.4">View the full GitHub Release<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
+        <div class="update-answer"><div class="update-copy">
+          <p>Full release notes are currently available in the original Korean.</p>
+          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.4">View the Korean original<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
         </div></div>
       </details><details class="update-card" data-release-item hidden>
         <summary>
@@ -349,26 +210,9 @@
           </div>
           <span class="update-toggle-label"><span class="when-closed">Show changes</span><span class="when-open">Hide changes</span><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></span>
         </summary>
-        <div class="update-answer"><div class="update-copy" lang="ko">
-          <p>Windows용 SIDEY를 정식 출시합니다.</p>
-          <section class="release-section">
-              <h3>설치</h3>
-              <p>Release의 SIDEY-Windows-x64-v1.0.3.msi를 받아 실행하세요. 설치와 제거에는 관리자 승인이 필요합니다.</p>
-              
-            </section><section class="release-section">
-              <h3>변경 사항</h3>
-              
-              <ul><li>처음 실행 설정과 프로필·그룹 관리 화면이 추가되었습니다.</li><li>다섯 캐릭터의 상태·타이핑·메시지와 최근 기록을 Windows에서도 확인할 수 있습니다.</li><li>트레이 메뉴, 다중 모니터 배치, 조용히 모드와 업데이트 확인 기능이 추가되었습니다.</li><li>한국어·영어 표시와 앱 실행 안정성이 개선되었습니다.</li><li>설치 폴더와 시작 메뉴에서 Uninstall.exe를 실행할 수 있습니다.</li></ul>
-            </section><section class="release-section">
-              <h3>제거</h3>
-              <p>Windows 설정, MSI 또는 Uninstall.exe로 제거할 때 설정, 로그와 로그인 정보도 삭제할지 선택할 수 있습니다. 이 옵션은 기본적으로 선택되어 있지 않으며, 선택한 경우 현재 사용자의 SIDEY 데이터가 영구 삭제됩니다.</p>
-              
-            </section><section class="release-section">
-              <h3>지원 환경</h3>
-              
-              <ul><li>Windows 11 25H2 이상 x64 PC를 지원합니다.</li><li>기존 Windows 테스트 버전이 설치되어 있다면 먼저 제거하세요. 기존 테스트 설치의 데이터 보존 여부는 해당 설치 방식에 따라 다릅니다.</li></ul>
-            </section>
-          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.3">View the full GitHub Release<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
+        <div class="update-answer"><div class="update-copy">
+          <p>Full release notes are currently available in the original Korean.</p>
+          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.3">View the Korean original<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
         </div></div>
       </details><details class="update-card" data-release-item hidden>
         <summary>
@@ -378,14 +222,9 @@
           </div>
           <span class="update-toggle-label"><span class="when-closed">Show changes</span><span class="when-open">Hide changes</span><span class="material-symbols-rounded" aria-hidden="true">expand_more</span></span>
         </summary>
-        <div class="update-answer"><div class="update-copy" lang="ko">
-          
-          <section class="release-section">
-              <h3>What&#39;s Changed</h3>
-              <p>Full Changelog: https://github.com/sidey-app/SIDEY/compare/windows-v1.0.8...windows-v1.0.10</p>
-              <ul><li>프로필의 캐릭터·말풍선·투척물 선택 영역을 각각 5열·4열·4열로 고르게 배치하고 선택 표시와 내용을 중앙에 맞췄습니다.</li><li>상점에서 캐릭터·말풍선·투척물을 탭으로 전환하고, 필요할 때만 필터를 펼쳐 사용할 수 있습니다. 페이지와 탭을 전환할 때 짧은 애니메이션도 적용했습니다.</li><li>꾸미기 미리보기의 크기와 말풍선 모양, 걷기·투척 속도와 궤적을 실제 오버레이와 더 가깝게 맞췄습니다.</li><li>투척하거나 맞을 때 캐릭터가 180도 뒤집히는 문제와 미리보기에서 캐릭터가 깜빡이는 문제를 수정했습니다.</li><li>업데이트 확인과 다운로드 진행 상태를 표시합니다. 설정창을 닫아 트레이로 보내도 다운로드는 계속됩니다.</li><li>업데이트 알림을 다른 시스템 알림과 같은 정보 알림 형태로 표시합니다.</li><li>창을 닫는 도중 남은 화면 작업과 꾸미기 이미지 로딩을 정리해 비정상 종료 가능성을 줄였습니다.</li><li>Windows 상점은 계속 미리보기만 제공하며 구매 기능은 사용할 수 없습니다.</li></ul>
-            </section>
-          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.10">View the full GitHub Release<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
+        <div class="update-answer"><div class="update-copy">
+          <p>Full release notes are currently available in the original Korean.</p>
+          <a class="release-link" href="https://github.com/sidey-app/SIDEY/releases/tag/windows-v1.0.10">View the Korean original<span class="material-symbols-rounded" aria-hidden="true">arrow_outward</span></a>
         </div></div>
       </details>
     <div class="release-scroll-sentinel" data-release-sentinel aria-hidden="true"><span></span></div>
@@ -393,7 +232,25 @@
   </section>
   <script src="/SIDEY/assets/releases.js" defer></script></main>
     <footer class="site-footer">
-  <div class="footer-row"><div class="footer-brand"><img src="/SIDEY/assets/app-icon.png" alt="" width="38" height="38"><strong>SIDEY</strong></div><div class="footer-links"><a href="/SIDEY/en/terms/">Terms of Use</a><a href="/SIDEY/en/privacy/">Privacy Policy</a><a href="/SIDEY/en/refund/">Refund Policy</a><a href="/SIDEY/ko/" lang="ko" hreflang="ko">한국어</a></div></div>
+  <div class="footer-commerce-policy" aria-label="Delivery and cancellation or refund information">
+    <p><strong>Delivery</strong><span>Digital items are available immediately after payment is completed.</span></p>
+    <p><strong>Cancellation and refunds</strong><span>Delivery of the digital entitlement begins as soon as payment is confirmed, so change-of-mind refunds are unavailable. A full refund is provided when required by law, including non-delivery, mismatch with the contract, duplicate charges, or unauthorized payment. <a href="/SIDEY/en/refund/">Full policy</a></span></p>
+  </div>
+  <dl class="footer-details footer-details-business">
+    <div><dt>Business name</dt><dd><span lang="ko">싸이디</span>(SIDEY)</dd></div>
+    <div><dt>Korean business registration number</dt><dd>388-53-01259</dd></div>
+    <div><dt>Contact</dt><dd><a href="tel:+821092702973">010-9270-2973</a> · <a href="mailto:ryu200112@gmail.com">ryu200112@gmail.com</a></dd></div>
+    <div><dt>Business address</dt><dd>20-6, Seocheondong-ro 21beon-gil, Giheung-gu, Yongin-si, Gyeonggi-do, Republic of Korea</dd></div>
+    <div><dt>Representative</dt><dd><span lang="ko">류태현</span></dd></div>
+    <div><dt>Online sales registration</dt><dd>Filing exempt (simplified taxpayer)</dd></div>
+  </dl>
+  <div class="footer-row">
+    <div class="footer-brand"><img src="/SIDEY/assets/app-icon.png" alt="" width="36" height="36"><strong>SIDEY</strong></div>
+    <div class="footer-links">
+      <a href="/SIDEY/en/terms/">Terms of Use</a><a href="/SIDEY/en/privacy/">Privacy Policy</a><a href="/SIDEY/en/refund/">Refund Policy</a><a href="/SIDEY/en/support/">Support</a>
+      <a href="/SIDEY/ko/" lang="ko" hreflang="ko">한국어</a>
+    </div>
+  </div>
 </footer>
-  </body>
+    <script src="/SIDEY/assets/script.js" defer></script></body>
 </html>

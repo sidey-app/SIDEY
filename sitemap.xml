@@ -1,152 +1,543 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://sidey-app.github.io/SIDEY/</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-21</lastmod>
     <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/"/>
     <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/"/>
   </url>
   <url>
     <loc>https://sidey-app.github.io/SIDEY/ko/</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-21</lastmod>
     <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/"/>
     <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/"/>
   </url>
   <url>
     <loc>https://sidey-app.github.io/SIDEY/en/</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-21</lastmod>
     <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/"/>
     <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/"/>
   </url>
   <url>
+    <loc>https://sidey-app.github.io/SIDEY/ja/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/zh-hant/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/store/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ko/store/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/en/store/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ja/store/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/zh-hant/store/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/store/characters/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/characters/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ko/store/characters/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/characters/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/en/store/characters/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/characters/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ja/store/characters/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/characters/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/zh-hant/store/characters/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/characters/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/characters/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/store/throwables/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/throwables/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ko/store/throwables/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/throwables/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/en/store/throwables/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/throwables/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ja/store/throwables/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/throwables/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/zh-hant/store/throwables/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/throwables/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/throwables/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/store/bubbles/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/bubbles/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ko/store/bubbles/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/bubbles/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/en/store/bubbles/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/bubbles/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ja/store/bubbles/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/bubbles/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/zh-hant/store/bubbles/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/store/bubbles/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/store/bubbles/"/>
+  </url>
+  <url>
     <loc>https://sidey-app.github.io/SIDEY/whats-new/</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-21</lastmod>
     <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/whats-new/"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/whats-new/"/>
     <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/whats-new/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/whats-new/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/whats-new/"/>
   </url>
   <url>
     <loc>https://sidey-app.github.io/SIDEY/ko/whats-new/</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-21</lastmod>
     <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/whats-new/"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/whats-new/"/>
     <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/whats-new/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/whats-new/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/whats-new/"/>
   </url>
   <url>
     <loc>https://sidey-app.github.io/SIDEY/en/whats-new/</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-21</lastmod>
     <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/whats-new/"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/whats-new/"/>
     <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/whats-new/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/whats-new/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/whats-new/"/>
-  </url>
-  <url>
-    <loc>https://sidey-app.github.io/SIDEY/ko/store/</loc>
-    <lastmod>2026-09-06</lastmod>
-    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/"/>
-    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/"/>
-    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/"/>
-  </url>
-  <url>
-    <loc>https://sidey-app.github.io/SIDEY/en/store/</loc>
-    <lastmod>2026-09-06</lastmod>
-    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/"/>
-    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/"/>
-    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/"/>
-  </url>
-  <url>
-    <loc>https://sidey-app.github.io/SIDEY/ko/terms/</loc>
-    <lastmod>2026-09-06</lastmod>
-    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/terms/"/>
-    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/terms/"/>
-    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/terms/"/>
-  </url>
-  <url>
-    <loc>https://sidey-app.github.io/SIDEY/en/terms/</loc>
-    <lastmod>2026-09-06</lastmod>
-    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/terms/"/>
-    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/terms/"/>
-    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/terms/"/>
-  </url>
-  <url>
-    <loc>https://sidey-app.github.io/SIDEY/ko/privacy/</loc>
-    <lastmod>2026-09-06</lastmod>
-    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/privacy/"/>
-    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/privacy/"/>
-    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/privacy/"/>
-  </url>
-  <url>
-    <loc>https://sidey-app.github.io/SIDEY/en/privacy/</loc>
-    <lastmod>2026-09-06</lastmod>
-    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/privacy/"/>
-    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/privacy/"/>
-    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/privacy/"/>
-  </url>
-  <url>
-    <loc>https://sidey-app.github.io/SIDEY/ko/refund/</loc>
-    <lastmod>2026-09-06</lastmod>
-    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/refund/"/>
-    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/refund/"/>
-    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/refund/"/>
-  </url>
-  <url>
-    <loc>https://sidey-app.github.io/SIDEY/en/refund/</loc>
-    <lastmod>2026-09-06</lastmod>
-    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/refund/"/>
-    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/refund/"/>
-    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/refund/"/>
-  </url>
-  <url>
-    <loc>https://sidey-app.github.io/SIDEY/ja/</loc>
-    <lastmod>2026-09-06</lastmod>
-    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/"/>
-    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/"/>
-    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/"/>
-    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/"/>
   </url>
   <url>
     <loc>https://sidey-app.github.io/SIDEY/ja/whats-new/</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-21</lastmod>
     <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/whats-new/"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/whats-new/"/>
     <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/whats-new/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/whats-new/"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/whats-new/"/>
   </url>
   <url>
-    <loc>https://sidey-app.github.io/SIDEY/ja/store/</loc>
-    <lastmod>2026-09-06</lastmod>
-    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/store/"/>
-    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/store/"/>
-    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/store/"/>
+    <loc>https://sidey-app.github.io/SIDEY/zh-hant/whats-new/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/whats-new/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/whats-new/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/whats-new/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/whats-new/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/whats-new/"/>
   </url>
   <url>
-    <loc>https://sidey-app.github.io/SIDEY/ja/terms/</loc>
-    <lastmod>2026-09-06</lastmod>
+    <loc>https://sidey-app.github.io/SIDEY/whats-new/macos/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/whats-new/macos/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ko/whats-new/macos/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/whats-new/macos/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/en/whats-new/macos/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/whats-new/macos/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ja/whats-new/macos/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/whats-new/macos/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/zh-hant/whats-new/macos/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/whats-new/macos/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/whats-new/macos/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/whats-new/windows/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/whats-new/windows/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ko/whats-new/windows/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/whats-new/windows/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/en/whats-new/windows/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/whats-new/windows/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ja/whats-new/windows/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/whats-new/windows/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/zh-hant/whats-new/windows/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/whats-new/windows/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/whats-new/windows/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/terms/</loc>
+    <lastmod>2026-09-21</lastmod>
     <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/terms/"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/terms/"/>
     <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/terms/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/terms/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/terms/"/>
   </url>
   <url>
-    <loc>https://sidey-app.github.io/SIDEY/ja/privacy/</loc>
-    <lastmod>2026-09-06</lastmod>
+    <loc>https://sidey-app.github.io/SIDEY/ko/terms/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/terms/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/terms/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/terms/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/terms/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/terms/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/en/terms/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/terms/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/terms/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/terms/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/terms/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/terms/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ja/terms/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/terms/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/terms/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/terms/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/terms/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/terms/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/zh-hant/terms/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/terms/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/terms/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/terms/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/terms/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/terms/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/privacy/</loc>
+    <lastmod>2026-09-21</lastmod>
     <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/privacy/"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/privacy/"/>
     <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/privacy/"/>
   </url>
   <url>
-    <loc>https://sidey-app.github.io/SIDEY/ja/refund/</loc>
-    <lastmod>2026-09-06</lastmod>
+    <loc>https://sidey-app.github.io/SIDEY/ko/privacy/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/privacy/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/en/privacy/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/privacy/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ja/privacy/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/privacy/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/zh-hant/privacy/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/privacy/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/privacy/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/refund/</loc>
+    <lastmod>2026-09-21</lastmod>
     <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/refund/"/>
     <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/refund/"/>
     <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/refund/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/refund/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/refund/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ko/refund/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/refund/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/refund/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/refund/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/refund/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/refund/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/en/refund/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/refund/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/refund/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/refund/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/refund/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/refund/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ja/refund/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/refund/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/refund/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/refund/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/refund/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/refund/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/zh-hant/refund/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/refund/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/refund/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/refund/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/refund/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/refund/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/support/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/support/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/support/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/support/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/support/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/support/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ko/support/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/support/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/support/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/support/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/support/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/support/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/en/support/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/support/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/support/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/support/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/support/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/support/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/ja/support/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/support/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/support/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/support/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/support/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/support/"/>
+  </url>
+  <url>
+    <loc>https://sidey-app.github.io/SIDEY/zh-hant/support/</loc>
+    <lastmod>2026-09-21</lastmod>
+    <xhtml:link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/support/"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/support/"/>
+    <xhtml:link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/support/"/>
+    <xhtml:link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/support/"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/support/"/>
   </url>
 </urlset>

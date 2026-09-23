@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SIDEY — Support</title>
+    <meta name="description" content="SIDEY language selection">
+    <link rel="alternate" hreflang="ko" href="https://sidey-app.github.io/SIDEY/ko/support/">
+    <link rel="alternate" hreflang="en" href="https://sidey-app.github.io/SIDEY/en/support/">
+    <link rel="alternate" hreflang="ja" href="https://sidey-app.github.io/SIDEY/ja/support/">
+    <link rel="alternate" hreflang="zh-Hant" href="https://sidey-app.github.io/SIDEY/zh-hant/support/">
+    <link rel="alternate" hreflang="x-default" href="https://sidey-app.github.io/SIDEY/support/">
+    <script>(function(){const koreanTarget = "/SIDEY/ko/support/";
+const englishTarget = "/SIDEY/en/support/";
+const japaneseTarget = "/SIDEY/ja/support/";
+const traditionalChineseTarget = "/SIDEY/zh-hant/support/";
+
+      (() => {
+        const preferredLanguage = navigator.languages?.[0] ?? navigator.language ?? "";
+        const language = preferredLanguage.toLowerCase();
+        const destination = language.startsWith("ko")
+          ? koreanTarget
+          : language.startsWith("ja")
+            ? japaneseTarget
+            : language.startsWith("zh-hant") || language.startsWith("zh-tw") || language.startsWith("zh-hk") || language.startsWith("zh-mo")
+              ? traditionalChineseTarget
+              : englishTarget;
+        const target = new URL(destination, window.location.origin);
+        target.search = window.location.search;
+        target.hash = window.location.hash;
+        window.location.replace(target.href);
+      })();
+    })();</script></head>
+  <body>
+    <main>
+      <p>
+        <a href="/SIDEY/ko/support/" lang="ko" hreflang="ko">한국어</a>
+        ·
+        <a href="/SIDEY/en/support/" lang="en" hreflang="en">English</a>
+        ·
+        <a href="/SIDEY/ja/support/" lang="ja" hreflang="ja">日本語</a>
+        ·
+        <a href="/SIDEY/zh-hant/support/" lang="zh-Hant" hreflang="zh-Hant">繁體中文</a>
+      </p>
+    </main>
+  </body>
+</html>
