@@ -1,12 +1,11 @@
 {
   "channel": "production",
-  "version": "2.1.0",
-  "tag": "windows-v2.1.0",
-  "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v2.1.0/SIDEY-Windows-x64-v2.1.0-Setup.exe",
-  "sha256": "72d5b8b417bfadcabe1d83b41cdc09b75c1bfe97711d11a195abd821079dae40",
-  "product_version": "2.1.0",
-  "update_version": "2.1.0",
-  "update_tag": "windows-v2.1.0",
-  "update_installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v2.1.0/SIDEY-Windows-x64-v2.1.0-Setup.exe",
-  "update_sha256": "72d5b8b417bfadcabe1d83b41cdc09b75c1bfe97711d11a195abd821079dae40"
+  "version": "2.2640.12",
+  "tag": "windows-v2.2640.12",
+  "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v2.2640.12/SIDEY-Windows-x64-v2.2640.12-Setup.exe",
+  "sha256": "ec93c03e03137b188f83ef728b2e55a11d912d87f77d4efb4363ff9517e737c2",
+  "incremental": {
+    "manifest_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v2.2640.12/SIDEY-Windows-x64-v2.2640.12-Update.json",
+    "sha256": "9d8a71e1e4a4ae42ddbf51b7c5ded898a88d488d526ffc27a0014afdd9517dcb"
+  }
 }

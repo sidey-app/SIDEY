@@ -1,0 +1,11 @@
+{
+  "channel": "production",
+  "version": "2.2640.12",
+  "tag": "windows-v2.2640.12",
+  "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v2.2640.12/SIDEY-Windows-arm64-v2.2640.12-Setup.exe",
+  "sha256": "bbafd47fa914484ee3f4571ecb15ba44e247e4abd291a6778cc85abca1dcfd26",
+  "incremental": {
+    "manifest_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v2.2640.12/SIDEY-Windows-arm64-v2.2640.12-Update.json",
+    "sha256": "56fecc0950fd1ae70546264577a577051a6414e59137789e94f7580e0b6f178e"
+  }
+}
