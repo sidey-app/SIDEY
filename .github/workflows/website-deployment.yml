@@ -25,6 +25,7 @@ jobs:
           repository: sidey-app/SIDEY-source
           ref: main
           path: source
+          fetch-depth: 0
           ssh-key: ${{ secrets.SIDEY_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
 
