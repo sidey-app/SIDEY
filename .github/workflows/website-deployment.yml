@@ -1,0 +1,140 @@
+name: SIDEY Website deployment
+run-name: SIDEY Website deployment | manual | main
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sidey-website-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      published_pages_sha: ${{ steps.published_pages.outputs.sha }}
+    steps:
+      - name: Check out private website source with read-only deploy key
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: sidey-app/SIDEY-source
+          ref: main
+          path: source
+          ssh-key: ${{ secrets.SIDEY_SOURCE_DEPLOY_KEY }}
+          persist-credentials: false
+
+      - name: Resolve published update metadata snapshot
+        id: published_pages
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          sha=$(gh api repos/sidey-app/SIDEY/git/ref/heads/gh-pages --jq '.object.sha')
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Check out published update metadata
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ steps.published_pages.outputs.sha }}
+          path: published-pages
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: '11.24.0'
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+
+      - name: Build and test website
+        working-directory: source/website
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm test
+
+      - name: Validate assets and publication contracts
+        working-directory: source
+        run: |
+          set -euo pipefail
+          python3 scripts/validate_pixel_assets.py
+          python3 -m unittest discover -s scripts/pages/tests
+          python3 -m unittest scripts.tests.test_publication
+
+      - name: Verify public release and preserve shipped update metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, re, subprocess
+          from pathlib import Path
+          notes = json.loads(Path('source/website/src/data/release-notes/recent.json').read_text())
+          latest = max(notes, key=lambda note: tuple(map(int, note['version'].split('.'))))
+          tags = {'windows-v' + latest['version']}
+          for relative in ('windows-latest.json', 'windows/update.json', 'windows/update-legacy.json'):
+              path = Path('published-pages') / relative
+              if path.is_file():
+                  feed = json.loads(path.read_text())
+                  tags.add(feed['tag'])
+                  if 'update_tag' in feed:
+                      tags.add(feed['update_tag'])
+          releases = []
+          for tag in sorted(tags):
+              if re.fullmatch(r'windows-v\d+\.\d+\.\d+', tag) is None:
+                  raise SystemExit('Invalid published Windows release tag')
+              response = subprocess.run(['gh', 'api', 'repos/sidey-app/SIDEY/releases/tags/' + tag],
+                                        check=True, capture_output=True)
+              releases.append(json.loads(response.stdout))
+          (Path(os.environ['RUNNER_TEMP']) / 'windows-release.json').write_text(json.dumps(releases))
+          PY
+          python3 source/scripts/pages/prepare_website_deployment.py \
+            --website-dir source/website/dist \
+            --output-dir build/pages-site \
+            --published-pages-dir published-pages \
+            --release-snapshot source/website/src/data/release-notes/recent.json \
+            --github-release-json "$RUNNER_TEMP/windows-release.json"
+
+      - name: Upload validated public website only
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
+        with:
+          path: build/pages-site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Ensure published update metadata has not changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ needs.build.outputs.published_pages_sha }}
+        run: |
+          set -euo pipefail
+          current=$(gh api repos/sidey-app/SIDEY/git/ref/heads/gh-pages --jq '.object.sha')
+          if [[ "$current" != "$EXPECTED_SHA" ]]; then
+            echo 'Published update metadata changed during the build. Run deployment again.' >&2
+            exit 1
+          fi
+
+      - name: Deploy verified website to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
