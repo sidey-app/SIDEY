@@ -13,11 +13,11 @@ concurrency:
 
 jobs:
   build:
-    if: github.ref == 'refs/heads/main'
+    if: github.repository == 'sidey-app/SIDEY' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
-      published_pages_sha: ${{ steps.published_pages.outputs.sha }}
+      published_metadata_sha: ${{ github.sha }}
     steps:
       - name: Check out private website source with read-only deploy key
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -29,20 +29,11 @@ jobs:
           ssh-key: ${{ secrets.SIDEY_SOURCE_DEPLOY_KEY }}
           persist-credentials: false
 
-      - name: Resolve published update metadata snapshot
-        id: published_pages
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          sha=$(gh api repos/sidey-app/SIDEY/git/ref/heads/gh-pages --jq '.object.sha')
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
-
-      - name: Check out published update metadata
+      - name: Check out published update metadata from main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ steps.published_pages.outputs.sha }}
-          path: published-pages
+          ref: ${{ github.sha }}
+          path: published-metadata
           persist-credentials: false
 
       - name: Set up pnpm
@@ -84,8 +75,8 @@ jobs:
           notes = json.loads(Path('source/website/src/data/release-notes/recent.json').read_text())
           latest = max(notes, key=lambda note: tuple(map(int, note['version'].split('.'))))
           tags = {'windows-v' + latest['version']}
-          for relative in ('windows-latest.json', 'windows/update.json', 'windows/update-legacy.json'):
-              path = Path('published-pages') / relative
+          for relative in ('windows-latest.json', 'windows-arm64-latest.json', 'windows/update.json'):
+              path = Path('published-metadata') / relative
               if path.is_file():
                   feed = json.loads(path.read_text())
                   tags.add(feed['tag'])
@@ -103,7 +94,7 @@ jobs:
           python3 source/scripts/pages/prepare_website_deployment.py \
             --website-dir source/website/dist \
             --output-dir build/pages-site \
-            --published-pages-dir published-pages \
+            --published-pages-dir published-metadata \
             --release-snapshot source/website/src/data/release-notes/recent.json \
             --github-release-json "$RUNNER_TEMP/windows-release.json"
 
@@ -127,10 +118,10 @@ jobs:
       - name: Ensure published update metadata has not changed
         env:
           GH_TOKEN: ${{ github.token }}
-          EXPECTED_SHA: ${{ needs.build.outputs.published_pages_sha }}
+          EXPECTED_SHA: ${{ needs.build.outputs.published_metadata_sha }}
         run: |
           set -euo pipefail
-          current=$(gh api repos/sidey-app/SIDEY/git/ref/heads/gh-pages --jq '.object.sha')
+          current=$(gh api repos/sidey-app/SIDEY/git/ref/heads/main --jq '.object.sha')
           if [[ "$current" != "$EXPECTED_SHA" ]]; then
             echo 'Published update metadata changed during the build. Run deployment again.' >&2
             exit 1
