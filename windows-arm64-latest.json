@@ -1,11 +1,11 @@
 {
   "channel": "production",
-  "version": "3.2645.89",
-  "tag": "windows-v3.2645.89",
-  "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v3.2645.89/SIDEY-Windows-arm64-v3.2645.89-Setup.exe",
-  "sha256": "3757a667eba1f3dad0444affb1a37fee6439360480b64f85aeb1174a6904dc37",
+  "version": "3.2645.92",
+  "tag": "windows-v3.2645.92",
+  "installer_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v3.2645.92/SIDEY-Windows-arm64-v3.2645.92-Setup.exe",
+  "sha256": "64091baa128d17251f16ff0e6d1e3f95a34c6ae6ddc0060ccd023e893420dd65",
   "incremental": {
-    "manifest_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v3.2645.89/SIDEY-Windows-arm64-v3.2645.89-Update.json",
-    "sha256": "b43ca19984f9cd0fd225978bfaa3ecce087c27cffeddec155073a2ade04999de"
+    "manifest_url": "https://github.com/sidey-app/SIDEY/releases/download/windows-v3.2645.92/SIDEY-Windows-arm64-v3.2645.92-Update.json",
+    "sha256": "ff8b40ea447f7b4ba3274857f623c23d75c0a32a580a7fdee7d54fd141331643"
   }
 }
